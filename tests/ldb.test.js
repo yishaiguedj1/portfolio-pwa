@@ -183,7 +183,7 @@ const sv = (s) => ({ stringValue: s }), iv = (x) => ({ integerValue: String(x) }
   const chg = remote.get('snbChg', 'studioJobs~r3');
   ok(chg && chg.f.c.stringValue === 'studioJobs' && chg.f.i.stringValue === 'r3' && +chg.f.t.integerValue === clock && chg.f.m.arrayValue.values[0].stringValue === 'st', 'Vercel: כתיבה מוצלחת נרשמת ביומן snbChg (אוסף, מזהה, זמן, שדות)');
   await vpatch('/users/u1?updateMask.fieldPaths=pf', { pf: sv('x') });
-  ok(!remote.get('snbChg', 'users~u1'), 'Vercel: כתיבה ל־users לא נרשמת');
+  ok(!!remote.get('snbChg', 'users~u1'), 'Vercel: גם כתיבה ל־users נרשמת (שלב 4 — השרת מאחד כשמצב "דרך" דולק)');
   await ctl.merge();
   ok(ctl.store.get('studioJobs', 'r3').f.st.stringValue === 'vercel' && ctl.store.get('studioJobs', 'r3').dirty === 0, 'איחוד: מסמך שלא השתנה אצלנו — מקבל את הגרסה של Vercel');
   ok(!remote.get('snbChg', 'studioJobs~r3'), 'איחוד: הרשומה ביומן נמחקה');
@@ -302,7 +302,7 @@ const sv = (s) => ({ stringValue: s }), iv = (x) => ({ integerValue: String(x) }
 
   // האוספים של הטלפון = מה שהכללים פותחים
   const rules = read('firestore/firestore.rules');
-  const open = [...rules.matchAll(/match \/([A-Za-z]+)\/\{/g)].map((m) => m[1]).filter((c) => c !== 'databases').sort();
+  const open = [...rules.matchAll(/match \/([A-Za-z]+)\/\{/g)].map((m) => m[1]).filter((c) => c !== 'databases' && c !== C.CHG).sort();   // snbChg: שלב 4 — הטלפון רק כותב את הרשומה שלו (נבדק ב־udata.test)
   ok(open.join() === [...C.CLIENT].sort().join(), 'CLIENT (נשארים ב־Firestore) = האוספים שהכללים פותחים לטלפון: ' + open.join());
 
   const srv = read('ibkr-proxy/server.js');

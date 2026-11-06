@@ -103,6 +103,73 @@
   /* </auth> */
 
   /* <auth> */
+  /* ---- שלב 4 בתוכנית העצמאות מ־Firebase (6/11/2026): התיק והספרייה דרך השרת שלנו (/api/udata) ----
+     udGet(app) → { doc, ut, at } (doc=null: אין מסמך), או null = השרת לא זמין → הקוראת ממשיכה ל־Firestore כמו קודם.
+     udPut(app, data, del) — data כמו ל־set(…, { merge: true }), del = נתיבים למחיקה. true / false (false = לכתוב ישירות).
+     udDel(app) — מחיקת המסמך (רק invest). אחרי כתיבה ישירה ל־Firestore — udMark(app): רשומה ביומן snbChg (הכללים מתירים רק
+     את שלך) ודגל במכשיר; בבקשה הבאה שמצליחה השרת מאחד את המסמך מ־Firestore (fb). השרת לא זמין → 5 דק׳ בלי לנסות.
+     רק בכתובות של thesnowball.app (sessBase): ב־github.io השרתון הוא Vercel, ושם אין udata (404 → Firestore). */
+  const UD_COL = { invest: 'users', academy: 'academyUsers' };
+  const UD_OFF_MS = 5 * 60e3, UD_MS = 4000, UD_MEMO_MS = 10e3, LS_UDFB = 'pwa_udfb_v1';
+  let udDownUntil = 0, udSkew = 0, udWhy = '';   // udWhy: 'down' = השרת נפל (רק אז רשומה ביומן); 'off' = כבוי / אין (Vercel)
+  const udMemo = {};
+  const udFb = () => { try { return JSON.parse(localStorage.getItem(LS_UDFB) || '{}') || {}; } catch (e) { return {}; } };
+  const udFbSet = (app, on) => { try { const o = udFb(); if (on) o[app] = 1; else delete o[app]; localStorage.setItem(LS_UDFB, JSON.stringify(o)); } catch (e) {} };
+  function udUser() {
+    try { return typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length ? firebase.auth().currentUser : null; } catch (e) { return null; }
+  }
+  async function udCall(app, body) {
+    const base = sessBase(), u = udUser();
+    if (!base || !u || !UD_COL[app] || Date.now() < udDownUntil) return null;
+    let tk = '';
+    try { tk = await u.getIdToken(); } catch (e) { return null; }
+    const fb = !!udFb()[app];
+    const ac = typeof AbortController === 'function' ? new AbortController() : null;
+    const to = ac ? setTimeout(() => ac.abort(), UD_MS) : 0;
+    try {
+      const r = await fetch(base + '/api/udata', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.assign({ app, idToken: tk }, fb ? { fb: 1 } : {}, body)), signal: ac ? ac.signal : undefined,
+      });
+      const d = Date.parse((r.headers && r.headers.get && r.headers.get('date')) || '');
+      if (Number.isFinite(d)) udSkew = d - Date.now();
+      if (r.status === 200) { const j = await r.json(); if (j && j.ok) { udWhy = ''; if (fb) udFbSet(app, false); return j; } return null; }
+      let err = '';
+      try { err = String(((await r.json()) || {}).error || ''); } catch (e) {}
+      if (r.status === 404 || err === 'off') { udWhy = 'off'; udDownUntil = Date.now() + UD_OFF_MS; }
+      else if (r.status >= 500) { udWhy = 'down'; udDownUntil = Date.now() + UD_OFF_MS; }   // כולל not_ready (ייבוא באמצע)
+      else udWhy = 'err';
+      return null;
+    } catch (e) { udWhy = 'down'; udDownUntil = Date.now() + UD_OFF_MS; return null; } finally { clearTimeout(to); }
+  }
+  async function udGet(app) {
+    const m = udMemo[app], u = udUser();
+    if (m && u && m.uid === u.uid && Date.now() - m.at < UD_MEMO_MS) return m.v;   // הבדיקה בכניסה ומשיכת הספרייה — קריאה אחת
+    const j = await udCall(app, { op: 'get' });
+    const v = j ? { doc: j.doc || null, ut: +j.ut || 0, at: +j.at || 0 } : null;
+    if (v && u) udMemo[app] = { uid: u.uid, at: Date.now(), v };
+    return v;
+  }
+  async function udPut(app, data, del) {
+    delete udMemo[app];
+    return !!(await udCall(app, { op: 'put', data: data || {}, del: del || [] }));
+  }
+  async function udDel(app) {
+    delete udMemo[app];
+    return !!(await udCall(app, { op: 'del' }));
+  }
+  async function udMark(app, isDel) {
+    const u = udUser(), col = UD_COL[app];
+    if (!u || !col || !sessBase() || udWhy !== 'down') return;   // רק כשהשרת נפל (לא כשהוא כבוי / ב־github.io) — אין מה לאחד
+    udFbSet(app, true);
+    try {
+      await firebase.firestore().collection('snbChg').doc(col + '~' + u.uid).set({ c: col, i: u.uid, t: Math.round(Date.now() + udSkew), d: !!isDel, f: 1 });
+    } catch (e) {}
+  }
+  if (typeof window !== 'undefined') window.SNBud = { get: udGet, put: udPut, del: udDel, mark: udMark };
+  /* </auth> */
+
+  /* <auth> */
   function sdkOk() {
     return isConfigured &&
       typeof firebase !== 'undefined' &&
@@ -185,6 +252,15 @@
   function userDoc() {
     return fs.collection('users').doc(user.uid);
   }
+  /* שלב 4 (6/11/2026): קודם השרת שלנו (udGet), ורק כשהוא לא זמין — Firestore. at = מתי נשמר (updatedAt, ms) */
+  async function readCloud() {
+    const v = await udGet('invest');
+    if (v) return { exists: !!v.doc, data: () => v.doc, at: v.at };
+    const snap = await userDoc().get();
+    const data = snap.exists ? snap.data() : null;
+    const upd = data && data.updatedAt && typeof data.updatedAt.toMillis === 'function' ? data.updatedAt.toMillis() : 0;
+    return { exists: !!snap.exists, data: () => data, at: upd };
+  }
 
   function validCloudDb(d) {
     return d && d.v === 1 &&
@@ -245,7 +321,10 @@
     try {
       const d = JSON.parse(JSON.stringify(DB));
       // 27/10/2026: שדה שנמחק בטלפון נמחק גם בענן (merge משאיר שדות ישנים בתוך db — צילום ידני ישן היה חוזר)
-      for (const k of ['ibkrSnapshot', 'source']) if (!(k in d)) d[k] = firebase.firestore.FieldValue.delete();
+      const gone = ['ibkrSnapshot', 'source'].filter((k) => !(k in d));
+      // שלב 4: דרך השרת שלנו (אותה מסכה, ו־updatedAt נכתב שם); לא זמין — ישירות, ורשומה ביומן
+      if (await udPut('invest', { v: 1, db: d }, [['tdkey']].concat(gone.map((k) => ['db', k])))) return;
+      for (const k of gone) d[k] = firebase.firestore.FieldValue.delete();
       await userDoc().set({
         v: 1,
         db: d,
@@ -253,6 +332,7 @@
         tdkey: firebase.firestore.FieldValue.delete(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
+      await udMark('invest');
     } catch (e) {
       /* נכשל (למשל אין אינטרנט) — נשמר מקומית, ינסה שוב בשמירה הבאה */
     }
@@ -262,7 +342,10 @@
   async function saveIbkr(p) {
     if (held() || !user || !fs || localMode || demoOn() || !ready || !ownsLocal()) return false;
     try {
-      await userDoc().set({ ibkr: p && p.z ? { at: +p.at || 0, z: String(p.z) } : firebase.firestore.FieldValue.delete() }, { merge: true });
+      const has = !!(p && p.z);
+      if (await udPut('invest', has ? { ibkr: { at: +p.at || 0, z: String(p.z) } } : {}, has ? [] : [['ibkr']])) return true;
+      await userDoc().set({ ibkr: has ? { at: +p.at || 0, z: String(p.z) } : firebase.firestore.FieldValue.delete() }, { merge: true });
+      await udMark('invest');
       return true;
     } catch (e) { return false; }
   }
@@ -270,7 +353,7 @@
   async function resetCloud() {
     clearTimeout(saveTimer);
     if (!user || !fs || localMode || !ownsLocal()) return;
-    try { await userDoc().delete(); } catch (e) {}
+    try { if (!(await udDel('invest'))) { await userDoc().delete(); await udMark('invest', true); } } catch (e) {}
   }
 
   function showLogin() {
@@ -454,7 +537,7 @@
       renderAccountCard();
       sessCheck(true);
       try {
-        const snap = await userDoc().get();
+        const snap = await readCloud();
         const sw = switchOwner(u.uid, !!(snap.exists && validCloudDb((snap.data() || {}).db)));
         if (sw === true) return;                       // v313: הדף נטען מחדש עם הנתונים של החשבון הזה בלבד
         if (sw === 'stuck') { fallback(); return; }    // לא הצלחנו להחליף — לא כותבים לענן בכלל (ready נשאר false)
@@ -466,8 +549,7 @@
           if (applyCloudDb(data.db)) await flushSave();
           // 27/10/2026: הדוח של IBKR מהחשבון — הורדה / העלאה / מחיקה לפי מה שחדש יותר
           if (typeof window.ibkrCloudLoaded === 'function') {
-            const at = data.updatedAt && typeof data.updatedAt.toMillis === 'function' ? data.updatedAt.toMillis() : 0;
-            window.ibkrCloudLoaded(data.ibkr || null, data.db.source, at);
+            window.ibkrCloudLoaded(data.ibkr || null, data.db.source, snap.at);
           }
           /* מפתח Twelve Data לא נטען מהענן (אבטחה) — נשמר רק בטלפון שבו הוזן */
         } else {

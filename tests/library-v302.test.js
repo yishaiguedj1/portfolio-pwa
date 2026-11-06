@@ -83,7 +83,7 @@ const loc = { lastRead: 100, cfi: 'a', fraction: 0.2, done: false };
 ok(L.mergeProgress(loc, { t: 50, c: 'b', f: 0.9 }) === null && L.mergeProgress(loc, null) === null, 'התקדמות ישנה מהענן לא דורסת את המקומית');
 const m = L.mergeProgress(loc, { t: 200, c: 'b', f: 0.9, d: true });
 ok(m && m.cfi === 'b' && m.fraction === 0.9 && m.done && m.lastRead === 200, 'התקדמות חדשה ממכשיר אחר — נכנסת');
-ok(/\.set\(\{ lib(: \{ [ps] \})? \}, \{ merge: true \}\)/.test(lib) && !/set\(\{[^}]*\bdb\b/.test(lib), 'הענן: שדה lib נפרד עם merge — לא נוגע בתיק (db)');
+ok(/libSet\(ref, \{ lib(: \{ [ps]: S \})? \}\)/.test(lib) && /ref\.set\(data, \{ merge: true \}\)/.test(lib) && !/set\(\{[^}]*\bdb\b/.test(lib), 'הענן: שדה lib נפרד עם merge — לא נוגע בתיק (db)');
 ok(/goView\(\{ book: b\.id \}\)/.test(lib) && /lv: v/.test(lib) && /history\.state\.lv/.test(lib), 'כריכה פותחת דף מכתב, ו"חזור" מחזיר ממנו לספרייה');
 
 // שלב 4 (v306) — הדגשות, הערות, סימניות, כרטיס ציטוט
@@ -98,7 +98,7 @@ const ql = L.wrapQuote('אחת שתיים שלוש ארבע חמש שש', 10, (t
 ok(ql.length === 2 && ql[1].endsWith('…') && L.wrapQuote('קצר', 100, (t) => t.length, 3).join() === 'קצר', 'כרטיס ציטוט: שבירת שורות וקיצור עם …');
 const keys4 = ['hlNote', 'hlQuote', 'hlRemove', 'bmAdd', 'tabHl', 'tabBm', 'learnTitle', 'qShare'];   // v326: "מחיקה" בבועה הוחלף בכפתור "הסרת הסימון" (hlRemove)
 ok(keys4.every((k) => lib.includes("'" + k + "'")), 'כל הפעולות של שלב 4 מחוברות בממשק');
-ok(/set\(\{ lib \}, \{ merge: true \}\)/.test(lib) && /lib\.a/.test(lib), 'הדגשות בענן: lib.a עם merge (לא נוגע בתיק)');
+ok(/libSet\(ref, \{ lib \}\)/.test(lib) && /lib\.a/.test(lib), 'הדגשות בענן: lib.a עם merge (לא נוגע בתיק)');
 
 // שלב 5 (v307) — שכבת האקדמיה
 const lib5 = [{ id: 'a', year: 1987, author: 'וורן א. באפט', title: 'מכתב באפט 1987' }, { id: 'p', year: 1965, author: 'וורן באפט', title: 'מכתב לשותפות 1965' },

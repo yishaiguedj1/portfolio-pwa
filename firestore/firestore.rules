@@ -24,6 +24,21 @@ service cloud.firestore {
       allow update: if signedInAs(uid) && appIs('academy')
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lib']);
     }
+    // שלב 4 בתוכנית העצמאות (6/11/2026): כשהשרת שלנו לא זמין, הטלפון כותב את התיק/הספרייה כאן ישירות — ורושם ביומן
+    // השינויים רשומה אחת משלו, כדי שהשרת יאחד כשיחזור (ibkr-proxy/lib/ldbsync.js). רק הרשומה של המסמך שלו, רק כתיבה,
+    // רק השדות c/i/t/d/f, ו־t בטווח של 5 דק׳ מהשעון של Google (הסמן של האיחוד לא זז לעתיד). קריאה — אסור.
+    match /snbChg/{id} {
+      allow create, update: if request.auth != null
+        && ((id == 'users~' + request.auth.uid && request.resource.data.c == 'users' && appIs('invest'))
+          || (id == 'academyUsers~' + request.auth.uid && request.resource.data.c == 'academyUsers' && appIs('academy')))
+        && request.resource.data.keys().hasOnly(['c', 'i', 't', 'd', 'f'])
+        && request.resource.data.i == request.auth.uid
+        && request.resource.data.t is int
+        && request.resource.data.t > request.time.toMillis() - 300000
+        && request.resource.data.t < request.time.toMillis() + 300000
+        && request.resource.data.d is bool
+        && request.resource.data.f == 1;
+    }
     // ברירת מחדל: הכל סגור
     match /{document=**} {
       allow read, write: if false;

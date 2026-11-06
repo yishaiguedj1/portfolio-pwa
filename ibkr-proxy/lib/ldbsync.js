@@ -25,7 +25,7 @@ const errOf = (e) => String((e && (e.code || e.message)) || e).replace(/(https?:
 const MIRROR_MS = 60e3, MIRROR_SLOW_MS = 5 * 60e3, MERGE_MS = 120e3, IMPORT_MS = 4e3, SNAP_MS = 10 * 60e3, SNAP_MEM_MS = 3 * 60e3;
 const MIRROR_DAY = 12000, MIRROR_SLOW = 8000;    // כתיבות לעותק ביום (מכסת Firestore: 20 אלף)
 const IMPORT_DAY = 8000;                         // קריאות ביום לייבוא (מכסה: 50 אלף)
-const BATCH = 450, BATCH_BYTES = 6e6, CHG_PAGE = 200, OVERLAP_MS = 60e3, TOMB_KEEP_MS = 3 * 864e5;
+const BATCH = 450, BATCH_BYTES = 6e6, CHG_PAGE = 200, OVERLAP_MS = 6 * 60e3, TOMB_KEEP_MS = 3 * 864e5;
 /* הסדר של הייבוא: הקטנים והחמים קודם (הקריאות של הלולאות), studioJobs (הגדול) אחריהם, ושאר האוספים לפי הא״ב */
 const PRIO = ['sysCfg', 'studioServers', 'studioStats', 'studioOps', 'studioUp', 'studioVault', 'studioJobs'];
 const SNAP_MAGIC = Buffer.from('SNBLDB1');
@@ -121,8 +121,25 @@ function create(o = {}) {
     // מההתחלה: רשומות ש־Vercel כתב ביומן לפני ההדלקה (הקוד ב־Vercel נפרס לפני שהנפח הותקן) — מטופלות ונמחקות באיחוד הראשון
     if (store.kv('chgSince') == null) store.kv('chgSince', 0);
     S.on = true; S.why = '';
+    C.setThruProbe(thruProbe);
     if (snapAt) await tagged('restore', () => catchUp(snapAt)).catch((e) => { S.restored += ' catchup_err:' + errOf(e); });
     return true;
+  }
+  /* שלב 4: הדגל ud_srv (sysCfg/main.flOn) מהמסד עצמו — בלי קריאה ל־Firestore. מטמון 5 שנ׳. כבוי אחרי שהיה דולק —
+     האוספים של הטלפון יוצאים מהמסד (dropCol), כדי שבהדלקה הבאה ייובאו מחדש ולא יוגש עותק ישן */
+  let probeAt = 0, probeV = false;
+  function thruProbe() {
+    if (!store) return false;
+    const t = now();
+    if (t - probeAt < 5000) return probeV;
+    probeAt = t;
+    const d = store.get('sysCfg', 'main');
+    const fl = d && d.f && d.f.flOn && d.f.flOn.stringValue;
+    const v = String(fl || '').split(',').includes('ud_srv');
+    if (probeV && !v && env.SNB_UDATA !== 'on') for (const c of C.CLIENT) if (store.cols.has(c)) store.dropCol(c);
+    if (v) for (const c of C.CLIENT) if (!store.cols.has(c)) store.setCol(c, { st: 'imp' });   // הודלק — לייבוא
+    probeV = v;
+    return v;
   }
   /* אחרי שחזור: מה שנשלח לעותק אחרי תמונת המצב (_mt) — חוזר למסד */
   async function catchUp(snapAt) {
@@ -153,6 +170,19 @@ function create(o = {}) {
       const method = String((init && init.method) || 'GET').toUpperCase();
       let body = null;
       if (method !== 'GET' && init && typeof init.body === 'string') { try { body = JSON.parse(init.body); } catch (e) { return f(input, init); } }
+      // שלב 4: כתיבה לאוסף של הטלפון (מצב "דרך") — קודם ל־Firestore, ומשם למסד (learn). רק כש־Firestore לא זמין — מקומית
+      // (dirty, והעותק ישלח אחר כך). כך כתיבה ישירה של הטלפון ב־Firestore לא נדרסת בעותק של מסמך שלם
+      if (method !== 'GET' && C.changesOf(method, url, body).list.some((ch) => C.thru(ch.col))) {
+        let res = null;
+        try { res = await f(input, init); } catch (e) { res = null; }
+        if (res && res.status !== 429 && res.status < 500) { try { await learn(method, url, body, res); } catch (e) {} return res; }
+        S.thruLocal = (S.thruLocal || 0) + 1;
+        let lr = null;
+        try { lr = store.handle(method, url, body); } catch (e) { lr = null; }
+        if (lr) return new Response(JSON.stringify(lr.j), { status: lr.status, headers: { 'content-type': 'application/json; charset=UTF-8' } });
+        if (res) return res;
+        throw new Error('fs_down');
+      }
       let r = null;
       try { r = store.handle(method, url, body); } catch (e) { r = null; }
       if (r) {
@@ -173,7 +203,7 @@ function create(o = {}) {
     const col = u.path.length ? u.path[0] : '';
     if (col && C.serverCol(col) && !store.cols.has(col)) store.setCol(col, { st: 'imp' });
     if (!res || res.status !== 200 || method === 'GET') return;
-    const { list } = C.changesOf(method, url, body);
+    const list = C.changesOf(method, url, body).list.filter((ch) => C.serverCol(ch.col));   // היומן רושם גם את אוספי הטלפון — כאן רק מה שבמסד
     if (!list.length) return;
     if (method === 'PATCH') {
       const d = await res.clone().json();
@@ -246,7 +276,7 @@ function create(o = {}) {
         ((f.m && f.m.arrayValue && f.m.arrayValue.values) || []).map((v) => v.stringValue), +(f.f && f.f.integerValue || 0) > 0);
       seenChg.set(d.name, d.updateTime);
       done.push({ delete: d.name, currentDocument: { updateTime: d.updateTime } });   // רק אם Vercel לא כתב שוב בינתיים
-      if (t > maxT) maxT = t;
+      if (t > maxT) maxT = Math.min(t, now());   // שלב 4: רשומה של הטלפון — השעון שלו; הסמן לא קופץ קדימה
       S.merge.n++;
     }
     if (seenChg.size > 2000) seenChg = new Map([...seenChg].slice(-500));
@@ -272,6 +302,21 @@ function create(o = {}) {
     store.putRemote(c, id, doc, { lw: t });
   }
 
+  /* שלב 4 (lib/udata.js): הטלפון כתב ישירות ב־Firestore כשהשרת לא היה זמין — קוראים את המסמך משם ומאחדים
+     ("השינוי האחרון גובר": מסמך מקומי שעוד לא נשלח ונכתב אחרי Firestore — נשאר). קריאה אחת */
+  async function refresh(c, id) {
+    if (!store || !C.serverCol(c) || !store.ready(c) || !/^[A-Za-z0-9_-]{1,128}$/.test(String(id || ''))) return false;
+    const g = await tagged('udata', () => call('GET', BASE + '/' + c + '/' + encodeURIComponent(id)));
+    S.rDay++;
+    const rec = store.rec(c, id);
+    if (g.status === 404) { if (!rec || !rec.dirty) store.putTomb(c, id, {}); return true; }
+    if (g.status !== 200) throw new Error('fs_http_' + g.status);
+    const t = Math.floor(L.parseUt(g.j.updateTime) / 1000);
+    if (rec && rec.dirty && (rec.lw || 0) > t) return true;
+    store.putRemote(c, id, g.j, { lw: t });
+    return true;
+  }
+
   /* ---------- 4. הייבוא ---------- */
   async function importTick() {
     if (!store) return;
@@ -292,7 +337,7 @@ function create(o = {}) {
       if (g.status === 200) store.putRemote(c, id, g.j, { ifNewer: !store.ready(c) });
       else if (g.status === 404) store.putTomb(c, id, { ifNewer: true });
     }
-    const todo = [...store.cols.entries()].filter(([, x]) => x.st !== 'ready').sort((a, b) => prio(a[0]) - prio(b[0]) || (a[0] < b[0] ? -1 : 1));
+    const todo = [...store.cols.entries()].filter(([c, x]) => x.st !== 'ready' && C.serverCol(c)).sort((a, b) => prio(a[0]) - prio(b[0]) || (a[0] < b[0] ? -1 : 1));
     if (!todo.length) { S.imp.col = ''; return; }
     const [c, x] = todo[0];
     S.imp.col = c;
@@ -353,9 +398,10 @@ function create(o = {}) {
       loc: s.loc, locReads: s.locReads, w: s.w, pass: s.pass, passWhy: s.passWhy, day: S.day, wDay: S.wDay, rDay: S.rDay,
       mirror: { at: S.mirror.at ? new Date(S.mirror.at).toISOString() : '', n: S.mirror.n, err: S.mirror.err || undefined, bad: S.mirror.bad || undefined },
       merge: { at: S.merge.at ? new Date(S.merge.at).toISOString() : '', n: S.merge.n, err: S.merge.err || undefined },
-      snap: { at: S.snap.at ? new Date(S.snap.at).toISOString() : '', mb: S.snap.mb, err: S.snap.err || undefined }, restored: S.restored || undefined };
+      snap: { at: S.snap.at ? new Date(S.snap.at).toISOString() : '', mb: S.snap.mb, err: S.snap.err || undefined }, restored: S.restored || undefined,
+      thru: C.thruOn() ? { local: S.thruLocal || 0 } : undefined };
   }
-  const ctl = { start, wrapFetch, mirror, merge, importTick, snapshot, flush, status, catchUp, get store() { return store; }, stop: () => { timers.forEach(clearInterval); timers = []; if (store) store.close(); store = null; } };
+  const ctl = { start, wrapFetch, mirror, merge, importTick, snapshot, flush, status, catchUp, refresh, get store() { return store; }, stop: () => { timers.forEach(clearInterval); timers = []; if (store) store.close(); store = null; } };
   cur = ctl;
   return ctl;
 }
@@ -373,5 +419,8 @@ function forServer(inner, env = process.env) {
   return create({ fetch: inner, env, r2, key });
 }
 const status = () => (cur ? cur.status() : { on: false, why: 'not_started' });
+/* lib/udata.js: האם אוסף כבר במסד (מוכן), ואיחוד של מסמך אחד מ־Firestore */
+const ready = (c) => !!(cur && cur.store && cur.store.ready(c));
+const refresh = (c, id) => (cur ? cur.refresh(c, id) : Promise.resolve(false));
 
-module.exports = { create, forServer, status, sealSnap, openSnap, MIRROR_DAY, IMPORT_DAY, PRIO };
+module.exports = { create, forServer, status, ready, refresh, sealSnap, openSnap, MIRROR_DAY, IMPORT_DAY, PRIO };

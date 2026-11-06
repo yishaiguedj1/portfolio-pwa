@@ -71,6 +71,7 @@ function fakeRes() { const r = { code: 0, body: null, headers: {} }; r.setHeader
     const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
     for (const line of src.split('\n')) {
       const m = /'\/api\/([a-z-]+)'/.exec(line); if (!m) continue;
+      if (f === 'auth.js' && m[1] === 'udata') continue;   // שלב 4: udata בודק את האפליקציה לפי האוסף (lib/udata.js) — Studio לא קורא לו
       const op = (/op: *'([A-Za-z]+)'/.exec(line) || [])[1];
       const sc = scopeFor(m[1], op || (m[1] === 'library' && f === 'app.js' ? 'gdToken' : ''));
       if (sc && apps.some((a) => !sc.includes(a))) bad.push(f + ' → /api/' + m[1] + (op ? ' ' + op : ''));

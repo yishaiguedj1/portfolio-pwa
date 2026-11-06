@@ -55,5 +55,22 @@ await ok(assertFails(getDoc(doc(env.authenticatedContext('bob', { app: 'academy'
 await ok(assertSucceeds(setDoc(doc(env.authenticatedContext('dan', { app: 'academy' }).firestore(), 'academyUsers/dan'), { lib: { p: {} } })), 'משתמש חדש יוצר את המסמך שלו ב־Academy');
 await ok(assertFails(setDoc(doc(env.authenticatedContext('eve', { app: 'academy' }).firestore(), 'academyUsers/eve'), { lib: {}, mv: 1 })), 'ביצירה — רק lib');
 await ok(assertSucceeds(deleteDoc(doc(alice, 'users/alice'))), 'משתמש מוחק את המסמך שלו (איפוס מלא)');
+// שלב 4 בתוכנית העצמאות (6/11/2026): הרשומה של הטלפון ביומן השינויים (כשהשרת שלנו לא זמין)
+const mk = (c, i, x) => Object.assign({ c, i, t: Date.now(), d: false, f: 1 }, x || {});
+const invA = env.authenticatedContext('alice', { app: 'invest' }).firestore(), acA = env.authenticatedContext('alice', { app: 'academy' }).firestore();
+await ok(assertSucceeds(setDoc(doc(invA, 'snbChg/users~alice'), mk('users', 'alice'))), 'Invest רושם ביומן את המסמך שלו');
+await ok(assertSucceeds(setDoc(doc(acA, 'snbChg/academyUsers~alice'), mk('academyUsers', 'alice'))), 'Academy רושמת ביומן את המסמך שלה');
+await ok(assertSucceeds(setDoc(doc(alice, 'snbChg/users~alice'), mk('users', 'alice', { d: true }))), 'בלי app — גם (מחיקה)');
+await ok(assertFails(setDoc(doc(invA, 'snbChg/users~bob'), mk('users', 'bob'))), 'יומן — אסור רשומה של משתמש אחר');
+await ok(assertFails(setDoc(doc(invA, 'snbChg/users~alice'), mk('users', 'bob'))), 'יומן — i חייב להיות ה־uid');
+await ok(assertFails(setDoc(doc(invA, 'snbChg/academyUsers~alice'), mk('academyUsers', 'alice'))), 'יומן — Invest לא רושם את הספרייה');
+await ok(assertFails(setDoc(doc(invA, 'snbChg/studioJobs~alice'), mk('studioJobs', 'alice'))), 'יומן — לא אוסף של השרתון');
+await ok(assertFails(setDoc(doc(invA, 'snbChg/users~alice'), mk('users', 'alice', { t: Date.now() + 3600e3 }))), 'יומן — t בעתיד נדחה');
+await ok(assertFails(setDoc(doc(invA, 'snbChg/users~alice'), mk('users', 'alice', { t: Date.now() - 3600e3 }))), 'יומן — t ישן נדחה');
+await ok(assertFails(setDoc(doc(invA, 'snbChg/users~alice'), mk('users', 'alice', { m: ['db'] }))), 'יומן — רק השדות c/i/t/d/f');
+await ok(assertFails(setDoc(doc(invA, 'snbChg/users~alice'), mk('users', 'alice', { f: 0 }))), 'יומן — f=1 בלבד');
+await ok(assertFails(getDoc(doc(invA, 'snbChg/users~alice'))), 'יומן — אסור לקרוא');
+await ok(assertFails(getDocs(collection(invA, 'snbChg'))), 'יומן — אסור לרשום');
+await ok(assertFails(setDoc(doc(anon, 'snbChg/users~alice'), mk('users', 'alice'))), 'יומן — בלי התחברות אסור');
 await env.cleanup();
 console.log('# ' + n + ' בדיקות עברו');

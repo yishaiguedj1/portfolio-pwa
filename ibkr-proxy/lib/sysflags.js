@@ -4,6 +4,7 @@
    ושמות קצרים כמו f/m כבר תפוסים — לכן שמות ארוכים וייחודיים):
      mtOn (0/1) · mtMsg (הודעה למשתמשים) · mtTil (עד מתי, 0 = עד שמכבים) · mtAt (מתי הודלק)
      flOff — רשימה מופרדת בפסיקים של הדגלים שכבויים (כל דגל שלא ברשימה — דולק; דגל חדש דולק כברירת מחדל)
+     flOn — הדגלים שכבויים כברירת מחדל (def:false) ושהודלקו (6/11/2026 — שינוי שנדלק בהדרגה: קודם בניסוי, אחר כך בייצור)
      amEm — מי מקבל את כל מצבי התרגום (15/10/2026, בקשת המשתמש): מיילים מופרדים בפסיקים, אותיות קטנות. לכולם — רק
      PUBLIC_MODES (lib/studio.js); המנהל ומי שברשימה — כל המצבים. נאכף ב־api/studio.js (modeOk). לא יוצא ב־publicCfg
      tsEm — חשבונות הבדיקה של הסטודיו (25/10/2026, בקשת המשתמש): גישה לסטודיו כמו משתמש רגיל — "רגיל"/"ביצועים", "המנוי שלי"
@@ -19,8 +20,10 @@ const FLAGS = [
   { k: 'learn_full', app: 'all', where: 'api/studio.js — learnFull, devSrv, devErr, devPull' },     // 15/10/2026: האיסוף המלא בתקופת הפיתוח (לוגים, קריאות, מדדים, שגיאות, טקסט מלא) — לכבות כשיהיו משתמשים
   { k: 'push', app: 'all', where: 'api/studio.js — notify' },                                       // התראות לטלפון
   { k: 'iv_live', app: 'invest', where: 'app.js — liveCanTick' },                                   // מחירים חיים ב־Invest
+  { k: 'ud_srv', app: 'all', def: false, where: 'lib/ldbsync.js — thruProbe' },                    // 6/11/2026: התיק והספרייה דרך השרת שלנו (שלב 4, lib/udata.js) — כבוי עד שמדליקים
 ];
 const KEYS = FLAGS.map((f) => f.k);
+const DEF_OFF = FLAGS.filter((f) => f.def === false).map((f) => f.k);
 const MSG_MAX = 140;
 const TIL_MAX = 7 * 864e5;   // תחזוקה מתוזמנת — עד שבוע קדימה
 const AM_MAX = 50;   // מיילים ברשימת "כל המודלים"
@@ -39,12 +42,13 @@ function normMsg(s) {
   return String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\bhttps?:\/\/\S+/gi, '').replace(/\s+/g, ' ').trim().slice(0, MSG_MAX);
 }
 const offSet = (doc) => new Set(String((doc && doc.flOff) || '').split(',').filter((k) => KEYS.includes(k)));
+const onSet = (doc) => new Set(String((doc && doc.flOn) || '').split(',').filter((k) => DEF_OFF.includes(k)));
 
 /* האם התחזוקה פעילה עכשיו (פגה לבד ב־mtTil) */
 function maintOn(doc, now) {
   return !!(doc && +doc.mtOn === 1 && (!(+doc.mtTil > 0) || now < +doc.mtTil));
 }
-const flagOn = (doc, k) => !offSet(doc).has(k);
+const flagOn = (doc, k) => (DEF_OFF.includes(k) ? onSet(doc).has(k) : !offSet(doc).has(k));
 
 
 /* 15/10/2026 (מרכז הניהול ← הודעות): הודעה שהמנהל כותב — כותרת וטקסט, לאילו אפליקציות, עד מתי. מוצגת פעם אחת בכל מכשיר
@@ -62,14 +66,14 @@ function anView(doc, now) {
 
 /* מה שהאפליקציות מקבלות (בלי התחברות): רק התחזוקה וההדלקה של כל דגל — בלי מי הדליק ומתי */
 function publicCfg(doc, now) {
-  const off = offSet(doc), f = {};
-  for (const k of KEYS) f[k] = !off.has(k);
+  const f = {};
+  for (const k of KEYS) f[k] = flagOn(doc, k);
   return { m: maintOn(doc, now) ? { on: true, msg: normMsg(doc.mtMsg), til: +doc.mtTil > 0 ? +doc.mtTil : 0 } : null, f, an: anView(doc, now) };
 }
 /* למנהל: הכל, כולל מתי הודלק */
 function adminCfg(doc, now) {
   return Object.assign(publicCfg(doc, now), { mt: { on: +((doc && doc.mtOn) || 0) === 1, msg: normMsg(doc && doc.mtMsg), til: +((doc && doc.mtTil) || 0), at: +((doc && doc.mtAt) || 0) },
-    flags: FLAGS.map((x) => ({ k: x.k, app: x.app, on: !offSet(doc).has(x.k) })), am: amList(doc), ts: tsList(doc),
+    flags: FLAGS.map((x) => Object.assign({ k: x.k, app: x.app, on: flagOn(doc, x.k) }, x.def === false ? { def: false } : {})), am: amList(doc), ts: tsList(doc),
     anD: { t: normAn(doc && doc.anT, AN_T_MAX), b: normAn(doc && doc.anB, AN_B_MAX), apps: anApps(doc && doc.anApps), til: +((doc && doc.anTil) || 0), on: +((doc && doc.anId) || 0) > 0 } });
 }
 /* שינוי מהמנהל → השדות לכתיבה (או null — לא תקין). b = { mt: {on, msg, til} } או { flag: k, on } או { am: מייל, on } או { ts: מייל, on } */
@@ -79,6 +83,11 @@ function applyAdmin(doc, b, now) {
     const til = Math.floor(Number(b.mt.til) || 0);
     if (til && (til <= now || til > now + TIL_MAX)) return null;
     return { mtOn: on ? 1 : 0, mtMsg: normMsg(b.mt.msg), mtTil: on ? til : 0, mtAt: on ? (maintOn(doc, now) ? +doc.mtAt || now : now) : 0 };
+  }
+  if (b && DEF_OFF.includes(b.flag) && typeof b.on === 'boolean') {
+    const on = onSet(doc);
+    if (b.on) on.add(b.flag); else on.delete(b.flag);
+    return { flOn: DEF_OFF.filter((k) => on.has(k)).join(',') };
   }
   if (b && KEYS.includes(b.flag) && typeof b.on === 'boolean') {
     const off = offSet(doc);
@@ -108,4 +117,4 @@ function applyAdmin(doc, b, now) {
   return null;
 }
 
-module.exports = { AN_APPS, anView, normAn, FLAGS, KEYS, MSG_MAX, TIL_MAX, AM_MAX, normMsg, normEmail, maintOn, flagOn, publicCfg, adminCfg, applyAdmin, amList, amHas, TS_MAX, tsList, tsHas };
+module.exports = { AN_APPS, anView, normAn, FLAGS, KEYS, DEF_OFF, MSG_MAX, TIL_MAX, AM_MAX, normMsg, normEmail, maintOn, flagOn, publicCfg, adminCfg, applyAdmin, amList, amHas, TS_MAX, tsList, tsHas };

@@ -176,6 +176,8 @@ function createStore(o = {}) {
   const st = {
     put: db.prepare('INSERT INTO docs (col, id, f, ct, ut, utu, lw, dirty, del) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(col, id) DO UPDATE SET f=excluded.f, ct=excluded.ct, ut=excluded.ut, utu=excluded.utu, lw=excluded.lw, dirty=excluded.dirty, del=excluded.del'),
     rm: db.prepare('DELETE FROM docs WHERE col = ? AND id = ?'),
+    rmCol: db.prepare('DELETE FROM docs WHERE col = ?'),
+    rmColSt: db.prepare('DELETE FROM cols WHERE col = ?'),
     clean: db.prepare('UPDATE docs SET dirty = 0 WHERE col = ? AND id = ? AND lw = ?'),
     colPut: db.prepare('INSERT INTO cols (col, st, pt, n, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(col) DO UPDATE SET st=excluded.st, pt=excluded.pt, n=excluded.n, at=excluded.at'),
     kvGet: db.prepare('SELECT v FROM kv WHERE k = ?'),
@@ -488,6 +490,12 @@ function createStore(o = {}) {
     for (const [c, m] of mem) for (const [id, r] of m) if (r.del && !r.dirty && nowMs() - (r.lw || 0) > maxAgeMs) { m.delete(id); st.rm.run(c, id); n++; }
     return n;
   }
+  /* שלב 4: אוסף שיצא מהמסד (הדגל ud_srv נכבה) — נמחק כולו, כדי שלא יישאר עותק ישן; בהדלקה הבאה — ייבוא מחדש */
+  function dropCol(c) {
+    const m = mem.get(c);
+    if (m) for (const r of m.values()) if (r.f) bytes -= JSON.stringify(r.f).length;
+    mem.delete(c); cols.delete(c); st.rmCol.run(c); st.rmColSt.run(c); stats.gen++;
+  }
   function setCol(c, v) { const x = Object.assign({ st: 'imp', pt: '', n: 0, at: 0 }, cols.get(c) || {}, v); cols.set(c, x); st.colPut.run(c, x.st, x.pt || '', x.n || 0, x.at || 0); return x; }
   function kv(k, v) {
     if (v === undefined) { const r = st.kvGet.get(k); if (!r) return null; try { return JSON.parse(r.v); } catch (e) { return null; } }
@@ -522,7 +530,7 @@ function createStore(o = {}) {
   const get = (c, id) => { const r = live(c, id); return r ? { f: clone(r.f), ut: r.ut, lw: r.lw, dirty: r.dirty } : null; };
   const rec = (c, id) => colMap(c).get(id) || null;
 
-  return { project, db, handle, ready, cols, setCol, kv, dump, load, putRemote, putTomb, mergeFields, dirtyRows, markClean, purgeTombs, info, stats, get, rec,
+  return { project, db, handle, ready, cols, setCol, dropCol, kv, dump, load, putRemote, putTomb, mergeFields, dirtyRows, markClean, purgeTombs, info, stats, get, rec,
     close: () => db.close(), _mem: mem };
 }
 

@@ -42,7 +42,8 @@ async function verifyIdToken(token, opts = {}) {
   // authTime/provider — לחיבור המשותף (lib/session.js): עוגייה רק מהתחברות טרייה עם Google, לא מטוקן מותאם
   // 29/10/2026: name — לניטור המשתמשים במרכז הניהול (lib/usermon.js idOf)
   const u = { uid: claims.sub, email: String(claims.email || '').toLowerCase(), name: String(claims.name || '').slice(0, 80), verified: !!claims.email_verified,
-    authTime: +claims.auth_time || 0, provider: String((claims.firebase || {}).sign_in_provider || '') };
+    authTime: +claims.auth_time || 0, provider: String((claims.firebase || {}).sign_in_provider || ''),
+    app: typeof claims.app === 'string' ? claims.app.slice(0, 20) : '' };   // שלב 4 (lib/udata.js): כמו appIs בכללים
   u.linked = await linkedEmails(token, claims, u, opts, project);
   return u;
 }
