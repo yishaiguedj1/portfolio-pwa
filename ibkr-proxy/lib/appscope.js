@@ -16,7 +16,8 @@ const SCOPE = {
   translate: ['academy'],
   bookmeta: ['academy'],
   studio: ['studio'],
-  udata: ['invest', 'academy'],   // שלב 4 (6/11/2026): users רק ל־invest, academyUsers רק ל־academy — נבדק גם ב־lib/udata.js
+  udata: ['invest', 'academy'],
+  cashflow: ['cashflow'],   // 6/11/2026: Cashflow (lib/cashflow.js, רק בשרת) — הדוחות מרייזאפ; נבדק גם בתוך הפעולה עצמה   // שלב 4 (6/11/2026): users רק ל־invest, academyUsers רק ל־academy — נבדק גם ב־lib/udata.js
 };
 /* חריגים לפי op: הגיבוי של Invest ל־Drive (pfbackup.js) עובר דרך פעולות gd* של /api/library;
    op:'cfg' של /api/studio = מצב התחזוקה והדגלים הציבוריים — כל שלוש האפליקציות טוענות אותו (core.js);

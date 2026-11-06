@@ -65,6 +65,7 @@
 | עקרונות ServiceNow (המגדל וההחלטות בסטודיו) | `docs/servicenow.md` |
 | **התקנים הפנימיים** (עיצוב, קורא, גרף, ניתוח, נגן, פיקוח) + חוקי הבנייה הנקייה | `docs/standards.md` |
 | היסטורי: תיאום הסשנים הישן, פריטים פתוחים ישנים | `docs/sessions-history.md`, `docs/open-items-history.md` |
+| **Cashflow** — האפליקציה הרביעית (תזרים מרייזאפ): מודול השרת `/api/cashflow` (גל 1), המנוע מ־riseup-finance, אבטחה, הדלקה, הגלים | `docs/cashflow.md` |
 | משימות פתוחות (הרשימה הפעילה) | `משימות-פתוחות.md` |
 
 קבצים מרכזיים בקצרה: `app.js` (Invest, הכל; `APP_VERSION`/`APP_RELEASE` באזור `<core>`), `sw.js` (המטמון — רק דרך `node tools/swgen.js`), `core.js`/`auth.js`/`strings-*.js` (נוצרים — `node tools/coregen.js`), `shell.js` (הדר Academy/Studio), `library.js`, `studio.js` + `studionet.js`, `admin-app.js`, `cloud.js`, `firebase-config.js` (`SNB_ENV`), `ibkr-proxy/api/*` (Vercel — **12 מתוך 12 פונקציות**; פעולה חדשה = `op` בקובץ קיים או `SERVER_ONLY`), `ibkr-proxy/lib/ldb*.js` (המסד שלנו — כתיבה ישירה ל־Firestore מחוץ לשרתון חייבת יומן `snbChg`), `translator/` (העובד), `android/` (flavors).
