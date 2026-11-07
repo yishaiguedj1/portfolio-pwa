@@ -44,6 +44,9 @@ async function verifyIdToken(token, opts = {}) {
   const u = { uid: claims.sub, email: String(claims.email || '').toLowerCase(), name: String(claims.name || '').slice(0, 80), verified: !!claims.email_verified,
     authTime: +claims.auth_time || 0, provider: String((claims.firebase || {}).sign_in_provider || ''),
     app: typeof claims.app === 'string' ? claims.app.slice(0, 20) : '' };   // שלב 4 (lib/udata.js): כמו appIs בכללים
+  // 6/11/2026 (שלב 2, lib/accounts.js): מזהי Google של החשבון — לרישום השקט אצלנו (אותו uid, אותו חשבון Google)
+  const gid = ((claims.firebase || {}).identities || {})['google.com'];
+  u.gsubs = Array.isArray(gid) ? gid.map(String).filter((x) => /^\d{5,40}$/.test(x)).slice(0, 5) : [];
   u.linked = await linkedEmails(token, claims, u, opts, project);
   return u;
 }
