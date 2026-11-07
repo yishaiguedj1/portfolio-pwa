@@ -387,6 +387,7 @@ function addMailSheet(u) {
     const cred = fb().auth.EmailAuthProvider.credential(e, pw.value);
     try {
       await u.linkWithCredential(cred);
+      if (A().pwSet) A().pwSet(u, pw.value);   // שלב 2: הסיסמה החדשה גם אצלנו (pwSet דורש כניסה טרייה — אם לא, תגיע בכניסה הבאה בסיסמה)
       if (!u.emailVerified) { try { await sendVerify(u); } catch (x) {} }
       say(t('accLinked')); s.close(); methodsSheet();
     } catch (x) {

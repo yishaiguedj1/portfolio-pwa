@@ -213,6 +213,16 @@ function run(host, server, uid, ls, opt) {
   await r.loginBtn()._click(); await tick(30);
   ok(E.wins.length === 1 && r.calls.some((c) => c.body.op === 'login'), 'הלחיצה הבאה — הכניסה של Firebase (כמו היום)');
 
+  /* חזרה בלי קוד (בוטל / Google חסם בחלון, למשל redirect_uri_mismatch) → בלי הודעה, והלחיצה הבאה — Firebase (בלי לולאה) */
+  E = gEnv();
+  r = await run('invest-staging.thesnowball.app', gSrv(), null, null, { ext: E.ext });
+  fix(r.sb);
+  p = r.loginBtn()._click(); await tick(30);
+  E.post({ state: new URL(E.wins[0].href).searchParams.get('state'), code: '', error: 'access_denied' }); await p; await tick(20);
+  ok(!r.calls.some((c) => c.body.op === 'gLogin') && r.customs.length === 0, 'חזרה בלי קוד — בלי gLogin');
+  await r.loginBtn()._click(); await tick(30);
+  ok(E.wins.length === 1 && r.calls.some((c) => c.body.op === 'login'), 'אחרי חזרה בלי קוד — הלחיצה הבאה דרך Firebase (בלי לולאה)');
+
   /* כבוי בשרת → Firebase, בלי חלון שלנו */
   E = gEnv();
   r = await run('invest-staging.thesnowball.app', gSrv({ gCfg: () => ({ ok: true, on: false, cid: '' }) }), null, null, { ext: E.ext });

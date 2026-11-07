@@ -264,7 +264,8 @@
       const q = [['client_id', gCid], ['redirect_uri', redirect], ['response_type', 'code'], ['scope', 'openid email profile'], ['state', state],
         ['nonce', nonce], ['code_challenge', ch], ['code_challenge_method', 'S256'], ['prompt', G_PROMPT]];
       const got = await gCode(w, 'https://accounts.google.com/o/oauth2/v2/auth?' + q.map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&'), state);
-      if (!got || !got.code) return 'cancel';
+      // בלי קוד: בוטל, או ש־Google חסם בתוך החלון (למשל redirect_uri_mismatch, 7/11/2026) — הלחיצה הבאה דרך Firebase, בלי לולאה
+      if (!got || !got.code) { gSrvOff = true; return 'cancel'; }
       const j = await sessCall({ op: 'gLogin', code: got.code, redirect, nonce, cv: verifier }, 15000);
       if (!j || !j.ok || j.s !== 1) { gSrvOff = true; return false; }
       sessMark(true); sessTried = true;

@@ -222,6 +222,7 @@ const { fakeR2, ENV } = require('./_r2fake.js');
     'pwLogin רק כש־Firebase לא זמין — לא כשהסיסמה שגויה (שם Firebase קובע)');
   ok(/j\.ok && j\.s === 1 && why !== 'l' && A\(\)\.ct/.test(src) && /A\(\)\.ct\(j\.ct \|\| ''\)/.test(src),
     'קוד במייל: s:1 → טוקן מותאם (בלי ct — who), גם בלי oc; הוספה לחשבון (l) — רק דרך oc');
+  ok(/A\(\)\.pwSet\(u, pw\.value\)/.test(src), 'הוספת מייל וסיסמה לחשבון — הסיסמה גם אצלנו (pwSet)');
   ok(/A\(\)\.pwSet\(cred\.user, pw\.value\)/.test(src) && /op: 'pwLogin'/.test(src) && !/localStorage\.setItem\([^)]*pw/.test(src), 'pwSet אחרי כניסה בסיסמה, pwLogin כגיבוי, והסיסמה לא נשמרת');
   const mm = mod.methodsOf({ email: 'me@example.com', emailVerified: false, providerData: [{ providerId: 'password', email: 'me@example.com' }, { providerId: 'google.com', email: 'me@googlemail.com' }] });
   ok(mm.google === 'me@googlemail.com' && mm.mail === 'me@example.com' && !mm.verified && mm.n === 2, 'שיטות הכניסה של החשבון');
