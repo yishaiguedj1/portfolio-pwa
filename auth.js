@@ -77,6 +77,7 @@
   async function sessCheck(force) {
     if (!user || sessBusy || !sessBase() || (!force && Date.now() - sessCheckedAt < SESS_CHECK_MS)) return;
     sessCheckedAt = Date.now();
+    accDaily(user);                                         // שלב 2, גל 2: הרישום השקט אצלנו (פעם ביום)
     const j = await sessCall({ op: 'who' });
     if (!j || !j.ok || !user || sessBusy) return;           // תקלה ברשת/בשרתון — לא מנתקים
     if (j.s === 1 && j.u === user.uid) { sessMark(true); return; }
@@ -199,6 +200,119 @@
     }
   }
 
+  /* ---- שלב 2, גל 2 (7/11/2026): החשבונות אצלנו — צד הטלפון (docs/accounts.md) ----
+     כניסה עם Google דרך השרת: gCfg נשאל מראש (gPrep), כי אחרי await בלחיצה כבר אי אפשר לפתוח את החלון של Firebase.
+     דולק → חלון oauth.html שנפתח בתוך הלחיצה (gWin), עם state, ‏nonce ו־PKCE אקראיים (crypto) → gLogin → העוגייה + ct →
+     signInWithCustomToken (בלי ct — who). כבוי / לא ידוע → הכניסה של Firebase כמו קודם. נכשל אחרי שהחלון נפתח → false,
+     והלחיצה הבאה עוברת ל־Firebase (gSrvOff). accReg פעם ביום לכל חשבון; pwSet פעם אחת אחרי כניסה בסיסמה. הסיסמה לא נשמרת */
+  const LS_ACCREG = 'pwa_accreg_v1', LS_PWSET = 'pwa_pwset_v1';   // ACCOUNT_KEYS
+  const G_PROMPT = 'select_account';                        // בחירת חשבון בכל כניסה
+  const G_CID_RE = /^[\w.-]{6,200}\.apps\.googleusercontent\.com$/;
+  let gCfgP = null, gCid = '', gSrvOff = false, gCancel = null;
+  function gPrep() {
+    if (gCfgP || gCid || !sessBase()) return gCfgP;
+    gCfgP = sessCall({ op: 'gCfg' }, 4000).then((j) => {
+      gCid = j && j.ok && j.on && G_CID_RE.test(String(j.cid || '')) ? String(j.cid) : '';
+      if (!j) gCfgP = null;                                   // תקלה ברשת — ננסה שוב בפעם הבאה
+    });
+    return gCfgP;
+  }
+  const gReady = () => !!(gCid && !gSrvOff && sessBase() && typeof crypto !== 'undefined' && crypto.subtle && typeof crypto.getRandomValues === 'function');
+  function gWin() { try { return window.open('', 'snb-oauth', 'popup,width=480,height=700'); } catch (e) { return null; } }
+  const b64u = (a) => { let s = ''; for (const b of a) s += String.fromCharCode(b); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+  const rnd = (n) => b64u(crypto.getRandomValues(new Uint8Array(n)));
+  /* הקוד חוזר מ־oauth.html (אותו origin) — BroadcastChannel, או האחסון כגיבוי. רק עם ה־state שלנו. לחיצה נוספת מבטלת.
+     חזרה לאפליקציה בלי קוד (החלון נסגר — w.closed לא אמין מול COOP של Google) → בוטל אחרי 4 שניות */
+  function gCode(w, url, state) {
+    if (gCancel) gCancel();
+    const t0 = Date.now();
+    return new Promise((resolve) => {
+      let bc = null, poll = 0, to = 0, back = 0, fin = false;
+      const done = (v) => {
+        if (fin) return;
+        fin = true;
+        clearInterval(poll); clearTimeout(to); clearTimeout(back); gCancel = null;
+        try { bc && bc.close(); } catch (e) {}
+        try { window.removeEventListener('storage', onStore); window.removeEventListener('focus', onBack); document.removeEventListener('visibilitychange', onBack); } catch (e) {}
+        try { localStorage.removeItem('pwa_oauth_v1'); } catch (e) {}
+        resolve(v);
+      };
+      const onBack = () => {
+        if (fin || (document && document.hidden) || Date.now() - t0 < 1500) return;
+        clearTimeout(back);
+        back = setTimeout(() => { fromLs(); done(null); }, 4000);
+      };
+      try { window.addEventListener('focus', onBack); document.addEventListener('visibilitychange', onBack); } catch (e) {}
+      const take = (m) => { if (m && typeof m.state === 'string' && m.state === state) done({ code: String(m.code || ''), error: String(m.error || '') }); };
+      const fromLs = () => { try { take(JSON.parse(localStorage.getItem('pwa_oauth_v1') || 'null')); } catch (e) {} };
+      const onStore = (e) => { if (e.key === 'pwa_oauth_v1') fromLs(); };
+      try { bc = new BroadcastChannel('snb-oauth'); bc.onmessage = (e) => take(e.data); } catch (e) {}
+      try { window.addEventListener('storage', onStore); } catch (e) {}
+      poll = setInterval(fromLs, 600);
+      to = setTimeout(() => done(null), 5 * 60e3);
+      gCancel = () => done(null);
+      try { w.location.href = url; } catch (e) { done(null); }
+    });
+  }
+  /* true = מחובר · 'cancel' = בוטל (בלי הודעה) · false = נכשל (הלחיצה הבאה — Firebase) */
+  async function gSrvSignIn(w) {
+    sessBusy = true;
+    try {
+      const verifier = rnd(48), state = 'li' + rnd(18), nonce = rnd(24);
+      const ch = b64u(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))));
+      const redirect = new URL('oauth.html', document.baseURI).href;
+      const q = [['client_id', gCid], ['redirect_uri', redirect], ['response_type', 'code'], ['scope', 'openid email profile'], ['state', state],
+        ['nonce', nonce], ['code_challenge', ch], ['code_challenge_method', 'S256'], ['prompt', G_PROMPT]];
+      const got = await gCode(w, 'https://accounts.google.com/o/oauth2/v2/auth?' + q.map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&'), state);
+      if (!got || !got.code) return 'cancel';
+      const j = await sessCall({ op: 'gLogin', code: got.code, redirect, nonce, cv: verifier }, 15000);
+      if (!j || !j.ok || j.s !== 1) { gSrvOff = true; return false; }
+      sessMark(true); sessTried = true;
+      return (await ctSignIn(j.ct)) || (gSrvOff = true, false);
+    } catch (e) { gSrvOff = true; return false; } finally { sessBusy = false; }
+  }
+  /* בלחיצה (בלי await לפני window.open): null = לא דרך השרת → הכניסה של Firebase */
+  function gTry() {
+    if (!gReady()) { gPrep(); return null; }
+    const w = gWin();
+    if (!w) return null;
+    return gSrvSignIn(w).then((r) => { if (r !== true) { try { w.close(); } catch (e) {} } return r; });
+  }
+  async function ctSignIn(ct) {
+    if (!auth) return false;
+    if (!ct) { const j = await sessCall({ op: 'who' }, 4000); ct = j && j.s === 1 && j.ct ? j.ct : ''; }
+    if (!ct) return false;
+    sessBusy = false;                                        // onAuthStateChanged לא שולח login (טוקן מותאם אינו "כניסה טרייה" — העוגייה כבר נקבעה)
+    try { await auth.signInWithCustomToken(ct); sessMark(true); return true; }
+    catch (e) { sessCall({ op: 'note', c: String((e && e.code) || 'err').slice(0, 60) }); return false; }
+  }
+  const lsGet = (k) => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+  /* רישום שקט אצלנו — פעם ביום לכל חשבון (כבוי / נרשם → עד מחר; תקלה → בבדיקה הבאה) */
+  async function accDaily(u) {
+    if (!u || !u.uid || typeof u.getIdToken !== 'function' || !sessBase()) return;
+    const k = String(u.uid).slice(0, 8) + '|' + Math.floor(Date.now() / 864e5);
+    if (lsGet(LS_ACCREG) === k) return;
+    let tk = '';
+    try { tk = await u.getIdToken(); } catch (e) { return; }
+    const j = await sessCall({ op: 'accReg', idToken: tk }, 6000);
+    if (j && (j.ok || j.error === 'off')) lsSet(LS_ACCREG, k);
+  }
+  /* הסיסמה אצלנו — פעם אחת לכל חשבון במכשיר, מיד אחרי כניסה בסיסמה (השרת דורש כניסה טרייה). לא נשמרת בטלפון */
+  async function pwSetOnce(u, pw) {
+    if (!u || !u.uid || typeof pw !== 'string' || !pw || !sessBase()) return false;
+    const k = String(u.uid).slice(0, 8);
+    let done = [];
+    try { done = JSON.parse(lsGet(LS_PWSET) || '[]'); if (!Array.isArray(done)) done = []; } catch (e) { done = []; }
+    if (done.includes(k)) return false;
+    let tk = '';
+    try { tk = await u.getIdToken(); } catch (e) { return false; }
+    const j = await sessCall({ op: 'pwSet', idToken: tk, password: pw }, 8000);
+    if (!j || !j.ok) return false;
+    done.push(k); lsSet(LS_PWSET, JSON.stringify(done.slice(-10)));
+    return true;
+  }
+
   /* 26/10/2026 (בקשת המשתמש): כניסה גם עם מייל רגיל (סיסמה או קישור במייל), וקישור / מיזוג של כמה שיטות כניסה לאותו
      משתמש. הממשק והלוגיקה ב־acclink.js (נטען רק כשצריך, משותף לשלוש האפליקציות); כאן רק הגישה ל־Firebase ולחיבור המשותף,
      וזיהוי חזרה מקישור הכניסה שנשלח במייל */
@@ -208,6 +322,8 @@
     busy: (on) => { sessBusy = !!on; },
     login: (u) => sessLogin(u),
     flush: () => flushSave(),
+    ct: (tk) => ctSignIn(tk),            // שלב 2, גל 2: כניסה מתשובה של השרת שלנו (קוד במייל / סיסמה)
+    pwSet: (u, pw) => pwSetOnce(u, pw),
   };
   function emailLinkLanding() {
     try { if (auth && auth.isSignInWithEmailLink(location.href)) import('./acclink.js').then((m) => m.finishLink()).catch(() => {}); } catch (e) {}
@@ -248,6 +364,8 @@
 
   async function signIn() {
     if (!auth) return false;
+    const viaSrv = gTry();                                 // שלב 2, גל 2: דרך השרת שלנו (החלון נפתח כאן, בתוך הלחיצה)
+    if (viaSrv) return (await viaSrv) === true;     // בוטל / נכשל — כמו חלון של Firebase שנסגר (הלחיצה הבאה אחרי כישלון — Firebase)
     sessBusy = true;
     try {
       const cred = await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
@@ -275,6 +393,7 @@
         if (!u) {
           if (await sessSignIn()) return;                  // מחובר באפליקציה אחרת — onAuthStateChanged יחזור עם המשתמש
           if (switchOwner(null, null) === true) return;     // v313: הנתונים של החשבון הקודם יוצאים מהמכשיר הפעיל
+          gPrep();                                         // שלב 2, גל 2: האם הכניסה עם Google דרך השרת שלנו
           set('out');
           return;
         }
