@@ -34,6 +34,7 @@ function run(host, server, uid, opts) {
     FIREBASE_CONFIG: o.noCfg ? {} : { apiKey: 'k', authDomain: 'd', projectId: 'p' },
     firebase: { apps: [], initializeApp() { this.apps.push(1); }, auth: Object.assign(() => auth, { GoogleAuthProvider: function () {} }), firestore },
   };
+  Object.assign(sb, o.ext || {});
   sb.window = sb;
   vm.createContext(sb);
   vm.runInContext(SRC, sb);
@@ -78,6 +79,24 @@ function run(host, server, uid, opts) {
   await tick(30);
   ok(r.calls.some((c) => c.body.op === 'logout') && r.signOuts === 1 && r.customs.length === 0 && r.ls.getItem('pwa_sess_v1') === null,
     'התנתקות → מוחקת את העוגייה (כל האפליקציות) ובלי כניסה שקטה אחריה');
+
+  /* שלב 2, גל 2 (7/11/2026): SnbAuth.signIn — כניסה עם Google דרך השרת שלנו (Academy/Studio/מרכז הניהול/Cashflow) */
+  const wins = [], chans = [];
+  const ext = { crypto: require('crypto').webcrypto, TextEncoder, btoa: (x) => Buffer.from(x, 'binary').toString('base64'), setInterval, clearInterval,
+    BroadcastChannel: function () { this.close = () => {}; chans.push(this); }, addEventListener() {}, removeEventListener() {},
+    open: () => { const w = { href: '', close() {}, location: {} }; Object.defineProperty(w.location, 'href', { set(v) { w.href = v; } }); wins.push(w); return w; } };
+  let gck = false;
+  r = await run('academy-staging.thesnowball.app', (b) => (b.op === 'gCfg' ? { ok: true, on: true, cid: '987654-xyz.apps.googleusercontent.com' }
+    : b.op === 'gLogin' ? (gck = true, { ok: true, s: 1, u: 'u-AC', ct: 'AC' }) : b.op === 'who' && gck ? { ok: true, s: 1, u: 'u-AC', ct: 'AC' } : { ok: true, s: 0 }), null, { ext });
+  r.sb.document.baseURI = 'https://academy-staging.thesnowball.app/academy.html'; r.sb.document.removeEventListener = () => {};
+  ok(r.calls.some((c) => c.body.op === 'gCfg'), 'לא מחובר — gCfg מראש');
+  const sp = r.sb.SnbAuth.signIn();
+  ok(wins.length === 1, 'signIn פותח את החלון שלנו מיד');
+  await tick(30);
+  const st = new URL(wins[0].href).searchParams.get('state');
+  chans.forEach((c) => c.onmessage && c.onmessage({ data: { state: st, code: 'K' } }));
+  ok((await sp) === true && r.customs[0] === 'AC' && r.calls.some((c) => c.body.op === 'gLogin' && c.body.redirect === 'https://academy-staging.thesnowball.app/oauth.html'),
+    'signIn דרך השרת: gLogin וטוקן מותאם → true');
 
   r = await run('staging.thesnowball.app', () => ({ ok: true }), null, { noCfg: true });
   ok(r.states.join() === 'off' && r.calls.length === 0, 'בלי הגדרת Firebase — "off" (הדף מציג הודעה, לא נתקע)');

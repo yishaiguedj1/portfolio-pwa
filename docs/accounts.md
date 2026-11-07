@@ -23,5 +23,11 @@
 
 ## הגלים
 1. ✓ השרת (722).
-2. הטלפון (`auth.js`/`acclink.js`): כפתור Google דרך `gLogin` (חלון `oauth.html` כמו ב־Drive, ‏PKCE + nonce). קוד במייל: `s:1` בלי `oc` → `who`. ‏`accReg` פעם ביום. ‏`pwSet` אחרי כניסה בסיסמה. ‏`pwLogin` כש־Firebase נכשל.
+2. ✓ הטלפון (723). הקוד באזור `<auth>` החדש של `cloud.js` (נכנס גם ל־`auth.js` דרך coregen), וב־`acclink.js`:
+   - **Google**: ‏`gCfg` (פעולה חדשה, בלי התחברות: `{on, cid}`, דולק רק כש־`accOn` והלקוח מוגדר) נשאל מראש כשאין משתמש (`gPrep`), כי אחרי await בלחיצה כבר אי אפשר לפתוח את החלון של Firebase. דולק → `gTry` פותח את `oauth.html` בתוך הלחיצה, ‏state (`li…`), ‏nonce ו־PKCE מ־`crypto.getRandomValues`, הקוד מתקבל רק עם ה־state שלנו → `gLogin` → `ctSignIn` (בלי `ct` — `who`). חזרה לאפליקציה בלי קוד → ביטול אחרי 4 שניות (`w.closed` לא אמין מול COOP). כבוי / מזהה לא תקין → Firebase כמו קודם. נכשל אחרי שהחלון נפתח → "ההתחברות נכשלה", והלחיצה הבאה — Firebase (`gSrvOff`).
+   - **קוד במייל**: ‏`s:1` → `SnbAcct.ct(j.ct)` גם בלי `oc`. הוספה לחשבון המחובר (`l`) — רק דרך `oc`.
+   - **`accReg`** מתוך `sessCheck`, פעם ביום לכל חשבון (`pwa_accreg_v1`; ‏`off` מסומן עד מחר, תקלה — בבדיקה הבאה).
+   - **`pwSet`** מיד אחרי כניסה/הרשמה בסיסמה ב־Firebase, פעם אחת לכל חשבון במכשיר (`pwa_pwset_v1`, רק תחילית ה־uid). הסיסמה לא נשמרת. ‏**`pwLogin`** רק כש־Firebase לא זמין (`fbDown`: רשת, מכסה, תקלה פנימית, too-many-requests) — לא בסיסמה שגויה. ‏`bad_login` מציג את ההודעה של Firebase (ייתכן שהסיסמה עוד לא אצלנו).
+   - **סיכון ידוע**: סיסמה שהוחלפה ב־Firebase (איפוס) לא מתעדכנת אצלנו עד כניסה במכשיר חדש. לטפל בגל 3.
+   - בדיקות: `tests/session-client.test.js`, ‏`tests/auth.test.js`, ‏`tests/acc-email.test.js`, ‏`tests/accounts.test.js` (`gCfg`).
 3. טוקן גישה משלנו, שהשרתון מקבל לצד ה־ID token של Firebase, כדי שבקשות לא יהיו תלויות ב־Firebase.

@@ -16,7 +16,7 @@ function run(host, server, uid, ls, opt) {
   const reloads = [];
   ls = ls || mkStore();
   const calls = [], customs = [], listeners = {};
-  let authCb = null, signOuts = 0, cur = uid ? { uid } : null, loginBtn = null;
+  let authCb = null, signOuts = 0, cur = opt.user || (uid ? { uid } : null), loginBtn = null;
   const auth = {
     onAuthStateChanged: (cb) => { authCb = cb; },
     signOut: async () => { signOuts++; cur = null; setTimeout(() => authCb(null), 1); },
@@ -43,6 +43,7 @@ function run(host, server, uid, ls, opt) {
     stripLegacyDemo: () => false, ensurePensionKinds() {}, saveDBto() {}, demoDb: () => ({ positions: [], deposits: [] }), applyDbData() {},
     accountOwner: () => 'x', accountSwitchTo: (u) => !!(opt.switchTo && u),
   };
+  Object.assign(sb, opt.ext || {});
   sb.window = sb;
   vm.createContext(sb);
   vm.runInContext(cloudSrc, sb);
@@ -144,6 +145,119 @@ function run(host, server, uid, ls, opt) {
   r.listeners.visibilitychange && r.listeners.visibilitychange();
   await tick(20);
   ok(r.calls.length === before, 'חזרה לאפליקציה מיד אחרי בדיקה — בלי בקשה נוספת (פעם ב־5 דקות)');
+
+  /* ---------- 12. שלב 2, גל 2 (7/11/2026): כניסה עם Google דרך השרת שלנו, רישום יומי, סיסמה ---------- */
+  const { webcrypto } = require('crypto');
+  const gEnv = () => {
+    const chans = [], wins = [];
+    const ext = {
+      crypto: webcrypto, TextEncoder, btoa: (x) => Buffer.from(x, 'binary').toString('base64'), setInterval, clearInterval,
+      BroadcastChannel: function () { this.onmessage = null; this.close = () => {}; chans.push(this); },
+      open: () => { const w = { closed: false, href: '', close() { this.closed = true; }, location: {} };
+        Object.defineProperty(w.location, 'href', { set(v) { w.href = v; }, get() { return w.href; } }); wins.push(w); return w; },
+      addEventListener() {}, removeEventListener() {},
+    };
+    const post = (m) => chans.forEach((c) => c.onmessage && c.onmessage({ data: m }));
+    return { ext, chans, wins, post };
+  };
+  const fix = (sb) => { sb.document.baseURI = 'https://invest-staging.thesnowball.app/'; sb.document.removeEventListener = () => {}; };
+  const gSrv = (over) => { let ck = false; return (b) => {   // ck = העוגייה שהשרת קבע
+    if (over && over[b.op]) { const v = over[b.op](b); if (b.op === 'gLogin' && v && v.s === 1) ck = true; return v; }
+    if (b.op === 'gCfg') return { ok: true, on: true, cid: '123-abc.apps.googleusercontent.com' };
+    if (b.op === 'gLogin') { ck = true; return { ok: true, s: 1, u: 'u-CT7', ct: 'CT7' }; }
+    if (b.op === 'who' && ck) return { ok: true, s: 1, u: 'u-CT7', ct: 'CT7' };
+    return { ok: true, s: 0 };
+  }; };
+  let E = gEnv();
+  r = await run('invest-staging.thesnowball.app', gSrv(), null, null, { ext: E.ext });
+  fix(r.sb);
+  ok(r.calls.some((c) => c.body.op === 'gCfg'), 'לא מחובר — שואל מראש אם הכניסה עם Google דרך השרת (gCfg)');
+  let p = r.loginBtn()._click();
+  ok(E.wins.length === 1, 'הלחיצה פותחת את החלון מיד (לפני כל await — אחרת הדפדפן חוסם)');
+  await tick(30);
+  const au = new URL(E.wins[0].href), qs = au.searchParams;
+  ok(au.origin === 'https://accounts.google.com' && qs.get('client_id') === '123-abc.apps.googleusercontent.com' && qs.get('scope') === 'openid email profile'
+    && qs.get('redirect_uri') === 'https://invest-staging.thesnowball.app/oauth.html' && qs.get('code_challenge_method') === 'S256' && qs.get('response_type') === 'code',
+    'החלון: הלקוח מ־gCfg, ‏openid email profile, ‏PKCE ‏S256, וחזרה ל־oauth.html');
+  ok(/^li[\w-]{24}$/.test(qs.get('state')) && /^[\w-]{32}$/.test(qs.get('nonce')) && /^[\w-]{43}$/.test(qs.get('code_challenge')), 'state ‏(li…), ‏nonce ו־challenge אקראיים');
+  E.post({ state: 'li-not-ours', code: 'EVIL' });
+  await tick(20);
+  ok(!r.calls.some((c) => c.body.op === 'gLogin'), 'קוד עם state אחר — מתעלמים');
+  E.post({ state: qs.get('state'), code: 'C0DE' });
+  await p; await tick(30);
+  const gl = r.calls.find((c) => c.body.op === 'gLogin');
+  const ch = Buffer.from(webcrypto.getRandomValues ? require('crypto').createHash('sha256').update(gl.body.cv).digest() : '').toString('base64url');
+  ok(gl && gl.body.code === 'C0DE' && gl.body.nonce === qs.get('nonce') && gl.body.redirect === qs.get('redirect_uri') && ch === qs.get('code_challenge') && gl.init.credentials === 'include',
+    'gLogin: הקוד, אותו nonce, והמאמת שמתאים ל־challenge');
+  ok(r.customs[0] === 'CT7' && r.ls.getItem('pwa_sess_v1') === '1' && !r.calls.some((c) => c.body.op === 'login'), 'נכנס עם הטוקן המותאם, החיבור המשותף מסומן, בלי login מיותר');
+  ok(!JSON.stringify(r.ls._m && [...r.ls._m]).includes(gl.body.cv), 'המאמת (PKCE) לא נשמר במכשיר');
+
+  /* בלי ct — who */
+  let w8 = false;
+  E = gEnv();
+  r = await run('invest-staging.thesnowball.app', gSrv({ gLogin: () => { w8 = true; return { ok: true, s: 1, u: 'u-W8', ct: '' }; }, who: () => (w8 ? { ok: true, s: 1, u: 'u-W8', ct: 'W8' } : { ok: true, s: 0 }) }), null, null, { ext: E.ext });
+  fix(r.sb);
+  p = r.loginBtn()._click(); await tick(30);
+  E.post({ state: new URL(E.wins[0].href).searchParams.get('state'), code: 'C' }); await p; await tick(30);
+  ok(r.customs.includes('W8'), 'gLogin בלי ct — who, ואז הטוקן המותאם');
+
+  /* השרת נכשל אחרי שהחלון נפתח → הודעה, והלחיצה הבאה — Firebase */
+  E = gEnv();
+  r = await run('invest-staging.thesnowball.app', gSrv({ gLogin: () => null }), null, null, { ext: E.ext });
+  fix(r.sb);
+  const errEl = { textContent: '', classList: { add() {}, remove() { errEl.shown = true; } } };
+  const ge = r.sb.document.getElementById; r.sb.document.getElementById = (id) => (id === 'loginErr' ? errEl : ge(id));
+  p = r.loginBtn()._click(); await tick(30);
+  E.post({ state: new URL(E.wins[0].href).searchParams.get('state'), code: 'C' }); await p; await tick(20);
+  ok(errEl.shown && errEl.textContent === 'loginFailed' && r.customs.length === 0 && E.wins[0].closed, 'gLogin נכשל — "ההתחברות נכשלה", בלי פרטים, והחלון נסגר');
+  await r.loginBtn()._click(); await tick(30);
+  ok(E.wins.length === 1 && r.calls.some((c) => c.body.op === 'login'), 'הלחיצה הבאה — הכניסה של Firebase (כמו היום)');
+
+  /* כבוי בשרת → Firebase, בלי חלון שלנו */
+  E = gEnv();
+  r = await run('invest-staging.thesnowball.app', gSrv({ gCfg: () => ({ ok: true, on: false, cid: '' }) }), null, null, { ext: E.ext });
+  fix(r.sb);
+  await r.loginBtn()._click(); await tick(30);
+  ok(E.wins.length === 0 && r.calls.some((c) => c.body.op === 'login'), 'gCfg כבוי — הכניסה של Firebase, בלי החלון שלנו');
+  E = gEnv();
+  r = await run('invest-staging.thesnowball.app', gSrv({ gCfg: () => ({ ok: true, on: true, cid: 'https://evil.example/x' }) }), null, null, { ext: E.ext });
+  fix(r.sb);
+  await r.loginBtn()._click(); await tick(30);
+  ok(E.wins.length === 0, 'מזהה לקוח לא תקין — לא פותחים חלון');
+
+  /* accReg פעם ביום לכל חשבון; כבוי — גם עד מחר; תקלה — ננסה שוב */
+  const fresh = () => ({ uid: 'U1abcdefgh', getIdToken: async () => 'FB-TOK' });
+  ls = mkStore();
+  const regSrv = (ans) => (b) => (b.op === 'who' ? { ok: true, s: 1, u: 'U1abcdefgh', ct: 'X' } : b.op === 'accReg' ? ans() : { ok: true });
+  r = await run('invest-staging.thesnowball.app', regSrv(() => ({ ok: true })), null, ls, { user: fresh() });
+  const reg = (x) => x.calls.filter((c) => c.body.op === 'accReg');
+  ok(reg(r).length === 1 && reg(r)[0].body.idToken === 'FB-TOK' && /^U1abcdef\|\d+$/.test(ls.getItem('pwa_accreg_v1')), 'accReg אחרי כניסה של Firebase, עם הטוקן');
+  r = await run('invest-staging.thesnowball.app', regSrv(() => ({ ok: true })), null, ls, { user: fresh() });
+  ok(reg(r).length === 0, 'באותו יום — בלי accReg נוסף');
+  ls = mkStore();
+  r = await run('invest-staging.thesnowball.app', regSrv(() => null), null, ls, { user: fresh() });
+  ok(reg(r).length === 1 && !ls.getItem('pwa_accreg_v1'), 'תקלה בשרת — לא מסומן (ננסה בבדיקה הבאה)');
+  r = await run('invest-staging.thesnowball.app', regSrv(() => ({ ok: false, error: 'off' })), null, ls, { user: fresh() });
+  ok(reg(r).length === 1 && ls.getItem('pwa_accreg_v1'), 'כבוי (ייצור) — מסומן עד מחר, בלי בקשות חוזרות');
+  r = await run('yishaiguedj1.github.io', regSrv(() => ({ ok: true })), null, mkStore(), { user: fresh() });
+  ok(reg(r).length === 0, 'github.io — בלי accReg');
+
+  /* pwSet פעם אחת, והסיסמה לא נשמרת */
+  ls = mkStore();
+  let pwAns = () => ({ ok: false, error: 'off' });
+  r = await run('invest-staging.thesnowball.app', (b) => (b.op === 'pwSet' ? pwAns() : { ok: true, s: 0 }), null, ls);
+  const pws = () => r.calls.filter((c) => c.body.op === 'pwSet');
+  ok((await r.sb.SnbAcct.pwSet(fresh(), 'Secret-pw-1')) === false && pws().length === 1 && !ls.getItem('pwa_pwset_v1'), 'pwSet כבוי — לא מסומן (כשיידלק — בכניסה הבאה)');
+  pwAns = () => ({ ok: true });
+  ok((await r.sb.SnbAcct.pwSet(fresh(), 'Secret-pw-1')) === true && pws()[1].body.password === 'Secret-pw-1' && pws()[1].body.idToken === 'FB-TOK', 'pwSet: הטוקן הטרי והסיסמה');
+  ok((await r.sb.SnbAcct.pwSet(fresh(), 'Secret-pw-1')) === false && pws().length === 2, 'פעם אחת לכל חשבון במכשיר');
+  ok(![...ls._m.values()].some((v) => v.includes('Secret-pw-1')), 'הסיסמה לא נשמרת במכשיר');
+
+  /* ct ישיר (קוד במייל / סיסמה דרך השרת) */
+  r = await run('invest-staging.thesnowball.app', (b) => (b.op === 'who' && r && r.go ? { ok: true, s: 1, u: 'M1', ct: 'WM' } : { ok: true, s: 0 }), null);
+  ok((await r.sb.SnbAcct.ct('CTM')) === true && r.customs.includes('CTM') && r.ls.getItem('pwa_sess_v1') === '1', 'SnbAcct.ct: נכנס עם הטוקן ומסמן');
+  r.go = true;
+  ok((await r.sb.SnbAcct.ct('')) === true && r.customs.includes('WM'), 'בלי ct — who');
 
   console.log('# ' + n + ' בדיקות עברו');
   process.exit(0);                                      // טיימרים של cloud.js (ה־SDK המדומה) — לא מחכים להם

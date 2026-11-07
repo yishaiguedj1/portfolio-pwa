@@ -34,6 +34,8 @@ for (const h of hosts) {
   if (imgHosts.includes(h)) { ok(allows('img-src', h + '/x.png'), 'img-src מכסה ' + h); continue; }
   // קישורי ניווט (נפתחים בלשונית חדשה, לא fetch): v222 — הוספת דוח ל־Google Calendar
   if (h === 'https://calendar.google.com') { ok(!/fetch\w*\([^)]*calendar\.google\.com/.test(app), 'Google Calendar רק כקישור ניווט (לא fetch)'); continue; }
+  // שלב 2, גל 2 (7/11/2026): חלון ההסכמה של Google לכניסה (cloud.js gSrvSignIn) — ניווט של החלון בלבד, לא fetch
+  if (h === 'https://accounts.google.com') { ok(!/fetch\w*\([^)]*accounts\.google\.com/.test(cloud), 'accounts.google.com רק כניווט של חלון ההסכמה (לא fetch)'); continue; }
   ok(allows('connect-src', h + '/x'), 'connect-src מכסה ' + h);
 }
 ok(allows('connect-src', 'https://my-proxy-123.vercel.app/api'), 'שרתון מותאם אישית ב־Vercel מותר');

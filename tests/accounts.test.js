@@ -131,7 +131,14 @@ const gTok = (c, key) => {
   };
   const RED = 'https://invest.thesnowball.app/oauth.html', NONCE = 'n'.repeat(20);
   for (const op of S.ACC_OPS) { const r = await call({ op }); ok(r.body.error === 'off' && !r.h['set-cookie'], 'כבוי: ' + op + ' — off, בלי עוגייה'); }
+  let gc = await call({ op: 'gCfg' });
+  ok(gc.code === 200 && gc.body.on === false && gc.body.cid === '' && !gc.h['set-cookie'], 'gCfg כבוי: on=false, בלי מזהה הלקוח');
   ON = true;
+  gc = await call({ op: 'gCfg' });
+  ok(gc.body.on === true && gc.body.cid === 'cid.apps.googleusercontent.com' && !gc.h['set-cookie'], 'gCfg דולק: מזהה הלקוח הציבורי, בלי עוגייה');
+  const sec = process.env.GDRIVE_CLIENT_SECRET; delete process.env.GDRIVE_CLIENT_SECRET;
+  gc = await call({ op: 'gCfg' }); process.env.GDRIVE_CLIENT_SECRET = sec;
+  ok(gc.body.on === false && gc.body.cid === '', 'gCfg: בלי סוד בשרת — כבוי (הטלפון לא יפתח חלון שייכשל)');
   ok((await call({ op: 'gLogin', code: gTok({ sub: '1234567890', email: 'old@example.com', email_verified: true }), redirect: 'https://evil.example/oauth.html', nonce: NONCE })).code === 400, 'gLogin: כתובת חזרה זרה — 400');
   ok((await call({ op: 'gLogin', code: 'bad', redirect: RED, nonce: NONCE })).body.error === 'bad_code', 'gLogin: קוד שנדחה ב־Google — bad_code');
   ok((await call({ op: 'gLogin', code: gTok({ sub: '1234567890', email: 'old@example.com', email_verified: true }), redirect: RED, nonce: 'z'.repeat(20) })).body.error === 'bad_token', 'gLogin: nonce לא תואם — נדחה');

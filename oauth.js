@@ -13,6 +13,8 @@
   try { var bc = new BroadcastChannel('snb-oauth'); bc.postMessage(msg); bc.close(); sent = true; } catch (e) {}
   try { localStorage.setItem('pwa_oauth_v1', JSON.stringify(msg)); } catch (e) {}   // גיבוי לדפדפן בלי BroadcastChannel (האפליקציה מוחקת מיד)
   var el = document.getElementById('msg');
-  if (el) el.textContent = msg.error ? 'החיבור בוטל. אפשר לסגור את החלון.' : pk ? 'נבחר. אפשר לחזור לאפליקציה.' : 'Google Drive חובר. אפשר לחזור לאפליקציה.';
+  // שלב 2, גל 2 (7/11/2026): state שמתחיל ב־li = כניסה לחשבון (cloud.js gSrvSignIn), לא Drive
+  var li = /^li/.test(msg.state);
+  if (el) el.textContent = msg.error ? 'החיבור בוטל. אפשר לסגור את החלון.' : li ? 'מתחבר… אפשר לחזור לאפליקציה.' : pk ? 'נבחר. אפשר לחזור לאפליקציה.' : 'Google Drive חובר. אפשר לחזור לאפליקציה.';
   setTimeout(function () { try { window.close(); } catch (e) {} }, sent ? 300 : 800);
 })();

@@ -362,6 +362,13 @@ function makeHandler(over = {}) {
     };
 
     /* ---- שלב 2 (6/11/2026, lib/accounts.js): החשבונות אצלנו. כבוי — off, והטלפון ממשיך עם Firebase ---- */
+    /* גל 2 (7/11/2026): הטלפון שואל מראש אם לפתוח את החלון שלנו (אחרי await בלחיצה כבר אי אפשר לפתוח את של Firebase).
+       מזהה הלקוח ציבורי (כמו gdConfig) — ורק כשדולק ומוגדר */
+    if (op === 'gCfg') {
+      const cid = String(process.env.GDRIVE_CLIENT_ID || '').trim(), on = !!(deps.accOn() && cid && String(process.env.GDRIVE_CLIENT_SECRET || '').trim());
+      tally(on ? 'acc:gcfg:on' : 'acc:gcfg:off', app);
+      return res.status(200).json({ ok: true, on, cid: on ? cid : '' });
+    }
     if (ACC_OPS.includes(op) && !deps.accOn()) { tally('acc:off', app); return res.status(200).json({ ok: false, error: 'off' }); }
     /* רישום שקט: טוקן Firebase מאומת → החשבון נרשם אצלנו (אותו uid). הטלפון שולח פעם ביום */
     if (op === 'accReg') {

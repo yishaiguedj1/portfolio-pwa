@@ -123,10 +123,12 @@ export function emailSheet(prefill) {
         try { await sendVerify(cred.user); say(t('accVerifySent')); } catch (x) {}
       }
       if (A().login) await A().login(cred && cred.user);   // העוגייה של החיבור המשותף — כמו בכניסה עם Google
+      if (A().pwSet && cred && cred.user) A().pwSet(cred.user, pw.value);   // שלב 2, גל 2: הסיסמה גם אצלנו (פעם אחת, כניסה טרייה)
       s.close();
       const ov = document.getElementById('loginOverlay');
       if (ov && ov.classList.contains('sa')) ov.remove();
     } catch (x) {
+      if (mode === 'in' && fbDown(x && x.code) && (await pwViaSrv(e, pw.value)) === true) { s.close(); return; }
       showErr(err, x);
       if (String(x && x.code).endsWith('email-already-in-use')) err.textContent = t('accErrInUseIn');
     } finally { A().busy && A().busy(false); }
@@ -137,6 +139,23 @@ export function emailSheet(prefill) {
   const grp = h('div', 'acx-group'); grp.append(em, pw);
   s.body.append(grp, err, go, links);
   setTimeout(() => (prefill ? pw : em).focus(), 60);
+}
+
+/* שלב 2, גל 2 (7/11/2026): Firebase לא זמין (מכסה, תקלה, רשת) — לא סיסמה שגויה, שם Firebase קובע (טהורה — נבדקת) */
+export function fbDown(code) {
+  return ['network-request-failed', 'quota-exceeded', 'internal-error', 'too-many-requests', 'timeout', 'web-storage-unsupported']
+    .includes(String(code || '').replace(/^auth\//, ''));
+}
+/* …אז הסיסמה שאצלנו (pwLogin): עוגייה + טוקן מותאם. true = נכנס; false = לא (ההודעה של Firebase נשארת). בלי פרטי שגיאה */
+async function pwViaSrv(e, pw) {
+  if (!A().ct) return false;
+  const r = await srv({ op: 'pwLogin', email: e, password: pw });
+  const j = (r && r.j) || {};
+  if (!r || !j.ok || j.s !== 1) return false;   // גם bad_login: אולי הסיסמה עוד לא אצלנו — "סיסמה שגויה" היה מטעה
+  if (!(await A().ct(j.ct || ''))) return false;
+  const ov = document.getElementById('loginOverlay');
+  if (ov && ov.classList.contains('sa')) ov.remove();
+  return true;
 }
 
 /* ---------------------------------------------------------------- מיילים משלנו (26/10/2026) — קודם השרת, אחר כך Firebase
@@ -202,6 +221,17 @@ function codeSheet(e, why) {
     if (code.length !== 6) { err.textContent = t('accCodeShort'); err.hidden = false; return; }
     const r = await srv({ op: 'mailCode', email: e, code });
     const j = (r && r.j) || {};
+    /* שלב 2, גל 2 (7/11/2026): השרת שלנו כבר הכניס (עוגייה, s:1) — טוקן מותאם (בלי ct — who), גם בלי oc.
+       הוספה לחשבון המחובר (l) — רק דרך oc (קישור ב־Firebase), לא כניסה לחשבון של המייל */
+    if (j.ok && j.s === 1 && why !== 'l' && A().ct) {
+      if (await A().ct(j.ct || '')) {
+        s.close();
+        try { localStorage.removeItem(LS_LINK); } catch (x) {}
+        const ov = document.getElementById('loginOverlay');
+        if (ov && ov.classList.contains('sa')) ov.remove();
+        return;
+      }
+    }
     if (!j.ok || !j.oc) {
       err.textContent = j.error === 'bad_code' ? t('accCodeBad', { n: Math.max(0, +j.left || 0) }) : j.error === 'tries' || j.error === 'expired' ? t('accCodeOld') : t('accErrNet');
       err.hidden = false; inp.select(); return;

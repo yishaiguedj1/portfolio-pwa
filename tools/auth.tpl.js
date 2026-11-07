@@ -25,6 +25,8 @@
 
   async function signIn() {
     if (!auth) return false;
+    const viaSrv = gTry();                                 // שלב 2, גל 2: דרך השרת שלנו (החלון נפתח כאן, בתוך הלחיצה)
+    if (viaSrv) return (await viaSrv) === true;     // בוטל / נכשל — כמו חלון של Firebase שנסגר (הלחיצה הבאה אחרי כישלון — Firebase)
     sessBusy = true;
     try {
       const cred = await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
@@ -52,6 +54,7 @@
         if (!u) {
           if (await sessSignIn()) return;                  // מחובר באפליקציה אחרת — onAuthStateChanged יחזור עם המשתמש
           if (switchOwner(null, null) === true) return;     // v313: הנתונים של החשבון הקודם יוצאים מהמכשיר הפעיל
+          gPrep();                                         // שלב 2, גל 2: האם הכניסה עם Google דרך השרת שלנו
           set('out');
           return;
         }

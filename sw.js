@@ -4,15 +4,15 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v722';
+const CACHE_NAME = 'portfolio-pwa-v723';
 const HASHES = {
   "./": "6ab1986a1bc13b10b7405e36061fa8ba",
   "./index.html": "6ab1986a1bc13b10b7405e36061fa8ba",
   "./styles.css": "120c627955f9b2062704df67866e0f9d",
   "./glass-btn.css": "fc3022cd33dcb1241881566faf561f0c",
-  "./app.js": "9d449d6d865f4f17822e6eaf4c5fd3e5",
+  "./app.js": "5feb81af5381bd2b55818c9320151396",
   "./returns.js": "3590562b0282025a8a79650ad6b3a49b",
-  "./cloud.js": "a26cb95e57ab8083b1872a9e1d1a254f",
+  "./cloud.js": "0afd6b7e9db0514bc6f13f9ad3095291",
   "./firebase-config.js": "8507173a957371e15933229f5fd4dd3f",
   "./move.js": "421d442c53aa29fa1b1cbc3ef22fb174",
   "./manifest.webmanifest": "933cd57a01bc2c47f5e1904be166220b",
@@ -31,7 +31,7 @@ const HASHES = {
   "./apple-touch-icon.png": "113a5dd87df18077a64196f3d533e3e9",
   "./favicon-48.png": "b06144704421831d745fd553558517a7",
   "./ibkr-logo.png": "3c73fe172d48b3f58f11bcc146dd1987",
-  "./acclink.js": "419b035815109478a1f8f9780720af33",
+  "./acclink.js": "04dda3ed625ee486c66f36080ab97dcc",
   "./analysis.js": "c388a8e25dc2c212180f58e551fbdf09",
   "./analysis.css": "4c957472dbc740b4694df29ccaeed328",
   "./taxcenter.js": "0181206ed3d054d975dc5850a85086ac",
@@ -76,8 +76,8 @@ const HASHES = {
   "./academy.html": "5f56f60e654738ec753d8039eeedc8cf",
   "./academy-app.js": "130b15379b74427d8f0071032894b5f0",
   "./strings-academy.js": "6436a74cb752b0c0ca8d3327c4890e44",
-  "./core.js": "b146b94b4fefd81a0851194e8288108b",
-  "./auth.js": "7146de5763202cdfee2073eed2f5e086",
+  "./core.js": "0af832a7d2688c33d97a47dd43ee9313",
+  "./auth.js": "1ddd19b67fadbafbd04b386839f5ed74",
   "./shell.js": "c1cd087856bdc377b62bebf3e7a3c930",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
   "./logo-academy-lg.webp": "a116879278b6fa9d301f98fc24137cab",
