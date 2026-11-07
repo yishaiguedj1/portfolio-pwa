@@ -103,7 +103,7 @@ function make(deps) {
      מטמון בזיכרון — לא כותבים שוב אותו דבר */
   const seen = new Map();
   async function observe(u) {
-    if (!u || !UID_RE.test(String(u.uid || '')) || u.provider === 'custom') return null;
+    if (!u || !UID_RE.test(String(u.uid || '')) || u.provider === 'custom' || u.provider === 'snb') return null;   // snb = האסימון שלנו (גל 3) — לא מקור רישום
     const em = (u.emails || []).map(normEmail).filter(Boolean);
     const g = (u.gsubs || []).map(String).filter((x) => GSUB_RE.test(x));
     const sig = em.join(',') + '|' + g.join(',');
@@ -151,18 +151,45 @@ function make(deps) {
     const rec = uid ? await get(uid) : null;
     const ok = await checkPw(rec && rec.em.includes(e) ? rec.pw : null, pw);
     if (!ok) return '';
+    /* גל 3 (7/11/2026): סיסמה שהוחלפה ב־Firebase (איפוס) אחרי ששמרנו את שלנו — הישנה לא נכנסת, והרשומה נמחקת עד pwSet
+       הבא. Firebase לא עונה — זה בדיוק המצב שבשבילו יש כניסה אצלנו, ולכן מקבלים (סיכון שנשאר, docs/accounts.md) */
+    if (await staleDrop(uid, rec)) return '';
     await absorb(uid, { login: true });
     return uid;
+  }
+  async function staleDrop(uid, rec) {
+    let pu = 0;
+    try { pu = deps.fb.pwAt ? +(await deps.fb.pwAt(uid)) || 0 : 0; } catch (x) { pu = 0; }
+    if (!(pu && pu > (+rec.pa || 0) + 5000)) return false;
+    rec.pw = null; rec.pa = 0; await put(rec);
+    return true;
+  }
+  /* גל 3: יש אצלנו סיסמה בתוקף? 1 / 0 (אין, או שהוחלפה ב־Firebase — ואז נמחקת). הטלפון שולח pwSet שוב בכניסה הבאה */
+  async function pwState(uid) {
+    const rec = await get(uid);
+    if (!rec || !rec.pw) return 0;
+    return (await staleDrop(uid, rec)) ? 0 : 1;
+  }
+  /* גל 3: הוספת מייל לחשבון קיים — אחרי שהקוד במייל הוכיח שהוא של המשתמש. מייל של חשבון אחר (אצלנו או ב־Firebase) — לא
+     מוסיפים (in_use; הטלפון ממשיך למיזוג דרך Firebase). Firebase לא עונה → זורק (לא מנחשים) */
+  async function addEmail(uid, email) {
+    const e = normEmail(email);
+    if (!e || !UID_RE.test(String(uid || ''))) throw new Error('bad_email');
+    const r = await resolve('e', e, e, false);
+    if (r.uid && r.uid !== uid) return { ok: false, error: 'in_use' };
+    await absorb(uid, { em: [e] });
+    return { ok: true, already: r.uid === uid };
   }
   async function setPw(uid, email, pw) {
     if (!pwValid(pw)) throw new Error('bad_password');
     const e = normEmail(email);
     const rec = (await absorb(uid, { em: e ? [e] : [] }));
     rec.pw = await hashPw(pw);
+    rec.pa = Math.round(now());   // גל 3: מתי נשמרה — מול passwordUpdatedAt של Firebase (loginPw)
     await put(rec);
     return true;
   }
-  return { get, observe, loginGoogle, loginEmail, loginPw, setPw, ixId, _seen: seen };
+  return { get, observe, loginGoogle, loginEmail, loginPw, setPw, addEmail, pwState, ixId, _seen: seen };
 }
 
 /* ---------- אימות אסימון של Google (מהחלפת קוד בשרת — אבל בודקים חתימה בכל זאת: רף אבטחה, לא אמון ברשת) ---------- */

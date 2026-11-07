@@ -45,9 +45,67 @@
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body), signal: ac ? ac.signal : undefined,
       });
-      return r.status === 200 ? await r.json() : null;
+      const j = r.status === 200 ? await r.json() : null;
+      atTake(j, body && body.op);
+      return j;
     } catch (e) { return null; } finally { clearTimeout(to); }
   }
+  /* ---- שלב 2, גל 3 (7/11/2026): אסימון גישה משלנו — מקור אחד לאסימון של כל בקשה לשרתון (window.snbIdToken) ----
+     השרת שלנו מנפיק מהעוגייה אסימון חתום של 15 דק׳ (at; ibkr-proxy/lib/snbat.js) — בתשובות who / at / הכניסות. יש אסימון
+     בתוקף לאותו משתמש → הוא; אחרת getIdToken של Firebase, כמו היום. רק בזיכרון (לא localStorage). כבוי (הדגל acc_srv) →
+     השרת לא מנפיק, ולא נשלחת אף בקשה נוספת (op:'at' רק אחרי שהשרת כבר הנפיק במכשיר — LS_AT_ON). ב־Vercel האסימון שלנו
+     לא מתקבל: תשובת 401 לבקשה שנשאה אותו (גם אחרי מעבר לגיבוי) → אותה בקשה שוב עם getIdToken (atFetch) */
+  const AT_HEAD = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNuYi1hdC8xIn0';   // {"alg":"HS256","typ":"JWT","kid":"snb-at/1"} — כמו snbat.HEAD
+  const AT_RE = /eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNuYi1hdC8xIn0\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
+  const LS_AT_ON = 'pwa_aton_v1';            // מתי השרת הנפיק לאחרונה (רק זמן — לא האסימון). ACCOUNT_KEYS
+  const AT_SKEW = 120e3, AT_OFF_MS = 30 * 60e3, AT_ON_MS = 7 * 864e5;
+  let atTok = '', atExp = 0, atUid = '', atOffUntil = 0, atP = null;
+  function atTake(j, op) {
+    if (op === 'logout') { atClear(); return; }
+    if (!j) return;
+    if (j.at && typeof j.at === 'string' && j.at.indexOf(AT_HEAD + '.') === 0 && j.u && +j.atx > 0) {
+      atTok = j.at; atExp = +j.atx * 1000; atUid = String(j.u); atOffUntil = 0;
+      try { localStorage.setItem(LS_AT_ON, String(Date.now())); } catch (e) {}
+    } else if (j.s === 0 || j.error === 'off') { atClear(); if (j.error === 'off') { atOffUntil = Date.now() + AT_OFF_MS; try { localStorage.removeItem(LS_AT_ON); } catch (e) {} } }
+  }
+  function atClear() { atTok = ''; atExp = 0; atUid = ''; }
+  const atOn = () => { try { return Date.now() - (+localStorage.getItem(LS_AT_ON) || 0) < AT_ON_MS; } catch (e) { return false; } };
+  const atFresh = (uid) => !!(atTok && atUid === uid && atExp - Date.now() > AT_SKEW);
+  async function snbIdToken(u, force) {
+    if (!u) { try { u = firebase.auth().currentUser; } catch (e) { u = null; } }
+    if (!u || typeof u.getIdToken !== 'function') return '';
+    if (!force && sessBase() && Date.now() >= atOffUntil) {
+      if (atFresh(u.uid)) return atTok;
+      if (atOn() && sessMarked()) {
+        if (!atP) atP = sessCall({ op: 'at' }, 4000).then((j) => { if (!j || !j.ok) atOffUntil = Date.now() + 60e3; }).finally(() => { atP = null; });
+        await atP;
+        if (atFresh(u.uid)) return atTok;
+      }
+    }
+    return u.getIdToken(!!force);
+  }
+  /* בקשה שנשאה את האסימון שלנו ונדחתה (401 — Vercel, דגל שכבה, בוטל) → בלי אסימון שלנו 30 דק׳, ואותה בקשה עם Firebase */
+  function atFetch(win) {
+    const orig = win.fetch;
+    if (typeof orig !== 'function' || orig.snbAt) return;
+    const wrapped = function (input, init) {
+      const b = init && typeof init.body === 'string' ? init.body : '';
+      if (!b || b.indexOf(AT_HEAD + '.') < 0) return orig.call(win, input, init);
+      return orig.call(win, input, init).then(async (r) => {
+        if (!r || r.status !== 401) return r;
+        let u = null;
+        try { u = firebase.auth().currentUser; } catch (e) {}
+        if (!u || typeof u.getIdToken !== 'function') return r;
+        atClear(); atOffUntil = Date.now() + AT_OFF_MS;
+        let tk = '';
+        try { tk = await u.getIdToken(); } catch (e) { return r; }
+        return orig.call(win, input, Object.assign({}, init, { body: b.replace(AT_RE, tk) }));
+      });
+    };
+    wrapped.snbAt = true;
+    win.fetch = wrapped;
+  }
+  if (typeof window !== 'undefined') { window.snbIdToken = snbIdToken; atFetch(window); }
   const sessMark = (on) => { try { if (on) localStorage.setItem(LS_SESS, '1'); else localStorage.removeItem(LS_SESS); } catch (e) {} };
   const sessMarked = () => { try { return localStorage.getItem(LS_SESS) === '1'; } catch (e) { return false; } };
   /* אחרי התחברות עם Google — העוגייה (השרתון מנפיק רק מהתחברות של עד 5 דקות). בקשה אחת בכל פעם (sessLoginP):
@@ -107,7 +165,7 @@
     const base = sessBase(), u = udUser();
     if (!base || !u || !UD_COL[app] || Date.now() < udDownUntil) return null;
     let tk = '';
-    try { tk = await u.getIdToken(); } catch (e) { return null; }
+    try { tk = await snbIdToken(u); } catch (e) { return null; }   // גל 3: האסימון שלנו כשיש
     const fb = !!udFb()[app];
     const ac = typeof AbortController === 'function' ? new AbortController() : null;
     const to = ac ? setTimeout(() => ac.abort(), UD_MS) : 0;
@@ -298,6 +356,15 @@
     try { tk = await u.getIdToken(); } catch (e) { return; }
     const j = await sessCall({ op: 'accReg', idToken: tk }, 6000);
     if (j && (j.ok || j.error === 'off')) lsSet(LS_ACCREG, k);
+    if (j && j.ok && j.pw === 0) pwForget(u.uid);           // גל 3: אין אצלנו סיסמה בתוקף (למשל אחרי איפוס) → pwSet בכניסה הבאה
+  }
+  /* גל 3 (7/11/2026): הסימון "pwSet נשלח" נמחק — אחרי איפוס סיסמה (מהמכשיר: sendReset; ממקום אחר: accReg עונה pw:0) */
+  function pwForget(uid) {
+    if (!uid) { try { localStorage.removeItem(LS_PWSET); } catch (e) {} return; }
+    const k = String(uid).slice(0, 8);
+    let done = [];
+    try { done = JSON.parse(lsGet(LS_PWSET) || '[]'); if (!Array.isArray(done)) done = []; } catch (e) { done = []; }
+    if (done.includes(k)) lsSet(LS_PWSET, JSON.stringify(done.filter((x) => x !== k)));
   }
   /* הסיסמה אצלנו — פעם אחת לכל חשבון במכשיר, מיד אחרי כניסה בסיסמה (השרת דורש כניסה טרייה). לא נשמרת בטלפון */
   async function pwSetOnce(u, pw) {
@@ -325,6 +392,7 @@
     flush: () => flushSave(),
     ct: (tk) => ctSignIn(tk),            // שלב 2, גל 2: כניסה מתשובה של השרת שלנו (קוד במייל / סיסמה)
     pwSet: (u, pw) => pwSetOnce(u, pw),
+    pwForget: (uid) => pwForget(uid),   // גל 3: אחרי בקשת איפוס סיסמה (acclink.js sendReset)
   };
   function emailLinkLanding() {
     try { if (auth && auth.isSignInWithEmailLink(location.href)) import('./acclink.js').then((m) => m.finishLink()).catch(() => {}); } catch (e) {}

@@ -182,6 +182,7 @@ async function srvSend(kind, email, extra) {
   return false;
 }
 async function sendReset(e) {
+  if (A().pwForget) A().pwForget('');   // שלב 2, גל 3: אחרי האיפוס — הסיסמה החדשה גם אצלנו (pwSet בכניסה הבאה בסיסמה)
   const sv = await srvSend('reset', e);
   if (sv === 'rate') throw Object.assign(new Error('rate'), { code: 'auth/too-many-requests' });
   if (sv !== true) await auth().sendPasswordResetEmail(e, { url: backUrl() });
@@ -219,8 +220,16 @@ function codeSheet(e, why) {
   async function check() {
     const code = inp.value.replace(/\D/g, '');
     if (code.length !== 6) { err.textContent = t('accCodeShort'); err.hidden = false; return; }
-    const r = await srv({ op: 'mailCode', email: e, code });
+    const r = await srv(Object.assign({ op: 'mailCode', email: e, code }, why === 'l' ? { add: 1 } : {}));
     const j = (r && r.j) || {};
+    /* שלב 2, גל 3: הוספה לחשבון המחובר — השרת שלנו הוסיף את המייל לחשבון (added). יש גם oc → ממשיכים לקשר ב־Firebase
+       (גיבוי, ומיזוג אם המייל של חשבון אחר שם); אין oc (Firebase לא זמין) → זה מספיק */
+    if (why === 'l' && j.ok && j.added && !j.oc) {
+      s.close();
+      try { localStorage.removeItem(LS_LINK); } catch (x) {}
+      say(t('accLinked'));
+      return;
+    }
     /* שלב 2, גל 2 (7/11/2026): השרת שלנו כבר הכניס (עוגייה, s:1) — טוקן מותאם (בלי ct — who), גם בלי oc.
        הוספה לחשבון המחובר (l) — רק דרך oc (קישור ב־Firebase), לא כניסה לחשבון של המייל */
     if (j.ok && j.s === 1 && why !== 'l' && A().ct) {

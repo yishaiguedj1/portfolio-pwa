@@ -29,7 +29,14 @@ async function verifyIdToken(token, opts = {}) {
   if (parts.length !== 3 || token.length > 4000) throw new Error('bad_token');
   let head, claims;
   try { head = JSON.parse(unb64url(parts[0])); claims = JSON.parse(unb64url(parts[1])); } catch (e) { throw new Error('bad_token'); }
-  if (head.alg !== 'RS256' || !head.kid) throw new Error('bad_token');
+  if (head.alg !== 'RS256' || !head.kid) {
+    /* 7/11/2026 (שלב 2, גל 3, lib/snbat.js): האסימון שלנו — רק בשרת שלנו (לא ב־Vercel), רק כשהדגל acc_srv דולק, ורק
+       בכותרת הקבועה (HS256 + kid שלנו; alg אחר / none — נדחה). ב־Vercel: Firebase בלבד */
+    if (opts.own === false || process.env.VERCEL || !ownAccepted(opts)) throw new Error('bad_token');
+    const S = require('./snbat');
+    if (!S.isOurs(token)) throw new Error('bad_token');
+    return S.verify(token, { now: opts.now, project: opts.project, aud: opts.aud, key: opts.atKey, vs: opts.vs });
+  }
   const keys = opts.keys || await googleCerts(opts.fetch);
   const pem = keys[head.kid];
   if (!pem) throw new Error('bad_token');
@@ -49,6 +56,11 @@ async function verifyIdToken(token, opts = {}) {
   u.gsubs = Array.isArray(gid) ? gid.map(String).filter((x) => /^\d{5,40}$/.test(x)).slice(0, 5) : [];
   u.linked = await linkedEmails(token, claims, u, opts, project);
   return u;
+}
+
+function ownAccepted(opts) {
+  if (typeof opts.ownOn === 'boolean') return opts.ownOn;   // בדיקות
+  try { return require('./session').accOn(process.env); } catch (e) { return false; }
 }
 
 /* 26/10/2026 (בקשת המשתמש): כניסה גם עם מייל רגיל, וקישור חשבון Google לאותו משתמש. בטוקן יש רק המייל הראשי — מייל

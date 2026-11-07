@@ -143,10 +143,10 @@ async function mintToken(uid, app, now, deps) {
 const vsCache = new Map();
 const DOC = (uid) => 'https://firestore.googleapis.com/v1/projects/' + PROJECT() + '/databases/(default)/documents/sessions/' + uid;
 
-async function readVs(uid, deps) {
+async function readVs(uid, deps, ttl) {
   const c = vsCache.get(uid);
   const now = deps.now();
-  if (c && now - c.at < VS_CACHE_MS) return c.vs;
+  if (c && now - c.at < (ttl || VS_CACHE_MS)) return c.vs;   // ttl ארוך יותר — לאימות האסימון שלנו (lib/snbat.js)
   const tk = await deps.token();
   const r = await deps.fetch(DOC(uid), { headers: { Authorization: 'Bearer ' + tk } });
   let vs = 0;
@@ -267,7 +267,8 @@ function accStore(fetchImpl, token) {
   const d = V.derive('snb-acc-ix/v1');
   if (!d) throw new Error('vault_not_configured');
   accInst = require('./accounts').make({ fetch: fetchImpl, token, seal: V.seal, open: V.open, ixKey: d.key,
-    fb: { byEmail: (e) => FA.lookup({ fetch: fetchImpl }, { email: e }), byGoogle: (sub) => FA.lookup({ fetch: fetchImpl }, { gsub: sub }) } });
+    fb: { byEmail: (e) => FA.lookup({ fetch: fetchImpl }, { email: e }), byGoogle: (sub) => FA.lookup({ fetch: fetchImpl }, { gsub: sub }),
+      pwAt: (uid) => FA.lookup({ fetch: fetchImpl }, { uid }).then((a) => (a ? a.pu : 0)) } });   // גל 3: סיסמה שהוחלפה ב־Firebase
   return accInst;
 }
 /* הרישום השקט — לא מפיל את הבקשה. מחזיר false רק בתקלה */
@@ -290,6 +291,17 @@ async function googleExchange(fetchImpl, code, redirect, cv) {
   if (r.status !== 200 || !j.id_token) throw new Error('exchange_' + r.status);
   return { idToken: String(j.id_token), aud: id };   // את אסימון הגישה לא שומרים (openid email profile בלבד)
 }
+/* גל 3 (7/11/2026, lib/snbat.js): אסימון גישה משלנו מהעוגייה — רק כשדולק, ורק לחשבון שרשום אצלנו (המיילים המאומתים שלו
+   נכנסים לאסימון, להרשאות לפי מייל). כל תקלה = בלי אסימון, והטלפון ממשיך עם getIdToken */
+async function ownAt(deps, uid, vs, app) {
+  if (!deps.accOn()) return {};
+  try {
+    const rec = await deps.acc().get(uid);
+    if (!rec) { tally('at:no_acc', app); return {}; }
+    const r = deps.issue({ uid, app, vs, em: rec.em, now: deps.now() });
+    return { at: r.at, atx: r.exp };
+  } catch (e) { tally('at:off', app); return {}; }
+}
 const PW_WIN = 15 * 60e3, PW_EMAIL_MAX = 5, PW_IP_MAX = 20;
 const pwFails = new Map();
 function pwFail(k, now) { const a = (pwFails.get(k) || []).filter((t) => now - t < PW_WIN); a.push(now); pwFails.set(k, a); if (pwFails.size > 20000) pwFails.clear(); }
@@ -301,7 +313,8 @@ function makeHandler(over = {}) {
       fetch: over.fetch || fetch,
       now: over.now || Date.now,
       token: over.token || (() => G.datastoreToken(over.fetch)),
-      verify: over.verify || ((t) => G.verifyIdToken(t, { fetch: over.fetch })),
+      verify: over.verify || ((t) => G.verifyIdToken(t, { fetch: over.fetch, own: false })),   // כאן רק Firebase: הכניסות דורשות התחברות אמיתית
+      issue: over.issue || ((o) => require('./snbat').issue(o)),
       sa: over.sa || (() => G.serviceAccount()),
       iamToken: over.iamToken || (() => G.cloudToken(over.fetch)),
       env: over.env || process.env,
@@ -358,7 +371,7 @@ function makeHandler(over = {}) {
       let ct = '';
       try { ct = await mintToken(uid, app, now, deps); } catch (e) { tally(tag + ':ct_off', app); }
       tally(tag + ':ok', app);
-      return res.status(200).json({ ok: true, s: 1, u: uid, app, ct });
+      return res.status(200).json(Object.assign({ ok: true, s: 1, u: uid, app, ct }, await ownAt(deps, uid, now, app)));
     };
 
     /* ---- שלב 2 (6/11/2026, lib/accounts.js): החשבונות אצלנו. כבוי — off, והטלפון ממשיך עם Firebase ---- */
@@ -376,7 +389,11 @@ function makeHandler(over = {}) {
       try { u = await deps.verify(String(body.idToken || '')); } catch (e) { tally('acc:reg:bad_token', app); return res.status(401).json({ ok: false, error: 'bad_token' }); }
       if (!UID_RE.test(u.uid)) return res.status(401).json({ ok: false, error: 'bad_token' });
       const r = await observe(deps, u, app);
-      return r === false ? res.status(503).json({ ok: false, error: 'store' }) : res.status(200).json({ ok: true });
+      if (r === false) return res.status(503).json({ ok: false, error: 'store' });
+      /* גל 3: pw = יש אצלנו סיסמה בתוקף (0 אחרי איפוס ב־Firebase — הטלפון ישלח pwSet בכניסה הבאה בסיסמה) */
+      let pw = null;
+      try { pw = await deps.acc().pwState(u.uid); } catch (e) { pw = null; }
+      return res.status(200).json(pw === null ? { ok: true } : { ok: true, pw });
     }
     /* כניסה עם Google ישירות: הקוד מחלון ההסכמה (oauth.html, הלקוח של Drive — כבר רשום, בלי הגדרה חדשה) → השרת מחליף
        אותו מול Google, מאמת את האסימון (חתימה, aud, nonce) → החשבון שלנו → עוגייה + טוקן מותאם */
@@ -434,10 +451,25 @@ function makeHandler(over = {}) {
       let tok;
       try { tok = await mintToken(cur.u, app, now, deps); } catch (e) { tally('who:' + ((e && e.message) || 'sign'), app); return res.status(503).json({ ok: false, error: 'not_configured' }); }
       tally('who:ok', app);
+      let vsNew = cur.i;
       if (now - cur.i > RENEW_AFTER) {
         res.setHeader('Set-Cookie', setCookieHeader(sealCookie({ u: cur.u, a: cur.a, i: now, x: now + MAX_AGE, p: PROJECT() }, key), MAX_AGE));
+        vsNew = now;
       }
-      return res.status(200).json({ ok: true, s: 1, u: cur.u, app, ct: tok });
+      return res.status(200).json(Object.assign({ ok: true, s: 1, u: cur.u, app, ct: tok }, await ownAt(deps, cur.u, vsNew, app)));
+    }
+
+    /* גל 3: חידוש האסימון שלנו מהעוגייה — בלי טוקן מותאם ובלי IAM. אין עוגייה / התנתק / כבוי → s:0 או off */
+    if (op === 'at') {
+      if (!deps.accOn()) { tally('at:flag_off', app); return res.status(200).json({ ok: false, error: 'off' }); }
+      if (!cur) { tally('at:none', app); return res.status(200).json({ ok: true, s: 0 }); }
+      let vs;
+      try { vs = await readVs(cur.u, deps); } catch (e) { tally('at:store', app); return res.status(503).json({ ok: false, error: 'store' }); }
+      if (cur.i < vs) { tally('at:logged_out', app); res.setHeader('Set-Cookie', setCookieHeader('', 0)); return res.status(200).json({ ok: true, s: 0 }); }
+      const t = await ownAt(deps, cur.u, cur.i, app);
+      if (!t.at) return res.status(503).json({ ok: false, error: 'not_configured' });
+      tally('at:ok', app);
+      return res.status(200).json(Object.assign({ ok: true, s: 1, u: cur.u, app }, t));
     }
 
     /* התנתקות: מהמכשיר (כל האפליקציות שבו — העוגייה משותפת), או מכל המכשירים (all) */
@@ -520,6 +552,20 @@ function makeHandler(over = {}) {
       }
       const oc = openOc(key, id, rec.oc);
       try { await codePut(deps, id, { s: +rec.s || 0, sw: +rec.sw || 0, at: nowMs }); } catch (e) {}   // שימוש אחד: הקוד וה־oobCode נמחקים
+      /* גל 3: הוספת המייל לחשבון המחובר (add) — לא כניסה. רק עם עוגייה תקפה שלא בוטלה. oc נשאר: הטלפון מקשר גם ב־Firebase */
+      if (body.add) {
+        let added = '';
+        if (deps.accOn() && cur) {
+          try {
+            const vs = await readVs(cur.u, deps);
+            if (cur.i >= vs) { const r = await deps.acc().addEmail(cur.u, email); added = r.ok ? 'ok' : r.error || 'x'; }
+            else added = 'logged_out';
+          } catch (e) { added = 'store'; }
+          tally('acc:add:' + added, app);
+        }
+        if (!oc && added !== 'ok') return res.status(200).json({ ok: false, error: added === 'in_use' ? 'in_use' : 'expired' });
+        return res.status(200).json(Object.assign({ ok: true, added: added === 'ok' }, oc ? { oc } : {}));
+      }
       /* שלב 2: הקוד הוכיח שהמייל שלו — החשבון אצלנו, עוגייה וטוקן מותאם. oc נשאר לגיבוי (הטלפון של היום נכנס איתו) */
       if (deps.accOn()) {
         let r = null;
@@ -529,7 +575,7 @@ function makeHandler(over = {}) {
           let ct = '';
           try { ct = await mintToken(r.uid, app, now, deps); } catch (e) { tally('acc:mail:ct_off', app); }
           tally(r.made ? 'acc:mail:new' : 'acc:mail:ok', app);
-          return res.status(200).json(Object.assign({ ok: true, s: 1, u: r.uid, app, ct }, oc ? { oc } : {}));
+          return res.status(200).json(Object.assign({ ok: true, s: 1, u: r.uid, app, ct }, await ownAt(deps, r.uid, now, app), oc ? { oc } : {}));
         }
       }
       if (!oc) return res.status(200).json({ ok: false, error: 'expired' });
@@ -549,7 +595,7 @@ function makeHandler(over = {}) {
 
 module.exports = makeHandler();
 Object.assign(module.exports, {
-  makeHandler, appForOrigin, sessEnv, sealCookie, openCookie, cookieKey, customToken, mintToken, readCookie, setCookieHeader,
+  makeHandler, appForOrigin, sessEnv, readVs, sealCookie, openCookie, cookieKey, customToken, mintToken, readCookie, setCookieHeader,
   COOKIE, MAX_AGE, RENEW_AFTER, LOGIN_FRESH, TOKEN_TTL, APPS, AUD,
   accOn, ACC_OPS,
   _reset: () => { vsCache.clear(); hits.clear(); pwFails.clear(); accInst = null; },

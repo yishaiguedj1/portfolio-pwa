@@ -68,7 +68,7 @@ async function api(op, body) {
   if (!base) throw new Error('no_server');
   if (!u || typeof u.getIdToken !== 'function') throw new Error('signed_out');
   let tk = '';
-  try { tk = await u.getIdToken(); } catch (e) { throw new Error('signed_out'); }
+  try { tk = (typeof window !== 'undefined' && window.snbIdToken ? await window.snbIdToken(u) : await u.getIdToken()); } catch (e) { throw new Error('signed_out'); }   // גל 3: snbIdToken (cloud.js)
   let r;
   try {
     r = await fetch(base + '/api/cashflow', { method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({}, body || {}, { op, idToken: tk })) });
