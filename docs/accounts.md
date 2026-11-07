@@ -8,7 +8,7 @@
 - **אותו uid של Firebase.** חשבון לא מוכר → `fbadmin.lookup` (לפי מייל או `federatedUserId` של Google). "אין כזה" → uid חדש של 28 תווים, ו־Firebase יוצר את המשתמש ב־`signInWithCustomToken`. Firebase לא עונה → שגיאה, לא חשבון חדש.
 - הפעולות ב־`lib/session.js` (רק בשרת שלנו, `SERVER_ONLY`; ב־Vercel אין אותן, והטלפון ממשיך עם Firebase):
   - `accReg {idToken}` — רישום שקט מכל טוקן Firebase מאומת (גם לא טרי). גם `login` רושם.
-  - `gLogin {code, redirect, nonce, cv?}` — הקוד מ־`oauth.html` של הלקוח `GDRIVE_CLIENT_ID` (כתובות החזרה כבר רשומות, `REDIRECT_RE` של `gdrive.js`). השרת מחליף את הקוד, מאמת את `id_token` (חתימה מול `oauth2/v3/certs`, ‏iss, ‏aud, ‏exp, ‏nonce), ודורש `email_verified`.
+  - `gLogin {code, redirect, nonce, cv?}` — הקוד מ־`oauth.html` של הלקוח `GDRIVE_CLIENT_ID` (`REDIRECT_RE` של `gdrive.js`). **כתובת חזרה חייבת להיות רשומה גם בלקוח ב־Google Cloud** — בניסוי הלקוח נפרד (`THE SNOWBALL Drive staging`), ועד 7/11/2026 חסרה בו `invest-staging` (`redirect_uri_mismatch`); נוספו שלוש כתובות הניסוי. לפני הדלקה בייצור — לבדוק ברשימה של לקוח הייצור את `invest`, ‏`academy` ו־`studio`. השרת מחליף את הקוד, מאמת את `id_token` (חתימה מול `oauth2/v3/certs`, ‏iss, ‏aud, ‏exp, ‏nonce), ודורש `email_verified`.
   - `pwLogin {email, password}` — רק סיסמה שכבר אצלנו. 5 כישלונות ב־15 דק׳ למייל, ו־20 לכתובת IP. תשובה אחידה `bad_login`.
   - `pwSet {idToken, password}` — רק אחרי כניסה טרייה (עד 5 דק׳, לא טוקן מותאם).
   - `mailCode` — כשדולק: הקוד מאמת את המייל → החשבון אצלנו, עוגייה, `s:1`, `u`, `ct`. ‏`oc` נשאר לגיבוי. ‏`mailSend` בלי קישור מ־Firebase → מייל עם קוד בלבד.
@@ -24,10 +24,10 @@
 ## הגלים
 1. ✓ השרת (722).
 2. ✓ הטלפון (723). הקוד באזור `<auth>` החדש של `cloud.js` (נכנס גם ל־`auth.js` דרך coregen), וב־`acclink.js`:
-   - **Google**: ‏`gCfg` (פעולה חדשה, בלי התחברות: `{on, cid}`, דולק רק כש־`accOn` והלקוח מוגדר) נשאל מראש כשאין משתמש (`gPrep`), כי אחרי await בלחיצה כבר אי אפשר לפתוח את החלון של Firebase. דולק → `gTry` פותח את `oauth.html` בתוך הלחיצה, ‏state (`li…`), ‏nonce ו־PKCE מ־`crypto.getRandomValues`, הקוד מתקבל רק עם ה־state שלנו → `gLogin` → `ctSignIn` (בלי `ct` — `who`). חזרה לאפליקציה בלי קוד → ביטול אחרי 4 שניות (`w.closed` לא אמין מול COOP). כבוי / מזהה לא תקין → Firebase כמו קודם. נכשל אחרי שהחלון נפתח → "ההתחברות נכשלה", והלחיצה הבאה — Firebase (`gSrvOff`).
+   - **Google**: ‏`gCfg` (פעולה חדשה, בלי התחברות: `{on, cid}`, דולק רק כש־`accOn` והלקוח מוגדר) נשאל מראש כשאין משתמש (`gPrep`), כי אחרי await בלחיצה כבר אי אפשר לפתוח את החלון של Firebase. דולק → `gTry` פותח את `oauth.html` בתוך הלחיצה, ‏state (`li…`), ‏nonce ו־PKCE מ־`crypto.getRandomValues`, הקוד מתקבל רק עם ה־state שלנו → `gLogin` → `ctSignIn` (בלי `ct` — `who`). חזרה לאפליקציה בלי קוד → ביטול אחרי 4 שניות (`w.closed` לא אמין מול COOP). כבוי / מזהה לא תקין → Firebase כמו קודם. נכשל אחרי שהחלון נפתח → "ההתחברות נכשלה", והלחיצה הבאה — Firebase (`gSrvOff`). גם חזרה בלי קוד (בוטל, או ש־Google חסם בתוך החלון) → הלחיצה הבאה דרך Firebase (724), בלי לולאה.
    - **קוד במייל**: ‏`s:1` → `SnbAcct.ct(j.ct)` גם בלי `oc`. הוספה לחשבון המחובר (`l`) — רק דרך `oc`.
    - **`accReg`** מתוך `sessCheck`, פעם ביום לכל חשבון (`pwa_accreg_v1`; ‏`off` מסומן עד מחר, תקלה — בבדיקה הבאה).
-   - **`pwSet`** מיד אחרי כניסה/הרשמה בסיסמה ב־Firebase, פעם אחת לכל חשבון במכשיר (`pwa_pwset_v1`, רק תחילית ה־uid). הסיסמה לא נשמרת. ‏**`pwLogin`** רק כש־Firebase לא זמין (`fbDown`: רשת, מכסה, תקלה פנימית, too-many-requests) — לא בסיסמה שגויה. ‏`bad_login` מציג את ההודעה של Firebase (ייתכן שהסיסמה עוד לא אצלנו).
+   - **`pwSet`** מיד אחרי כניסה/הרשמה בסיסמה ב־Firebase, וגם אחרי "הוספת מייל וסיסמה" לחשבון (724; אחרי כניסה עם טוקן מותאם השרת עונה `not_fresh`, והסיסמה תגיע בכניסה הבאה בסיסמה), פעם אחת לכל חשבון במכשיר (`pwa_pwset_v1`, רק תחילית ה־uid). הסיסמה לא נשמרת. ‏**`pwLogin`** רק כש־Firebase לא זמין (`fbDown`: רשת, מכסה, תקלה פנימית, too-many-requests) — לא בסיסמה שגויה. ‏`bad_login` מציג את ההודעה של Firebase (ייתכן שהסיסמה עוד לא אצלנו).
    - **סיכון ידוע**: סיסמה שהוחלפה ב־Firebase (איפוס) לא מתעדכנת אצלנו עד כניסה במכשיר חדש. לטפל בגל 3.
    - בדיקות: `tests/session-client.test.js`, ‏`tests/auth.test.js`, ‏`tests/acc-email.test.js`, ‏`tests/accounts.test.js` (`gCfg`).
 3. טוקן גישה משלנו, שהשרתון מקבל לצד ה־ID token של Firebase, כדי שבקשות לא יהיו תלויות ב־Firebase.
