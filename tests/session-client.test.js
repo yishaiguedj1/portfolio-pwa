@@ -269,6 +269,73 @@ function run(host, server, uid, ls, opt) {
   r.go = true;
   ok((await r.sb.SnbAcct.ct('')) === true && r.customs.includes('WM'), 'בלי ct — who');
 
+  /* שלב 2, גל 3 (7/11/2026): מקור אחד לאסימון — snbIdToken: שלנו כשיש, אחרת getIdToken */
+  const AH = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNuYi1hdC8xIn0';
+  ok(AH === require(path.join(root, 'ibkr-proxy', 'lib', 'snbat.js')).HEAD, 'הכותרת בטלפון זהה לזו של השרת (snbat.HEAD)');
+  const OUR = AH + '.eyJzdWIiOiJVMSJ9.c2ln', OUR2 = AH + '.eyJzdWIiOiJVMiJ9.c2lnMg';
+  const fbU = () => ({ uid: 'U1abcdefgh', getIdToken: async (f) => (f ? 'FB-FORCED' : 'FB-TOK') });
+  let atAns = () => ({ ok: true, s: 1, u: 'U1abcdefgh', app: 'invest', at: OUR2, atx: Math.floor(Date.now() / 1000) + 900 });
+  const atSrv = (b) => (b.op === 'who' ? { ok: true, s: 1, u: 'U1abcdefgh', ct: 'X', at: OUR, atx: Math.floor(Date.now() / 1000) + 900 } : b.op === 'at' ? atAns() : { ok: true });
+  ls = mkStore(); ls.setItem('pwa_sess_v1', '1');
+  r = await run('invest-staging.thesnowball.app', atSrv, null, ls, { user: fbU() });
+  ok(typeof r.sb.snbIdToken === 'function' && (await r.sb.snbIdToken(fbU())) === OUR && !!ls.getItem('pwa_aton_v1'), 'who עם at → snbIdToken מחזיר את האסימון שלנו, בלי בקשה נוספת');
+  ok(![...ls._m.values()].some((v) => v.includes(AH)), 'האסימון לא נשמר ב־localStorage (רק בזיכרון)');
+  ok((await r.sb.snbIdToken({ uid: 'OTHERuid', getIdToken: async () => 'FB-OTHER' })) === 'FB-OTHER', 'משתמש אחר ב־Firebase — getIdToken שלו');
+  ok((await r.sb.snbIdToken(fbU(), true)) === 'FB-FORCED', 'force — ישר ל־Firebase');
+  ls = mkStore(); ls.setItem('pwa_sess_v1', '1');
+  r = await run('invest-staging.thesnowball.app', (b) => (b.op === 'who' ? { ok: true, s: 1, u: 'U1abcdefgh', ct: 'X', at: OUR, atx: Math.floor(Date.now() / 1000) + 60 } : b.op === 'at' ? atAns() : { ok: true }), null, ls, { user: fbU() });
+  ok((await r.sb.snbIdToken(fbU())) === OUR2 && r.calls.filter((c) => c.body.op === 'at').length === 1, 'קרוב לתפוגה → חידוש אחד (op:at) מהעוגייה');
+  // 401 לבקשה עם האסימון שלנו (Vercel / כבוי) → אותה בקשה עם Firebase. המעטפת (atFetch) נבדקת לבד, מעל fetch מדומה
+  const wrapSrc = cloudSrc.slice(cloudSrc.indexOf('function atFetch'), cloudSrc.indexOf('if (typeof window !== \'undefined\') { window.snbIdToken'));
+  ok(wrapSrc.length > 100, 'atFetch נמצא ב־cloud.js');
+  ls = mkStore(); ls.setItem('pwa_sess_v1', '1');
+  const calls2 = [];
+  let reject = true;
+  const srv2 = (b) => { if (b.op === 'probe') { calls2.push(b.idToken); if (reject && b.idToken.indexOf(AH) === 0) return '401'; return { ok: true }; } return atSrv(b); };
+  r = await run('invest-staging.thesnowball.app', srv2, null, ls, { user: fbU() });
+  r.auth.currentUser = fbU();
+  // ה־fetch המדומה של ה־harness מחזיר 500 על null; כאן — fetch משלנו מתחת למעטפת
+  const under = async (url, init) => { const b = JSON.parse(init.body); const a = srv2(b); return a === '401' ? { status: 401, json: async () => ({}) } : { status: 200, json: async () => a }; };
+  const ctx2 = { window: null, firebase: { auth: () => r.auth }, localStorage: ls, fetch: under, Date, JSON, Object, Promise };
+  ctx2.window = ctx2;
+  vm.createContext(ctx2);
+  vm.runInContext('const AT_HEAD = ' + JSON.stringify(AH) + '; const AT_RE = /' + AH + '\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+/g; const AT_OFF_MS = 1; let atOffUntil = 0; function atClear() { this.cleared = (this.cleared || 0) + 1; }\n' + wrapSrc + '\natFetch(window);', ctx2);
+  const resp = await ctx2.fetch('https://api-staging.thesnowball.app/api/udata', { method: 'POST', body: JSON.stringify({ op: 'probe', idToken: OUR }) });
+  ok(resp.status === 200 && calls2.length === 2 && calls2[0] === OUR && calls2[1] === 'FB-TOK', '401 עם האסימון שלנו (Vercel דוחה) → אותה בקשה שוב עם getIdToken');
+  reject = false; calls2.length = 0;
+  await ctx2.fetch('https://x/api/udata', { method: 'POST', body: JSON.stringify({ op: 'probe', idToken: 'FB-TOK' }) });
+  ok(calls2.length === 1, 'בקשה עם טוקן של Firebase — בלי עטיפה');
+  // כבוי: at עונה off → getIdToken, וסימון ההפעלה נמחק
+  atAns = () => ({ ok: false, error: 'off' });
+  ls = mkStore(); ls.setItem('pwa_sess_v1', '1'); ls.setItem('pwa_aton_v1', String(Date.now()));
+  r = await run('invest-staging.thesnowball.app', (b) => (b.op === 'who' ? { ok: true, s: 1, u: 'U1abcdefgh', ct: 'X' } : b.op === 'at' ? atAns() : { ok: true }), null, ls, { user: fbU() });
+  ok((await r.sb.snbIdToken(fbU())) === 'FB-TOK' && !ls.getItem('pwa_aton_v1'), 'כבוי (at → off) — getIdToken, והסימון נמחק');
+  const atN = r.calls.filter((c) => c.body.op === 'at').length;
+  await r.sb.snbIdToken(fbU());
+  ok(r.calls.filter((c) => c.body.op === 'at').length === atN, 'אחרי off — בלי בקשות at נוספות');
+  // בלי הדגל מעולם: אף בקשת at (ההתנהגות כמו היום)
+  ls = mkStore(); ls.setItem('pwa_sess_v1', '1');
+  r = await run('invest-staging.thesnowball.app', (b) => (b.op === 'who' ? { ok: true, s: 1, u: 'U1abcdefgh', ct: 'X' } : { ok: true }), null, ls, { user: fbU() });
+  ok((await r.sb.snbIdToken(fbU())) === 'FB-TOK' && r.calls.every((c) => c.body.op !== 'at'), 'בלי הדגל — getIdToken ואף בקשת at');
+  // github.io — תמיד Firebase
+  r = await run('yishaiguedj1.github.io', atSrv, null, mkStore(), { user: fbU() });
+  ok((await r.sb.snbIdToken(fbU())) === 'FB-TOK', 'github.io — getIdToken');
+  // התנתקות מוחקת את האסימון
+  ls = mkStore(); ls.setItem('pwa_sess_v1', '1');
+  r = await run('invest-staging.thesnowball.app', atSrv, null, ls, { user: fbU() });
+  ok((await r.sb.snbIdToken(fbU())) === OUR, 'יש אסימון שלנו');
+  await r.sb.Cloud.signOut();
+  ls.removeItem('pwa_aton_v1');
+  ok((await r.sb.snbIdToken(fbU())) === 'FB-TOK', 'אחרי התנתקות — לא נשאר אסימון שלנו');
+  // pwSet שוב אחרי איפוס: accReg עונה pw:0
+  ls = mkStore(); ls.setItem('pwa_pwset_v1', JSON.stringify(['U1abcdef']));
+  r = await run('invest-staging.thesnowball.app', (b) => (b.op === 'who' ? { ok: true, s: 1, u: 'U1abcdefgh', ct: 'X' } : b.op === 'accReg' ? { ok: true, pw: 0 } : { ok: true }), null, ls, { user: fbU() });
+  await tick(30);
+  ok(JSON.parse(ls.getItem('pwa_pwset_v1')).length === 0, 'accReg pw:0 (איפוס) → הסימון של pwSet נמחק, ישלח שוב בכניסה הבאה בסיסמה');
+  ls.setItem('pwa_pwset_v1', JSON.stringify(['U1abcdef']));
+  r.sb.SnbAcct.pwForget('');
+  ok(!ls.getItem('pwa_pwset_v1'), 'בקשת איפוס מהמכשיר → כל הסימונים נמחקים');
+
   console.log('# ' + n + ' בדיקות עברו');
   process.exit(0);                                      // טיימרים של cloud.js (ה־SDK המדומה) — לא מחכים להם
 })().catch((e) => { console.error('FAIL -', e); process.exit(1); });

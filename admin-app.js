@@ -33,7 +33,7 @@ function api(op, body) { const p = api0(op, body); if (track) track.push(p); ret
 async function api0(op, body) {
   const u = A.user();
   if (!u) return { ok: false, error: 'signin' };
-  let tk = ''; try { tk = await u.getIdToken(); } catch (e) {}
+  let tk = ''; try { tk = (typeof window !== 'undefined' && window.snbIdToken ? await window.snbIdToken(u) : await u.getIdToken()); } catch (e) {}   // גל 3: snbIdToken (cloud.js)
   try {
     const r = await fetch(ibkrProxyBase() + '/api/studio', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, ibkrProxyHeaders()),
       body: JSON.stringify(Object.assign({}, body || {}, { op, idToken: tk })) });

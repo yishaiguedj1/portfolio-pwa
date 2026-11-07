@@ -47,9 +47,11 @@ function tokenApp(tok) {
 function appDenied(req, body, env) {
   const name = endpointOf(req && req.url);
   const allow = scopeFor(name, body && body.op);
-  if (!allow) return '';
   const h = (req && req.headers) || {};
   const oa = appForOrigin(h.origin || h.Origin || '', sessEnv(env));
+  /* גל 3 (7/11/2026, lib/snbat.js): האסימון שלנו קשור לאפליקציה (aud) — ממקור של אפליקציה אחרת נדחה בכל פעולה */
+  if (oa && oa !== 'all' && body && require('./snbat').isOurs(body.idToken)) { const t = tokenApp(body.idToken); if (t !== 'all' && t !== oa) return 'wrong_app'; }
+  if (!allow) return '';
   if (oa && oa !== 'all' && !allow.includes(oa)) return 'wrong_app';
   const ta = tokenApp(body && body.idToken);
   if (ta && ta !== 'all' && !allow.includes(ta)) return 'wrong_app';

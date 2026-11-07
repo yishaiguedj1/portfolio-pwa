@@ -1336,7 +1336,7 @@ async function idTok() {
   try {
     if (SA && SA.ready) await SA.ready;   // 14/10/2026: הדף מצויר לפני שהחיבור ענה — פעולות שצריכות חשבון מחכות לו
     const u = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length && firebase.auth().currentUser;
-    return u ? await u.getIdToken() : '';
+    return u ? (typeof window !== 'undefined' && window.snbIdToken ? await window.snbIdToken(u) : await u.getIdToken()) : '';   // גל 3: snbIdToken (cloud.js)
   } catch (e) { return ''; }
 }
 const proxyBase = () => (typeof IBKR_PROXY_DEFAULT !== 'undefined' && IBKR_PROXY_DEFAULT) || '';

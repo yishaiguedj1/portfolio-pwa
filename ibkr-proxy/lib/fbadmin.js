@@ -57,7 +57,7 @@ async function oobLink(deps, kind, email, url) {
    (והקורא נכשל סגור: לא יוצר חשבון חדש כשאי אפשר לדעת) */
 async function lookup(deps, q) {
   const tk = await adminToken(deps);
-  const body = q.gsub ? { federatedUserId: [{ providerId: 'google.com', rawId: String(q.gsub) }] } : { email: [String(q.email || '')] };
+  const body = q.uid ? { localId: [String(q.uid)] } : q.gsub ? { federatedUserId: [{ providerId: 'google.com', rawId: String(q.gsub) }] } : { email: [String(q.email || '')] };
   const r = await deps.fetch('https://identitytoolkit.googleapis.com/v1/projects/' + PROJECT() + '/accounts:lookup', {
     method: 'POST', headers: { Authorization: 'Bearer ' + tk, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   if (r.status !== 200) {
@@ -72,7 +72,8 @@ async function lookup(deps, q) {
   const emails = [];
   if (a.email && a.emailVerified) emails.push(String(a.email).toLowerCase());
   for (const p of pi) if (p && p.providerId === 'google.com' && p.email) emails.push(String(p.email).toLowerCase());
-  return { uid: String(a.localId), emails: [...new Set(emails)], gsubs: pi.filter((p) => p && p.providerId === 'google.com' && p.rawId).map((p) => String(p.rawId)) };
+  return { uid: String(a.localId), emails: [...new Set(emails)], gsubs: pi.filter((p) => p && p.providerId === 'google.com' && p.rawId).map((p) => String(p.rawId)),
+    pu: +a.passwordUpdatedAt || 0 };   // גל 3 (7/11/2026): מתי הוחלפה הסיסמה ב־Firebase — לסיסמה שאצלנו (accounts.loginPw)
 }
 
 module.exports = { adminToken, oobLink, lookup, TYPES, _reset: () => { tokC = { at: 0, exp: 0, v: '' }; } };
