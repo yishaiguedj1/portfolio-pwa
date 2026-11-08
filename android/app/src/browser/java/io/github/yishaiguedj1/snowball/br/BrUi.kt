@@ -1606,7 +1606,7 @@ private fun SettingsScreen(a: BrowserActivity) {
     val t8 = stringResource(R.string.brLab)
     val w1 = stringResource(R.string.brToolbar); val w2 = stringResource(R.string.brNtpSet); val w3 = stringResource(R.string.brGestures)
     val w4 = stringResource(R.string.brPerf); val w5 = stringResource(R.string.brKeys)
-    val w9 = stringResource(R.string.updTitle); val w9v = if (io.github.yishaiguedj1.snowball.upd.Upd.available(ctx)) stringResource(R.string.updAvailable) else null
+    val w9v = if (io.github.yishaiguedj1.snowball.upd.Upd.available(ctx)) stringResource(R.string.updAvailable) else null
     val w6 = stringResource(R.string.brScripts); val w7 = stringResource(R.string.brWatches); val w8 = stringResource(R.string.brMacros)
     val perfV = stringResource(listOf(R.string.brSaverOff, R.string.brSaverMid, R.string.brSaverMax)[a.saver.coerceIn(0, 2)])
     SubPage(stringResource(R.string.brSettings), done = true, onDone = { a.screen = BrowserActivity.Screen.PAGE }) {
@@ -1661,9 +1661,10 @@ private fun SettingsScreen(a: BrowserActivity) {
             w8 to { IRow(w8, value = if (a.macros.isEmpty()) null else "${a.macros.size}") { a.screen = BrowserActivity.Screen.MACROS } },
             t8 to { IRow(t8) { a.screen = BrowserActivity.Screen.LAB } },
             t5 to { IRow(t5, value = "Studio DM") { a.dlSettings() } },
-            t6 to { IRow(t6, value = a.version(), chevron = false) },
-            // 08/11/2026: עדכון תוכנה (upd/UpdActivity) — כמו בהגדרות של המכשיר; "עדכון זמין" באדום כשיש גרסה חדשה
-            w9 to { IRow(w9, w9v, color = if (w9v != null) Color(0xFFFF3B30) else null) { ctx.startActivity(android.content.Intent(ctx, io.github.yishaiguedj1.snowball.upd.UpdActivity::class.java)) } },
+            // 08/11/2026 (בקשת המשתמש: העדכון בשורה של הגרסה, ב"מתקדם"): נגיעה = מסך עדכון התוכנה (upd/UpdActivity);
+            // "עדכון זמין" באדום מתחת לשם כשיש גרסה חדשה
+            t6 to { IRow(t6, w9v?.let { a.version() + " · " + it }, value = a.version(), color = if (w9v != null) Color(0xFFFF3B30) else null) {
+                ctx.startActivity(android.content.Intent(ctx, io.github.yishaiguedj1.snowball.upd.UpdActivity::class.java)) } },
             // מנוע הדפדפן ועדכוני האבטחה של Chromium (מ־Google Play): הגרסה, וכשהוא מאחר — עדכון בנגיעה
             t7 to { IRow(t7, if (a.engineOld()) stringResource(R.string.brEngineOld) else null, value = a.engineVersion().substringBefore(' '),
                 color = if (a.engineOld()) Color(0xFFFF3B30) else null, chevron = a.engineOld()) { if (a.engineOld()) a.updateEngine() } },

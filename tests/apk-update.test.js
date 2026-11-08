@@ -42,7 +42,7 @@ ok(/\.upd\.UpdStatus" android:exported="false"/.test(mf) && /\.upd\.UpdDone" and
 ok(/android:scheme="snbupd"/.test(mf) && /BIND_JOB_SERVICE/.test(mf), 'המסך נפתח מהדף; הג׳וב מוגן');
 for (const f of ['main/java/io/github/yishaiguedj1/snowball/MainActivity.kt', 'dm/java/io/github/yishaiguedj1/snowball/dm/DmActivity.kt', 'browser/java/io/github/yishaiguedj1/snowball/br/BrowserActivity.kt'])
   ok(/Upd\.schedule\(this\)/.test(R('android/app/src/' + f)), 'בדיקה יומית מתוזמנת: ' + path.basename(f));
-ok(/UpdActivity::class\.java/.test(R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmUi.kt')) && /UpdActivity::class\.java/.test(R('android/app/src/browser/java/io/github/yishaiguedj1/snowball/br/BrUi.kt')), 'שורת "עדכון תוכנה" בהגדרות DM והדפדפן');
+ok(/UpdActivity::class\.java/.test(R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmUi.kt')) && /UpdActivity::class\.java/.test(R('android/app/src/browser/java/io/github/yishaiguedj1/snowball/br/BrUi.kt')), '"עדכון תוכנה" ב־DM, ובדפדפן — בשורת הגרסה');
 ok((R('android/app/src/main/java/io/github/yishaiguedj1/snowball/MainActivity.kt').match(/Upd\.hashParam\(this\)/g) || []).length === 2, 'TWA: ‎upd= בכתובת');
 const sh = (f) => [...R(f).matchAll(/<string name="(upd\w+)"/g)].map((m) => m[1]).sort().join();
 ok(sh('android/app/src/main/res/values/strings.xml') === sh('android/app/src/main/res/values-en/strings.xml') && sh('android/app/src/main/res/values/strings.xml').length > 0, 'מחרוזות המסך בעברית ובאנגלית');
