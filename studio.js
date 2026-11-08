@@ -5033,12 +5033,12 @@ export function studioDlErr(arg) {
    האתר: בחירה (intent ל־PhActivity → ‎#phpick=), יצירת העבודה (spec.ph), מפתח לעבודה (phKey) ומסירה לאפליקציה (intent ph).
    האפליקציה (PhService): הקול → העלאה → התחלה → השוטים וה־ffprobe → העלאה. בסוף — "לצרוב בטלפון" (intent phburn). */
 const phOk = () => devDl() && ui.r2 && (apiMode() || cpMode() || ryMode());
-function phIntent(kind, q) {
+function phIntent(kind, q, fe) {   // fe — קוד השגיאה בחזרה כשאין activity לפקודה (8/11/2026: phpv → pvold — Studio מותקן אבל ישן)
   q = Object.assign({}, q, { l: uiLang() });
   try { q.w = location.origin + '/'; } catch (e) {}
   const qs = Object.keys(q).filter((k) => q[k] !== '' && q[k] != null).map((k) => k + '=' + encodeURIComponent(q[k])).join('&');
   let fb = '';
-  try { fb = location.origin + location.pathname + '#phpick=!noapp'; } catch (e) {}
+  try { fb = location.origin + location.pathname + '#phpick=!' + (fe || 'noapp'); } catch (e) {}
   return 'intent://' + kind + '?' + qs + '#Intent;scheme=snbstudio;package=' + DL_PKG + (fb ? ';S.browser_fallback_url=' + encodeURIComponent(fb) : '') + ';end';
 }
 function phPick() {
@@ -5061,6 +5061,10 @@ function nuPick() {
 export function studioPhPick(arg) {
   const r = parsePhPick(arg);
   if (!r) return false;
+  if (r.e === 'pvold') {   // 8/11/2026: phpv לא נמצא — הסרטון כבר בטופס, רק Studio לא מכיר את החיתוך
+    try { sessionStorage.removeItem(PVP_KEY); } catch (e) {}
+    flashSafe(T('studioEdPvOld')); return true;
+  }
   if (r.e) { if (r.e !== 'cancel') flashSafe(T('studioPhFail') + ' — ' + phErrText(r.e)); return true; }
   if (!form) form = freshForm(null);
   const f = form;
@@ -5087,7 +5091,7 @@ function pvOpen(f) {
     f: { from: f.from, to: f.to, mode: f.mode, out: f.out, style: f.style, sty: f.sty || null, terms: f.terms, bt: f.bt || 0, edl: f.edl || null } };
   try { sessionStorage.setItem(PVP_KEY, JSON.stringify(pend)); } catch (e) { flashSafe(T('studioPhEGen')); return; }
   flashSafe(T('studioEdPvWait'));
-  location.href = phIntent('phpv', { pid: P.pid });
+  location.href = phIntent('phpv', { pid: P.pid }, 'pvold');
 }
 export function pvRestore(pend, pid, now) {
   return !!(pend && typeof pend === 'object' && pend.pid === pid && typeof pend.arg === 'string' && pend.arg.startsWith(pid + '.') && now - (Number(pend.at) || 0) < PVP_MAX_MS);

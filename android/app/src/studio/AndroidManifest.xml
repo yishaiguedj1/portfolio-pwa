@@ -70,7 +70,7 @@
             </intent-filter>
         </activity>
         <!-- 24/10/2026: תרגום בטלפון (הסרטון לא עוזב את הטלפון) — בחירה, הקול והמדידות, הצריבה. מהאתר:
-             intent://phpick|ph|phburn|phgo?…#Intent;scheme=snbstudio;… · בתהליך נפרד (ffmpeg ו־MediaCodec לא מפילים את Studio) -->
+             intent://phpick|ph|phburn|phgo|phpv?…#Intent;scheme=snbstudio;… · בתהליך נפרד (ffmpeg ו־MediaCodec לא מפילים את Studio) -->
         <activity
             android:name=".PhActivity"
             android:process=":ph"
@@ -87,6 +87,8 @@
                 <data android:scheme="snbstudio" android:host="ph" />
                 <data android:scheme="snbstudio" android:host="phburn" />
                 <data android:scheme="snbstudio" android:host="phgo" />
+                <!-- 8/11/2026: phpv (חיתוך לפני התרגום ב־nu) — היה ב־PhActivity בלי שורה כאן, והדף קיבל ‎#phpick=!noapp -->
+                <data android:scheme="snbstudio" android:host="phpv" />
             </intent-filter>
         </activity>
         <service
