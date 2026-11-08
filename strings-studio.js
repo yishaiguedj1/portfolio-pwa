@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2275 מפתחות מתוך 6560) */
+/* המחרוזות של studio (2277 מפתחות מתוך 6562) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -75,6 +75,8 @@ he: {
   "actEdit": "עריכה",
   "advancedTitle": "אפשרויות מתקדמות",
   "apkTitle": "האפליקציה לאנדרואיד",
+  "apkUpdLbl": "עדכון תוכנה",
+  "apkUpdNew": "עדכון זמין",
   "appInfoTitle": "אפליקציה",
   "appInvestSub": "התיק שלך",
   "appVersion": "גרסת אפליקציה: ",
@@ -2352,6 +2354,8 @@ en: {
   "actEdit": "Edit",
   "advancedTitle": "Advanced options",
   "apkTitle": "Android app",
+  "apkUpdLbl": "Software update",
+  "apkUpdNew": "Update available",
   "appInfoTitle": "App",
   "appInvestSub": "Your portfolio",
   "appVersion": "App version: ",

@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של academy (1248 מפתחות מתוך 6560) */
+/* המחרוזות של academy (1250 מפתחות מתוך 6562) */
 const STRINGS = {
 he: {
   "acAiNote": "הניתוח נכתב בעזרת AI מתוך הטקסט של המכתב.",
@@ -166,6 +166,8 @@ he: {
   "annOpen": "מעבר למקום בספר",
   "annShareQuote": "שיתוף כציטוט",
   "apkTitle": "האפליקציה לאנדרואיד",
+  "apkUpdLbl": "עדכון תוכנה",
+  "apkUpdNew": "עדכון זמין",
   "appInfoTitle": "אפליקציה",
   "appInvestSub": "התיק שלך",
   "appVersion": "גרסת אפליקציה: ",
@@ -1416,6 +1418,8 @@ en: {
   "annOpen": "Go to location",
   "annShareQuote": "Share as quote",
   "apkTitle": "Android app",
+  "apkUpdLbl": "Software update",
+  "apkUpdNew": "Update available",
   "appInfoTitle": "App",
   "appInvestSub": "Your portfolio",
   "appVersion": "App version: ",

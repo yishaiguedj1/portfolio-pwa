@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1538 מפתחות מתוך 6560) */
+/* המחרוזות של admin (1540 מפתחות מתוך 6562) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1446,6 +1446,8 @@ he: {
   "admYtSub": "חשבון גוגל ייעודי (לא החשבון שלך) שדרכו השרת מוריד מיוטיוב — כך קישור יוטיוב עובד גם באייפון ובמחשב. יוטיוב עלול לחסום את החשבון, ואז מדביקים כאן עוגיות חדשות.",
   "advancedTitle": "אפשרויות מתקדמות",
   "apkTitle": "האפליקציה לאנדרואיד",
+  "apkUpdLbl": "עדכון תוכנה",
+  "apkUpdNew": "עדכון זמין",
   "appInfoTitle": "אפליקציה",
   "appInvestSub": "התיק שלך",
   "appVersion": "גרסת אפליקציה: ",
@@ -2986,6 +2988,8 @@ en: {
   "admYtSub": "A dedicated Google account (not yours) the server uses to download from YouTube — so YouTube links work on iPhone and desktop too. YouTube may block the account; then paste new cookies here.",
   "advancedTitle": "Advanced options",
   "apkTitle": "Android app",
+  "apkUpdLbl": "Software update",
+  "apkUpdNew": "Update available",
   "appInfoTitle": "App",
   "appInvestSub": "Your portfolio",
   "appVersion": "App version: ",

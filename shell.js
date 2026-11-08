@@ -409,6 +409,7 @@ export function advancedCards() {
   clr.append(ic, h('span', 'ios-row-lbl', t('clearCacheBtn')));
   clr.addEventListener('click', clearCacheReload);
   list.append(ver, clr);
+  try { if (typeof apkUpdMount === 'function') apkUpdMount(list); } catch (e) {}   // 08/11/2026: "עדכון תוכנה" — רק באפליקציית האנדרואיד (core)
   info.append(h('h2', null, t('appInfoTitle')), list);
   return app === 'cashflow' ? [info] : [w, info];   // 6/11/2026: ל־Cashflow עוד אין APK (גל 4)
 }

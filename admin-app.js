@@ -9,6 +9,7 @@ const de = document.documentElement;
 const lang = getLang();
 de.lang = lang;
 de.dir = lang === 'he' ? 'rtl' : 'ltr';
+apkFromHash();   // 08/11/2026: פתיחה מאפליקציית Admin לאנדרואיד — גם ‎upd= לשורת "עדכון תוכנה" בהגדרות (core)
 wireCoreBack();
 if (window.SNB_ENV && window.SNB_ENV.name === 'staging') { const s = document.createElement('div'); s.className = 'env-strip'; s.textContent = t('envStaging'); document.body.prepend(s); }
 setTimeout(() => de.classList.remove('lib-restoring', 'lib-curtain'), 6000);

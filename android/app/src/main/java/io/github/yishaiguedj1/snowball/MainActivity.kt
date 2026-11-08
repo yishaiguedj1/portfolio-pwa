@@ -18,6 +18,7 @@ import androidx.browser.trusted.TrustedWebActivityIntentBuilder
 import androidx.browser.trusted.sharing.ShareData
 import androidx.browser.trusted.sharing.ShareTarget
 import com.google.androidbrowserhelper.trusted.TwaLauncher
+import io.github.yishaiguedj1.snowball.upd.Upd
 import com.google.androidbrowserhelper.trusted.splashscreens.PwaWrapperSplashScreenStrategy
 
 /**
@@ -43,6 +44,7 @@ class MainActivity : Activity() {
         if (savedInstanceState?.getBoolean(KEY_LAUNCHED) == true) { finish(); return }
         if (restartInOwnTask()) { finish(); return }
         setContentView(buildSplash())
+        Upd.schedule(this)   // 08/11/2026: הבדיקה היומית של עדכון התוכנה (פעם אחת — לא מחליף ג'וב קיים)
         open(urlFor(intent), shareOf(intent), isBook(intent))
     }
 
@@ -102,7 +104,7 @@ class MainActivity : Activity() {
                 java.lang.Long.toString(System.currentTimeMillis(), 36))
         if (i?.action == Intent.ACTION_SEND) {
             val t = (i.getStringExtra(Intent.EXTRA_TEXT) ?: "").take(4096)
-            val app = "app=" + Flavor.appSig(this) + "&n=" + java.lang.Long.toString(System.currentTimeMillis(), 36)
+            val app = "app=" + Flavor.appSig(this) + "&" + Upd.hashParam(this) + "&n=" + java.lang.Long.toString(System.currentTimeMillis(), 36)
             // שלב 2: קובץ שנמצא בדף (דפדפן הציד / אפליקציה ששולחת כמו ל־1DM: extra_referer) — הדף, בשביל ה־Referer
             val ref = (i.getStringExtra("snb_ref") ?: i.getStringExtra("extra_referer") ?: "").take(2048)
             return Uri.parse(getString(R.string.launchUrl).substringBefore('#') + "#share=" + Uri.encode(t) +
@@ -117,7 +119,7 @@ class MainActivity : Activity() {
         else getString(R.string.launchUrl)
         // v353: ‎n=<זמן> — כתובת שונה בכל פתיחה. הלוגו בווידג'ט שולח תמיד אותה כתובת (‎#tab=stocks), ונגיעה חוזרת
         // לא תמיד הגיעה לדף ("לפעמים לא עובד"); כרטיס מניה — כתובת שונה לכל מניה. האתר מוחק את ‎n= (appSessionFromHash)
-        val app = "app=" + Flavor.appSig(this) + "&n=" + java.lang.Long.toString(System.currentTimeMillis(), 36)
+        val app = "app=" + Flavor.appSig(this) + "&" + Upd.hashParam(this) + "&n=" + java.lang.Long.toString(System.currentTimeMillis(), 36)
         return Uri.parse(if (base.contains('#')) "$base&$app" else "$base#$app")
     }
 
