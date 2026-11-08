@@ -118,8 +118,9 @@ function readBody(req) {
    session — החיבור המשותף (שלב 2 בתוכנית שלוש האפליקציות). העוגייה שלו עובדת רק תחת thesnowball.app,
    כלומר רק בשרת שלנו — ב־Vercel (דומיין אחר) אין לה משמעות.
    udata — התיק והספרייה דרך המסד שלנו (שלב 4 בתוכנית העצמאות מ־Firebase, 6/11/2026). ב־Vercel אין — הטלפון ממשיך ל־Firestore.
-   cashflow — Cashflow, האפליקציה הרביעית (גל 1, 6/11/2026): הדוחות מרייזאפ דרך המנוע של riseup-finance (lib/cashflow/). ב־Vercel אין. */
-const SERVER_ONLY = { session: 'lib/session.js', udata: 'lib/udata.js', cashflow: 'lib/cashflow.js' };
+   cashflow — Cashflow, האפליקציה הרביעית (גל 1, 6/11/2026): הדוחות מרייזאפ דרך המנוע של riseup-finance (lib/cashflow/). ב־Vercel אין.
+   ldbping — הודעה חתומה "שיניתי" מ־Vercel (8/11/2026): האיחוד מול היומן snbChg רץ רק אחריה (lib/ldbping.js). */
+const SERVER_ONLY = { session: 'lib/session.js', udata: 'lib/udata.js', cashflow: 'lib/cashflow.js', ldbping: 'lib/ldbping.js' };
 
 function createServer(opts = {}) {
   const dir = opts.dir || __dirname;
