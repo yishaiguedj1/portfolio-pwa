@@ -850,7 +850,7 @@ private fun SettingsScreen(a: DmActivity) {
             Div()
             // 08/11/2026: עדכון תוכנה (upd/UpdActivity) — כמו בהגדרות של המכשיר
             SetRow(stringResource(R.string.updTitle), if (io.github.yishaiguedj1.snowball.upd.Upd.available(ctx)) stringResource(R.string.updAvailable) else "") {
-                ctx.startActivity(android.content.Intent(ctx, io.github.yishaiguedj1.snowball.upd.UpdActivity::class.java)) }
+                io.github.yishaiguedj1.snowball.upd.Upd.open(ctx) }
             Div()
             SetRow(stringResource(R.string.dmSetLicenses), "") { dlg = "l" }
         }

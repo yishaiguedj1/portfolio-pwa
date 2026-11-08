@@ -70,7 +70,7 @@
             android:excludeFromRecents="true"
             android:taskAffinity=""
             android:label="@string/updTitle"
-            android:theme="@android:style/Theme.Material.NoActionBar">
+            android:theme="@style/UpdTheme">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

@@ -11,7 +11,7 @@
     <string name="updChecking">בודק אם יש עדכון…</string>
     <string name="updUpToDate">האפליקציה מעודכנת</string>
     <string name="updCheckFail">לא הצלחתי לבדוק עכשיו. בדוק את החיבור ונסה שוב.</string>
-    <string name="updChecked">נבדק %1$s</string>
+    <string name="updChecked">נבדק ב־%1$s</string>
     <string name="updAvailable">עדכון זמין</string>
     <string name="updDownloading">מוריד את העדכון…</string>
     <string name="updInstalling">מתקין את העדכון…</string>
@@ -30,4 +30,5 @@
     <string name="updFailText">העדכון לא הושלם</string>
     <string name="updAskTitle">נדרש אישור לעדכון</string>
     <string name="updAskText">נגיעה כדי לסיים את העדכון</string>
+    <string name="updBack">הגדרות</string>
 </resources>

@@ -1664,7 +1664,7 @@ private fun SettingsScreen(a: BrowserActivity) {
             // 08/11/2026 (בקשת המשתמש: העדכון בשורה של הגרסה, ב"מתקדם"): נגיעה = מסך עדכון התוכנה (upd/UpdActivity);
             // "עדכון זמין" באדום מתחת לשם כשיש גרסה חדשה
             t6 to { IRow(t6, w9v?.let { a.version() + " · " + it }, value = a.version(), color = if (w9v != null) Color(0xFFFF3B30) else null) {
-                ctx.startActivity(android.content.Intent(ctx, io.github.yishaiguedj1.snowball.upd.UpdActivity::class.java)) } },
+                io.github.yishaiguedj1.snowball.upd.Upd.open(ctx) } },
             // מנוע הדפדפן ועדכוני האבטחה של Chromium (מ־Google Play): הגרסה, וכשהוא מאחר — עדכון בנגיעה
             t7 to { IRow(t7, if (a.engineOld()) stringResource(R.string.brEngineOld) else null, value = a.engineVersion().substringBefore(' '),
                 color = if (a.engineOld()) Color(0xFFFF3B30) else null, chevron = a.engineOld()) { if (a.engineOld()) a.updateEngine() } },
