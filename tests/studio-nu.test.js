@@ -142,6 +142,15 @@ const { fakeR2, ENV } = require('./_r2fake');
   const pv = act.slice(act.indexOf('private fun preview'), act.indexOf('/* ---------------------------------------------------------------- בחירה */'));
   ok(/"phpv" -> preview\(d\)/.test(act) && /r\.optBoolean\("pu"\)/.test(pv) && /setAction\(Intent\.ACTION_SEND\)\.setType\("video\/\*"\)/.test(pv)
     && /EXTRA_TEXT, "snbpv:\$pid"/.test(pv) && /FLAG_GRANT_READ_URI_PERMISSION/.test(pv) && !/outputStream|copyTo/.test(pv), 'phpv: אותו URI ל־MainActivity (שיתוף), בלי עותק באפליקציה');
+  // 8/11/2026: כל פקודה ש־PhActivity מטפלת בה רשומה גם ב־intent-filter (phpv חסר — הדף קיבל noapp), וחזרה מ־phpv = "לעדכן את Studio"
+  const man = fs.readFileSync(path.join(root, 'android/app/src/studio/AndroidManifest.xml'), 'utf8');
+  const phF = man.slice(man.indexOf('android:name=".PhActivity"'), man.indexOf('</activity>', man.indexOf('android:name=".PhActivity"')));
+  const hosts = [...act.matchAll(/^\s*"([a-z]+)" -> /gm)].map((m) => m[1]);
+  ok(hosts.length >= 5 && hosts.includes('phpv') && hosts.every((h) => phF.includes('android:scheme="snbstudio" android:host="' + h + '"')), 'המניפסט: כל host של PhActivity ב־intent-filter (' + hosts.join(',') + ')');
+  const kinds = [...src.matchAll(/phIntent\('([a-z]+)'/g)].map((m) => m[1]);
+  ok(kinds.length >= 3 && kinds.every((k) => phF.includes('android:host="' + k + '"')), 'המניפסט: כל phIntent בדף רשום');
+  ok(/if \(r\.e === 'pvold'\) \{[^\n]*\n\s*try \{ sessionStorage\.removeItem\(PVP_KEY\); \} catch \(e\) \{\}\n\s*flashSafe\(T\('studioEdPvOld'\)\); return true;/.test(src) && /'#phpick=!' \+ \(fe \|\| 'noapp'\)/.test(src),
+    'חזרה מ־phpv: "צריך לעדכן את Studio", לא "הורדה מקישור"');
   ok(/if \(r\.optBoolean\("pu"\)\) return upPu\(ctx, pid, stopped\)/.test(work) && /PhPu\.audio\(/.test(work) && /if \(pu\) PhPu\.src\(ctx, r\) else PhNet\.FileSrc/.test(work), 'PhWork: pu — הקול ב־MediaMuxer, הסרטון מה־URI');
   ok(/MUXER_OUTPUT_MPEG_4/.test(pu) && /MUXER_OUTPUT_WEBM/.test(pu) && !/PhFf\./.test(pu), 'PhPu: הקול בלי ffmpeg ובלי קידוד (AAC → MP4, ‏Opus/Vorbis → WebM)');
   const upPu = work.slice(work.indexOf('private fun upPu'), work.indexOf('/* ---------------------------------------------------------------- burn */'));
@@ -161,7 +170,7 @@ const { fakeR2, ENV } = require('./_r2fake');
     'nu: התוצרים מהטופס, בלי ph, וכרטיס משלו בדף העבודה');
   // 5/11/2026 (בקשת המשתמש): "חיתוך לפני התרגום" חזר גם כשהסרטון נבחר דרך האפליקציה — תצוגה מקובץ שנבחר שוב באותו גודל
   ok(/if \(!f\.ka && \(f\.fileObj \|\| nuF \|\| \(f\.drive && !f\.drive\.bx\)\)\)/.test(src) && /if \(nuF && !f\.pv\) pvOpen\(f\); else go\('cutsrc'\)/.test(src)
-    && /phIntent\('phpv', \{ pid: P\.pid \}\)/.test(src) && /if \(\/\^snbpv:\/\.test\(String\(e\.t \|\| ''\)\)\) return pvGot\(key, file, e\.t\);/.test(src)
+    && /phIntent\('phpv', \{ pid: P\.pid \}, 'pvold'\)/.test(src) && /if \(\/\^snbpv:\/\.test\(String\(e\.t \|\| ''\)\)\) return pvGot\(key, file, e\.t\);/.test(src)
     && /file\.size !== f\.file\.size\) \{ inboxOp\('del', key\); flashSafe\(T\('studioEdPvNo'\)\)/.test(src) && !/pvInp/.test(src)
     && /URL\.createObjectURL\(form\.fileObj \|\| form\.pv\)/.test(src) && /dur: ed \? edlDur\(ed, P\.dur \|\| 0\) : P\.dur \|\| 0/.test(src) && /if \(ed\) spec\.edl = ed;\n\s*if \(!P\.nu && f\.pw/.test(src),
     'nu: שורת החיתוך בטופס → phpv (בלי בחירה שנייה) → pvGot, תצוגה רק מאותו סרטון, והחיתוך והאורך שאחריו בבקשה');

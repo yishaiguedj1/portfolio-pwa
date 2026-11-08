@@ -303,10 +303,11 @@ const { fakeR2, ENV } = require('./_r2fake');
   }
 
   // ה־intent המלא (Playwright לא רואה את ה־#Intent;… — נבדק כאן): החבילה של Studio, וחזרה לאתר כשהאפליקציה לא מותקנת
-  const iStart = src.indexOf('function phIntent(kind, q) {'), iEnd = src.indexOf('\n}\n', iStart) + 2;
+  const iStart = src.indexOf('function phIntent('), iEnd = src.indexOf('\n}\n', iStart) + 2;
   const phIntent = new Function('uiLang', 'DL_PKG', 'location', src.slice(iStart, iEnd) + '\nreturn phIntent;')(() => 'he', 'app.thesnowball.studio', { origin: 'https://studio.thesnowball.app', pathname: '/' });
   const iu = phIntent('phburn', { pid: PID, j: 'j' + 'a'.repeat(20), k: 'K'.repeat(43), b: 'https://api.thesnowball.app', pb: 'small' });
   ok(/^intent:\/\/phburn\?pid=p0123456789abcdef&j=ja{20}&k=K{43}&b=https%3A%2F%2Fapi\.thesnowball\.app&pb=small&l=he&w=https%3A%2F%2Fstudio\.thesnowball\.app%2F#Intent;scheme=snbstudio;package=app\.thesnowball\.studio;S\.browser_fallback_url=[^;]*phpick%3D!noapp;end$/.test(iu), 'intent://phburn — הפרמטרים, החבילה של Studio, וחזרה עם noapp: ' + iu.slice(0, 80));
+  ok(/phpick%3D!pvold;end$/.test(phIntent('phpv', { pid: PID }, 'pvold')), 'intent://phpv — חזרה עם pvold (Studio מותקן, רק ישן)');
   const android = fs.readFileSync(path.join(root, 'android/app/src/studio/AndroidManifest.xml'), 'utf8');
   ok(['phpick', 'ph', 'phburn', 'phgo'].every((x) => android.includes('android:host="' + x + '"')), 'כל ה־intents של האתר — במניפסט של PhActivity');
   const core = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhCore.kt'), 'utf8');
