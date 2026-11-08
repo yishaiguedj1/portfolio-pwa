@@ -14,4 +14,11 @@
         <item name="android:statusBarColor">@color/bar</item>
         <item name="android:navigationBarColor">@color/bar</item>
     </style>
+    <!-- 08/11/2026: מסך עדכון התוכנה — בהיר/כהה לפי המערכת (splash_bg = הרקע של האתר), בלי הבהוב כהה בפתיחה; הזכוכית — בקוד (UpdActivity) -->
+    <style name="UpdTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/splash_bg</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
 </resources>

@@ -8,7 +8,7 @@
     <string name="updChecking">Checking for updates…</string>
     <string name="updUpToDate">Your app is up to date</string>
     <string name="updCheckFail">Couldn\'t check right now. Check your connection and try again.</string>
-    <string name="updChecked">Checked %1$s</string>
+    <string name="updChecked">Checked at %1$s</string>
     <string name="updAvailable">Update available</string>
     <string name="updDownloading">Downloading update…</string>
     <string name="updInstalling">Installing update…</string>
@@ -27,4 +27,5 @@
     <string name="updFailText">The update didn\'t finish</string>
     <string name="updAskTitle">Approval needed to update</string>
     <string name="updAskText">Tap to finish the update</string>
+    <string name="updBack">Settings</string>
 </resources>

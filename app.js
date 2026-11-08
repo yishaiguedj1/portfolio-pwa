@@ -7519,8 +7519,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.128.1';
-const APP_VERSION = 'v728';
+const APP_RELEASE = '2.129.0';
+const APP_VERSION = 'v729';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -14811,7 +14811,11 @@ function apkUpdMount(list, pkg) {
     row.append(val);
   }
   const fb = APK_FILES[info.p] ? ';S.browser_fallback_url=' + encodeURIComponent('https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/' + APK_FILES[info.p]) : '';
-  row.addEventListener('click', () => { location.href = 'intent://open#Intent;scheme=snbupd;package=' + info.p + fb + ';end'; });
+  // ‎?l= — המסך הנייטיב בשפת הממשק (לא בשפת הטלפון; בקשת המשתמש 08/11/2026)
+  row.addEventListener('click', () => {
+    const lg = (typeof getLang === 'function' ? getLang() : 'he') === 'en' ? 'en' : 'he';
+    location.href = 'intent://open?l=' + lg + '#Intent;scheme=snbupd;package=' + info.p + fb + ';end';
+  });
   const ver = list.querySelector('#appVersion');
   const after = ver && ver.closest('.ios-row');
   if (after && after.parentNode === list) after.after(row); else list.prepend(row);

@@ -41,6 +41,23 @@ object Upd {
 
     private fun sp(c: Context) = c.getSharedPreferences("snb_upd", Context.MODE_PRIVATE)
 
+    /** שפת המסך וההתראות = שפת הממשק (האתר מעביר ‎?l=he|en, ‏DM/הדפדפן — את השפה שלהם), לא שפת הטלפון. ברירת מחדל: עברית */
+    fun lang(c: Context): String = if (sp(c).getString("lang", "he") == "en") "en" else "he"
+    fun setLang(c: Context, l: String?) {
+        val v = when { l == null -> return; l.startsWith("he") || l.startsWith("iw") -> "he"; l.startsWith("en") -> "en"; else -> return }
+        sp(c).edit().putString("lang", v).apply()
+    }
+    /** מ־DM/הדפדפן: השפה שבה הממשק שלהם מוצג עכשיו (iw = עברית בגרסאות ישנות של Java) */
+    fun open(c: Context) {
+        val l = if (Build.VERSION.SDK_INT >= 24) c.resources.configuration.locales[0].language else @Suppress("DEPRECATION") c.resources.configuration.locale.language
+        c.startActivity(Intent(c, UpdActivity::class.java).putExtra("l", l))
+    }
+    fun res(c: Context): Context {
+        val conf = android.content.res.Configuration(c.resources.configuration)
+        conf.setLocale(java.util.Locale(lang(c)))
+        return c.createConfigurationContext(conf)
+    }
+
     fun installedCode(c: Context): Long = try {
         val p = c.packageManager.getPackageInfo(c.packageName, 0)
         if (Build.VERSION.SDK_INT >= 28) p.longVersionCode else @Suppress("DEPRECATION") p.versionCode.toLong()
@@ -168,7 +185,8 @@ object Upd {
     fun fail(c: Context, why: String) {
         setPhase(c, "err", why)
         cleanup(c)
-        if (!UpdActivity.shown) notify(c, c.getString(R.string.updFailTitle, c.getString(R.string.app_name)), c.getString(R.string.updFailText), true)
+        val r = res(c)
+        if (!UpdActivity.shown) notify(c, r.getString(R.string.updFailTitle, c.getString(R.string.app_name)), r.getString(R.string.updFailText), true)
     }
 
     private fun cleanup(c: Context) {
@@ -185,7 +203,8 @@ object Upd {
         s.edit().putString("phase", "").putString("err", "").apply()
         if ((was == "dl" || was == "inst") && s.getLong("told", 0) != now) {
             s.edit().putLong("told", now).apply()
-            notify(c, c.getString(R.string.updDoneTitle, c.getString(R.string.app_name)), c.getString(R.string.updDoneText, installedName(c)), false)
+            val r = res(c)
+            notify(c, r.getString(R.string.updDoneTitle, c.getString(R.string.app_name)), r.getString(R.string.updDoneText, installedName(c)), false)
         }
     }
 
@@ -194,14 +213,15 @@ object Upd {
         val r = state(c).rel ?: return
         if (!UpdCore.newer(installedCode(c), r) || sp(c).getLong("seen", 0) == r.code) return
         sp(c).edit().putLong("seen", r.code).apply()
-        notify(c, c.getString(R.string.updNewTitle, c.getString(R.string.app_name)), c.getString(R.string.updNewText, r.name), true)
+        val x = res(c)
+        notify(c, x.getString(R.string.updNewTitle, c.getString(R.string.app_name)), x.getString(R.string.updNewText, r.name), true)
     }
 
     /** התראה אחת (מחליפה את הקודמת). open = נגיעה פותחת את מסך העדכון; אחרת — את האפליקציה */
     fun notify(c: Context, title: String, text: String, open: Boolean) {
         val nm = c.getSystemService(NotificationManager::class.java) ?: return
         if (Build.VERSION.SDK_INT >= 33 && c.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
-        nm.createNotificationChannel(NotificationChannel(CH, c.getString(R.string.updChannel), NotificationManager.IMPORTANCE_DEFAULT))
+        nm.createNotificationChannel(NotificationChannel(CH, res(c).getString(R.string.updChannel), NotificationManager.IMPORTANCE_DEFAULT))
         val tap = if (open) Intent(c, UpdActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             else c.packageManager.getLaunchIntentForPackage(c.packageName) ?: Intent(c, UpdActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val pi = PendingIntent.getActivity(c, 2, tap, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)

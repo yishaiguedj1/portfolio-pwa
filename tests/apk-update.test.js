@@ -42,7 +42,7 @@ ok(/\.upd\.UpdStatus" android:exported="false"/.test(mf) && /\.upd\.UpdDone" and
 ok(/android:scheme="snbupd"/.test(mf) && /BIND_JOB_SERVICE/.test(mf), 'המסך נפתח מהדף; הג׳וב מוגן');
 for (const f of ['main/java/io/github/yishaiguedj1/snowball/MainActivity.kt', 'dm/java/io/github/yishaiguedj1/snowball/dm/DmActivity.kt', 'browser/java/io/github/yishaiguedj1/snowball/br/BrowserActivity.kt'])
   ok(/Upd\.schedule\(this\)/.test(R('android/app/src/' + f)), 'בדיקה יומית מתוזמנת: ' + path.basename(f));
-ok(/UpdActivity::class\.java/.test(R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmUi.kt')) && /UpdActivity::class\.java/.test(R('android/app/src/browser/java/io/github/yishaiguedj1/snowball/br/BrUi.kt')), '"עדכון תוכנה" ב־DM, ובדפדפן — בשורת הגרסה');
+ok(/Upd\.open\(ctx\)/.test(R("android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmUi.kt")) && /t6 to \{ IRow\(t6, w9v/.test(R("android/app/src/browser/java/io/github/yishaiguedj1/snowball/br/BrUi.kt")), '"עדכון תוכנה" ב־DM, ובדפדפן — בשורת הגרסה');
 ok((R('android/app/src/main/java/io/github/yishaiguedj1/snowball/MainActivity.kt').match(/Upd\.hashParam\(this\)/g) || []).length === 2, 'TWA: ‎upd= בכתובת');
 const sh = (f) => [...R(f).matchAll(/<string name="(upd\w+)"/g)].map((m) => m[1]).sort().join();
 ok(sh('android/app/src/main/res/values/strings.xml') === sh('android/app/src/main/res/values-en/strings.xml') && sh('android/app/src/main/res/values/strings.xml').length > 0, 'מחרוזות המסך בעברית ובאנגלית');
@@ -60,12 +60,17 @@ vm.runInContext("const SS_INAPK='pwa_in_apk';const SS_APKUPD='pwa_apk_upd';" + [
 ok(ctx.F.apkFromHash() === true && ctx.location.hash === '#book=x', 'upd= נמחק מהכתובת יחד עם app=/n=');
 const inf = ctx.F.apkUpdInfo();
 ok(inf && inf.p === 'app.thesnowball.academy' && inf.c === 812 && inf.u === true, 'החבילה, הגרסה והדגל נשמרים ללשונית');
-ok(/scheme=snbupd;package=' \+ info\.p/.test(coreJs) && /apkUpdLbl/.test(coreJs) && /info\.u/.test(coreJs), 'נגיעה = המסך הנייטיב של אותה חבילה; "עדכון זמין" רק כשיש');
+ok(/'intent:\/\/open\?l=' \+ lg \+ '#Intent;scheme=snbupd;package=' \+ info\.p/.test(coreJs) && /apkUpdLbl/.test(coreJs) && /info\.u/.test(coreJs), 'נגיעה = המסך הנייטיב של אותה חבילה; "עדכון זמין" רק כשיש');
 ok(/apkUpdMount\(list, /.test(R('shell.js')) && /apkUpdMount\(/.test(R('app.js').replace(/function apkUpdMount/, '')) && /apkFromHash\(\)/.test(R('admin-app.js')), 'השורה מחוברת: Invest, ‏shell (Academy/Studio/Admin), ‏Admin קורא את ה־hash');
 
 ok(/apkUpdInfo\(\) \|\| \(pkg \?/.test(coreJs) && /browser_fallback_url=/.test(coreJs.slice(coreJs.indexOf('function apkUpdMount'))), 'השורה מופיעה גם בלי ‎upd= (TWA שכבר פתוח), ובאפליקציה ישנה — הורדה של ה־APK');
 ok(/apkUpdMount\(verEl\.closest\('\.ios-list'\), inAndroidApp\(\) \? APP_PKG/.test(R('app.js')) && /apkUpdMount\(list, inApk\(\) \?/.test(R('shell.js')), 'Invest ו־shell מעבירים את החבילה כשבאפליקציה');
 { const { APKS } = require('../tools/apk-latest.js'); const m = /const APK_FILES = (\{[^}]+\})/.exec(coreJs); const F = m ? vm.runInNewContext('(' + m[1] + ')') : {};
   ok(Object.keys(F).length >= 4 && Object.entries(F).every(([k, v]) => APKS[k] === v), 'APK_FILES בדף = APKS ב־apk-latest.js'); }
+// 08/11/2026: שפת המסך וההתראות = שפת הממשק; עיצוב הזכוכית
+const UA = R('android/app/src/main/java/io/github/yishaiguedj1/snowball/upd/UpdActivity.kt');
+ok(/getQueryParameter\("l"\)/.test(UA) && /getStringExtra\("l"\)/.test(UA) && /fun res\(c: Context\)/.test(U) && !/[^.]getString\(R\.string\.upd/.test(UA.replace(/r\.getString/g, '')), 'המסך: כל מחרוזת דרך Upd.res (שפת הממשק)');
+ok(/Upd\.open\(ctx\)/.test(R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmUi.kt')) && /Upd\.open\(ctx\)/.test(R('android/app/src/browser/java/io/github/yishaiguedj1/snowball/br/BrUi.kt')), 'DM והדפדפן פותחים בשפה שלהם');
+ok(/inner class Ambient/.test(UA) && /glass\(dp\(28f\)\)/.test(UA) && /@style\/UpdTheme/.test(mf), 'זכוכית: רקע אווירה, כרטיס ברדיוס 28, ערכת נושא בלי הבהוב');
 console.log(`\n${pass} עברו, ${fail} נכשלו`);
 process.exit(fail ? 1 : 0);

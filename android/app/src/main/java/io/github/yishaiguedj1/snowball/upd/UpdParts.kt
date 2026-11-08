@@ -46,7 +46,7 @@ class UpdStatus : BroadcastReceiver() {
                 ask.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 if (UpdActivity.shown) try { c.startActivity(ask); return } catch (e: Exception) {}
                 UpdActivity.pendingAsk = ask
-                Upd.notify(c, c.getString(io.github.yishaiguedj1.snowball.R.string.updAskTitle), c.getString(io.github.yishaiguedj1.snowball.R.string.updAskText), true)
+                Upd.res(c).let { r -> Upd.notify(c, r.getString(io.github.yishaiguedj1.snowball.R.string.updAskTitle), r.getString(io.github.yishaiguedj1.snowball.R.string.updAskText), true) }
             }
             else -> Upd.fail(c, "inst")
         }
