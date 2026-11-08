@@ -341,8 +341,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.128.0';
-const APP_VERSION = 'v727';
+const APP_RELEASE = '2.128.1';
+const APP_VERSION = 'v728';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -862,12 +862,19 @@ function apkUpdFromHash(hash) {
 function apkUpdInfo() {
   try { const v = JSON.parse(sessionStorage.getItem(SS_APKUPD) || 'null'); return v && typeof v.p === 'string' ? v : null; } catch (e) { return null; }
 }
-/* מוסיף (או מרענן אחרי החלפת שפה) את השורה מתחת ל"גרסה" ברשימה של כרטיס "אפליקציה" */
-function apkUpdMount(list) {
+/* הקובץ של כל אפליקציה בקישור הקבוע (= APKS ב־tools/apk-latest.js) — לאפליקציה ישנה בלי מסך העדכון: נגיעה מורידה
+   את הגרסה החדשה (browser_fallback_url) במקום לא לעשות כלום */
+const APK_FILES = { 'io.github.yishaiguedj1.snowball': 'the-snowball.apk', 'app.thesnowball.academy': 'the-snowball-academy.apk',
+  'app.thesnowball.studio': 'the-snowball-studio.apk', 'app.thesnowball.admin': 'the-snowball-admin.apk', 'app.thesnowball.bubble': 'the-snowball-bubble.apk' };
+/* מוסיף (או מרענן אחרי החלפת שפה) את השורה מתחת ל"גרסה" ברשימה של כרטיס "אפליקציה".
+   pkg = החבילה של האפליקציה כשהדף נפתח מתוכה (‎app= ב־hash) — גם בלי ‎upd=: נגיעה באייקון כשה־TWA כבר פתוח רק מחזירה
+   את הדף הקיים (MainActivity לא נוצר, אין hash חדש), ואחרי עדכון ה־APK הדף הישן נשאר — השורה חייבת להופיע בכל זאת
+   (08/11/2026, צילום מסך של המשתמש: Invest 1.0.271 מותקנת, השורה חסרה) */
+function apkUpdMount(list, pkg) {
   if (!list || typeof document === 'undefined') return;
   const old = list.querySelector('#apkUpd');
   if (old) old.remove();
-  const info = apkUpdInfo();
+  const info = apkUpdInfo() || (pkg ? { p: pkg, c: 0, u: false } : null);
   if (!info || !/^[a-z][a-z0-9_.]{2,80}$/.test(info.p)) return;
   const row = document.createElement('button');
   row.type = 'button'; row.className = 'ios-row ios-row-btn'; row.id = 'apkUpd';
@@ -878,7 +885,8 @@ function apkUpdMount(list) {
     val.style.color = 'var(--loss)';
     row.append(val);
   }
-  row.addEventListener('click', () => { location.href = 'intent://open#Intent;scheme=snbupd;package=' + info.p + ';end'; });
+  const fb = APK_FILES[info.p] ? ';S.browser_fallback_url=' + encodeURIComponent('https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/' + APK_FILES[info.p]) : '';
+  row.addEventListener('click', () => { location.href = 'intent://open#Intent;scheme=snbupd;package=' + info.p + fb + ';end'; });
   const ver = list.querySelector('#appVersion');
   const after = ver && ver.closest('.ios-row');
   if (after && after.parentNode === list) after.after(row); else list.prepend(row);
