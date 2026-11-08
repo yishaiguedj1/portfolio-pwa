@@ -3,7 +3,7 @@
    1. wrapFetch — השכבה האחת: בקשה ל־Firestore לאוסף שכבר במסד שלנו נענית מכאן. כל השאר — ל־Firestore כמו היום.
    2. העותק (mirror) — כל דקה: המצב האחרון של כל מסמך שהשתנה, במנות (documents:batchWrite, עד 450). כל מסמך בעותק מקבל
       _mt = מתי נכתב אצלנו (לשחזור). תקרה יומית של כתיבות (MIRROR_DAY) — מעליה העותק מחכה למחר; שום דבר לא נופל.
-   3. האיחוד (merge) — כל 2 דקות ובעלייה: מה ש־Vercel כתב (יומן snbChg, lib/ldbchg.js). "השינוי האחרון גובר" לכל מסמך:
+   3. האיחוד (merge) — אחרי הודעה "שיניתי" (lib/ldbping.js, 8/11/2026), בעלייה ופעם בשעה (רשת ביטחון): מה ש־Vercel כתב (יומן snbChg, lib/ldbchg.js). "השינוי האחרון גובר" לכל מסמך:
       מסמך שלא השתנה אצלנו מאז העותק — מקבל את הגרסה של Firestore; מסמך שהשתנה אצלנו ועוד לא נשלח — אם Vercel אחרון,
       השדות ש־Vercel כתב נכנסים (או כל המסמך, אם Vercel החליף אותו), ואם אנחנו אחרונים — שלנו נשאר וידרוס בעותק הבא.
    4. הייבוא — בפעם הראשונה: כל אוסף של השרתון נקרא מ־Firestore בעמודים של 300, בתקציב יומי (IMPORT_DAY קריאות). עד
@@ -23,9 +23,12 @@ const SF = require('./sysflags');
 
 /* אבטחה: הסטטוס חשוף ב־/api/session בלי הרשאה — שגיאה רק כקוד קצר, בלי נתיבים, כתובות או תוכן */
 const errOf = (e) => String((e && (e.code || e.message)) || e).replace(/(https?:)?\/[^\s'"]*/g, '').replace(/[^A-Za-z0-9_:. -]/g, '').trim().slice(0, 60) || 'err';
-const MIRROR_MS = 60e3, MIRROR_SLOW_MS = 5 * 60e3, MERGE_MS = 120e3, IMPORT_MS = 4e3, SNAP_MS = 10 * 60e3, SNAP_MEM_MS = 3 * 60e3;
+const MIRROR_MS = 60e3, MIRROR_SLOW_MS = 5 * 60e3, MERGE_MS = 3600e3, IMPORT_MS = 4e3, SNAP_MS = 10 * 60e3, SNAP_MEM_MS = 3 * 60e3;
 const MIRROR_DAY = 12000, MIRROR_SLOW = 8000;    // כתיבות לעותק ביום (מכסת Firestore: 20 אלף)
 const IMPORT_DAY = 8000;                         // קריאות ביום לייבוא (מכסה: 50 אלף)
+/* 8/11/2026: איחוד לפי אירוע (lib/ldbping.js). KICK_MS — ריכוך: כל ההודעות שמגיעות בתוכו = איחוד אחד.
+   UP2_MS — איחוד שני אחרי עלייה: מכסה כתיבה של Vercel שקרתה כשהשולח עוד חיכה אחרי תקלה (OPEN_MS) */
+const KICK_MS = 3e3, UP2_MS = 90e3;
 const BATCH = 450, BATCH_BYTES = 6e6, CHG_PAGE = 200, OVERLAP_MS = 6 * 60e3, TOMB_KEEP_MS = 3 * 864e5;
 /* הסדר של הייבוא: הקטנים והחמים קודם (הקריאות של הלולאות), studioJobs (הגדול) אחריהם, ושאר האוספים לפי הא״ב */
 const PRIO = ['sysCfg', 'studioServers', 'studioStats', 'studioOps', 'studioUp', 'studioVault', 'studioJobs'];
@@ -65,7 +68,7 @@ function openSnap(key, buf) {
 let cur = null;   // הבקר הפעיל (ל־status)
 
 /* o = { fetch (ה־fetch האמיתי, עם המונה), env, now, token(fetch) → טוקן, r2: { put(key, buf), get(key) } | null, key: Buffer(32) | null,
-         dir, timers:false (בבדיקות — מפעילים ביד) } */
+         dir, timers:false (בבדיקות — מפעילים ביד), every(fn, ms) / later(fn, ms) (בדיקות — שעון מדומה) } */
 function create(o = {}) {
   const env = o.env || process.env;
   const now = o.now || (() => Date.now());
@@ -83,9 +86,10 @@ function create(o = {}) {
     const m = /^Bearer (\S+)$/.exec(String(v || ''));
     return m ? m[1] : '';
   };
-  const S = { on: false, why: '', at: now(), mirror: { at: 0, n: 0, err: '', bad: 0, until: 0, fails: 0 }, merge: { at: 0, n: 0, err: '' },
+  const S = { on: false, why: '', at: now(), mirror: { at: 0, n: 0, err: '', bad: 0, until: 0, fails: 0 }, merge: { at: 0, n: 0, err: '', runs: 0, kicks: 0 },
     imp: { col: '', err: '' }, snap: { at: 0, err: '', gen: -1, mb: 0 }, restored: '', day: '', wDay: 0, rDay: 0 };
-  let store = null, readyP = null, timers = [], refetch = new Set(), seenChg = new Map(), busy = {};
+  let store = null, readyP = null, timers = [], refetch = new Set(), seenChg = new Map(), busy = {}, kickT = null, kickPend = false;
+  const later = o.later || ((fn, ms) => { const t = setTimeout(fn, ms); if (t.unref) t.unref(); return t; });
 
   const call = async (method, url, body) => {
     const tk = await token(inner);
@@ -273,6 +277,7 @@ function create(o = {}) {
     const r = await tagged('merge', () => call('POST', BASE + ':runQuery', { structuredQuery: { from: [{ collectionId: C.CHG }],
       where: { fieldFilter: { field: { fieldPath: 't' }, op: 'GREATER_THAN_OR_EQUAL', value: { integerValue: String(Math.round(since - OVERLAP_MS)) } } },
       orderBy: [{ field: { fieldPath: 't' }, direction: 'ASCENDING' }], limit: CHG_PAGE } }));
+    S.merge.runs++;
     if (r.status !== 200) { S.merge.err = 'http_' + r.status; return; }
     const got = (Array.isArray(r.j) ? r.j : []).filter((x) => x && x.document);
     S.rDay += Math.max(1, got.length);
@@ -376,6 +381,22 @@ function create(o = {}) {
   }
 
   const runMirror = once('mirror', mirror), runMerge = once('merge', () => merge().catch((e) => { S.merge.err = errOf(e); }));
+  /* הודעה "שיניתי" (lib/ldbping.js): איחוד בעוד KICK_MS. עוד הודעות בינתיים — אותו איחוד. הודעה בזמן איחוד — עוד אחד אחריו */
+  function kick() {
+    if (!store) return false;
+    kickPend = true;
+    if (kickT) return true;
+    kickT = later(async () => {
+      kickT = null;
+      if (!store) return;
+      if (busy.merge) { kick(); return; }
+      kickPend = false;
+      S.merge.kicks++;
+      await runMerge();
+      if (kickPend) kick();
+    }, KICK_MS);
+    return true;
+  }
   const runImport = once('import', () => importTick().catch((e) => { S.imp.err = errOf(e); }));
   const runSnap = once('snap', () => snapshot());
   function start() {
@@ -389,13 +410,15 @@ function create(o = {}) {
     return readyP;
   }
   function schedule() {
-    const every = (fn, ms) => { const iv = setInterval(() => fn().catch(() => {}), ms); iv.unref(); timers.push(iv); };
+    const every = o.every ? (fn, ms) => o.every(() => fn().catch(() => {}), ms)   // בדיקות: שעון מדומה
+      : (fn, ms) => { const iv = setInterval(() => fn().catch(() => {}), ms); iv.unref(); timers.push(iv); };
     every(runMirror, MIRROR_MS);
     every(runMerge, MERGE_MS);
     every(runImport, IMPORT_MS);
     every(runSnap, S.mode === 'mem' ? SNAP_MEM_MS : SNAP_MS);
     every(async () => { if (store) store.purgeTombs(TOMB_KEEP_MS); }, 6 * 3600e3);
-    setTimeout(() => runMerge().catch(() => {}), 5e3).unref();
+    later(() => runMerge().catch(() => {}), 5e3);
+    later(() => runMerge().catch(() => {}), UP2_MS);
   }
   /* כיבוי מסודר (SIGTERM): מה שעוד לא נשלח לעותק — עכשיו */
   /* כיבוי מסודר (SIGTERM, כל פריסה): מה שעוד לא נשלח — לעותק, ואז תמונת מצב (במצב mem — זו ההתמדה) */
@@ -407,11 +430,12 @@ function create(o = {}) {
     return { on: true, mode: S.mode, docs: i.docs, mb: i.mb, cols: i.cols, ready: i.ready, imp, impErr: S.imp.err || undefined, q: i.dirty,
       loc: s.loc, locReads: s.locReads, w: s.w, pass: s.pass, passWhy: s.passWhy, day: S.day, wDay: S.wDay, rDay: S.rDay,
       mirror: { at: S.mirror.at ? new Date(S.mirror.at).toISOString() : '', n: S.mirror.n, err: S.mirror.err || undefined, bad: S.mirror.bad || undefined },
-      merge: { at: S.merge.at ? new Date(S.merge.at).toISOString() : '', n: S.merge.n, err: S.merge.err || undefined },
+      merge: { at: S.merge.at ? new Date(S.merge.at).toISOString() : '', n: S.merge.n, runs: S.merge.runs, kicks: S.merge.kicks, err: S.merge.err || undefined },
+      ping: require('./ldbping').view(),   // 8/11/2026: הודעות "שיניתי" — כמה התקבלו וכמה נדחו (מונים בלבד)
       snap: { at: S.snap.at ? new Date(S.snap.at).toISOString() : '', mb: S.snap.mb, err: S.snap.err || undefined }, restored: S.restored || undefined,
       thru: C.thruOn() ? { local: S.thruLocal || 0 } : undefined };
   }
-  const ctl = { start, wrapFetch, mirror, merge, importTick, snapshot, flush, status, catchUp, refresh, get store() { return store; }, stop: () => { timers.forEach(clearInterval); timers = []; if (store) store.close(); store = null; } };
+  const ctl = { start, wrapFetch, mirror, merge, kick, importTick, snapshot, flush, status, catchUp, refresh, get store() { return store; }, stop: () => { timers.forEach(clearInterval); timers = []; if (kickT) { clearTimeout(kickT); kickT = null; } if (store) store.close(); store = null; } };
   cur = ctl;
   return ctl;
 }
@@ -432,6 +456,8 @@ const status = () => (cur ? cur.status() : { on: false, why: 'not_started' });
 /* lib/udata.js: האם אוסף כבר במסד (מוכן), ואיחוד של מסמך אחד מ־Firestore */
 const ready = (c) => !!(cur && cur.store && cur.store.ready(c));
 const refresh = (c, id) => (cur ? cur.refresh(c, id) : Promise.resolve(false));
+/* lib/ldbping.js: הודעה תקפה → איחוד (מרוכך). אין מסד — false */
+const kick = () => (cur ? cur.kick() : false);
 
 /* 6/11/2026 (שלב 2): דגל מהמסד עצמו (sysCfg/main) — בלי קריאה ל־Firestore. אין מסד (Vercel / לא עלה) = כבוי */
 function flag(k) {
@@ -442,4 +468,4 @@ function flag(k) {
   return SF.flagOn({ flOn: sv('flOn'), flOff: sv('flOff') }, k);
 }
 
-module.exports = { flag, create, forServer, status, ready, refresh, sealSnap, openSnap, MIRROR_DAY, IMPORT_DAY, PRIO };
+module.exports = { flag, create, forServer, status, ready, refresh, kick, KICK_MS, MERGE_MS, sealSnap, openSnap, MIRROR_DAY, IMPORT_DAY, PRIO };

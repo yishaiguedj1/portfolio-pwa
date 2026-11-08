@@ -402,12 +402,15 @@ async function register(e, env, name, deps) {
   return { sid, token };
 }
 /* 5/11/2026 (שלב 3 בתוכנית העצמאות מ־Firebase): השרתון שלנו מחזיק את studioServers במסד משלו (ibkr-proxy/lib/ldb.js) —
-   רישום / הסרה שנכתבים כאן ישר ב־Firestore נרשמים ביומן snbChg, והשרתון קולט אותם באיחוד (עד 2 דק׳). תקלה ביומן לא מפילה */
+   רישום / הסרה שנכתבים כאן ישר ב־Firestore נרשמים ביומן snbChg, והשרתון קולט אותם באיחוד. 8/11/2026: האיחוד רץ לפי
+   הודעה (ibkr-proxy/lib/ldbping.js) — שולחים אחת לשרתון של הסביבה (env.api), חתומה במפתח שנגזר מחשבון השירות של הפרויקט
+   (fsToken שם אותו ב־GDRIVE_SA_KEY, כמו בשרתון). בלי הודעה — עד שעה. תקלה ביומן או בהודעה לא מפילה */
 async function chg(env, tok, sid, del, deps) {
   try {
     const CH = require(path.join(ROOT, 'ibkr-proxy/lib/ldbchg.js'));
     await deps.fetch(fsBase(env.project) + ':commit', { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
       body: JSON.stringify({ writes: [CH.chgWrite(env.project, { col: 'studioServers', id: sid, d: del, full: !del }, deps.now())] }) });
+    await require(path.join(ROOT, 'ibkr-proxy/lib/ldbping.js')).send({ fetch: deps.fetch, project: env.project, hub: env.api || '', ms: 5000 });
   } catch (x) { /* בלי יומן — ייקלט בייבוא הבא */ }
 }
 

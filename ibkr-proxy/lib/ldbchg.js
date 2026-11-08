@@ -99,8 +99,11 @@ const jsonBody = (init) => {
   if (typeof b !== 'string' || !b) return null;
   try { return JSON.parse(b); } catch (e) { return null; }
 };
-/* Vercel: עוטף את fetch — אחרי כתיבה מוצלחת לאוסף של השרתון, רשומה ביומן (באותו טוקן). תקלה ביומן לא מפילה את הכתיבה */
-function stampFetch(inner, clock = Date.now) {
+/* Vercel: עוטף את fetch — אחרי כתיבה מוצלחת לאוסף של השרתון, רשומה ביומן (באותו טוקן). תקלה ביומן לא מפילה את הכתיבה.
+   8/11/2026: אחרי רשומה מוצלחת — הודעה "שיניתי" לשרת שלנו (lib/ldbping.js), שמאחד רק אחריה. בלי תוכן ובלי מזהים;
+   fire-and-forget (עד 1.5 שנ׳, תקלה נבלעת). ping(project) — לבדיקות */
+function stampFetch(inner, clock = Date.now, ping) {
+  const notify = ping || ((project) => require('./ldbping').send({ fetch: inner, project }));
   if (typeof inner !== 'function' || inner._chg) return inner;
   const w = async (input, init) => {
     const r = await inner(input, init);
@@ -113,9 +116,10 @@ function stampFetch(inner, clock = Date.now) {
           const h = (init && init.headers) || {};
           const auth = typeof h.get === 'function' ? h.get('authorization') : (h.Authorization || h.authorization);
           const now = clock();
-          await inner('https://firestore.googleapis.com/v1/projects/' + project + '/databases/(default)/documents:commit', {
+          const cr = await inner('https://firestore.googleapis.com/v1/projects/' + project + '/databases/(default)/documents:commit', {
             method: 'POST', headers: { Authorization: auth, 'Content-Type': 'application/json' },
             body: JSON.stringify({ writes: list.slice(0, 400).map((ch) => chgWrite(project, ch, now)) }) }).catch(() => null);
+          if (cr && cr.status === 200) await Promise.resolve().then(() => notify(project)).catch(() => false);
         }
       }
     } catch (e) {}
