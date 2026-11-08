@@ -5,4 +5,29 @@
     <string name="noBrowser">לא נמצא דפדפן. התקן את Chrome ונסה שוב.</string>
     <!-- אימות הקשר לאתר (Digital Asset Links). בלי assetlinks.json בשורש הדומיין — נפתח עם שורת כתובת דקה של כרום. 2.0.0: הכתובת החדשה (‎.well-known/assetlinks.json בריפו) + הישנה -->
     <string name="assetStatements" translatable="false">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://invest.thesnowball.app\"}}, {\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://yishaiguedj1.github.io\"}}, {\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://academy.thesnowball.app\"}}, {\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://studio.thesnowball.app\"}}]</string>
+    <!-- 08/11/2026: עדכון תוכנה (upd/UpdActivity) — כמו עדכון המערכת במכשיר -->
+    <string name="updTitle">עדכון תוכנה</string>
+    <string name="updVersion">גרסה %1$s</string>
+    <string name="updChecking">בודק אם יש עדכון…</string>
+    <string name="updUpToDate">האפליקציה מעודכנת</string>
+    <string name="updCheckFail">לא הצלחתי לבדוק עכשיו. בדוק את החיבור ונסה שוב.</string>
+    <string name="updChecked">נבדק %1$s</string>
+    <string name="updAvailable">עדכון זמין</string>
+    <string name="updDownloading">מוריד את העדכון…</string>
+    <string name="updInstalling">מתקין את העדכון…</string>
+    <string name="updBgNote">אפשר לצאת מהמסך — העדכון ממשיך ברקע</string>
+    <string name="updCheckBtn">בדיקת עדכונים</string>
+    <string name="updNow">עדכון</string>
+    <string name="updRetry">לנסות שוב</string>
+    <string name="updInBg">מתעדכן ברקע…</string>
+    <string name="updNote">העדכון יורד ומותקן ברקע. בסיום תקבל התראה.</string>
+    <string name="updChannel">עדכוני האפליקציה</string>
+    <string name="updNewTitle">עדכון זמין ל־%1$s</string>
+    <string name="updNewText">גרסה %1$s — נגיעה לעדכון</string>
+    <string name="updDoneTitle">%1$s עודכנה</string>
+    <string name="updDoneText">גרסה %1$s מותקנת</string>
+    <string name="updFailTitle">העדכון של %1$s לא הושלם</string>
+    <string name="updFailText">העדכון לא הושלם</string>
+    <string name="updAskTitle">נדרש אישור לעדכון</string>
+    <string name="updAskText">נגיעה כדי לסיים את העדכון</string>
 </resources>

@@ -341,8 +341,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.127.1';
-const APP_VERSION = 'v726';
+const APP_RELEASE = '2.128.0';
+const APP_VERSION = 'v727';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -839,7 +839,8 @@ function apkFromHash() {
   try { h = String(location.hash || ''); } catch (e) { return false; }
   if (!/(?:^#|&)app=[0-9a-z]{1,16}/.test(h)) return false;
   try { sessionStorage.setItem(SS_INAPK, '1'); } catch (e) {}
-  const rest = h.replace(/^#/, '').split('&').filter((x) => x && !/^(app|n)=/.test(x)).join('&');
+  apkUpdFromHash(h);
+  const rest = h.replace(/^#/, '').split('&').filter((x) => x && !/^(app|n|upd)=/.test(x)).join('&');
   try { history.replaceState(history.state, '', location.pathname + location.search + (rest ? '#' + rest : '')); } catch (e) {}
   return true;
 }
@@ -847,6 +848,40 @@ function apkIntentUrl(url) {
   const m = /^https:\/\/(invest|academy|studio)\.thesnowball\.app(\/.*)?$/.exec(String(url || ''));
   if (!m) return '';
   return 'intent://' + m[1] + '.thesnowball.app' + (m[2] || '/') + '#Intent;scheme=https;package=' + APK_PKGS[m[1]] + ';S.browser_fallback_url=' + encodeURIComponent(url) + ';end';
+}
+/* 08/11/2026 (בקשת המשתמש: "עדכון כמו עדכון המערכת במכשיר"): שורת "עדכון תוכנה" בכרטיס "אפליקציה" בהגדרות — רק
+   בתוך אפליקציית האנדרואיד. MainActivity מוסיף ל־hash ‎upd=<חבילה>~<גרסה>~<1 אם יש עדכון> (Upd.hashParam), ונגיעה פותחת
+   את המסך הנייטיב (UpdActivity: בדיקה, "עדכון" — ההורדה וההתקנה ברקע, התראה בסיום). החבילה מהאפליקציה עצמה — כך גם
+   Admin והבועה (לא ב־APK_PKGS) פותחות את המסך של עצמן */
+const SS_APKUPD = 'pwa_apk_upd';
+function apkUpdFromHash(hash) {
+  const m = /(?:^#|&)upd=([a-z][a-z0-9_.]{2,80})~(\d{1,12})~([01])(?:&|$)/.exec(String(hash || ''));
+  if (!m) return;
+  try { sessionStorage.setItem(SS_APKUPD, JSON.stringify({ p: m[1], c: +m[2], u: m[3] === '1' })); } catch (e) {}
+}
+function apkUpdInfo() {
+  try { const v = JSON.parse(sessionStorage.getItem(SS_APKUPD) || 'null'); return v && typeof v.p === 'string' ? v : null; } catch (e) { return null; }
+}
+/* מוסיף (או מרענן אחרי החלפת שפה) את השורה מתחת ל"גרסה" ברשימה של כרטיס "אפליקציה" */
+function apkUpdMount(list) {
+  if (!list || typeof document === 'undefined') return;
+  const old = list.querySelector('#apkUpd');
+  if (old) old.remove();
+  const info = apkUpdInfo();
+  if (!info || !/^[a-z][a-z0-9_.]{2,80}$/.test(info.p)) return;
+  const row = document.createElement('button');
+  row.type = 'button'; row.className = 'ios-row ios-row-btn'; row.id = 'apkUpd';
+  const lbl = document.createElement('span'); lbl.className = 'ios-row-lbl'; lbl.textContent = t('apkUpdLbl');
+  row.append(lbl);
+  if (info.u) {
+    const val = document.createElement('span'); val.className = 'ios-row-val'; val.textContent = t('apkUpdNew');
+    val.style.color = 'var(--loss)';
+    row.append(val);
+  }
+  row.addEventListener('click', () => { location.href = 'intent://open#Intent;scheme=snbupd;package=' + info.p + ';end'; });
+  const ver = list.querySelector('#appVersion');
+  const after = ver && ver.closest('.ios-row');
+  if (after && after.parentNode === list) after.after(row); else list.prepend(row);
 }
 /* מעבר לאפליקציה אחרת — מהתפריט ומ"THE SNOWBALL".
    14/10/2026 (סרטון המשתמש: Academy/Studio "נתקעות" — מסך שחור וחזרה ל־Invest): סגירת התפריט מחזירה את הרשומה שלו

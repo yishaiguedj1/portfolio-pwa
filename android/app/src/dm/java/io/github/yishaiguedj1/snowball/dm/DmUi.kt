@@ -848,6 +848,10 @@ private fun SettingsScreen(a: DmActivity) {
             Div()
             SetRow(stringResource(R.string.dmSetLog), "") { DmLogFile.init(ctx); a.shareText(DmLogFile.exportText(ctx)) }
             Div()
+            // 08/11/2026: עדכון תוכנה (upd/UpdActivity) — כמו בהגדרות של המכשיר
+            SetRow(stringResource(R.string.updTitle), if (io.github.yishaiguedj1.snowball.upd.Upd.available(ctx)) stringResource(R.string.updAvailable) else "") {
+                ctx.startActivity(android.content.Intent(ctx, io.github.yishaiguedj1.snowball.upd.UpdActivity::class.java)) }
+            Div()
             SetRow(stringResource(R.string.dmSetLicenses), "") { dlg = "l" }
         }
         Spacer(Modifier.height(14.dp))

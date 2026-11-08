@@ -314,6 +314,7 @@ class BrowserActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         prefs = BrPrefs(this)
+        io.github.yishaiguedj1.snowball.upd.Upd.schedule(this)   // 08/11/2026: הבדיקה היומית של עדכון התוכנה
         // לכל משתמש בדפדפן — פרופיל WebView משלו (עוגיות, אחסון של אתרים); מה שעובר להורדה לוקח את העוגיות שלו
         userProfile()?.let { DmCookies.cm = it.cookieManager }
         // 26/10/2026: מנוע ההורדות (פייתון + yt-dlp, והעדכון היומי שלו) מתחמם ברקע מההתחלה — הבדיקה הראשונה של סרטון לא

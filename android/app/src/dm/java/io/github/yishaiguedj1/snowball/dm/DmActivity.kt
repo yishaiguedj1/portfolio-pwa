@@ -53,6 +53,7 @@ class DmActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         DmStore.init(this)
+        io.github.yishaiguedj1.snowball.upd.Upd.schedule(this)   // 08/11/2026: הבדיקה היומית של עדכון התוכנה
         DmR4.autoClean(this)   // 02/11/2026 (סבב 4, ‏28): ניקוי אוטומטי של הרשימה (לא של הקבצים), אם הופעל
         DmEngine.pump(this)
         DmR4.scheduleWatch(this)   // תור הסנכרון (7/38) — המשימה הבאה של המערכת

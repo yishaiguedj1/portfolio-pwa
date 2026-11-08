@@ -162,9 +162,17 @@ ok(/FALLBACK_TRIES = 2/.test(gs), 'Chrome: נגן שלא נמצא בעץ בדף 
 const da = R('android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmActivity.kt');
 for (const f of ['dm', 'browser'])
   ok(/android\.permission\.REQUEST_INSTALL_PACKAGES/.test(R('android/app/src/' + f + '/AndroidManifest.xml')), f + ': מבקש את ההרשאה להתקין');
-for (const f of ['main', 'studio', 'invest', 'lite', 'bubble'])
+for (const f of ['studio', 'invest', 'lite', 'bubble'])
   if (fs.existsSync(path.join(ROOT, 'android/app/src', f, 'AndroidManifest.xml')))
     ok(!/REQUEST_INSTALL_PACKAGES/.test(R('android/app/src/' + f + '/AndroidManifest.xml')), f + ': בלי הרשאת התקנה (רק מנהל ההורדות)');
+// 08/11/2026 (בקשת המשתמש — עדכון עצמי שקט, tests/apk-update.test.js): ב־main ההרשאה רק כדי שהאפליקציה תעדכן את עצמה —
+// ההתקנה היחידה שם = PackageInstaller לחבילה של האפליקציה עצמה; APK שהמשתמש הוריד — עדיין רק במנהל ההורדות
+{
+  const updDir = path.join(ROOT, 'android/app/src/main/java/io/github/yishaiguedj1/snowball/upd');
+  const mainKt = fs.readdirSync(updDir).map((x) => R(path.relative(ROOT, path.join(updDir, x)))).join('\n') + R('android/app/src/main/java/io/github/yishaiguedj1/snowball/MainActivity.kt');
+  ok(/UPDATE_PACKAGES_WITHOUT_USER_ACTION/.test(R('android/app/src/main/AndroidManifest.xml')) && /setAppPackageName\(c\.packageName\)/.test(mainKt) &&
+    !/package-archive|ACTION_INSTALL_PACKAGE/.test(mainKt), 'main: התקנה רק של האפליקציה עצמה (עדכון עצמי)');
+}
 // 01/11/2026 (סבב 3): APK שירד → קודם בודק ה־APK (חתימה, גרסה, הרשאות), ומשם ההתקנה באישור
 ok(/if \(cat == DmName\.Cat\.APK && t\.uri\.startsWith\("content:\/\/"\)\) \{ apkCheck\.value = t; return \}/.test(da), 'APK שירד → בדיקה לפני התקנה');
 ok(/onClose\(\); a\.install\(t\)/.test(fs.readFileSync(require('path').join(__dirname, '../android/app/src/dm/java/io/github/yishaiguedj1/snowball/dm/DmUiRound3.kt'), 'utf8')), 'מהבדיקה → התקנה');
