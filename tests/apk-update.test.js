@@ -61,7 +61,11 @@ ok(ctx.F.apkFromHash() === true && ctx.location.hash === '#book=x', 'upd= נמח
 const inf = ctx.F.apkUpdInfo();
 ok(inf && inf.p === 'app.thesnowball.academy' && inf.c === 812 && inf.u === true, 'החבילה, הגרסה והדגל נשמרים ללשונית');
 ok(/scheme=snbupd;package=' \+ info\.p/.test(coreJs) && /apkUpdLbl/.test(coreJs) && /info\.u/.test(coreJs), 'נגיעה = המסך הנייטיב של אותה חבילה; "עדכון זמין" רק כשיש');
-ok(/apkUpdMount\(list\)/.test(R('shell.js')) && /apkUpdMount\(/.test(R('app.js').replace(/function apkUpdMount/, '')) && /apkFromHash\(\)/.test(R('admin-app.js')), 'השורה מחוברת: Invest, ‏shell (Academy/Studio/Admin), ‏Admin קורא את ה־hash');
+ok(/apkUpdMount\(list, /.test(R('shell.js')) && /apkUpdMount\(/.test(R('app.js').replace(/function apkUpdMount/, '')) && /apkFromHash\(\)/.test(R('admin-app.js')), 'השורה מחוברת: Invest, ‏shell (Academy/Studio/Admin), ‏Admin קורא את ה־hash');
 
+ok(/apkUpdInfo\(\) \|\| \(pkg \?/.test(coreJs) && /browser_fallback_url=/.test(coreJs.slice(coreJs.indexOf('function apkUpdMount'))), 'השורה מופיעה גם בלי ‎upd= (TWA שכבר פתוח), ובאפליקציה ישנה — הורדה של ה־APK');
+ok(/apkUpdMount\(verEl\.closest\('\.ios-list'\), inAndroidApp\(\) \? APP_PKG/.test(R('app.js')) && /apkUpdMount\(list, inApk\(\) \?/.test(R('shell.js')), 'Invest ו־shell מעבירים את החבילה כשבאפליקציה');
+{ const { APKS } = require('../tools/apk-latest.js'); const m = /const APK_FILES = (\{[^}]+\})/.exec(coreJs); const F = m ? vm.runInNewContext('(' + m[1] + ')') : {};
+  ok(Object.keys(F).length >= 4 && Object.entries(F).every(([k, v]) => APKS[k] === v), 'APK_FILES בדף = APKS ב־apk-latest.js'); }
 console.log(`\n${pass} עברו, ${fail} נכשלו`);
 process.exit(fail ? 1 : 0);

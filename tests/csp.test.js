@@ -35,6 +35,8 @@ for (const h of hosts) {
   // קישורי ניווט (נפתחים בלשונית חדשה, לא fetch): v222 — הוספת דוח ל־Google Calendar
   if (h === 'https://calendar.google.com') { ok(!/fetch\w*\([^)]*calendar\.google\.com/.test(app), 'Google Calendar רק כקישור ניווט (לא fetch)'); continue; }
   // שלב 2, גל 2 (7/11/2026): חלון ההסכמה של Google לכניסה (cloud.js gSrvSignIn) — ניווט של החלון בלבד, לא fetch
+  // 08/11/2026: הקישור הקבוע ל־APK (apkUpdMount, ‏browser_fallback_url בתוך intent) — הורדה בניווט, לא fetch
+  if (h === 'https://github.com') { ok(!/fetch\w*\([^)]*github\.com/.test(app), 'github.com רק כקישור הורדה של ה־APK (לא fetch)'); continue; }
   if (h === 'https://accounts.google.com') { ok(!/fetch\w*\([^)]*accounts\.google\.com/.test(cloud), 'accounts.google.com רק כניווט של חלון ההסכמה (לא fetch)'); continue; }
   ok(allows('connect-src', h + '/x'), 'connect-src מכסה ' + h);
 }
