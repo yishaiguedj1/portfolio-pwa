@@ -249,7 +249,7 @@
 - פוסט של Verbit מ־3/2026 על תמלול בבתי משפט מתאר מודל היברידי של AI ומתמללים אנושיים (תקציר חיפוש) — [Verbit blog](https://verbit.ai/resource/insights-from-iaca-dubai-learnings-on-court-transcription/)
 
 #### Kaltura (וחברת eSelf שנרכשה)
-- **רקע:** Kaltura נוסדה בישראל. ב־2022 קיבלה הצעת מיזוג מ־Panopto לפי שווי של 383 מיליון דולר (תקציר חיפוש) — [Calcalist Tech](https://calcalistech.com/tags/Kaltura). כותרת דף הבית היום: "Agentic Video & AI Avatar Platform" (נבדק 9/11/2026) — [Kaltura](https://corp.kaltura.com/)
+- **רקע:** Kaltura נוסדה בישראל. ב־2022 קיבלה הצעת רכישה מ־Panopto לפי שווי של 383 מיליון דולר (תקציר חיפוש) — [Calcalist Tech](https://calcalistech.com/tags/Kaltura). כותרת דף הבית היום: "Agentic Video & AI Avatar Platform" (נבדק 9/11/2026) — [Kaltura](https://corp.kaltura.com/)
 - **Genie — יומן השחרורים** — [Kaltura Genie](https://knowledge.kaltura.com/help/genie):
   - **יולי 2025:** קריאת טקסט מהמסך. ציטוט: "Genie now leverages OCR (Optical Character Recognition) technology to extract text from videos", ‏"particularly helpful for videos featuring speakers with presentation slides, classroom recordings showing whiteboards". כדי לקבל את נתוני ה־OCR צריך משימת REACH.
   - **אוגוסט 2025:** התשובות ניתנות בשפת השאלה.
@@ -422,13 +422,13 @@
   - דירוג 4.5 מ־233 מדרגים. הגרסה הקודמת, 2.1.11, מתוארכת 20/12/2025.
   — [App Store](https://apps.apple.com/il/app/%D7%AA%D7%9E%D7%9C%D7%95%D7%9C-%D7%93%D7%99%D7%91%D7%95%D7%A8-%D7%9C%D7%98%D7%A7%D7%A1%D7%98/id1610386353?l=he)
 - **"תמלול אודיו" (Skylab Software):** עברית כשפה ראשית ועוד 46 שפות, ומודלים שרצים במכשיר. הגרסה 5.0 מוסיפה "Improve with AI": נקודות ופרוטוקול. רכישות של ‏₪29.90 ו־‏₪249.90. אין מספיק דירוגים בישראל — [App Store](https://apps.apple.com/il/app/%D7%AA%D7%9E%D7%9C%D7%95%D7%9C-%D7%90%D7%95%D7%93%D7%99%D7%95-%D7%94%D7%9E%D7%A8%D7%AA-%D7%90%D7%95%D7%93%D7%99%D7%95-%D7%9C%D7%98%D7%A7%D7%A1%D7%98/id1503180824?l=he)
-- **דפי נחיתה בעברית של ספקים זרים** (תקצירי חיפוש, נבדקו כקישורים ב־9/11/2026):
+- **דפי נחיתה בעברית של ספקים זרים** (מתוצאות חיפוש. העמודים עצמם לא נקראו, חוץ מ־Soniox):
   - **Speak AI:** דף "סיכום יוטיוב של AI" — [Speak AI](https://speakai.co/he/%D7%A1%D7%99%D7%9B%D7%95%D7%9D-%D7%99%D7%95%D7%98%D7%99%D7%95%D7%91-%D7%A9%D7%9C-ai/)
   - **Sozai:** דף "סיכומי הרצאות" — [Sozai](https://sozai.app/he/lecture-notes/). מדריך שלו להרצאות רפואה מזהיר שתמליל AI הוא טיוטה, ושמות תרופות שנשמעים דומה נכשלים — [Sozai](https://sozai.app/he/transcribe-medical-lectures-dictation/)
   - **Sider:** מסכם YouTube עם "רגעי מפתח" — [Sider](https://sider.ai/he/extensions/chatgpt-youtube-summarizer)
   - **MindMap AI:** מסכם וידאו למפת חשיבה — [MindMap AI](https://mindmapai.app/he/video-summarizer)
   - **TurboScribe:** דף "תמלול הרצאות וסמינרים" — [TurboScribe](https://turboscribe.ai/he/u/transcribe-lectures-and-seminars-to-text)
-  - **Google Workspace Marketplace:** תוספי תמלול בממשק עברי — [Workspace Marketplace](https://workspace.google.com/marketplace/app/transcription_literoi_puhe_tekstiksi/869047623675?hl=iw)
+  - **Google Workspace Marketplace:** תוסף תמלול שמופיע בחנות בעברית — [Workspace Marketplace](https://workspace.google.com/marketplace/app/transcription_literoi_puhe_tekstiksi/869047623675?hl=iw)
   - **Soniox:** דף סיכומי הרצאות בעברית לסטודנטים (ב1) — [Soniox](https://soniox.com/soniox-app/for/university-students-lecture-summaries-in-hebrew)
 
 #### תרבות שיתוף הסיכומים
@@ -452,3 +452,374 @@
 - **שוק הוובינרים בעברית לא נחקר:** פלטפורמות ישראליות, היקף והרגלי צפייה לא נבדקו, כי תקציב החיפוש נגמר.
 - **Ramble:** הפרטים מהכתבה בלבד. המאגר שלו לא נבדק, ולא ידוע באיזה מנוע תמלול הוא משתמש.
 - **התמלול של וואטסאפ באנדרואיד:** הראיות סותרות. מעריב (12/2024) כותב שהעדכון "עוד לא הגיע". ‏mako (10/2026) ובחדרי חרדים כותבים שאין עברית באנדרואיד. לא נבדק במכשיר.
+
+## ג. מפקד הזנב הארוך: מי עוד בשוק? (כ־240 כלים, שורה לכל כלי)
+
+### Takeaway
+המפקד מונה כ־240 כלים בשלוש־עשרה קבוצות, ועוד 21 כרטיסי העומק שב־א1. ההבחנה החשובה: **הרוב המכריע עובד מתמליל.** קריאה מתועדת של המסך (שקפים, גרפים, קוד, טקסט) לתוך התוצר מופיעה רק אצל מעטים:
+- **כלים צרכניים:** HoverNotes ו־Readray. בחלקיות: VideoHighlight ו־Snipo בלכידה ידנית, ‏ScreenApp בכלי OCR נפרד, ו־BibiGPT בטענת ספק.
+- **מוסדיים:** Mediasite ו־Kaltura Genie.
+- **ממשקי API:** TwelveLabs, ‏VideoDB, ‏Mixpeek, ‏Valossa, ‏Azure AI Video Indexer ו־Memories.ai.
+- **לוקליזציה:** Vozo.
+- **קוד פתוח:** lecture2notes, ‏video2pdfslides, ‏koma, ‏NVIDIA VSS, ‏video-to-skill ו־VidGlyph.
+
+**אף אחד מהכלים החזותיים לא מתעד עברית.**
+מגמות נוספות:
+- **MCP:** המילה מופיעה בדפי הבית של 48 מתוך 133 האתרים שנקראו.
+- **Claude:** השם מופיע ב־37 מהם.
+- **מיצוב חדש:** דפי הבית של Memories.ai, ‏Podcastle (שמציג היום את השם Async), ‏Shiken, ‏Supernormal, ‏Maestra ו־Capsho מציגים מוצר אחר מזה שהיה מוכר להם בעבר. המיצוב הקודם הוא מידע ישן שלא אומת בסבב הזה. ‏Summarize.tech מושבת. נישת "מסכם YouTube" לבדו מתמסחרת.
+
+### Cited Findings
+
+**שיטה ומקרא.**
+- **מקור הנתונים:** דפי הבית הרשמיים נקראו ב־9/11/2026: כותרת, תיאור וטקסט הדף. עמודי ה־topics ב־GitHub ועמודי הקטגוריות ב־Product Hunt נקראו באותו יום. לרשימות סיכום יש תאריך משלהן: Scrimba ‏(11/8/2026), ‏Toolworthy ‏(7/5/2026, עודכן 15/8/2026), ובלוג BibiGPT (עודכן 7/9/2026, פרסום של ספק).
+- **עמודת "חזותי":**
+  - **כן** — הדף מתאר במפורש קריאה של תוכן המסך לתוך התוצר.
+  - **חלקי** — לכידת פריים ידנית, כלי OCR נפרד או מעקב פנים.
+  - **טענה** — ניסוח כללי בלי פירוט.
+  - **—** — לא מתועד בדף שנבדק.
+- **עמודת "מחיר":** מחיר מופיע רק כשנמצא בהקשר: עמוד מחירים, רשימת סיכום או טקסט מפורש. מחיר שחולץ מדף הבית בלי הקשר מסומן כך. "—" פירושו שלא נבדק.
+- **ספירות:** ספירות מילות המפתח (MCP, ‏Claude, עברית) הן חיפוש טקסט בדפי הבית. הן מעידות שהמילה מופיעה, ולא שהיכולת קיימת.
+
+#### ג1. מסכמי וידאו ו־YouTube ועוזרי דפדפן
+
+| כלי | מה עושה | קלט | חזותי | מחיר | מקור |
+|---|---|---|---|---|---|
+| Eightify | נקודות מפתח עם זמנים לסרטוני YouTube (תוסף ואפליקציה) | קישור YouTube | — | $9.99 לחודש או $59.99 לשנה (App Store, לפי Scrimba) | [Eightify](https://eightify.app/) (החזיר 403); [Scrimba](https://scrimba.com/articles/best-ai-video-summarizers-2026/) |
+| NoteGPT | סוכן AI: סיכום, תמלול, מצגות ומסמכים | YouTube ופלייליסטים, קבצים (גם בלי כתוביות) | — | Pro ‏$9 לחודש בשנתי, ‏Unlimited ‏$19.92, ‏Max ‏$69. ב־Pro: עד 120 דקות לסרטון בלי כתוביות, 1GB, אצווה של 20 (Scrimba) | [NoteGPT](https://notegpt.io/) |
+| HARPA AI | סוכן דפדפן רב־מודלי (GPT-5.4, ‏Claude 4.6, ‏Gemini 3.1, ‏Grok), כולל סיכום YouTube עם זמנים | הדף הפתוח | — | ‏$12 / ‏$20 (מדף הבית, בלי הקשר) | [HARPA](https://harpa.ai/) |
+| Merlin | עוזר דפדפן לכתיבה, סיכום, קוד ותרגום | הדף הפתוח | — | "Free" (Futurepedia) | [Merlin](https://www.getmerlin.in/) (חסום); [Futurepedia](https://www.futurepedia.io/ai-tools/summarizer) |
+| Monica | עוזר רב־מודלי לצ'אט, כתיבה, תרגום ומחקר | הדף הפתוח, קבצים | — (המילה OCR מופיעה בדף, לא בהקשר וידאו) | — | [Monica](https://monica.im/) |
+| Sider | סרגל AI בדפדפן. יש לו דף בעברית לסיכום YouTube עם "רגעי מפתח" | הדף הפתוח | — | — | [Sider](https://sider.ai/) (חסום); [Sider עברית](https://sider.ai/he/extensions/chatgpt-youtube-summarizer) |
+| MaxAI | "Ask AI anything as you browse" | הדף הפתוח | — | — | [MaxAI](https://www.maxai.co/) |
+| Summarize.tech | סיכום טקסט לסרטוני YouTube ארוכים | קישור YouTube | — | Freemium (Futurepedia) | [Summarize.tech](https://www.summarize.tech/). החזיר 503 גם ב־9/11/2026. ‏Scrimba דיווח "DEPLOYMENT_PAUSED" ב־6/8/2026 |
+| Summify | "knowledge and memory layer": מאגר ידע מסרטונים, פודקאסטים, מסמכים והקלטות. ‏MCP | YouTube, שמע, קבצים | — | ‏$10 לחודש או $8 בשנתי, ‏Lifetime ‏$179. ‏130+ שפות (Toolworthy) | [Summify](https://summify.io/); [Toolworthy](https://www.toolworthy.ai/en/blog/best-ai-video-summarizer) |
+| Recapio | תמלילים, סיכומים, צ'אט, "YouTube to Whiteboard" ומעקב יומי אחר ערוצים | YouTube | — (הלוח הוא פלט) | ‏$8.99 / ‏$18.99 (מדף הבית) | [Recapio](https://recapio.com/) |
+| VideoHighlight | סיכום ותמלול ב־37 שפות, הערות עם זמן, "Key moments screenshots", ייצוא ל־Notion ול־Readwise | YouTube, קבצים, הקלטות | חלקי (לכידת פריים ידנית) | — | [VideoHighlight](https://videohighlight.com/) |
+| WayinVideo | פלטפורמת וידאו: סיכום, תמלול, כתוביות, reframe וקליפים | YouTube, וידאו מהרשת | — | 200 קרדיטים בהצטרפות ו־30 ביום. המחיר בתשלום לא פומבי (Toolworthy) | [WayinVideo](https://wayin.ai/) |
+| ScreenApp | מקליט מסך, רושם פגישות ומנתח וידאו. בתפריט: "Video OCR" ו־"Video to PDF" | YouTube, קבצים, בוט פגישות, מסך | חלקי (כלי OCR נפרד; ‏Toolworthy מגדיר את הסיכום "transcript-first") | חינם: 3 הקלטות. ‏Growth ‏$19, ‏Business ‏$34 לחודש בשנתי (Toolworthy) | [ScreenApp](https://screenapp.io/) |
+| BibiGPT | סיכום, זמנים ומפות חשיבה ל־YouTube, ‏Bilibili, ‏TikTok ופודקאסטים. ‏MCP | קישורים, שמע, וידאו | טענת ספק לחילוץ "chart contents" | חינם במכסה יומית, ומסלולים בתשלום | [BibiGPT](https://bibigpt.co/); [בלוג הספק](https://www.bibigpt.co/en/blog/posts/youtube-video-summarizer-tools-comprehensive-guide-2026) |
+| Readray (לשעבר LilysAI) | קורא עם המשתמש מאמרים, סרטונים וספרי לימוד. ‏MCP | YouTube, ‏PDF, דפים | **כן** (לפי הספק): "Sees the scene, captures the frame. Not just the transcript". שקפים וגרפים נלכדים כפריימים לתוך ההערות | — | [Readray](https://readray.ai/en) |
+| Mapify | סיכום למפות חשיבה, והצגה כשקופיות | PDF, ‏YouTube, דפים, הקלטות | — (הפלט חזותי) | — | [Mapify](https://mapify.so/) |
+| Recall | בסיס ידע: סיכום, תיוג וגרף ידע. צ'אט עם בחירת מודל | YouTube, פודקאסטים, PDF, מאמרים | — | חינם: 10 כרטיסים בחודש. ‏Plus ‏$10, ‏Max ‏$38 לחודש בשנתי (Toolworthy). עד 10 שעות לסרטון, 5 בלי כתוביות (בלוג BibiGPT) | [Recall](https://www.recall.it/) |
+| TubeOnAI | סיכומים מ־YouTube ומפלטפורמות נוספות (Dailymotion, ‏Bilibili, ‏Twitch, ‏SoundCloud). ‏"150k+ users" | קישורים ציבוריים, PDF, ‏Google Slides | — | ‏$19 (מדף הבית) | [TubeOnAI](https://tubeonai.com/) |
+| Noiz | מסכם YouTube | קישור YouTube | טענה: "for both visual and audio-focused content" | — | [Noiz](https://noiz.io/) |
+| Snipo | הערות וידאו ל־Notion עם צילומי מסך וזמנים | YouTube | חלקי (צילום ידני) | — | [Snipo](https://snipo.io/) |
+| Kome | מסכם בדפדפן | — | — | — | [Kome](https://www.kome.ai/) (חסום) |
+| Kagi Summarizer | המסכם של מנוע החיפוש Kagi | קישורים | — | דורש התחברות | [Kagi](https://kagi.com/summarizer) |
+| Briefy | "structured summaries with 1 click", בסיס ידע ומפות חשיבה | דפים, סרטונים, פודקאסטים | — | — | [Briefy](https://briefy.ai/) |
+| HoverNotes | תוסף Chrome שהבינה בו "watches the video and notes the code, equations & diagrams transcripts miss". ‏4.6 מ־106 ביקורות, ‏30,000+ לומדים | כל סרטון בדפדפן: Udemy, ‏Coursera, ‏YouTube, הרצאות אוניברסיטה | **כן** (לפי הספק) | חינם, ומסלול בתשלום ($18 בדף הבית) | [HoverNotes](https://hovernotes.io/) |
+| Shortcast.AI | סיכום YouTube והעלאת שמע של פודקאסטים. המקורות חלוקים על השפות: 17 לווידאו ו־58 לשמע, או צ'אט באנגלית בלבד | קישור YouTube, קובץ שמע | — | — | [Toolbit](https://www.toolbit.ai/ai-tool/shortcast-ai) (תקציר חיפוש) |
+| Sozai | דפים בעברית: סיכומי הרצאות ומסכם YouTube | הקלטות, YouTube | — | — | [Sozai](https://sozai.app/he/youtube-video-summarizer/) |
+| MindMap AI | מסכם וידאו למפת חשיבה, עם דף בעברית | וידאו | — | — | [MindMap AI](https://mindmapai.app/he/video-summarizer) |
+| Video to Blog | ממיר סרטונים למאמרי בלוג רב־לשוניים | וידאו | — | Freemium (Futurepedia) | [Futurepedia](https://www.futurepedia.io/ai-tools/summarizer) |
+| Casper AI | מסכם תוכן ועוזר פרודוקטיביות | דפים | — | Free (Futurepedia) | [Futurepedia](https://www.futurepedia.io/ai-tools/summarizer) |
+
+#### ג2. כלי לימוד וסטודנטים
+
+| כלי | מה עושה | קלט | חזותי | מחיר | מקור |
+|---|---|---|---|---|---|
+| Knowt | כרטיסיות, מבחנים וכלי לימוד. "5 million+" תלמידים ומורים | מסמכים, מצגות, סרטונים, הרצאות | — | יש מסלול חינמי | [Knowt](https://knowt.com/) |
+| Turbo AI | שיעורים, הערות, כרטיסיות ומבחנים. ‏"10 million students" | הרצאות, מסמכים, YouTube, פודקאסטים | — | חינם בהתחלה | [Turbo AI](https://www.turbo.ai/) |
+| StudyFetch | הופך מצגות, הרצאות והערות לכרטיסיות, מבחנים ועוזר AI | מצגות, הקלטות, הערות | — | — | [StudyFetch](https://www.studyfetch.com/) |
+| Gizmo | כרטיסיות AI עם חזרה מרווחת ואלמנטים של משחק | חומרי לימוד, YouTube | — | — | [Gizmo](https://gizmo.ai/) |
+| RemNote | כרטיסיות, מבחנים, סיכומים והסברים, עם חזרה מרווחת | PDF, סרטונים, הערות | — | יש מסלול חינמי | [RemNote](https://www.remnote.com/) |
+| Algor Education | מפות מושגים, כרטיסיות ומבחנים מכל תוכן | מסמכים, סרטונים | — (הפלט חזותי) | יש מסלול חינמי | [Algor](https://www.algoreducation.com/en) |
+| Quizlet | כרטיסיות ולימוד | — | — | — | [Quizlet](https://quizlet.com/) (captcha) |
+| Revisely | שאלות מבחן, כרטיסיות, הערות ומבחנים | מסמכים | — | — | [Revisely](https://www.revisely.com/) |
+| Quizgecko | מחולל מבחנים | — | — | — | [Quizgecko](https://quizgecko.com/) (403) |
+| Unstuck | עוזר לימוד | — | — | — | [Unstuck](https://www.unstuckstudy.com/) (לא ענה) |
+| Penseum | מדריכי לימוד, הערות, כרטיסיות ומבחנים | מסמכים, מצגות, הרצאות | — | ‏$29.99 (מדף הבית, בלי הקשר) | [Penseum](https://www.penseum.com/) |
+| Shiken | בדף הבית היום: AI coaching, משחקי תפקידים והקלטת פגישות. ‏"30k+ professionals". ‏MCP | שיחות, מסמכים | — | יש מסלול חינמי | [Shiken](https://shiken.ai/) |
+| Coconote | הקלטת הרצאות ופגישות → הערות, כרטיסיות, מבחנים וצ'אט, ופודקאסטי AI שמגיש "Coco". ‏"100+ languages" | הקלטה, קישורים, שמע, וידאו, מסמכים | — | חינם, ומסלול "Unlimited Pass" | [Coconote](https://coconote.app/) |
+| Mindgrasp | הערות, סיכומים, כרטיסיות, מבחנים ו־AI Tutor. ‏"20+ languages", יותר מ־5 מיליון משתמשים. התוסף ל־Chrome מתואר כתואם ל־Canvas, ‏Blackboard ו־Panopto | PDF, ‏DOCX, ‏MP3, ‏MP4, ‏PowerPoint, ‏YouTube, ‏Vimeo, הקלטה חיה | — | הרשמה חינמית, בלי מחירים בדף | [Mindgrasp](https://www.mindgrasp.ai/) |
+| StarSpark | הרצאות AI אינטראקטיביות בכל נושא, ו־AI Teacher לתרגול ולמשוב | תוכן קורס | — | — | [Webull](https://www.webull.com/news/15265568466740224) (תקציר חיפוש) |
+| LEARN-X | מעלים הרצאות, שקפים והערות ומקבלים שיעורים ומבחנים מותאמים (השקה ב־Product Hunt) | הרצאות, שקפים, הערות | — | — | [Product Hunt](https://www.producthunt.com/posts/learn-x) (תקציר חיפוש) |
+| Studocu | שיתוף מסמכי לימוד עם "Ask AI", ‏"AI Notes" ו־"AI Quiz" (ב3) | מסמכים | — | ‏Premium, ‏30 יום חינם | [Studocu IL](https://www.studocu.com/il) |
+
+#### ג3. וידאו אינטראקטיבי וכלי מורים
+
+| כלי | מה עושה | קלט | חזותי | מחיר | מקור |
+|---|---|---|---|---|---|
+| Edpuzzle | שיעורי וידאו אינטראקטיביים בתוך ה־LMS, עם מעקב אחר תלמידים | וידאו | — | — | [Edpuzzle](https://edpuzzle.com/) |
+| Brisk | פלטפורמת AI למורים ולתלמידים: בניית שיעורים והתאמה אישית | חומרי הוראה | — | חינם (לפי הכותרת) | [Brisk](https://www.briskteaching.com/) |
+| MagicSchool | פלטפורמת AI למחוזות חינוך | חומרי הוראה | — | — | [MagicSchool](https://www.magicschool.ai/) |
+| Nolej | הופך סרטונים שהועלו למיקרו־למידה אינטראקטיבית | וידאו | — | — | [Nolej](https://nolej.io/); [USask Open Press](https://openpress.usask.ca/etad402teachingandcreatingwithgenai/?p=34) (תקציר חיפוש) |
+| PlayPosit | וידאו אינטראקטיבי עם תבניות, שליטה בניגון ו־LTI (של WeVideo) | וידאו | — | — | [PlayPosit](https://go.playposit.com/) |
+| Khanmigo | עוזר ה־AI של Khan Academy למורים ולתלמידים | — | — | — | [Khanmigo](https://www.khanmigo.ai/) |
+| FeedbackFruits Interactive Video | שאלות, הנחיות ורפלקציה על וידאו, עם עזרת AI ואנליטיקה, בתוך ה־LMS | וידאו | — | — | [FeedbackFruits](https://feedbackfruits.com/solutions/interactive-video) (תקציר חיפוש) |
+| Interactive Video Suite (mod_ivs) | פעילות Moodle שמעבירה תוצאות שאלונים מתוך הסרטון לגיליון הציונים | Moodle, ‏Panopto, ‏OpenCast, ‏Kaltura, ‏YouTube, ‏Vimeo | — | — | [Moodle plugins](https://moodle.org/plugins/mod_ivs) (תקציר חיפוש) |
+| Interactive Video (mod_interactivevideo) | תוסף Moodle להערות ולאינטראקציות (H5P, ‏PDF ועוד). גרסה 1.6, ‏Moodle 4.0–5.1 | וידאו | — | — | [Moodle plugins](https://moodle.org/plugins/mod_interactivevideo/versions) (תקציר חיפוש) |
+
+#### ג4. רושמי פגישות ושיחות
+
+| כלי | מה עושה | קלט | חזותי | מחיר | מקור |
+|---|---|---|---|---|---|
+| Otter | תמלול בזמן אמת, צ'אט, סיכומים ופריטי פעולה. ‏MCP | פגישות, קבצים | — | מסלול "free forever". ‏$19.99 (מדף הבית) | [Otter](https://otter.ai/) |
+| Fireflies | הערות, משימות ואוטומציות בפגישות, במייל וב־CRM. ‏MCP | פגישות, קבצים | — | חינם: 400 דקות ו־20 קרדיטים. ‏Pro ‏$10 למושב בשנתי, ‏Business ‏$19, ‏Enterprise ‏$39 (Scrimba) | [Fireflies](https://fireflies.ai/) |
+| Fathom | מתמלל ומסכם שיחות Zoom, ‏Meet ו־Teams. ‏MCP | פגישות | — | חינם ליחידים | [Fathom](https://www.fathom.ai/) |
+| tl;dv | הקלטה, תמלול וסיכום. עברית ברשימה (ב1) | פגישות, קבצים | — | חינם עם AI מלא ל־10 הפגישות הראשונות. ‏Pro כ־$18 לחודש בשנתי (Toolworthy) | [tl;dv](https://tldv.io/) |
+| Read AI | רושם פגישות ומסכם. ‏MCP | פגישות | — | — | [Read AI](https://www.read.ai/) |
+| Notta | תמלול, סיכום ותוכניות פעולה, ‏58 שפות | קבצים, פגישות | — | חינם: 120 דקות בחודש. ‏Pro ‏$8.17, ‏Business ‏$16.67 לחודש בשנתי (Scrimba) | [Notta](https://www.notta.ai/en) |
+| Granola | פנקס AI לפגישות רצופות, בלי בוט. ‏MCP | שמע המחשב | — | — | [Granola](https://www.granola.ai/) |
+| Avoma | הערות, תזמון, אימון שיחות ועדכון CRM. ‏MCP | פגישות | — | — | [Avoma](https://www.avoma.com/) |
+| Sembly | סוכן פגישות לשירותים מקצועיים | פגישות | — | — | [Sembly](https://www.sembly.ai/) |
+| MeetGeek | הקלטה, תמלול, סיכום ואוטומציה. ‏MCP | פגישות | — | יש מסלול חינמי | [MeetGeek](https://meetgeek.ai/) |
+| Grain | סיכומי פגישות ואימון, בלי בוט. ‏130+ שפות, ועברית בדרגה שנייה (ב1) | פגישות | — | חינם, ‏$15 / ‏$29 | [Grain](https://grain.com/) |
+| Bluedot | רושם בלי בוט, "privacy-first" | פגישות מקוונות ופרונטליות | — | יש מסלול חינמי | [Bluedot](https://www.bluedothq.com/) |
+| Jamie | "meeting intelligence" בלי בוט. ‏MCP | פגישות | — | — | [Jamie](https://www.meetjamie.ai/) |
+| Krisp | ביטול רעשים ורושם AI | שיחות | — | — | [Krisp](https://krisp.ai/) |
+| Supernormal | בדף הבית היום: סוכן AI לסוכנויות | פגישות, מסמכים, מייל | — | — | [Supernormal](https://www.supernormal.com/) |
+| Circleback | הערות, פריטי פעולה וידע ארגוני בר־חיפוש. ‏MCP | פגישות | — | יש מסלול חינמי | [Circleback](https://circleback.ai/) |
+| Noota | רושם בלי בוט, מאוחסן באירופה | פגישות | — | מחירים באירו בדף הבית | [Noota](https://www.noota.io/) |
+| Leexi | חבילת AI מאובטחת לפגישות, באחסון אירופי | פגישות | — | — | [Leexi](https://www.leexi.ai/) |
+| Claap | מקליט שיחות מכירה וממלא את ה־CRM | שיחות, מייל | — | יש מסלול חינמי | [Claap](https://www.claap.io/) |
+| Modjo | לוכד שיחות מכירה בשביל סוכני AI | שיחות | — | — | [Modjo](https://www.modjo.ai/) |
+| Wudpecker | הכנה לפגישה והערות | פגישות | — | — | [Wudpecker](https://www.wudpecker.io/) |
+| Plaud | מכשיר הקלטה ופלטפורמת הערות לפגישות פרונטליות, לשיחות טלפון ולפגישות מקוונות | חומרה, הקלטות | — | מחירי מכשירים בדף הבית | [Plaud](https://www.plaud.ai/) |
+| Voicenotes | רושם לפגישות חסויות: "nothing trains on your data" | פגישות, קול | — | — | [Voicenotes](https://voicenotes.com/) |
+| AudioPen | הופך הערות קוליות לטקסט מלוטש. עברית ברשימה (ב1) | קול | — | יש מסלול חינמי | [AudioPen](https://audiopen.ai/) |
+| TwinMind | אפליקציית זיכרון לשיחות, שאפשר לחבר לעוזרים אחרים | שיחות | — | חינם, ‏$11.99 / ‏$29.99 | [TwinMind](https://twinmind.com/) |
+| Tactiq | תמלול חי ב־Meet, ‏Zoom ו־Teams, וסיכום. ‏MCP | פגישות | — | — | [Tactiq](https://tactiq.io/) |
+| Tana | "agentic meeting platform": מכניסים לפגישה עוזר Claude או ChatGPT | פגישות | — | ‏$19 / ‏$35 | [Tana](https://tana.inc/) |
+| Bubbles | רושם פגישות ומקליט מסך. מטה בסן פרנסיסקו, ‏SOC2, ממשק באנגלית ובספרדית | פגישות, מסך | — | חינם להתחלה | [Bubbles](https://usebubbles.com/) |
+| timeOS | סיכומי פגישות עם אינטגרציות | פגישות | — | Freemium (Futurepedia) | [Futurepedia](https://www.futurepedia.io/ai-tools/summarizer) |
+| Limitless | שומר שיחות ומאפשר לשאול עליהן AI | שיחות | — | — | [Product Hunt](https://www.producthunt.com/categories/ai-meeting-notetakers) |
+| HyNote AI | "Free, private, local transcription" | שיחות | — | חינם | [Product Hunt](https://www.producthunt.com/categories/ai-meeting-notetakers) |
+| Backtrack 2.0 | מקליט פגישות "backward" ומפיק הערות | פגישות | — | — | [Product Hunt](https://www.producthunt.com/categories/ai-meeting-notetakers) |
+| Superpowered | עוזר AI לפגישות | פגישות | — | — | [Product Hunt](https://www.producthunt.com/categories/ai-meeting-notetakers) |
+| Cue | עוזר פגישות שיושב ב־notch של ה־Mac, עם הכתבה | פגישות | — | — | [Product Hunt](https://www.producthunt.com/categories/ai-meeting-notetakers) |
+| Pauta | "Your private memory for every conversation" | שיחות | — | — | [Product Hunt](https://www.producthunt.com/categories/ai-meeting-notetakers) |
+| Acta | הערות בלי בוט, עם מעקב משימות | פגישות | — | — | [Product Hunt](https://www.producthunt.com/categories/ai-meeting-notetakers) |
+
+#### ג5. הקלטת הרצאות ופלטפורמות וידאו ארגוניות
+
+| כלי | מה עושה | קלט | חזותי | מחיר | מקור |
+|---|---|---|---|---|---|
+| Panopto | "video knowledge platform for training, onboarding and lecture capture": הקלטה, חיפוש ושיתוף | הרצאות, מסך | — (בדף הבית) | — | [Panopto](https://www.panopto.com/) |
+| YuJa | פלטפורמות מדיה ותאימות דיגיטלית לאוניברסיטאות, לבתי ספר ולארגונים | הרצאות | — | — | [YuJa](https://www.yuja.com/) |
+| Echo360 | פלטפורמת למידה ווידאו | הרצאות | — | — | [Echo360](https://echo360.com/) |
+| Mediasite (Enghouse) | פלטפורמת וידאו אוטומטית לאקדמיה, לבריאות ולארגונים. מאנדקסת לחיפוש "Text from slides, screencasts, and other rich media assets" | הרצאות | **כן** (טקסט שקפים לחיפוש) | — | [Mediasite](https://www.mediasite.com/) |
+| Kaltura Genie | עוזר וידאו עם OCR לשקפים וללוחות מיולי 2025 (ב2) | ספריית וידאו מוסדית | **כן** (לפי הספק; דורש משימת REACH) | רישוי מוסדי | [Kaltura Genie](https://knowledge.kaltura.com/help/genie) |
+| Vimeo | עמוד יכולות ה־AI החזיר 404 | — | — | — | [Vimeo](https://vimeo.com/features/ai) |
+| Wistia | אירוח וידאו ווובינרים לעסקים. ‏MCP | וידאו, וובינרים | — | — | [Wistia](https://wistia.com/) |
+| Brightcove | פלטפורמת סטרימינג מאובטחת. ‏MCP | וידאו | — | — | [Brightcove](https://www.brightcove.com/) |
+
+#### ג6. ממשקי API להבנת וידאו
+
+| כלי | מה עושה | קלט | חזותי | מחיר | מקור |
+|---|---|---|---|---|---|
+| TwelveLabs | "enterprise video AI powered by multimodal intelligence": חיפוש, ניתוח והבנה. ‏MCP | וידאו | **כן** (מולטימודלי) | — | [TwelveLabs](https://www.twelvelabs.io/) |
+| Memories.ai | בדף הבית היום: "Video Datalake for physical AI": נתוני גוף ראשון ותיוג צפוף | וידאו | **כן** (תיוג) | — | [Memories.ai](https://memories.ai/) |
+| VideoDB | "Your agent can watch video": מעלים או משדרים, ואז מחפשים. ‏MCP | וידאו, סטרים | **כן** | ‏$20 (מדף הבית) | [VideoDB](https://videodb.io/) |
+| Mixpeek | חיפוש, סיווג וניטור של וידאו, תמונות, שמע ומסמכים. ‏OCR. ‏MCP | וידאו, מסמכים | **כן** | ‏$25 (מדף הבית, בלי הקשר) | [Mixpeek](https://mixpeek.com/) |
+| Moments Lab | ניהול תוכן ויצירת קליפים לצוותי מדיה, ומציאת רגעים לפי פרומפט | ארכיון וידאו | — | — | [Moments Lab](https://www.momentslab.com/) |
+| Valossa | מזהה במעבר אחד "speech, keywords, IAB topics, celebrities, multimodal tags, on-screen text, emotions, sentiment" | וידאו | **כן** | — | [Valossa](https://valossa.com/) |
+| Azure AI Video Indexer | מחלץ תובנות מווידאו, כולל OCR וטקסט על המסך | וידאו | **כן** | — | [Azure AI Video Indexer](https://vi.microsoft.com/) |
+
+#### ג7. חיתוך קליפים, הסבה לרשתות ולוקליזציה
+
+| כלי | מה עושה | קלט | חזותי | מחיר | מקור |
+|---|---|---|---|---|---|
+| Klap | קליפים אנכיים עם ציון ויראליות ומעקב אחר הדובר. ‏"intelligent framing and facial recognition". ‏99+ שפות, כולל עברית | וידאו ארוך, YouTube | חלקי (מסגור לפי פנים) | ‏$14.50–$189 (מדף הבית, בלי הקשר) | [Klap](https://klap.app/) |
+| Submagic | כתוביות, ‏b-roll ועריכה חכמה לסרטונים קצרים. כתוביות בעברית | וידאו קצר | — | — | [Submagic](https://www.submagic.co/) |
+| Captions | מחולל ועורך וידאו AI | רעיון, וידאו | — | — | [Captions](https://www.captions.ai/) |
+| Spikes Studio | קליפים ויראליים מתוכן ארוך | סטרימים, וידאו | — | יש מסלול חינמי | [Spikes Studio](https://spikes.studio/) |
+| quso.ai | קליפים עם כתוביות, ‏reframe אנכי ותזמון פרסום | וידאו, פודקאסטים, סטרימים | — | יש מסלול חינמי | [quso.ai](https://quso.ai/) |
+| 2short.ai | יוצר Shorts מסרטוני YouTube ארוכים | YouTube | — | ‏$9.90 / ‏$19.90 / ‏$49.90 | [2short.ai](https://2short.ai/) |
+| Clipwing | עורך אנושי מחזיר סרטונים קצרים תוך 3 ימים | קישור וידאו | — (עבודה אנושית) | שירות, מחירים בדף הבית | [Clipwing](https://clipwing.pro/) |
+| reap | קליפים, כתוביות ודיבוב ב־100+ שפות. ‏MCP | וידאו, וובינרים, ראיונות | — | ‏$9.99 / ‏$15 | [reap](https://reap.video/) |
+| Videotto | "Describe the edit": הסוכן Otto חותך, מכתב ומוסיף גרפיקה | וידאו | — | — | [Videotto](https://www.videotto.com/) |
+| Choppity | יותר מ־30 קליפים מכל סרטון, עם מעקב אחר הדובר. ‏"90,000+ creators". ‏MCP | וידאו, YouTube | חלקי (מעקב דובר) | יש מסלול חינמי | [Choppity](https://www.choppity.com/) |
+| Gling | עריכה ליוצרי YouTube: חיתוך אוטומטי ופרקים | הקלטות גולמיות | — | — | [Gling](https://www.gling.ai/) |
+| Kapwing | וידאו מלא מפרומפט. ‏"30 million" יוצרים. ‏MCP | פרומפט, וידאו | — | — | [Kapwing](https://www.kapwing.com/) |
+| VEED | יצירה ועריכה, אווטארים, דיבוב וכתוביות. ממשק בעברית (ב1) | וידאו | — | — | [VEED](https://www.veed.io/) |
+| Wisecut | קליפים ערוכים מסרטונים ארוכים, עם Autopilot. ‏MCP | וידאו | — | — | [Wisecut](https://www.wisecut.ai/) |
+| Visla | תסריט, ‏b-roll, קריינות וכתוביות לעסקים | וידאו, וובינרים | — | — | [Visla](https://www.visla.us/) |
+| Pictory | סוכן וידאו שעובד מתסריט, מקישור, מ־PowerPoint או משמע | תסריט, מצגת, שמע | — | — | [Pictory](https://pictory.ai/) |
+| Repurpose.io | הפצה חוזרת של תוכן | — | — | — | [Repurpose.io](https://repurpose.io/) (403) |
+| Recast Studio | הסבת פודקאסטים | — | — | — | [Recast](https://www.recast.studio/) (לא ענה) |
+| Chopcast | שירות מיתוג אישי בלינקדאין: ראיון וקליפים | ראיון | — (עבודה אנושית) | שירות | [Chopcast](https://chopcast.io/) |
+| Vozo AI | לוקליזציה של קול, של כתוביות "and on-screen text" | וידאו | **כן** (טקסט על המסך) | — | [Product Hunt](https://www.producthunt.com/categories/video-editing) |
+| Rask AI | לוקליזציה והסבה | וידאו | — | — | [Product Hunt](https://www.producthunt.com/categories/video-editing) |
+| DeepBrain AI | טקסט לווידאו עם אווטארים | טקסט | — | — | [Product Hunt](https://www.producthunt.com/categories/video-editing) |
+| FocuSee | הופך הקלטות מסך להדגמות ולמדריכים | הקלטת מסך | — | — | [Product Hunt](https://www.producthunt.com/categories/video-editing) |
+| Augie Studio | יצירת וידאו פשוטה למי שאינו מומחה | — | — | — | [Product Hunt](https://www.producthunt.com/categories/video-editing) |
+| Typeframes | סרטוני מוצר בדקות | — | — | — | [Product Hunt](https://www.producthunt.com/categories/video-editing) |
+
+#### ג8. פודקאסטים ושמע
+
+| כלי | מה עושה | קלט | חזותי | מחיר | מקור |
+|---|---|---|---|---|---|
+| Podsqueeze | "AI writer for podcast content" | פרק פודקאסט | — | — | [Podsqueeze](https://podsqueeze.com/); [Product Hunt](https://www.producthunt.com/categories/podcasting) |
+| Wondercraft | סטודיו וידאו ושמע עם עורך, מבחר מודלים, סוכן ואווטארים | פרומפט, תסריט | — | — | [Wondercraft](https://www.wondercraft.ai/) |
+| Async (לשעבר Podcastle) | חבילת יצירה מבוססת צ'אט להפקת וידאו | צילומים גולמיים | — | — | [Async](https://podcastle.ai/) |
+| Auphonic | עיבוד שמע אוטומטי ופרקים | שמע | — | — | [Auphonic](https://auphonic.com/) |
+| Cleanvoice | מסיר רעשי רקע, מילות מילוי, קולות פה ושקט | שמע, וידאו | — | — | [Cleanvoice](https://cleanvoice.ai/) |
+| Deciphr | תמלילים, סיכומים, הערות פרק וקליפים | פודקאסט, וובינר, פגישה | — | — | [Deciphr](https://www.deciphr.ai/) |
+| Capsho | בדף הבית היום: "turns the Claude Code you already pay for into the team" | — | — | ‏$97 / ‏$379 (מדף הבית) | [Capsho](https://www.capsho.com/) |
+| Podscribe | מדידת פרסום בפודקאסטים (בתקן IAB) | — | — | — | [Podscribe](https://podscribe.com/) |
+| Poddy | אפליקציית פודקאסטים חברתית | — | — | — | [Product Hunt](https://www.producthunt.com/categories/podcasting) |
+| Transistor | אירוח פודקאסטים עם אנליטיקה ופידים פרטיים | — | — | — | [Product Hunt](https://www.producthunt.com/categories/podcasting) |
+| Lenny's Podcast Search | מנוע חיפוש לפודקאסט אחד | — | — | — | [Product Hunt](https://www.producthunt.com/categories/podcasting) |
+| Audioread | הופך מאמרים לשמע בנגן הפודקאסטים | מאמרים | — | — | [Product Hunt](https://www.producthunt.com/categories/podcasting) |
+| Listenbox | אירוח פודקאסטים בשמע ובווידאו | — | — | — | [Product Hunt](https://www.producthunt.com/categories/podcasting) |
+| Cartesia Sonic | API לקול סינתטי מהיר | טקסט | — | — | [Product Hunt](https://www.producthunt.com/categories/podcasting) |
+
+#### ג9. תמלול ודיבור
+
+| כלי | מה עושה | קלט | חזותי | מחיר | מקור |
+|---|---|---|---|---|---|
+| Simon Says | תמלול, כתוביות ותרגום לשמע ולווידאו | קבצים | — | — | [Simon Says](https://www.simonsaysai.com/) |
+| Trint | תמלול ותרגום עם זרימת עבודה להפקת מדיה. ‏MCP | קבצים, פגישות | — | — | [Trint](https://trint.com/) |
+| Sonix | תמלול ב־54+ שפות, סיכומים ופרקים. עברית מוצגת מימין לשמאל (ב1) | קבצים, YouTube | — | — | [Sonix](https://sonix.ai/) |
+| Happy Scribe | תמלול וכתוביות, עם אימות אנושי לבחירה | YouTube, ‏MP4, הקלטות | — | ‏Basic ‏$17 (‏$8.50 בשנתי), ‏Pro ‏$29 (‏$19 בשנתי) (Toolworthy) | [Happy Scribe](https://www.happyscribe.com/) (חסום); [Toolworthy](https://www.toolworthy.ai/en/blog/best-ai-video-summarizer) |
+| Temi | תמלול מהיר | קבצים | — | — | [Temi](https://www.temi.com/) |
+| Maestra | בדף הבית היום: תרגום חי לפגישות ולאירועים | פגישות, שידורים | — | ‏$15 (מדף הבית) | [Maestra](https://maestra.ai/) |
+| Gladia | תשתית שמע ב־API: תמלול והעשרה | API | — | — | [Gladia](https://www.gladia.io/) |
+| Soniox | ‏API לתמלול בזמן אמת, לקול סינתטי ולתרגום ב־60+ שפות | API, אפליקציה | — | — | [Soniox](https://soniox.com/) |
+| SpeechText.AI | תמלול עם מודלים לפי תחום. יש דף עברי (ב1) | קבצים | — | ‏$10–$99 (מדף הבית) | [SpeechText.AI](https://speechtext.ai/) |
+| MacWhisper | אפליקציית Mac שמתמללת מקומית ב־Whisper | קבצים | — | רכישה ב־Gumroad | [MacWhisper](https://goodsnooze.gumroad.com/l/macwhisper) |
+| Deepgram | "Voice AI platform for developers" | API | — | — | [Product Hunt](https://www.producthunt.com/categories/transcription) |
+| Vapi | "Voice AI for developers" | API | — | — | [Product Hunt](https://www.producthunt.com/categories/transcription) |
+| Typeless | הכתבה קולית חכמה | קול | — | — | [Product Hunt](https://www.producthunt.com/categories/transcription) |
+| SpeechFlow | ‏API רב־לשוני לזיהוי דיבור, "trained on 100M+ utterances" | API | — | — | [Product Hunt](https://www.producthunt.com/categories/transcription) |
+| Voice Gecko | הכתבה קולית | קול | — | — | [Product Hunt](https://www.producthunt.com/categories/transcription) |
+| Lispr | מחזיקים מקש, מדברים, והטקסט נכתב בכל מקום | קול | — | — | [Product Hunt](https://www.producthunt.com/categories/transcription) |
+| VoiceOS | פקודות קוליות לעבודה | קול | — | — | [Product Hunt](https://www.producthunt.com/categories/transcription) |
+| VoiceAI | "Capture every conversation" | שיחות | — | — | [Product Hunt](https://www.producthunt.com/categories/transcription) |
+| echodocs.ai | משמע למסמכים "in 3 clicks" | שמע | — | — | [Product Hunt](https://www.producthunt.com/categories/transcription) |
+| Harker | מחשבות לטקסט בקצב הדיבור | קול | — | — | [Product Hunt](https://www.producthunt.com/categories/transcription) |
+| Auri.AI | עוזר AI עם מקלדת, צ'אט ותמלול | קול | — | — | [Product Hunt](https://www.producthunt.com/categories/transcription) |
+| Voiser.net | דיבור לטקסט וטקסט לדיבור | שמע | — | — | [Product Hunt](https://www.producthunt.com/categories/transcription) |
+| Smallest.ai | חבילת Voice AI לארגונים | API | — | — | [Product Hunt](https://www.producthunt.com/categories/transcription) |
+| stagecaptions.io | כתוביות בזמן אמת לאירועים חיים | שמע חי | — | — | [Product Hunt](https://www.producthunt.com/categories/transcription) |
+| Parrot Speech-to-text API | זיהוי דיבור מהיר לסוכני קול | API | — | — | [Product Hunt](https://www.producthunt.com/categories/transcription) |
+| Any Video to Text | מדביקים קישור וידאו ומקבלים תמליל | קישור | — | — | [Product Hunt](https://www.producthunt.com/categories/transcription) |
+| Loqui | קול לטקסט מוכן לשליחה בכל אפליקציית Mac | קול | — | — | [Product Hunt](https://www.producthunt.com/categories/transcription) |
+
+#### ג10. קוד פתוח (GitHub, נבדק 9/11/2026; מספר הכוכבים ותאריך העדכון לפי העמוד)
+
+| כלי | מה עושה | קלט | חזותי | רישיון וכוכבים | מקור |
+|---|---|---|---|---|---|
+| noScribe | אפליקציית דסקטופ לתמלול ראיונות: Whisper, ‏pyannote ועורך מובנה. ‏"around 60 languages", ועברית לא אומתה | שמע מקומי | — | GPL-3.0, כ־2.2k | [GitHub](https://github.com/kaixxx/noScribe) |
+| fabric | מסגרת Patterns לשימוש ב־AI משורת הפקודה. ‏`-y` מושך תמליל YouTube ו־`-t` מוסיף זמנים. ‏Claude נתמך מובנה | תמליל, טקסט | — | MIT, ‏44.6k | [GitHub](https://github.com/danielmiessler/fabric) |
+| PySceneDetect | זיהוי חיתוכי סצנה (Content, ‏Adaptive, ‏Threshold), שמירת תמונות וחיתוך וידאו. גרסה 0.7.3 מ־8/11/2026 | וידאו | **כן** (חיתוכים ופריימים) | BSD-3, ‏5.4k | [GitHub](https://github.com/Breakthrough/PySceneDetect) |
+| lecture2notes | מהרצאה להערות: מסווג שקפים, חיתוך פרספקטיבה, אשכול שקפים, OCR עם ניתוח מבנה, חילוץ איורים, תמלול וסיכום משולב | וידאו הרצאה | **כן** | AGPL-3.0, ‏67 | [GitHub](https://github.com/HHousen/lecture2notes) |
+| video2pdfslides | פריימים ייחודיים → PDF של שקפים, עם אימות ידני של כפילויות | וידאו מצגת | **כן** (שקפים) | אין רישיון בעמוד, ‏227 | [GitHub](https://github.com/kaushikj/video2pdfslides) |
+| koma | ניתוח וידאו בשרת עצמי: סיכומים, פרקים, תיאורי פריימי מפתח במודל ראייה, ולחיצה שקופצת לרגע. ייצוא SRT, ‏JSON, ‏CSV ו־MD. עד 500MB ו־15 דקות. עודכן 4/11/2026 | MP4 | **כן** | רישיון לא מוצג, ‏299 | [GitHub](https://github.com/yuxino-labs/koma) |
+| NVIDIA video-search-and-summarization | ארכיטקטורת ייחוס מואצת GPU לסוכני ניתוח וידאו, עם VLM ו־RAG. עודכן 9/11/2026 | וידאו | **כן** | 2k | [GitHub topic](https://github.com/topics/video-summarization) |
+| video-recap-skills | ‏Skills לסוכן שמפיקים סיכומי וידאו מוקראים וטיוטות עריכה. עודכן 7/11/2026 | וידאו | — | 615 | [GitHub topic](https://github.com/topics/video-summarization) |
+| vidxp | מנוע אינדוקס וידאו לחיפוש בשפה טבעית דרך MCP. עודכן 5/11/2026 | וידאו | — | 59 | [GitHub topic](https://github.com/topics/video-summarization) |
+| video-to-skill | הופך סרטוני הדרכה ל־skills לסוכן "by reading the screen". ‏Rust. עודכן 6/11/2026 | סרטוני הדרכה | **כן** (קריאת מסך) | 145 | [GitHub topic](https://github.com/topics/video-to-text) |
+| VidGlyph | חילוץ כתוביות צרובות בזיהוי אופטי. עודכן 21/10/2026 | וידאו | **כן** (OCR של כתוביות) | 24 | [GitHub topic](https://github.com/topics/video-to-text) |
+| NeedleInAVidStack | חילוץ תוכן מאוספי וידאו ותיוג זמנים בעזרת LLM. עודכן 1/10/2025 | וידאו | — | 65 | [GitHub topic](https://github.com/topics/video-to-text) |
+| claude-code-youtube-extract | סרטונים → Markdown בר־חיפוש עם סיכומים וצילומי מסך. עודכן 8/7/2026 | YouTube | חלקי (צילומי מסך) | 6 | [GitHub topic](https://github.com/topics/youtube-summarizer) |
+| YouTubeTLDR | מסכם בשרת עצמי עם Gemini. ‏Rust. עודכן 18/6/2026 | YouTube | — | 254 | [GitHub topic](https://github.com/topics/youtube-summarizer) |
+| yt2doc | YouTube ושמע פודקאסטים → Markdown. עודכן 21/2/2025 | YouTube, פודקאסט | — | 411 | [GitHub topic](https://github.com/topics/video-to-text) |
+| audiotext | דסקטופ לתמלול, לתרגום ולכתוביות. עודכן 3/11/2026 | קבצים | — | 354 | [GitHub topic](https://github.com/topics/video-to-text) |
+| vid2cleantxt | תמלול סרטוני דיבור לטקסט נקי, ב־API וב־CLI. עודכן 29/10/2024 | וידאו | — | 229 | [GitHub topic](https://github.com/topics/video-summarization) |
+| ai-video-summarizer | תמלול, סיכום וקליפים. עודכן 21/9/2024 | וידאו, שמע | — | 65 | [GitHub topic](https://github.com/topics/video-summarization) |
+| UniVTG | עיגון זמני מאוחד של וידאו ושפה (ICCV 2023) | וידאו | **כן** (מחקרי) | 382 | [GitHub topic](https://github.com/topics/video-summarization) |
+| QD-DETR | איתור רגעים וזיהוי היילייטים לפי שאילתה (CVPR 2023) | וידאו | **כן** (מחקרי) | 254 | [GitHub topic](https://github.com/topics/video-summarization) |
+| Shot2Story | בנצ'מרק להבנת וידאו רב־שוטי, עם סיכומים וכיתוב לכל שוט. עודכן 30/1/2025 | וידאו | **כן** (מחקרי) | 181 | [GitHub topic](https://github.com/topics/video-summarization) |
+| MilkyAi-bilibili | שירות וידאו־להערות במייל, עם תמיכה מבוססת RAG. עודכן 4/10/2026 | וידאו | — | 125 | [GitHub topic](https://github.com/topics/video-summarization) |
+| cuefolio-youtube | תוסף דפדפן עם תמליל דו־לשוני וייצוא ל־Obsidian. עודכן 25/8/2026 | YouTube | — | 2 | [GitHub topic](https://github.com/topics/youtube-summarizer) |
+| omni-youtube-summarizer | תוסף שעובד עם Claude, ‏GPT, ‏Gemini או Ollama, בלי שרת. עודכן 31/7/2026 | YouTube | — | 1 | [GitHub topic](https://github.com/topics/youtube-summarizer) |
+| TubeFold | אפליקציית macOS לסיכומי YouTube עם מודל לבחירת המשתמש. עודכן 26/10/2026 | YouTube | — | 6 | [GitHub topic](https://github.com/topics/youtube-summarizer) |
+| autonote-ai | סרטוני TikTok ו־YouTube → גלריות שקפים ותקצירים. עודכן 9/11/2026 | וידאו קצר | חלקי | 1 | [GitHub topic](https://github.com/topics/youtube-summarizer) |
+| agent-skills (ParthGanatra) | ‏Skills ל־Claude Code, כולל מסכם שכותב הערות מובנות. עודכן 5/8/2026 | YouTube | — | 7 | [GitHub topic](https://github.com/topics/youtube-summarizer) |
+| Explainer-AI | מאמרים, סרטונים ו־PDF → פודקאסטים, סיכומים ומבחנים | מעורב | — | 2 | [GitHub topic](https://github.com/topics/youtube-summarizer) |
+| transcribe-cli | ‏CLI שהופך שמע, וידאו וקישורי YouTube ל־SRT. עודכן 6/10/2026 | קבצים, YouTube | — | 35 | [GitHub topic](https://github.com/topics/video-to-text) |
+| whisper-transcriber-suite | אפליקציית Whisper לא מקוונת ל־Windows, ‏macOS ו־Linux. עודכן 9/11/2026 | קבצים | — | 28 | [GitHub topic](https://github.com/topics/video-to-text) |
+| EchoPhalanx | מסכם פודקאסטים והרצאות בלי תלויות, עם סימון פרקים. עודכן 5/11/2026 | שמע | — | 0 | [GitHub topic](https://github.com/topics/podcast-summarizer) |
+
+#### ג11. ניהול ידע וקריאה
+
+| כלי | מה עושה | קלט | חזותי | מחיר | מקור |
+|---|---|---|---|---|---|
+| Karakeep | מנהל סימניות בקוד פתוח לקישורים, להערות ולתמונות, עם תיוג אוטומטי. ‏MCP | קישורים, תמונות | חלקי (OCR לתמונות) | — | [Karakeep](https://karakeep.app/) |
+| Capacities | פתקים כאובייקטים מקושרים | פתקים, YouTube | — | "free forever" | [Capacities](https://capacities.io/) |
+| Fabric (fabric.so) | מרחב עבודה עם AI אישי שמכיר את הקבצים והפרויקטים | קבצים, סרטונים, פגישות | — | יש מסלול חינמי | [Fabric](https://www.fabric.so/) |
+| mymind | מקום פרטי לפתקים, לתמונות, לציטוטים ולהדגשות, עם AI | קישורים, תמונות | — | — | [mymind](https://mymind.com/) |
+| AFFiNE | מסמכים, לוחות ומסדי נתונים מקומיים עם AI אופציונלי. העורך ברישיון MIT. יש דף מסכם YouTube | מסמכים, YouTube | — | — | [AFFiNE](https://affine.pro/); [AFFiNE YouTube](https://affine.pro/ai/youtube-summarizer) |
+| Saner.AI | עוזר אישי לפתקים, למייל וליומן, שמיועד לבעלי ADHD | פתקים | — | — | [Saner.AI](https://www.saner.ai/) |
+| Headway | תקצירי ספרים. ‏"55 million" משתמשים | ספרים | — | — | [Headway](https://makeheadway.com/) |
+| Deepstash | מיקרו־למידה. ‏"3M+" | תוכן | — | — | [Deepstash](https://deepstash.com/) |
+| Imprint | למידה חזותית של פילוסופיה, פסיכולוגיה ועוד | קורסים | — | — | [Imprint](https://www.imprintapp.com/) |
+| Instapaper | שמירת דפים לקריאה מאוחרת | דפים | — | — | [Instapaper](https://www.instapaper.com/) |
+| Raindrop.io | מנהל סימניות. ‏MCP | קישורים, YouTube | — | יש מסלול חינמי | [Raindrop.io](https://raindrop.io/) |
+| Perplexity | מנוע תשובות AI | שאלות, קישורים | — | חינם, ומסלול בתשלום | [Perplexity](https://www.perplexity.ai/) |
+
+#### ג12. תיעוד והקלטת מסך
+
+| כלי | מה עושה | קלט | חזותי | מחיר | מקור |
+|---|---|---|---|---|---|
+| Loom | הקלטת מסך. ‏"over 22 million people". ‏MCP | מסך, מצלמה | — | חינם להתחלה | [Loom](https://www.loom.com/) |
+| Scribe | לכידת תהליכי עבודה לצוותים ולסוכני AI. ‏MCP | פעולות במסך | חלקי (צילומי מסך של התהליך) | — | [Scribe](https://scribehow.com/) |
+| Guidde | תיעוד וידאו צעד אחר צעד ב־AI | הקלטת מסך | חלקי (צילומי מסך) | — | [Guidde](https://www.guidde.com/) |
+| Clueso | סרטוני מוצר ומדריכים מהקלטה, ממצגת או מצילומי מסך. ‏"step-by-step guide with screenshots". ‏MCP | הקלטה, מצגת, צילומי מסך | חלקי | ‏$10 / ‏$40 / ‏$120 | [Clueso](https://www.clueso.io/) |
+
+#### ג13. ישראל ועברית (פירוט ב־ב1–ב3)
+
+| כלי | מה עושה | קלט | חזותי | מחיר | מקור |
+|---|---|---|---|---|---|
+| Verbit | תמלול, כתוביות, דיבוב ותיאור קולי לארגונים, למשפט ולאקדמיה | שמע, וידאו | — | ארגוני | [Verbit](https://verbit.ai/) |
+| Kaltura + eSelf | פלטפורמת וידאו עם Genie (OCR לשקפים) ואווטארים שרואים מסך | ספריית וידאו | **כן** | מוסדי | [Kaltura Genie](https://knowledge.kaltura.com/help/genie); [ynetnews](https://www.ynetnews.com/business/article/bkihyygl11l) |
+| Annoto | שכבה אינטראקטיבית לסרטוני קורס, עם כתוביות, פרקים וסיכומים | וידאו בקורס | — | מוסדי | [Annoto](https://www.annoto.net/) |
+| Gong | ניתוח שיחות מכירה, עם עברית | שיחות | — | ארגוני | [Gong Help](https://help.gong.io/docs/what-languages-are-supported-in-gong.md) |
+| Deepdub | דיבוב AI עם קולות בעברית | וידאו | — | — | [Deepdub](https://deepdub.ai/) |
+| D-ID | וידאו מחולל עם מגיש AI, ואינטגרציה ל־Moodle | טקסט | — | — | [D-ID](https://www.d-id.com/) |
+| WSC Sports | תוכן ספורט מותאם אישית ב־AI | שידורי ספורט | — | — | [WSC Sports](https://wsc-sports.com/) |
+| Hour One | אווטארים לווידאו (לא ענה ב־9/11/2026) | — | — | — | [Hour One](https://hourone.ai/) |
+| Peech | הדומיין לא נפתר (ENOTFOUND) | — | — | — | www.peech-ai.com |
+| Tachles | מסכם טקסט מגבעתיים (תקציר חיפוש) | טקסט | — | — | [Startupim](https://slimpages.startupim.com/min_company_page/tachles1) |
+| ivrit.ai | מאגר, מודלי תמלול עבריים ושירות תמלול חינמי | שמע | — | חינם | [ivrit.ai](https://www.ivrit.ai/) |
+| Ramble | תמלול הודעות קוליות בתוך וואטסאפ, בקוד פתוח | הודעות קוליות | — | חינם, עד 30 דקות ביום | [mako](https://www.mako.co.il/nexter-news/Article-f03b229f8cb01a1027.htm) |
+| אמנון המתמלל | בוט וואטסאפ לתמלול עברי (2022) | הודעות קוליות | — | חינם עם תרומות | [כלכליסט](https://www.calcalist.co.il/calcalistech/article/hyva5ol2q) |
+| YedaLabs | סוכני AI על חומרי קורס, נגן וידאו אינטראקטיבי והנגשה. ‏Moodle | חומרי קורס | — | — | [דוח מיט"ל](https://meitalconf.iucc.ac.il/wp-content/uploads/2026/07/Meital_conf_2026.pdf) |
+| Xarcam | הרצאות, מצגות וסרטונים → למידה מותאמת | הרצאות, מצגות | — (לא מפורט) | — | [דוח מיט"ל](https://meitalconf.iucc.ac.il/wp-content/uploads/2026/07/Meital_conf_2026.pdf) |
+| אהרון הינשוף | בניית קורסים, חומרים ומבחנים, הנגשה רב־לשונית | חומרי קורס | — | — | [דוח מיט"ל](https://meitalconf.iucc.ac.il/wp-content/uploads/2026/07/Meital_conf_2026.pdf) |
+| Katie | סוכני הוראה אישיים | חומרי קורס | — | — | [דוח מיט"ל](https://meitalconf.iucc.ac.il/wp-content/uploads/2026/07/Meital_conf_2026.pdf) |
+| בטא ידע | מסעות למידה מחומרי קורס | חומרי קורס | — | — | [דוח מיט"ל](https://meitalconf.iucc.ac.il/wp-content/uploads/2026/07/Meital_conf_2026.pdf) |
+| Pexor (קמפוס IL) | תרגילים מותאמים מסרטוני קורס | שמע ← תמליל | — | פנימי | [מצגת מיט"ל 2024](https://meitalconf.iucc.ac.il/wp-content/uploads/2024/08/Meitalconf24_idan_nabati.pdf) |
+| brAIny (האוניברסיטה הפתוחה) | ארבע פרסונות AI לסטודנטים ולסגל | תכני קורס | — | פנימי | [האוניברסיטה הפתוחה](https://www.openu.ac.il/Lists/MediaServer_Documents/amir%20vinner.pdf) |
+| "תמלול אודיו" (Skylab Software) | תמלול על המכשיר, עם עברית כשפה ראשית | שמע, וידאו | — | ‏₪29.90 / ‏₪249.90 | [App Store](https://apps.apple.com/il/app/%D7%AA%D7%9E%D7%9C%D7%95%D7%9C-%D7%90%D7%95%D7%93%D7%99%D7%95-%D7%94%D7%9E%D7%A8%D7%AA-%D7%90%D7%95%D7%93%D7%99%D7%95-%D7%9C%D7%98%D7%A7%D7%A1%D7%98/id1503180824?l=he) |
+| Katav | הקלטת הרצאות → תמליל, סיכומים, כרטיסיות ומבחנים, עם עברית מ־26/10 | הקלטה | — | ‏$9.99–$12.99 לחודש | [App Store](https://apps.apple.com/ca/app/katav/id6772588945) |
+
+**ועוד 21 כרטיסי העומק שב־א1:** Descript, ‏OpusClip, ‏Castmagic, ‏Riverside, ‏Vizard, ‏Munch, ‏Swell AI, ‏Podium, ‏Headliner, ‏Snipd, ‏Podwise, ‏Shortform, ‏Blinkist, ‏Readwise Reader, ‏Matter, ‏Glasp, ‏Heptabase, תוספי וידאו ל־Obsidian ול־Logseq, ‏Notion AI, ‏Mem ו־Reflect.
+
+### Inferences
+- **אף מתחרה חזותי לא מתעד עברית.** הכלים שמתעדים קריאת מסך לתוך התוצר:
+  - לצרכן: HoverNotes ו־Readray.
+  - למוסדות: Mediasite ו־Kaltura Genie.
+  - ממשקי API: TwelveLabs, ‏VideoDB, ‏Mixpeek, ‏Valossa ו־Azure AI Video Indexer.
+  - קוד פתוח: lecture2notes, ‏video2pdfslides ו־koma.
+  לאף אחד מהם אין תיעוד של עברית. והכלים שמזכירים עברית (Klap, ‏Submagic, ‏VEED, ‏tl;dv, ‏Grain, ‏AudioPen, ‏Deepdub, ‏SpeechText.AI) הם כולם כלי תמליל או כתוביות.
+  **השילוב של קריאת מסך, עברית מלאה ב־RTL, זמנים ברמת מילה וסינתזה עמוקה לא תפוס במפקד.**
+- **"transcripts miss" הפך לשפה שיווקית.** ‏HoverNotes כותב "notes the code, equations & diagrams transcripts miss", ו־Readray כותב "Not just the transcript". זה אישור שהשוק מזהה את הפער, ושמוכנים לשלם עליו. נקודת מחיר צרכנית להשוואה: מסלול בתשלום של HoverNotes ב־$18 (מדף הבית). המשתמש הישראלי מעלה את אותה תלונה בדיוק (ב3).
+- **עוגני מחיר בזנב הארוך:**
+  - מסכמים ולימוד: ‏$8–$20 לחודש. דוגמאות: NoteGPT ‏$9, ‏Eightify ‏$9.99, ‏Summify ‏$8–$10, ‏Recall ‏$10, ‏TubeOnAI ‏$19.
+  - רושמי פגישות: ‏$8–$40 למושב. דוגמאות: Notta ‏$8.17, ‏Fireflies ‏$10–$39.
+  - קליפים: ‏$10–$190. ממשקי API מתומחרים לפי שימוש.
+  - התלונות החוזרות: קרדיטים שנשרפים, המרה אוטומטית של ניסיון למנוי שנתי (ScreenApp), מכסה שנגבית בלי תוצר (NoteGPT), ו"מצוק" במסלול החינמי (tl;dv). מכסה שקופה בדקות ובמחיר מראש היא בידול של אמון.
+- **MCP ו־Claude הם כבר מוסכמה.** ‏MCP מופיע ב־48 מתוך 133 דפי בית, ו־Claude ב־37. ממשק שמאפשר לסוכן חיצוני לשלוף ניתוח שמור (פרקים, ציטוטים עם זמן, שקפים) עשוי להפוך לציפייה. זו נקודה לשקול בהמשך, לא דרישה לגרסה הראשונה.
+- **נישת "מסכם YouTube" לבדו מתמסחרת ומתכווצת.** Summarize.tech מושבת ו־Recast לא עונה. שורה של כלים מציגים היום בדף הבית מוצר אחר (Memories.ai, ‏Podcastle → Async, ‏Shiken, ‏Supernormal, ‏Maestra, ‏Capsho). המיצוב הקודם שלהם הוא מידע ישן שלא אומת. הלקח: ערך מגיע מעומק (מסך, סינתזה, עברית) או מצירוף למוצר רחב יותר. אצלנו זה הסטודיו הקיים, ולא מוצר "מסכם" עצמאי.
+- **אבני בניין בקוד פתוח לשרת שלנו, עם זהירות ברישוי:**
+  - **PySceneDetect** (BSD-3) מתאים לזיהוי חילופי סצנה ושקף בשרת.
+  - **lecture2notes** (AGPL-3.0) מתעד צנרת שלמה: סיווג שקפים, חיתוך, אשכול, OCR, איורים, תמלול וסיכום. AGPL מטיל חובות גם על שימוש ברשת, לכן לומדים מהתיאור ולא משלבים קוד.
+  - **video2pdfslides ו־koma** — אין רישיון בעמוד, כלומר כל הזכויות שמורות. לא מעתיקים.
+  - **fabric** (MIT) מדגים זמנים בתמליל ו־Patterns, אבל כלל הבנייה הנקייה חל: לומדים מהתנהגות, לא מעתיקים טקסט.
+
+### Gaps
+- **אתרי מדריכים חסומים:**
+  - theresanaiforthat.com, ‏AlternativeTo, ‏Toolify ו־topAI החזירו 403.
+  - Futurepedia video-summarizer ו־aixploria החזירו 404.
+  - בכמה קטגוריות של Product Hunt (video-summarizers, ‏ai-summarizers, ‏youtube-tools, ‏ai-video-editing) התקבל 404. לכן המפקד נשען על דפי הבית, על שלוש רשימות סיכום ועל עמודי topics ב־GitHub, ולא על המדריכים המלאים.
+- **שיטה:** הדגלים (MCP, ‏Claude, עברית, OCR) הם חיפוש מילים בדף הבית, לא בדיקת יכולת. מחירים שחולצו מדף הבית בלי הקשר לא אומתו מול עמודי המחירים.
+- **כלים שלא נקראו:**
+  - חסום או לא ענה: Eightify, ‏Merlin, ‏Sider, ‏Kome, ‏Quizlet, ‏Quizgecko, ‏Unstuck, ‏Happy Scribe, ‏Transkriptor, ‏Repurpose.io, ‏Recast, ‏Hour One ו־Glean. הנתונים עליהם, אם יש, מרשימות סיכום.
+  - מאגרי GitHub ‏Buzz, ‏WhisperX, ‏VideoRAG ו־hyperaudio-lite לא נקראו (403).
+  - www.peech-ai.com לא נפתר. כדי לבדוק אותו צריך לאשר את הדומיין בהגדרות הרשת של הסשן.
+- **עברית:** אף טענת עברית במפקד לא נבדקה בפועל על קובץ עברי.
+- **תקציב החיפוש:** התקציב המשותף (200 חיפושים לסבב) נגמר אחרי כ־45 חיפושים של הסוכן הזה. משם נקראו רק דפים רשמיים, מאגרים ועמודי חנויות. לכן ייתכן שכלים חדשים מאוקטובר–נובמבר 2026 חסרים.
