@@ -71,7 +71,56 @@ class Dmax(unittest.TestCase):
         self.assertLess(time.time() - t, 2.0, 'החישוב בכל פנייה — שניות בודדות לכל היותר')
 
 
+class Analysis(unittest.TestCase):
+    """9/11/2026 (ניתוח סרטונים, גל 0): עבודת vi — שלבים משלה, נחשבת כבדה, והקבלה החזויה גם למועמדת מסוג vi"""
+
+    def test_phases(self):
+        ph = perf.phases('vi', 60)
+        self.assertEqual([x[0] for x in ph], ['up', 'tr', 'al', 'rv', 'bn', 'sv'])
+        self.assertTrue(all(x[0] in perf.STAGES for x in ph), 'אותם מפתחות של STAGES (perf.py)')
+        self.assertAlmostEqual(dict((x[0], x[2]) for x in ph)['tr'], 0.18 * 60, 'התמלול לפי עברית — השמרני')
+        self.assertTrue(15 <= perf.alone('vi', 60) <= 40, perf.alone('vi', 60))
+        self.assertEqual(perf.remaining('vi', 60, 'bn', 0.5)[0][0], 'bn')
+
+    def test_heavy_and_candidate_kind(self):
+        vi = ('vi', 90.0, 0.0, 'up', 0.0)
+        self.assertIsNone(perf.dmax([vi]), 'ניתוח אחד — עוד עבודה נכנסת בכל אורך')
+        self.assertIsNotNone(perf.dmax([BIG, vi]), 'ניתוח שרץ נחשב בעומס של התרגום')
+        dv, dt = perf.dmax([BIG, BIG], kind='vi'), perf.dmax([BIG, BIG])
+        self.assertIsNotNone(dv)
+        self.assertIsNotNone(dt)
+        self.assertIsNone(perf.dmax([BIG], kind='zz'), 'סוג לא מוכר = תרגום (כבר נבדק בלי הגבלה)')
+        self.assertEqual(perf.worst([vi], None), 1.0, 'ההאטה של הניתוח עצמו לא חוסמת (רק תרגום מוגן — PROTECT)')
+        self.assertGreater(perf.worst([BIG, vi], None), 1.0, 'אבל הוא מאט את התרגום שרץ לצידו')
+
+    def test_eta_parity(self):
+        """VI_STG בשרתון (studioeta.js) ובטלפון (studionet.js) = perf.phases('vi') × 60: ‏a בשניות, b בשניות לדקת סרטון"""
+        import json
+        import re
+        root = Path(__file__).resolve().parents[2]
+        p0 = {k: m for k, _, m, *_ in perf.phases('vi', 0)}
+        p60 = {k: m for k, _, m, *_ in perf.phases('vi', 60)}
+        for f in ('ibkr-proxy/lib/studioeta.js', 'studionet.js'):
+            m = re.search(r"VI_STG = (\{[^}]*\})", (root / f).read_text(encoding='utf-8'))
+            self.assertIsNotNone(m, f)
+            stg = json.loads(re.sub(r"(\w+):", r'"\1":', m.group(1)))
+            self.assertEqual(set(stg), set(p0) - {'up'}, f + ' — כל השלבים חוץ מהקליטה (לא בצפי, כמו בקריוקי)')
+            for k, (a, b) in stg.items():
+                self.assertAlmostEqual(a, p0[k] * 60, places=6, msg=f + ' ' + k)
+                self.assertAlmostEqual(b, p60[k] - p0[k], places=6, msg=f + ' ' + k)
+
+
 class AgentWiring(unittest.TestCase):
+    def test_vi_kind_and_fit(self):
+        import agent as A
+        self.assertEqual(A.perf_kind({'kind': 'tr', 'vi': 1}), 'vi')
+        self.assertEqual(A.perf_kind({'kind': 'rr'}), 'rr')
+        self.assertEqual(A.perf_kind({}), 'tr')
+        self.assertEqual(A.MEM_PRIOR['vi'], A.MEM_PRIOR['tr'], 'גל 0: כמו תרגום עד המדידה (0.3)')
+        import analyze
+        self.assertEqual(A.MEM_PRIOR['vi'], analyze.MEM_VI, '= MEM_VI ב־analyze.py (שומר הזיכרון של ה־OCR)')
+        self.assertEqual(A.mem_need('vi', 3600), analyze.mem_need(3600))
+
     def test_running_from_slots(self):
         import agent as A
         with tempfile.TemporaryDirectory() as d:

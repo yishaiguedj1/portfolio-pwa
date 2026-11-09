@@ -253,12 +253,12 @@ function spendStep(st, used, now) {
 /* ---- שימוש ומשאבים (29/10/2026, בקשת המשתמש: "להעריך את כמות השימוש ואת הצורך בשדרוג המשאבים") ----
    מכל עבודות 30 הימים (jobs30): לפי סוג (סרטון, קישור, קובץ כתוביות, קריוקי, בטלפון, הפקה מחדש, גיליון AI, Drive),
    לפי יום ולפי שעה, זמני המתנה בתור וריצה, שיא העבודות במקביל, ניצולת, כשלים, שרתים, מגמה, תחזית לחודש — והמלצות */
-const TYPES = ['vid', 'url', 'sub', 'ka', 'ph', 'rr', 'ai', 'dx'];
+const TYPES = ['vid', 'url', 'sub', 'ka', 'vi', 'ph', 'rr', 'ai', 'dx'];   // 9/11/2026: vi = ניתוח סרטונים
 function typeOf(j) {
   if (!j) return 'oth';
   if (j.kind === 'tr') {
     const sp = j.spec || {};
-    return sp.ka === 1 ? 'ka' : sp.src === 'subs' ? 'sub' : sp.ph === 1 ? 'ph' : sp.src === 'url' ? 'url' : 'vid';
+    return sp.vi === 1 ? 'vi' : sp.ka === 1 ? 'ka' : sp.src === 'subs' ? 'sub' : sp.ph === 1 ? 'ph' : sp.src === 'url' ? 'url' : 'vid';
   }
   return TYPES.includes(j.kind) ? j.kind : 'oth';   // סוג עבודה חדש — נספר ב"אחר" עד שיקבל שם
 }

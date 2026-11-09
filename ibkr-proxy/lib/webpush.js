@@ -52,17 +52,19 @@ const TEXT = {
 };
 
 /* 27/10/2026 (בקשת המשתמש): התקדמות העבודה בווילון — התראה אחת לעבודה שמתחלפת בכל שלב, עם פס של השלב.
-   רק קוד השלב והאחוז — לא שם קובץ. הסדר והשמות = stageName בטלפון (studio.js). ka = קריוקי, sb = קובץ כתוביות */
+   רק קוד השלב והאחוז — לא שם קובץ. הסדר והשמות = stageName בטלפון (studio.js). ka = קריוקי, sb = קובץ כתוביות, vi = ניתוח */
 const STAGE = {
   he: { up: 'מעלים את הסרטון', tr: 'כותבים כל מילה שנאמרה', al: 'מתאימים כל משפט לרגע הנכון', tl: 'מתרגמים', tlhe: 'מתרגמים לעברית',
     rv: 'בודקים ומתקנים', bn: 'מוסיפים את הכתוביות לסרטון', sv: 'שומרים ושולחים אליך',
     sb: { up: 'מעלים את הקובץ', tr: 'קוראים את הכתוביות', al: 'מכינים לתרגום', bn: 'בונים את קובצי הכתוביות' },
     ka: { up: 'מעלים את השיר', tr: 'מפרידים את הקול מהליווי', al: 'מתאימים כל מילה לרגע שלה', bn: 'צורבים את המילים' },
+    vi: { up: 'קולטים את הסרטון', al: 'קוראים את המסך ומתאימים לזמנים', rv: 'מנתחים את התוכן', bn: 'בונים את הניתוח' },   // 9/11/2026: ניתוח (tr ו־sv — כמו בתרגום)
     of: 'שלב {n} מתוך {t}' },
   en: { up: 'Uploading the video', tr: 'Writing down every word', al: 'Timing every sentence', tl: 'Translating', tlhe: 'Translating to Hebrew',
     rv: 'Checking and fixing', bn: 'Adding subtitles to the video', sv: 'Saving and sending it to you',
     sb: { up: 'Uploading the file', tr: 'Reading the subtitles', al: 'Preparing to translate', bn: 'Building the subtitle files' },
     ka: { up: 'Uploading the song', tr: 'Separating the voice from the music', al: 'Matching each word to its moment', bn: 'Burning in the lyrics' },
+    vi: { up: 'Taking in the video', al: 'Reading the screen and timing it', rv: 'Analyzing the content', bn: 'Building the analysis' },
     of: 'Step {n} of {t}' },
 };
 const STAGE_IDS = ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'];
@@ -76,7 +78,7 @@ function stageText(x, lang) {
   const L = STAGE[lang] || STAGE.he;
   const id = STAGE_IDS.includes(x && x.st) ? x.st : '';
   if (!id) return null;
-  const v = x.v === 'ka' || x.v === 'sb' ? L[x.v][id] : '';
+  const v = x.v === 'ka' || x.v === 'sb' || x.v === 'vi' ? L[x.v][id] : '';
   const name = v || (id === 'tl' && x.to === 'he' ? L.tlhe : L[id]);
   const pct = Math.max(0, Math.min(100, Math.round((Number(x.p) || 0) * 100)));
   const n = STAGE_IDS.indexOf(id) + 1;

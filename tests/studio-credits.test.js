@@ -9,7 +9,7 @@ const ok = (c, m) => { if (!c) { fails++; console.log('FAIL', m); } };
 const m = src.match(/const CREDITS = \[([\s\S]*?)\n\];/);
 ok(m, 'CREDITS ב־studio.js');
 const rows = m ? [...m[1].matchAll(/\['(\w+)', '([^']+)', '([^']+)', '([^']+)'\]/g)].map((x) => x.slice(1)) : [];
-for (const need of ['Parakeet', 'DictaBERT', 'WeSpeaker']) {
+for (const need of ['Parakeet', 'DictaBERT', 'WeSpeaker', 'zipformer']) {   // 9/11/2026: zipformer — ניתוח סרטונים (CC-BY-4.0)
   const r = rows.find((x) => x[1].includes(need));
   ok(r && /^CC-BY/.test(r[3]), 'ייחוס ל־' + need + ' (CC-BY)');
 }

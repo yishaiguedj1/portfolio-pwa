@@ -31,6 +31,10 @@ def phases(kind: str, d: float) -> list:
     """[(שלב, סוג, דקות לבד, f, תרגום־במקביל)] — סוג: c = מעבד, w = המתנה, p = מעבד שרץ לצד המתנה (יישור ‖ תרגום)"""
     if kind == 'rr':                                 # הפקה מחדש = צריבה ושמירה
         return [('bn', 'c', 0.14 * d, FB, 0), ('sv', 'w', 2.0, 0, 0)]
+    if kind == 'vi':                                 # 9/11/2026: ניתוח סרטונים — ההצעה הראשונה (התוכנית 13.4); ה־0.4 מכייל.
+        # התמלול לפי עברית (0.18d — האיטית; הסוכן לא יודע את השפה בלקיחה). ‏rv = Claude (המתנה, בלי מעבד)
+        return [('up', 'w', 1.5 + 0.01 * d, 0, 0), ('tr', 'c', 0.18 * d, FA, 0), ('al', 'c', 0.15 * d, FA, 0),
+                ('rv', 'w', 2.0 + 0.06 * d, 0, 0), ('bn', 'c', 0.05 * d, FB, 0), ('sv', 'w', 1.5 + 0.01 * d, 0, 0)]
     if kind != 'tr':                                 # גיליון AI / העתקה — בלי מעבד
         return [('sv', 'w', 2.0, 0, 0)]
     return [('up', 'w', 1.5 + 0.01 * d, 0, 0), ('tr', 'c', 0.05 * d, FA, 0), ('tr', 'w', 3.0, 0, 0),
@@ -99,36 +103,45 @@ def alone(kind: str, d: float) -> float:
     return _ALONE[k]
 
 
+# 9/11/2026 (ניתוח סרטונים, התוכנית 13.4): ההאטה נבדקת רק לעבודות התרגום. ניתוח תופס מעבד (נכנס לסימולציה), אבל
+# לא חוסם תרגום — "כשתרגום וניתוח ממתינים יחד — התרגום קודם"
+PROTECT = ('tr', 'rr')
+
+
 def worst(running: list, cand: tuple | None) -> float:
-    """running = [(kind, d, elapsed_min, st, p)]; cand = (kind, d) או None → ההאטה הגרועה הצפויה"""
+    """running = [(kind, d, elapsed_min, st, p)]; cand = (kind, d) או None → ההאטה הגרועה הצפויה (רק של PROTECT)"""
     jobs = [remaining(k, d, st, p) for k, d, _, st, p in running] + ([phases(*cand)] if cand else [])
     left = run(jobs)
-    out = [(el + left[i]) / alone(k, d) for i, (k, d, el, _, _) in enumerate(running)]
-    if cand:
+    out = [(el + left[i]) / alone(k, d) for i, (k, d, el, _, _) in enumerate(running) if k in PROTECT]
+    if cand and cand[0] in PROTECT:
         out.append(left[-1] / alone(*cand))
     return max(out) if out else 1.0
 
 
-def dmax(running: list, slow_max: float | None = None) -> float | None:
-    """האורך המרבי (דקות סרטון) של עבודת תרגום שאפשר לקבל עכשיו. None = בלי הגבלה (אין עבודה כבדה שרצה / כבוי).
-    עבודה שכבר עברה את התקרה (בגלל עומס קודם) — לא מאטים אותה עוד מעבר ל־0.01."""
+HEAVY = ('tr', 'rr', 'vi')
+
+
+def dmax(running: list, slow_max: float | None = None, kind: str = 'tr') -> float | None:
+    """האורך המרבי (דקות סרטון) של עבודה מסוג kind (תרגום, או 'vi' — ניתוח) שאפשר לקבל עכשיו. None = בלי הגבלה
+    (אין עבודה כבדה שרצה / כבוי). עבודה שכבר עברה את התקרה (בגלל עומס קודם) — לא מאטים אותה עוד מעבר ל־0.01."""
     if not enabled():
         return None
-    run_h = [r for r in running if r[0] in ('tr', 'rr')]
+    kind = kind if kind in HEAVY else 'tr'
+    run_h = [r for r in running if r[0] in HEAVY]
     if not run_h:
         return None
     try:
         S = slow_max or SLOW_MAX
         lim = max(S, worst(run_h, None) + 0.01)
-        if worst(run_h, ('tr', D_MAX)) <= lim:
+        if worst(run_h, (kind, D_MAX)) <= lim:
             return None
         lo, hi = 0.0, D_MAX
-        if worst(run_h, ('tr', 1.0)) > lim:
+        if worst(run_h, (kind, 1.0)) > lim:
             return 0.0
         lo = 1.0
         for _ in range(10):
             mid = (lo + hi) / 2
-            if worst(run_h, ('tr', mid)) <= lim:
+            if worst(run_h, (kind, mid)) <= lim:
                 lo = mid
             else:
                 hi = mid

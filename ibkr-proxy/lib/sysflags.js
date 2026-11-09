@@ -15,6 +15,7 @@ const FLAGS = [
   { k: 'st_api', app: 'studio', where: 'api/studio.js — sysBlock (יצירה, התחלה, המשך)' },          // תרגום בשרת שלנו
   { k: 'st_routine', app: 'studio', where: 'api/studio.js — sysBlock (יצירה, התחלה, המשך)' },      // תרגום ב־Claude שבמנוי (Routine)
   { k: 'st_url', app: 'studio', where: 'api/studio.js — urlProbe, create' },                          // 22/10/2026: הורדה מקישור (יוטיוב ואתרים אחרים)
+  { k: 'st_vi', app: 'studio', def: false, where: 'api/studio.js — create, startJob, apiView' },   // 9/11/2026: ניתוח סרטונים — כבוי = המנהל בלבד; גם מתג החירום (העצירה בגבול השלב — גל 1)                          // 22/10/2026: הורדה מקישור (יוטיוב ואתרים אחרים)
   { k: 'st_auto', app: 'studio', where: 'api/studio.js — autoRecover' },                            // "המשך" אוטומטי אחרי תקלה חולפת
   { k: 'learn', app: 'studio', where: 'api/studio.js — learnSave, learnPut' },                      // איסוף למאגר הלמידה
   { k: 'learn_full', app: 'all', where: 'api/studio.js — learnFull, devSrv, devErr, devPull' },     // 15/10/2026: האיסוף המלא בתקופת הפיתוח (לוגים, קריאות, מדדים, שגיאות, טקסט מלא) — לכבות כשיהיו משתמשים

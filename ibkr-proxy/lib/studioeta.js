@@ -48,7 +48,7 @@ const num = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= l
 function etaSample(job, now) {
   if (!job || job.kind !== 'tr' || (job.fires || 0) > 1) return null;
   const sp = job.spec || {}, stg = (job.prog && job.prog.stg) || {};
-  if (!(sp.dur > 0) || sp.ka === 1) return null;   // 31/10/2026: קריוקי — מאגר משלו (kaSample); "תמלול" שלו = הפרדה, ניפח את הצפי של התרגום
+  if (!(sp.dur > 0) || sp.ka === 1 || sp.vi === 1) return null;   // 9/11/2026: ניתוח — שלבים אחרים, לא מלמד את התרגום   // 31/10/2026: קריוקי — מאגר משלו (kaSample); "תמלול" שלו = הפרדה, ניפח את הצפי של התרגום
   const s = {};
   for (const k of STAGES) {
     const x = stg[k];
@@ -221,6 +221,16 @@ function kaPlan(ep, durSec, bv, mdl) {
   for (const k of STAGES) { const [a, b] = KA_STG[k] ? ab(k === 'tr' && bv ? 'tb' : k) : [0, 0]; s[k] = Math.round(a + b * m); }
   return Object.assign({}, ep || {}, { s, t: STAGES.reduce((a, k) => a + (s[k] || 0), 0) });
 }
+/* 9/11/2026: ניתוח סרטונים (docs/studio-video-analysis-plan.md 13.4) — ההצעה הראשונה, עד הכיול (PR 0.4) ועד שנלמד (גל 1).
+   tr = תמלול, al = מסך ויישור, rv = הניתוח ב־Claude, bn = בנייה ועותק הצפייה, sv = שמירה. [a שניות, b שניות לדקת סרטון]
+   = perf.phases('vi') בעובד × 60 (translator/tests/test_perf.py משווה). הרצה יבשה: rv = רק ספירת טוקנים. VI_STG זהה ב־studionet.js */
+const VI_STG = { tr: [0, 10.8], al: [0, 9], rv: [120, 3.6], bn: [0, 3], sv: [90, 0.6] };
+const VI_DRY_RV = [15, 0];
+function viPlan(ep, durSec, dry) {
+  const m = Math.max(0, Number(durSec) || 0) / 60, s = Object.assign({}, (ep && ep.s) || {});
+  for (const k of STAGES) { const [a, b] = k === 'rv' && dry ? VI_DRY_RV : VI_STG[k] || [0, 0]; s[k] = Math.round(a + b * m); }
+  return Object.assign({}, ep || {}, { s, t: STAGES.reduce((a, k) => a + (s[k] || 0), 0) });
+}
 /* העובד מדווח px אמיתי (אחרי הקליטה): שלב הצריבה בתוכנית מחושב מחדש, השאר כמו שהיה */
 function replanPx(ep, durSec, px) {
   if (!ep || !ep.s || !num(px, 0.02, 16) || !(durSec > 0)) return null;
@@ -252,6 +262,6 @@ function normEp(ep) {
   return { s, t, q, n: num(ep.n, 0, 1000) ? Math.round(ep.n) : 0 };   // רק מה שהטלפון צריך — bn/f נשארים בשרתון
 }
 
-module.exports = { MQ_MIN, KA_STG, KA_BV, kaPlan, kaSample, addKaSample, normKaSamples, kaModel, SUBS_STG, subsPlan, STAGES, PRIOR, MODE_MIN, LAMBDA, HALF_LIFE, SIGMA0, NQ, ET_MAX, ET_G_MAX, etSamplesFor,
+module.exports = { MQ_MIN, VI_STG, VI_DRY_RV, viPlan, KA_STG, KA_BV, kaPlan, kaSample, addKaSample, normKaSamples, kaModel, SUBS_STG, subsPlan, STAGES, PRIOR, MODE_MIN, LAMBDA, HALF_LIFE, SIGMA0, NQ, ET_MAX, ET_G_MAX, etSamplesFor,
   etaSample, normEtSamples, addEtSample, fitStage, etaModel, etaPlan, etaTarget, etaView, normEp, planOf,
   CPU_ST, REF_CPUS, CPU_EXP, PX_EXP, CC_K, jobFactors, replanPx, pxOf };

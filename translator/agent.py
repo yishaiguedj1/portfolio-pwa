@@ -102,7 +102,8 @@ def net_rate() -> dict:
 
 def host_info(busy: str = '') -> dict:
     """מצב השרת למסך השרת באפליקציה — מספרים בלבד (בלי שמות קבצים, בלי תוכן). כל ערך שלא נמדד — לא נשלח."""
-    hb = {'v': os.environ.get('SNB_VERSION', 'dev')[:12], 'busy': busy}
+    hb = {'v': os.environ.get('SNB_VERSION', 'dev')[:12], 'busy': busy,
+          'vi': 1}                     # 9/11/2026: מכיר עבודת ניתוח (analyze.py) — השרתון מוסר אותה רק למי שמצהיר
     if busy:                          # 15/10/2026: הדופק עם השלב הנוכחי (מ־prog.json של job.py)
         pr = _prog()
         if re.match(r'^[a-z0-9_-]{1,24}$', str(pr.get('st') or '')):
@@ -241,6 +242,8 @@ def poll(server: str, tok: str, op: str = 'poll', busy: str = '', fit: dict | No
         jb = j.get('job')
         if isinstance(jb, dict) and J.JOB_RE.match(str(jb.get('id') or '')) and J.KEY_RE.match(str(jb.get('key') or '')):
             out = {'id': jb['id'], 'key': jb['key'], 'kind': jb.get('kind') or 'tr'}
+            if jb.get('vi') == 1:
+                out['vi'] = 1                          # 9/11/2026 (גל 0): ניתוח סרטונים — perf_kind / MEM_PRIOR['vi']
             if isinstance(jb.get('dur'), (int, float)) and 0 < jb['dur'] <= 86400:
                 out['dur'] = jb['dur']                 # 21/10/2026: אורך הסרטון — להזמנת הזיכרון
             return {'job': out}
@@ -840,7 +843,13 @@ SLOTS_MAX = 4
 MEM_DB = Path(os.environ.get('SNB_MEM_DB', '/cache/snb-mem.json'))
 # השיא הצפוי לפי סוג העבודה: [קבוע MB, MB לדקת סרטון]. תרגום: היישור ב־ONNX תחת gVisor 4.2GB ל־5 דק׳ (נמדד 10/10),
 # ‏CTC לפני השחרור 5.3GB לשעה ועשרים (20/10) — לכן קבוע גבוה ושיפוע מתון. הפקה מחדש = צריבה; גיליון AI = קריאות בלבד.
-MEM_PRIOR = {'tr': (4600, 22), 'rr': (2200, 6), 'ai': (700, 0), 'dx': (400, 0)}   # dx — רק העתקה
+# vi (9/11/2026, ניתוח סרטונים — גל 0): כמו tr, כי היישור הוא השיא (התוכנית 3.3); = MEM_VI ב־analyze.py. ה־0.4 מכייל מהמדידה
+MEM_PRIOR = {'tr': (4600, 22), 'rr': (2200, 6), 'ai': (700, 0), 'dx': (400, 0), 'vi': (4600, 22)}   # dx — רק העתקה
+
+
+def perf_kind(jb: dict) -> str:
+    """הסוג לזיכרון ולקבלה החזויה: 'vi' לעבודת ניתוח (השרתון מסמן בלקיחה), אחרת הסוג של העבודה."""
+    return 'vi' if jb.get('vi') == 1 else (jb.get('kind') or 'tr')
 MEM_MARGIN = 1.1                    # ההזמנה = השיא הצפוי + 10%
 MEM_BASE_MB = 400                   # הסוכן עצמו + ההכנה מראש של המודלים
 PSI_MAX = 10.0                      # some avg10 מעל 10% — הזיכרון כבר בלחץ: לא מכניסים עבודה
@@ -976,7 +985,7 @@ class Slot:
         self.n, self.jb, self.id = n, jb, jb['id']
         self.state = J.STATE.parent / ('s%d' % n)
         self.work = J.VT_WORK / ('s%d' % n)
-        self.kind = jb.get('kind') or 'tr'
+        self.kind = perf_kind(jb)
         self.dur = float(jb.get('dur') or 0)
         self.need = mem_need(self.kind, self.dur)
         self.peak = 0.0
@@ -1049,11 +1058,16 @@ def mem_fit(slots: dict) -> dict | None:
         return None
     a, b = mem_model('tr')
     ra, rb = mem_model('rr')
+    va, vb = mem_model('vi')
     out = {'mb': int(free), 'a': int(round(a * MEM_MARGIN)), 'b': round(b * MEM_MARGIN, 1), 'ra': int(round(ra * MEM_MARGIN)),
-           'rb': round(rb * MEM_MARGIN, 1), 'ai': mem_need('ai', 0)}
+           'rb': round(rb * MEM_MARGIN, 1), 'ai': mem_need('ai', 0),
+           'va': int(round(va * MEM_MARGIN)), 'vb': round(vb * MEM_MARGIN, 1)}   # 9/11/2026: ניתוח — שדות רשות בשרתון (normFit)
     dm = perf_dmax(slots)
     if dm is not None:
         out['dm'] = dm
+    dv = perf_dmax(slots, 'vi')
+    if dv is not None:
+        out['dv'] = dv
     global _last_dm
     if dm != _last_dm:                               # ליומן הקונטיינר — לאימות מול מבחן העומס (רק כשמשתנה)
         print('· קבלה חזויה: ' + ('בלי הגבלה' if dm is None else 'עד ' + str(dm) + ' דק׳ סרטון') + ' (' + str(len(slots)) + ' רצות)', flush=True)
@@ -1073,11 +1087,11 @@ def perf_running(slots: dict) -> list:
     return out
 
 
-def perf_dmax(slots: dict) -> float | None:
-    """האורך המרבי (דק׳ סרטון) של עבודה שנכנסת עכשיו בלי שאף עבודה תאט מעבר ל־SNB_SLOW_MAX. None = בלי הגבלה."""
+def perf_dmax(slots: dict, kind: str = 'tr') -> float | None:
+    """האורך המרבי (דק׳ סרטון) של עבודה מסוג kind שנכנסת עכשיו בלי שאף עבודה תאט מעבר ל־SNB_SLOW_MAX. None = בלי הגבלה."""
     try:
         import perf
-        return perf.dmax(perf_running(slots))
+        return perf.dmax(perf_running(slots), kind=kind)
     except Exception:     # noqa: BLE001 — ויסות בלבד: תקלה = רק הזיכרון קובע
         return None
 
