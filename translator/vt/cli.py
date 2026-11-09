@@ -162,6 +162,23 @@ def cmd_compare(a):
     log(f"{len(diffs)} נקודות מחלוקת → {out}")
 
 
+def cmd_speech(a):
+    """09/11/2026: כמה דיבור יש בקול (Silero) → asr/speech.json. job.py בודק את זה לפני התמלול של הקול שעלה ראשון
+    מהטלפון — קול שבור עובר לסרטון במקום תמלול של 18 דק׳. בלי המודל / תקלה — sp=None ושום דבר לא נופל."""
+    pr = Project(a.name)
+    pr.load()
+    out = pr.p("asr", "speech.json")
+    try:
+        from .asr_parakeet import speech_share
+        sp, dur = speech_share(str(pr.p("audio16k.wav")))
+    except Exception as e:      # noqa: BLE001 — בדיקה משנית; בלעדיה התמלול רץ כרגיל
+        write_json(out, {"sp": None})
+        log(f"דיבור: הבדיקה לא רצה ({type(e).__name__})")
+        return
+    write_json(out, {"sp": round(sp, 4), "dur": round(dur, 1)})
+    log(f"דיבור: {sp * 100:.1f}% מתוך {dur / 60:.1f} דק׳")
+
+
 def cmd_lang(a):
     """A12 (01/11/2026): קטעים שאינם באנגלית → foreign.json (vt/lang.py). רק Parakeet (מנועי הענן רב־לשוניים);
     בלי המודל בתמונה / בלי מועמדים — קובץ ריק, ושום דבר לא נופל."""
@@ -803,6 +820,7 @@ def main(argv=None):
     p.add_argument("a")
     p.add_argument("b")
     add("lang", cmd_lang, "name", help="קטעים שאינם באנגלית (A12)")
+    add("speech", cmd_speech, "name", help="כמה דיבור יש בקול (Silero)")
     p = add("edit-export", cmd_edit_export, "name", help="קובץ הגהה")
     p.add_argument("--from", dest="source")
     p.add_argument("--force", action="store_true")
