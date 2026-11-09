@@ -2684,7 +2684,8 @@ def prepare(args):
         ctx.report('tr', 0, 'מוריד את הסרטון', force=True)
         fetch_input(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('tr', 0.1 * f, 'מוריד את הסרטון'))
         ladder_start(ctx, src)                   # איכויות הצפייה — ברקע, במקביל לכל השאר
-        return edl_src(ctx, src, 'v')
+        src = edl_src(ctx, src, 'v')
+        return src
     if a:
         src = in_path(ctx, a, 'a')
         ctx.report('tr', 0, 'מוריד את הקול', force=True)
