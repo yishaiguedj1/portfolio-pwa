@@ -41,4 +41,19 @@ class UpdCoreTest {
     }
 
     @Test fun mb() { assertEquals("", UpdCore.mb(0)); assertEquals("8.4 MB", UpdCore.mb(8_808_038)); assertEquals("112 MB", UpdCore.mb(117_440_512)) }
+
+    /* 09/11/2026: ההורדה שלנו עם המשך (במקום DownloadManager) */
+    @Test fun resumeOffsets() {
+        assertEquals(5000L, UpdCore.writeFrom(206, 5000))   // המשך מהמקום שנעצר
+        assertEquals(0L, UpdCore.writeFrom(200, 5000))      // השרת התעלם מ־Range — מההתחלה
+        assertEquals(0L, UpdCore.writeFrom(200, 0))
+        assertNull(UpdCore.writeFrom(206, 0))               // 206 בלי שביקשנו — לא סומכים
+        assertNull(UpdCore.writeFrom(404, 0))
+        assertNull(UpdCore.writeFrom(416, 5000))
+    }
+
+    @Test fun transientCodes() {
+        assertTrue(UpdCore.transient(503)); assertTrue(UpdCore.transient(429)); assertTrue(UpdCore.transient(416))
+        assertFalse(UpdCore.transient(404)); assertFalse(UpdCore.transient(403))
+    }
 }

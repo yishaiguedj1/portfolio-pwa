@@ -1,6 +1,5 @@
 package io.github.yishaiguedj1.snowball.upd
 
-import android.app.DownloadManager
 import android.app.job.JobParameters
 import android.app.job.JobService
 import android.content.BroadcastReceiver
@@ -11,27 +10,25 @@ import android.os.Build
 
 /* 08/11/2026: החלקים של Upd שהמערכת מפעילה (ההסבר המלא ב־Upd.kt) */
 
-/** הבדיקה היומית (JOB_CHECK) וההתקנה אחרי ההורדה (JOB_INSTALL) — בתהליכון, לא על ה־main thread */
+/** הבדיקה היומית (JOB_CHECK) וההורדה + ההתקנה (JOB_DL) — בתהליכון, לא על ה־main thread.
+    שירות אחד מריץ כמה ג'ובים במקביל — לכן דגל עצירה לכל ג'וב */
 class UpdJob : JobService() {
+    private val stopped = java.util.concurrent.ConcurrentHashMap<Int, Boolean>()
     override fun onStartJob(p: JobParameters): Boolean {
         val c = applicationContext
+        stopped[p.jobId] = false
         Thread {
+            var again = false
             try {
-                if (p.jobId == Upd.JOB_INSTALL) Upd.install(c)
+                if (p.jobId == Upd.JOB_DL) again = Upd.download(c) { stopped[p.jobId] == true }
                 else if (Upd.check(c)) Upd.announce(c)
             } catch (e: Exception) {}
-            jobFinished(p, false)
+            if (stopped[p.jobId] != true) jobFinished(p, again)
         }.start()
         return true
     }
-    override fun onStopJob(p: JobParameters): Boolean = p.jobId == Upd.JOB_INSTALL
-}
-
-/** סוף הורדה — מגיע מספק ההורדות של המערכת (לכן exported); Upd.onDownloaded בודק שזו ההורדה שלנו */
-class UpdDlReceiver : BroadcastReceiver() {
-    override fun onReceive(c: Context, i: Intent) {
-        if (i.action == DownloadManager.ACTION_DOWNLOAD_COMPLETE) Upd.onDownloaded(c, i.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1))
-    }
+    /** המערכת עצרה (רשת נפלה / תם הזמן): ההורדה נשמרה עד המקום שהגיעה — מתזמנים שוב וממשיכים משם */
+    override fun onStopJob(p: JobParameters): Boolean { stopped[p.jobId] = true; return p.jobId == Upd.JOB_DL }
 }
 
 /** התשובה של PackageInstaller (לא מיוצא — רק ה־PendingIntent שלנו) */

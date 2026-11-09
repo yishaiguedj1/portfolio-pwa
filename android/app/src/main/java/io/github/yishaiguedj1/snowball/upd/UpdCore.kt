@@ -40,6 +40,17 @@ object UpdCore {
     fun verify(f: File, r: Rel): Boolean =
         f.isFile && (r.size <= 0 || f.length() == r.size) && f.inputStream().use { sha256(it) } == r.sha
 
+    /** הורדה עם המשך (Range: bytes=<have>-): מאיפה לכתוב לפי קוד התשובה. 206 = המשך; 200 = השרת שלח הכל — מההתחלה;
+        אחר = null (לא כותבים) */
+    fun writeFrom(code: Int, have: Long): Long? = when {
+        code == 206 && have > 0 -> have
+        code == 200 -> 0L
+        else -> null
+    }
+
+    /** תקלה זמנית — לנסות שוב אחר כך (ולא "נכשל"): עומס/שרת, או קובץ מקומי שלא תואם (416 — מוחקים ומתחילים מחדש) */
+    fun transient(code: Int): Boolean = code == 408 || code == 416 || code == 429 || code >= 500
+
     /** "112 MB" / "8.4 MB" — הגודל בשורת העדכון */
     fun mb(bytes: Long): String {
         if (bytes <= 0) return ""
