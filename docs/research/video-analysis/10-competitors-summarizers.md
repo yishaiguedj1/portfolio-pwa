@@ -600,3 +600,78 @@
 - כל טענות ה"אין עברית" או "אין RTL" נשענות על היעדר בעמודים שנקראו. לא נעשתה בדיקה בפועל בעברית באף מוצר. מומלץ לבצע מבחן ידני על 3–5 הרצאות בעברית בכלים המובילים לפני קביעה סופית.
 - אין נתונים על נכונות לשלם או על שימוש בכלים כאלה בשוק הישראלי. ייתכן ש־`14-competitors-repurpose-hebrew-census.md` מכסה זאת (לפי שם הקובץ).
 - דיוק חותמות הזמן אצל המתחרים לא נמדד, ולכן היתרון של עיגון ברמת מילה הוא טענה שצריך להוכיח מול מדד (`18-golden-set-evaluation.md`).
+
+---
+
+## שאלה 5: הזנב הארוך — עוד 40 כלים, שורה לכל אחד
+
+### Takeaway
+הזנב הארוך גדול ופעיל: עשרות תוספים קטנים, עם עשרות עד אלפי משתמשים, ומוצרי Product Hunt חדשים בכל חודש. רובם עוטפים תמליל ומודל שפה, ונבדלים רק במודל המחיר (חד־פעמי, ‏BYOK, חינם) או בגימיק (תצוגה לפני צפייה, סנטימנט תגובות). הראייה מופיעה בשוליים: ‏Summd, ‏YouMind (צילומים ידניים) ושלושה פרויקטים בקוד פתוח.
+
+### Cited Findings
+**תוספי דפדפן (רישומי CWS, נבדקו 9/11/2026)**
+1. **Summario** — ‏10K משתמשים, ‏4.9 מ־138, עודכן 30/9/2026. סקירה, נקודות מפתח, המלצה אם שווה לצפות, מקטעים עם זמן, צ'אט, וסנטימנט של התגובות. 70+ שפות פלט, ותמלול כשאין כתוביות. בחינם: סיכום מלא אחד, 3 מהירים והודעת צ'אט אחת ביום, לסרטונים של פחות מ־30 דקות. ‏Pro מוסיף ייצוא ל־Notion, ‏Obsidian, ‏PDF ו־MD — [CWS](https://chromewebstore.google.com/detail/summario-ai-youtube-summa/omjcmicfodhllalfjnkpcblodloljpmi).
+2. **Clarify AI** — ‏20K, ‏4.1 מ־1.3K, עודכן 7/11/2026. סיכומים עם זמנים, כלי תמליל, סיכום תגובות, עוזר צ'אט, תבניות פרומפט, ותרגום ל־50+ שפות — [CWS](https://chromewebstore.google.com/detail/clarify-ai-youtube-summar/ogihgbocgnbhhdcmcolhipjhkmkecpeg).
+3. **Recapio** (AM2 Studio d.o.o.) — ‏3K, ‏4.9 מ־14, עודכן 29/9/2025. זמנים לחיצים, צ'אט שמפנה לזמנים, ומאגר ידע אישי ("AI Brain") — [CWS](https://chromewebstore.google.com/detail/recapio-ai-youtube-summar/eeeahhaanadpgonocbinjbhbohcknfcd).
+4. **Youtube Summary with AI** (ytuong.ai) — כ־2K, ‏4.8. פאנל צד ששולח לפלטפורמת AI שהמשתמש בוחר. מצהיר שתוכן הסרטון לא נשמר אצלו — [CWS](https://chromewebstore.google.com/detail/youtube-summary-with-ai/gcglcbfmophnppdlbhckfmfiofaajibm).
+5. **summarizer.tube** — ‏261 משתמשים. נקודות שקופצות לשנייה שבה נאמרו; 5 סיכומים ביום בלי חשבון; 12 שפות פלט — [CWS](https://chromewebstore.google.com/detail/youtube-summarizer-%E2%80%94-ai-v/ebjlbpimmbdenfieofpgejmdgdipgejp).
+6. **Snippy Summary** — ‏75 משתמשים. ‏Gemini עם מפתח של המשתמש, זמנים, ייצוא ל־Obsidian, חינם — [CWS](https://chromewebstore.google.com/detail/snippy-summary-ai-youtube/hcpmildnbjiigmeafaoalidinmjjnjpn).
+7. **YouMind** (MIND MOTOR PTE. LTD.) — ‏40K, ‏4.9, עודכן 6/11/2026 (גרסת alpha). הערות עם זמנים וצילומי מסך בזמן הצפייה, מפות חשיבה וצ'אט, ובחירה בין ChatGPT, ‏Claude ו־Gemini — [CWS](https://chromewebstore.google.com/detail/youmind-ai-web-clipper-yo/cnnenlbocdcjnmpkkbbdgjfejinfffjc).
+8. **Shortform** (Shortform Inc.) — ‏10K, ‏4.0 מ־26, עודכן 1/4/2026. סיכום שמוסיף "background context and counter-arguments"; זמנים לא מוזכרים — [CWS](https://chromewebstore.google.com/detail/shortform-summary-of-web/anfegbjckcheemfbibglojdmjadgiepe).
+9. **TubeNotes** — ‏11 משתמשים. מסמכי "FullNotes" ב־PDF; הינדי, אנגלית ו־40 שפות נוספות — [CWS](https://chromewebstore.google.com/detail/tubenotes-youtube-summari/ggbjobencknmnkfkbdcfijgddepcapgn).
+10. **TwinMind** (ThirdEar AI, Inc.) — ‏20K, ‏5.0 מ־250. מדריכי לימוד וכרטיסיות מהערות, ‏PDF וסרטונים; מנתב שאילתות למודלים של OpenAI, ‏Anthropic, ‏Perplexity ו־Google — [CWS](https://chromewebstore.google.com/detail/twinmind-summarize-tabs-a/agpbjhhcmoanaljagpoheldgjhclepdj?hl=en).
+11. **MaxAI** — כ־700K, ‏4.6 מ־14.5K. סרגל AI כללי; YouTube מופיע כאתר נתמך, בלי תכונות וידאו מתועדות — [CWS](https://chromewebstore.google.com/detail/mhnlakgilnojmhinhkckjpncpbhabphi).
+12. **YouTube Summary with Gemini AI – 1-Click** — ‏135 משתמשים. שולח ל־Gemini רק את הכותרת, הערוץ והקישור, בפרומפט שמבקש 8–12 נקודות; חינם — [CWS](https://chromewebstore.google.com/detail/youtube-summary-with-gemi/dafkeibjaghajkpkdjmoniifpgmbemcg).
+13. **swiftnotes.ai** — ‏104 משתמשים, עודכן 14/10/2025. "AI powered notes for YouTube videos"; מעט פרטים — [CWS](https://chromewebstore.google.com/detail/swiftnotesai/hloapbehgdcfibkpelhnnejpibcaofge?hl=en-US).
+14. **YouTube Transcript & AI Summary** (Oleksandr Senyk) — ‏61 משתמשים. כל נקודה וכל שורה לחיצות; ייצוא ל־Notion ו־Docs, וכ־PDF, ‏DOCX, ‏MD ו־TXT; סנטימנט תגובות; 60+ שפות — [CWS](https://chromewebstore.google.com/detail/ai-summary-youtube-summar/mbmmcpjfaaikmlgfocdcahghnjboiple).
+15. **Summd** — ‏259 משתמשים, ‏4.8 מ־9, עודכן 3/8/2026. סיכום אוטומטי כשהסרטון נפתח, זמנים לחיצים, ו־"frame analysis" לשאלות על המסך; 17 שפות תמליל; 15 הודעות חינם בחודש — [CWS](https://chromewebstore.google.com/detail/youtube-ai-chat-summary/cjhickmaokeejgncknjhgiebnloakppe).
+16. **YouTube Quick AI Summary** — ‏19 משתמשים. תצוגת סיכום בריחוף על תמונה ממוזערת, לפני הצפייה, באמצעות ה־Gemini המובנה של YouTube — [CWS](https://chromewebstore.google.com/detail/gflljmlmelkidjlkclhghngmioppkkcd).
+17. **summarizemyvideo** — ‏1,000 משתמשים, ‏4.2. מפתח API של המשתמש (OpenAI, ‏Gemini או Claude) ותשלום חד־פעמי; ‏YouTube בלבד — [CWS](https://chromewebstore.google.com/detail/youtube-summary-transcrip/fedjdpgghmpimikoihnhlofjeomlabeb).
+
+**Product Hunt**
+18. **YTSummarizer** — גרסה 2.0 ב־20/4/2026 ("No subscription"), והמקורית ב־15/9/2025. סיכום אחד חינם ביום; חבילות של $9 ל־30, ‏$19 ל־200 ו־$49 ל־1,000 — [Product Hunt](https://www.producthunt.com/products/ytsummarizer/launches).
+19. **DeepTube** — הושק 5/1/2026; "read-only summary"; קוד פתוח ב־GitHub — [Product Hunt](https://www.producthunt.com/products/deeptube/launches).
+20. **ytskim** — הושק 1/6/2026; חינם; תמליל, סיכום וייצוא ל־PDF או TXT — [Product Hunt](https://www.producthunt.com/products/ytskim/launches).
+21. **PeekaTube** — הושק 9/8/2025; סיכום לפני הלחיצה, בדף הבית, בחיפוש ובדפי ערוצים — [Product Hunt](https://www.producthunt.com/products/peekatube/launches).
+22. **Tube Insights** — הושק 28/1/2026; תמלול, סיכומים ומעקב אחרי ערוצים, בתמחור לפי קרדיטים — [Product Hunt](https://www.producthunt.com/products/tubeinsights/launches).
+23. **InsightTube** — הושק 27/11/2025 (מקום 4 ביום) ושוב ב־22/1/2026; סיכומים, פרקים, כתוביות רב־לשוניות וצ'אט — [Product Hunt](https://www.producthunt.com/products/insighttube/launches).
+
+**דפים רשמיים**
+24. **YouTLDR** — פעיל "since 2019". סיכומים ו־"quotables" עם זמנים, תמליל עם סמן שעוקב אחרי הנגן, וסמנים על פס ההתקדמות. ‏Pro ‏$12 לחודש; 10,000+ משתמשים — [YouTLDR](https://you-tldr.com/).
+25. **Decopy** — ‏YouTube בלבד: סיכום, מפה, FAQ, מקטעים עם זמן, וחיפוש רשת אופציונלי; ייצוא TXT או PDF. בלי כתוביות — עד 240 דקות בקרדיטים; הקלט "not stored" — [Decopy](https://decopy.ai/youtube-video-summarizer/). מאמר של ספק מתאר אותו כ־"100% free" עם עד 50 סיכומים ביום — [Memories.ai](https://memories.ai/blogs/best-5-ai-youtube-video-summarizer-tools-in-2026).
+26. **TubeOnAI** — קלט מ־YouTube, ‏Dailymotion, ‏Bilibili, ‏Twitch, ‏SoundCloud, ‏PDF ו־Drive. 150+ תבניות repurposing וסיכומי אודיו; ‏iOS, ‏Android, ‏Chrome וווב. ‏Starter חינם (400 קרדיטים); Pro ‏$19 לחודש; טוען ל־"150k+ users" — [TubeOnAI](https://tubeonai.com/).
+27. **Snipd** — אפליקציית פודקאסטים שגם "Import YouTube Videos". ‏snips עם אודיו, תמליל וסיכום; פרקים; ייצוא ל־Notion, ‏Readwise, ‏Obsidian, ‏Glasp, ‏Bear, ‏Logseq ו־MD; ‏26 שפות — [Snipd](https://www.snipd.com/).
+28. **Otio** — סביבת מחקר עם סיכום YouTube; "every answer cited"; צ'אט על פני כמה מקורות — [Otio](https://otio.ai/).
+29. **Brisk** — כלי למורים: "1 in 3 Teachers in the USA use Brisk". העמוד מזכיר "videos", אבל לא מאשר סיכום YouTube במפורש — [Brisk](https://www.briskteaching.com/).
+30. **Memories.ai** — לפי מאמר של הספק (3/1/2026): בחינם 100 קרדיטים בחודש; Plus מ־$15 לחודש בחיוב שנתי; זמנים ופרקים; ייצוא ל־Notion ול־MD — [Memories.ai](https://memories.ai/blogs/best-5-ai-youtube-video-summarizer-tools-in-2026).
+
+**קוד פתוח ותשתיות**
+31. **Fabric** — `-y` שולף תמליל, תגובות ומטא־נתונים; `--visual` ‏("OCR and FFmpeg frame extraction"); תבנית `extract_wisdom`; ‏MIT; ‏44.6k כוכבים; ‏v1.4.447 מ־16/4/2026 — [GitHub](https://github.com/danielmiessler/Fabric).
+32. **steipete/summarize** — ‏CLI ב־Node.js, ‏Chrome Side Panel ו־Firefox Sidebar. משתמש קודם בכתוביות שפורסמו, ואם אין — בתמלול; פריימים לפי סצנה עם OCR אופציונלי ופלט עם זמנים; ‏MIT; ‏6.8k כוכבים — [GitHub](https://github.com/steipete/summarize).
+33. **lecture2notes** — סיווג שקופיות ברשת CNN, חיתוך והסרת כפילויות באשכולות, ‏OCR עם ניתוח מבנה השקופית, חילוץ איורים, תמלול, וסיכום משולב; ‏AGPL; ‏67 כוכבים — [GitHub](https://github.com/HHousen/lecture2notes).
+34. **youtube-transcript-api** — ספריית שליפת תמליל (8.6k כוכבים), עם אזהרה מפורשת על חסימת כתובות IP של ספקי ענן — [GitHub](https://github.com/jdepoix/youtube-transcript-api).
+
+**AI מובנה בדפדפן** (העמודים הרשמיים לא מזכירים סיכום YouTube במפורש)
+35. **Gemini in Chrome** — [Gemini](https://gemini.google/overview/gemini-in-chrome/).
+36. **Comet** — [Perplexity](https://www.perplexity.ai/comet).
+37. **Brave Leo** — [Brave](https://brave.com/leo/).
+
+**לפי 06 (לא נבדקו מחדש כאן; ייתכן שהקבצים המקבילים מכסים אותם — 11 עד 14, לפי שמותיהם)**
+38. **כלי לימוד:** Knowt, ‏Turbo AI, ‏StudyFetch, ‏Coconote, ‏Gizmo, ‏RemNote, ‏Algor, ‏Readwise — [06](06-market-features-ux.md); ראו גם `12-competitors-study-tools.md`.
+39. **פגישות:** Otter, ‏Fireflies, ‏Fathom, ‏tl;dv, ‏Read.ai, ‏Granola — [06](06-market-features-ux.md); ראו גם `13-competitors-meetings-enterprise.md`.
+40. **וידאו ארגוני, LMS ותשתיות:** Panopto, ‏Kaltura, ‏YuJa, ‏Echo360, ‏Verbit, ‏Stream, ‏Twelve Labs, ‏Azure Video Indexer, ‏Loom, ‏Descript, ‏Happy Scribe — [06](06-market-features-ux.md); ראו גם `11-competitors-notebooks-platforms.md` ו־`13-competitors-meetings-enterprise.md`.
+
+### Inferences
+- הזנב הארוך מוכיח שעטיפה דקה (תמליל ומודל) היא מוצר שכל מפתח בונה בסוף שבוע. אין בה חפיר. מה שמבדיל, גם כאן, הוא אחד משלושה דברים: מודל המחיר, ערוץ ההפצה (Product Hunt או CWS), או יכולת חזותית.
+- שלושה פרויקטים בקוד פתוח (Fabric, ‏steipete/summarize, ‏lecture2notes) כבר מממשים פריימים, OCR וסיכום משולב. רף הכניסה לראייה בסיסית ירד. היתרון יגיע מאיכות השילוב, מהעברית ומהעיגון, ולא מעצם היכולת לחלץ פריים.
+- רוב הכלים בזנב לא מזכירים שפות מימין לשמאל או עברית בפלט. כמה מהם מציגים רק תרגום ממשק.
+
+### Gaps
+- **מוזכרים רק בתקצירי חיפוש, בלי עמוד שנקרא:**
+  - Video2PPT ו־FrameRipper — מחלצי שקופיות.
+  - Transcription.video (Product Hunt, ‏10/2/2026) — [Product Hunt (תקציר חיפוש)](https://www.producthunt.com/products/transcription-video/launches).
+  - "YouTube Summarizer" (Product Hunt, ‏20/1/2026) — [Product Hunt (תקציר חיפוש)](https://www.producthunt.com/products/youtube-summarizer-5/launches).
+  - Dictanote — [Dictanote (תקציר חיפוש)](https://dictanote.co/youtube-summary).
+- **רישומי CWS שלא נטענו:** CyFrog, ‏Relic ו־AI Video Recap.
+- **הושמטו:** Kagi Summarizer (דורש התחברות). ‏Otio — מספר המשתמשים לא אומת בקריאה.
+- הזנב הארוך אינו ממצה. בגלל תקציב החיפוש שנגמר, לא נסרקו קטגוריות CWS נוספות, ולא נסרקו כלים בשווקים אחרים (סין, קוריאה, יפן), חוץ מ־BibiGPT ו־Readray.

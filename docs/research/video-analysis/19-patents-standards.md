@@ -629,7 +629,7 @@
 **מפות חשיבה**
 - **Mermaid** ‏`mindmap` — היררכיה לפי הזחה — [Mermaid](https://mermaid.js.org/syntax/mindmap.html).
 - **OPML** — דף המפרט ב־opml.org החזיר רק ניווט וקישור ל־"OPML 2.0 spec", בלי תוכן — [opml.org](https://opml.org/spec2.opml).
-- **FreeMind** — הדף החזיר 403.
+- **FreeMind** — דף פורמט הקובץ החזיר 403 — [FreeMind Wiki](https://freemind.sourceforge.io/wiki/index.php/File_format).
 
 **Anki**
 - **קובצי טקסט** — [Anki Manual, Text Files](https://docs.ankiweb.net/importing/text-files.html):
@@ -748,7 +748,7 @@
 - **WCAG 2.2 אומץ כ־ISO/IEC 40500:2025** — הודעת W3C מ־21/10/2025 — [W3C WAI](https://www.w3.org/WAI/news/2025-10-21/wcag22-iso).
 - **EN 301 549 V4.1.1** — פורסם 2/9/2026, ומאמץ את WCAG 2.2 AA. ציטוט ב־OJEU צפוי בסביבות 30/11/2026 — [Deque](https://www.deque.com/fr/blog/en-301-549-v4-1-1-is-final-what-changed-what-it-means-and-what-you-should-do/).
   - **סתירה:** לפי DWT, התקן אומץ ב־24/8/2026 — [DWT](https://www.dwt.com/insights/2026/09/european-accessibility-act-ict-standards-update).
-- **ישראל — IS 5568:** מבוסס WCAG 2.0 AA, בתוקף מאוקטובר 2017. פיצוי של עד 50 אלף ₪ — [BOIA](https://www.boia.org/blog/israels-digital-accessibility-laws-an-overview) (מקור משני).
+- **ישראל — IS 5568:** מבוסס WCAG 2.0 AA, בתוקף מאוקטובר 2017. סנקציה כספית של עד 50 אלף ₪ — [BOIA](https://www.boia.org/blog/israels-digital-accessibility-laws-an-overview) (מקור משני).
   - יש טענות סותרות על עדכון התקן לגרסה חדשה של WCAG — [user-a](https://user-a.co.il/en/standards/israeli-accessibility-standards-vs-wcag).
 - **W3C WAI — Transcripts** (17/9/2024) — [W3C WAI](https://www.w3.org/WAI/media/av/transcripts/):
   - תמליל הוא "a text version of the speech and non-speech audio information needed to understand the content".
