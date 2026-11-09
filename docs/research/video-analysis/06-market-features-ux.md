@@ -56,7 +56,7 @@
 - **Fireflies.ai** — Free/Pro/Business/Enterprise; "Upload and transcribe audio & video files"; אנגלית + ספרדית/צרפתית/פורטוגזית/איטלקית + "100+ other languages in beta" (עברית לא מוזכרת); AskFred, soundbites, topic trackers; וידאו ב־Business (נבדק 9/11/2026) — [Fireflies pricing](https://fireflies.ai/pricing). Pro $10, Business $19, Enterprise $39 למושב בשנתי — [Scrimba](https://scrimba.com/articles/best-ai-video-summarizers-2026/). Trustpilot ‏4.5 מ־904; התלונה המרכזית חיוב אחרי ביטול — [Trustpilot](https://www.trustpilot.com/review/fireflies.ai).
 - **Fathom** — חינם "Unlimited recordings + transcriptions"; Premium $20/$16; Team $19/$15; Business $34/$25 (סנכרון CRM, מדדי אימון); Ask Fathom בין שיחות; לכידה בלי בוט (בטא) (נבדק 9/11/2026) — [Fathom pricing](https://www.fathom.ai/pricing).
 - **tl;dv** — Pro €29 חודשי / €18 בשנתי, Business €39/€29 למושב (נבדק 9/11/2026) — [tl;dv pricing](https://tldv.io/pricing/). במסלול החינמי, אחרי 10 פגישות "only the first 10 minutes of each meeting get AI notes" — [Toolworthy](https://www.toolworthy.ai/en/blog/best-ai-video-summarizer).
-- **Read.ai** — Free (5 דוחות בחודש), Pro $19.75/$15, Enterprise $29.75/$22.50, Enterprise+ $39.75/$29.75; העלאת 100/200/300 דקות בחודש; דוחות ב־16 שפות (בלי עברית); מדדי מעורבות וסנטימנט; "key questions" ו־action items (נבדק 9/11/2026) — [Read.ai pricing](https://www.read.ai/pricing).
+- **Read.ai** — Free (5 דוחות בחודש), Pro $19.75/$15, Enterprise $29.75/$22.50, Enterprise+ $39.75/$29.75; העלאת 100/200/300 דקות בחודש; דוחות ב־16+ שפות ברשימה, בלי עברית (ובמקום אחר באותו עמוד "20+ languages supported" — לא עקבי); מדדי מעורבות וסנטימנט; גישה ל־LLM ‏(Claude, GPT) בחיפוש רק מ־Pro; ב־Enterprise+ ‏HIPAA ואירוח באיחוד האירופי ובקנדה; "key questions" ו־action items (נבדק 9/11/2026) — [Read.ai pricing](https://www.read.ai/pricing).
 - **Notta** — Free ‏120 דקות ו־3 דקות לשיחה; Pro $8.17 לחודש בשנתי (1,800 דקות); Business $16.67 (ללא הגבלה); עד 5 שעות להקלטה; Document Builder (PDF, Word, Excel, מצגות); שאלות על פני כל הפגישות; תוספי תרגום דו־לשוני (נבדק 9/11/2026) — [Notta pricing](https://www.notta.ai/en/pricing). 58 שפות ו־50% הנחה לחינוך — [Scrimba](https://scrimba.com/articles/best-ai-video-summarizers-2026/).
 - **Granola** — Basic $0, Business $14, Enterprise $35 למשתמש; "Bot-free, device-audio capture"; האודיו נמחק אחרי התמלול; היסטוריה של 30 יום בחינם; API ו־MCP בתשלום (נבדק 9/11/2026) — [Granola pricing](https://www.granola.ai/pricing).
 - **Zoom** — סיכומי AI Companion יכולים לכלול, כאופציה, הודעות צ'אט ותוכן ממסך משותף; יש הגדרת OCR למסך המשותף — [Brown IT (תקציר חיפוש)](https://ithelp.brown.edu/kb/articles/zoom-ai-companion-overview). ZoomMate הושק 24/6/2026 כתוסף בתשלום; יכולות הליבה נשארות במסלולים בתשלום — [Zoom blog](https://www.zoom.com/en/blog/zoom-ai-companion-zoommate/).
@@ -88,7 +88,7 @@
 - **YouTube Chapters** — לפחות 3 חותמות, הראשונה ב־00:00, כל פרק לפחות 10 שניות; Automatic Chapters מסומן כברירת מחדל; פרקים ידניים גוברים — [YouTube Help](https://support.google.com/youtube/answer/9884579?hl=en).
 - **Google Search key moments** — זיהוי אוטומטי, או סימון Clip ‏(startOffset/endOffset/url) או SeekToAction עם `{seek_to_second_number}`; דרוש קישור עמוק לנקודה וסרטון של 30 שניות לפחות — [Google Search Central](https://developers.google.com/search/docs/appearance/structured-data/video).
 - **Coursera Coach** — מיליון+ לומדים; "9.5% higher quiz pass rate on the first attempt" ו־"11.6% more lessons completed per hour"; דיאלוג סוקרטי מוטמע בקורסים (פיילוט, 9/2024) — [Coursera Blog](https://blog.coursera.org/announcing-ai-powered-capabilities-enabling-educators-to-use-coursera-coach-to-deliver-interactive-personalized-instruction); נשים ולומדים בלי תואר משתמשים יותר (12/2024) — [Coursera Blog](https://blog.coursera.org/coursera-coach-providing-essential-learner-support). Role-play עם משוב מיידי (ינואר 2026) — [Asia Education Review (תקציר חיפוש)](https://www.asiaeducationreview.com/technology/news/coursera-ceo-greg-hart-on-powering-an-aidriven-upskilling-era-nwid-5332.html). Coursera Plus ‏$239 לשנה — [Coursera](https://www.coursera.org/explore/coach).
-- **Udemy AI Assistant** — סיכומי קורס והרצאה "to navigate to the most relevant content", עונה רק על הקורס, ב־Enterprise וב־Team — [Udemy Business Support (תקציר חיפוש)](https://business-support.udemy.com/hc/articles/26247590042647).
+- **Udemy AI Assistant** — סיכומי קורס והרצאה שעוזרים "navigate to the most relevant content quickly", עונה רק על הקורס, ב־Enterprise וב־Team — [Udemy Business Support (תקציר חיפוש)](https://business-support.udemy.com/hc/articles/26247590042647).
 - **LinkedIn Learning AI-powered coaching** — מענה בזמן אמת על בסיס כל הספרייה, קישור לקורס להקשר מלא, התאמה לפי תפקיד — [LinkedIn Business](https://business.linkedin.com/learn/resources/learning-tech/linkedin-learning-ai-powered-coaching); חלונית בצד ימין בזמן הניגון, משתמשת בתמליל הקורס — [University of Arkansas KB (תקציר חיפוש)](https://uark.teamdynamix.com/TDClient/33/Portal/KB/Article/1452/LinkedIn-Learning-How-to-Access-AI-Coaching-Chat); המרצים מקבלים תשלום על שאלות שנשאלות בקורס — [TechRadar (תקציר חיפוש)](https://www.techradar.com/pro/linkedin-wants-you-to-use-ai-tools-to-find-your-next-job).
 
 #### 1ט. עברית — מה אומת ומה לא
@@ -99,8 +99,8 @@
 | Glasp | תמליל בכל שפה שיש לה כתוביות; סיכום בשפה שבוחרים | [Glasp](https://glasp.co/youtube-summary) |
 | Gemini Notebook | "80+ שפות"; לא נמצאה רשימה רשמית שקראתי ובה עברית | [PPC Land](https://ppc.land/google-expands-notebooklm-video-overviews-to-80-languages-worldwide/) |
 | Otter | לא: אנגלית, ספרדית, צרפתית, גרמנית, יפנית, סינית | [Otter pricing](https://otter.ai/pricing) |
-| Read.ai | לא: 16 שפות ברשימה, בלי עברית | [Read.ai pricing](https://www.read.ai/pricing) |
-| Fireflies | לא מוזכרת ("100+ in beta") | [Fireflies pricing](https://fireflies.ai/pricing) |
+| Read.ai | לא: 16+ שפות ברשימה, בלי עברית | [Read.ai pricing](https://www.read.ai/pricing) |
+| Fireflies | לא מוזכרת ("100+ other languages in beta") | [Fireflies pricing](https://fireflies.ai/pricing) |
 | Castmagic | לא ברשימה ("60+ ... many more") | [Castmagic pricing](https://www.castmagic.io/pricing) |
 | Loom | שיפור אוטומטי ב־50+ שפות; מסמכים רק באנגלית | [Loom AI](https://www.loom.com/ai) |
 | Panopto / Verbit | 75+ / 28+ שפות תרגום; עברית לא מוזכרת | [Panopto](https://www.panopto.com/capabilities/ai-capabilities.md), [Verbit](https://verbit.ai/education/) |
@@ -142,7 +142,7 @@
 - OpusClip Pro בוחר קליפים גם לפי "visual objects" — [OpusClip pricing](https://www.opus.pro/pricing).
 
 **מודלים רב־אופניים ו־API**
-- Gemini API רואה פריימים (1 FPS כברירת מחדל) ומאפשר רזולוציה גבוהה יותר "for reading fine text", במחיר כ־300 טוקנים לשנייה במקום כ־100 — [Google AI Studio docs](https://aistudio.google.com/docs/video-understanding).
+- Gemini API רואה פריימים (1 FPS כברירת מחדל); הפרמטר `media_resolution` קובע כמה טוקנים לכל פריים — "Higher settings improve reading of fine text and small details" — במחיר כ־300 טוקנים לשנייה במקום כ־100 — [Google AI Studio docs](https://aistudio.google.com/docs/video-understanding).
 - Twelve Labs מציע Segment ("timestamped metadata") ו־Search על הווידאו עצמו — [Twelve Labs](https://www.twelvelabs.io/pricing). Azure AI Video Indexer מפיק "Frame patterns" ומתרגם אותן לעברית — [Microsoft Learn](https://learn.microsoft.com/en-us/azure/azure-video-indexer/language-support).
 
 **רושמי פגישות — המעבר לכיסוי חזותי**
@@ -197,7 +197,7 @@
 | פלטפורמות קורס (Udemy, Coursera, LMS) | HoverNotes — [HoverNotes](https://hovernotes.io/); BibiGPT ‏30+ פלטפורמות | נדיר |
 | הקלטת הרצאה חיה | Knowt, Coconote, StudyFetch, RemNote, מקליט ב־Gemini Notebook — [Knowt](https://knowt.com/), [Coconote](https://coconote.app/), [StudyFetch](https://www.studyfetch.com/), [RemNote](https://www.remnote.com/pricing), [one-pager](https://services.google.com/fh/files/misc/gemininotebook_gfe_one_pager.pdf) | נפוץ |
 | פגישה בלי בוט | Granola, Fathom (בטא) — [Granola](https://www.granola.ai/pricing), [Fathom](https://www.fathom.ai/pricing) | נדיר |
-| תקרות אורך | Otter 30/90/240 דקות לשיחה — [Otter](https://otter.ai/pricing); Notta 5 שעות — [Notta](https://www.notta.ai/en/pricing); Gemini 1–3 שעות להקשר — [Gemini docs](https://aistudio.google.com/docs/video-understanding); Eightify כשעה — [BibiGPT](https://www.bibigpt.co/en/blog/posts/youtube-video-summarizer-tools-comprehensive-guide-2026) | — |
+| תקרות אורך | Otter ‏30 דקות, 90 דקות ו־4 שעות לשיחה (Basic, Pro, Business) — [Otter](https://otter.ai/pricing); Notta 5 שעות — [Notta](https://www.notta.ai/en/pricing); Gemini 1–3 שעות להקשר — [Gemini docs](https://aistudio.google.com/docs/video-understanding); Eightify כשעה — [BibiGPT](https://www.bibigpt.co/en/blog/posts/youtube-video-summarizer-tools-comprehensive-guide-2026) | — |
 
 #### 3.2 אפשרויות עיבוד
 | יכולת | מי מציע (מקור) | שכיחות |
@@ -254,7 +254,6 @@
 | חיפוש בספרייה עם קפיצה לרגע | Panopto AI Search, WayinVideo, Fathom (בין שיחות), Read.ai, Notta, Recall | נפוץ (בפגישות) |
 | סינתזה על פני כמה סרטונים | Panopto "Multi-video synthesis", Gemini Notebook | נדיר |
 | שיתוף קטע מדויק | hyperaudio-lite (בחירת טקסט → URL עם תזמון) — [npm](https://registry.npmjs.org/hyperaudio-lite); Verbit clip sharing; Fathom clips | נדיר |
-| גרף ידע | Recall — [Recall](https://www.recall.it/pricing) | נדיר |
 
 #### 3.6 התאמה אישית
 | יכולת | מי מציע (מקור) | שכיחות |
@@ -329,13 +328,13 @@
 
 **תלונות כשל נפוצות**
 - חותמות משוערות: Gemini ב־YouTube מייצר "approximate timestamps" לסרטון בלי פרקים — [Android Police](https://www.androidpolice.com/ai-in-youtube-useful-for-this-one-feature/).
-- חותמות שקופצות או חורגות מאורך הסרטון ב־Gemini 2.5 Pro; המלצות: לחלק לקטעים קצרים ולבקש MM:SS ("The model seems to understand MM:SS best"); השאלה אם תוקן ב־Gemini 3.x נשארה פתוחה ב־15/6/2026 — [Google AI Forum](https://discuss.ai.google.dev/t/gemini-2-5-pro-severe-timestamp-timecode-jumping-issues-in-video-transcription-need-workarounds/87242).
+- חותמות שקופצות או חורגות מאורך הסרטון ב־Gemini 2.5 Pro (פוסט מ־5/6/2025); המלצות: לחלק לקטעים קצרים ולבקש MM:SS ("The model seems to understand MM:SS best"); שאלה מ־15/6/2026 אם הבעיה נפתרה ב־Gemini 3/3.1/3.5 לא נענתה, ובתגובה מ־13/7/2026 דווח על קיטוע גם בסרטונים של 5 ו־10 דקות — [Google AI Forum](https://discuss.ai.google.dev/t/gemini-2-5-pro-severe-timestamp-timecode-jumping-issues-in-video-transcription-need-workarounds/87242).
 - טענה הפוכה (בלי בדיקה): חותמות של Gemini מדויקות ל־5–10 שניות כשהן מגיעות מתמליל YouTube; הוא מטפל טוב בעד שעה — [Implicator, 24/7/2025](https://www.implicator.ai/why-gemini-beats-chatgpt-at-youtube-analysis-by-watching-the-video).
 - גלאי הזיות בסיכומים: "even the best hallucination detection models have near 50% accuracies" — [FaithBench, arXiv 2410.13210](https://arxiv.org/abs/2410.13210).
 - השמטת אזהרות דקות, ותלות באיכות הסרטון ("can only work with the content that's in the video") — [How-To Geek](https://www.howtogeek.com/youtubes-ask-button-just-solved-the-tutorial-problemand-i-wasnt-expecting-to-say-that/).
 - תלות בכתוביות: Glasp, Gemini Notebook, Kaltura, Stream (ראו שאלה 2); Glasp נשבר כש־YouTube או הדפדפן מתעדכנים — [Toolworthy](https://www.toolworthy.ai/en/blog/best-ai-video-summarizer).
 - סיכומים גנריים או עמוסים: "wall of text", מפשטים תוכן עמוס נתונים, הצ'אט "not much different from a general LLM" — [tl;dv review](https://tldv.io/blog/notegpt-review/).
-- חיוב וקרדיטים: "all credits are vanished" (1/8/2026), "Insufficient Basic Quota" במסלול Unlimited — [Trustpilot NoteGPT](https://www.trustpilot.com/review/notegpt.io); חיוב אחרי ביטול — [Trustpilot Fireflies](https://www.trustpilot.com/review/fireflies.ai); חיוב על 8 מושבים וחידוש אחרי ניסיון — [Trustpilot Otter](https://www.trustpilot.com/review/otter.ai); מגבלת 10 הדקות של tl;dv, ניסיון שהופך לשנתי ב־ScreenApp, מכסה חינמית של Summify — [Toolworthy](https://www.toolworthy.ai/en/blog/best-ai-video-summarizer).
+- חיוב וקרדיטים: "all credits are vanished" (1/8/2026), "Insufficient Basic Quota" במסלול Unlimited (NoteGPT השיב שההגבלה נבעה מנפח בקשות חריג) — [Trustpilot NoteGPT](https://www.trustpilot.com/review/notegpt.io); חיוב אחרי ביטול — [Trustpilot Fireflies](https://www.trustpilot.com/review/fireflies.ai); חיוב על 8 מושבים וחידוש אחרי ניסיון — [Trustpilot Otter](https://www.trustpilot.com/review/otter.ai); מגבלת 10 הדקות של tl;dv, ניסיון שהופך לשנתי ב־ScreenApp, מכסה חינמית של Summify — [Toolworthy](https://www.toolworthy.ai/en/blog/best-ai-video-summarizer).
 - מגבלת שפות: "it doesn't have many languages" — [Trustpilot Otter](https://www.trustpilot.com/review/otter.ai).
 - ביקורות חשודות: שש ביקורות G2 באותו יום במבנה כמעט זהה, וכפילויות ב־Trustpilot — [tl;dv review](https://tldv.io/blog/notegpt-review/).
 - סטודנטים: 51% נרתעים מ־AI בגלל "false results or hallucinations" — [HEPI 2025](https://www.hepi.ac.uk/2025/02/26/student-generative-ai-survey-2025/).
@@ -459,7 +458,7 @@
 | faiss-cpu / sqlite-vec | MIT / MIT+Apache | 1.15.1 / 0.1.9 | חיפוש סמנטי | [PyPI](https://pypi.org/pypi/faiss-cpu/json), [PyPI](https://pypi.org/pypi/sqlite-vec/json) |
 
 ### Inferences
-- **סט מומלץ ל־PWA בלי React** (האפליקציה שלנו vanilla JS): ‏markmap-view/autoloader למפות; Mermaid ב־`strict` או `sandbox` לדיאגרמות (הטקסט מגיע ממודל, לכן לא אמין); ‏ts-fsrs לתזמון חזרות; ‏anki-apkg-export לייצוא בדפדפן; ‏docx ל־DOCX; ‏EPUB נבנה בעצמנו עם jszip (עדיף על epub-gen הנטוש ועל EbookLib שב־AGPL) — כך גם Academy פותחת אותו ישירות; FlexSearch עם charset עברי, או MiniSearch עם tokenizer שמסיר תחיליות (ו/ה/ב/ל/מ/ש/כ) כדי ש"בבית" ימצא "בית"; תמליל מסונכרן בתבנית של hyperaudio-lite (`data-m` לכל מילה) מעל ה־IFrame API; ‏media-chrome לתמונות ממוזערות על ציר הזמן.
+- **סט מומלץ ל־PWA בלי React** (האפליקציה שלנו vanilla JS): ‏markmap-view/autoloader למפות; Mermaid ב־`strict` או `sandbox` לדיאגרמות (הטקסט מגיע ממודל, לכן לא אמין); ‏ts-fsrs לתזמון חזרות; ‏anki-apkg-export לייצוא בדפדפן; ‏docx ל־DOCX; ‏EPUB נבנה בעצמנו עם jszip (עדיף על epub-gen הנטוש ועל EbookLib שב־AGPL) — כך גם Academy פותחת אותו ישירות; FlexSearch עם charset עברי, או MiniSearch עם `tokenize`/`processTerm` מותאמים שמאנדקסים כל מילה גם בצורתה המלאה וגם בלי אותיות השימוש (ו/ה/ב/ל/מ/ש/כ), כדי ש"בבית" ימצא "בית" — בלי הסרה עיוורת, שהופכת "ברק" ל"רק"; תמליל מסונכרן בתבנית של hyperaudio-lite (`data-m` לכל מילה) מעל ה־IFrame API; ‏media-chrome לתמונות ממוזערות על ציר הזמן.
 - **PDF בעברית**: לא אומתה תמיכה ב־RTL בספריות הדפדפן. כדאי לבדוק מוקדם PDF בשרת (WeasyPrint או Typst) מול pdfmake — ולבחור לפי מבחן אמיתי עם עברית, אנגלית ומספרים באותה שורה.
 - **שקופיות**: PySceneDetect (BSD) לגילוי מעברים + Tesseract (`heb+eng`) כ־OCR בסיסי במעבד; מודל רב־אופני רק לפריימים מייצגים. lecture2notes מתאר שרשרת שימושית אבל ב־AGPL — ללמוד מהשלבים, לא להעתיק קוד.
 - **להימנע**: Vidstack (תחזוקת אבטחה בלבד), ‏react-transcript-editor, ‏vtt.js, ‏epub-gen ו־Lunr (נטושים), ‏Paged.js (לא עודכן מ־2023), רישיונות AGPL.

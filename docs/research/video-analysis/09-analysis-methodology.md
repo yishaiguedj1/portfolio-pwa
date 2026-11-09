@@ -1,7 +1,7 @@
 # מתודולוגיה לניתוח עומק של הרצאה / וובינר / קורס בווידאו — מה הניתוח מכיל ואיך מפיקים אותו (מחקר, 9/11/2026)
 
 > **הקשר:** לשונית "ניתוח וידאו" בסטודיו של THE SNOWBALL. הקוראים: סטודנטים ואנשי עסקים דוברי עברית. הסרטונים: בעיקר הרצאות, וובינרים וקורסים באנגלית ובעברית. בשרת כבר מחלצים תמליל עם דוברים וחותמות זמן למילה, וגם תוכן מהמסך (OCR של שקופיות, גרפים וקוד). זמינים Claude (Haiku/Sonnet/Opus 5.5) ו־Gemini. כל נקודה בניתוח חייבת קישור לזמן המדויק בסרטון.
-> **שיטה:** כ־45 חיפושים וכ־30 שליפות ממקורות ראשוניים: מאמרי arXiv/ACL, תיעוד Anthropic ו־Gemini, תקני W3C ו־Unicode, מסמכי ODNI ו־CIA ומחקרי למידה. מכסת החיפוש המשותפת נגמרה באמצע המחקר, ולכן כמה נושאים לא נבדקו (Pirolli & Card 2005, Mueller & Oppenheimer 2014, מחירי Gemini).
+> **שיטה:** 64 חיפושים ו־50 שליפות ממקורות ראשוניים: מאמרי arXiv/ACL, תיעוד Anthropic ו־Gemini, תקני W3C ו־Unicode, מסמכי ODNI ו־CIA ומחקרי למידה. מכסת החיפוש המשותפת נגמרה באמצע המחקר, ולכן כמה נושאים לא נבדקו (Pirolli & Card 2005, Mueller & Oppenheimer 2014, מחירי Gemini).
 > **סימונים:** **(משני)** = סיכום או מקור משני. **(לא אומת ישירות)** = פרט שהגיע מתקציר חיפוש ולא נקרא במקור עצמו.
 
 ## 1. מודל התוכן: אילו חלקים צריך ניתוח שקוראים "במקום לצפות"
@@ -49,7 +49,7 @@
 - לפי מאמר ב־HBR, פתיח ה־BLUF צריך:
   - לומר מה המטרה ומה הפעולה הנדרשת;
   - לענות על השאלות מי, מה, איפה, מתי ולמה.
-  - מקור: [Sehgal, HBR (2016) — עותק מודפס מחדש (משני)](https://businessday.ng/hbr/article/how-to-write-email-with-military-precision).
+  - מקורות: [HBR, How to Write Email with Military Precision (2016 — השנה לא אומתה ישירות), עותק ב־BusinessDay (משני)](https://businessday.ng/hbr/article/how-to-write-email-with-military-precision/); [העותק באתר המחבר (נגיש 2026)](https://kabir.cc/how-to-write-email-with-military-precision/).
 - Minto:
   - חשיבה ברורה היא חשיבה "organized as a pyramid under a single point".
   - מסגרת Situation–Complication–Question משמשת "for identifying the question in your reader's mind".
@@ -283,7 +283,7 @@
 - Skeleton-of-Thought:
   - קודם שלד של 3–10 נקודות, ואז הרחבה של כל נקודה במקביל.
   - האצה של עד פי 2.39, ולעיתים גם איכות טובה יותר בסוגי שאלות מסוימים.
-  - מקורות: [Ning et al. (2023/ICLR 2024)](https://arxiv.org/abs/2307.15337); [שקפי ICLR (2024)](https://www.iclr.cc/media/iclr-2024/Slides/17880.pdf).
+  - מקור: [Ning et al. (2023/ICLR 2024)](https://arxiv.org/abs/2307.15337).
   - מדריך צד שלישי מזהיר מירידה באיכות כשהנקודות תלויות זו בזו — [Learn Prompting (נגיש 2026)](https://learnprompting.org/docs/advanced/decomposition/skeleton_of_thoughts).
 - Chain of Density:
   - מתחילים מסיכום דליל ומוסיפים בכל סבב ישויות חשובות שחסרות, בלי להאריך.
@@ -294,7 +294,7 @@
 - Self-Refine:
   - שיפור מוחלט ממוצע של כ־20% בשבע משימות.
   - במתמטיקה השיפור הגיע רק עם משוב חיצוני, כי המודל מתקשה למצוא את הטעויות של עצמו.
-  - מקורות: [Madaan et al., NeurIPS 2023](https://proceedings.neurips.cc/paper_files/paper/2023/hash/91edff07232fb1b55a505a9e9f6c0ff3-Abstract-Conference.html); [שקפי NeurIPS (2023)](https://nips.cc/media/neurips-2023/Slides/71632.pdf).
+  - מקורות: [Madaan et al., NeurIPS 2023 (arXiv)](https://arxiv.org/abs/2303.17651); ההסבר על המתמטיקה — [שקפי NeurIPS (2023) (משני — דרך תקציר חיפוש)](https://nips.cc/media/neurips-2023/Slides/71632.pdf).
 - Chain-of-Verification (CoVe):
   - שלבים: טיוטה → תכנון שאלות בדיקה → מענה על השאלות בנפרד מהטיוטה (כדי שהטיוטה לא תטה את הבדיקה) → גרסה מתוקנת.
   - השיטה הפחיתה המצאות, גם בטקסט ארוך.
@@ -457,7 +457,7 @@
   - אף "שופט" מבוסס מודל שפה לא הסכים חזק עם בני אדם.
   - מקור: [Liu et al., NAACL Findings 2024](https://arxiv.org/abs/2311.09184).
 - QMSum: "locate-then-summarize" — קודם מאתרים את הקטעים הרלוונטיים לשאילתה, ורק אז מסכמים — [Zhong et al., NAACL 2021](https://aclanthology.org/2021.naacl-main.472).
-- לקורא העסקי: BLUF אומר מה המטרה ומה הפעולה הנדרשת — [HBR (2016) (משני)](https://businessday.ng/hbr/article/how-to-write-email-with-military-precision). ICD 203 דורש לבטא אי־ודאות ורמת ביטחון למקבלי ההחלטות — [ODNI (2015)](https://www.dni.gov/files/documents/ICD/ICD-203.pdf).
+- לקורא העסקי: BLUF אומר מה המטרה ומה הפעולה הנדרשת — [HBR (2016) (משני)](https://businessday.ng/hbr/article/how-to-write-email-with-military-precision/). ICD 203 דורש לבטא אי־ודאות ורמת ביטחון למקבלי ההחלטות — [ODNI (2015)](https://www.dni.gov/files/documents/ICD/ICD-203.pdf).
 - לקורא השקעות: חלק השאלות והתשובות מוסר יותר מידע — [Matsumoto et al. (2011)](https://repub.eur.nl/pub/25721).
 - לסטודנט: שאלות תרגול ופיזור בזמן הן בתועלת הגבוהה ביותר — [Dunlosky et al. (2013)](https://www.psychologicalscience.org/news/releases/which-study-strategies-make-the-grade.html); [Roediger & Karpicke (2006)](https://psychology.ecu.edu/wp-content/pv-uploads/sites/216/2019/03/Roediger-Karpicke-2006.pdf). ממד הידע ב־Bloom מבחין בין ידע עובדתי, מושגי, פרוצדורלי ומטה־קוגניטיבי — [Krathwohl (2002)](https://rvc-web-app01.live01.azure.rvc.ac.uk/Media/Default/About/Academic%20Quality,%20Regulations%20and%20Procedures/Academic%20Quality%20Assurance%20and%20Enhancement%20Procedures/Module%20Development%20and%20Approval/A%20Revision%20of%20Bloom's%20Taxonomy%20-%20An%20Overview.%20David%20R.%20Krathwohl.pdf).
 - כשהסרטון לא עונה על השאלה של המשתמש: לאפשר למודל לומר "I don't know", ולהגביל אותו למסמכים שסופקו — [Anthropic Docs, Reduce hallucinations (2026)](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations).
@@ -536,7 +536,7 @@
 - Pyramid:
   - יחידות תוכן (SCU) באורך של עד פסוקית בערך, ממושקלות לפי מספר הסיכומים האנושיים שמכילים אותן — [Nenkova & Passonneau, NAACL 2004](https://aclanthology.org/N04-1019).
   - ארבעה עד חמישה סיכומי מודל הספיקו לדירוג יציב של מערכות — [מאמר DUC (2005)](https://corpora.tika.apache.org/base/docs/govdocs1/602/602471.pdf).
-  - יש גרסה אוטומטית, Lite3Pyramid — [Nawrath et al. (2024)](https://arxiv.org/abs/2404.01701).
+  - יש גרסאות אוטומטיות. למשל Lite3Pyramid מחליפה את יחידות התוכן שכתבו בני אדם ב"משולשות סמנטיות" (semantic triplets). המחקר שסוקר את תפקיד ה־SCU בהערכה: [Nawrath et al. (2024) (משני — דרך תקציר חיפוש)](https://arxiv.org/abs/2404.01701).
 - הערכה מבוססת שאלות:
   - APES: עד כמה התקציר מאפשר לענות על "a set of manually created questions regarding central entities" — [Eyal, Baumel & Elhadad, NAACL 2019](https://aclanthology.org/N19-1395/).
   - QuestEval: "does not require any ground-truth reference", ומתאם עם בני אדם טוב יותר מ־ROUGE — [Scialom et al., EMNLP 2021](https://aclanthology.org/2021.emnlp-main.529/).
@@ -822,7 +822,7 @@ Quotes and numbers are checked by code, not by you.
   - W3C ממליץ לסמן בתגית כל מעבר כיוון.
   - לטקסט שהכיוון שלו לא ידוע מראש: `dir=auto`, או `<bdi>` כשאין תגית מתאימה. `<bdi>` "directionally isolates its content".
   - מקור: [W3C i18n, Inline markup and bidirectional text in HTML (נגיש 2026)](https://www.w3.org/International/articles/inline-bidi-markup/).
-- `<bdi>` נתמך באופן רחב בדפדפנים מינואר 2020. כשיש תגית סמנטית מתאימה, עדיף להשתמש בה עם `dir="auto"` — [MDN (נגיש 2026)](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/bdi).
+- `<bdi>` נתמך באופן רחב בדפדפנים מינואר 2020. כשיש תגית סמנטית מתאימה, עדיף להשתמש בה עם `dir="auto"` — [MDN (נגיש 2026)](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/bdi).
 - Unicode UAX #9 (מהדורה 52, 1/9/2026):
   - "the use of the directional isolates instead of embeddings is encouraged in new documents".
   - תווי override "are to be avoided wherever possible, because of security concerns".
@@ -895,6 +895,7 @@ Quotes and numbers are checked by code, not by you.
   - Sonnet 5.5: ‏$2 / $10. קריאה מהמטמון: $0.10.
   - Haiku 5.5, פרומפט עד 100,000 טוקנים: ‏$0.10 / $0.50.
   - Haiku 5.5, פרומפט מעל 100,000 טוקנים: ‏$0.50 / $2.50 — והמחיר הגבוה חל על כל הבקשה.
+  - אורך הפרומפט כולל גם קריאות וכתיבות למטמון. לכן בקשה מעל הסף משלמת את המחיר הגבוה גם כשחלק ממנה מגיע מהמטמון.
   - Batch API: הנחה של 50% על קלט ופלט. ההנחה מצטברת עם הנחת המטמון.
   - מודלים מדור 4.6 ואילך כוללים חלון של מיליון טוקנים במחיר הרגיל, חוץ מ־Haiku 5.5 שמתומחר לפי אורך.
   - מקור: [Anthropic, Pricing (2026)](https://platform.claude.com/docs/en/about-claude/pricing).
@@ -1040,7 +1041,7 @@ Quotes and numbers are checked by code, not by you.
 - **מטמון:**
   - ההוראות, הסכמה, השלד הגלובלי והמילון קבועים בכל קריאות ה־map, ונשמרים במטמון.
   - ב־Opus 5.5 וב־Sonnet 5.5 קריאה מהמטמון עולה פי 0.05 ממחיר הקלט.
-- **מחיר Haiku:** לשמור כל קריאת Haiku מתחת ל־100K טוקנים — אחרת המחיר קופץ פי 5. גם "lost in the middle" מצדיק קריאות קצרות.
+- **מחיר Haiku:** לשמור כל קריאת Haiku מתחת ל־100K טוקנים, כולל החלק שבמטמון — אחרת המחיר קופץ פי 5. גם "lost in the middle" מצדיק קריאות קצרות.
 - **Batch:** ניתוח שהמשתמש לא מחכה לו (למשל ניתוח לילי של קורס שלם) נשלח ב־Batch, בחצי מחיר.
 - **הערכת עלות לשעת הרצאה באנגלית** (היסק, לא נמדד):
   - **הנחות:**
