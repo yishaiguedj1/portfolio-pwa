@@ -413,7 +413,6 @@ CTranslate2 לא תומך במודלי ראייה, ו־TGI במצב תחזוקה
 | MiniCPM-V 4.6 בתצורת מיון (`max_slice_nums=1`, דחיסה 16x; ‏0.8B LM; קידוד חזותי מקוצץ ב־50%+) | ≈0.5–1 | 2–5 | 3–8 דקות |
 
   - **MiniCPM בקריאת שקפים מלאה** (ברירת המחדל 9 פרוסות, ו־36 מומלץ לתמונות): החישוב גדל בערך לפי מספר הפרוסות. לכן במצב הזה הוא לא בהכרח זול מ־Qwen3.5-2B ב־720p (הערכה; גודל הפרוסה לא מופיע בכרטיס).
-
   - **Qwen3.5-9B**: פי 4–5 יותר — לא מעשי ב־CX53 לצד תרגום.
 - **זיכרון**:
   - מודלים קטנים (1.3–3.4GB, ועוד הקשר קטן) נכנסים בתקציב לצד העבודות.
@@ -501,7 +500,7 @@ CTranslate2 לא תומך במודלי ראייה, ו־TGI במצב תחזוקה
 
 ### היסקים (Inferences)
 - **עלות להרצאה דרך API של מודל פתוח** (הערכה):
-  - **הנחות**: ‏100 פריימים מרכזיים ב־720p ≈ ‏90K טוקני תמונה + פרומפטים ≈ ‏100K קלט, ועוד ~150 טוקני פלט לפריים ≈ ‏15K פלט. בלי חשיבה (ב־Qwen3.5-9B ו־Qwen3.8 החשיבה פועלת כברירת מחדל וצריך לכבות אותה). בהנחה שהספק סופר טוקני תמונה כמו המודל עצמו — לא אומת.
+  - **הנחות**: ‏100 פריימים מרכזיים ב־720p ≈ ‏90K טוקני תמונה + פרומפטים ≈ ‏100K קלט, ועוד ~150 טוקני פלט לפריים ≈ ‏15K פלט. בלי חשיבה (ב־Qwen3.5-9B ו־Qwen3.8 החשיבה פועלת כברירת מחדל וצריך לכבות אותה). בהנחה שהספק סופר טוקני תמונה לפי החישוב של המודל עצמו — לא אומת.
 
 | מודל / ספק | קלט/פלט ל־1M | עלות להרצאה |
 |---|---|---|
@@ -693,7 +692,7 @@ CTranslate2 לא תומך במודלי ראייה, ו־TGI במצב תחזוקה
   - כוילה על 36 השפות של XM3600, ו־`he` ברשימה. ב־XM3600, טקסט→תמונה עולה מ־48.7 ל־59.5 בממוצע.
   - **מלכודת**: ב־`transformers` ‏4.57.x ומטה "zero keys match and the model is randomly initialized" — רק אזהרה, בלי שגיאה. זה נכון גם למודל הבסיס.
 - **e5-omni-7B** (‏MIT, ‏8.93B, מבוסס Qwen2.5-Omni-7B, נוצר 6/1/2026) — [HF API](https://huggingface.co/api/models/Haon-Chen/e5-omni-7B).
-- **geevec-embeddings-1.0** (‏Apache-2.0, נוצר 31/3/2026): ‏"8B activated parameters", ארכיטקטורת PseudoMoE על "a Qwen3-style base model", ממד 4096, הקשר 32,768. דורש `trust_remote_code` (קובצי מודל מותאמים) — [כרטיס](https://huggingface.co/geevec-ai/geevec-embeddings-1.0).
+- **geevec-embeddings-1.0** (‏Apache-2.0, נוצר 31/3/2026): ‏"8B activated parameters", ארכיטקטורת PseudoMoE על מודל בסיס במבנה Qwen3 (קובץ המודל: `modeling_qwen3_pseudo_moe.py`), ממד 4096, הקשר 32,768. דורש `trust_remote_code` (קובצי מודל מותאמים) — [כרטיס](https://huggingface.co/geevec-ai/geevec-embeddings-1.0).
 - **Qwen3-VL-Embedding 2B/8B** (‏Apache-2.0, נוצרו 7/1/2026): ‏MMEB-V2 ‏73.2/77.8; ‏MMTEB ‏63.87/67.88; מעל 30 שפות; הקשר 32K; ממדים 64–2048. יש גם Qwen3-VL-Reranker 2B/8B — [כרטיס Qwen3-VL-Embedding-2B](https://huggingface.co/Qwen/Qwen3-VL-Embedding-2B); [כרטיס Qwen3-VL-Reranker-2B](https://huggingface.co/Qwen/Qwen3-VL-Reranker-2B).
 - **Qwen3-Embedding 0.6B/4B/8B** (‏Apache-2.0, נוצרו 3/6/2025): ‏MMTEB ‏64.33/69.45/70.58; ממדים 1024/2560/4096; מעל 100 שפות; הקשר 32K; תומכים בהוראות — [כרטיס Qwen3-Embedding-0.6B](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B).
 - **Rerankers** (‏MMTEB-R על 100 התוצאות הראשונות של Qwen3-Embedding-0.6B, שמקבל לבדו 64.64) — [כרטיס Qwen3-Reranker-0.6B](https://huggingface.co/Qwen/Qwen3-Reranker-0.6B):
@@ -742,7 +741,8 @@ CTranslate2 לא תומך במודלי ראייה, ו־TGI במצב תחזוקה
 
 ### פערים (Gaps)
 - **חסרים בתוצאות העבריות**: SigLIP 2, ‏jina-v4, ‏Qwen3-VL-Embedding ו־Nemotron-3.5-Embed לא הוערכו בעברית ב־MTEB.
-- **XM3600 הוא תמונות טבע, לא שקפים** — אין מבחן אחזור שקפים בעברית.
+- **XM3600 הוא תמונות כלליות, לא שקפים** — אין מבחן אחזור שקפים בעברית.
+- **Belebele בנוי על קטעי FLORES** (טקסט כתוב וערוך), לא על תמלול דיבור עם שגיאות ASR — [קוד המשימה ב־MTEB](https://github.com/embeddings-benchmark/mteb/blob/main/mteb/tasks/retrieval/multilingual/belebele_retrieval.py). הדירוג על תמלולי הרצאות אמיתיים עשוי להיות שונה.
 - **מספר שלב ה־reranker בעברית** לא נמדד (‏MMTEB-R הוא ממוצע רב־לשוני).
 - **זמני הטמעה על ה־CX53 לא נמדדו** — הערכה בלבד.
 - **מספר הפרמטרים של geevec** לא מופיע ב־HF API. הכרטיס אומר "8B activated".
