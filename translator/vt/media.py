@@ -81,18 +81,53 @@ def grid_from(info: dict) -> FrameGrid:
     return FrameGrid(Fraction(v["fps"]), v.get("t0", 0.0))
 
 
+DUP_PKTS = 400      # כמה חבילות קול בודקים בתחילת הקובץ
+DUP_MIN = 0.3       # מעל החלק הזה של חבילות עם אותה חותמת זמן — הזמנים שבורים
+
+
+def dup_ts(pts: list[str]) -> float:
+    """חלק החבילות שהחותמת שלהן זהה לקודמת (0..1)."""
+    v = [p for p in pts if p and p != "N/A"]
+    if len(v) < 2:
+        return 0.0
+    return sum(1 for a, b in zip(v, v[1:]) if a == b) / (len(v) - 1)
+
+
+def broken_ts(src: Path) -> bool:
+    """09/11/2026 (פרק של 22 דק׳ — התמלול 16 דק׳ ו־69 מילים במקום ~2,500): Studio לאנדרואיד מעתיק את הקול ב־MediaExtractor
+    ו־MediaMuxer, ומ־MKV עם lacing כל המסגרות של בלוק מקבלות את אותה חותמת (MatroskaExtractor::readBlock — blockTimeUs).
+    aresample=async=1 "מתקן" חותמות כאלה בהשמטת דגימות — והקול יוצא שבור לגמרי (מתאם ~0 למקור, באותו אורך).
+    כשל בבדיקה = לא שבור (המסלול הרגיל)."""
+    try:
+        p = run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-read_intervals", f"%+#{DUP_PKTS}",
+                 "-show_entries", "packet=pts", "-of", "csv=p=0", str(src)], check=False, capture=True, quiet=True)
+    except OSError:
+        return False
+    if p.returncode:
+        return False
+    return dup_ts(p.stdout.split()) > DUP_MIN
+
+
+def _audio_af(src: Path) -> str:
+    """זמנים שבורים — חותמות חדשות מספירת הדגימות (מכל המסגרות, ברצף), מתחילת הזרם המקורית; אחרת כמו תמיד."""
+    if broken_ts(src):
+        log("הקול: חותמות זמן כפולות (העתקה מ־MKV בטלפון) — זמנים לפי מספר הדגימות")
+        return "asetpts=N/SR/TB+STARTPTS,aresample=async=1:first_pts=0"
+    return "aresample=async=1:first_pts=0"
+
+
 def extract_audio(src: Path, out_wav: Path, rate: int = 16000) -> None:
     """אודיו מונו לתמלול וליישור, כשזמן 0 = תחילת ציר הזמן של הסרטון."""
     out_wav.parent.mkdir(parents=True, exist_ok=True)
     run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(src), "-map", "0:a:0",
-         "-af", "aresample=async=1:first_pts=0", "-ac", "1", "-ar", str(rate), "-c:a", "pcm_s16le",
+         "-af", _audio_af(src), "-ac", "1", "-ar", str(rate), "-c:a", "pcm_s16le",
          str(out_wav)])
 
 
 def extract_api_audio(src: Path, out: Path) -> None:
     """אודיו דחוס לשליחה לשירותי תמלול: Opus 64kbps מונו (~28MB לשעה)."""
     run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(src), "-map", "0:a:0",
-         "-af", "aresample=async=1:first_pts=0", "-ac", "1", "-ar", "48000",
+         "-af", _audio_af(src), "-ac", "1", "-ar", "48000",
          "-c:a", "libopus", "-b:a", "64k", "-application", "voip", str(out)])
 
 

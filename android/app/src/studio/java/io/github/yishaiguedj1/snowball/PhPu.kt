@@ -111,6 +111,24 @@ object PhPu {
             mx.start()
             val buf = ByteBuffer.allocateDirect(maxOf(1 shl 20, fmt.intOr(MediaFormat.KEY_MAX_INPUT_SIZE)))
             val info = MediaCodec.BufferInfo()
+            /* 09/11/2026 (פרק של 22 דק׳: התמלול 16 דק׳, 69 מילים במקום ~2,500): ב־MKV עם lacing ‏MatroskaExtractor נותן
+               לכל המסגרות של בלוק את אותה חותמת (blockTimeUs), ו־MediaMuxer כותב אותן כך (משך 0). בשרת aresample=async
+               השמיט דגימות והקול יצא שבור. לכן מסגרות באותה חותמת נאספות, ונכתבות מפוזרות עד החותמת של הבלוק הבא.
+               מסגרת עם חותמת משלה (MP4, MKV בלי lacing) — נכתבת בדיוק בחותמת שלה, כמו קודם. */
+            val sr = fmt.intOr(MediaFormat.KEY_SAMPLE_RATE).takeIf { it > 0 } ?: 48000
+            val frameUs = 1024L * 1_000_000L / sr
+            val pend = ArrayList<Pair<ByteArray, Int>>()
+            var bTs = -1L; var step = frameUs
+            fun flush(next: Long) {
+                if (pend.isEmpty()) return
+                if (next > bTs) step = minOf((next - bTs) / pend.size, 3 * frameUs).coerceAtLeast(1L)
+                for ((k, p) in pend.withIndex()) {
+                    buf.clear(); buf.put(p.first); buf.flip()
+                    info.set(0, p.first.size, maxOf(0L, bTs + k * step), p.second)
+                    mx.writeSampleData(t, buf, info)
+                }
+                pend.clear()
+            }
             var t0 = -1L; var last = 0L
             while (true) {
                 if (stopped()) { mx.stop(); out.delete(); return null }
@@ -118,12 +136,14 @@ object PhPu {
                 if (n < 0) break
                 val ts = ex.sampleTime
                 if (t0 < 0) t0 = ts
-                info.set(0, n, maxOf(0L, ts), if (ex.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0)
-                mx.writeSampleData(t, buf, info)
+                if (ts != bTs) { flush(ts); bTs = ts }
+                val b = ByteArray(n); buf.position(0); buf.get(b, 0, n)
+                pend.add(b to if (ex.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0)
                 ex.advance()
                 val now = System.currentTimeMillis()
                 if (now - last > 500) { last = now; progress(((ts - t0).toFloat() / dur).coerceIn(0f, 1f)) }
             }
+            flush(-1L)
             mx.stop()
             return if (out.length() > 0) Audio(out, mime) else { out.delete(); null }
         } catch (e: Throwable) {
