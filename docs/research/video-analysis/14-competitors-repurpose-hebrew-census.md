@@ -167,3 +167,58 @@
 ### Gaps
 - הדפוסים מבוססים על עמודי שיווק ותיעוד. לא נמדדו איכות הסיכום, דיוק הזמנים או איכות ה־OCR בפועל.
 - לא נמצאו נתוני שימוש או נטישה לפי פיצ'ר (למשל כמה משתמשים מקליקים על זמנים), ולכן "מה מצופה" הוא הסקה.
+
+## ב1. מי באמת תומך בעברית — קלט שמע עברי ופלט עברי (מפת ראיות, נכון ל־9/11/2026)
+
+### Takeaway
+"תמיכה בעברית" ברוב הכלים היא שורה ברשימת 100+ שפות, ולא תמיכה מוכחת. רק מעטים מתעדים טיפול ייעודי בעברית: RTL נכון, כתיב בלי ניקוד, ומעברים בין עברית לאנגלית. אלה Speak AI, ‏Sonix ו־Soniox, וכן ivrit.ai כתשתית פתוחה. שני כלים ארגוניים מתעדים עברית במפורש: Kaltura (‏VOD ASR, אבל "Mixed-language audio isn't supported") ו־Gong ("Hebrew (Israel)"). שלושה כלים מרכזיים סוגרים את הדלת: Descript, ‏OpusClip ו־Notion. ב־Transkriptor יש סתירה: דפי השיווק בעברית, אבל רשימת השפות באפליקציה לא כוללת עברית. NotebookLM השתפר מ"לא עובד בעברית" (סוף 2024) ל"תומך בעברית" במדריך משרד החינוך (דצמבר 2025).
+
+### Cited Findings
+
+| כלי | קלט שמע עברי | פלט עברי ו־RTL | חוזק הראיה ותאריך | מקור |
+|---|---|---|---|---|
+| Kaltura VOD ASR | כן — עברית ברשימת זיהוי השפה האוטומטי. "Detects one main language per video", ‏"Mixed-language audio isn't supported" | כתוביות | תיעוד רשמי, עודכן 10/11/2025 | [Kaltura ASR](https://knowledge.kaltura.com/help/kaltura-asr-services-overview) |
+| Gong | כן — "Hebrew (Israel)" ברשימה (70+ שפות). חלק מהפיצ'רים באנגלית בלבד (תוויות מייל, red flags, משימות מומלצות) | — | תיעוד רשמי, עודכן 8/11/2026 | [Gong Help](https://help.gong.io/docs/what-languages-are-supported-in-gong.md) |
+| Sonix | כן | "Transcripts for Arabic, Hebrew, Persian and Urdu come back in their native right-to-left scripts" | תיעוד רשמי, נבדק 9/11/2026 | [Sonix languages](https://sonix.ai/languages) |
+| Speak AI | כן, כולל מעברים בין עברית לאנגלית וכתיב בלי ניקוד (לפי הספק). כמה מנועי תמלול לבחירה | RTL "מעוצבים כראוי". צ'אט AI "מופעל על ידי Claude, Gemini ו GPT" | דף שיווק בעברית, נבדק 9/11/2026 | [Speak AI עברית](https://speakai.co/he/%D7%90%D7%99%D7%9A-%D7%9C%D7%AA%D7%9E%D7%9C%D7%9C-%D7%A2%D7%91%D7%A8%D7%99%D7%AA/) |
+| Soniox App | כן — "Handles Hebrew across varieties like Israeli Hebrew and Mizrahi Hebrew" | סיכומי הרצאות "with key points, decisions, and action items" | דף שיווק, נבדק 9/11/2026 | [Soniox App](https://soniox.com/soniox-app/for/university-students-lecture-summaries-in-hebrew) |
+| ivrit.ai | מודלי Whisper מכוונים לעברית, מאגר של 22,000+ שעות (יולי 2025), ושירות תמלול חינמי | שמירה ל־Google Drive של המשתמש | אתר הפרויקט ו־Hugging Face, נבדקו 9/11/2026 | [ivrit.ai](https://www.ivrit.ai/); [Hugging Face](https://huggingface.co/ivrit-ai); [transcribe.ivrit.ai](https://transcribe.ivrit.ai/) |
+| SpeechText.AI | כן, כולל עברית→אנגלית בצעד אחד | ייצוא Word, ‏PDF ו־SRT | דף ספק עם טבלת דיוק שהספק עצמו פרסם (ראו למטה) | [SpeechText.AI](https://speechtext.ai/hebrew-transcription) |
+| Happy Scribe | כן ("up to 98% accurate", לא ברור אם זה נמדד בעברית) | SRT. ‏RTL לא מוזכר | דף שיווק, נבדק 9/11/2026 | [Happy Scribe](https://www.happyscribe.com/transcribe-hebrew) |
+| TurboScribe | כן (מבוסס Whisper). בחינם 3 תמלולים של 30 דקות ביום. $10 לחודש בחיוב שנתי | — | תקציר חיפוש (העמוד החזיר 403) | [TurboScribe](https://turboscribe.ai/he/transcription/Hebrew) |
+| tl;dv | כן — עברית ברשימת "100+ languages" | סיכומי פגישות | דף הבית, נבדק 9/11/2026 | [tl;dv](https://tldv.io/) |
+| Grain | כן, אבל בדרגה שנייה: "Over 100 additional languages including Arabic, Hebrew, and Thai". הדיוק הגבוה וזיהוי הדוברים שמורים לשפות הראשיות | — | דף הבית, נבדק 9/11/2026 | [Grain](https://grain.com/) |
+| Klap | כן — עברית ברשימת "99+ languages" | כתוביות לקליפים (RTL לא מוזכר) | דף הבית, נבדק 9/11/2026 | [Klap](https://klap.app/) |
+| Submagic | עברית ברשימת מחולל הכתוביות | כתוביות | דף הבית, נבדק 9/11/2026 | [Submagic](https://www.submagic.co/) |
+| VEED | מחולל כתוביות בעברית. SRT ו־VTT בתוכניות פרימיום | ממשק בעברית ("עברית (ישראל)") | תקציר חיפוש ודף הבית | [VEED Hebrew subtitles](https://www.veed.io/tools/auto-subtitle-generator-online/hebrew-subtitles); [VEED](https://www.veed.io/) |
+| AudioPen | עברית ברשימת השפות | — | דף הבית, נבדק 9/11/2026 | [AudioPen](https://audiopen.ai/) |
+| "תמלול אודיו" (Skylab Software) | עברית כשפה ראשית ועוד 46 שפות. מודלים על המכשיר, עובד בלי רשת | "Improve with AI": תקציר נקודות ופרוטוקול (גרסה 5.0) | App Store ישראל, נבדק 9/11/2026 | [App Store](https://apps.apple.com/il/app/%D7%AA%D7%9E%D7%9C%D7%95%D7%9C-%D7%90%D7%95%D7%93%D7%99%D7%95-%D7%94%D7%9E%D7%A8%D7%AA-%D7%90%D7%95%D7%93%D7%99%D7%95-%D7%9C%D7%98%D7%A7%D7%A1%D7%98/id1503180824?l=he) |
+| Katav | עברית נוספה בגרסה 1.9.0 ‏(26/10) | סיכומים, כרטיסיות ומבחנים | App Store, נבדק 9/11/2026 | [App Store Katav](https://apps.apple.com/ca/app/katav/id6772588945) |
+| Riverside | רק באפליקציה, ו־"transcriptions will display as left-to-right" | תצוגה שגויה | תקציר חיפוש של מרכז העזרה | [Riverside support](https://support.riverside.com/hc/en-us/articles/10446154802589) |
+| NotebookLM | 12/2024: "האם זה עובד גם בעברית... התשובה היא לא". ‏1/2025: "הפלטפורמה מקרטעת" ו־"אין כל אפשרות ליצור פודקאסט בשפתנו". ‏12/2025: "המערכת תומכת בעברית"; סרטוני YouTube "הוא מתמלל ומנתח אותם" | בחירת שפת פלט (מאפריל 2025) | עיתונות, מדריך רשמי של משרד החינוך ובלוג של Google | [ynet](https://www.ynet.co.il/digital/technews/article/rymfs00n1g); [מעריב](https://www.maariv.co.il/economy/tech/article-1162115); [מדריך משרד החינוך](https://meyda.education.gov.il/files/Pop/0files/lemida-metukshevet/tools/NotebookLM-guide.pdf); [Google blog](https://blog.google/technology/google-labs/notebooklm-audio-overviews-50-languages/) |
+| WhatsApp (מובנה) | תמלול הודעות קוליות בעברית, על המכשיר, מ־27/12/2024. באנדרואיד הראיות סותרות | — | עיתונות 2024–2026 | [מעריב](https://www.maariv.co.il/economy/tech/article-1159590); [mako 10/2026](https://www.mako.co.il/nexter-news/Article-f03b229f8cb01a1027.htm) |
+| Transkriptor | דף בעברית לסיכום YouTube ("100+ languages", ‏"up to 99%"), ואינטגרציה עם Claude ועם ChatGPT | TXT ו־SRT, נקודות עם זמנים | **סתירה**: ב־App Store ישראל רשימת 33 שפות התמלול לא כוללת עברית | [Transkriptor עברית](https://transkriptor.com/he/%D7%A1%D7%99%D7%9B%D7%95%D7%9D-%D7%95%D7%99%D7%93%D7%90%D7%95-%D7%91%D7%99%D7%95%D7%98%D7%99%D7%95%D7%91/); [App Store](https://apps.apple.com/il/app/%D7%AA%D7%9E%D7%9C%D7%95%D7%9C-%D7%93%D7%99%D7%91%D7%95%D7%A8-%D7%9C%D7%98%D7%A7%D7%A1%D7%98/id1610386353?l=he) |
+| Descript | **לא** — "Every supported language is written in the Latin alphabet" | — | תיעוד רשמי | [Descript Help](https://help.descript.com/script-editing/supported-transcription-languages.md) |
+| OpusClip | **לא** — "do not support any languages that read right to left, including Hebrew" | — | תיעוד רשמי | [OpusClip Help](https://help.opus.pro/docs/article/does-opusclip-support-languages-right-left.md) |
+| Notion AI Meeting Notes | **לא** — 16 שפות בלי עברית | — | תיעוד רשמי | [Notion Help](https://www.notion.com/help/ai-meeting-notes) |
+| Castmagic | לא מוזכר. ה־API: en, ‏de, ‏es, ‏fr, ‏hi | — | סותר (60+ / 70+) | [Castmagic API docs](https://docs.castmagic.io/reference/supported-languages) |
+| Rev | לא מוזכר. Free באנגלית בלבד, Pro ‏"37+" | — | עמוד מחירים, נבדק 9/11/2026 | [Rev pricing](https://www.rev.com/pricing) |
+| Fireflies | לא מוזכר בפוסט מ־31/8/2026 (מוזכרים "100+" ו־95% דיוק לשפות שאינן אנגלית) | — | בלוג רשמי | [Fireflies blog](https://fireflies.ai/blog/fireflies-multi-language-transcription) |
+| Notta, ‏Fathom, ‏Maestra, ‏Coconote, ‏Mindgrasp | לא מוזכר (Maestra ‏"125+", Coconote ‏"100+", Mindgrasp ‏"20+") | — | עמודים רשמיים, נבדקו 9/11/2026 | [Notta](https://www.notta.ai/en/pricing); [Fathom](https://www.fathom.ai/pricing); [Maestra](https://maestra.ai/pricing); [Coconote](https://coconote.app/); [Mindgrasp](https://www.mindgrasp.ai/) |
+| Snipd, ‏Podwise, ‏Vizard | לא מוזכר | — | עמודים רשמיים | [Snipd](https://www.snipd.com/); [Podwise](https://podwise.ai/); [Vizard pricing](https://vizard.ai/pricing) |
+| Glasp, ‏Readwise, ‏Heptabase | תלוי בכתוביות YouTube. ב־Heptabase אי אפשר לבחור שפת כתוביות | — | תיעוד רשמי | [Glasp](https://glasp.co/youtube-summary); [Readwise](https://docs.readwise.io/reader/docs/faqs/videos); [Heptabase](https://support.heptabase.com/en/articles/11991474-how-do-i-use-a-video-with-the-heptabase-ai-agent) |
+
+- **מדד דיוק לעברית שפרסם ספק (לא מדידה עצמאית):** SpeechText.AI מציג טבלת "Accuracy (Hebrew)" תחת הכותרת "Interspeech 2026 benchmark", על הסטים ivrit/eval-d1 ו־SASpeech: ‏SpeechText.AI ‏92.7–95.6%, ‏Amazon Transcribe ‏89.2–91.7%, ‏Whisper ‏86–90.6%, ‏Azure ‏84.2–86.5%, ‏ElevenLabs ‏84.8%, ‏Google Cloud ‏78.8–81.1%, ‏AssemblyAI ‏65–76%. באותו עמוד מופיעה גם הטענה "up to 99%", שגבוהה מהטבלה עצמה — [SpeechText.AI](https://speechtext.ai/hebrew-transcription). על לוח התוצאות הציבורי לתמלול עברית ("Hebrew Transcription Leaderboard") ראו גם מחקר 04 — [ivrit.ai HF](https://huggingface.co/ivrit-ai)
+- **אנשים מדווחים על עברית בפועל (פורום, 5–8/9/2026):** NotebookLM "עובד מדהים ויחסית מדויק!" על סרטון YouTube, כשהוא מושך מהתרגום האוטומטי לעברית. פלט שמע בעברית "עובד בצורה סבירה למדי". סיכום מאנגלית לעברית מדויק בכ־95%, אבל שמות ומונחים פחות שכיחים יוצאים לא תקניים — [הסולידית](https://www.hasolidit.com/kehila/threads/%D7%A6%D7%99%D7%95%D7%9F-%D7%9C%D7%A9%D7%91%D7%97-%D7%A4%D7%99%D7%A6%D7%A8-%D7%9E%D7%A1%D7%95%D7%99%D7%9D-%D7%91-notebook-lm.37018/)
+
+### Inferences
+- **"תמיכה" לא שווה "איכות".** רק שלושה ספקים מסחריים מתעדים בעיות ספציפיות לעברית: RTL, כתיב בלי ניקוד ומעברי שפה. מי שיציג את שלושתן היטב, עם הוכחה (מדידה על סט עברי ציבורי), יבלוט.
+- **מעברי שפה הם נקודת כשל מתועדת.** ‏Kaltura כותבת במפורש שאודיו מעורב לא נתמך. בהרצאות ובפגישות עסקיות בישראל יש הרבה אנגלית בתוך עברית, ולכן טיפול מוצהר במעברים כאלה (מונחים באנגלית בתוך משפט עברי) הוא בידול.
+- **פלט עברי נכון חשוב לא פחות מהתמלול.** הכשל של Riverside (תמלול נכון שמוצג משמאל לימין) מראה שגם ספק גדול נכשל בשכבת התצוגה. ממשק RTL מלא, כולל זמנים ומספרים בתוך טקסט עברי, הוא דרישת סף.
+- **ivrit.ai הוא תשתית פתוחה, לא מתחרה.** המודלים והשירות החינמי מורידים את רף הכניסה לתמלול עברי. הבידול צריך להיות בשכבת הניתוח (תמונה ותמליל יחד, סינתזה, זמנים לחיצים), ולא בתמלול עצמו.
+
+### Gaps
+- לא נמצא תיעוד רשמי של Verbit, ‏Fireflies, ‏Rev, ‏Notta, ‏Maestra, ‏Coconote, ‏Mindgrasp, ‏Snipd או Podwise שמאשר או שולל עברית. לא נבדקו Zoom AI Companion, ‏Google Meet ו־Microsoft Teams/Copilot: עמודי השפות של Microsoft 365 Copilot החזירו 404 בשתי כתובות, ותקציב החיפוש נגמר.
+- תקציר חיפוש טען שמאמר המונחים של Kaltura REACH מציג עברית בכתוביות מכונה ב־"70-80 percent accuracy", אבל העמוד המקורי לא זוהה. גם מצב העברית בכתוביות חיות ב־Kaltura לא אומת.
+- דף התמלול בעברית של TurboScribe ועמוד המחירים שלו החזירו 403, והנתונים לקוחים מתקציר חיפוש בלבד.
+- אין מדידה עצמאית של איכות עברית לאף כלי בקטע הזה. טבלת SpeechText.AI היא פרסום של ספק, והדיוק במדד אינו WER.
