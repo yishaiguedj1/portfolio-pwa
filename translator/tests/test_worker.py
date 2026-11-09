@@ -78,6 +78,13 @@ elif cmd == 'tr-prep':
 elif cmd == 'plan':                         # v380: הכתוביות (לזיכרון המונחים)
     (w / 'cues.en.json').write_text(json.dumps([{'id': 1, 'en': 'Our moat is wide, the CEO said.'},
                                                 {'id': 2, 'en': 'Free cash flow grew; buybacks too.'}]))
+elif cmd == 'speech':                       # 09/11/2026: כמה דיבור יש בקול (FAKE_SP=<sp>,<dur>; בלי — בלי תוצאה)
+    if os.environ.get('FAKE_SP'):
+        sp, dur = os.environ['FAKE_SP'].split(',')
+        if '.audio.' not in pathlib.Path(json.loads((w / 'project.json').read_text())['source']).name and os.environ.get('FAKE_SP_AUDIO_ONLY'):
+            sp = '0.5'
+        (w / 'asr').mkdir(exist_ok=True)
+        (w / 'asr' / 'speech.json').write_text(json.dumps({'sp': float(sp), 'dur': float(dur)}))
 elif cmd == 'asr':
     print('תמלול 50%'); print('תמלול 100%')
     (w / 'asr').mkdir(exist_ok=True)
@@ -333,7 +340,7 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(int((W / 'src_size').read_text()), len(AUDIO), 'v360: התמלול מהקול שעלה ראשון')
         self.assertTrue(any(r.get('st') == 'tr' and 0.5 < (r.get('p') or 0) < 0.95 for r in self.fake.reports), 'אחוזים מ־vt → התקדמות השלב')
         cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()]
-        self.assertEqual(cmds, ['new', 'ingest', 'asr', 'lang', 'edit-export'], 'מהקול: בלי חילופי שוטים (צריכים וידאו)')
+        self.assertEqual(cmds, ['new', 'ingest', 'speech', 'asr', 'lang', 'edit-export'], 'מהקול: בלי חילופי שוטים (צריכים וידאו)')
         self.assertIn('מהקול', out)
 
         code, out = self.job('align')
@@ -342,7 +349,7 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(int((W / 'src_size').read_text()), len(VIDEO), 'הסרטון צורף (וההורדה הושלמה אחרי ניתוק — Range)')
         self.assertEqual([p.name for p in W.glob('source.*')], ['source.mp4'], 'הקול כבר לא המקור')
         self.assertTrue((W / 'audio16k.first.wav').exists())
-        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()][5:]   # new, ingest, asr, lang, edit-export
+        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()][6:]   # new, ingest, speech, asr, lang, edit-export
         self.assertEqual(cmds, ['ingest', 'sync', 'shots', 'edit-import', 'align', 'plan', 'tr-prep'])
         words = json.loads((W / 'asr' / 'parakeet.json').read_text())['words']
         self.assertEqual([(w['s'], w['e']) for w in words], [(1.25, 1.75), (0.35, 0.45)], 'זמני המילים הוזזו לציר הזמן של הסרטון')
@@ -694,6 +701,29 @@ class TestWorker(unittest.TestCase):
         cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()]
         self.assertEqual(cmds, ['new', 'ingest', 'asr', 'shots', 'lang', 'edit-export', 'edit-import', 'align', 'plan', 'tr-prep'], 'בלי צירוף ובלי מדידת היסט')
 
+    def test_first_audio_without_speech(self):
+        # 09/11/2026: הקול שעלה ראשון כמעט בלי דיבור (העתקה שבורה בטלפון) — מחכים לסרטון ומתמללים ממנו, לא 18 דק׳ על קול ריק
+        self.fake.video_after = 2
+        self.assertEqual(self.take()[0], 0)
+        code, out = self.job('prepare', env={'SNB_POLL': '0.2', 'FAKE_SP': '0.002,1370', 'FAKE_SP_AUDIO_ONLY': '1'})
+        self.assertEqual(code, 0, out)
+        self.assertIn('כמעט אין דיבור', out)
+        W = self.tmp / 'work' / SLUG
+        self.assertEqual(int((W / 'src_size').read_text()), len(VIDEO), 'התמלול מהסרטון')
+        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()]
+        self.assertEqual(cmds, ['new', 'ingest', 'speech', 'new', 'ingest', 'asr', 'shots', 'lang', 'edit-export'])
+        self.assertEqual(json.loads((self.tmp / 'state' / 'job.json').read_text()).get('src'), 'v', 'בלי צירוף מאוחר')
+
+    def test_first_audio_short_or_speech(self):
+        # דיבור רגיל, או קטע קצר (שיר) — המסלול הרגיל מהקול
+        for sp in ('0.55,1370', '0.0,90'):
+            self.setUp()
+            self.assertEqual(self.take()[0], 0)
+            code, out = self.job('prepare', env={'FAKE_SP': sp})
+            self.assertEqual(code, 0, out)
+            self.assertEqual(int((self.tmp / 'work' / SLUG / 'src_size').read_text()), len(AUDIO), sp)
+            self.tearDown()
+
     def test_sync_unsure(self):
         # ההיסט לא ודאי → תמלול מחדש מהסרטון (בלי טוקנים), בלי להזיז זמנים
         self.assertEqual(self.take()[0], 0)
@@ -701,7 +731,7 @@ class TestWorker(unittest.TestCase):
         code, out = self.job('align', env={'FAKE_SYNC': '3.874 0.003'})
         self.assertEqual(code, 0, out)
         self.assertIn('לא ודאי', out)
-        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()][5:]   # new, ingest, asr, lang, edit-export
+        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()][6:]   # new, ingest, speech, asr, lang, edit-export
         self.assertEqual(cmds[:5], ['ingest', 'sync', 'asr', 'lang', 'shots'])
         words = json.loads((self.tmp / 'work' / SLUG / 'asr' / 'parakeet.json').read_text())['words']
         self.assertEqual(words[0]['s'], 1.0, 'בלי הזזה — התמלול החדש כבר על ציר הזמן של הסרטון')
@@ -716,7 +746,7 @@ class TestWorker(unittest.TestCase):
         code, out = self.job('attach-late', env={'FAKE_SYNC': sync})
         self.assertEqual(code, 0, out)
         self.assertEqual(int((W / 'src_size').read_text()), len(VIDEO), 'הסרטון הוא המקור עכשיו')
-        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()][5:]   # new, ingest, asr, lang, edit-export
+        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()][6:]   # new, ingest, speech, asr, lang, edit-export
         return W, cmds, out
 
     def test_attach_late_shifts_and_retimes(self):
@@ -745,7 +775,7 @@ class TestWorker(unittest.TestCase):
         code, out = self.job('attach-late', env={'FAKE_SYNC': '0.400 0.450', 'FAKE_FAIL': 'align'})
         self.assertEqual(code, 0, out)
         self.assertIn('היישור מחדש נכשל', out)
-        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()][5:]
+        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()][6:]
         self.assertEqual(cmds, ['ingest', 'sync', 'align', 'retime', 'shots'])
         self.assertEqual(json.loads((W / 'en.aligned.json').read_text())['words'][0]['s'], 1.4, 'ההיסט מהחלון הסביר (0.45 ≥ 0.3)')
         self.assertEqual(self.job('attach-late')[1].strip().splitlines()[-1], '· הסרטון כבר המקור — אין מה לצרף.')

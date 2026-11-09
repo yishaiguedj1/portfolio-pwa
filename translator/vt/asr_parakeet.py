@@ -248,6 +248,25 @@ def rescue(words: list[dict], found: list[tuple[int, float, float]], recog, tota
     return n
 
 
+def speech_share(wav_path: str) -> tuple[float, float]:
+    """09/11/2026: חלק הזמן שבו Silero שומע דיבור (0..1) ואורך הקול בשניות — בלי Parakeet (שניות ספורות לפרק).
+    קול "ריק" מהטלפון (העתקה שבורה) = כ־0, ופרק רגיל = ~0.5. התמלול של קול כזה סרק ~390 "חורים" ולקח 18 דק׳."""
+    import onnx_asr
+    import soundfile as sf
+
+    audio, sr = sf.read(wav_path, dtype="float32")
+    if audio.ndim > 1:
+        audio = audio.mean(axis=1)
+    n = len(audio)
+    if not n:
+        return 0.0, 0.0
+    vad = onnx_asr.load_vad("silero")
+    segs = list(next(vad.segment_batch(audio[None, :], np.array([n]), 16000,
+                                       min_silence_duration_ms=150, max_speech_duration_s=3600,
+                                       min_speech_duration_ms=150, speech_pad_ms=0)))
+    return sum(max(0, min(n, b) - max(0, a)) for a, b in segs) / n, n / sr
+
+
 def transcribe(wav_path: str, quantization: str | None = "int8", batch: int = 4) -> dict:
     import onnx_asr
     import soundfile as sf
