@@ -147,7 +147,7 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
     </div>
     <div class="cards-3 ov-stats card">
       <div class="stat">
-        <div class="stat-label" data-i18n="ovStocksValue">שווי תיק המניות</div>
+        <div class="stat-label" data-i18n="ovStocksValue">שווי התיק</div>
         <div class="stat-value" id="ovValue">—</div>
         <div class="stat-sub" id="ovValueSub">כולל מזומן</div>
       </div>
@@ -161,6 +161,7 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
         <div class="stat-value" id="ovYield">—</div>
         <div class="stat-sub" id="ovMeta">עודכן: —</div>
       </div>
+      <div class="ov-day hidden" id="ovDay"></div>
     </div>
 
     <div class="card">
