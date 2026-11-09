@@ -454,7 +454,7 @@
 - מודלים חלופיים:
   - תשלום חד־פעמי: YTSummarizer — ‏$9 ל־30 סיכומים — [Product Hunt](https://www.producthunt.com/products/ytsummarizer/launches); ‏summarizemyvideo — [CWS](https://chromewebstore.google.com/detail/youtube-summary-transcrip/fedjdpgghmpimikoihnhlofjeomlabeb).
   - BYOK: ‏HARPA — [HARPA Pricing](https://harpa.ai/pricing); ‏Snippy — [CWS](https://chromewebstore.google.com/detail/snippy-summary-ai-youtube/hcpmildnbjiigmeafaoalidinmjjnjpn).
-  - Lifetime: ‏HARPA ‏€238; ‏BibiGPT ‏$888 — [BibiGPT](https://www.bibigpt.co/en).
+  - Lifetime: ‏HARPA ‏€238 — [HARPA Pricing](https://harpa.ai/pricing); ‏BibiGPT ‏$888 — [BibiGPT](https://www.bibigpt.co/en).
 - הנחות לחינוך:
   - Glasp — חינם לסטודנטים ו־40% הנחה — [Glasp Pricing](https://glasp.co/pricing).
   - Recall — 20% — [Recall Pricing](https://www.recall.it/pricing).
@@ -568,10 +568,10 @@
 
 ### Inferences — ההזדמנויות (מנוסחות באופן כללי, לפי עקרונות הבנייה הנקייה)
 1. **עברית תחילה, מקצה לקצה — הבידול הכי ברור.** לא רק ממשק, אלא:
-   - תמלול עברי שמדיוקו מדווח בגלוי;
+   - תמלול עברי שהדיוק שלו מדווח בגלוי;
    - ‏OCR לשקופיות בעברית ובטקסט מעורב (עברית עם קוד, נוסחאות ומונחים באנגלית);
    - פלט ב־RTL תקין, כולל ציטוטים, מספרים וקוד בתוך טקסט עברי.
-   
+
    בעמודים שנקראו לא נמצא מוצר שמתעד טיפול באחד מהשלושה. זו עדות מהיעדר, ולא בדיקה בפועל.
 2. **ראיות מהמסך כחלק מכל טענה, לא כמוצר נפרד.** כל נקודה בניתוח תוצג עם השקופית, הגרף או הקוד שתומכים בה, ועם הטקסט שחולץ מהם. ההנחיות לביצוע:
    - בחירת פריימים לפי שינוי חזותי ולא במרווח קבוע. זו גישה מתועדת בשוק ובקוד פתוח: BibiGPT, ‏lecture2notes ו־steipete/summarize.
