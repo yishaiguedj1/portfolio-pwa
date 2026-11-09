@@ -113,7 +113,6 @@
 - **Video recap:** "narrated highlights and short video clips of key moments", בהשקה רק לפגישות מוקלטות באנגלית (אפריל–מאי 2026) — [MC1261588](https://mc.merill.net/message/MC1261588); מ־25/9/2026 ב־23 שפות (31 אזורים) כולל עברית — [MC1479506](https://mc.merill.net/message/MC1479506).
 - **עברית ב־Copilot:** עברית נתמכת בפרומפטים ובתשובות (עודכן 9/2026; לא ספציפי ל־Teams) — [Copilot languages](https://support.microsoft.com/en-us/topic/supported-languages-for-microsoft-copilot-94518d61-644b-4118-9492-617eea4801d8).
 - **נגן הווידאו (Stream/Clipchamp) — סרטון שהועלה:** Copilot "can quickly summarize and answer questions for any video with a transcript", מחזיר חותמות זמן מקושרות, אבל "simply answers questions based on the existing video transcript"; נדרש תמליל של יותר מ־100 מילים ורק התמליל המקורי נחשב — [Copilot in Clipchamp player](https://support.microsoft.com/en-us/office/0b531ea9-2d9d-4830-97e4-2c1b2b8ca31d).
-- **מגבלה מדווחת:** Copilot לא מסכם תמונות, רכיבי Loop וקבצים ששותפו בצ'אט — [TechRepublic (תקציר חיפוש; 403)](https://www.techrepublic.com/).
 
 #### Google Meet — Gemini ‏"Take notes for me"
 - **צילומי מסך בהערות (3/8/2026):** Gemini "automatically capture and include screenshots of presented content"; המציג מקבל התראה; משתמש יכול לכבות מחלונית ההערות; האדמין בוחר "always" או "only when a recording is enabled"; ‏Business Standard/Plus, ‏Enterprise Standard/Plus, ‏AI Pro for Education; פריסה של עד 15 יום — [Workspace Updates, 3/8/2026](https://workspaceupdates.googleblog.com/2026/08/visual-screenshots-now-included-in-Google-Meet-meeting-notes.html). ‏"Screenshots are only included if the presentation is on the screen for at least 10 seconds" — [Meet help](https://support.google.com/meet/answer/14754931?hl=en). לא נאמר שהטקסט מהשקופית נכנס לנוסח הסיכום.
@@ -165,7 +164,7 @@
 ### Gaps
 - מרכז העזרה של Otter חסום (403), ולכן לא ברור באילו מסלולים יש לכידת שקופיות, אם יש לכידה ידנית, ואם טקסט השקופיות נכנס לסיכום או ל־AI Chat. תקציר חיפוש (mytechdecisions) תיאר שיבוץ שקופיות בנקודה הרלוונטית ולכידה ידנית בלחיצה — לא אומת ולא צוטט כממצא.
 - Zoom: דף הקהילה על OCR לא נקרא (רק תקציר); לא ברור אם OCR משמש לסיכום גם מחוץ למצב השמירה האפסית; תמיכה בעברית ב־AI Companion לא אומתה.
-- Teams: לא ברור אם "content shared on screen" נקרא כטקסט (OCR) או מוצג כתמונה בלבד, ואם סיכום ה־recap עצמו (לא ה־video recap) זמין בעברית. רשימת שפות של Copilot ב־Teams לפי handsontek (2024, כוללת עברית) נמצאה רק בתקציר — [handsontek (תקציר חיפוש)](https://m365admin.handsontek.net/update-to-supported-languages-in-teams-meeting-copilot/).
+- Teams: תקציר חיפוש של TechRepublic (הדף החזיר 403) טען ש־Copilot לא מסכם תמונות, רכיבי Loop וקבצים ששותפו בצ'אט — לא אומת ולא צוטט כממצא. לא ברור אם "content shared on screen" נקרא כטקסט (OCR) או מוצג כתמונה בלבד, ואם סיכום ה־recap עצמו (לא ה־video recap) זמין בעברית. רשימת שפות של Copilot ב־Teams לפי handsontek (2024, כוללת עברית) נמצאה רק בתקציר — [handsontek (תקציר חיפוש)](https://m365admin.handsontek.net/update-to-supported-languages-in-teams-meeting-copilot/).
 - Meet: לא נאמר אם Gemini קורא את תוכן צילומי המסך או רק משבץ אותם.
 - Fathom: אין רשימת שפות רשמית; Grain, ‏Bluedot, ‏MeetGeek, ‏Sembly, ‏Jamie, ‏Circleback — עברית לא בשם, ולא נבדקו רשימות מלאות.
 - Fireflies: אין מחירים בדף הרשמי שנקרא; פרקים ו־MCP לא מוזכרים; השקות 2025–2026 לא נמצאו במקור ראשוני.
@@ -235,7 +234,7 @@
 - **"ניתן לחיפוש" אינו "הובן":** הפלטפורמות האקדמיות פתרו את האינדוקס החזותי לפני שנים (OCR, שליפה מ־PowerPoint, פרקים במעברי שקופיות), אבל ה־LLM שלהן קורא רק את הכתוביות. סטודנט ששואל "מה היה בגרף בשקופית 12" יקבל תשובה רק אם המרצה הקריא אותו. זה הפער המרכזי שמוצר "רואה" יכול לסגור.
 - **Kaltura מראה שזה אפשרי במוסד:** OCR שנכנס לסיכום (7/2025) וקישורי זמן לחיצים בסיכום של סרטון בודד (7/12/2025). אבל ה־OCR הוא משימת REACH נפרדת שצריך להפעיל ולשלם עליה, וכל זה זמין רק דרך מוסד — לא לסטודנט או לאיש עסקים שמחזיק קובץ או קישור.
 - **בקרה פדגוגית מול חופש אישי:** Echo360 נועלת כלים עד שנצפה "מספיק" מהסרטון ומעבירה את Study Aids לאישור מרצה; Panopto מפעילה סיכומים "לכל סרטון בנפרד" ולא גלובלית. מוצר אישי לא כפוף למגבלות האלה, אבל ההסתייגות של Clarkson ("aren't automatically aligned with your course objectives") נכונה גם לנו — כדאי לאפשר למשתמש להגדיר מטרה או סילבוס לניתוח.
-- **נגישות (ADA Title II) מממנת את השוק האקדמי:** YuJa ‏Compliance Report, ‏Verbit Campus Complete, ‏Kaltura Accessibility Agent — הכסף המוסדי זורם לכתוביות ולתיאור קולי, לא לניתוח עומק. הניתוח העמוק נשאר פתוח.
+- **נגישות (ADA Title II) מממנת את השוק האקדמי:** YuJa ‏Compliance Report ו־Verbit Campus Complete — הכסף המוסדי זורם לכתוביות ולתיאור קולי, לא לניתוח עומק. הניתוח העמוק נשאר פתוח.
 - **10 שניות ושליפה ישירה מהקובץ:** Panopto מבדילה בין OCR (מהפריימים) לבין שליפת טקסט מקובץ המצגת עצמו. כשהמשתמש מחזיק את קובץ המצגת (PDF או PPTX), שליפה ישירה מדויקת יותר מ־OCR — כדאי לאפשר העלאת מצגת לצד הסרטון.
 - **עיגון בזמן כבר בשוק המוסדי:** Panopto AI Search ‏("links to the source clip and timestamp"), ‏Kaltura ‏(קישורים לחיצים בסיכום), ‏Vimeo ‏("jump to the exact moment"). היתרון שלנו לא יהיה עצם הקישור, אלא דיוק ברמת המילה ועיגון של כל טענה בניתוח, כולל טענות שנשענות על המסך.
 
@@ -306,3 +305,186 @@
 - Imaginario חסום (אימות בוט); דף Reka Vision ‏404; פרטי ה־AI של Vbrick לא נקראו (הדף נחתך).
 - תמיכה בעברית ב־Twelve Labs, ‏Valossa, ‏VIDIZMO, ‏VideoDB ו־Coactive — לא נמצאה ברשימות שנבדקו.
 - אין מדדי דיוק עצמאיים ל־OCR עברי באף אחד מהשירותים.
+
+## 4. מטריצת השוואה — 20 יכולות ב־35 מוצרים
+
+### Takeaway
+רק שלושה מוצרים שפונים למשתמש קצה מכניסים את תוכן המסך לטקסט הסיכום או ההערות עצמם (Circleback, ‏Teams, ‏Kaltura), ו־Zoom עושה זאת חלקית. אף מוצר לא משלב את כל החמישה: עברית מאומתת, תוכן מסך בתוך הניתוח, חותמות זמן לחיצות לכל טענה, כלי לימוד, ומסלול אישי בתשלום עצמי. הקרוב ביותר הוא Kaltura (עברית ב־ASR, ‏OCR בסיכום, קישורי זמן בסיכום של סרטון בודד, ‏Class Genie), אבל הוא מוסדי, בהצעת מחיר, ולא תומך בעירוב שפות באותו שמע.
+
+### Cited Findings
+**מקרא:** ✓ = קיים לפי המקור שצוטט בסעיפים 1–3 · ✗ = המקור הרשמי אומר שלא, או שהיכולת חסרה מרשימה רשמית מפורשת · ? = לא נמצא בדפים שנבדקו (לא בהכרח לא קיים) · (ת) = רק תקציר חיפוש או מקור משני · — = לא רלוונטי לסוג המוצר. כל הערכים נכונים ל־9/11/2026, והמקורות המלאים בכרטיסים שבסעיפים 1–3.
+
+**טבלה א — קלט, מסך ופלטים**
+
+| מוצר | סוג | לכידה חיה | העלאה / ייבוא | צילומי מסך/שקופיות בפלט | טקסט מהמסך לחיפוש | תוכן המסך בתוך הסיכום | סיכום | פרקים | משימות / החלטות | חותמות זמן לחיצות | מקור עיקרי |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Otter | פגישות | ✓ בוט + desktop | ✓ מוגבל | ✓ שקופיות אוטומטי | ✓ (ת) | ? | ✓ | ? | ✓ | ? | [pricing](https://otter.ai/pricing) |
+| Fireflies | פגישות | ✓ בוט + תוסף | ✓ | ✗ | ? | ✗ (משני) | ✓ | ? | ✓ | ? | [pricing](https://fireflies.ai/pricing) |
+| Fathom | פגישות | ✓ בוט + בלי בוט (בטא) | ? | ? | ? | ? | ✓ | ? | ✓ | ? | [pricing](https://www.fathom.ai/pricing) |
+| tl;dv | פגישות | ✓ בוט + desktop | ? | ? | ? | ? | ✓ | ? | ? | ? | [עברית](https://tldv.io/summarize-meetings-in-hebrew/) |
+| Read.ai | פגישות | ✓ בוט + desktop | ✓ 100–300 דק׳ | ? | ? | ? | ✓ | נושאים | ✓ | ? | [pricing](https://www.read.ai/pricing) |
+| Grain | פגישות | ✓ בלי בוט | ✓ במושב בתשלום | ? | ? | ? | ✓ | ? | ✓ | ? | [pricing](https://grain.com/pricing) |
+| Avoma | פגישות ומכירות | ✓ בוט + בלי בוט | ✓ 5–20 קבצים | ✗ | ? | ? | ✓ | ✓ | ✓ | ✓ סימניות | [pricing](https://www.avoma.com/pricing) |
+| Sembly | פגישות | ? | ✓ | ? | ? | ? | ✓ | ? | ✓ | ? | [pricing](https://www.sembly.ai/pricing/) |
+| Jamie | פגישות | ✓ כולל פנים אל פנים | ? | ? | ? | ? | ✓ | ? | ✓ | ? | [pricing](https://www.meetjamie.ai/pricing) |
+| Bluedot | פגישות | ✓ בלי בוט | ✓ | ? | ? | ? | ✓ | ? | ? | ? | [אתר](https://www.bluedothq.com/) |
+| MeetGeek | פגישות | ✓ | ? | ? | ? | ? | ✓ | ? | ? | ? | [pricing](https://meetgeek.ai/pricing) |
+| Granola | פגישות | ✓ בלי בוט | ? | ✗ אודיו בלבד | ✗ | ✗ | ✓ | ? | ? | ציטוטים בשורה | [updates](https://www.granola.ai/updates) |
+| Krisp | פגישות | ✓ בוט + בלי בוט | ? | ? | ? | ? | ✓ | ? | ? | ? | [pricing](https://krisp.ai/pricing/) |
+| Tactiq | פגישות | ✓ תוסף | ? | ✓ ידני | ? | ? | ✓ | ? | ? | ? | [pricing](https://tactiq.io/pricing) |
+| Circleback | פגישות | ✓ בוט + desktop | ? | ✓ מ־28/5/2026 | ✓ | ✓ בהערות | ✓ | ? | ✓ | ? | [release](https://www.circleback.ai/releases/notes-capture-whats-shared-on-screen) |
+| Notion AI Meeting Notes | פגישות וידע | ✓ בלי בוט | ? | ✗ | ✗ | ✗ | ✓ | ? | ? | ? | [help](https://www.notion.com/help/ai-meeting-notes) |
+| Zoom AI Companion | פגישות ווובינרים | ✓ מובנה | — | ? | ✓ הגדרת OCR | חלקי | ✓ | ✓ | ✓ | ✓ | [AI features](https://library.zoom.com/ai/ai-whitepaper/zoom-ai-features.md) |
+| Teams Copilot + נגן Stream/Clipchamp | פגישות ווובינרים | ✓ מובנה | ✓ בנגן | ✓ רגעי מסך | ? | ✓ | ✓ | ✓ | ? | ✓ | [RM490052](https://mc.merill.net/message/RM490052) |
+| Google Meet ‏Gemini | פגישות | ✓ מובנה | — | ✓ ‏10 שניות ומעלה | ? | ? | ✓ | ? | ✓ | ? | [help](https://support.google.com/meet/answer/14754931?hl=en) |
+| Webex AI Assistant | פגישות ווובינרים | ✓ מובנה | — | ? | ? | ? | ✓ | ✓ | ✓ | ✓ פרקים ופריטים | [recordings](https://help.webex.com/en-us/article/nslyqzx/) |
+| Loom | וידאו אסינכרוני | ✓ הקלטת מסך | ? | ✗ ("coming soon") | ? | ✗ תמליל בלבד | ✓ | ✓ | ? | ? | [AI](https://www.loom.com/ai) |
+| Goldcast | וובינרים | ✓ | — | ? | ? | ? | ✓ takeaway | ? | ? | ? | [help](https://help.goldcast.io/25825662946971-repurpose-webinar-content-with-ai) |
+| Panopto | הרצאות | ✓ לכידת מצגת | ? | ✓ פרקים במעברי שקופיות | ✓ ‏10 שניות + PowerPoint | ✗ מהכתוביות | ✓ | ✓ | — | ✓ AI Search | [AI](https://www.panopto.com/capabilities/ai-capabilities.md) |
+| Kaltura | הרצאות וארגונים | ? | ? | ✓ תמונה ממוזערת עם קישור | ✓ OCR דרך REACH | ✓ בכרטיסיית הסיכום | ✓ | ✓ (ת) | — | ✓ סרטון בודד | [Genie](https://knowledge.kaltura.com/help/genie) |
+| Echo360 | הרצאות | ? | ? | ? | ? | ✗ מהתמליל | ✓ | ✓ | — | ? | [AskEcho](https://support.echo360.com/hc/en-us/articles/46417660105485-EchoVideo-Understanding-AskEcho) |
+| YuJa | הרצאות | ? | ? | ? | ? | ? | ? | ✓ | — | ✓ (ת) | [PowerPack](https://www.yuja.com/video-cms/genai-video-powerpack/) |
+| Mediasite | הרצאות וארגונים | ? | ? | ? | ✓ גם מעבר לשקופיות | ✗ מהכתוביות | ✓ | ✗ במפת הדרכים | — | ? | [Enghouse](https://www.enghousevideo.com/corporate-learning/ai-driven-smart-videos) |
+| Vimeo | וידאו ארגוני | — | ✓ | ✗ | ? | ✗ מהתמליל | ✓ | ✓ | — | ✓ | [FAQ](https://help.vimeo.com/hc/en-us/articles/22089224317073-Technical-FAQs-Vimeo-AI) |
+| Wistia | וידאו שיווקי | — | ✓ | ✗ | ? | ✗ מהתמליל | ✓ | ✓ | — | ? | [AI](https://wistia.com/learn/product-updates/video-ai-tools) |
+| Verbit | תמלול ונגישות | ? | ✓ | ? | ? | ✗ מתמלילים | ✓ | ✓ | — | ? | [edu](https://verbit.ai/education/) |
+| Azure Video Indexer | API | ✓ שידור דרך Arc | ✓ | ✓ keyframes | ✓ מודפס + כתב יד | ✓ סיכום מולטימודלי | ✓ | סצנות ו־shots | — | ✓ זמנים ב־JSON | [overview](https://learn.microsoft.com/en-us/azure/azure-video-indexer/video-indexer-overview) |
+| Twelve Labs | API | — | ✓ | ? | ✓ on-screen text | ✓ | ✓ | ✓ מטא־דאטה לפי זמן | — | ✓ Jockey | [Pegasus 1.5](https://www.twelvelabs.io/blog/introducing-pegasus-1-5) |
+| VIDIZMO | ארגוני | ? | ✓ | ? | ✓ כל פריים, כולל כתב יד | ? | ✓ | ✓ | — | ✓ | [VIDIZMO](https://www.vidizmo.ai/) |
+| Valossa | מדיה וארגונים | ? | ✓ | ? | ✓ on-screen text | ? | ✓ | ✓ | — | ? | [Valossa](https://valossa.com/) |
+| Glean | חיפוש ארגוני | — | — | ✗ | ✗ | — | — | — | — | ? קישורי ניגון בלבד | [Zoom connector](https://www.glean.com/connectors/zoom) |
+
+**טבלה ב — שימוש, עברית, אינטגרציות ומחיר**
+
+| מוצר | צ'אט על פריט בודד | צ'אט / חיפוש בכל הספרייה | קליפים / היילייטס | כלי לימוד | עברית | API / MCP | LMS / CRM | תאימות מוצהרת | ניתוח חזותי מעבר ל־OCR | מחיר כניסה בתשלום |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Otter | ✓ | ✓ | ? | ? | ✗ | ✓ / ✓ | CRM ✓ | HIPAA בתוסף, SSO/SCIM | ? | Pro ‏$8.33 שנתי / $16.99 |
+| Fireflies | ✓ AskFred | ? | ✓ soundbites | ? | ✓ במדריך השפות | ✓ / ? | CRM ✓ | SOC 2, GDPR, HIPAA, ISO 42001, FERPA | ✗ | Pro ‏$10 שנתי (משני) |
+| Fathom | ✓ | ✓ ב־Team | ✓ (משני) | ? | ? | ✓ / ✓ | CRM ✓ | HIPAA BAA | ? | Premium ‏$16 שנתי / $20 |
+| tl;dv | ? | ? | ? | ? | ✓ (RTL לא מוזכר) | ? | ? | ? | ? | Pro ‏€18 שנתי / €29 |
+| Read.ai | ✓ | ✓ Search Copilot | ✓ ב־Enterprise | ? | ✗ | ? | ? | HIPAA, SAML/SCIM ב־Enterprise+ | ? | Pro ‏$15 שנתי / $19.75 |
+| Grain | ✓ | ? | ? | ? | ? | ? | ? | SOC 2 Type II | ? | ‏$19 למושב |
+| Avoma | ✓ | ✓ ב־Enterprise | ✓ snippets | ? | ? | ✓ / ? | CRM ✓ | SOC II, ‏HIPAA ב־Enterprise | ✗ | Startup ‏$19 שנתי |
+| Sembly | ✓ | ✓ ב־Pro | ? | ? | ? | ? | ? | SOC 2, GDPR, HIPAA ב־MAX | ? | Basic ‏$10 שנתי / $14 |
+| Jamie | ✓ | ? | ? | ? | ? | ? / ✓ | ? | ISO 27001, SOC 2 בתהליך | ? | Plus ‏$24 |
+| Bluedot | ? | ✓ | ? | ? | ? | ? | CRM ✓ ב־Business | ? | ? | Basic ‏$14 שנתי / $18 |
+| MeetGeek | ? | ✓ | ? | ? | ? | ? | ? | SOC 2, GDPR, HIPAA, CCPA | ? | Pro ‏$9.99–$15.99 (לא עקבי) |
+| Granola | ✓ | ✓ | — | ? | ? | ✓ / ✓ | ? | SOC 2, HIPAA ב־Enterprise | ✗ | Business ‏$14 |
+| Krisp | ✓ | ? | ? | ? | ✗ | ? | ? | SOC 2, GDPR, HIPAA ב־Enterprise | ? | Core ‏$8 שנתי / $16 |
+| Tactiq | ? | ? | ? | ? | חלקי — Meet ו־Teams | ? / ✓ בטא | ? | SOC 2, GDPR, ISO 27001, HIPAA | ✗ | Pro ‏$8 שנתי |
+| Circleback | ✓ | ✓ | ? | ? | ? | ✓ / ✓ | CRM ✓ | SOC 2, GDPR, DPF, HIPAA | ✓ שקופיות, דשבורדים, מסמכים | חינם; בתשלום לא נבדק |
+| Notion AI Meeting Notes | ? | ? | — | ? | ✗ | ? | ? | שמירה אפסית ב־Enterprise | ✗ | Business ‏$20 |
+| Zoom AI Companion | ✓ | ✓ ZoomMate | ✓ Snippets | ? | ? | ? | ? | ללא אימון על תוכן לקוחות | ? | חינם ל־3 סיכומים בחודש; כלול בתוכניות בתשלום |
+| Teams Copilot | ✓ | ? | ✓ video recap | ? | חלקי — video recap ופרומפטים | ? | ? | Microsoft 365 | ✓ רגעי מסך | רישיון Microsoft 365 Copilot (לא נבדק) |
+| Google Meet ‏Gemini | ? | ? | ? | ? | ✗ | ? | ? | ? | צילומים בלבד | Workspace Business Standard ומעלה |
+| Webex AI Assistant | ? | ? | ? | ? | חלקי — בתוך הפגישה | ? | ? | ? | ? | Webex Suite (לא נבדק) |
+| Loom | ? | ? | ? | ? | ? (תיעוד AI באנגלית בלבד) | ? | ? | SSO ב־Enterprise | ✗ | Business+AI ‏$24 |
+| Goldcast | ? | ? | ✓ AI clips | — | ? (עריכת וידאו באנגלית בלבד) | ? | ? | SOC 2 (ת) | ? | בהצעה |
+| Panopto | ✓ מורה AI ב־Folio | ✓ | ? | ✓ Folio | ? | ? / ✓ קריאה בלבד | ? | ללא אימון | OCR + שליפה מ־PowerPoint | בהצעה |
+| Kaltura | ✓ | ✓ לפי הרשאות | ✓ אווטר מציג קליפים | חלקי — Class Genie | ✓ ב־ASR, בלי עירוב שפות | ? | LMS ✓ | DPA, GDPR | OCR של שקופיות ולוח | בהצעה |
+| Echo360 | ? | ? | ? | ✓ FAQs, כרטיסים, מבחנים | ? | ? | LMS ✓ Canvas | ? | ✗ | בהצעה |
+| YuJa | ✓ Ask YuJa AI | ? | ? | ✓ מבחנים | ? | ? | ? | דוח נגישות | Sentiment AI | בהצעה |
+| Mediasite | ? | ✓ (ת) | ? | ? | ? | ? | ? | on-prem | ✗ | בהצעה |
+| Vimeo | ✓ Ask AI | ✓ חיפוש סמנטי | ✓ highlight reels | ? | ? | ? / ✓ | ? | ללא אימון | ✗ | קרדיטי AI מ־Standard |
+| Wistia | ? | ? | ✓ | — | ? | ? | ? | ? | ✗ | Business ‏$79 שנתי |
+| Verbit | ? | ? | ? | ✓ מבחנים | ? | ? | LMS ✓ | ? | ✗ | בהצעה |
+| Azure Video Indexer | ? | ? | ? | — | ✓ he-IL | ✓ / ? | — | Azure | ✓ אובייקטים, תוויות, לוגו | לפי דקה (לא נקלט) |
+| Twelve Labs | ✓ Jockey | ✓ | ✓ | — | ? | ✓ / ✓ | — | ? | ✓ | Plus ‏$29 |
+| VIDIZMO | ✓ עם ציטוטים | ✓ | ? | ? | ? | ? | ? | FedRAMP High, HIPAA, CJIS, GDPR, ISO 27001 | OCR + השחרה | בהצעה |
+| Valossa | ? (קיים Valossa Assistant; אופיו לא נבדק) | ? | ✓ highlight clips | — | ? | ? | — | עיבוד ב־EU, on-prem | ✓ שבע מודאליות | ? |
+| Glean | — | ✓ לפי הרשאות | — | — | ? | ? | ? | ? | ✗ | ? |
+
+### Inferences
+- **תוכן המסך בתוך הטקסט:** ✓ אצל 5 מתוך 35 (Circleback, ‏Teams, ‏Kaltura, ‏Azure VI, ‏Twelve Labs), ומתוכם רק שלושה מוצרים למשתמש קצה; Zoom חלקי. בכל השאר — צילום ליד הסיכום, אינדוקס לחיפוש, או תמליל בלבד.
+- **עברית:** ✓ או חלקי אצל 7 מתוך 35 (Fireflies, ‏tl;dv, ‏Tactiq, ‏Teams, ‏Webex, ‏Kaltura, ‏Azure VI), ובזנב הארוך גם Sonix ו־AssemblyAI. אף אחד מהם לא משלב עברית מאומתת עם תוכן מסך בסיכום, חוץ מ־Kaltura (מוסדי) ו־Azure VI (API).
+- **חותמות זמן לחיצות** כבר נפוצות במוצרים הגדולים (Zoom, ‏Teams, ‏Webex, ‏Panopto, ‏Kaltura, ‏Vimeo, ה־APIs). מה שלא נמצא אצל אף אחד: עיגון ברמת המילה לכל טענה בניתוח, כולל טענות שנשענות על המסך, ומדד דיוק מפורסם לעיגון.
+- **כלי לימוד** (מבחנים, כרטיסיות, מדריכי לימוד) נמצאים רק בפלטפורמות המוסדיות (Panopto, ‏Echo360, ‏YuJa, ‏Verbit, ‏Kaltura חלקי) ובמסכמים הצרכניים (קובץ 10) — אבל לא במוצר אישי בעברית שגם רואה את המסך.
+- **MCP הפך לסטנדרט** אצל מובילי הפגישות ואצל Panopto, ‏Vimeo ו־Twelve Labs; ייצוא לסוכנים חיצוניים הוא כבר דרישת סף, לא יתרון.
+
+### Gaps
+- ריבוי סימני "?" נובע מבדיקה בדפים רשמיים בלבד, בלי חשבונות ניסיון; חלק מהיכולות קיימות כנראה אבל לא תועדו בדפים שנקראו.
+- המטריצה לא בודקת איכות בפועל (דיוק OCR, דיוק חותמות זמן, איכות סיכום בעברית) — זה דורש ניסוי ידני עם אותה הרצאה בכמה מוצרים.
+
+## 5. החלל הלבן — מה אף מתחרה בשלוש הקטגוריות לא עושה עבור ניתוח עומק אישי, בעברית, שמשלב את מה שנאמר עם מה שהוצג
+
+### Takeaway
+לא נמצא מוצר שמשלב את חמשת הרכיבים של לשונית "ניתוח וידאו": (1) שימוש אישי על כל הרצאה או וובינר (קובץ או קישור), בלי בוט ובלי מוסד; (2) עברית אמיתית, כולל עירוב עברית־אנגלית ו־RTL; (3) תוכן המסך — גוף השקופית, גרפים, טבלאות וקוד — בתוך טקסט הניתוח ולא רק כצילום או כאינדקס חיפוש; (4) חותמת זמן מדויקת ולחיצה לכל טענה, כולל טענות שנשענות על המסך; (5) סינתזה עמוקה (עקרונות, תמונה גדולה, ביקורת, סתירות) מעבר לסיכום, משימות, פרקים ומבחנים. הקרובים ביותר מכסים שניים או שלושה רכיבים: Kaltura Genie (מוסדי), ‏Circleback (פגישות בלבד), ‏Teams (רישיון Copilot ופגישות Teams), ו־Twelve Labs/Azure VI (API למפתחים).
+
+### Cited Findings
+- **הפלטים בשוק נעצרים בסיכום ובכלי פעולה או לימוד:** Meet — Summary, ‏Next steps, ‏Decisions, ‏Details — [Meet help](https://support.google.com/meet/answer/14754931?hl=en); Webex — פרקים, notes ופריטי פעולה — [Webex recordings](https://help.webex.com/en-us/article/nslyqzx/); Echo360 — סיכומים, FAQs, כרטיסי לימוד, מבחנים — [Echo360 AskEcho](https://support.echo360.com/hc/en-us/articles/46417660105485-EchoVideo-Understanding-AskEcho); Panopto Folio — מדריכי לימוד, כרטיסיות, מבחנים ומורה AI — [Training Industry, 23/9/2026](https://trainingindustry.com/press-release/learning-technologies/panopto-launches-new-ways-to-find-study-and-use-knowledge-captured-in-video/); Goldcast — קליפים, פוסטים, בלוג, מיילים ו־takeaway — [Goldcast help](https://help.goldcast.io/25825662946971-repurpose-webinar-content-with-ai); Otter Work Mode — תדריך הכנה ו־follow-through — [Otter blog, 27/10/2026](https://otter.ai/blog/otter-rethinks-the-meeting-new-ai-preps-you-coaches-you-and-follows-through). באף אחד מהדפים האלה לא מופיעים ביקורת, עקרונות, הנחות סמויות או "תמונה גדולה" כפלט.
+- **השכבה הגנרטיבית מבוססת תמליל ברוב השוק:** Panopto Access AI — [Northwestern](https://services.northwestern.edu/TDClient/30/Portal/KB/Article/2960/Panopto-Access-AI-AI-Chapters-and-AI-Summaries); Echo360 — [AskEcho](https://support.echo360.com/hc/en-us/articles/46417660105485-EchoVideo-Understanding-AskEcho); Mediasite — [K-State](https://www.k-state.edu/mediasite/help/generate-description.html); Vimeo — [Vimeo FAQ](https://help.vimeo.com/hc/en-us/articles/22089224317073-Technical-FAQs-Vimeo-AI); Wistia — [Wistia AI](https://wistia.com/learn/product-updates/video-ai-tools); Loom — [Loom AI](https://www.loom.com/ai); נגן Stream/Clipchamp — [Microsoft](https://support.microsoft.com/en-us/office/0b531ea9-2d9d-4830-97e4-2c1b2b8ca31d); Verbit Gen.V — [Verbit](https://verbit.ai/education/).
+- **תוכן המסך בתוך הטקסט — רק אצל מעטים:** Circleback (28/5/2026) — [release](https://www.circleback.ai/releases/notes-capture-whats-shared-on-screen); Teams (GA ‏2/2026) — [RM490052](https://mc.merill.net/message/RM490052); Kaltura (7/2025) — [Genie release notes](https://knowledge.kaltura.com/help/genie); Zoom — OCR כקלט לסיכום במצב שמירה אפסית — [Zoom models & processing](https://library.zoom.com/ai/ai-whitepaper/models-processing-storage-and-usage.md), ולפי עובד Zoom רק כותרות שקופיות — [Zoom Community (תקציר חיפוש)](https://community.zoom.com/meetings-2/ai-companion-setting-use-screen-share-content-with-ocr-75358).
+- **עירוב שפות לא נתמך אצל רבים:** Kaltura ‏"Mixed-language audio isn't supported" — [Kaltura ASR](https://knowledge.kaltura.com/help/kaltura-asr-services-overview); Meet ‏"Multiple languages spoken in the same meeting aren't currently supported" — [Meet help](https://support.google.com/meet/answer/14754931?hl=en); Tactiq — שפה אחת בכל פעם — [Tactiq languages](https://help.tactiq.io/en/articles/8627989-what-languages-does-tactiq-support). דוגמה נגדית: Granola מצהירה על כמה שפות באותה פגישה מ־22/5/2025 — [Granola updates](https://www.granola.ai/updates).
+- **עיגון בזמן — מה כבר קיים:** קישורים לחיצים בסיכום של סרטון בודד (Kaltura, ‏7/12/2025) — [Genie release notes](https://knowledge.kaltura.com/help/genie); תשובה עם "links to the source clip and timestamp" ‏(Panopto, ‏9/2026) — [Training Industry](https://trainingindustry.com/press-release/learning-technologies/panopto-launches-new-ways-to-find-study-and-use-knowledge-captured-in-video/); חותמת זמן לכל פרק ולכל פריט פעולה (Webex) — [Webex](https://help.webex.com/en-us/article/nslyqzx/); "timestamped citations" בשאלות בוובינר (Zoom) — [Zoom AI features](https://library.zoom.com/ai/ai-whitepaper/zoom-ai-features.md); חותמות זמן מקושרות בתשובות, בתנאי של תמליל מעל 100 מילים (Stream/Clipchamp) — [Microsoft](https://support.microsoft.com/en-us/office/0b531ea9-2d9d-4830-97e4-2c1b2b8ca31d); ציטוטים בשורה בצ'אט (Granola, ‏21/4/2026) — [Granola updates](https://www.granola.ai/updates).
+- **שערים מוסדיים:** Panopto מפעילה סיכומים לכל סרטון בנפרד, "cannot be applied globally" — [Northwestern](https://services.northwestern.edu/TDClient/30/Portal/KB/Article/2960/Panopto-Access-AI-AI-Chapters-and-AI-Summaries); ב־Echo360 חלק מהכלים נפתחים רק אחרי צפייה מספקת, ו־Study Aids עוברים אישור מרצה — [AskEcho](https://support.echo360.com/hc/en-us/articles/46417660105485-EchoVideo-Understanding-AskEcho), [Echo360 7/2026](https://support.echo360.com/hc/en-us/articles/46916188453389-EchoVideo-2026-Deployment-Notes-01-02-July); Stanford ממליצה להימנע מבוטים של צד שלישי — [Stanford UIT](https://uit.stanford.edu/service/zoom/ai).
+- **עוגני מחיר אישיים:** Otter Pro ‏$8.33–$16.99, ‏Fathom Premium ‏$16–$20, ‏Granola Business ‏$14, ‏Read.ai Pro ‏$15–$19.75, ‏Tactiq Pro ‏$8 — [Otter](https://otter.ai/pricing), [Fathom](https://www.fathom.ai/pricing), [Granola](https://www.granola.ai/pricing), [Read.ai](https://www.read.ai/pricing), [Tactiq](https://tactiq.io/pricing). ה־APIs: Twelve Labs ‏$29/$99 — [Twelve Labs](https://www.twelvelabs.io/pricing); Memories.ai ‏$15 ל־1,000 דקות אינדוקס — [Memories.ai](https://memories.ai/pricing). הפלטפורמות המוסדיות — בהצעת מחיר בלבד — [Panopto](https://www.panopto.com/pricing/), [Kaltura](https://corp.kaltura.com/pricing/).
+- **Claude כבר בשימוש אצל מתחרים:** Zoom (בין ספקי המודלים) — [Zoom models](https://library.zoom.com/ai/ai-whitepaper/models-processing-storage-and-usage.md); Read.ai ‏(Search Copilot) — [Read.ai](https://www.read.ai/pricing); Granola ‏(צ'אט) — [TNW](https://thenextweb.com/news/granola-series-c-meeting-ai-enterprise-context); מחברי MCP ל־Claude אצל Otter, ‏Fathom, ‏Circleback, ‏Panopto ו־Twelve Labs — [Otter](https://otter.ai/blog/otter-ai-evolves-from-ai-notetaker-to-create-100b-enterprise-conversational-knowledge-engine-market), [Fathom](https://www.fathom.ai/pricing), [Circleback](https://www.circleback.ai/), [Panopto](https://trainingindustry.com/press-release/learning-technologies/panopto-launches-new-ways-to-find-study-and-use-knowledge-captured-in-video/), [Twelve Labs](https://docs.twelvelabs.io/docs/get-started/introduction).
+- **אבן בניין עברית פתוחה:** ivrit.ai — מאגר של יותר מ־22,000 שעות עברית לשימוש מסחרי (נכון ל־7/2025) ומודלי Whisper מכווננים ב־Hugging Face — [ivrit.ai](https://www.ivrit.ai/).
+
+### Inferences
+- **החלל הלבן המרכזי — "הניתוח רואה את מה שהוצג":** להכניס את גוף השקופית, ערכים מגרפים, שורות קוד וטבלאות לתוך טקסט הניתוח, עם תווית מקור לכל נקודה (דיבור / מסך / שניהם) ותמונה ממוזערת של הפריים. אצל המתחרים המסך הוא צילום ליד הסיכום (Teams, ‏Meet) או מילות חיפוש (Panopto, ‏Mediasite); רק Circleback ו־Kaltura מכניסים אותו לטקסט, ואף אחד לא מנתח גרפים או קוד.
+- **עיגון ברמת טענה, לא ברמת פרק:** Webex מעגן כל פריט פעולה ו־Kaltura מקשרת מתוך סיכום — אבל אף אחד לא מעגן כל משפט בניתוח לחותמת זמן ברמת המילה, ולא מראה למשתמש למה נבחר הרגע (ציטוט קצר ליד הקישור). כאן אפשר גם לפרסם מדד דיוק משלנו — דבר שאף מתחרה לא עושה.
+- **סינתזה עמוקה היא קטגוריה ריקה:** כל השוק מייצר "מה נאמר" (סיכום, פרקים, משימות, מבחנים). "מה זה אומר" — עקרונות, תמונה גדולה, ביקורת, הנחות, מה חסר ושאלות פתוחות — לא נמצא בשום מוצר בשלוש הקטגוריות. זה מבדל שלא תלוי בתשתית אלא במתודולוגיה (ראו `09-analysis-methodology.md`).
+- **עברית ועירוב שפות:** הרצאות וובינרים בישראל עוברים בין עברית לאנגלית בתוך משפט. Kaltura ו־Meet לא תומכים בזה במפורש, ו־Tactiq תומך בשפה אחת בכל פעם. ASR עברי שמבוסס על ivrit.ai ותמיכה מכוונת בעירוב שפות ובמונחים באנגלית בתוך טקסט RTL הם יתרון שקשה לענקים לתעדף.
+- **אישי ובלי בוט:** הפלטפורמות המוסדיות מוכרות למוסד ונעולות לסטודנט (סיכום לכל סרטון לפי היוצר, שערי צפייה, אישור מרצה); עוזרי הפגישות דורשים בוט או אפליקציה בזמן אמת, ומשם מגיעות רוב התלונות. מוצר שעובד על קובץ או קישור שהמשתמש מביא, אחרי מעשה, נמצא מחוץ לשני המודלים — ומחוץ למוקד תלונות ההסכמה.
+- **ספריית קורס אישית:** ניתוח על פני כמה הרצאות קיים רק במוסדות (Panopto ‏"Multi-video synthesis", ‏Kaltura ‏Class Genie). גרסה אישית — "כל ההרצאות של הקורס שלי, עם חיפוש ותשובות מעוגנות" — לא נמצאה.
+- **התאמה למטרה:** ההסתייגות של Clarkson על חוסר התאמה למטרות הקורס מצביעה על פיצ'ר: המשתמש מזין מטרה, סילבוס או שאלת מחקר, והניתוח מותאם אליהם.
+- **פרטיות כמסר:** Zoom (מחיקה אחרי הסיכום), ‏Granola (מחיקת אודיו), ‏Fellow ‏(zero-day retention) ו־Jamie (אחסון באיחוד האירופי, בלי אימון) הופכים פרטיות למסר שיווקי. עיבוד בשרת שלנו ומדיניות מחיקה ברורה צריכים להיות מוצגים בממשק, לא רק במדיניות.
+- **Claude לבדו אינו מבדל:** מתחרים רבים כבר משתמשים ב־Claude או מתחברים אליו ב־MCP. המבדל הוא השיטה (מסך + דיבור + עיגון + סינתזה), לא ספק המודל.
+- **איומים:** Teams ו־Meet כבר מכניסים את המסך לסיכומי פגישות ועשויים להרחיב לסרטונים שהועלו; Kaltura ו־Panopto עשויים לפתוח מסלול אישי; ממשקי API של Twelve Labs ו־Azure VI מאפשרים לכל מתחרה חדש לבנות שכבה חזותית במהירות. חלון ההזדמנות הוא בעיקר בעברית ובעומק הניתוח.
+
+### Gaps
+- לא נבדקו מתחרים ישראליים או עבריים ייעודיים (תקציב החיפוש נגמר); ivrit.ai היא אבן בניין ולא מתחרה.
+- איכות הפלטים של המתחרים לא נבדקה בפועל (אין חשבונות ניסיון), ולכן אין השוואה של סיכום אמיתי של אותה הרצאה.
+- אין נתוני נכונות לשלם ספציפיים לניתוח הרצאות בעברית (חלקית בקובץ 06, סעיף 6).
+
+## 6. הזנב הארוך — 33 מוצרים נוספים בשורה אחת
+
+### Takeaway
+בזנב הארוך כמעט הכל מבוסס תמליל. חריגים חזותיים: Notta (הקלטת מסך, ויצירת מצגות ואינפוגרפיקות מהתוכן), ‏Coactive (הבנת סצנות ואובייקטים לספריות מדיה) ו־APIs של AWS ו־Google (טקסט בווידאו עם זמנים ומיקום). עברית מוזכרת במפורש רק אצל Sonix ‏("Right-to-left Hebrew transcripts"), ‏AssemblyAI (עברית ב־Universal-2 עם WER של 10%–25%) ו־ivrit.ai. סימני התגבשות: Enghouse מחזיקה ב־Mediasite, ‏Qumu ו־Momindum; ‏PlayPosit עברה ל־WeVideo; ‏VidGrid תחת Paylocity; ‏Fathom בתוך Superhuman.
+
+### Cited Findings
+1. **Fellow** — עוזר פגישות שמקליט, מתמלל ומסכם; "Transcript, audio, and video captured in one place"; ‏SOC 2 Type II, ‏HIPAA, ‏GDPR, ‏CCPA; "Fellow never uses your meeting recordings, transcripts, or summaries to train AI models"; ‏zero-day retention; לכידת מסך ושפות לא מוזכרות (נבדק 9/11/2026) — [Fellow](https://fellow.ai/).
+2. **Claap** — מקליט ומתמלל שיחות מכירה ופגישות וכותב נתוני עסקאות ל־CRM; "Record from your desktop without a bot, or add a visible bot"; תמלול ב־"99+ languages"; Basic חינם, Pro ‏$32 ו־Business ‏$60 למשתמש בחיוב שנתי — [Claap](https://www.claap.io/).
+3. **Leexi** — "a secure AI suite to transcribe, summarize, and track your meetings"; ‏"over 100 languages automatically detected"; ניסיון 7 ימים; מחירים לא מפורסמים — [Leexi](https://www.leexi.ai/en/).
+4. **Supernormal** — כלי לסוכנויות שהופך הערות פגישה ותוכן לקוח לתוצרים (AI Slides, ‏AI Images); אפליקציית notetaker ל־Mac עם Apple Silicon — [Supernormal](https://www.supernormal.com/).
+5. **Plaud** — מכשיר הקלטה עם הערות AI; מסלולים לפי דקות תמלול: Starter חינם (300), ‏Pro ‏(1,200), ‏Unlimited — [Plaud](https://www.plaud.ai/).
+6. **Notta** — "58 Languages Supported"; ‏"Screen Recording" ‏("Record screen, audio, and camera"); יצירת קובצי PPT ואינפוגרפיקות מהתוכן; עברית לא מוזכרת; Pro מ־$8.17 לחודש בשנתי — [Notta](https://www.notta.ai/en).
+7. **Riverside** — הקלטה ועריכה באיכות סטודיו; AI Show Notes, ‏Magic Clips, פרקים ו־takeaways באירוח פודקאסטים, תרגום ודיבוב ל־"over 30 languages"; שפות התמלול לא פורטו — [Riverside](https://riverside.com/).
+8. **Sonix** — תמלול ב־"54+" שפות, כולל "Right-to-left Hebrew transcripts for media, academic and legal audio"; סיכומים, פרקים וניתוח סנטימנט; ‏$10 לשעת שמע — [Sonix](https://sonix.ai/), [Sonix languages](https://sonix.ai/languages).
+9. **Speechmatics** — ממשק API לזיהוי דיבור, "55+" שפות במודל אחד; ריצה "on device, on prem and in the cloud"; עברית לא מוזכרת בדף הבית — [Speechmatics](https://www.speechmatics.com/).
+10. **Trint** — תמלול חי ומוקלט לצוותי מדיה; 50+ שפות לתמלול ו־70+ לתרגום; סיכומים ורגעי מפתח; "never train[s] our algorithms on your transcripts"; ‏ISO 27001; עברית לא מוזכרת — [Trint](https://trint.com/).
+11. **AssemblyAI** — Speech Understanding עם Auto Chapters, ‏Summarization, ‏Key Phrases ועוד — [AssemblyAI](https://www.assemblyai.com/products/speech-understanding); עברית במודל Universal-2 בדרגת "Good accuracy (>10% to ≤25% WER)", ו־"Not all features are available for every language" — [AssemblyAI languages](https://www.assemblyai.com/docs/getting-started/supported-languages).
+12. **ivrit.ai** — מיזם ללא כוונת רווח לעברית ב־AI: יותר מ־22,000 שעות שמע (נכון ל־7/2025), מודלי Whisper מכווננים, רישיון שמתיר אימון מסחרי, וכלי תמלול חינמי — [ivrit.ai](https://www.ivrit.ai/).
+13. **3Play Media** — נגישות ולוקליזציה (כתוביות, דיבוב, תיאור קולי) עם בדיקה אנושית, ומיקוד בחינוך; פרקים וסיכומים לא מוזכרים — [3Play Media](https://www.3playmedia.com/).
+14. **Zoho Webinar** — וובינרים ואירועים; הקלטה לענן; אין בדף אזכור לסיכומי AI או לפרקים — [Zoho Webinar](https://www.zoho.com/webinar/).
+15. **Airmeet** — ‏AirGenie מייצר recaps, טיוטות בלוג ופוסטים, ו־AI Clip Generator שולף רגעים קצרים — [Airmeet](https://www.airmeet.com/).
+16. **Cvent (Webinar)** — הופך וובינר ל־"ready-to-use assets", קליפים "Snackable, social-ready", טיוטות בלוג ו־"highlights and smart summaries" — [Cvent](https://www.cvent.com/en/event-marketing-management/webinar-platform).
+17. **BigMarker** — AI Content Studio (חדש), תובנות ודירוג לידים, קליפים ו־hubs — [BigMarker AI](https://www.bigmarker.com/features/ai).
+18. **Canvas Studio** — וידאו בתוך Canvas עם דיונים ומבחנים ידניים על ציר הזמן ו־"editable automatic captions" ב־19 שפות; אין AI גנרטיבי בדף — [Canvas Studio](https://www.instructure.com/canvas/studio).
+19. **PlayPosit** — "PlayPosit is now WeVideo" — [PlayPosit](https://go.playposit.com/).
+20. **Momindum** — היום חלק מ־Enghouse Video: תמלילים, מילות מפתח, מבחנים, חיפוש לפי דובר ותאריך ושקופיות מסונכרנות לווידאו; סיכומי AI לא מוזכרים — [Momindum](https://www.enghousevideo.com/enterprise-video-management/momindum).
+21. **Qumu** — הכתובת qumu.com מפנה ב־9/11/2026 לעמוד Qumu באתר Enghouse Video — [Qumu](https://www.enghousevideo.com/enterprise-video-management/qumu).
+22. **Opencast** — לכידה והפצה בקוד פתוח, תמלול עם Whisper ב־"more than 80 languages" — [Opencast](https://opencast.org/), [Opencast Whisper](https://docs.opencast.org/develop/admin/configuration/transcription.configuration/whisper/).
+23. **Warpwire** — תוספי LMS וכתוביות, בלי AI גנרטיבי בדף הבית — [Warpwire](https://www.warpwire.com/).
+24. **VidGrid** — "VidGrid by Paylocity" — [VidGrid](https://www.vidgrid.com/).
+25. **ScreenPal** — הקלטת מסך עם תמלילים, תיאור קולי, תרגומים, פרקים ומבחנים — [ScreenPal AI](https://screenpal.com/ai).
+26. **Vbrick** — "Enterprise Video Intelligence Platform"; פרטי ה־AI לא נקראו — [Vbrick](https://www.vbrick.com/).
+27. **Coactive** — "reads the scenes, objects, and moments inside your video and images", חיפוש בשפה טבעית לספריות מדיה — [Coactive](https://www.coactive.ai/).
+28. **Amazon Bedrock Data Automation** — סיכום לכל סצנה, שליפת טקסט שמופיע בווידאו, סיווג, ו־"visual grounding and confidence scores" — [AWS BDA](https://docs.aws.amazon.com/bedrock/latest/userguide/bda.html).
+29. **Google Cloud Video Intelligence API** — ‏TEXT_DETECTION עם מקטעי זמן, ציון ביטחון ותיבות מיקום לכל פריים — [Video Intelligence](https://docs.cloud.google.com/video-intelligence/docs/text-detection).
+30. **Superhuman Go** — מחבר Fathom פעיל: שאלות על פגישות עבר, סיכומים, תמלילים, פריטי פעולה והקלטות — [Fathom × Superhuman](https://www.fathom.ai/superhuman).
+31. **Guru** — מאגר ידע מאומת עם "Meeting Summaries" כסוג ידע; בלי ניתוח וידאו — [Guru](https://www.getguru.com/).
+32. **Gong** — ניתוח שיחות מכירה; רישיון למשתמש + עמלת פלטפורמה — [Gong](https://www.gong.io/pricing/).
+33. **muse.ai** — בבדיקה ב־9/11/2026 הכתובת מציגה עוזר AI אישי בשם Muse ‏("AI that gets it done for you") ולא פלטפורמת חיפוש בווידאו — [muse.ai](https://muse.ai/).
+
+### Inferences
+- **Enghouse היא "המאחדת השקטה" של וידאו מוסדי:** Mediasite, ‏Qumu ו־Momindum תחת גג אחד, עם OCR וסיכומים מכתוביות. לקוחות שם צפויים לקבל שיפורים הדרגתיים, לא קפיצה לניתוח חזותי עמוק.
+- **Sonix מראה שעברית RTL היא טענה שיווקית ששווה לשים בכותרת** — ספק תמלול בינלאומי בחר להבליט אותה במפורש.
+- **ה־APIs של הענקים (AWS, ‏Google, ‏Azure) מוכרים "טקסט בווידאו" כפיצ'ר בסיסי** — ה־OCR עצמו אינו בידול. הבידול הוא מה עושים איתו בניתוח.
+- **שלושה מוצרים (Notta ו־Supernormal בזנב, ‏Sembly בסעיף 1) מייצרים מצגות מתוכן הפגישה** — כיוון הפוך לשלנו (מטקסט לשקופיות), שמראה ביקוש לתוצר חזותי מסודר. ייצוא הניתוח כמצגת קצרה יכול להיות פיצ'ר המשך.
+
+### Gaps
+- לא אומתו: Edpuzzle (עמוד הבית החזיר כותרת בלבד), ‏Nyota ‏(503), ‏Hopin/RingCentral Events, ‏Airgram, ‏Laxis, ‏Speak AI, ‏D2L Video Note, ‏Elai.
+- מתחרים ישראליים ייעודיים לא נבדקו (תקציב החיפוש נגמר).
+- גם בזנב הארוך לא נמצאו מדדי דיוק עצמאיים לעברית, ל־OCR או לחותמות זמן.
