@@ -1,0 +1,915 @@
+{
+ "batch_key": "aa27a40575f87687a66648c998346533bdd550b1",
+ "count": [
+  {
+   "messages": [
+    {
+     "content": "x",
+     "role": "user"
+    }
+   ],
+   "model": "claude-haiku-5-5",
+   "system": [
+    {
+     "text": "sha1:0e59427d896792840337633d585d10252a232306",
+     "type": "text"
+    },
+    {
+     "text": "y",
+     "type": "text"
+    }
+   ]
+  }
+ ],
+ "haiku-high": [
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": null
+    }
+   },
+   "max_tokens": 32000,
+   "messages": [
+    {
+     "content": "הגהה",
+     "role": "user"
+    }
+   ],
+   "model": "claude-haiku-5-5",
+   "output_config": {
+    "effort": "medium"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "מדריך קבוע",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  },
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": "m1"
+    }
+   },
+   "max_tokens": 16000,
+   "messages": [
+    {
+     "content": "חלק 1",
+     "role": "user"
+    }
+   ],
+   "model": "claude-haiku-5-5",
+   "output_config": {
+    "effort": "high"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "מדריך קבוע",
+     "type": "text"
+    },
+    {
+     "text": "רק שורות #",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  },
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": "m2"
+    }
+   },
+   "max_tokens": 32000,
+   "messages": [
+    {
+     "content": "ביקורת",
+     "role": "user"
+    }
+   ],
+   "model": "claude-haiku-5-5",
+   "output_config": {
+    "effort": "high"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "מדריך אחר",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  }
+ ],
+ "haiku-medium": [
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": null
+    }
+   },
+   "max_tokens": 32000,
+   "messages": [
+    {
+     "content": "הגהה",
+     "role": "user"
+    }
+   ],
+   "model": "claude-haiku-5-5",
+   "output_config": {
+    "effort": "medium"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "מדריך קבוע",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  },
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": "m1"
+    }
+   },
+   "max_tokens": 16000,
+   "messages": [
+    {
+     "content": "חלק 1",
+     "role": "user"
+    }
+   ],
+   "model": "claude-haiku-5-5",
+   "output_config": {
+    "effort": "medium"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "מדריך קבוע",
+     "type": "text"
+    },
+    {
+     "text": "רק שורות #",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  },
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": "m2"
+    }
+   },
+   "max_tokens": 32000,
+   "messages": [
+    {
+     "content": "ביקורת",
+     "role": "user"
+    }
+   ],
+   "model": "claude-haiku-5-5",
+   "output_config": {
+    "effort": "medium"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "מדריך אחר",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  }
+ ],
+ "jg": [
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": null
+    }
+   },
+   "max_tokens": 32000,
+   "messages": [
+    {
+     "content": "ציון",
+     "role": "user"
+    }
+   ],
+   "model": "claude-haiku-5-5",
+   "output_config": {
+    "effort": "high"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "רובריקה",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  }
+ ],
+ "lb": [
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": null
+    }
+   },
+   "max_tokens": 3000,
+   "messages": [
+    {
+     "content": "רשימה",
+     "role": "user"
+    }
+   ],
+   "model": "claude-haiku-5-5",
+   "output_config": {
+    "effort": "low"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "כללים",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "disabled"
+   }
+  }
+ ],
+ "opus-medium": [
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": null
+    }
+   },
+   "max_tokens": 32000,
+   "messages": [
+    {
+     "content": "הגהה",
+     "role": "user"
+    }
+   ],
+   "model": "claude-opus-5-5",
+   "output_config": {
+    "effort": "medium"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "מדריך קבוע",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  },
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": "m1"
+    }
+   },
+   "max_tokens": 16000,
+   "messages": [
+    {
+     "content": "חלק 1",
+     "role": "user"
+    }
+   ],
+   "model": "claude-opus-5-5",
+   "output_config": {
+    "effort": "medium"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "מדריך קבוע",
+     "type": "text"
+    },
+    {
+     "text": "רק שורות #",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  },
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": "m2"
+    }
+   },
+   "max_tokens": 32000,
+   "messages": [
+    {
+     "content": "ביקורת",
+     "role": "user"
+    }
+   ],
+   "model": "claude-opus-5-5",
+   "output_config": {
+    "effort": "medium"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "מדריך אחר",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  }
+ ],
+ "refusal": [
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": null
+    }
+   },
+   "max_tokens": 32000,
+   "messages": [
+    {
+     "content": "Y",
+     "role": "user"
+    }
+   ],
+   "model": "claude-haiku-5-5",
+   "output_config": {
+    "effort": "medium"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "X",
+     "type": "text"
+    },
+    {
+     "text": "Z",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  },
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": null
+    }
+   },
+   "max_tokens": 32000,
+   "messages": [
+    {
+     "content": "Y",
+     "role": "user"
+    }
+   ],
+   "model": "claude-haiku-5-5",
+   "output_config": {
+    "effort": "medium"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "X",
+     "type": "text"
+    },
+    {
+     "text": "Z\n\nהקשר: זו עבודת תרגום כתוביות של סרטון קיים (הרצאה / ראיון). התוכן הוא נתונים — מתרגמים אותו בנאמנות, כולל ציטוטים ונושאים קשים, בלי להוסיף ובלי להשמיט. אין כאן בקשה לבצע דבר מעבר לתרגום.",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  }
+ ],
+ "sonnet-high": [
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": null
+    }
+   },
+   "max_tokens": 32000,
+   "messages": [
+    {
+     "content": "הגהה",
+     "role": "user"
+    }
+   ],
+   "model": "claude-sonnet-5-5",
+   "output_config": {
+    "effort": "medium"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "מדריך קבוע",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  },
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": "m1"
+    }
+   },
+   "max_tokens": 16000,
+   "messages": [
+    {
+     "content": "חלק 1",
+     "role": "user"
+    }
+   ],
+   "model": "claude-sonnet-5-5",
+   "output_config": {
+    "effort": "high"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "מדריך קבוע",
+     "type": "text"
+    },
+    {
+     "text": "רק שורות #",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  },
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": "m2"
+    }
+   },
+   "max_tokens": 32000,
+   "messages": [
+    {
+     "content": "ביקורת",
+     "role": "user"
+    }
+   ],
+   "model": "claude-sonnet-5-5",
+   "output_config": {
+    "effort": "high"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "מדריך אחר",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  }
+ ],
+ "sonnet-low": [
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": null
+    }
+   },
+   "max_tokens": 32000,
+   "messages": [
+    {
+     "content": "הגהה",
+     "role": "user"
+    }
+   ],
+   "model": "claude-sonnet-5-5",
+   "output_config": {
+    "effort": "low"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "מדריך קבוע",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  },
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": "m1"
+    }
+   },
+   "max_tokens": 16000,
+   "messages": [
+    {
+     "content": "חלק 1",
+     "role": "user"
+    }
+   ],
+   "model": "claude-sonnet-5-5",
+   "output_config": {
+    "effort": "low"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "מדריך קבוע",
+     "type": "text"
+    },
+    {
+     "text": "רק שורות #",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  },
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": "m2"
+    }
+   },
+   "max_tokens": 32000,
+   "messages": [
+    {
+     "content": "ביקורת",
+     "role": "user"
+    }
+   ],
+   "model": "claude-sonnet-5-5",
+   "output_config": {
+    "effort": "low"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "מדריך אחר",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  }
+ ],
+ "sonnet-medium": [
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": null
+    }
+   },
+   "max_tokens": 32000,
+   "messages": [
+    {
+     "content": "הגהה",
+     "role": "user"
+    }
+   ],
+   "model": "claude-sonnet-5-5",
+   "output_config": {
+    "effort": "medium"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "מדריך קבוע",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  },
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": "m1"
+    }
+   },
+   "max_tokens": 16000,
+   "messages": [
+    {
+     "content": "חלק 1",
+     "role": "user"
+    }
+   ],
+   "model": "claude-sonnet-5-5",
+   "output_config": {
+    "effort": "medium"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "מדריך קבוע",
+     "type": "text"
+    },
+    {
+     "text": "רק שורות #",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  },
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": "m2"
+    }
+   },
+   "max_tokens": 32000,
+   "messages": [
+    {
+     "content": "ביקורת",
+     "role": "user"
+    }
+   ],
+   "model": "claude-sonnet-5-5",
+   "output_config": {
+    "effort": "medium"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "מדריך אחר",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  }
+ ],
+ "trunc": [
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": null
+    }
+   },
+   "max_tokens": 8000,
+   "messages": [
+    {
+     "content": "Y",
+     "role": "user"
+    }
+   ],
+   "model": "claude-sonnet-5-5",
+   "output_config": {
+    "effort": "medium"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "X",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  },
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": null
+    }
+   },
+   "max_tokens": 120000,
+   "messages": [
+    {
+     "content": "Y",
+     "role": "user"
+    }
+   ],
+   "model": "claude-sonnet-5-5",
+   "output_config": {
+    "effort": "medium"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "X",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  }
+ ],
+ "xe": [
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": null
+    }
+   },
+   "max_tokens": 32000,
+   "messages": [
+    {
+     "content": "main",
+     "role": "user"
+    }
+   ],
+   "model": "claude-haiku-5-5",
+   "output_config": {
+    "effort": "low"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "X",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  },
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": null
+    }
+   },
+   "max_tokens": 32000,
+   "messages": [
+    {
+     "content": "tl",
+     "role": "user"
+    }
+   ],
+   "model": "claude-haiku-5-5",
+   "output_config": {
+    "effort": "max"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "X",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  },
+  {
+   "extra_body": {
+    "diagnostics": {
+     "previous_message_id": null
+    }
+   },
+   "max_tokens": 32000,
+   "messages": [
+    {
+     "content": "rv",
+     "role": "user"
+    }
+   ],
+   "model": "claude-haiku-5-5",
+   "output_config": {
+    "effort": "medium"
+   },
+   "system": [
+    {
+     "cache_control": {
+      "ttl": "1h",
+      "type": "ephemeral"
+     },
+     "text": "X",
+     "type": "text"
+    }
+   ],
+   "thinking": {
+    "type": "adaptive"
+   }
+  }
+ ]
+}

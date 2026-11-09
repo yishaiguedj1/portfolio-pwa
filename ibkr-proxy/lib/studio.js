@@ -1011,7 +1011,8 @@ function dxJob(parent, dx, id, uid, now) {
    (באותה תיקייה) — העובד מחשב את הציון בעצמו בסוף (translator/goldscore.py), בלי שהטלפון פתוח */
 /* 24/10/2026 (ניסוי המאמץ): מאמץ אחר לתפקיד אחד בהרצה של סט הזהב — main = ההגהה והתדריך, tl = התרגום, rv = הביקורת.
    = ROLE_EFFORT_KEYS / EFFORTS ב־translator/llm.py (norm_xe). רק מ־goldRun (מנהל) — לא מהטופס */
-const XE_KEYS = ['main', 'tl', 'rv'], XE_EFFORTS = ['low', 'medium', 'high', 'max'];
+/* 09/11/2026 (ניתוח סרטונים, PR 1.1): + תפקידי הניתוח vm/vs/vv/vl/vx/vc — **= ROLE_EFFORT_KEYS ב־translator/llm.py** (test_effort_xe) */
+const XE_KEYS = ['main', 'tl', 'rv', 'vm', 'vs', 'vv', 'vl', 'vx', 'vc'], XE_EFFORTS = ['low', 'medium', 'high', 'max'];
 function normXe(x) {
   if (!x || typeof x !== 'object' || Array.isArray(x)) return null;
   const o = {};

@@ -165,3 +165,10 @@
 - **בלי MMS_FA** (רישיון NC): יישור באנגלית — Qwen3-ForcedAligner; בעברית — ה־CTC העברי של הקריוקי (‏`align_he.load_ctc`, ‏Apache-2.0) בחלונות סביב קטעי ivrit. מה שלא יושר — זמן משוער ו־`ts_coarse`.
 - **`count_tokens`** של ה־API חינמי (מכסה נפרדת) — מותר בגל בלי הוצאה; בלי מפתח/תקלה — האומדן המקומי ו־`src: 'est'`.
 - **בדיקות**: ‏`tests/test_analyze.py` — וידאו ‏lavfi קצר + `FakeJ`/`Ctx` מדומים, הרצה מקצה לקצה, סירובים (‏vi_lang, ‏vi_off) ו־vi_long. הקודים (`VI_FAIL`/`VI_WARN`) ו־`VI_FILES` זהים ל־`lib/studiovi.js` — ‏`tests/studio-vi.test.js` משווה.
+
+## ניתוח סרטונים — llm.py: תמונות, Structured Outputs ו־Citations (09/11/2026, PR 1.1)
+- **הממשק**: ‏`complete(..., fmt=schema)` ו־`prompt` כרשימת בלוקים. המחרוזת של התרגום עוברת בלי שום עיבוד (`_user`) — זה מה שמבטיח שהבקשה שלו לא זזה. הפירוט: התוכנית 16.10.
+- **שינוי ב־llm.py = תמונת־מצב**: ‏`translator/tests/llm_snap.py` מריץ סדרה קבועה של קריאות תרגום מול לקוח מדומה ומשווה ל־`fixtures/llm_req_snapshot.json`. שינוי מכוון בבקשת התרגום — `python3 tests/llm_snap.py --write`, ולהסביר ב־PR. את הקובץ יוצרים **מהקוד שלפני השינוי** (אחרת הבדיקה רק מאשרת את עצמה).
+- **מצב לקריאה אחת עובר ב־`_tl`** (כמו `_tl.k`): ‏`_tl.fmt` מתאפס בכל `_complete`, כך שהסכמה נשמרת בניסיונות החוזרים (קטיעה, סירוב, שגיאה חולפת) ולא דולפת לקריאה הבאה.
+- **ציטוטים בהודעת user = 400** מגרסת ה־API של 2026-10-21 (גם בתוך `search_result`/`tool_result`). כל prompt שהוא רשימה עובר `strip_citations`; ההגדרה `citations: {enabled: true}` נשארת. Citations ו־Structured Outputs לא באותה בקשה (`fmt_cites`).
+- **תפקיד חדש בדיווח העלות**: ‏`USE_KINDS` (שרתון, טלפון, job.py) רשימה סגורה, ו־`normUsage` פוסל את **כל** הרשימה על שורה לא מוכרת. תפקיד חדש שמדווח `usage` — קודם לעדכן את שלושת המקומות (התוכנית 0.5 ג).

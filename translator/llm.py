@@ -58,11 +58,18 @@ MODES = {
 DEFAULT_MODE = 'haiku-medium'
 # 24/10/2026 (ניסוי המאמץ, סט הזהב): מאמץ אחר לתפקיד אחד — main = ההגהה והתדריך, tl = התרגום, rv = הביקורת.
 # = XE_KEYS / XE_EFFORTS בשרתון (lib/studio.js normXe). רק בהרצות של סט הזהב — לא נבחר בטופס.
-ROLE_EFFORT_KEYS = ('main', 'tl', 'rv')
+# 09/11/2026 (ניתוח סרטונים, PR 1.1): תפקידי הניתוח — vm מיפוי · vs סינתזה · vv אימות · vl לימוד · vx שקפים מורכבים
+# (vision) · vc צ'אט (docs/studio-video-analysis-plan.md 5.2). כאן כדי שזרועות הזהב יוכלו לשנות מאמץ לתפקיד.
+VI_ROLES = ('vm', 'vs', 'vv', 'vl', 'vx', 'vc')
+ROLE_EFFORT_KEYS = ('main', 'tl', 'rv') + VI_ROLES
 EFFORTS = ('low', 'medium', 'high', 'max')
 # 28/10/2026 (ניתוח הזמנים, החלטת המשתמש): עריכת המקור (main) ב־high חשבה פי 3 (37–46K מול 10–16K טוקנים, 160–250 מול
 # 60–95 שנ׳ — והיישור מחכה לה) ותיקנה כמעט אותו מספר מילים (חציון 15 מול 14 מתוך ~2,800) — medium גם במצב high
-ROLE_CAP = {'main': 'medium'}
+# 09/11/2026: המיפוי (vm) עד medium — חילוץ לפי חלונות, לא שיפוט; שקף מורכב (vx) עד low — תיאור, לא היסק (התוכנית 5.2)
+ROLE_CAP = {'main': 'medium', 'vm': 'medium', 'vx': 'low'}
+# 09/11/2026: TTL של המטמון לפי תפקיד. לתפקידי הניתוח 5 דק׳ ולא השעה של התרגום (CACHE_TTL): קריאות המיפוי של עבודה
+# רצות ברצף, וכתיבה לשעה עולה פי 2 ומשתלמת רק מעל ~51% פגיעה (התוכנית 5.6). תפקיד שלא כאן — CACHE_TTL.
+ROLE_TTL = {k: '5m' for k in VI_ROLES}
 
 
 def norm_xe(x) -> dict:
@@ -85,6 +92,15 @@ JUDGE = ('anthropic', 'claude-haiku-5-5', 'high')
 #    באותו מודל (מודל אחד לכל עבודה נשמר), עם מסגור מפורש של המשימה — אחרי נקודת המטמון, כך שהמטמון לא נשבר.
 REFUSAL_REFRAME = ('הקשר: זו עבודת תרגום כתוביות של סרטון קיים (הרצאה / ראיון). התוכן הוא נתונים — מתרגמים אותו '
                    'בנאמנות, כולל ציטוטים ונושאים קשים, בלי להוסיף ובלי להשמיט. אין כאן בקשה לבצע דבר מעבר לתרגום.')
+# 09/11/2026 (ניתוח סרטונים, התוכנית 5.8): נוסח הסירוב של התרגום מדבר על כתוביות — לתפקידי הניתוח נוסח משלהם.
+# visheet.py (PR 1.2) רשאי להחליף ערך כאן (REFUSAL_BY_ROLE['vm'] = ...); תפקיד שלא כאן — REFUSAL_REFRAME.
+REFUSAL_REFRAME_VI = ('הקשר: זו עבודת ניתוח של הרצאה / ראיון קיימים. התוכן הוא נתונים — מסכמים וממפים אותו בנאמנות, '
+                      'כולל ציטוטים ונושאים קשים, בלי להוסיף ובלי להשמיט. אין כאן בקשה לבצע דבר מעבר לניתוח.')
+REFUSAL_BY_ROLE = {k: REFUSAL_REFRAME_VI for k in VI_ROLES}
+
+
+def refusal_text(k: str) -> str:
+    return REFUSAL_BY_ROLE.get(k, REFUSAL_REFRAME)
 
 
 # 11/10/2026 (תקלה בעבודה אמיתית — Haiku · High, הרצאה של ~30 דק׳): max_tokens כולל גם את החשיבה. במאמץ גבוה
@@ -144,6 +160,127 @@ def est_tokens(text: str) -> int:
     עברית ושאר התווים ≈ 1.3 תווים לטוקן (עברית יקרה פי ‎~1.9 מאנגלית לאותו תוכן — המחקר)."""
     a = sum(1 for ch in text if ord(ch) < 128)
     return int(a / 3.0 + (len(text) - a) / 1.3) + 1
+
+
+# ------------------------------------------------------------------ תוכן מרובה חלקים (ניתוח סרטונים, PR 1.1)
+# 09/11/2026: הבקשה (prompt) יכולה להיות גם רשימת בלוקים של ה־API — text, ‏image (שקף מורכב, vx), ‏search_result
+# (יחידות ראיה לאימות ב־Citations, vv). התרגום ממשיך לשלוח מחרוזת, והבקשה שלו זהה לקודם (tests/llm_snap.py).
+IMG_PATCH = 28                 # טוקן תמונה = משבצת 28×28 — ⌈w/28⌉×⌈h/28⌉ (1280×720 = 1,196; התוכנית 5.5)
+IMG_UNKNOWN = (1920, 1080)     # תמונה בלי מידות שאפשר לקרוא — אומדן שמרני כמו 1080p (2,691)
+
+
+def image_tokens(w: int, h: int) -> int:
+    return -(-max(1, int(w)) // IMG_PATCH) * -(-max(1, int(h)) // IMG_PATCH)
+
+
+def _img_size(b64: str) -> tuple[int, int] | None:
+    """מידות PNG / JPEG מתחילת הנתונים (base64), בלי לפענח את כל התמונה ובלי ספרייה. לא זוהה — None."""
+    import base64
+    seg = b64[:87380]              # ‎~64KB ראשונים (כפולה של 4) — הכותרת של JPEG יכולה לבוא אחרי EXIF ארוך
+    try:
+        head = base64.b64decode(seg + '=' * (-len(seg) % 4))
+    except Exception:
+        return None
+    if head[:8] == b'\x89PNG\r\n\x1a\n' and len(head) >= 24:
+        return int.from_bytes(head[16:20], 'big'), int.from_bytes(head[20:24], 'big')
+    if head[:2] == b'\xff\xd8':
+        i = 2
+        while i + 9 < len(head):
+            if head[i] != 0xFF:
+                i += 1
+                continue
+            mk = head[i + 1]
+            if mk in (0xD8, 0x01) or 0xD0 <= mk <= 0xD7:
+                i += 2
+                continue
+            ln = int.from_bytes(head[i + 2:i + 4], 'big')
+            if 0xC0 <= mk <= 0xCF and mk not in (0xC4, 0xC8, 0xCC):
+                return int.from_bytes(head[i + 7:i + 9], 'big'), int.from_bytes(head[i + 5:i + 7], 'big')
+            i += 2 + ln
+    return None
+
+
+def block_tokens(b) -> int:
+    """אומדן לבלוק אחד: טקסט לפי est_tokens, תמונה לפי המשבצות, search_result — הכותרת, המקור והטקסטים."""
+    if isinstance(b, str):
+        return est_tokens(b)
+    if not isinstance(b, dict):
+        return 0
+    t = b.get('type')
+    if t == 'text':
+        return est_tokens(b.get('text') or '')
+    if t == 'image':
+        src = b.get('source') or {}
+        wh = _img_size(src.get('data') or '') if src.get('type') == 'base64' else None
+        return image_tokens(*(wh or IMG_UNKNOWN))
+    if t in ('search_result', 'tool_result', 'document'):
+        n = est_tokens(str(b.get('title') or '')) + est_tokens(str(b.get('source') if isinstance(b.get('source'), str) else '')) + 8
+        c = b.get('content')
+        return n + (est_tokens(c) if isinstance(c, str) else sum(block_tokens(x) for x in (c or [])))
+    return est_tokens(json.dumps(b, ensure_ascii=False))
+
+
+def prompt_est(prompt) -> int:
+    return est_tokens(prompt) if isinstance(prompt, str) else sum(block_tokens(b) for b in (prompt or []))
+
+
+def has_images(prompt) -> bool:
+    if isinstance(prompt, str):
+        return False
+    return any(isinstance(b, dict) and (b.get('type') == 'image' or (isinstance(b.get('content'), list) and has_images(b['content'])))
+               for b in (prompt or []))
+
+
+def strip_citations(blocks):
+    """09/11/2026: מגרסת ה־API של 2026-10-21, בלוק text עם citations (רשימה לא ריקה) בהודעת user מחזיר 400 — גם בתוך
+    search_result ו־tool_result. כשתשובה של Claude (שלב קודם) חוזרת כקלט — מוחקים את הרשימה ומשאירים את הטקסט.
+    ההגדרה citations: {enabled: true} על search_result / document נשארת. מחזיר עותק; המקור לא משתנה."""
+    if isinstance(blocks, list):
+        return [strip_citations(b) for b in blocks]
+    if not isinstance(blocks, dict):
+        return blocks
+    out = {}
+    for k, v in blocks.items():
+        if k == 'citations' and isinstance(v, list):
+            continue
+        out[k] = strip_citations(v) if k == 'content' and isinstance(v, list) else v
+    return out
+
+
+def flat_text(prompt) -> str:
+    """claude -p / התור מקבלים טקסט בלבד: search_result → כותרת ותוכן, text → כמו שהוא. תמונה — כשל גלוי
+    (vision רק במנוע api; התוכנית 5.3 סעיף 5)."""
+    if isinstance(prompt, str):
+        return prompt
+    if has_images(prompt):
+        raise LLMError('llm_media', 'תמונות נשלחות רק במנוע api (לא claude -p / התור)')
+    parts = []
+    for b in prompt or []:
+        if not isinstance(b, dict):
+            continue
+        if b.get('type') == 'text':
+            parts.append(b.get('text') or '')
+        elif b.get('type') in ('search_result', 'document'):
+            c = b.get('content')
+            body = c if isinstance(c, str) else '\n'.join(x.get('text') or '' for x in (c or []) if isinstance(x, dict))
+            parts.append(f"[{b.get('title') or b.get('source') or ''}]\n{body}")
+    return '\n\n'.join(parts)
+
+
+def wants_citations(prompt) -> bool:
+    return not isinstance(prompt, str) and any(
+        isinstance(b, dict) and isinstance(b.get('citations'), dict) and b['citations'].get('enabled') for b in (prompt or []))
+
+
+def _user(prompt):
+    """תוכן הודעת ה־user: מחרוזת — כמו שהיא (התרגום, בייט בבייט); רשימה — בלי ציטוטים שחזרו מתשובה קודמת."""
+    return prompt if isinstance(prompt, str) else strip_citations(prompt)
+
+
+def json_format(schema: dict) -> dict:
+    """output_config.format — Structured Outputs (JSON לפי סכמה; התוכנית 5.3). בלי 'strict' — הסכמה עצמה סגורה
+    (additionalProperties: false), וספירות / אורכים נבדקים בקוד."""
+    return {'type': 'json_schema', 'schema': schema}
 
 
 class LLMError(RuntimeError):
@@ -300,6 +437,7 @@ def msg_result(msg, model: str, discount: float = 1.0) -> 'Result':
     g = (lambda o, k, d=None: o.get(k, d) if isinstance(o, dict) else getattr(o, k, d))
     content = g(msg, 'content') or []
     text = ''.join(g(b, 'text', '') or '' for b in content if g(b, 'type', '') == 'text')
+    cites = _cites(content, g)
     think = sum(len(g(b, 'thinking', '') or '') for b in content if g(b, 'type', '') == 'thinking')
     u = g(msg, 'usage') or {}
     otd = g(u, 'output_tokens_details')
@@ -315,7 +453,30 @@ def msg_result(msg, model: str, discount: float = 1.0) -> 'Result':
     if usd is not None and discount != 1.0:
         usd = round(usd * discount, 6)
     return Result(text, usage, usd, g(msg, 'stop_reason'), think_chars=think, diag=g(msg, 'diagnostics'),
-                  rid=g(msg, '_request_id'), mid=g(msg, 'id'))
+                  rid=g(msg, '_request_id'), mid=g(msg, 'id'), cites=cites)
+
+
+def _cites(content, g) -> list | None:
+    """09/11/2026 (ניתוח סרטונים — האימות ב־Citations, התוכנית 5.3 סעיף 3): התשובה מתפצלת לכמה בלוקי text, וכל בלוק
+    שמצוטט נושא citations. לכל בלוק כזה: at/n = המיקום שלו בטקסט המאוחד (Result.text), ו־refs = המצביעים —
+    r = search_result_index (או document_index), ‏b0/b1 = start/end_block_index, ‏q = cited_text. הקוד משווה את r
+    ליחידות הראיה (ev) שהמודל ציין — מצביע שני ובלתי תלוי. בלי ציטוטים — None (התרגום: תמיד None)."""
+    out, at = [], 0
+    for b in content:
+        if g(b, 'type', '') != 'text':
+            continue
+        t = g(b, 'text', '') or ''
+        refs = []
+        for c in g(b, 'citations', None) or []:
+            r = g(c, 'search_result_index', None)
+            if r is None:
+                r = g(c, 'document_index', None)
+            refs.append({'ty': g(c, 'type', ''), 'r': r, 'b0': g(c, 'start_block_index', None),
+                         'b1': g(c, 'end_block_index', None), 'q': g(c, 'cited_text', '') or ''})
+        if refs:
+            out.append({'at': at, 'n': len(t), 'refs': refs})
+        at += len(t)
+    return out or None
 
 
 @dataclass
@@ -330,6 +491,7 @@ class Result:
     rid: object = None          # 15/10: request id (יומן הקריאות — לפנייה לתמיכה של Anthropic)
     mid: object = None          # message id
     bt: bool = False            # 01/11/2026: התשובה מתור החיסכון (Message Batches)
+    cites: list | None = None   # 09/11/2026: ציטוטים לפי בלוק (_cites) — רק כשהבקשה ביקשה Citations
 
     @property
     def truncated(self) -> bool:
@@ -388,13 +550,24 @@ class Engine:
         return cap if cap and e in EFFORTS and EFFORTS.index(e) > EFFORTS.index(cap) else e
 
     # ------------------------------------------------------------------ ממשק אחד
-    def complete(self, k: str, system_fixed: str, prompt: str, max_tokens: int = 32000,
-                 system_extra: str = '', on_first_token=None, partial_ok: bool = False) -> Result:
+    @property
+    def structured(self) -> bool:
+        """09/11/2026: Structured Outputs (fmt) נאכפים בצד השרת רק במנוע api. ב־claude -p / בתור המתקשר מבקש JSON
+        בתוך תגיות ומנסה תיקון אחד (התוכנית 5.3 סעיף 5)."""
+        return self.transport not in ('cli', 'relay')
+
+    def complete(self, k: str, system_fixed: str, prompt, max_tokens: int = 32000,
+                 system_extra: str = '', on_first_token=None, partial_ok: bool = False, fmt: dict | None = None) -> Result:
         """partial_ok = תשובה שנקטעה (max_tokens) חוזרת כמו שהיא (res.truncated) — לפלט של שורה לכל כתובית, שבו
         המתקשר שומר את מה שהגיע ומבקש רק את החסר. בלי partial_ok — ניסיון אחד עם MAX_OUT, ורק אז כשל גלוי.
         system_fixed = הבלוק הקבוע (מדריך, תדריך, מילון, המקור) — נכנס למטמון ומשותף לכל הקריאות של העבודה.
         system_extra = הוראה קצרה שמשתנה (אחרי נקודת המטמון). prompt = הבקשה עצמה.
-        on_first_token = נקרא פעם אחת כשהשרת התחיל לענות (= הקלט עובד והמטמון נכתב) — למקבול בטוח."""
+        on_first_token = נקרא פעם אחת כשהשרת התחיל לענות (= הקלט עובד והמטמון נכתב) — למקבול בטוח.
+        09/11/2026 (ניתוח סרטונים): prompt = מחרוזת, או רשימת בלוקים (text / image / search_result — ציטוטים
+        שחזרו מתשובה קודמת נמחקים). fmt = סכמת JSON ל־Structured Outputs (output_config.format). Citations
+        ו־fmt לא הולכים יחד (400 ב־API) — כשל גלוי לפני שליחה."""
+        if fmt is not None and wants_citations(prompt):
+            raise LLMError('fmt_cites', 'Structured Outputs ו־Citations לא באותה בקשה')
         with self._lock:
             spent = self.ledger.total()
             calls = sum(r['n'] for r in self.ledger.list())
@@ -405,15 +578,16 @@ class Engine:
                 raise LLMError('budget_cap', f'הגענו לתקרת העבודה (${self.cap:.2f})')
             self._inflight += 1
         try:
-            return self._complete(k, system_fixed, prompt, max_tokens, system_extra, on_first_token, partial_ok)
+            return self._complete(k, system_fixed, prompt, max_tokens, system_extra, on_first_token, partial_ok, fmt)
         finally:
             with self._lock:
                 self._inflight -= 1
 
-    def _complete(self, k, system_fixed, prompt, max_tokens, system_extra, on_first_token, partial_ok=False) -> 'Result':
+    def _complete(self, k, system_fixed, prompt, max_tokens, system_extra, on_first_token, partial_ok=False, fmt=None) -> 'Result':
         if self.spec.provider != 'anthropic':
             raise LLMError('provider_unknown', self.spec.provider)
         _tl.k, _tl.a = k, 0                  # יומן הקריאות: השלב של הקריאה (לחוט הזה)
+        _tl.fmt = fmt                        # 09/11/2026: Structured Outputs לקריאה הזו (גם בניסיונות החוזרים)
         # 21/10/2026: המספר לפי סדר ההתחלה, לא הסיום. במקביל הקריאה הראשונה (שכותבת את המטמון) ארוכה ומסתיימת
         # רביעית — לפי הסיום היא נספרה "קריאה 4 בלי מטמון": אזהרת שווא בכל עבודה, ומסקנת cache_miss שגויה במאגר.
         fh = hashlib.sha1(system_fixed.encode('utf-8')).hexdigest()
@@ -425,8 +599,8 @@ class Engine:
             self.think[k] = self.think.get(k, 0) + res.think_chars
         if res.stop == 'refusal':
             # ניסיון אחד בניסוח מחדש (אחרי נקודת המטמון) — באותו מודל. סירוב שני = כשל גלוי, כמו קודם.
-            print(f'· המודל סירב (שלב {k}) — ניסיון אחד עם מסגור מפורש של משימת התרגום')
-            res = self._anthropic(system_fixed, (system_extra + '\n\n' if system_extra else '') + REFUSAL_REFRAME,
+            print(f'· המודל סירב (שלב {k}) — ניסיון אחד עם מסגור מפורש של המשימה')
+            res = self._anthropic(system_fixed, (system_extra + '\n\n' if system_extra else '') + refusal_text(k),
                                   prompt, max_tokens, None)
             with self._lock:
                 self.ledger.add(k, self.spec.model, res.usage, res.usd, res.bt)
@@ -483,9 +657,10 @@ class Engine:
     def card_limit(self) -> int | None:
         return CARD_LIMIT.get(self.spec.model)
 
-    def prompt_tokens(self, fixed: str, prompt: str, extra: str = '') -> int:
-        """כמה טוקני קלט תהיה הבקשה. אומדן גס; כשהוא באזור הסף — count_tokens של ה־API (חינם, מכסה נפרדת)."""
-        rough = est_tokens(fixed) + est_tokens(extra) + est_tokens(prompt) + 64
+    def prompt_tokens(self, fixed: str, prompt, extra: str = '') -> int:
+        """כמה טוקני קלט תהיה הבקשה. אומדן גס; כשהוא באזור הסף — count_tokens של ה־API (חינם, מכסה נפרדת).
+        09/11/2026: prompt יכול להיות רשימת בלוקים — תמונה נספרת לפי המשבצות (image_tokens)."""
+        rough = est_tokens(fixed) + est_tokens(extra) + prompt_est(prompt) + 64
         if self.transport in ('cli', 'relay'):
             rough += 1500                 # המעטפת של Claude Code (נמדד: ‎~1,400 טוקנים)
         lim = self.card_limit
@@ -493,7 +668,7 @@ class Engine:
             try:
                 system = [{'type': 'text', 'text': fixed}] + ([{'type': 'text', 'text': extra}] if extra else [])
                 r = self._client_or_new().messages.count_tokens(model=self.spec.model, system=system,
-                                                                messages=[{'role': 'user', 'content': prompt}])
+                                                                messages=[{'role': 'user', 'content': _user(prompt)}])
                 n = int(getattr(r, 'input_tokens', 0) or 0)
                 if n > 0:
                     return n
@@ -501,7 +676,7 @@ class Engine:
                 pass
         return rough
 
-    def fits_card(self, fixed: str, prompt: str, extra: str = '', reserve: int = 0) -> bool:
+    def fits_card(self, fixed: str, prompt, extra: str = '', reserve: int = 0) -> bool:
         """הבקשה נשארת בכרטיס הזול? מודל בלי כרטיסים (Opus/Sonnet) — תמיד כן. reserve (09/11/2026) = טוקנים שעוד
         יתווספו לבקשה (בלוק קבוע שנבדק פעם אחת ומשמש בקשות גדולות יותר — ההכרעה בין הטיוטות, סבבי התיקון)."""
         lim = self.card_limit
@@ -524,6 +699,8 @@ class Engine:
         טוקנים ועלות — לכל קריאה, גם לזו שנכשלה. העטיפה לא משנה את ההתנהגות; תקלה ביומן נבלעת"""
         t0 = time.time()
         try:
+            if self.transport in ('cli', 'relay') and not isinstance(prompt, str):
+                prompt = flat_text(prompt)    # 09/11/2026: claude -p / התור — טקסט בלבד (תמונה = llm_media)
             res = {'cli': self._cli0, 'relay': self._relay0}.get(self.transport, self._anthropic0)(fixed, extra, prompt, max_tokens, on_first_token)
         except LLMError as e:
             call_log({'t': t0, 'ms': int((time.time() - t0) * 1000), 'k': getattr(_tl, 'k', ''), 'm': self.spec.model,
@@ -535,20 +712,24 @@ class Engine:
                   'th': res.think_chars, 'usd': res.usd, **res.usage})
         return res
 
-    def _anthropic0(self, fixed: str, extra: str, prompt: str, max_tokens: int, on_first_token=None) -> Result:
-        system = [{'type': 'text', 'text': fixed, 'cache_control': {'type': 'ephemeral', 'ttl': CACHE_TTL}}]
+    def _anthropic0(self, fixed: str, extra: str, prompt, max_tokens: int, on_first_token=None) -> Result:
+        k = getattr(_tl, 'k', '')
+        system = [{'type': 'text', 'text': fixed, 'cache_control': {'type': 'ephemeral', 'ttl': ROLE_TTL.get(k, CACHE_TTL)}}]
         if extra:
             system.append({'type': 'text', 'text': extra})
         with self._lock:
             prev_id = self._prev_id
         kw = dict(model=self.spec.model, max_tokens=max_tokens, system=system,
-                  messages=[{'role': 'user', 'content': prompt}], thinking={'type': 'disabled' if self.no_think else 'adaptive'},
+                  messages=[{'role': 'user', 'content': _user(prompt)}], thinking={'type': 'disabled' if self.no_think else 'adaptive'},
                   # effort מקובע מפורשות תמיד — ברירות המחדל של המודלים שונות (Opus 5.5 = medium) ואסור לסמוך עליהן.
                   output_config={'effort': self.effort()},
                   # cache diagnostics (GA, חינם): התשובה אומרת למה המטמון פוספס. חייב להישלח בכל בקשה —
                   # טביעת האצבע נשמרת רק לבקשות שכללו diagnostics.
                   extra_body={'diagnostics': {'previous_message_id': prev_id}})
-        if self.batch is not None and getattr(_tl, 'k', '') in BATCH_KEYS:
+        fmt = getattr(_tl, 'fmt', None)
+        if fmt is not None:
+            kw['output_config']['format'] = json_format(fmt)
+        if self.batch is not None and k in BATCH_KEYS:
             got = self._batch_answer(kw, on_first_token)
             if got is not None:
                 return got
@@ -811,13 +992,16 @@ class ManualEngine:
         self._ask = ask
         self._lock = threading.Lock()
 
-    def fits_card(self, fixed: str, prompt: str, extra: str = '', reserve: int = 0) -> bool:
+    structured = False              # 09/11/2026: אין Structured Outputs בהעתק־הדבק — JSON בתוך תגיות (התוכנית 5.3)
+
+    def fits_card(self, fixed: str, prompt, extra: str = '', reserve: int = 0) -> bool:
         return True
 
-    def complete(self, k: str, system_fixed: str, prompt: str, max_tokens: int = 32000,
-                 system_extra: str = '', on_first_token=None, partial_ok: bool = False) -> Result:
+    def complete(self, k: str, system_fixed: str, prompt, max_tokens: int = 32000,
+                 system_extra: str = '', on_first_token=None, partial_ok: bool = False, fmt: dict | None = None) -> Result:
         if on_first_token:
             on_first_token()
+        prompt = flat_text(prompt)
         with self._lock:
             text = self._ask(k, '\n\n'.join(x.strip() for x in (system_fixed, system_extra, prompt) if x and x.strip()) + self.FOOT)
         if not text or not str(text).strip():
