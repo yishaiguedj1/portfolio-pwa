@@ -318,3 +318,171 @@
 - Readray: תקציר חיפוש הציג מחירי ווב של $7.99–19.99 לחודש ו־$69.99 לשנה, בסתירה לרשימת הרכישות ב־App Store. לא אומת.
 - Eightify: מימון, מספר עובדים, והתנהגות בסרטון בלי כתוביות — לא נמצאו. ‏BibiGPT: ביקורות עצמאיות ומכסת חינם — לא נמצאו. ‏Kagi Summarizer דורש התחברות ולכן הושמט.
 - **איכות בעברית לא נבדקה באף מוצר.** "עברית ברשימת השפות" ב־CWS מעידה רק על לוקליזציה של הממשק.
+
+---
+
+## שאלה 2: מטריצת השוואה — מי עושה מה (נכון ל־9/11/2026)
+
+### Takeaway
+רק ארבעה מוצרים מפיקים ראיות חזותיות מהסרטון: BibiGPT, ‏Readray, ‏HoverNotes, ו־ScreenApp באופן חלקי (בצ'אט ובכלי OCR נפרד). כמעט כולם מציעים חותמות זמן לחיצות, אבל ברמת מקטע, שורה או סצנה. עברית מופיעה כשפת ממשק בשבעה תוספים, אבל כפלט היא מוצהרת רק אצל Notta, ‏Video Highlight (ברמת הדיוק הנמוכה) ו־Ask של YouTube. מחירי הכניסה נעים סביב $8–20 לחודש, ובכמה מהמוצרים יש פער חד בין הדירוג בחנות לבין Trustpilot.
+
+### Cited Findings
+**מקרא:** כן / לא / חלקי · "?" = לא נמצא מקור · "—" = לא רלוונטי. כל תא נשען על כרטיס המוצר בשאלה 1 ועל המקורות שמצוטטים שם, והעמודה "מקור" בטבלה ב' מפנה לעמוד הראשי. המטריצה מחולקת לשתי טבלאות של 13 ו־11 עמודות (24 בסך הכל) כדי שתהיה קריאה.
+
+#### טבלה א' — יכולות ניתוח ועיגון
+
+| מוצר | קלט מעבר לסרטון בודד | בלי כתוביות | ראייה / OCR | צילומים בפלט | זמנים לחיצים | רמת העיגון המתועדת | צ'אט על הסרטון | ספרייה / בין סרטונים | מפה / מצגת | כרטיסיות / חידון | ייצוא | אינטגרציות / API | ייחודי |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Eightify | לא (YouTube בלבד) | ? | לא | לא | כן | רעיון ← זמן | לא | לא | לא | לא | העתקה, שיתוף | לא | מיקוד "controversial", סקירת תגובות |
+| Glasp | מאמרים, PDF, ערוצים, אודיו | לא (תלוי בכתוביות) | לא | לא | כן (סיכום, תמליל, צ'אט) | מקטע כתובית | כן | חלקי (ספריית הדגשות) | לא | ייצוא ל־Anki | MD, ‏HTML, ‏CSV, ‏JSON | Notion, ‏Obsidian, ‏Roam, ‏Zotero, ‏Tana, ‏Zapier, ‏MCP | תמליל בסרגל משלו |
+| Summarize.tech | לא | ? | לא | לא | כן | מקטע | לא | לא | לא | לא | ? | לא | מושבת |
+| NoteGPT | פלייליסטים, אצווה של 20, ‏Vimeo, ‏Udemy, ‏Coursera, קבצים | כן (120–210 דק׳) | לא | ידני | כן | מקטע | כן | ? | כן | כן | TXT, ‏SRT | Notion, ‏Docs, ‏Slack | סיכום ערוצים |
+| HARPA | כל דף | לא | לא | לא | כן | ? | כן | ? | לא | לא | ? | API, אוטומציות, BYOK | פרומפטים בלי זיכרון בין חלקים |
+| Merlin | כל דף | ? | לא | לא | כן (תקציר חיפוש) | ? | כן | ? | לא | לא | ? | ? | כתוביות דו־לשוניות |
+| Monica | YouTube בעיקר | כן | לא | לא | כן | ? | כן | ? | מפה עם כל סיכום | שאלות תרגול | ? | ? | מפה וחידון כברירת מחדל |
+| Sider | כל דף | כן (מ־12/2024; ה־FAQ סותר) | לא | לא | בתמליל | ? | כן | ? | ? | ? | הורדת תמליל | BYOK | Video Shortener |
+| Glarity | Google, ‏X, כל דף | לא | לא | לא | כן (הדגשים) | מקטע | כן | ? | לא | FAQ | ? | ChatGPT/Claude web, מפתח OpenAI | קוד פתוח (GPL‑3.0) |
+| BibiGPT | 20+ פלטפורמות, קבצים | כן (תמלול + OCR לכתוביות צרובות) | **כן** (שקופיות, OCR, ‏VLM; ‏Beta/Pro) | כן | כן | סצנה (התחלה–סוף) | כן | ? | כן (מפות, ‏PPTX) | ? | SRT, ‏VTT, ‏MD, ‏PDF, ‏PPTX | Notion, ‏Obsidian, ‏MCP, ‏OpenAPI | שקופיות ל־PPTX ניתן לעריכה |
+| Readray | מאמרים, PDF, פלייליסט עד 10 | ? | **כן** (פריימים, שקופיות, גרפים) | כן (playbook) | כן | שורה עם ציטוט; בצ'אט מספר משפט | כן | כן (תיקייה) | ? | ? | ? | MCP | דוחות לפי סוג + ציון ביטחון |
+| HoverNotes | כל נגן, LMS, קבצים | כן | **כן** (קוד, דיאגרמות, UI) | כן (ידני + AI ב־Pro) | כן | רגע ההערה | כן (Hovie, בתשלום) | ? | ? | ? | PDF, ‏Word, ‏MD | Obsidian | צילום ברגע ההערה, LMS |
+| Recall | מאמרים, פודקאסטים, PDF | כן (עד 5 שעות) | לא (OCR לתמונות בלבד) | לא | כן (כל שורה) | שורה | כן (מעוגן לסרטון) | כן (ספרייה, גרף ידע) | גרף ידע | כן + חזרה מרווחת | MD | API, ‏MCP | augmented browsing |
+| Video Highlight | פלייליסטים, ערוצים, ‏Vimeo, ‏Dailymotion, ‏Drive, העלאות | כן | חלקי (צילומי רגעים, מנגנון לא מוסבר) | כן | כן | מקטע תמליל (מוצהר) | כן, עם זמנים | כן | ? | ? | PDF, ‏DOCX, ‏MD, ‏CSV, ‏SRT, ‏VTT | Notion, ‏Readwise, ‏API, ‏MCP | דיוק מפורסם לכל שפה |
+| WayinVideo | ? | ? | לא מתועד | ? | ? | ? | כן | ? | מפה | ? | ? | API, ‏Agent Skills, ‏Obsidian | Find Moments |
+| Summify | ? | ? | לא נמצא | ? | כן (תובנות לחיצות) | ? | כן, עם ציטוטים | כן (pods) | ? | ? | ? | MCP | 11 סגנונות, Deep Dive |
+| Mapify | ? | ? | לא נמצא | ? | כן (מהמפה) | צומת במפה | ? | ? | כן (מפה + Slides) | ? | תמונה, PDF, ‏MD | ? | ניווט בסרטון מתוך המפה |
+| Tactiq (YouTube) | לא | ? | לא | לא | ? | ? | לא | לא | לא | לא | תמליל | — | מחולל תמליל בלבד |
+| Mindgrasp | Vimeo, ‏MP4/MP3, הקלטה חיה, ‏Canvas, ‏Blackboard | ? | לא נמצא | ? | ? | ? | כן (מורה AI) | ? | ? | כן | ? | Canvas, ‏Blackboard | LMS |
+| ScreenApp | הקלטות והעלאות | כן | חלקי (פריימים רק בצ'אט; OCR בכלי נפרד) | ? | כן (פרקים) | פרק; OCR עם זמנים | כן | ? | ? | ? | PDF, ‏DOCX, ‏SRT, ‏VTT (בתשלום) | ? | Video OCR |
+| Notta | ? | ? | לא נמצא | ? | "timestamp breakdowns" (תוסף) | ? | ? | ? | ? | ? | ? | ? | עברית ברשימת שפות הפלט |
+| Ask בדף הצפייה (YouTube) | — | — | לא מתועד | לא | ? | ? | כן | לא | לא | לא | אין | לא | מובנה בנגן, חינם |
+| Ask YouTube (חיפוש) | כל הקטלוג | — | ? | לא | ריחוף מהרגע הרלוונטי | ? | כן | כן (חיפוש) | לא | לא | אין | לא | חיפוש שיחתי |
+| Summd | ? | ? | **כן** ("frame analysis") | ? | כן | ? | כן | ? | ? | ? | ? | ? | שאלות על מה שמוצג במסך |
+| Summario | ? | כן (תמלול) | לא נמצא | ? | כן (מקטעים) | מקטע | כן | ? | ? | ? | Notion, ‏Obsidian, ‏PDF, ‏MD (Pro) | ? | "שווה לצפות?", סנטימנט תגובות |
+| steipete/summarize (קוד פתוח) | דפים, קבצים, פודקאסטים | כן (תמלול מקומי או בענן) | **כן** (פריימים לפי סצנה + OCR) | פריימים | פלט עם זמנים | ? | — | — | — | — | ? | yt-dlp, ספקי מודלים | CLI ותוסף |
+
+#### טבלה ב' — שפה, פלטפורמה ומסחר
+
+| מוצר | פלטפורמות | ממשק בעברית (CWS) | עברית בפלט — ראיה | אורך מרבי מוצהר | חינם | כניסה בתשלום (נבדק) | חינוך | CWS: משתמשים / ציון | Trustpilot | עדכון אחרון ידוע | מקור |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Eightify | Chrome, ‏Safari, ‏iOS, ‏Android | כן | ? ("40+ languages") | 10 שעות (ב־Safari ‏4–6) | ניסיון של 7 ימים | iOS ‏$9.99/ח׳; Safari ‏$4.99/ח׳ | ? | 200K / 4.0 | אין עמוד | 14/11/2025 | [CWS](https://chromewebstore.google.com/detail/eightify-ai-youtube-summa/cdcpabkolgalpgeingbdcebojebfelgb) |
+| Glasp | Chrome, ‏Edge, ‏Firefox, ‏Safari, ‏iOS, ‏Android | לא (אנגלית) | שפת סיכום לבחירה; לא נבדק | ? | 3 ביום + 3 מתקדמים ל־7 ימים | ‏$15/ח׳ ($150/ש׳) | חינם לסטודנטים + 40% | 2M / 4.2 | 3.0 (2) | 17/10/2026 | [Pricing](https://glasp.co/pricing) |
+| Summarize.tech | ווב | — | ? | שעתיים (לפי מתחרה) | ? | ? | ? | — | ? | מושבת (503 ב־6/8 וב־9/11/2026) | [Scrimba](https://scrimba.com/articles/best-ai-video-summarizers-2026/) |
+| NoteGPT | ווב, ‏Chrome/Edge, מובייל | כן | ? | סותר ("No limits" מול 150 דק׳ בלי כתוביות) | 15 בחודש (תוסף) | ‏$9.99/ח׳ ($9 בשנתי) | לשונית Education | 400K / 5.0 | 1.8 (35) | 25/8/2026 | [Pricing](https://notegpt.io/pricing) |
+| HARPA | תוסף | לא | ? | חלוקה ל־chunks | 10 הודעות ביום | ‏€14.3/ח׳ (שנתי) | "We do not offer discounts" | 400K / 4.5 | 0 ביקורות | 7/11/2026 | [Pricing](https://harpa.ai/pricing) |
+| Merlin | תוסף, אפליקציה | כן | ? | ? | מוגבל | לא נמצא (403) | ? | ~900K / 4.4 | 3.7 (131) | 3/11/2026 (פיצ'ר YouTube נשבר לפי ביקורות) | [CWS](https://chromewebstore.google.com/detail/merlin-ask-ai-to-research/camppjleccjaphfdbohjdohecfnoikec) |
+| Monica | תוסף, ווב, ‏iOS, ‏Android, ‏Windows, ‏Mac | כן | ? ("over 20 major languages") | ? | ? | לא נמצא | ? | 3M / 4.8 | 1.5 (36) | 2/11/2026 | [מוצר](https://monica.im/en/products/ai-video-summarizer) |
+| Sider | תוסף, ווב, דסקטופ | כן | ? | ? | 60 קרדיטים ביום (ביקורת) | לא נמצא ($195/ש׳ לפי ביקורת) | ? | 5M / 4.9 | 2.3 (16) | 6/11/2026 | [CWS](https://chromewebstore.google.com/detail/difoiogjjojoaoomphldepapgpbgkhkb) |
+| Glarity | Chrome, ‏Edge, ‏Safari, ‏Firefox, ‏Opera | כן | ? | ? | חינם דרך ChatGPT web | לפי טוקנים | ? | 100K / 3.7 | ? | 12/7/2026 | [CWS](https://chromewebstore.google.com/detail/glarity-chatgpt-summary-t/cmnlolelipjlhfkhpohphpedmkfbobjc) |
+| BibiGPT | ווב, תוסף, דסקטופ, ‏iOS, ‏Android | ? | לא ב־OCR (6 שפות) | 4h+ (היצרן) | ? | Plus ‏$19.8/ח׳; Lifetime ‏$888 | ? | לא נבדק | ? | 7/4/2026 (4.318.0) | [Home](https://www.bibigpt.co/en) |
+| Readray | תוסף, דסקטופ, מובייל | ? | לא נמצא | 3 שעות בחינם (בלוג היצרן) | "Unlimited" עד 3 שעות | Starter ‏$10.49/ח׳ (App Store) | ? | ? | ? | 29/10/2026 | [App Store](https://apps.apple.com/us/app/readray-formerly-lilysai/id6759151868) |
+| HoverNotes | Chrome | כן | ? (24 שפות ב־Pro) | ? | 20 דקות AI | ‏$18/ח׳ ($10 בשנתי) | ? | 30K / 4.6 | ? | 4–5/11/2026 | [Pricing](https://hovernotes.io/pricing) |
+| Recall | 4 דפדפנים, ‏iOS, ‏Android | לא (אנגלית) | 62 שפות; עברית לא אומתה | 10 שעות / 5 שעות בלי כתוביות | 10 סיכומים | Plus ‏$10/ח׳ (שנתי) | 20% | 90K / 4.5 | ? | 1/11/2026 | [Pricing](https://www.recall.it/pricing) |
+| Video Highlight | ווב | ? | "Good accuracy" (הרמה השלישית) | קבצים עד 1GB | 7.5 שעות | ~$8/ח׳ (שנתי) | ? | — | אין עמוד | 12/7/2026 | [vs Eightify](https://videohighlight.com/vs/eightify) |
+| WayinVideo | ווב, תוסף | ? | 100+ שפות; לא אומת | ? | 100 קרדיטים (סותר) | לא נחשף | ? | ? | ? | ? | [Home](https://wayin.ai/) |
+| Summify | ווב (התוסף "Soon") | — | 130+ שפות; לא אומת | ? | ניסיון של 3 ימים | Starter ‏$8/ח׳ | ? | — | אין עמוד | 21/4/2026 (MCP) | [Pricing](https://summify.io/pricing) |
+| Mapify | ווב, תוסף | לא | ? | ? | 30 קרדיטים חד־פעמיים | Basic ‏$9.99/ח׳ ($5.99 בשנתי) | 30% | 100K / 4.1 | 3.2 (5) | 19/1/2026 | [Pricing](https://mapify.so/pricing) |
+| Tactiq (YouTube) | ווב | — | ? | ? | חינם | — | ? | — | 3.2 (15) | © 2024 | [Tool](https://tactiq.io/tools/youtube-transcript) |
+| Mindgrasp | ? | — | 20+ שפות; לא אומת | ? | ? | לא נמצא | ? | — | 2.2 (136) | ? | [Home](https://www.mindgrasp.ai/) |
+| ScreenApp | ווב | — | 100+ שפות; לא אומת | 45 דק׳ (חינם); 2–3 שעות בתשלום | 2 תמלולים | Pro ‏$30/ח׳ ($19 בשנתי) | ? | — | 1.3 (54) | ? | [Pricing](https://screenapp.io/pricing) |
+| Notta | ווב, תוסף | ? | **כן** (ברשימת שפות הפלט) | ? | סיכום אחד | Pro ‏$8.17/ח׳ (שנתי) | 50% | ? | מוסתר (170 ביקורות, 87% כוכב אחד) | ? | [Tool](https://www.notta.ai/en/tools/youtube-video-summarizer) |
+| Ask בדף הצפייה (YouTube) | Android, ‏iOS, ווב, טלוויזיה | — | **כן** (ברשימת השפות) | סרטונים נבחרים | חינם | — | — | — | — | 2026 | [Help](https://support.google.com/youtube/answer/14110396) |
+| Ask YouTube (חיפוש) | ווב (youtube.com/new) | — | לא (ארה״ב, אנגלית) | — | — | Premium, ‏18+, ארה״ב | — | — | — | 19/5/2026 | [Help](https://support.google.com/youtube/answer/16943763?hl=en) |
+| Summd | Chrome | ? | ? (17 שפות תמליל) | ? | 15 הודעות בחודש | ? | ? | 259 / 4.8 | ? | 3/8/2026 | [CWS](https://chromewebstore.google.com/detail/youtube-ai-chat-summary/cjhickmaokeejgncknjhgiebnloakppe) |
+| Summario | Chrome | ? (5 שפות ממשק) | 70+ שפות; לא אומת | חינם: מתחת ל־30 דק׳ | סיכום מלא אחד + 3 מהירים + הודעת צ'אט אחת ביום | Pro ‏$5.75 או $7.99 | ? | 10K / 4.9 | ? | 30/9/2026 | [CWS](https://chromewebstore.google.com/detail/summario-ai-youtube-summa/omjcmicfodhllalfjnkpcblodloljpmi) |
+| steipete/summarize | CLI ‏(Node.js), ‏Chrome Side Panel, ‏Firefox Sidebar | — | ? | ? | קוד פתוח (MIT) | — | — | — | — | ? | [GitHub](https://github.com/steipete/summarize) |
+
+הערות למטריצה: הנתונים על Summd ו־Summario נלקחו מרישומי CWS שלהם (נבדק 9/11/2026); הנתונים על steipete/summarize — מה־README במאגר.
+
+### Inferences
+- **מה שכבר מובן מאליו (table stakes):** זמנים לחיצים, צ'אט על הסרטון, תמליל לצד הנגן, מפת חשיבה וייצוא בסיסי (MD/PDF/Notion). אלה אינם בידול. בלעדיהם המוצר ייתפס כחסר.
+- **מה שנדיר:** ראייה ששזורה בתוך הסיכום (BibiGPT ו־Readray בלבד, ושניהם בתשלום); עיגון מתחת לרמת מקטע (אין אף מוצר); עברית מאומתת בפלט (אין, חוץ מרשימות שפות); דוחות לפי סוג תוכן (Readray); הערה שמעוגנת לרגע ולצילום (HoverNotes); ‏LMS (HoverNotes, ‏Mindgrasp).
+- **טווח המחירים:** מסלול כניסה של $8–20 לחודש הוא הנורמה. מסלולי "Pro" של $30–60 קיימים רק אצל מי שמציע עיבוד כבד (ScreenApp, ‏Readray Pro). מודלים חלופיים — תשלום חד־פעמי, BYOK ו־Lifetime — קיימים בשוליים.
+
+### Gaps
+- סימני "?" רבים: לרוב המוצרים אין תיעוד ציבורי של רמת העיגון, של הטיפול בסרטון בלי כתוביות, או של שפות הפלט. לא ניתן היה להשלים זאת בלי חשבון ובלי תשלום.
+- אין מדד השוואתי עצמאי לדיוק הסיכומים או של חותמות הזמן. כל ההשוואות שנמצאו נכתבו בידי ספקים, או בדקו רק מחיר ותכונות (Scrimba, ‏Toolworthy).
+
+---
+
+## שאלה 3: מגמות ואותות שוק 2025–2026
+
+### Takeaway
+שש מגמות מעצבות את הקטגוריה ב־2026:
+1. מרוץ לראייה (שקופיות, OCR, מודלי ראייה).
+2. הפיכת הסיכום לחומר גלם לסוכנים, דרך MCP ו־API.
+3. כניסת הפלטפורמה עצמה, עם Ask שתומך בעברית ו־Ask YouTube.
+4. שבירוּת שליפת הכתוביות, שדוחפת לחילוץ עצמאי.
+5. משבר אמון בחיוב — תוכניות "Unlimited" עם תקרות — וניסויים במודלי מחיר חלופיים.
+6. מלחמת SEO: מאמרי השוואה שכותבים הספקים עצמם, ופנייה ישירה לעוזרי AI.
+
+ברקע: החלוצים קופאים או נעלמים (Eightify, ‏Summarize.tech), ויש גל של מיתוגים מחדש.
+
+### Cited Findings
+**1. מרוץ הראייה**
+- BibiGPT הוסיף ב־7/4/2026 שלוש יכולות: OCR לכתוביות צרובות, חילוץ שקופיות וניתוח צילומי מסך במודלי ראייה — [BibiGPT v4.318.0](https://bibigpt.co/blog/posts/20260407-bibigpt-v4318-ppt-ocr-local-privacy-en).
+- Readray מיתג את עצמו מחדש סביב "Sees the scene, captures the frame" (10/2026) — [Readray](https://readray.ai/en); [App Store](https://apps.apple.com/us/app/readray-formerly-lilysai/id6759151868).
+- ‏ScreenApp מציע Video OCR ככלי נפרד — [ScreenApp Video OCR](https://screenapp.io/features/video-ocr).
+- Summd, תוסף קטן, מציע "frame analysis" — [CWS Summd](https://chromewebstore.google.com/detail/youtube-ai-chat-summary/cjhickmaokeejgncknjhgiebnloakppe).
+- Recall: עד 12/9/2026 עשה OCR רק לתמונות, ולא לווידאו — [Recall changelog](https://feedback.recall.it/changelog).
+- גם הקוד הפתוח מצטרף: steipete/summarize מוציא פריימים לפי סצנה עם OCR — [GitHub](https://github.com/steipete/summarize). ל־Fabric יש דגל `--visual` — [GitHub](https://github.com/danielmiessler/Fabric). ‏lecture2notes מסווג שקופיות ברשת CNN, מקבץ אותן, מסיר כפילויות, עושה להן OCR ומשלב את הטקסט עם התמליל — [GitHub](https://github.com/HHousen/lecture2notes).
+- מאמר של ספק (3/1/2026) קבע שאף אחד מחמשת המסכמים המובילים שסקר לא מנתח פריימים — [Memories.ai](https://memories.ai/blogs/best-5-ai-youtube-video-summarizer-tools-in-2026).
+
+**2. ‏MCP ו־API — הסיכום כחומר גלם לסוכנים**
+- Glasp: מחבר MCP וטריגר ב־Zapier (7/2026) — [Glasp newsletter](https://read.glasp.co/p/the-highlights-by-glasp-july-2026).
+- Video Highlight: שרת MCP בבטא (11/7/2026) — [Video Highlight updates](https://videohighlight.com/updates).
+- Summify: ‏MCP (21/4/2026) — [Product Hunt](https://www.producthunt.com/products/summify/launches).
+- Recall: ‏API ו־MCP גם בחינם, וכלי MCP נוספים מ־2/11/2026 — [Recall Pricing](https://www.recall.it/pricing); [Recall changelog](https://feedback.recall.it/changelog).
+- BibiGPT: ‏MCP, ‏OpenAPI ו־skill — [BibiGPT](https://www.bibigpt.co/en).
+- Readray: ‏MCP — [Readray](https://readray.ai/en).
+- WayinVideo: ‏API ו־Agent Skills — [WayinVideo](https://wayin.ai/).
+
+**3. הפלטפורמה נכנסת**
+- Ask בדף הצפייה: עברית ברשימת השפות, בסרטונים נבחרים — [YouTube Help](https://support.google.com/youtube/answer/14110396).
+- Ask YouTube, חיפוש שיחתי: הוכרז ב־19/5/2026, למנויי Premium בארה״ב, "to roll this out broadly ... soon" — [YouTube Blog](https://blog.youtube/news-and-events/youtube-news-google-io-2026/); [YouTube Help](https://support.google.com/youtube/answer/16943763?hl=en).
+- תוספים כבר נשענים על ה־AI המובנה של YouTube. YouTube Quick AI Summary משתמש ב־Gemini המובנה, כשהמשתמש מחובר — [CWS](https://chromewebstore.google.com/detail/gflljmlmelkidjlkclhghngmioppkkcd). תוסף אחר שולח ל־Gemini רק את הכותרת, הערוץ והקישור — [CWS](https://chromewebstore.google.com/detail/youtube-summary-with-gemi/dafkeibjaghajkpkdjmoniifpgmbemcg).
+
+**4. שבירוּת שליפת הכתוביות**
+- ‏youtube-transcript-api: ‏YouTube חוסם כתובות IP של ספקי ענן, וההמלצה היא פרוקסי ביתיים מתחלפים — [GitHub](https://github.com/jdepoix/youtube-transcript-api).
+- yt-dlp: לקוח `web` צריך PO tokens לכתוביות, ובלעדיהם מתקבלות שגיאות 403 וחסימות (המדריך עודכן 12/7/2026) — [yt-dlp PO Token Guide](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide).
+- תלונות משתמשים: Glarity "no transcript available" (2/2026), ‏Merlin "can't get the transcript" (5/2026) — [CWS Glarity](https://chromewebstore.google.com/detail/glarity-chatgpt-summary-t/cmnlolelipjlhfkhpohphpedmkfbobjc/reviews); [CWS Merlin](https://chromewebstore.google.com/detail/merlin-ask-ai-to-research/camppjleccjaphfdbohjdohecfnoikec/reviews).
+- Glasp העביר את התמליל לסרגל משלו כדי לשרוד שינויי עיצוב — [Glasp newsletter](https://read.glasp.co/p/the-highlights-by-glasp-july-2026).
+- HARPA ממליץ לכבות את uBlock כשאין תמליל — [HARPA](https://harpa.ai/).
+
+**5. אמון בחיוב ומודלי מחיר**
+- "Unlimited" עם תקרות: NoteGPT — ‏2,800 קרדיטים — [tl;dv (מקור של מתחרה)](https://tldv.io/blog/notegpt-review/); [Trustpilot NoteGPT](https://www.trustpilot.com/review/notegpt.io). ‏Monica — [Trustpilot Monica](https://www.trustpilot.com/review/monica.im). ‏Sider — "only 1500 credits" — [Trustpilot Sider](https://www.trustpilot.com/review/sider.ai).
+- פער בין החנות ל־Trustpilot: NoteGPT ‏5.0 מול 1.8; ‏Monica ‏4.8 מול 1.5; ‏Sider ‏4.9 מול 2.3 — ראו כרטיסים 4, 7 ו־8. ב־Notta הדירוג מוסתר בגלל ביקורות מזויפות — [Trustpilot Notta](https://www.trustpilot.com/review/notta.ai).
+- מודלים חלופיים:
+  - תשלום חד־פעמי: YTSummarizer — ‏$9 ל־30 סיכומים — [Product Hunt](https://www.producthunt.com/products/ytsummarizer/launches); ‏summarizemyvideo — [CWS](https://chromewebstore.google.com/detail/youtube-summary-transcrip/fedjdpgghmpimikoihnhlofjeomlabeb).
+  - BYOK: ‏HARPA — [HARPA Pricing](https://harpa.ai/pricing); ‏Snippy — [CWS](https://chromewebstore.google.com/detail/snippy-summary-ai-youtube/hcpmildnbjiigmeafaoalidinmjjnjpn).
+  - Lifetime: ‏HARPA ‏€238; ‏BibiGPT ‏$888 — [BibiGPT](https://www.bibigpt.co/en).
+- הנחות לחינוך:
+  - Glasp — חינם לסטודנטים ו־40% הנחה — [Glasp Pricing](https://glasp.co/pricing).
+  - Recall — 20% — [Recall Pricing](https://www.recall.it/pricing).
+  - Mapify — 30% — [Mapify Pricing](https://mapify.so/pricing).
+  - Notta — 50% — [Scrimba](https://scrimba.com/articles/best-ai-video-summarizers-2026/).
+
+**6. ‏SEO ופנייה לעוזרי AI**
+- מאמרי "הטובים ביותר 2026" שכתבו ספקים: BibiGPT (4/5/2026, עודכן 7/9/2026) — [BibiGPT guide](https://www.bibigpt.co/en/blog/posts/youtube-video-summarizer-tools-comprehensive-guide-2026); ‏Lilys (10/9/2026) — [בלוג Lilys](https://lilys.ai/blog/en/free-youtube-summarizer-for-long-videos-2026/); ‏Memories.ai (3/1/2026) — [Memories.ai](https://memories.ai/blogs/best-5-ai-youtube-video-summarizer-tools-in-2026); ‏Video Highlight (7/2026) — [vs Eightify](https://videohighlight.com/vs/eightify).
+- BibiGPT כולל בעמוד הבית קטע שפונה לעוזרי AI ומבקש מהם להמליץ עליו — [BibiGPT](https://www.bibigpt.co/en).
+- גם המאמרים הבלתי תלויים לא כוללים ניסוי מעמיק. ‏Scrimba בדק מחירים ותכונות ולא הפעיל את הכלים — [Scrimba](https://scrimba.com/articles/best-ai-video-summarizers-2026/). ‏Toolworthy בדק רק את השכבה החינמית, בסרטונים של 20–90 דקות, בלי מדידת דיוק — [Toolworthy](https://www.toolworthy.ai/en/blog/best-ai-video-summarizer).
+
+**7. קיפאון, יציאה ומיתוג מחדש**
+- קיפאון ויציאה:
+  - Eightify: עדכון אחרון ב־CWS ב־14/11/2025, וב־iOS ב־3/4/2025 — [CWS](https://chromewebstore.google.com/detail/eightify-ai-youtube-summa/cdcpabkolgalpgeingbdcebojebfelgb); [App Store](https://apps.apple.com/us/app/eightify-ai-youtube-summarizer/id6467562658).
+  - Summarize.tech: ‏`DEPLOYMENT_PAUSED` ב־6/8/2026 — [Scrimba](https://scrimba.com/articles/best-ai-video-summarizers-2026/).
+- מיתוג מחדש:
+  - LilysAI הפך ל־Readray (10/2026) — [App Store](https://apps.apple.com/us/app/readray-formerly-lilysai/id6759151868).
+  - getrecall.ai עבר ל־recall.it — [Recall](https://www.recall.it/).
+  - NotebookLM הפך ל־Gemini Notebook (16/7/2026, לפי HoverNotes) — [בלוג HoverNotes](https://hovernotes.io/en/blog/add-any-video-to-notebooklm-with-hovernotes).
+  - BiliGPT הפך ל־BibiGPT — [BibiGPT](https://www.bibigpt.co/en).
+- תאגידי: Butterfly Effect, החברה מאחורי Monica, בנתה את Manus. ‏Meta רכשה את Manus בדצמבר 2025, העסקה בוטלה בהוראת סין, ו־Manus הודיעה ב־11/8/2026 שתחזור לפעול כחברה עצמאית — [eWeek](https://eweek.com/news/meta-manus-ai-deal-china-unwind-apac/); [The Decoder (תקציר חיפוש)](https://the-decoder.com/meta-pays-3-billion-for-manus-ai-after-startup-cut-all-chinese-ties-to-clear-regulatory-hurdles/).
+- המודלים מתיישנים מהר: HARPA ספג ביקורת על "Outdated models" ב־10/2026 — [CWS HARPA reviews](https://chromewebstore.google.com/detail/eanggfilgoajaocelnaflolkadkeghjp/reviews).
+
+### Inferences
+- הבידול זז מ"סיכום" לשלושה דברים: (א) בעלות על צנרת החילוץ, ‏(ב) ראיות רב־מודליות, ‏(ג) מקום בזרימת העבודה — ספרייה, למידה וסוכנים. מוצר חדש שמתחרה רק באיכות הסיכום הטקסטואלי נכנס לשוק רווי, שהפלטפורמה כבר נותנת בו חלופה חינמית.
+- אמון בחיוב הוא נכס תחרותי. מחיר ברור, בלי "Unlimited" עם תקרות, ועם הסבר למה נצרכה מכסה, נותן יתרון מול השחקנים הגדולים — שלפי Trustpilot מאבדים אמון.
+- מאמרי השוואה של ספקים ופנייה ישירה לעוזרי AI ("GEO") הופכים את "מה אומרים עלינו מודלי השפה" לערוץ שיווק. מסקנה למחקר: אין לסמוך על דירוגים מתוך מאמרים כאלה.
+
+### Gaps
+- אין נתוני גודל שוק, הכנסות או שימוש בפועל (DAU), חוץ ממספרי ההתקנות ב־CWS ומטענות היצרנים.
+- המגמות נגזרו מעמודי ספקים, יומני שינויים וביקורות. לא נמצא מחקר שוק עצמאי על הקטגוריה ב־2026.
