@@ -222,3 +222,149 @@
 - תקציר חיפוש טען שמאמר המונחים של Kaltura REACH מציג עברית בכתוביות מכונה ב־"70-80 percent accuracy", אבל העמוד המקורי לא זוהה. גם מצב העברית בכתוביות חיות ב־Kaltura לא אומת.
 - דף התמלול בעברית של TurboScribe ועמוד המחירים שלו החזירו 403, והנתונים לקוחים מתקציר חיפוש בלבד.
 - אין מדידה עצמאית של איכות עברית לאף כלי בקטע הזה. טבלת SpeechText.AI היא פרסום של ספק, והדיוק במדד אינו WER.
+
+## ב2. מי השחקנים הישראליים — חברות, סטארטאפים, אדטק ומוסדות — ומה האוניברסיטאות עושות עם הקלטות ההרצאות?
+
+### Takeaway
+בישראל יש שחקני תשתית חזקים, וכולם מוכרים לארגונים ולמוסדות. Verbit מתמללת ומכתבת. ל־Kaltura יש מאז יולי 2025 עוזר (Genie) שקורא שקפים ולוחות ב־OCR, ובנובמבר 2025 היא רכשה את eSelf. Gong מנתחת שיחות מכירה וגם בעברית. Annoto מוסיפה לסרטוני קורס שכבה אינטראקטיבית, ובה כתוביות, פרקים וסיכומים. **אף אחד מהם לא מוכר למשתמש היחיד — סטודנט או איש עסקים דובר עברית — ניתוח עמוק של סרטון ארוך כלשהו, משמע ומהמסך, עם זמנים לחיצים.**
+המערכת האקדמית מאיצה את השימוש ב־AI בתשפ"ו:
+- למיט"ל יש הסכם עם Google.
+- המיזם Academy-Tech, בחסות Microsoft, מכניס לפיילוטים סטארטאפים שהופכים הרצאות לחומרי למידה (YedaLabs, ‏Xarcam ועוד).
+- קמפוס IL והאוניברסיטה הפתוחה בונים כלים משלהם (Pexor, ‏brAIny).
+
+האוניברסיטאות הגדולות מקליטות הרצאות ל־Panopto. הקלטה שלא צפו בה כמה חודשים עד שנה עוברת לארכיון ובסוף נמחקת.
+
+### Cited Findings
+
+#### Verbit
+- ב־2024 תוארה Verbit כ־"Israeli company Verbit". היא נוסדה בתל אביב ב־2017 והגיעה לשווי של 2 מיליארד דולר. לפי הכתבה היא משרתת יותר מ־2,000 עסקים ומתמללת כ־4 מיליון שעות בשנה ב־51 שפות. באותה עת השיקה את Legal Real-Time — [israel21c, ‏27/6/2024](https://archive.israel21c.org/new-ai-app-aims-to-replace-traditional-court-reporters/)
+- **האתר היום (נבדק 9/11/2026):**
+  - כתובת המטה בניו יורק.
+  - קווי מוצר: Captivate, ‏Legal Visor, ‏Legal Capture, ‏Campus Complete (ממוצב לעמידה ב־ADA Title II), ‏Verbit Dub, ‏Captivate Post, ‏Enterprise Capture, ‏Venue Live ו־AI Audio Description.
+  - סיכומי AI וחיפוש, ותרגום ל־"50+ languages".
+  - האתר מציג את החברה כ־"Home of" ‏VITAC ו־AST.
+  - עברית לא מוזכרת בדף הבית.
+  — [Verbit](https://verbit.ai/)
+- ב־8/2023 השיק "סטארטאפ תמלול" שנוסד ב־2017, עם משרדים בגבעתיים ובניו יורק, סיכומי הרצאות ב־GenAI להשכלה גבוהה. זה כנראה Verbit, אבל לא אומת: העמוד החזיר 503, והפרטים מתקציר חיפוש — [NoCamels](https://nocamels.com/2023/08/transcription-startup-unveils-new-generative-ai-tool-for-higher-ed/)
+- פוסט של Verbit מ־3/2026 על תמלול בבתי משפט מתאר מודל היברידי של AI ומתמללים אנושיים (תקציר חיפוש) — [Verbit blog](https://verbit.ai/resource/insights-from-iaca-dubai-learnings-on-court-transcription/)
+
+#### Kaltura (וחברת eSelf שנרכשה)
+- **רקע:** Kaltura נוסדה בישראל. ב־2022 קיבלה הצעת מיזוג מ־Panopto לפי שווי של 383 מיליון דולר (תקציר חיפוש) — [Calcalist Tech](https://calcalistech.com/tags/Kaltura). כותרת דף הבית היום: "Agentic Video & AI Avatar Platform" (נבדק 9/11/2026) — [Kaltura](https://corp.kaltura.com/)
+- **Genie — יומן השחרורים** — [Kaltura Genie](https://knowledge.kaltura.com/help/genie):
+  - **יולי 2025:** קריאת טקסט מהמסך. ציטוט: "Genie now leverages OCR (Optical Character Recognition) technology to extract text from videos", ‏"particularly helpful for videos featuring speakers with presentation slides, classroom recordings showing whiteboards". כדי לקבל את נתוני ה־OCR צריך משימת REACH.
+  - **אוגוסט 2025:** התשובות ניתנות בשפת השאלה.
+  - **14/6/2026:** שיתוף מסך בשיחה עם אווטאר.
+  - **6/7/2026:** ‏Agentic Avatars מציגים קטעי וידאו ו־"formatted text slides generated in real time" זה לצד זה.
+- **רכישת eSelf** — [ynetnews](https://www.ynetnews.com/business/article/bkihyygl11l):
+  - נחתמה ב־5/11/2025. סך העסקה כ־27 מיליון דולר: ‏7.5 מיליון מראש, עד 12.5 מיליון לאורך שלוש שנים, ועוד 4,690,025 מניות (כ־3%).
+  - eSelf נוסדה ב־2023. האווטארים שלה תומכים ב־30+ שפות ומסוגלים "hear, speak, and visually analyze user screens in real time". הם ישולבו ב־"Genies" של Kaltura.
+  - ההשלמה נצפתה לרבעון הרביעי של 2025 (תקציר חיפוש) — [Pulse 2.0](https://pulse2.com/kaltura-to-acquire-eself-ai-in-27-million-deal-to-expand-ai-virtual-agent-capabilities)
+- **eSelf ומט"ח (22/4/2025):** יוזמה לאומית של מורים פרטיים מבוססי AI לכיתות א'–י"ב, בליווי Harvard. הפיילוט מתחיל בהוראת עברית. ציטוטים: "giving every K–12 student access to a private AI tutor"; ‏"the first time any country has attempted to implement AI tutoring at a national scale" — [Calcalist Tech](https://www.calcalistech.com/ctechnews/article/r1tkoce1gg)
+- **עברית בכתוביות:** דף האינטגרציה של Kaltura עם Verbit מונה עברית בכתוביות מכונה, עם הערה ש־"some languages are not out of box" (תקציר חיפוש) — [Kaltura Knowledge Center](https://knowledge.kaltura.com/help/verbit-translations). מצב העברית במנוע ה־ASR של Kaltura מפורט ב־ב1.
+
+#### Gong
+- עברית ("Hebrew (Israel)") נתמכת, אבל חלק מהיכולות באנגלית בלבד. הפירוט ב־ב1 — [Gong Help](https://help.gong.io/docs/what-languages-are-supported-in-gong.md)
+
+#### Annoto
+- **ממפגש "AI Coffee break" של מיט"ל, 20/5/2025** — [מיט"ל](https://meital.iucc.ac.il/wp-content/uploads/2025/05/AI-Coffee-break.pdf):
+  - שכבה אינטראקטיבית על וידאו קיים, שמתחברת בלי פיתוח (plug-and-play) ל־Moodle ול־Canvas.
+  - דיונים מתויגי־זמן, שאלונים בתוך הסרטון שמקושרים לציון, נקודות רפלקציה, ומטלות וידאו עם משוב מתויג־זמן.
+  - יכולות AI: יצירה אוטומטית של שאלונים ונקודות רפלקציה, חיפוש בשפה טבעית וניתוח התקדמות.
+  - הנגשה: "כתוביות אוטומטיות, פרקים וסיכומים לווידאו".
+- דף הבית: "video learning design platform that turns course video into active learning" — [Annoto](https://www.annoto.net/)
+- נוסדה ב־2015. המדריכים חלוקים על המטה: תל אביב או פתח תקווה — [Startupim](https://slimpages.startupim.com/company_page/annoto); [StartupHub.ai](https://www.startuphub.ai/startups/annoto)
+- פועלת גם כתוסף לנגן של Kaltura (תקציר חיפוש) — [Kaltura Knowledge Center](https://knowledge.kaltura.com/help/introduction-to-annoto)
+
+#### מיט"ל — דוח תשפ"ו (2025–2026)
+המקור לכל הסעיפים כאן: [דוח מיט"ל 2026](https://meitalconf.iucc.ac.il/wp-content/uploads/2026/07/Meital_conf_2026.pdf)
+- "שנת תשפ"ו התאפיינה בהאצה משמעותית של תהליכי השילוב של בינה מלאכותית במערכת ההשכלה".
+- **סל הטכנולוגיות** התרחב ל־monday.com בשילוב Make ולמערכת Explorance.
+- **הסכם Google:** מיט"ל, בהובלת מחב"א, מקדמת הסכם עם Google שיאפשר למוסדות החברים לאמץ את Google Workspace for Education ואת יכולות הבינה המלאכותית של Google.
+- **Academy-Tech, בחסות Microsoft:** קול קורא לסטארטאפים, אירוע חשיפה, ובחירת חברות לפיילוטים מלווים במוסדות. החברות שנבחרו:
+  - **אהרון הינשוף:** בניית קורסים, חומרי לימוד ומבחנים, הנגשה רב־לשונית ומעקב אחר התקדמות.
+  - **YedaLabs:** "פלטפורמה המשלבת סוכני AI המבוססים על חומרי הקורס לצד נגן וידאו אינטראקטיבי והנגשה אוטומטית", עם אינטגרציה מלאה ל־Moodle.
+  - **Katie:** סוכני הוראה אישיים עם דיאלוג ומשוב בזמן אמת, ושילוב ב־LMS.
+  - **בטא ידע:** "מסעות למידה" מחומרי הקורס, ב־Moodle, עם סנכרון ציונים.
+  - **Xarcam:** "פלטפורמת בינה מלאכותית ההופכת הרצאות, מצגות וסרטונים קיימים לחוויית למידה מותאמת אישית". המערכת מייצרת אוטומטית חומרים, תרגולים והערכות, ומציגה לוח בקרה למרצה.
+- **מפגשים מקצועיים:**
+  - מפגש Moodle שבו הציגו OpenApp, ‏אהרון הינשוף, ‏Devlion, ‏Tipli, ‏Originality ו־Annoto.
+  - מפגש Zoom של Naotech.
+  - מפגש Turnitin על יושרה אקדמית.
+  - פיתוח משותף עם MindCET של סוכן לתרגול דיבור באנגלית.
+
+#### קמפוס IL
+המקור לכל הסעיפים כאן: הרצאה בכנס מיט"ל 2024, קמפוס IL עם AWS — [מצגת מיט"ל 2024](https://meitalconf.iucc.ac.il/wp-content/uploads/2024/08/Meitalconf24_idan_nabati.pdf); [קמפוס IL](https://campus.gov.il/)
+- **היקף:** "¼Million Active Students", ‏"600+ courses by 80+ partners", ‏"13 millions video watches last year sum to 93+ playback years".
+- **Pexor:** "Gen AI Based module that analyze course videos combined with student profile & performance and come up with personalized AI generated exercises". הצנרת: שמע → זיהוי דיבור → שאלות בחמש רמות.
+- **יעדים:** חיסכון של 30% בעלויות הכנת קורס ועלייה של 40% במעורבות. האקתון AWS התקיים ב־10/6/2024.
+
+#### האוניברסיטה הפתוחה
+המקור: מצגת "המהפכה החכמה מגיעה לסמארט אופל" (לא מתוארכת) — [האוניברסיטה הפתוחה](https://www.openu.ac.il/Lists/MediaServer_Documents/amir%20vinner.pdf)
+- **עקרון "אדישות למודל השפה":** "האפשרות לעשות שימוש מקביל במספר מודלי שפה LLM".
+- **"נבחרת brAIny"**, ארבע פרסונות:
+  - **SPOK:** לסטודנטים. "מכיר את כל תכני הקורס", עונה ומתרגל.
+  - **BEE:** ניהול זמנים ועומסים.
+  - **SPARK:** לסגל. סיעור מוחות וגישה לאינטרנט.
+  - **Q:** לסגל. כתיבת מבחנים, משוב על מטלות ואנליטיקות למידה.
+
+#### האוניברסיטאות — הקלטות הרצאות בפועל
+- **הטכניון** — [Technion Promoteach](https://promoteach.technion.ac.il/en/panopto/):
+  - Panopto משמש ל־"managing lectures, tutorials and labs". המערכת מקליטה בסנכרון את המרצה, את המסך ואת המצגת, והקלטות Zoom נשמרות אליה אוטומטית.
+  - מדיניות שמירה מאוקטובר 2021: הקלטה שלא נצפתה 12 חודשים עוברת לארכיון. אחרי 12 חודשים נוספים היא עוברת לסל המחזור ל־90 יום, ואז נמחקת.
+  - בעמוד אין אזכור של כתוביות או AI.
+- **אוניברסיטת תל אביב** (תקצירי חיפוש) — [TAU Engineering](https://engineering.tau.ac.il/sites/engineering.tau.ac.il/files/media_server/Engineering/Site_Faculty/Guidelines_staff/File%20sharing%20in%20Panopto.pdf); [TAU virtual training](https://virtualtraining-en.sites.tau.ac.il/panopto-recordings):
+  - תיקיות Panopto לפי קורס, ורכיב Panopto בתוך Moodle.
+  - הקלטה שלא נצפתה חצי שנה עוברת לארכיון.
+  - הקלטות Zoom מועברות מ־My Folder.
+- **האוניברסיטה העברית** (תקצירי חיפוש) — [HUJI](https://en.huca.huji.ac.il/book/export/html/1083178):
+  - הקלטות ענן של Zoom הועברו ל־Panopto (עד 15/7/2021).
+  - הקלטה שלא נצפתה שנה נמחקת.
+  - מדריך TLCE החזיר 503.
+- **מכון ויצמן:** עמוד "The Panopto System" (כותרת בלבד) — [Weizmann WIT](https://www.weizmann.ac.il/WIT/node/1758). ‏Panopto מתארת את עצמה כ־"video knowledge platform for training, onboarding and lecture capture" — [Panopto](https://www.panopto.com/)
+- **בר־אילן:** השיקה עוזר הוראה מבוסס AI שעונה בעברית (תקציר חיפוש; העמוד החזיר 410) — [JPost](https://www.jpost.com/brandblend/opening-the-academic-year-bar-ilan-university-launches-ai-based-teaching-assistant-825140)
+- **המכללה האקדמית תל אביב־יפו:** פרויקט סטודנטים בשם "Accessible Academic":
+  - תמלול עברי עם "synchronized word-level timestamps".
+  - "structured bulleted summaries" שמפיק LLM, וכרטיסיות.
+  - המאגר ב־GitHub החזיר 404.
+  — [MTA projects](https://www.projects.mta.ac.il/projects/accessible-academic)
+
+#### עוד שחקנים ישראליים או רלוונטיים
+- **ivrit.ai** (תשתית פתוחה; פירוט הדיוק ב־ב1) — [ivrit.ai](https://www.ivrit.ai/); [Hugging Face](https://huggingface.co/ivrit-ai):
+  - **אפשרות בוואטסאפ:** אפשר לשלוח הודעות קוליות ל"אליעזר" לתמלול. מהעמוד לא ברור אם זה בוט או איש קשר.
+  - **מרחבים ב־Hugging Face:** ‏"Hebrew Transcription Leaderboard" (עודכן לפני 26 יום, כלומר באמצע אוקטובר 2026), ‏"TTS Arena Hebrew", ‏"Hebrew Handwriting OCR Leaderboard" (4/9) ותצוגה של מאגר מליאות הכנסת.
+  - **מודלים:**
+    - ‏whisper-large-v3-turbo-ct2 ‏(27/10/2025)
+    - ‏whisper-large-v3 ‏(22/5/2025)
+    - ‏turbo-onnx ‏(20/12/2025)
+    - ‏zipformer2-66m-streaming-he לזמן אמת על המכשיר (אמצע אוקטובר 2026)
+    - מודל להפרדת דוברים מבוסס pyannote
+- **Deepdub:** דיבוב AI עם קולות בעברית, "5,000+ titles". המוצא הישראלי של החברה לא אומת בסבב הזה — [Deepdub](https://deepdub.ai/)
+- **D-ID:** וידאו מחולל עם מגיש AI, ואינטגרציה ל־Moodle (תקציר חיפוש). המוצא הישראלי של החברה לא אומת בסבב הזה — [D-ID](https://www.d-id.com/); [D-ID Moodle](https://www.d-id.com/?p=8926)
+- **WSC Sports:** תוכן ספורט מותאם אישית ב־AI. המוצא הישראלי של החברה לא אומת בסבב הזה — [WSC Sports](https://wsc-sports.com/)
+- **Tachles:** סטארטאפ מגבעתיים שנוסד ב־2021 ומפתח מסכם טקסט (תקציר חיפוש) — [Startupim](https://slimpages.startupim.com/min_company_page/tachles1)
+- **Katav:** אפליקציית סטודנטים שמקליטה הרצאות ומפיקה תמליל, סיכומים, כרטיסיות ומבחנים. העברית נוספה בגרסה 1.9.0 ‏(26/10).
+  - מחירים: PRO ‏$9.99 לחודש או $39.99 לשנה, MAX ‏$12.99 לחודש או $59.99 לשנה.
+  - דירוג 4.8 מארבעה מדרגים. ארץ המפתח לא מצוינת.
+  — [App Store](https://apps.apple.com/ca/app/katav/id6772588945)
+
+### Inferences
+- **השחקנים הגדולים בישראל מוכרים למוסדות, לא ליחיד.** ‏Verbit, ‏Kaltura, ‏Gong ו־Panopto באוניברסיטאות פונים לארגונים. אין מוצר ישראלי ישיר לסטודנט או לאיש עסקים שמנתח סרטון ארוך כלשהו לעומק. לכן פיצ'ר Video Analysis בסטודיו לא מתחרה ראש בראש בענקיות. הוא מתחרה בכלים הכלליים החינמיים (ראו ב3).
+- **היכולת הקרובה ביותר ל"שקפים ותמליל יחד" באקדמיה הישראלית היא ה־OCR של Kaltura Genie.** אבל היא קשורה לרישוי מוסדי (משימת REACH). גם מנוע ה־ASR של Kaltura לא תומך באודיו מעורב (ב1). ובמוסדות שעובדים עם Panopto (הטכניון, ת"א, העברית) לא נמצא תיעוד של יכולת חזותית דומה לסטודנט.
+- **הקלטות נעלמות.** מדיניות ארכיון ומחיקה של 6 עד 12 חודשים מעניקה ערך מתמשך לתוצר אישי: סיכום עם זמנים ותמונות שקפים שנשאר אצל הסטודנט. מנגד, זכויות היוצרים בהרצאה ותנאי המוסד מחייבים זהירות. ראו מחקר 07, ובפורום (ב3) עלה החשש ממדיניות הקורס.
+- **הסכם Google של מיט"ל יחזק את הכלי החינמי של Google כברירת מחדל מוסדית.** לכן הבידול צריך להיות במה שהכלי הזה לא עושה: קריאת המסך, זמנים מדויקים ברמת מילה, דיוק עברי ו־RTL, וסינתזה וביקורת.
+- **סטארטאפי Academy-Tech מוכרים למרצים ולמוסדות.** הם ערוץ או שותף אפשרי יותר מאשר מתחרים. Xarcam ‏("הרצאות, מצגות וסרטונים קיימים" → למידה מותאמת) הוא הקרוב ביותר בפונקציה. Pexor של קמפוס IL עובד משמע בלבד. בשניהם לא מתועד ניתוח חזותי.
+- **המגמה של רכישת eSelf היא אווטארים שרואים מסך.** היא מראה שהשחקנים המוסדיים מתקדמים לכיוון "וידאו שמבין את המסך". חלון ההזדמנות ליחיד דובר עברית קיים עכשיו, אבל הוא לא אינסופי.
+
+### Gaps
+- **מוצא ותיעוד שלא אומתו:**
+  - המוצא הישראלי של Gong, ‏Deepdub, ‏D-ID ו־WSC Sports לא אומת במקור ראשוני בסבב הזה.
+  - לא נמצא תיעוד שמאשר עברית ב־Verbit.
+  - לא נמצא חוזה של Verbit עם בתי המשפט או עם הכנסת.
+- **סטארטאפים בלי נוכחות ברשת:** ל־YedaLabs, ‏Xarcam, ‏Katie ובטא ידע לא נמצאה נוכחות ברשת. החיפושים לא העלו דבר, ותקציב החיפוש נגמר. מצב הפיילוטים לא ידוע.
+- **מוסדות שלא נבדקו או לא נגישים:**
+  - לא נבדקו אוניברסיטת בן־גוריון (החיפוש לא העלה דבר), אוניברסיטת חיפה, אוניברסיטת אריאל והמכללות.
+  - עמוד TLCE של העברית החזיר 503, ועמוד בר־אילן החזיר 410.
+- **חברות שלא נבדקו:**
+  - Hour One ו־AudioCodes Meeting Insights: הראשון לא ענה, והשני החזיר 404.
+  - Peech: ‏www.peech-ai.com לא נפתר (ENOTFOUND). כדי לבדוק אותו צריך לאשר את הדומיין בהגדרות הרשת של הסשן.
+- **אין נתוני שוק:** לא נמצאו נתונים על היקף הקלטות ההרצאות בעברית או על נתחי שוק של Panopto ו־Kaltura בישראל.

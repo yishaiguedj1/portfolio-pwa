@@ -160,7 +160,7 @@
 
 | # | מועמד | אורך | שפה | רישיון | צפיפות חזותית | דוברים | מה הוא בוחן | אימות |
 |---|---|---|---|---|---|---|---|---|
-| 65 | [ויקימדיה ישראל: "סרגל העריכה + כתוביות"](https://commons.wikimedia.org/wiki/Category:Wikimedia_Israel_-_Tutorials) | 5:48 | HE | CC BY-SA 4.0 | גבוהה: ממשק תוכנה | 1 | הדגמת מוצר בעברית. יש 17 קבצים בקטגוריה (מאי 2025) | אומת |
+| 65 | [ויקימדיה ישראל: "סרגל העריכה + כתוביות"](https://commons.wikimedia.org/wiki/Category:Wikimedia_Israel_-_Tutorials) | 5:48 | HE | CC BY-SA 4.0 | גבוהה: ממשק תוכנה | 1 | הדגמת מוצר בעברית. הקובץ ממאי 2025, ובקטגוריה 17 קבצים | אומת |
 | 66 | [FOSDEM 2026: Bonfire, Modular, Consentful, Federated Social Networks](https://fosdem.org/2026/schedule/event/3QHALR-bonfire_building_modular_consentful_and_federated_social_networks/) | משבצת 20 | EN | CC BY 2.0 BE | צפויה: ממשק | 2 | הדגמת מוצר | אומת (XML) |
 | 67 | [FOSDEM 2026: Scaling Mobility Flow Visualization (SQLRooms/Flowmap)](https://fosdem.org/2026/schedule/event/DC9M73-sqlrooms-flowmap/) | משבצת 20 | EN | CC BY 2.0 BE | צפויה גבוהה: ויזואליזציה | 1 | הדגמת כלי נתונים | אומת (XML) |
 | 68 | [FOSDEM 2026: SQLRooms, Local-First Analytics](https://fosdem.org/2026/schedule/event/FGDCP7-sqlrooms-local-first-analytics-duckdb-loro/) | משבצת 25 | EN | CC BY 2.0 BE | צפויה גבוהה | 1 | רזרבה | אומת (XML) |
@@ -169,7 +169,7 @@
 
 | # | מועמד | אורך | שפה | רישיון | צפיפות חזותית | דוברים | מה הוא בוחן | אימות |
 |---|---|---|---|---|---|---|---|---|
-| 69 | [Commons: Asaf Bartov on Wikidata Queries](https://commons.wikimedia.org/wiki/File:Asaf_Bartov_on_Wikidata_Queries.webm) | 1:53:51, ‏1920×1200 | HE, עם SPARQL ומונחים באנגלית | CC BY-SA 4.0, מסומן "License review needed" | גבוהה: שיתוף מסך ושאילתות | 1, ומשתתפים ב־Zoom | סדנה או וובינר בעברית עם קוד. הוקלט 30/5/2026, ויש גם Part 2 | אומת |
+| 69 | [Commons: Asaf Bartov on Wikidata Queries](https://commons.wikimedia.org/wiki/File:Asaf_Bartov_on_Wikidata_Queries.webm) | 1:53:51, ‏1920×1200 | HE, עם SPARQL ומונחים באנגלית | CC BY-SA 4.0, מסומן "License review needed" | גבוהה: שיתוף מסך ושאילתות | 1, ומשתתפים ב־Zoom | סדנה או וובינר בעברית עם קוד. התאריך בעמוד הקובץ: 30/5/2026. יש גם Part 2 | אומת |
 | 70 | [FOSDEM 2026: Machine Learning on Air, Overview and Tutorial](https://fosdem.org/2026/schedule/event/SU8WPW-machine-learning-on-air-overview-and-tutorial/) | משבצת 45 | EN | CC BY 2.0 BE | לא נבדקה | 1 | tutorial | אומת (XML) |
 | 71 | [Commons: GLAM-Wiki, מפגש 1 (הרצאה)](https://commons.wikimedia.org/wiki/Category:Videos_in_Hebrew) | 12:43, ‏4K | HE | CC BY-SA 4.0 | לא נבדקה | 1 | הרצאה בעברית ב־4K. ‏10/9/2024 | אומת (Commons) |
 
@@ -495,7 +495,7 @@
    - (א) keyfacts — 15–40 עובדות מפתח מהתמליל ומהשקפים, בשיטת FineSurE או QAPyramid.
    - (ב) 10–15 שאלות כיסוי, מתוכן 3–5 "חזותיות בלבד": התשובה נמצאת על השקף או הלוח ולא בתמליל.
    - (ג) גבולות פרקים וחותמות של 10 רגעים מרכזיים.
-   - מי בונה: Claude Sonnet 5.5 מציע, ומתייג אנושי מאשר. QAPyramid מראה שגם מתייגים לא מומחים מגיעים להסכמה גבוהה. בהערכה גסה זה פחות משעה לסרטון.
+   - מי בונה: Claude Sonnet 5.5 מציע, ומתייג אנושי מאשר. QAPyramid מראה שגם מתייגים לא מומחים מגיעים להסכמה גבוהה. זמן התיוג לסרטון לא נמדד.
 2. **נאמנות:**
    - כל תוצר מפורק לטענות אטומיות (FActScore/VeriScore).
    - כל טענה נבדקת מול חלון התמליל הרלוונטי, ועל שקף ה־OCR כשזה רלוונטי.
