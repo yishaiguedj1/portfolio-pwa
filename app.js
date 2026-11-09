@@ -1103,7 +1103,8 @@ he: {
   themeSystem: 'מערכת',
   themeDark: 'כהה',
 
-  ovStocksValue: 'שווי תיק המניות',
+  ovStocksValue: 'שווי התיק',
+  ovDayLbl: 'היום',
   ovGL: 'רווח / הפסד',
   ovVsNetDeposits: 'מול הפקדות נטו',
   ovYield: 'תשואה',
@@ -2914,7 +2915,8 @@ en: {
   themeSystem: 'System',
   themeDark: 'Dark',
 
-  ovStocksValue: 'Stock portfolio value',
+  ovStocksValue: 'Portfolio value',
+  ovDayLbl: 'Today',
   ovGL: 'Gain / Loss',
   ovVsNetDeposits: 'vs. net deposits',
   ovYield: 'Return',
@@ -7519,8 +7521,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.129.0';
-const APP_VERSION = 'v729';
+const APP_RELEASE = '2.130.0';
+const APP_VERSION = 'v730';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -9874,6 +9876,22 @@ function totalsUSD() {
   const ils = (DB.cash && DB.cash.ils) || 0;
   return { stockVal: stockVal, total: stockVal + usd + (state.fx ? ils / state.fx : 0) };
 }
+/* v730: השינוי היומי של כל התיק בדולרים — סכום שינוי היום של כל אחזקה (מהסגירה הקודמת, כמו בכרטיס המניה),
+   והאחוז מול שווי התיק בסגירה הקודמת כולל מזומן — כמו בכותרת של IBKR. null כשחסר מחיר או שינוי לאחזקה כלשהי
+   (לא מציגים מספר חלקי). אחזקה שנקנתה היום נספרת מהסגירה הקודמת — קירוב. */
+function portfolioDayUSD() {
+  if (!POSITIONS.length) return null;
+  let abs = 0;
+  for (const p of POSITIONS) {
+    const m = metrics(p.sym);
+    if (!m.q || m.dayAbs === null || m.dayAbs === undefined || !isFinite(m.dayAbs)) return null;
+    const v = nativeToUSD(m.dayAbs * (Number(p.shares) || 0), p.sym);
+    if (v === null || !isFinite(v)) return null;
+    abs += v;
+  }
+  const prev = totalsUSD().total - abs;
+  return { abs: abs, pct: prev > 0 ? abs / prev * 100 : null };
+}
 /* המזומן בדולרים — פרוסה בעוגה וחלק מהמכנה של "משקל בתיק". רק יתרה חיובית
    (יתרה שלילית — מינוף — לא נכנסת לעוגה, והמשקלים נשארים מתוך המניות). טהורה. */
 const PIE_CASH = '$CASH';
@@ -10843,8 +10861,13 @@ function renderOverview(light) {
   const usdToCur = (v) => (cur === 'ILS' ? (state.fx ? v * state.fx : null) : v);
   if (vEl) {
     let vTxt = '—';
-    if (isIbkrMode()) {
-      // במצב IBKR: השווי לפי הדוח עצמו (מספר של IBKR), לא תלוי במחירים חיים
+    // v730: גם במצב IBKR — שווי חי (כמות מהדוח × מחיר חי + מזומן), כמו בעוגה וב־IBKR. השווי מהדוח הוא שווי
+    // הסגירה של יום הדוח (אתמול) — נשאר רק כגיבוי עד שיש מחיר חי לכל אחזקה.
+    const liveAll = POSITIONS.length && POSITIONS.every((p) => state.quotes[p.sym] && state.quotes[p.sym].close > 0) && (cur !== 'ILS' || state.fx);
+    if (isIbkrMode() && liveAll) {
+      vTxt = money(total, cur);
+    } else if (isIbkrMode()) {
+      // גיבוי: השווי לפי הדוח עצמו (מספר של IBKR), לא תלוי במחירים חיים
       const data = ibkrCfg().data;
       const rt = ibkrReportTotal(data, DB.cash, state.fx);
       const base = ibkrBaseCur(data);
@@ -10861,8 +10884,22 @@ function renderOverview(light) {
     }
     if (vTxt === '—' && quotesPending() && POSITIONS.length) vEl.innerHTML = SKEL_HTML; else vEl.textContent = vTxt; // v193: שלד עד המחיר הראשון
     if (vSub) {
-      if (isIbkrMode()) vSub.textContent = t('ovValueReport');
+      if (isIbkrMode() && !liveAll) vSub.textContent = t('ovValueReport');
       else vSub.textContent = t('ovStocksSub');
+    }
+  }
+  // v730: שורת השינוי היומי של התיק (דולרים + אחוז) מתחת לשלושת הנתונים
+  const dEl = document.getElementById('ovDay');
+  if (dEl) {
+    const d = portfolioDayUSD();
+    const dv = d ? usdToCur(d.abs) : null;
+    if (dv === null || !isFinite(dv)) { dEl.textContent = ''; dEl.classList.add('hidden'); }
+    else {
+      const z = Math.abs(dv) < 0.005 ? 0 : dv;
+      const cls = z > 0 ? 'pos' : z < 0 ? 'neg' : '';
+      dEl.innerHTML = '<span class="ov-day-lbl">' + esc(t('ovDayLbl')) + '</span> <span class="ov-day-v ' + cls + '" dir="ltr">' +
+        esc(fmtSignedMoney(z, cur)) + (d.pct === null || !isFinite(d.pct) ? '' : ' (' + esc(fmtPct(d.pct, true)) + ')') + '</span>';
+      dEl.classList.remove('hidden');
     }
   }
   // בסיס החישוב לפי סוג המשתמש (הפקדות מסונכרנות / עלות קנייה / הפקדות ידניות)

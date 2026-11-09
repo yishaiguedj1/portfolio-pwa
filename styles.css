@@ -757,7 +757,13 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .ov-stats .stat + .stat::before { content: ''; position: absolute; inset-inline-start: 0; top: 16%; bottom: 16%; width: .5px; background: var(--outline); }
 .ov-stats .stat-label { margin: 0; font-size: 12px; font-weight: 400; letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .ov-stats .stat-value { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.3px; }
-.cards-3 .stat-value { margin-top: auto; } /* המספרים בקו אחד גם כשתווית נשברת לשתי שורות */
+.cards-3 .stat-value { margin-top: auto; }
+/* v730: השינוי היומי של התיק — שורה אחת לרוחב כל הכרטיס, מתחת לשלושת הנתונים */
+.ov-day { grid-column: 1 / -1; margin-top: 10px; padding-top: 8px; border-top: .5px solid var(--outline); text-align: center; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.ov-day-lbl { color: var(--on-surface-var); }
+.ov-day-v { font-weight: 700; unicode-bidi: isolate; }
+.ov-day-v.pos { color: var(--gain); }
+.ov-day-v.neg { color: var(--loss); } /* המספרים בקו אחד גם כשתווית נשברת לשתי שורות */
 .stat.wide { text-align: center; }
 .stat-label { font-size: 13.5px; color: var(--on-surface-var); margin-bottom: 6px; }
 .stat-value { font-size: 25px; font-weight: 800; letter-spacing: -.4px; font-variant-numeric: tabular-nums; }
