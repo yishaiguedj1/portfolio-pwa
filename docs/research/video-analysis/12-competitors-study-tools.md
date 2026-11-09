@@ -4,7 +4,7 @@
 > **שיטה**: כ־55 חיפושי רשת עד שתקציב החיפוש המשותף (200 לכל הסוכנים) נגמר באמצע העבודה, ואחריהם כ־95 קריאות ישירות: אתרים רשמיים, עמודי מחירים, מרכזי עזרה, רישומי App Store (כולל היסטוריית גרסאות וביקורות), Trustpilot, הודעות לעיתונות, סקירות 2026, עיתונות חינוך (THE Journal, Campus Technology, Times Higher Education, NPR, K-State Collegian) וסקרי סטודנטים (HEPI 2025/2026, Quizlet How America Learns 2026).
 > **לא נגיש לכלי**: Reddit (חסום), G2, AlternativeTo ו־There's An AI For That (403), Google Play (העמוד לא נטען), Product Hunt (חלקי). דעות מ־Reddit מובאות רק כפי שצוטטו בסקירות. שתי סדרות הסקירות העמוקות (tl;dv, fast.io) נכתבו בידי חברות שמוכרות מוצרים סמוכים — מסומן ליד הטענה.
 > **סימונים**: "(תקציר חיפוש)" = הטענה נלקחה מתקציר תוצאת חיפוש ולא מקריאת העמוד. במטריצה: ✓ אומת · ✗ אומת שאין / לא נתמך · ~ חלקי, מוגבל או טענת מוכר בלבד · ? לא נמצא. **תאריך ברירת מחדל**: כל עמוד רשמי וכל רישום חנות נקראו ב־9/11/2026; תאריך אחר מצוין ליד הטענה. בהיסטוריית גרסאות של App Store תאריך בלי שנה = 2026. מחירים בדולר ארה״ב אלא אם צוין.
-> **מחקר הלמידה**: חלק מהמקורות נלקחו מהקבצים המקבילים `05-academic-lecture-research.md` ו־`09-analysis-methodology.md` (אומתו שם), ושאר נקראו כאן.
+> **מחקר הלמידה**: חלק מהמקורות נלקחו מהקבצים המקבילים `05-academic-lecture-research.md` ו־`09-analysis-methodology.md` (אומתו שם), והשאר נקראו כאן.
 > **כלל ניסוח (בנייה נקייה)**: תיאור עובדתי בלבד ("X מציע Y"); אין העתקת טקסטים מעבר לציטוטים קצרים, אין עיצובים ואין אייקונים.
 
 ---
@@ -81,7 +81,7 @@
 - **פלטים**: הערות, תמלילים, סיכומים, כרטיסיות, מבחנים מיידיים ותיקיות קורס — [Unstuck](https://unstuckstudy.com/); צ'אט עם ההקלטות (גרסה 1.3.1, 14/2/2025) — [App Store](https://apps.apple.com/app/id6714484560). המבחנים "surface-level", וה־Android "an afterthought" — [TechRaisal](https://www.techraisal.com/blog/unstuck-ai-competitors-who-actually-deserves-your-study-time-and-money/).
 - **מחיר**: $9.99 (כולל מסלול שבועי), $19.99, $79.99 (שנתי), $99.99, $129.99 — [App Store](https://apps.apple.com/app/id6714484560).
 - **עברית**: אנגלית בלבד — [App Store](https://apps.apple.com/app/id6714484560).
-- **ביקורות**: 4.7 מ־2.7K. תקלה מחקה את כל ההערות של הרצאה (29/4/2025); חויבו על שנה כשציפו לחודש (27/1); חויבו אחרי ביטול, וההחזר הגיע מ־Apple (11/12/2025). פיתוח דליל ב־2026: גרסה 1.7.11 ב־25/2 ו־1.7.12 ב־20/10 — [App Store](https://apps.apple.com/app/id6714484560).
+- **ביקורות**: 4.7 מ־2.7K. תקלה גרמה למחיקת כל ההערות של הרצאה (29/4/2025); חויבו על שנה כשציפו לחודש (27/1); חויבו אחרי ביטול, וההחזר הגיע מ־Apple (11/12/2025). פיתוח דליל ב־2026: גרסה 1.7.11 ב־25/2 ו־1.7.12 ב־20/10 — [App Store](https://apps.apple.com/app/id6714484560).
 
 ##### 1.6 YouLearn
 - **מה זה**: YouLearn Inc., "Backed by Y Combinator", "Loved by 2,000,000+ learners" — [YouLearn](https://www.youlearn.ai/). לפי פרופיל ה־YC, ההכנסה החודשית החוזרת עלתה מ־$1K ל־$70K תוך שמונה חודשים, כפי שצוטט — [fast.io, 27/6/2026](https://fast.io/resources/youlearn-ai-review-2026/).
@@ -178,7 +178,7 @@
 ##### 1.17 Anki ומחוללי חפיסות
 - **Anki**: אפשר להפעיל FSRS במקום SM-2 (Anki 23.10+); יעד שימור ברירת מחדל 90% — [Anki manual](https://docs.ankiweb.net/deck-options.html). בבנצ'מרק של כ־10,000 אוספים, FSRS-6 עדיף על SM-2 ב־99.6% מהאוספים — [SRS Benchmark](https://expertium.github.io/Benchmark.html).
 - **StudyCards AI**: שקופיות, PDF או טקסט הופכים לקובץ ‎.apkg ‏("Native .apkg export - not CSV hacks"); "Under 2 minutes" להרצאה; החל מ־$4.99 לחודש ל־25 חפיסות; אין וידאו ואין אודיו — [StudyCards AI](https://studycardsai.com/anki).
-- **SynapticRecall**: "Turn lectures into flashcards in seconds with AI": קובצי PDF של הרצאות הופכים לכרטיסי Anki עם תיאורי מקרה קליניים ולשאלות בסגנון NBME — [hunted.space](https://hunted.space/product/synapticrecall).
+- **SynapticRecall**: "Turn lectures into flashcards in seconds with AI": קובצי PDF של הרצאות הופכים לכרטיסי Anki עם תיאורי מקרה קליניים ולשאלות במתכונת NBME — [hunted.space](https://hunted.space/product/synapticrecall).
 - **זרימת עבודה אקדמית**: preprint ב־JMIR מתאר שקופיות שהפכו ל־CSV דרך ChatGPT ונטענו ל־Anki, 17,222 כרטיסים בסך הכול (תקציר חיפוש) — [JMIR Preprints](https://preprints.jmir.org/preprint/109815).
 - **ייצוא מכלים אחרים**: NotebookLM מאפשר "CSV download for flashcards" — [iatroX, 3/8/2026](https://www.iatrox.com/blog/best-ai-tools-to-turn-medical-lectures-into-flashcards-questions-notes); ‏BibiGPT מייצא CSV ל־Anki — [BibiGPT](https://bibigpt.co/blog/posts/quizlet-coconote-ai-study-tools-2026/).
 - **אזהרות**: "plausible-looking content hides errors"; עדיף לבדוק אצוות קטנות לפני ייבוא — [iatroX](https://www.iatrox.com/blog/best-ai-tools-to-turn-medical-lectures-into-flashcards-questions-notes).
@@ -201,7 +201,7 @@
 - **יכולות**: "Record audio synced to the exact moment of writing"; תמלול AI וסיכום; תשובות שמקשרות לעמוד המקור ומסמנות כשהמידע מגיע מידע כללי; Study Sets — כרטיסיות מההערות שלך — [Goodnotes](https://www.goodnotes.com/for-ai-assistants). ה־Study Sets "built on active recall and spaced repetition"; ‏Math Assist; ‏Handwriting Restyle (21/9) — [App Store](https://apps.apple.com/us/app/goodnotes-ai-notes-docs-pdf/id1444383602).
 - **מחיר**: Essential ‏$11.99 לשנה; Pro ‏$35.99 לשנה; AI Pass ‏$9.99 לחודש כתוספת; צוותים $120 למושב; Goodnotes Education חינם לבתי ספר K-12 — [Goodnotes](https://www.goodnotes.com/for-ai-assistants).
 - **עברית**: הממשק ב־15 שפות, בלי עברית — [App Store](https://apps.apple.com/us/app/goodnotes-ai-notes-docs-pdf/id1444383602).
-- **הקשר**: בבלוג של Goodnotes עצמה (1/10/2026), Notability ‏Goodnotes מסומנות כתומכות בתמלול, בסיכום ובכרטיסיות; OneNote חלקית; ‏Apple Notes ו־Samsung Notes בלי כרטיסיות — [Goodnotes Blog](https://www.goodnotes.com/blog/best-ai-notetaking-apps-handwritten-notes-pdfs).
+- **הקשר**: בבלוג של Goodnotes עצמה (1/10/2026), Notability ו־Goodnotes מסומנות כתומכות בתמלול, בסיכום ובכרטיסיות; OneNote חלקית; ‏Apple Notes ו־Samsung Notes בלי כרטיסיות — [Goodnotes Blog](https://www.goodnotes.com/blog/best-ai-notetaking-apps-handwritten-notes-pdfs).
 
 ##### 1.20 Microsoft — ‏OneNote / Copilot Notebooks ו־Study and Learn Agent
 - **לכידה רב־אופנית ב־OneNote**: אודיו, תמונות והערות נלכדים "in a single experience", ‏Copilot מתמלל ובונה Copilot Page עם תובנות, החלטות ומשימות. התכונה מוצעת אוטומטית בפגישות דפדפן (Zoom, ‏Webex, ‏Meet). ב־Windows: דורש רישיון Microsoft 365 Copilot; הזמינות הכללית נדחתה לסוף נובמבר 2026 (עודכן 6/11/2026); ממליצים לוודא הסכמה להקלטה — [Message Center MC1405506](https://mc.merill.net/message/MC1405506). iOS: זמינות כללית 4–5/2026; ‏Android: תצוגה מקדימה מאמצע 8/2026 (תקציר חיפוש) — [MC1275566](https://mc.merill.net/message/MC1275566), [MC1450130](https://mc.merill.net/message/MC1450130).
@@ -581,7 +581,7 @@
 10. **Jamworks** — פלטפורמה מוסדית לרישום הערות בתמיכת AI עם דגש על נגישות (WCAG 2.2 AA) — [Jamworks](https://jamworks.com/).
 11. **iatroX** — כלי שאלות לרפואה; סוקר כלים שמהם עוברים מהרצאה ל־Anki — [iatroX](https://www.iatrox.com/blog/best-ai-tools-to-turn-medical-lectures-into-flashcards-questions-notes).
 12. **StudyCards AI** — שקופיות שהופכות לקובץ ‎.apkg ‏(Anki) — [StudyCards AI](https://studycardsai.com/anki).
-13. **SynapticRecall** — הרצאות שהופכות לכרטיסי Anki עם תיאורי מקרה, ולשאלות בסגנון NBME — [hunted.space](https://hunted.space/product/synapticrecall).
+13. **SynapticRecall** — הרצאות שהופכות לכרטיסי Anki עם תיאורי מקרה, ולשאלות במתכונת NBME — [hunted.space](https://hunted.space/product/synapticrecall).
 14. **Diane** — חפיסה מהשקופיות תוך 30 שניות למועמדים לרפואה, עם תזמון משלה (תקציר חיפוש) — [Diane](https://www.diane.app/en/guides/pre-med-anki-alternative).
 15. **CogniGuide** — PPTX ו־DOCX שהופכים לכרטיסים לאחזור (תקציר חיפוש) — [CogniGuide](https://cogniguide.vercel.app/flashcards/anki-medical-students).
 16. **Recall Genie** — כלי שבנה משתמש ומייצר חפיסות Anki מ־PDF (תקציר חיפוש) — [MedicalSchoolHQ](https://forums.medicalschoolhq.net/t/built-a-tool-that-instantly-turns-pdfs-into-anki-decks-useful-for-mcat-material/17442).
