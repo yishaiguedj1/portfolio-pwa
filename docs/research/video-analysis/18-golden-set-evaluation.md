@@ -311,8 +311,8 @@
 | Video-MME | שאלות עם הגדרות של כתוביות ושמע | סרטונים מ־11 שניות עד שעה | HF | לא מוצהר | [arXiv](https://arxiv.org/abs/2405.21075) |
 | VideoMathQA | שאלות מתמטיקה בווידאו, עם 2,945 צעדי CoT ויותר מ־920 שעות תיוג של מומחים | 420 שאלות, ‏10 תחומים, מ־10 שניות ועד יותר משעה | HF | Apache-2.0 | [arXiv](https://arxiv.org/abs/2506.05349), [HF](https://huggingface.co/datasets/MBZUAI/VideoMathQA) |
 | SciVideoBench | שאלות על ניסויים מדעיים | — | חוזה גישה חתום, זכויות JoVE | academic use only | [arXiv](https://arxiv.org/abs/2510.08559) |
-| MeetingBank | תמלילים וסיכומים של ישיבות מועצות עיר | — | HF | CC BY-NC-SA 4.0 | [HF](https://huggingface.co/datasets/huuuyeah/meetingbank) |
-| AMI | פגישות עם תמלול ידני | — | HF | CC BY 4.0 | [HF](https://huggingface.co/datasets/legacy-datasets/ami) |
+| MeetingBank | מאגר לסיכום פגישות (פירוט התוכן לא נקרא) | — | HF | CC BY-NC-SA 4.0 | [HF](https://huggingface.co/datasets/huuuyeah/meetingbank) |
+| AMI | קורפוס פגישות (פירוט התוכן לא נקרא) | — | HF | CC BY 4.0 | [HF](https://huggingface.co/datasets/legacy-datasets/ami) |
 | ELITR Minuting | תמלילים בצ'כית ובאנגלית, פרוטוקולים שנכתבו ידנית ("minutes") ויישור ידני ביניהם | 3.48MB | LINDAT | CC BY-NC-SA 4.0 | [LINDAT](https://lindat.mff.cuni.cz/repository/xmlui/handle/11234/1-4692) |
 | LectureBank | משאבי הרצאות וטקסונומיה, לגרף דרישות קדם ב־NLP | 7,499 משאבים, ‏320 נושאים בעץ | GitHub | לא צוין | [LectureBank](https://github.com/Yale-LILY/LectureBank) |
 | anki-revlogs-10k | יומני חזרות של כרטיסיות, לבדיקת אלגוריתמי תזמון | ‏10K משתמשים, כ־727M חזרות | HF gated (auto) | "other" | [HF](https://huggingface.co/datasets/open-spaced-repetition/anki-revlogs-10k), [srs-benchmark](https://github.com/open-spaced-repetition/srs-benchmark) |
@@ -326,8 +326,8 @@
   - VTT לכל אירוע ב־FOSDEM — [schedule XML](https://fosdem.org/2026/schedule/xml)
   - תמלילי SEE — [SEE CS229](https://see.stanford.edu/Course/CS229)
 - **שני מאגרים שלא אומתו:**
-  - AVLectures: העמוד החזיר 503.
-  - EDUVSUM: אין רישיון מוצהר ב־README — [EDUVSUM ב־GitHub, לפי הבדיקה](https://github.com/)
+  - AVLectures: עמוד הפרויקט החזיר 503 — [AVLectures](https://cvit.iiit.ac.in/research/projects/cvit-projects/avlectures)
+  - EDUVSUM: מקטעים חשובים בסרטונים חינוכיים, והנתונים ב־Zenodo. אין רישיון מוצהר ב־README — [EDUVSUM](https://github.com/VideoAnalysis/EDUVSUM)
 
 ### Inferences
 - **למה המאגרים טובים: כיול, לא אימון.** כדאי להשתמש בהם כדי לכייל את השופט ואת הבודקים:
@@ -465,9 +465,9 @@
   - הסטודנטים זיהו את מקור השאלה נכון רק ב־57% מהמקרים — [Academic Medicine](https://doi.org/10.1097/ACM.0000000000005626)
 - **Cheung et al. 2023:**
   - ‏50 שאלות נוצרו ב־20:25 דקות, מול 211:33 דקות אצל בני אדם — [PLOS ONE](https://doi.org/10.1371/journal.pone.0290691)
-  - נמצא נחיתות רק בתחום ה־relevance: ‏7.56 מול 7.88 (p=0.04) — [PLOS ONE](https://doi.org/10.1371/journal.pone.0290691)
+  - נמצאה נחיתות רק בתחום ה־relevance: ‏7.56 מול 7.88 (p=0.04) — [PLOS ONE](https://doi.org/10.1371/journal.pone.0290691)
 - **Artsi et al. 2024 (סקירה שיטתית):** "All studies presented faulty questions that were deemed inappropriate for medical exams" — [BMC Med Educ](https://doi.org/10.1186/s12909-024-05239-y)
-- **Kıyak & Emekli 2024:** סקרו 23 מחקרים. התוקף מעורב: חלק דומה לאנושי, וחלק נבדל בקושי ובהבחנה. ההמלצה: "Avoid using ChatGPT-generated MCQs directly in examinations without thorough review" — [Postgrad Med J](https://doi.org/10.1093/postmj/qgae065)
+- **Kıyak et al. 2024:** סקרו 23 מחקרים. התוקף מעורב: חלק דומה לאנושי, וחלק נבדל בקושי ובהבחנה. ההמלצה: "Avoid using ChatGPT-generated MCQs directly in examinations without thorough review" — [Postgrad Med J](https://doi.org/10.1093/postmj/qgae065)
 - **Ngo et al. 2024:** כותרת המאמר: "ChatGPT 3.5 fails to write appropriate multiple choice practice exam questions" — [Academic Pathology](https://doi.org/10.1016/j.acpath.2023.100099)
 - **Kurdi et al. 2020:** סקירה שיטתית של יצירת שאלות אוטומטית לחינוך — [IJAIED](https://doi.org/10.1007/s40593-019-00186-y)
 
@@ -582,7 +582,7 @@
 - **Kornell 2009:**
   - חפיסה גדולה אחת (מרווח) עדיפה על ארבע קטנות (ריכוז). המרווח היה טוב יותר ל־90% מהמשתתפים — [Applied Cognitive Psychology](https://doi.org/10.1002/acp.1537)
   - ובכל זאת 72% האמינו שריכוז עדיף — [Applied Cognitive Psychology](https://doi.org/10.1002/acp.1537)
-- **Latimier et al. 2021:** מטא־אנליזה על ריווח של מפגשי שליפה (כותרת) — [Educational Psychology Review](https://doi.org/10.1007/s10648-020-09572-8)
+- **Latimier et al. 2020 (לפי Crossref):** מטא־אנליזה על ריווח של מפגשי שליפה (כותרת) — [Educational Psychology Review](https://doi.org/10.1007/s10648-020-09572-8)
 - **Carpenter, Pan & Butler 2022:** סקירה על מרווחים ושליפה (כותרת) — [Nature Reviews Psychology](https://doi.org/10.1038/s44159-022-00089-1)
 - **Brunmair & Richter 2019 (שזירה):** בסך הכול g=0.42. במתמטיקה 0.34, ובלמידת מילים האפקט שלילי: ‎−0.39 — [PubMed 31556629](https://pubmed.ncbi.nlm.nih.gov/31556629/)
 
@@ -604,7 +604,7 @@
 - **Nesbit & Adesope 2006 (מטא־אנליזה):**
   - ‏55 מחקרים ו־5,818 משתתפים. בניית מפה, שינוי שלה או צפייה בה נקשרו ל־"increased knowledge retention" — [Review of Educational Research](https://doi.org/10.3102/00346543076003413)
   - האפקטים נעו מקטן לגדול "depending on how concept maps were used", וההטרוגניות הייתה מובהקת — [Review of Educational Research](https://doi.org/10.3102/00346543076003413)
-- **Schroeder et al. 2018:** מטא־אנליזה בשם "Studying and Constructing Concept Maps" (כותרת) — [Educational Psychology Review](https://doi.org/10.1007/s10648-017-9403-9)
+- **Schroeder et al. 2017 (לפי Crossref):** מטא־אנליזה בשם "Studying and Constructing Concept Maps" (כותרת) — [Educational Psychology Review](https://doi.org/10.1007/s10648-017-9403-9)
 - **Karpicke & Blunt 2011:** שליפה עדיפה על לימוד עם מיפוי מושגים, גם כשהמבחן הסופי היה בניית מפה — [PubMed 21252317](https://pubmed.ncbi.nlm.nih.gov/21252317/)
 - **Blunt & Karpicke 2014:** "Learning with retrieval-based concept mapping" (כותרת) — [Journal of Educational Psychology](https://doi.org/10.1037/a0035934)
 - **Chang et al. 2002:** השפעת מיפוי מושגים על הבנה וסיכום של טקסט (כותרת) — [Journal of Experimental Education](https://doi.org/10.1080/00220970209602054)
@@ -612,11 +612,11 @@
 #### כרטיסיות
 - **Pan et al. 2023:** כותרת המאמר: "User-generated digital flashcards yield better learning than premade flashcards" — [JARMAC](https://doi.org/10.1037/mac0000083)
 - **Kornell & Bjork 2008:** היתרונות והמחירים של "הוצאת" כרטיסים מהחפיסה (כותרת) — [Memory](https://doi.org/10.1080/09658210701763899)
-- **Wissman, Rawson & Pyc 2012:** "How and when do students use flashcards?" (כותרת) — [Memory](https://doi.org/10.1080/09658211.2012.687052)
+- **Wissman et al. 2012:** "How and when do students use flashcards?" (כותרת) — [Memory](https://doi.org/10.1080/09658211.2012.687052)
 
 #### תוכן לימודי שנוצר ב־LLM
 - **Pardos & Bhandari 2023:** ‏77 משתתפים. ‏70% מרמזי ChatGPT עברו בדיקת איכות, אבל רק רמזים של מורים הניבו רווח מובהק, והוא היה גבוה יותר — [arXiv 2302.06871](https://arxiv.org/abs/2302.06871)
-- **Pardos & Bhandari 2024:**
+- **Pardos et al. 2024:**
   - ‏N=274. רק תנאי ChatGPT הניב רווח מובהק מול ביקורת, ולא נמצא הבדל מובהק מול רמזי מורים — [PLOS ONE](https://doi.org/10.1371/journal.pone.0304013)
   - ‏32% מהרמזים נכשלו בבדיקת איכות. ‏self-consistency הוריד את הכישלונות לכמעט 0% באלגברה ול־13% בסטטיסטיקה — [PLOS ONE](https://doi.org/10.1371/journal.pone.0304013)
 - **Elkins et al. 2023:** מורים דירגו שאלות שנוצרו אוטומטית כשימושיות — [arXiv 2304.06638](https://arxiv.org/abs/2304.06638)
@@ -677,10 +677,10 @@
   - חיפוש לפי מזהים ידועים בלבד, כי WebSearch נגמר.
   - Pan 2023 נקרא רק דרך הכותרת. התקציר לא היה זמין ב־Crossref.
 - הממצאים המספריים של המאמרים הבאים לא נקראו, וזמינות רק הכותרות שלהם:
-  - Schroeder 2018 (לבנות מפה לעומת ללמוד ממפה מוכנה).
+  - Schroeder 2017 (לבנות מפה לעומת ללמוד ממפה מוכנה).
   - Agarwal 2021.
   - Yang 2021.
-  - Latimier 2021.
+  - Latimier 2020.
   - Carpenter 2022.
   - Blunt & Karpicke 2014.
   - McCurdy 2020.
