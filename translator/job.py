@@ -2234,7 +2234,8 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     held = ladder_hold() if args and args[0] in LADDER_HOLD_CMDS else None
     eh = early_shots_hold(True) if args and args[0] in EARLY_HOLD_CMDS else False
     stop = threading.Event()
-    if args and args[0] == 'align' and ctx is not None:
+    if args and args[0] == 'align' and ctx is not None and stage == 'al':
+        # 09/11/2026: רק היישור של שלב 'al'. היישור מחדש בצירוף המאוחר (שלב rv) דרס את נקודת התמלול במצב באמצע הצירוף
         threading.Thread(target=align_ck_watch, args=(ctx, stop), daemon=True).start()
     heavy = args[0] if args and args[0] in HEAVY_ENV and ctx is not None and isinstance(getattr(ctx, 'st', None), dict) and ctx.st.get('job') else ''
     restore = None
@@ -2776,6 +2777,7 @@ def set_source(pd, src):
     mp.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding='utf-8')
 
 
+SYNC_FALLBACK_CONF = 0.3   # 09/11/2026: אחרי יישור מחדש שנכשל — היסט מחלון בוודאות כזו עדיף על אפס
 SYNC_MIN_CONF = 0.6      # מתחת לזה ההיסט לא ודאי → מתמללים מחדש מהסרטון (בלי טוקנים, וההגהה נשמרת)
 
 
@@ -2925,7 +2927,27 @@ def attach_late(ctx):
         print('✓ הסרטון צורף · היסט %+.3f שנ׳ (ודאות %.2f)' % (off, conf))
     else:
         print('· ההיסט בין הקול לסרטון לא ודאי (%.2f) — מיישרים מחדש על הקול של הסרטון (בלי טוקנים)' % conf)
-        vt(ctx, ['align', ctx.name])
+        # 09/11/2026: בשלב הזה המודל של העומס (perf.py, mem_fit) כבר לא מצפה ליישור — עבודות אחרות אולי נכנסו. לכן במצב
+        # חיסכון מההתחלה (בלי arena של ONNX: 5.0→2.8GB, ‎+32% זמן) — תחת gVisor נפילה = כל הקונטיינר וכל העבודות שבו
+        prev_arena = os.environ.get('SNB_ALIGN_ARENA')
+        if prev_arena is None:
+            os.environ['SNB_ALIGN_ARENA'] = 'off'
+        try:
+            vt(ctx, ['align', ctx.name])
+        except StepError:
+            raise                                # נהרג (זיכרון) — הסימן של heavy_mark נשאר, והניסיון הבא במצב חיסכון
+        except SystemExit:
+            # 09/11/2026 (פרק סדרה, "vt align נכשל (קוד 1)" חמש פעמים ב"בודקים ומתקנים"): היישור מחדש הוא שיפור, לא
+            # תנאי. הקול שעלה ראשון הוא העתק של רצועת הקול של אותו סרטון (בלי קידוד) — היישור שכבר נעשה עליו תקף.
+            # נכשל → ממשיכים עם הזמנים הקיימים (וההיסט הטוב ביותר שנמצא, אם הוא סביר) במקום להפיל את כל העבודה.
+            off = off if conf >= SYNC_FALLBACK_CONF else 0.0
+            if abs(off) >= 0.0005:
+                shift_times(pd, off)
+            print('⚠ היישור מחדש נכשל — ממשיכים עם הזמנים מהקול שעלה ראשון (היסט %+.3f שנ׳)' % off, flush=True)
+            ctx.st['sync_fb'] = 1
+        finally:
+            if prev_arena is None:
+                os.environ.pop('SNB_ALIGN_ARENA', None)
         vt(ctx, ['retime', ctx.name])
     shots_bg(ctx)                                # 21/10/2026: ברקע, בזמן הביקורת — נחוץ רק לבנייה הסופית (finish → shots_join)
     ctx.st['src'] = 'v'

@@ -18,16 +18,23 @@ WINDOW_S = 180          # כמה שניות מהתחלה משווים — מספ
 MAX_LAG_S = 10.0        # היסט גדול מזה = לא אותו קובץ / קובץ שנחתך — לא מתקנים לבד
 
 
-def read_wav(path, max_s):
+def read_wav(path, max_s, start_s=0.0):
     with wave.open(str(path), 'rb') as w:
         if w.getsampwidth() != 2:
             raise ValueError('צפוי PCM 16bit')
         sr, ch = w.getframerate(), w.getnchannels()
+        st = max(0, min(int(start_s * sr), w.getnframes()))
+        w.setpos(st)
         raw = w.readframes(int(max_s * sr))
     x = np.frombuffer(raw, dtype='<i2').astype(np.float64)
     if ch > 1:
         x = x.reshape(-1, ch).mean(axis=1)
     return x - (x.mean() if len(x) else 0.0), sr
+
+
+def wav_dur(path):
+    with wave.open(str(path), 'rb') as w:
+        return w.getnframes() / float(w.getframerate() or 1)
 
 
 def find_offset(a, b, sr, max_lag_s=MAX_LAG_S):
@@ -52,16 +59,42 @@ def find_offset(a, b, sr, max_lag_s=MAX_LAG_S):
     return k / sr, max(0.0, min(1.0, conf))
 
 
+def windows(dur_a):
+    """09/11/2026 (פרק סדרה — "ההיסט לא ודאי" ויישור מחדש שנכשל חמש פעמים): לא רק 3 הדקות הראשונות. פתיח עם מוזיקה,
+    צחוק מוקלט או שקט בהתחלה מורידים את המתאם גם כשהקבצים זהים — בודקים עוד שני חלונות (באמצע ובשליש האחרון)."""
+    out = [0.0]
+    for f in (0.45, 0.75):
+        s = round(max(0.0, dur_a * f - WINDOW_S / 2), 3)
+        if s > 0 and all(abs(s - x) >= WINDOW_S for x in out):
+            out.append(s)
+    return out
+
+
+def best_offset(path_a, path_b):
+    """(היסט, ודאות) — החלון עם הוודאות הגבוהה ביותר. חלון שאינו בהתחלה: הקטע של b מתחיל MAX_LAG_S לפני, וההיסט מתוקן."""
+    best = (0.0, 0.0)
+    for s in windows(wav_dur(path_a)):
+        a, sr = read_wav(path_a, WINDOW_S, s)
+        b0 = max(0.0, s - MAX_LAG_S)
+        b, sr2 = read_wav(path_b, WINDOW_S + (s - b0) + MAX_LAG_S, b0)
+        if sr != sr2:
+            return 0.0, 0.0
+        off, conf = find_offset(a, b, sr, max_lag_s=(s - b0) + MAX_LAG_S)
+        off = off + b0 - s
+        if abs(off) > MAX_LAG_S:
+            continue
+        if conf > best[1]:
+            best = (off, conf)
+        if conf >= 0.9:
+            break
+    return best
+
+
 def main(argv):
     if len(argv) != 2:
         print('שימוש: sync.py <קול־ראשון.wav> <קול־מהסרטון.wav>', file=sys.stderr)
         return 2
-    a, sr = read_wav(argv[0], WINDOW_S)
-    b, sr2 = read_wav(argv[1], WINDOW_S + MAX_LAG_S)
-    if sr != sr2:
-        print('0.000000 0.000')
-        return 0
-    off, conf = find_offset(a, b, sr)
+    off, conf = best_offset(argv[0], argv[1])
     print('%.6f %.3f' % (off, conf))
     return 0
 

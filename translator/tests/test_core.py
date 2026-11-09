@@ -687,3 +687,43 @@ class TestGlossaryCheck(unittest.TestCase):
         self.assertEqual(st['glossary'], 0, 'המונח בכתובית השכנה (החלוקה בעברית שונה) ועם אותיות שימוש')
         issues, st = check(cues, {'1': 'הנהגים אוהבים', '2': 'והסכמנו'}, [('Uber', ['אובר'])])
         self.assertEqual(st['glossary'], 1)
+
+
+class TestAlignPastAudioEnd(unittest.TestCase):
+    """09/11/2026 (פרק סדרה — "vt align נכשל (קוד 1)" בכל ניסיון): מילים שהזמנים שלהן אחרי סוף הקול (קול של קובץ אחר /
+    קצר יותר) נתנו קטע ריק למודל, והיישור כולו נפל. עכשיו — המילים האלה נשארות משוערות; ומפתח המטמון כולל את הקול."""
+
+    def test_qwen_chunk_past_end(self):
+        import sys
+        import tempfile
+        import types
+        import numpy as np
+        from unittest import mock
+        from vt import align as A
+        sf = types.SimpleNamespace(read=lambda path, dtype=None: (np.zeros(16000 * 5, dtype='float32'), 16000))
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(sys.modules, {'soundfile': sf}):
+            wav = d + '/a.wav'
+            words = [{"w": "hi", "s": 1.0, "e": 1.4}, {"w": "late", "s": 300.0, "e": 300.5}]
+            calls = []
+
+            class Fake:
+                engine = 'fake'
+
+                def __init__(self, *a, **k):
+                    pass
+
+                def align_chunk(self, seg, sr, ws):
+                    calls.append(len(seg))
+                    return [(0.1, 0.3)] * len(ws)
+            with mock.patch.object(A, 'Aligner', Fake):
+                out, st = A.align_words([dict(w) for w in words], wav, cache=d + '/part.json')
+            self.assertTrue(all(n > 0 for n in calls), 'לא נשלח קטע ריק')
+            self.assertEqual(out[1].get('align'), 'approx')
+
+    def test_cache_key_depends_on_audio(self):
+        import numpy as np
+        from vt.align import audio_key
+        a = np.zeros(16000 * 30, dtype='float32')
+        b = a.copy(); b[16000 * 10] = 0.5
+        self.assertNotEqual(audio_key(a, 16000), audio_key(b, 16000))
+        self.assertEqual(audio_key(a, 16000), audio_key(a.copy(), 16000))
