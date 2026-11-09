@@ -1732,7 +1732,7 @@ def mirror_prog(st, p):
 
 _EV_SENT = {}
 # v365: פקודת vt → סוג האירוע בקטלוג (תמלול / יישור / בדיקה / צריבה / קליטה)
-VT_KIND = {'asr': 'asr', 'new': 'ingest', 'ingest': 'ingest', 'shots': 'ingest', 'edit-export': 'align', 'edit-import': 'align',
+VT_KIND = {'asr': 'asr', 'speech': 'asr', 'new': 'ingest', 'ingest': 'ingest', 'shots': 'ingest', 'edit-export': 'align', 'edit-import': 'align',
            'align': 'align', 'plan': 'align', 'tr-prep': 'align', 'tr-check': 'check', 'tr-merge': 'render', 'build': 'render',
            'render': 'render'}
 
@@ -2678,22 +2678,32 @@ def prepare(args):
     url_fetch(ctx)                                 # 22/10/2026: הורדה מקישור — הקול עכשיו, הסרטון ברקע
     files = ctx.st.get('files') or {}
     a = files.get('a') if (files.get('a') or {}).get('id') else None
+    def from_video():
+        v = wait_video(ctx, 'up', 'מחכה שהסרטון יסיים לעלות')
+        src = in_path(ctx, v, 'v')
+        ctx.report('tr', 0, 'מוריד את הסרטון', force=True)
+        fetch_input(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('tr', 0.1 * f, 'מוריד את הסרטון'))
+        ladder_start(ctx, src)                   # איכויות הצפייה — ברקע, במקביל לכל השאר
+        return edl_src(ctx, src, 'v')
     if a:
         src = in_path(ctx, a, 'a')
         ctx.report('tr', 0, 'מוריד את הקול', force=True)
         fetch_input(ctx, a['id'], src, int(a.get('size') or 0), lambda f: ctx.report('tr', 0.05 * f, 'מוריד את הקול'))
         src = edl_src(ctx, src, 'a')
     else:
-        v = wait_video(ctx, 'up', 'מחכה שהסרטון יסיים לעלות')
-        src = in_path(ctx, v, 'v')
-        ctx.report('tr', 0, 'מוריד את הסרטון', force=True)
-        fetch_input(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('tr', 0.1 * f, 'מוריד את הסרטון'))
-        ladder_start(ctx, src)                   # איכויות הצפייה — ברקע, במקביל לכל השאר
-        src = edl_src(ctx, src, 'v')
+        src = from_video()
     ensure_env(ctx)                              # ההורדה רצה בינתיים; ההתקנה (אם חסרה) כבר רצה ברקע מאז run
     title = os.path.splitext(str(ctx.st['spec'].get('name') or ctx.name))[0][:120]
     vt(ctx, ['new', ctx.name, '--source', str(src), '--title', title, '--force'])
     vt(ctx, ['ingest', ctx.name])
+    if a and not speech_ok(ctx):
+        # 09/11/2026: הקול שעלה ראשון כמעט בלי דיבור (העתקה שבורה בטלפון) — התמלול שלו לקח 18 דק׳ והחזיר 69 מילים.
+        # הסרטון ממילא עולה במקביל: מחכים לו ומתמללים ממנו, כמו עבודה בלי קול נפרד
+        print('· בקול שעלה ראשון כמעט אין דיבור — מחכים לסרטון ומתמללים ממנו')
+        a = None
+        src = from_video()
+        vt(ctx, ['new', ctx.name, '--source', str(src), '--title', title, '--force'])
+        vt(ctx, ['ingest', ctx.name])
     ctx.report('tr', 0.15, 'כותבים כל מילה שנאמרת', force=True)
     vt(ctx, ['asr', ctx.name, '--engine', 'parakeet'], 'tr', 0.15, 0.95)
     if not a:
@@ -2716,6 +2726,25 @@ def prepare(args):
         pass
     print('אחר כך (ברקע): python3 translator/job.py align')
     return 0
+
+
+SPEECH_MIN = 0.05        # פרק רגיל ~0.5; קול שבור ~0.002
+SPEECH_MIN_DUR = 180     # קטע קצר (שיר, קליפ) — לא שופטים לפי זה
+
+
+def speech_ok(ctx):
+    """09/11/2026: האם בקול שנקלט יש מספיק דיבור (vt speech). בלי תוצאה / קצר / תקלה — כן (המסלול הרגיל)."""
+    try:
+        vt(ctx, ['speech', ctx.name])
+    except Stop:
+        raise
+    except (SystemExit, Exception):              # noqa: BLE001 — בדיקה משנית
+        return True
+    r = _read_json(ctx.pdir / 'asr' / 'speech.json') or {}
+    sp, dur = r.get('sp'), r.get('dur') or 0
+    if not isinstance(sp, (int, float)) or dur < SPEECH_MIN_DUR:
+        return True
+    return sp >= SPEECH_MIN
 
 
 def lang_safe(ctx):
