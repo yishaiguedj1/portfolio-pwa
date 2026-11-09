@@ -157,6 +157,15 @@ export function kaPlan(pl, durSec, bv, mdl) {
   for (const k of ['tr', 'al', 'tl', 'rv', 'bn', 'sv']) { const [a, b] = KA_STG[k] ? ab(k === 'tr' && bv ? 'tb' : k) : [0, 0]; s[k] = Math.round(a + b * m); }
   return Object.assign({}, pl || {}, { s, t: ['tr', 'al', 'tl', 'rv', 'bn', 'sv'].reduce((a, k) => a + (s[k] || 0), 0) });
 }
+/* 9/11/2026: ניתוח סרטונים — = viPlan ב־ibkr-proxy/lib/studioeta.js (אותם VI_STG/VI_DRY_RV; translator/tests/test_perf.py משווה
+   ל־perf.phases('vi')): תמלול, מסך ויישור, הניתוח, בנייה, שמירה — בלי תרגום. הרצה יבשה: הניתוח = ספירת טוקנים בלבד */
+export const VI_STG = { tr: [0, 10.8], al: [0, 9], rv: [120, 3.6], bn: [0, 3], sv: [90, 0.6] };
+export const VI_DRY_RV = [15, 0];
+export function viPlan(pl, durSec, dry) {
+  const m = Math.max(0, Number(durSec) || 0) / 60, s = Object.assign({}, (pl && pl.s) || {});
+  for (const k of ['tr', 'al', 'tl', 'rv', 'bn', 'sv']) { const [a, b] = k === 'rv' && dry ? VI_DRY_RV : VI_STG[k] || [0, 0]; s[k] = Math.round(a + b * m); }
+  return Object.assign({}, pl || {}, { s, t: ['tr', 'al', 'tl', 'rv', 'bn', 'sv'].reduce((a, k) => a + (s[k] || 0), 0) });
+}
 export function progressModel(job, est, up, now, q) {
   const prog = (job && job.prog) || {};
   const stg = prog.stg || {};

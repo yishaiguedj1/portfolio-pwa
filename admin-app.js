@@ -911,7 +911,7 @@ page('maint', { tab: 'sys', parent: 'sys', title: () => t('admMaint'), render(p)
 } });
 const FL = {
   st_api: [() => t('admFlStApi'), () => t('admFlStApiS')], st_routine: [() => t('admFlStRt'), () => t('admFlStRtS')],
-  st_url: [() => t('admFlStUrl'), () => t('admFlStUrlS')],
+  st_url: [() => t('admFlStUrl'), () => t('admFlStUrlS')], st_vi: [() => t('admFlStVi'), () => t('admFlStViS')],   // 9/11/2026: ניתוח סרטונים
   st_auto: [() => t('admFlStAuto'), () => t('admFlStAutoS')], learn: [() => t('admFlLearn'), () => t('admFlLearnS')], learn_full: [() => t('admFlFull'), () => t('admFlFullS')],
   push: [() => t('admFlPush'), () => t('admFlPushS')], iv_live: [() => t('admFlLive'), () => t('admFlLiveS')],
   ud_srv: [() => t('admFlUd'), () => t('admFlUdS')],   // 6/11/2026: שלב 4 — כבוי כברירת מחדל
@@ -1679,8 +1679,8 @@ page('user', { tab: 'act', parent: 'people', title: () => { const r = userOf(D.u
 } });
 /* ---- שימוש ומשאבים (29/10/2026, בקשת המשתמש: "להעריך את כמות השימוש ואת הצורך בשדרוג המשאבים") — UM.usage בשרתון:
    המלצות, 30 יום לפי יום ולפי שעה, לפי סוג עבודה ומנוע, המתנה בתור, ריצה, שיא במקביל, ניצולת, כשלים ושרתים ---- */
-const TY = { vid: 'admTyVid', url: 'admTyUrl', sub: 'admTySub', ka: 'admTyKa', ph: 'admTyPh', rr: 'admTyRr', ai: 'admTyAi', dx: 'admTyDx', oth: 'admTyOth' };
-const TY_C = { vid: 'studio', url: 'blue', sub: 'purple', ka: 'orange', ph: 'green', rr: 'gray', ai: 'academy', dx: 'gray', oth: 'gray' };
+const TY = { vid: 'admTyVid', url: 'admTyUrl', sub: 'admTySub', ka: 'admTyKa', vi: 'admTyVi', ph: 'admTyPh', rr: 'admTyRr', ai: 'admTyAi', dx: 'admTyDx', oth: 'admTyOth' };
+const TY_C = { vid: 'studio', url: 'blue', sub: 'purple', ka: 'orange', vi: 'academy', ph: 'green', rr: 'gray', ai: 'academy', dx: 'gray', oth: 'gray' };
 const tyTxt = (k) => t(TY[k] || TY.oth);
 const ENG = { api: 'admEkApi', ry: 'admEkRy', cp: 'admEkCp', rt: 'admEkRt' };
 const REC = { wait: ['orange', '⏳', 'admRecWait'], util: ['orange', '⚙', 'admRecUtil'], fail: ['red', '!', 'admRecFail'], grow: ['blue', '↗', 'admRecGrow'], cut: ['gray', '…', 'admRecCut'] };

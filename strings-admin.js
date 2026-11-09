@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1540 מפתחות מתוך 6563) */
+/* המחרוזות של admin (1543 מפתחות מתוך 6588) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -446,6 +446,8 @@ he: {
   "admFlStRtS": "עבודות במנוי שלך",
   "admFlStUrl": "הורדה מקישור",
   "admFlStUrlS": "יוטיוב ואתרים אחרים — העובד מוריד",
+  "admFlStVi": "ניתוח סרטונים",
+  "admFlStViS": "כבוי — רק המנהל · גם מתג החירום",
   "admFlUd": "התיק והספרייה דרך השרת שלנו",
   "admFlUdS": "Firebase רק גיבוי · דולק כברירת מחדל",
   "admFlagsAll": "הכל דולק",
@@ -1256,6 +1258,7 @@ he: {
   "admTyRr": "הפקה מחדש",
   "admTySub": "קובץ כתוביות",
   "admTyUrl": "תרגום מקישור",
+  "admTyVi": "ניתוח סרטון",
   "admTyVid": "תרגום סרטון",
   "admUBadCap": "סכום בין 1 ל־10,000",
   "admUCap": "תקרה חודשית",
@@ -1988,6 +1991,8 @@ en: {
   "admFlStRtS": "Jobs in your plan",
   "admFlStUrl": "Download from a link",
   "admFlStUrlS": "YouTube and other sites — downloaded by the worker",
+  "admFlStVi": "Video analysis",
+  "admFlStViS": "Off — admin only · also the kill switch",
   "admFlUd": "Portfolio and library via our server",
   "admFlUdS": "Firebase as backup only · on by default",
   "admFlagsAll": "All on",
@@ -2798,6 +2803,7 @@ en: {
   "admTyRr": "Re-render",
   "admTySub": "Subtitle file",
   "admTyUrl": "From a link",
+  "admTyVi": "Video analysis",
   "admTyVid": "Video translation",
   "admUBadCap": "An amount between 1 and 10,000",
   "admUCap": "Monthly cap",

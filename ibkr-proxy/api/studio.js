@@ -34,6 +34,7 @@ const I = require('../lib/studioinc');
 const P = require('../lib/studioprob');   // v376: בעיות וספרי הפעלה
 const L = require('../lib/studiosla');   // v377: יעדי שירות, ערך ותחזית
 const ETA = require('../lib/studioeta');
+const VI = require('../lib/studiovi');   // 9/11/2026: ניתוח סרטונים
 const PG = require('../lib/studioprog');   // 27/10/2026: ההתקדמות המשוערת של השלב (= הפס בטלפון) — להתראות בווילון   // 10/10/2026: צפי זמנים נלמד לכל שלב
 const SC = require('../lib/studioscan');
 const PIR = require('../lib/studiopir');   // v379: דוח אחרי תקלה   // v378: בדיקת מוכנות ותחזוקה
@@ -405,6 +406,7 @@ async function learnMediaPull(deps, ids, withVideo) {
    המשתמש לא נכנסות למאגר מעכשיו. 15/10 (מ׳1): "מחק את התרומות שלי" (studioStats.lf = מתי) — עבודה שנוצרה עד אז לא נכנסת שוב.
    תקלה בקריאה = לא שומרים (זהירות) */
 async function learnSkip(deps, job, cache) {
+  if (job && job.spec && job.spec.vi === 1) return true;   // 9/11/2026: ניתוח — מאגר משלו בגל 1 (PR 1.3), לא במאגר של התרגום
   if (!(await flagOn(deps, 'learn'))) return true;   // 15/10/2026: הדגל "איסוף למאגר הלמידה" כבוי — לכולם
   const uid = job.uid;
   let p = cache && cache.get(uid);
@@ -1068,7 +1070,7 @@ async function shadePush(deps, job, x, now) {
   if (!x || !PG.shadeDue(SHADE_PN.get(job.id), x)) return 0;
   SHADE_PN.set(job.id, PG.shadeMark(x));
   const sp = job.spec || {};
-  const n = await notify(deps, job.uid, 'stage', job.id, now, { st: x.st, p: x.p, to: Array.isArray(sp.to) ? sp.to.join(',') : String(sp.to || ''), v: sp.ka ? 'ka' : sp.src === 'subs' ? 'sb' : '' });
+  const n = await notify(deps, job.uid, 'stage', job.id, now, { st: x.st, p: x.p, to: Array.isArray(sp.to) ? sp.to.join(',') : String(sp.to || ''), v: sp.ka ? 'ka' : sp.vi === 1 ? 'vi' : sp.src === 'subs' ? 'sb' : '' });
   return n + await watchPush(deps, job, x, now).catch(() => 0);   // 29/10/2026: וגם למנהל, כשזו עבודה של משתמש אחר
 }
 async function pulseOp(deps, body, sid, now) {
@@ -1860,7 +1862,7 @@ async function server(req, res, body, deps) {
     // poll: העבודה הוותיקה ביותר שמחכה לשרת
     // 1/11/2026: עבודת הבדיקה שאחרי עדכון (sm) — אחרי כל עבודה של משתמש (היא "רצה כשיש מקום"; לפני כן תפסה את השרת
     // והסרטון האמיתי חיכה "בתור לשרת" עד שהזיכרון התפנה)
-    const qd = (await query(deps, 'studioJobs', { state: 'queued', eng: 'api', sid: '' }, 30)).sort((a, b) => (a.sm === 1) - (b.sm === 1) || (a.fired || 0) - (b.fired || 0));
+    const qd = (await query(deps, 'studioJobs', { state: 'queued', eng: 'api', sid: '' }, 30)).sort((a, b) => (a.sm === 1) - (b.sm === 1) || ((a.spec || {}).vi === 1) - ((b.spec || {}).vi === 1) || (a.fired || 0) - (b.fired || 0));   // 9/11/2026: ניתוח — אחרי התרגום (התרגום קודם)
     // 21/10/2026: השרת כבר מריץ עבודה ושואל אם יש עוד — רק עבודה שהשיא הצפוי שלה נכנס בזיכרון שנשאר לו (fit).
     // לפי הסדר: אם הוותיקה לא נכנסת, לא מקדימים לה עבודה קטנה (אחרת עבודה ארוכה מחכה לנצח מאחורי קצרות)
     const fit = S.normFit(body.fit);
@@ -1880,6 +1882,7 @@ async function server(req, res, body, deps) {
     for (const job of qd) {
       if (!apiJob(job) || S.effState(job, now).state !== 'queued') continue;
       if (ptJob(job)) continue;   // 25/10/2026: הטלפון לוקח אותה בעצמו (phClaim)
+      if (job.spec && job.spec.vi === 1 && hb.vi !== 1) continue;   // 9/11/2026: ניתוח — רק לעובד שמכיר אותו (hb.vi); עובד ישן היה מריץ אותו כתרגום, עם Claude
       if (job.bw && !br.includes(job.id) && !lost.includes(job.id)) continue;   // 01/11/2026 (I3): מחכה לתור החיסכון — רק כשהסוכן אמר שהתשובות חזרו (או שהתור שלה אבד)
       if (job.vw && !((job.spec && job.spec.ph === 1 ? job.fph : job.fv) || {}).id) continue;   // 15/10/2026: מחכה לסרטון — לא תופסים שרת עד שהוא נרשם (24/10: בתרגום בטלפון — לקובץ המדידות)
       if (fit && (S.peakNeed(job, fit) > fit.mb || S.perfBlock(job, fit))) break;   // 5/11/2026: וגם הקבלה החזויה (perfBlock)
@@ -1898,7 +1901,7 @@ async function server(req, res, body, deps) {
       if (!got) continue;
       await patchDoc(deps, 'studioServers', p.sid, Object.assign(seen, { job: job.id }));
       const dur = job.spec && job.spec.dur > 0 ? Math.round(job.spec.dur) : 0;
-      return res.status(200).json({ ok: true, job: Object.assign({ id: job.id, key, kind: job.kind }, dur ? { dur } : {}), now });
+      return res.status(200).json({ ok: true, job: Object.assign({ id: job.id, key, kind: job.kind }, dur ? { dur } : {}, job.spec && job.spec.vi === 1 ? { vi: 1 } : {}), now });   // vi — הסוכן: perf_kind / MEM_PRIOR['vi']
     }
     // שרת שעדיין מריץ עבודה (nj) ושאל אם יש עוד — העבודה שלו נשארת רשומה. 27/10/2026: בלי שינוי — לא כותבים (seenDue)
     const clr = !(hb.nj > 0) && !!srv.job;
@@ -2051,6 +2054,7 @@ async function startJob0(deps, uid, job, body, now, g) {
   if (!['tr', 'rr', 'ai', 'dx'].includes(job.kind) || st !== 'new') return [409, { ok: false, error: 'state', job: view(job) }];
   if (!filesReady(job)) return [409, { ok: false, error: 'no_files' }];
   if (job.kind === 'tr' && !S.langReady(job.spec)) return [400, { ok: false, error: 'lang_unsupported', job: view(job) }];
+  if (job.spec && job.spec.vi === 1 && !g.adm && !(await flagOn(deps, 'st_vi', now))) return [409, { ok: false, error: 'vi_off', job: view(job) }];   // 9/11/2026: המתג כבה בין היצירה להתחלה
   if (job.kind !== 'rr' && job.kind !== 'dx' && g.modeLocked && await g.modeLocked(job.spec && job.spec.mode)) return [403, { ok: false, error: 'mode_locked', job: view(job) }];   // גם עבודה שנוצרה לפני שהרשימה השתנתה / סט הזהב
   if (!S.WORKER_KINDS.includes(job.kind)) return [200, { ok: false, error: 'worker_not_ready', job: view(job) }];
   const sbs = await sysBlock(deps, job, now, false, !!g.adm);   // 15/10/2026: תחזוקה / דגל כבוי
@@ -2525,6 +2529,7 @@ async function worker(req, res, body, deps) {
         const ge = job.eng === 'api' ? gd.et : null;
         ep = ETA.etaPlan(ETA.etaModel(ETA.etSamplesFor(stats.et, ge, job.eng === 'api' ? 'a' : 'r'), job.eng === 'api' ? 'a' : 'r', now), job.spec.mode, job.spec.dur, ETA.jobFactors(job));
         if (job.spec.src === 'subs') ep = ETA.subsPlan(ep);   // 22/10/2026: קובץ כתוביות — בלי תמלול, יישור וצריבה
+        if (job.spec.vi === 1) ep = ETA.viPlan(ep, job.spec.dur, job.spec.dry === 1);   // 9/11/2026: ניתוח — השלבים שלו (VI_STG; ‏PR 0.4 מכייל)
         if (job.spec.ka === 1) ep = ETA.kaPlan(ep, job.spec.dur, job.spec.bv === 1, ETA.kaModel(gd.ka, now));   // 26/10/2026: קריוקי — הפרדה, יישור וצריבה, בלי תרגום · 31/10: נלמד (studioEta/a.ka)
         patch.ep = ep;
       }
@@ -2808,7 +2813,7 @@ async function worker(req, res, body, deps) {
       }
       if ((up.state && up.state !== 'running') || up.rdy) { SHADE_JOB.delete(id); SHADE_PN.delete(id); }
     }
-    if (job.kind === 'tr' && up.state === 'done' && !(job.spec && job.spec.src === 'subs')) {
+    if (job.kind === 'tr' && up.state === 'done' && !(job.spec && (job.spec.src === 'subs' || job.spec.vi === 1))) {   // 9/11/2026: ניתוח — לא "רגיל" של תרגום
       // v363: עבודה שהסתיימה מלמדת את המגדל מה "רגיל" אצלך. תקלה כאן לא מפילה את סוף העבודה
       // 22/10/2026: קובץ כתוביות (בלי תמלול ויישור) לא מלמד את הצפי ואת "הרגיל" של עבודות מסרטון — שלבים וזמנים אחרים
       const smp = S.normSample(job, up.use || job.use, now);
@@ -2910,6 +2915,10 @@ async function handler(req, res, deps = {}) {
   // 29/10/2026: קריוקי משיר — המנהל וחשבונות הבדיקה. 30/10/2026 (בקשת המשתמש): "כל מי שמורשה לסטודיו — מורשה לכל
   // התוכנות שלו, גם הקריוקי"; רק מה שהוגדר למנהל נשאר נעול (מצבים/מודלים, המנוי, המגדל, הורדה מקישור). כאן כבר עבר את השער
   const kaAllowed = async () => true;
+  // 9/11/2026: ניתוח סרטונים (studiovi.js) — ביצירה, לפני ההעלאה: st_vi כבוי = המנהל בלבד (vi_off); גל 0 — הרצה יבשה, רק המנהל;
+  // שפה, אורך ו־R2 (התוצרים נקראים בטלפון דרך R2). [קוד HTTP, שגיאה] או null
+  const viCreateErr = async (spec) => (!isAdmin(user) && !(await flagOn(deps, 'st_vi', now)) ? [409, 'vi_off'] : spec.dry && !isAdmin(user) ? [403, 'not_allowed']
+    : !VI.viLangOk(spec) ? [400, 'vi_lang'] : VI.viTooLong(spec) ? [400, 'vi_long'] : !R2.config().ok ? [503, 'r2_needed'] : null);
   if ((op === 'status' || op === 'jobs') && watchDue(now)) await checkServers(deps, now, uid).catch(() => 0);
   if (op === 'status' && isAdmin(user)) await offsiteOwner(deps, uid).catch(() => {});   // 11/10/2026: בעל הגיבוי ב־Drive
   // v357: חיבור Drive של הסטודיו (חלון ההסכמה של Google — אותו מנגנון של גיבוי הספרייה, לקוח אחר)
@@ -2929,7 +2938,7 @@ async function handler(req, res, deps = {}) {
     await capWarm(deps, now);
     const list = await servers().catch(() => []);
     return { month: S.monthUsed(st.mu, now), cap: userMonth(st), online: list.filter((x) => x.online && !x.paused).length, servers: list.length,
-      admin: isAdmin(user), ka: await kaAllowed(), nc: UM.isAdm(st), capDef: S.CAP_DEF, capMax: S.CAP_MAX };
+      admin: isAdmin(user), ka: await kaAllowed(), vi: isAdmin(user) || await flagOn(deps, 'st_vi', now), nc: UM.isAdm(st), capDef: S.CAP_DEF, capMax: S.CAP_MAX };   // 9/11/2026: vi — לשונית הניתוח (st_vi; המנהל תמיד)
   };
   const opsFor = async (u) => { const d = await readDoc(deps, 'studioOps', u).catch(() => null) || {}; return O.opsView(d.al, now, d.mu); };
   const scFor = async (u) => { const d = await readDoc(deps, 'studioOps', u).catch(() => null) || {}; return SC.scanView(d.sc); };   // v378
@@ -3686,6 +3695,8 @@ async function handler(req, res, deps = {}) {
     if (op === 'create') {
       const spec = S.normSpec(body.spec);
       if (!spec) return res.status(400).json({ ok: false, error: 'bad_spec' });
+      const vie = spec.vi ? await viCreateErr(spec) : null;   // 9/11/2026: ניתוח סרטונים
+      if (vie) return res.status(vie[0]).json({ ok: false, error: vie[1] });
       if (!S.langReady(spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported' });   // לפני ההעלאה, לא אחריה
       if (spec.bt && !isAdmin(user)) delete spec.bt;   // 02/11/2026 (בקשת המשתמש): חצי מחיר (תור החיסכון) — כרגע רק למנהל; אחרים — בזמן אמת
       if (await modeLocked(spec.mode)) return res.status(403).json({ ok: false, error: 'mode_locked' });

@@ -380,7 +380,8 @@ def run(args):
             print('✗ סוג עבודה לא מוכר — סומן בשרתון.')
             return 1
         spec = job.get('spec') or {}
-        if spec.get('from') not in ('auto', 'en', None) or 'he' not in (spec.get('to') or []):
+        vi_ok = spec.get('vi') == 1 and spec.get('from') in ('he', 'en') and spec.get('to') == ['he']   # ניתוח: גם עברית כמקור
+        if not vi_ok and (spec.get('from') not in ('auto', 'en', None) or 'he' not in (spec.get('to') or [])):
             # vt מתרגם כרגע מאנגלית לעברית בלבד (שפות נוספות — שלב 7)
             c.call('report', fail=True, err='lang_unsupported', msg='כרגע רק מאנגלית לעברית')
             print('✗ זוג השפות עוד לא נתמך (כרגע אנגלית → עברית). סומן בשרתון.')
@@ -4570,6 +4571,9 @@ def auto(args):
             return dx_auto(args)
         if (load_state().get('spec') or {}).get('ka') == 1:   # 26/10/2026: קריוקי משיר רגיל — בלי Claude
             return karaoke(args)
+        if (load_state().get('spec') or {}).get('vi') == 1:   # 9/11/2026 (גל 0, PR 0.2): ניתוח סרטונים — analyze.py
+            import analyze
+            return analyze.vi_run(sys.modules[__name__], args)
         import pipeline
         return pipeline.run_auto(sys.modules[__name__], args)
     except Stop as e:

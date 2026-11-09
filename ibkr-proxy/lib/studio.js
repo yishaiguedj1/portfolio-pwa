@@ -8,6 +8,7 @@ const SLA = require('./studiosla');   // v377: יעדי שירות
 const ETA = require('./studioeta');   // 10/10/2026: צפי זמנים נלמד
 const SU = require('./studiourl');   // 22/10/2026: הורדה מקישור
 const SC = require('./studioscan');   // 26/10/2026: כמה זמן הקבצים נשמרים (retention)
+const VI = require('./studiovi');   // 9/11/2026: ניתוח סרטונים
 
 const ROUTINE_URL_RE = /^https:\/\/api\.anthropic\.com\/v1\/claude_code\/routines\/(trig_[A-Za-z0-9]{8,64})\/fire$/;
 const ROUTINE_KEY_RE = /^sk-ant-oat01-[A-Za-z0-9_-]{20,400}$/;
@@ -48,11 +49,11 @@ const modeNow = (m) => (MODES.includes(m) ? m : LEGACY_MODES[m] || DEFAULT_MODE)
 /* הסקירה (10/10/2026): מה שהעובד יודע היום — מקור אנגלית (או "אוטומטי"), יעד עברית. השאר נדחה כבר ביצירה (לפני העלאה
    של כמה GB והפעלת Claude), לא בעובד. **= LANG_READY בטלפון** (tests/studio-review.test.js). שפה חדשה = כאן + בטלפון + בעובד */
 const LANG_READY = { from: ['auto', 'en'], to: ['he'] };
-const langReady = (sp) => !!sp && LANG_READY.from.includes(sp.from) && Array.isArray(sp.to) && sp.to.length > 0 && sp.to.every((c) => LANG_READY.to.includes(c));
+const langReady = (sp) => !!sp && (sp.vi === 1 ? VI.viLangOk(sp) : LANG_READY.from.includes(sp.from) && Array.isArray(sp.to) && sp.to.length > 0 && sp.to.every((c) => LANG_READY.to.includes(c)));   // 9/11/2026: ניתוח — מקור עברית/אנגלית, יעד עברית (studiovi.js)
 const LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const STYLES = ['bold', 'classic', 'karaoke'];
 const OUTS = ['same', 'compact', 'mkv', 'small'];   // סבב 8: small = עותק לוואטסאפ גם בעבודה עצמה
-const OUT_KINDS = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb', 'inst', 'lrc', 'elrc', 'lyr', 'notes'];   // 26/10/2026: קריוקי — הליווי, LRC ו־Enhanced LRC   // סבב 6: meta = גל הקול וחילופי השוטים; סבב 7: thumb = תמונה ממוזערת   // מ7: aiout = תשובת גיליון ה־AI   // v358: תוצרים שהעובד מעלה; מ1: קבצי עזר (הנגן והעורך), small = עותק לוואטסאפ
+const OUT_KINDS = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb', 'inst', 'lrc', 'elrc', 'lyr', 'notes', 'vi', 'vis'];   // 9/11/2026: ניתוח — vi.json וחבילת השקפים (vis); cues/small/thumb — הקיימים   // 26/10/2026: קריוקי — הליווי, LRC ו־Enhanced LRC   // סבב 6: meta = גל הקול וחילופי השוטים; סבב 7: thumb = תמונה ממוזערת   // מ7: aiout = תשובת גיליון ה־AI   // v358: תוצרים שהעובד מעלה; מ1: קבצי עזר (הנגן והעורך), small = עותק לוואטסאפ
 const OUT_MAX = 12;   // 01/11/2026: + notes (ההערות לעורך)
 const SUBS_MAX = 5 * 1024 * 1024;           // 22/10/2026: קובץ כתוביות קיים (SRT/VTT/ASS) — סרט של שלוש שעות ≈ 300KB
 const SUBS_FPS = ['24000/1001', '24', '25', '30000/1001', '30'];   // = SUBS_FPS ב־job.py (הגריד לתזמון בלי סרטון)
@@ -259,6 +260,9 @@ function normSpec(s) {
   if (!name || !(size > 0) || size > MAX_SIZE) return null;
   const to = uniq(s.to, (c) => LANGS.includes(c)).slice(0, 12);
   if (!to.length) return null;
+  // 9/11/2026: ניתוח סרטונים (studiovi.js) — { vi: 1, dry: 1 }; false = שילוב שלא שייך לניתוח (כתוביות, בטלפון, קריוקי…)
+  const vi = VI.viSpec(s);
+  if (vi === false) return null;
   // 22/10/2026: קובץ כתוביות קיים — רק במצב השרת (ה־Routine לא מכיר את המסלול), בלי חיתוך ובלי תוצרי וידאו
   const subs = s.src === 'subs';
   if (subs && (s.eng !== 'api' || size > SUBS_MAX)) return null;
@@ -287,12 +291,13 @@ function normSpec(s) {
     from: s.from === 'auto' || LANGS.includes(s.from) ? s.from : 'auto',
     to,
     mode: modeNow(s.mode),
-    out: subs || ph ? [] : ka ? uniq(s.out, (k) => KA_OUTS.includes(k)) : uniq(s.out, (k) => OUTS.includes(k)),                      // SRT תמיד; ריק = SRT בלבד (+ VTT/ASS כעזר)
+    out: subs || ph || vi ? [] : ka ? uniq(s.out, (k) => KA_OUTS.includes(k)) : uniq(s.out, (k) => OUTS.includes(k)),                      // SRT תמיד; ריק = SRT בלבד (+ VTT/ASS כעזר)
     style: STYLES.includes(s.style) ? s.style : STYLES[0],
-    ...(!subs && normSty(s.sty) ? { sty: normSty(s.sty) } : {}),   // 26/10/2026: העיצוב כבר בצריבה הראשונה (עד היום רק בהפקה מחדש)
+    ...(!subs && !vi && normSty(s.sty) ? { sty: normSty(s.sty) } : {}),   // 26/10/2026: העיצוב כבר בצריבה הראשונה (עד היום רק בהפקה מחדש)
     terms: String(s.terms || '').replace(/\u0000/g, '').slice(0, 1000),
   }, subs ? Object.assign({ src: 'subs', sdh: s.sdh === 'keep' ? 'keep' : 'rm' }, SUBS_FPS.includes(String(s.fps)) ? { fps: String(s.fps) } : {}) : {},
   link ? Object.assign({ src: 'url', url, pick }, ref ? { ref } : {}) : {},
+  vi || {},
   ka ? Object.assign({ ka: 1, lyr: normLyr(s.lyr), ky: normKy(s.ky) }, al ? { al } : {}, s.bv === 1 ? { bv: 1 } : {}, Number.isFinite(+s.gv) && +s.gv > 0 ? { gv: Math.min(60, Math.round(+s.gv)) } : {}) : {},   // קריוקי: עם קולות רקע, קול מנחה ב־%
   // 25/10/2026 (שלב 2): pw = גם התמלול והיישור בטלפון — עולים רק המילים עם הזמנים (w) והמדידות (m), בלי קול
   // 25/10/2026 (שלב 3): pt = גם שלבי הטקסט בטלפון (vt בפייתון של Studio) — השרת רק מעביר את הקריאות ל־Claude (התור, המפתח של
@@ -301,12 +306,12 @@ function normSpec(s) {
     PH_BURN.includes(s.pb) ? { pb: s.pb } : {}, s.vc === 1 ? { vc: 1 } : {}) : {},   // pb = מה הטלפון צורב בסוף (ריק = רק כתוביות)
   // 29/10/2026: vc = Studio לאנדרואיד מעלה גם את הסרטון לענן, ברקע ובלי לעכב את העבודה (לנגן ולשמירה) — העבודה לא מחכה לו
   nu ? { nu: 1, vc: 1 } : {},   // vc — אותו מסלול הסרטון לענן (phVp, ‏phUp עם v) כמו בתרגום בטלפון
-  !subs && !link && !ph && edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך). 05/11/2026: גם nu — העובד חותך את הקול ואת הסרטון שהאפליקציה מעלה
+  !subs && !link && !ph && !vi && edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך). 05/11/2026: גם nu — העובד חותך את הקול ואת הסרטון שהאפליקציה מעלה
   // 21/10/2026: פיקסלים לשנייה ביחס ל־1080p30 (מהמידות שהטלפון קרא; העובד מתקן אחרי הקליטה) — לצפי של הצריבה
   Number.isFinite(+s.px) && +s.px >= 0.02 && +s.px <= 16 ? { px: Math.round(+s.px * 1000) / 1000 } : {},
   // 01/11/2026 (סבב 3, I3): bt = "חצי מחיר · מוכן תוך כמה שעות" (Message Batches) — רק במפתח של המערכת, לא Routine/העתק־הדבק,
   // לא קריוקי (בלי Claude) ולא תרגום בטלפון. wl = רשימת עבודה (כמה קבצים שהתחילו יחד) — לקבוצה בבית. = BT_OK / WL_RE בטלפון
-  s.bt === 1 && s.eng === 'api' && s.cp !== 1 && s.ry !== 1 && !ka && !ph ? { bt: 1 } : {},
+  s.bt === 1 && s.eng === 'api' && s.cp !== 1 && s.ry !== 1 && !ka && !ph && !vi ? { bt: 1 } : {},
   typeof s.wl === 'string' && WL_RE.test(s.wl) ? { wl: s.wl } : {},
   s.eng === 'api' ? Object.assign({ eng: 'api', cap: normCap(s.cap) }, s.cp === 1 ? { cp: 1 } : s.ry === 1 ? { ry: 1 } : {}) : {});   // 24/10/2026: ry = השרת עושה הכל, Claude דרך ה־Routine של המשתמש (lib/relay.js)   // מצב API של המערכת — עם תקרת עבודה ($); סבב 10: cp = העתק־הדבק (Claude של המשתמש)
 }
@@ -883,6 +888,7 @@ function publicJob(job, now) {
     ppr: normPpr(job.ppr, job.ppr && job.ppr.at),   // 25/10/2026: מה הטלפון עושה לפני ההתחלה (שלב 2)
     vcp: job.spec && job.spec.vc === 1 ? normVcp(job.vcp, job.vcp && job.vcp.at) : null,   // 29/10/2026: הסרטון עולה לענן מ־Studio לאנדרואיד
     sx: job.sx > 0 ? job.sx : 0,                    // 26/10/2026: מתי סרטון המקור נמחק (0 = עוד שמור)
+    vsm: job.spec && job.spec.vi === 1 ? VI.viSummary(job.vsm) : null,   // 9/11/2026: סיכום הניתוח — פריטים, מאומתים, כיסוי, "רק על המסך", משך
     rt: SC.retention(job, process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e'),   // עד מתי המקור (s) ועד מתי העבודה (j)
   };
 }
@@ -1566,6 +1572,7 @@ function applyReport(job, r, now) {
   const out = { prog, updated: now };
   if (r.rd === true && r.done !== true && r.fail !== true && !job.rdy) { closeCur(); prog.p = 1; out.rdy = now; out.ended = now; }   // 28/10/2026: התוצרים מוכנים — בטלפון העבודה "הסתיימה" (publicJob), והעובד משלים ברקע
   if (r.done === true) { closeCur(); prog.p = 1; out.state = 'done'; if (!job.rdy) out.ended = now; }
+  if (r.done === true && job.spec && job.spec.vi === 1 && VI.viSummary(r.vsm)) out.vsm = VI.viSummary(r.vsm);   // 9/11/2026: סיכום הניתוח (מספרים בלבד)
   else if (r.fail === true) { closeCur(); out.state = 'failed'; out.err = ERR_RE.test(String(r.err || '')) ? r.err : 'worker'; out.ended = now; }
   return out;
 }
@@ -1614,6 +1621,7 @@ function normHb(h) {
     // 2/11/2026: תור החיסכון (translator/agent.py — bt_hb): be = תקלה בשליחה/באיסוף (קטלוג BT_ERRS), bn = סבבים שנכשלו ברצף,
     // bp = בקשות שעוד לא נשלחו, bf = batches בדרך, bo = מתי נשלח הוותיק שבהם (שניות)
     be: BT_ERRS.includes(h.be) ? h.be : '', bn: n(h.bn, 0, 1e6), bp: n(h.bp, 0, 1e6), bf: n(h.bf, 0, 1e4), bo: n(h.bo, 0, 4e9),
+    vi: h.vi === 1 ? 1 : 0,   // 9/11/2026: העובד מכיר עבודת ניתוח (analyze.py) — רק לו היא נמסרת; עובד ישן היה מריץ אותה כתרגום (עם Claude)
     dl: h.dl === 1 ? 1 : 0,   // 26/10/2026: פחות מ־8GB פנויים — העובד לא לוקח עבודה חדשה (translator/agent.py — disk_low)
     ev: normEv(h.ev) };   // ת7: יומן השרת — האירועים האחרונים (קודים מקטלוג קבוע + זמן)
 }
@@ -1626,20 +1634,27 @@ function normFit(f) {
   if (!Object.values(o).every((v) => v != null)) return null;
   const dm = n(f.dm, 0, 1e4);   // 5/11/2026: רשות — קבלה חזויה (translator/perf.py)
   if (dm != null) o.dm = dm;
+  // 9/11/2026: רשות — הניתוח: va/vb = מודל השיא שלו, dv = האורך המרבי שנכנס עכשיו בלי להאט תרגום (agent.py — mem_fit)
+  const va = n(f.va, 100, 1e5), vb = n(f.vb, 0, 1e4), dv = n(f.dv, 0, 1e4);
+  if (va != null && vb != null) { o.va = va; o.vb = vb; }
+  if (dv != null) o.dv = dv;
   return o;
 }
 /* 5/11/2026 (קבלה חזויה, docs/studio-parallel-plan.md): fit.dm = האורך המרבי (דק׳ סרטון) של עבודה שנכנסת עכשיו בלי שאף
    עבודה בשרת תאט מעבר לתקרה (הסוכן מריץ קדימה את מה שרץ). בלי dm — בלי הגבלה. גיליון AI / העתקה / קובץ כתוביות — בלי מעבד */
 function perfBlock(job, fit) {
-  if (!fit || fit.dm == null || !job) return false;
+  if (!fit || !job) return false;
   if (job.kind === 'ai' || job.kind === 'dx' || (job.spec && job.spec.src === 'subs')) return false;
-  return ((job.spec && job.spec.dur) || 3600) / 60 > fit.dm;
+  const lim = job.spec && job.spec.vi === 1 && fit.dv != null ? fit.dv : fit.dm;   // 9/11/2026: ניתוח — הקבלה החזויה שלו (perf.dmax kind='vi')
+  if (lim == null) return false;
+  return ((job.spec && job.spec.dur) || 3600) / 60 > lim;
 }
 /* השיא הצפוי של עבודה (MB) לפי המודל של השרת: תרגום / הפקה מחדש לפי האורך, גיליון AI — קבוע */
 function peakNeed(job, fit) {
   const m = ((job && job.spec && job.spec.dur) || 3600) / 60;
   if (job && (job.kind === 'ai' || job.kind === 'dx' || (job.spec && job.spec.src === 'subs'))) return fit.ai;   // 26/10/2026: dx — רק העתקה   // 22/10/2026: קובץ כתוביות — בלי מודלים כבדים
   if (job && job.kind === 'rr') return fit.ra + fit.rb * m;
+  if (job && job.spec && job.spec.vi === 1 && fit.va != null) return fit.va + fit.vb * m;   // 9/11/2026: ניתוח (סוכן ישן — כמו תרגום)
   return fit.a + fit.b * m;
 }
 /* ת7 (11/10/2026): יומן השרת במקום אחד — העובד שולח בכל פנייה את 12 האירועים האחרונים שלו ([שניות, קוד]), ומסך השרת
@@ -1697,7 +1712,7 @@ function normUtl(o) {
   for (const k of UTL_KEYS) { const v = Number(o[k]); if (Number.isFinite(v) && v >= 0 && v <= 1e11) out[k] = Math.round(v); }
   return Object.keys(out).length ? out : null;
 }
-const JSON_FIELDS = ['mon', 'bq', 'btx', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr', 'urt', 'fsr', 'vst', 'vcp'];   // 29/10/2026: vst = כמה מהסרטון ב־R2 בפעם האחרונה שזז (העלאה תקועה — upStallStep)   // 26/10/2026: fsr = רצועת הכתוביות שבקובץ, עזר להגהה   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['mon', 'bq', 'btx', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr', 'urt', 'fsr', 'vst', 'vcp', 'vsm'];   // 9/11/2026: vsm = סיכום הניתוח (מספרים)   // 29/10/2026: vst = כמה מהסרטון ב־R2 בפעם האחרונה שזז (העלאה תקועה — upStallStep)   // 26/10/2026: fsr = רצועת הכתוביות שבקובץ, עזר להגהה   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {

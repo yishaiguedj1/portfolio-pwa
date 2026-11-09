@@ -411,6 +411,48 @@ def _is_16k_mono(p: Path) -> bool:
         return False
 
 
+def cmd_vi_asr(a):
+    """ניתוח סרטונים, שלב tr: שמע 16kHz → מילים עם זמן (עברית — vt/asr_he.py, אנגלית — Parakeet). PR 0.2."""
+    from . import vi
+    if not Path(a.wav).is_file():
+        die(f"אין קובץ: {a.wav}")
+    try:
+        r = vi.asr(a.wav, a.lang)
+    except RuntimeError as e:
+        die(str(e))
+    log(f"תמלול ({r['lang']}, {r['engine']}, איכות {r['quality']}): {len(r['words'])} מילים · {r['stats'].get('s')} שנ׳")
+    vi.write(Path(a.out), r)
+
+
+def cmd_vi_align(a):
+    """ניתוח סרטונים, שלב al: זמן לכל מילה ודוברים (בלי MMS_FA). PR 0.2."""
+    from . import vi
+    tr = read_json(a.tr)
+    r = vi.align(tr, a.wav)
+    s = r["stats"]
+    log(f"יישור ({r['aligner']}): {s['n']} מילים · גסות {s['coarse']} · זמן {r['ts']} · {s['align_s']} שנ׳")
+    vi.write(Path(a.out), r)
+
+
+def cmd_vi_screen(a):
+    """ניתוח סרטונים, שלב al: שקפים → פריים → OCR + WebP (vis.bin, ‏thumb.jpg, ‏screen.json). PR 0.2."""
+    from . import vi
+    if not Path(a.src).is_file():
+        die(f"אין קובץ: {a.src}")
+    out = Path(a.out)
+    r = vi.screen(a.src, out, procs=a.procs, mem_mb=a.mem_mb or 0, max_s=a.max_s)
+    vi.write(out / "screen.json", r)
+
+
+def cmd_vi_small(a):
+    """ניתוח סרטונים, שלב bn: עותק צפייה 480p בלי צריבה. PR 0.2."""
+    from . import vi, media
+    info = media.probe(Path(a.src))
+    if not info.get("video"):
+        die("אין וידאו בקובץ")
+    vi.small(a.src, Path(a.out), float(info.get("duration") or 0) or 1.0)
+
+
 def cmd_plan(a):
     from .segment import plan
     pr = Project(a.name)
@@ -920,6 +962,23 @@ def main(argv=None):
     p.add_argument("--no-ivrit", action="store_true", help="zipformer לבד (מהיר, איכות נמוכה)")
     p.add_argument("--no-zf", action="store_true", help="ivrit לבד, בלי בדיקת הכיסוי")
     p.add_argument("--out")
+    p = add("vi-asr", cmd_vi_asr, help="ניתוח סרטונים: תמלול לשלב tr (JSON)")
+    p.add_argument("wav")
+    p.add_argument("--lang", choices=("he", "en"), required=True)
+    p.add_argument("--out", required=True)
+    p = add("vi-align", cmd_vi_align, help="ניתוח סרטונים: זמן לכל מילה ודוברים (JSON)")
+    p.add_argument("tr")
+    p.add_argument("wav")
+    p.add_argument("--out", required=True)
+    p = add("vi-screen", cmd_vi_screen, help="ניתוח סרטונים: שקפים, OCR וחבילת השקפים לתיקייה")
+    p.add_argument("src")
+    p.add_argument("--out", required=True)
+    p.add_argument("--procs", type=int, help="תהליכי OCR (ברירת מחדל VI_OCR_PROCS, ‏4)")
+    p.add_argument("--mem-mb", type=float, help="ההזמנה של העבודה (MB) — לשומר הזיכרון")
+    p.add_argument("--max-s", type=float, help="רק השניות הראשונות")
+    p = add("vi-small", cmd_vi_small, help="ניתוח סרטונים: עותק צפייה 480p")
+    p.add_argument("src")
+    p.add_argument("--out", required=True)
     add("plan", cmd_plan, "name", help="תכנון כתוביות")
     p = add("tr-prep", cmd_tr_prep, "name", help="קובץ המקור לתרגום (tr/source.md)")
     p.add_argument("--size", type=int, default=150, help="כתוביות בחלק (= קובץ תשובה אחד)")
