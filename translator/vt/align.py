@@ -122,6 +122,17 @@ class Aligner:
         return out
 
 
+def audio_key(audio, sr) -> list:
+    """09/11/2026: טביעת אצבע זולה של הקול למפתח של PartCache — יישור מחדש על קול אחר (הסרטון שהצטרף אחרי הקול
+    שעלה ראשון) לא יקרא תוצאות של קטעים שיושרו על הקובץ הקודם. אורך + דגימה כל 10 שנ׳."""
+    a = np.asarray(audio[::max(1, int(sr * 10))], dtype=np.float32)
+    return [len(audio), int(sr), hashlib.sha1(np.round(a, 3).tobytes()).hexdigest()[:12]]
+
+
+# 09/11/2026: קטע קצר מזה (מילים אחרי סוף הקול — קול של קובץ אחר / קצר יותר) לא נשלח למודל; המילים נשארות משוערות
+MIN_SEG_S = 0.3
+
+
 class PartCache:
     """21/10/2026: התוצאות של כל קטע נשמרות לקובץ תוך כדי (align.part.json בפרויקט) — יישור של שעה וחצי שנקטע
     (השרת הופעל מחדש) ממשיך מהקטע שנעצר בו, לא מההתחלה. המפתח = המילים והחלוקה: קובץ של יישור אחר לא נקרא.
@@ -172,7 +183,7 @@ def align_words(words: list[dict], wav_path: str, device: str = "cpu",
         audio = audio.mean(axis=1)
     total = len(audio) / sr
     chunks = plan_chunks(words, audio_len=total)
-    pc = PartCache(cache, "q", [[w["w"], w["s"], w["e"]] for w in words] + [list(c) for c in chunks])
+    pc = PartCache(cache, "q", [[w["w"], w["s"], w["e"]] for w in words] + [list(c) for c in chunks] + [audio_key(audio, sr)])
     al = Aligner(device, total / 60) if len(pc.data) < len(chunks) else None
     t0 = time.time()
     stats = {"chunks": len(chunks), "aligned": 0, "kept_approx": 0, "suspicious": 0, "engine": al.engine if al else "cache",
@@ -182,11 +193,14 @@ def align_words(words: list[dict], wav_path: str, device: str = "cpu",
         if res is not None and len(res) == i1 - i0:
             stats["cached"] += 1
         else:
-            if al is None:
-                al = Aligner(device, total / 60)
-                stats["engine"] = al.engine
             seg = audio[int(cs * sr):int(ce * sr)]
-            res = al.align_chunk(seg, sr, words[i0:i1])
+            if len(seg) < MIN_SEG_S * sr:
+                res = [None] * (i1 - i0)          # 09/11/2026: אין קול לקטע הזה — לא מפילים את כל היישור (קוד 1)
+            else:
+                if al is None:
+                    al = Aligner(device, total / 60)
+                    stats["engine"] = al.engine
+                res = al.align_chunk(seg, sr, words[i0:i1])
             pc.put(ci, res, force=ci + 1 == len(chunks))
         for k, r in enumerate(res):
             w = words[i0 + k]

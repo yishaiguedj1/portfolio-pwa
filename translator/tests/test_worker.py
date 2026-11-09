@@ -734,6 +734,22 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(cmds, ['ingest', 'sync', 'align', 'retime', 'shots'], 'יישור מחדש על הקול של הסרטון — בלי תמלול מחדש ובלי טוקנים')
         self.assertEqual(json.loads((W / 'en.aligned.json').read_text())['words'][0]['s'], 1.0, 'בלי הזזה')
 
+    def test_attach_late_realign_fails_keeps_going(self):
+        # 09/11/2026 (פרק סדרה — "vt align נכשל (קוד 1)" חמש פעמים בשלב הבדיקה): היישור מחדש נכשל → ממשיכים עם הזמנים
+        # מהקול שעלה ראשון (העתק של אותה רצועה), לא מפילים את העבודה; ובלי מצב arena (הזיכרון) בזמן היישור מחדש
+        self.assertEqual(self.take()[0], 0)
+        self.assertEqual(self.job('prepare')[0], 0)
+        W = self.tmp / 'work' / SLUG
+        for n in ('en.words.json', 'en.aligned.json'):
+            (W / n).write_text(json.dumps({'words': [{'w': 'Hi', 's': 1.0, 'e': 1.5}]}))
+        code, out = self.job('attach-late', env={'FAKE_SYNC': '0.400 0.450', 'FAKE_FAIL': 'align'})
+        self.assertEqual(code, 0, out)
+        self.assertIn('היישור מחדש נכשל', out)
+        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()][5:]
+        self.assertEqual(cmds, ['ingest', 'sync', 'align', 'retime', 'shots'])
+        self.assertEqual(json.loads((W / 'en.aligned.json').read_text())['words'][0]['s'], 1.4, 'ההיסט מהחלון הסביר (0.45 ≥ 0.3)')
+        self.assertEqual(self.job('attach-late')[1].strip().splitlines()[-1], '· הסרטון כבר המקור — אין מה לצרף.')
+
     def test_sync_module(self):
         # sync.py האמיתי על אותות סינתטיים: היסט חיובי/שלילי מדויק לדגימה, קבצים שונים — ודאות אפסית
         try:
@@ -765,6 +781,14 @@ class TestWorker(unittest.TestCase):
         self.assertAlmostEqual(off, -0.0213, places=4)
         off, conf = run(rng.normal(0, 3000, len(a)))
         self.assertLess(conf, 0.2)
+        # 09/11/2026: 3 הדקות הראשונות שונות (פתיח / שקט) — חלון באמצע הקובץ מוצא את ההיסט
+        long_a = rng.normal(0, 3000, sr * 600)
+        long_b = np.concatenate([np.zeros(int(0.8 * sr)), long_a])
+        long_b[:sr * 200] = rng.normal(0, 3000, sr * 200)
+        r = subprocess.run([sys.executable, str(HERE / 'sync.py'), wav('a2.wav', long_a), wav('b2.wav', long_b)], capture_output=True, text=True)
+        off, conf = (float(x) for x in r.stdout.split())
+        self.assertAlmostEqual(off, 0.8, places=3)
+        self.assertGreater(conf, 0.9)
 
     def test_setup_in_background(self):
         # המנועים חסרים: run מפעיל את ההתקנה ברקע, prepare מחכה לה — בלי פעולה של המשתמש
