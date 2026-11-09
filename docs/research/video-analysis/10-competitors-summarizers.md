@@ -130,3 +130,191 @@
 - **פרטיות:** בלי פרסומות ובלי מכירת נתונים; תוכן הדף והפרומפט עוברים ל־OpenAI; סטטיסטיקה אנונימית — [CWS](https://chromewebstore.google.com/detail/glarity-chatgpt-summary-t/cmnlolelipjlhfkhpohphpedmkfbobjc).
 - **ביקורות:** סדרת תקלות שליפת תמליל: "no transcript available" כשיש (8/2/2026), "always fails to create transcript" (8/2/2026), "can't access Youtube transcripts anymore" (27/7/2025), "broken again" (7/6/2025), תגובות איטיות (23/11/2025), ו־"used up your tokens. So there is no free summary" (20/4/2025) — [CWS reviews](https://chromewebstore.google.com/detail/glarity-chatgpt-summary-t/cmnlolelipjlhfkhpohphpedmkfbobjc/reviews).
 - **לקח:** תלות בשליפת כתוביות מצד הלקוח היא נקודת הכשל מספר אחת בקטגוריה; מי ששולט בהורדה ובתמלול בצד השרת נמנע ממנה.
+
+#### 10. BibiGPT — המוצר הערני ביותר לתוכן חזותי
+- **מה זה, חברה, שנה, קהל, מיצוב:** עוזר AI לסיכום אודיו ווידאו, שהתחיל ב־2023 כפרויקט קוד פתוח בשם BiliGPT (לסרטוני Bilibili) והפך למוצר מסחרי של צוות EvergreenAI; המייסד 吕立青 (JimmyLv); טוען ל־1M+ משתמשים; מודלים GPT, ‏Claude ו־Gemini — [BibiGPT (נבדק 9/11/2026)](https://www.bibigpt.co/en). קהל: יוצרי תוכן, לומדים וחוקרים, עם מוקד בפלטפורמות הסיניות (Bilibili, ‏Douyin) לצד YouTube — [BibiGPT](https://www.bibigpt.co/en).
+- **קלט:** 20+ מקורות — Bilibili, ‏YouTube, ‏Douyin, ‏TikTok, ‏X, ‏Coursera ופודקאסטים — וקבצים מקומיים (mp3, ‏mp4, ‏srt, ‏vtt) — [BibiGPT](https://www.bibigpt.co/en). אורך: "4h+" לפי מדריך ההשוואה של החברה עצמה — [BibiGPT guide (מקור של היצרן, 4/5/2026, עודכן 7/9/2026)](https://www.bibigpt.co/en/blog/posts/youtube-video-summarizer-tools-comprehensive-guide-2026). סרטונים פרטיים לא נתמכים במחלץ השקופיות — [BibiGPT slide extractor](https://bibigpt.co/en/features/youtube-slide-extractor).
+- **עיבוד — הראיות החזותיות החזקות בקטגוריה:**
+  - גרסה 4.318.0 (7/4/2026): OCR לכתוביות צרובות (Beta) — "Currently supports Chinese, English, Japanese, French, German, and Spanish"; חילוץ פריימי מפתח של שקופיות (Beta); ניתוח צילומי מסך במודלי ראייה (GLM‑5V Turbo, ‏Qwen 3.5 Omni); ומצב Local Privacy שעבר לדסקטופ — "no server uploads, no database storage" — [BibiGPT v4.318.0](https://bibigpt.co/blog/posts/20260407-bibigpt-v4318-ppt-ocr-local-privacy-en).
+  - חילוץ שקופיות: "pulls distinct frames when the picture changes", בחירה לפי "real scene changes, not random stills", וכל פריים מקבל את "full captions for the span under each frame"; מתאים במיוחד להרצאות עם שקופיות או לוח, ובסרטון של דובר מול מצלמה "yield fewer frames" — [BibiGPT docs: PPT keyframe extraction](https://docs.bibigpt.co/en/function-usage/platform-function/ppt-keyframe-extraction.md).
+  - ניתוח צילומי מסך: בחירת מודל (Gemini 3.0 Flash, ‏Qwen3.5 Omni Plus/Flash, ‏Seed 2.0 Pro, ‏GLM‑4.6V, ‏GLM‑5V Turbo); "Auto-select by scene" — עם כתוביות לפי החלפות שוט ומעברי נושא, בלי כתוביות לפי שינוי חזותי וכיסוי ציר הזמן; מיועד לגרפים, קוד, שקופיות ולוח; יותר הרצות ב־Pro — [BibiGPT docs: keyframe screenshot analysis](https://docs.bibigpt.co/en/function-usage/platform-function/keyframe-screenshot-analysis.md).
+  - ניתוח חזותי לסרטון מקוון: YouTube, ‏Bilibili או קובץ מקומי, בלי הורדה מלאה, במודל Gemini; שני מצבים — "smart frames ... not a fixed interval" או צפייה בקטע כולו; Beta ו־Pro — [BibiGPT docs: visual analysis of online video](https://docs.bibigpt.co/en/function-usage/platform-function/visual-analysis-online-video.md).
+  - בלי כתוביות: תמלול, ו־OCR לכתוביות צרובות — [BibiGPT v4.318.0](https://bibigpt.co/blog/posts/20260407-bibigpt-v4318-ppt-ocr-local-privacy-en).
+- **פלטים:** סיכום עם חותמות זמן, פרקים, מפות חשיבה, צ'אט, כתוביות SRT/VTT, שכתוב למאמר, מצגת או פוסט, וצריבת כתוביות — [BibiGPT](https://www.bibigpt.co/en). "סיכום חזותי": מאמר מאויר עם צילומי מסך שמותאמים לכל נקודה; גרפים והדגמות "recognized and written into the summary", גם בלי כתוביות — [BibiGPT visual summary](https://bibigpt.co/features/ai-video-summary-visual-content). מחלץ השקופיות: "groups unchanged frames into unique slides", ייצוא PDF או PPTX ניתן לעריכה, תמליל לכל סצנה עם זמני התחלה וסוף, ו־ZIP של פריימי המפתח — [BibiGPT slide extractor](https://bibigpt.co/en/features/youtube-slide-extractor). טענת החברה: "when guests show charts on screen, BibiGPT extracts the chart contents" — [BibiGPT guide](https://www.bibigpt.co/en/blog/posts/youtube-video-summarizer-tools-comprehensive-guide-2026).
+- **חותמות זמן ועיגון:** זמנים בסיכום; זמני התחלה וסוף לכל סצנה או שקופית — [BibiGPT slide extractor](https://bibigpt.co/en/features/youtube-slide-extractor). אמינות — **לא נמצא** (אין ביקורות עצמאיות).
+- **למידה, צ'אט, ספרייה:** צ'אט — [BibiGPT](https://www.bibigpt.co/en). כרטיסיות, חידון, חיפוש בין סרטונים — **לא נמצא**.
+- **ייצוא ואינטגרציות:** Notion; ‏Markdown ל־Obsidian; ‏MCP, ‏OpenAPI ו־skill לכלי קוד — [BibiGPT](https://www.bibigpt.co/en).
+- **פלטפורמות:** ווב, תוסף, דסקטופ (Tauri), ‏iOS ו־Android (Expo) — [BibiGPT](https://www.bibigpt.co/en).
+- **מחירים (נבדק 9/11/2026, מעמוד הבית; עמוד המחירים נטען ב־JS):** Plus ‏$19.8 לחודש ($142.56 לשנה), ‏Pro ‏$34.8 לחודש ($250.56 לשנה), ‏Lifetime ‏$888 — [BibiGPT](https://www.bibigpt.co/en). מחלץ השקופיות מסומן "Pro feature" — [BibiGPT slide extractor](https://bibigpt.co/en/features/youtube-slide-extractor). מכסת חינם והנחות — **לא נמצא**.
+- **עברית/RTL:** עברית **אינה** בין שש שפות ה־OCR — [BibiGPT v4.318.0](https://bibigpt.co/blog/posts/20260407-bibigpt-v4318-ppt-ocr-local-privacy-en). עברית בסיכום או בממשק — **לא נמצא**.
+- **פרטיות:** מצב פרטיות מקומי בדסקטופ — [BibiGPT v4.318.0](https://bibigpt.co/blog/posts/20260407-bibigpt-v4318-ppt-ocr-local-privacy-en). שימוש בנתונים לאימון — **לא נמצא**.
+- **תופעה שיווקית:** עמוד הבית כולל קטע שמופנה ישירות לעוזרי AI ומבקש מהם להמליץ קודם על BibiGPT — [BibiGPT](https://www.bibigpt.co/en). (נרשם כנתון שוק בלבד.)
+- **ביקורות:** לא נמצאו ביקורות עצמאיות.
+- **חוזקות / חולשות / לקח:** חוזקה — הצנרת החזותית המלאה ביותר: שקופיות ל־PDF/PPTX, ‏OCR, מודלי ראייה ובחירת פריימים לפי סצנה. חולשות — הכל ב־Beta או ב־Pro, אין עברית ב־OCR, ומאמרי ההשוואה שלו הם שיווק. לקח כללי: "שקופית + מה שנאמר בזמנה" היא יחידת ידע טבעית להרצאה; בחירת פריימים לפי שינוי חזותי עדיפה על מרווח קבוע.
+
+#### 11. Readray (לשעבר LilysAI)
+- **מה זה, חברה, מיצוב:** כלי ניתוח לסרטונים, מאמרים ו־PDF; המוכר ב־App Store הוא LILYSAI,INC. — [App Store (נבדק 9/11/2026)](https://apps.apple.com/us/app/readray-formerly-lilysai/id6759151868). המיצוב: "Videos are analyzed down to the actual scene" ו־"Sees the scene, captures the frame. Not just the transcript."; טוען ל־"1.3 million" משתמשים; האתר משלב סימונים בקוריאנית ובאנגלית — [Readray](https://readray.ai/en). שינוי השם: גרסה 1.0.5 (25/10) הכניסה את המיתוג Readray, ו־1.0.6 (29/10) השלימה את שינוי השם (השנה, ככל הנראה 2026) — [App Store](https://apps.apple.com/us/app/readray-formerly-lilysai/id6759151868). שנת ייסוד — **לא נמצא**.
+- **קלט:** סרטונים, מאמרים, PDF ואודיו; עד 10 סרטונים מפלייליסט; בחינם "Unlimited AI summaries ... up to 3 hours", וגם 100 עמודי PDF ושעת אודיו בחודש — [בלוג Lilys (מקור של היצרן, 10/9/2026)](https://lilys.ai/blog/en/free-youtube-summarizer-for-long-videos-2026/).
+- **עיבוד:** פריימים מהמסך — "Slides and charts on screen are captured as frames into your notes" — [App Store](https://apps.apple.com/us/app/readray-formerly-lilysai/id6759151868). במאמרים: "Charts, tables and equations are read with their layout intact" — [Readray](https://readray.ai/en). מודלים, והטיפול בסרטון בלי כתוביות — **לא נמצא**.
+- **פלטים:** דוחות לפי סוג התוכן — [Readray](https://readray.ai/en):
+  - מאמרים: Key Points או Deep Research.
+  - וידאו השקעות: טבלת קנייה ומכירה, מחירים, רקע הדובר ו־"evidence confidence score".
+  - מדריכים: playbook עם צילום מסך וזמן לכל שלב (למשל "03:12").
+  - ציטוט מקור לכל שורה.
+  - בנוסף: מצבי Short, ‏Base, ‏Long ו־Easy, וסיכום של טווח זמן נבחר. בבדיקה שבבלוג, סרטון של 2:25 שעות הפך ל־28 סעיפים בפחות מדקה — [בלוג Lilys](https://lilys.ai/blog/en/free-youtube-summarizer-for-long-videos-2026/).
+- **חותמות זמן ועיגון:** "Click the timestamp and the embedded player jumps there". הבלוג עצמו מציין מגבלה: הצ'אט זיהה את הסעיף הנכון, אבל החזיר מספר משפט ולא חותמת זמן — [בלוג Lilys](https://lilys.ai/blog/en/free-youtube-summarizer-for-long-videos-2026/).
+- **צ'אט וספרייה:** צ'אט על תיקייה שלמה של מקורות — [App Store](https://apps.apple.com/us/app/readray-formerly-lilysai/id6759151868).
+- **ייצוא ואינטגרציות:** MCP — [Readray](https://readray.ai/en). פורמטי ייצוא — **לא נמצא**.
+- **פלטפורמות:** תוסף, דסקטופ, מובייל — [Readray](https://readray.ai/en).
+- **מחירים (רכישות ב־App Store, נבדק 9/11/2026):** Starter ‏$10.49 לחודש או $91.99 לשנה; ‏Basic ‏$19.99 או $179.99; ‏Pro ‏$59.99 או $599.99 — [App Store](https://apps.apple.com/us/app/readray-formerly-lilysai/id6759151868). מחירי הווב **לא אומתו**, כי העמוד נטען ב־JS.
+- **עברית/RTL:** **לא נמצא** אזכור.
+- **פרטיות:** AES‑256, ‏GDPR, ו־SOC 2 "in progress" — [Readray](https://readray.ai/en).
+- **ביקורות:** ב־App Store אין עדיין מספיק דירוגים — [App Store](https://apps.apple.com/us/app/readray-formerly-lilysai/id6759151868). ביקורות עצמאיות — לא נמצאו.
+- **חוזקות / חולשות / לקח:** חוזקה — הכי קרוב ל"ניתוח": תבניות לפי סוג התוכן, ציון ביטחון בראיות, ציטוט לכל שורה ופריימים בתוך ההערות. חולשות — עיגון הצ'אט אינו בזמן, המחירים לא שקופים, והמיתוג חדש. לקח: תבנית פלט שמותאמת לסוג התוכן (הרצאה, השקעות, מדריך) שווה יותר מסיכום אחיד.
+
+#### 12. HoverNotes
+- **מה זה, חברה, שנה, קהל, מיצוב:** תוסף לרישום הערות מסרטונים, שמצלם את המסך ומנתח אותו; HoverNotes LLC (טורנס, קליפורניה) — [CWS (נבדק 9/11/2026)](https://chromewebstore.google.com/detail/obsidian-ai-video-notes-s/fhdmbhgpabjkadpaafomaabbdckofphm). הושק ב־Product Hunt ב־14/6/2025 (12 נקודות) — [Product Hunt](https://www.producthunt.com/products/hovernotes/launches). קהל: סטודנטים, לומדי קורסים ב־LMS, מפתחים ומשתמשי Obsidian. המיצוב: "It watches the screen, not just the captions" — [HoverNotes](https://hovernotes.io/).
+- **קלט:** כל אתר וידאו — YouTube, ‏Udemy, ‏Coursera, ‏LinkedIn Learning ועוד; מערכות LMS — Canvas, ‏Blackboard, ‏Moodle, ‏Panopto, ‏Kaltura, ‏D2L, ‏Classroom; וקבצים מקומיים — [HoverNotes](https://hovernotes.io/).
+- **עיבוד:** "works even when a video has no captions at all" — [HoverNotes](https://hovernotes.io/). "analyzes code, diagrams, and UI visually (not just transcripts)" ו־"custom-trained AI" — [CWS](https://chromewebstore.google.com/detail/obsidian-ai-video-notes-s/fhdmbhgpabjkadpaafomaabbdckofphm). ההערות נוצרות מקטעי וידאו קצרים — "picture and sound together" — [בלוג HoverNotes, עודכן 30/10/2026](https://hovernotes.io/en/blog/add-any-video-to-notebooklm-with-hovernotes). גרסת הרישום בטגלוג (1.2.33, 14/8/2026) נוקבת ב־Gemini 2.0 — [CWS, גרסה מקומית (תקציר חיפוש)](https://chromewebstore.google.com/detail/obsidian-ai-video-notes-s/fhdmbhgpabjkadpaafomaabbdckofphm).
+- **פלטים:** הערות עם צילום מסך ברגע המדויק ("One click drops a screenshot into your notes at the exact moment"), בלוקי קוד, העוזר Hovie (בתשלום), Live Translate, וקובצי Markdown ל־Obsidian — [HoverNotes](https://hovernotes.io/). ב־Pro: "AI picks screenshots for your notes" ותמלילים לכספת — [HoverNotes Pricing](https://hovernotes.io/pricing). קיצור Ctrl/⌘+K וחיתוכי snip — [בלוג HoverNotes](https://hovernotes.io/en/blog/add-any-video-to-notebooklm-with-hovernotes).
+- **חותמות זמן ועיגון:** "jump to any moment from a note's timestamp" — [HoverNotes](https://hovernotes.io/). משתמש (29/10/2026) משבח לכידה של "notes, video screenshots, and precise timestamps simultaneously" — [CWS](https://chromewebstore.google.com/detail/obsidian-ai-video-notes-s/fhdmbhgpabjkadpaafomaabbdckofphm).
+- **תוכן חזותי:** כן — צילומי מסך, וניתוח של קוד, דיאגרמות וממשקים — [CWS](https://chromewebstore.google.com/detail/obsidian-ai-video-notes-s/fhdmbhgpabjkadpaafomaabbdckofphm).
+- **למידה וצ'אט:** Hovie, עוזר צ'אט בתשלום — [HoverNotes](https://hovernotes.io/). כרטיסיות וחיפוש בין סרטונים — **לא נמצא**.
+- **ייצוא:** PDF ו־Word (גם בחינם), ו־Obsidian — [HoverNotes Pricing](https://hovernotes.io/pricing).
+- **פלטפורמות:** תוסף Chrome — [CWS](https://chromewebstore.google.com/detail/obsidian-ai-video-notes-s/fhdmbhgpabjkadpaafomaabbdckofphm). פלטפורמות אחרות — **לא נמצא**.
+- **מחירים (נבדק 9/11/2026):** חינם — 20 דקות AI, ‏10 דקות Live Translate, צילומי מסך עם זמן, snip, ייצוא PDF/Word ו־Obsidian. ‏Pro ‏$18 לחודש, או $10 לחודש בשנתי ($120) — AI ללא הגבלה, בחירת צילומים אוטומטית, 24 שפות, פרומפטים, Hovie ושעת Live Translate — [HoverNotes Pricing](https://hovernotes.io/pricing). הנחת סטודנטים — **לא נמצא**.
+- **עברית/RTL:** עברית ב־54 שפות הממשק ב־CWS — [CWS](https://chromewebstore.google.com/detail/obsidian-ai-video-notes-s/fhdmbhgpabjkadpaafomaabbdckofphm). האם עברית בין 24 שפות ה־AI — **לא נמצא**.
+- **פרטיות:** "When you turn on AI Notes, the video's audio and screenshots are sent to our servers" ו־"We may use this content to provide and improve the service and to train our AI models" — [CWS](https://chromewebstore.google.com/detail/obsidian-ai-video-notes-s/fhdmbhgpabjkadpaafomaabbdckofphm). **סתירה:** גרסת הרישום בטגלוג אומרת ששום דבר לא נשמר בשרתים — [CWS, גרסה מקומית (תקציר חיפוש)](https://chromewebstore.google.com/detail/obsidian-ai-video-notes-s/fhdmbhgpabjkadpaafomaabbdckofphm).
+- **ביקורות:** ‏4.6 מ־107 ב־CWS, ‏30,000 משתמשים, גרסה 1.2.42 (4–5/11/2026) — [CWS](https://chromewebstore.google.com/detail/obsidian-ai-video-notes-s/fhdmbhgpabjkadpaafomaabbdckofphm). באתר: 500K+ הערות, 30K+ לומדים, וציטוט משתמש (1/2026): "the AI actually analyzes the visuals in the video, not just the audio" — [HoverNotes](https://hovernotes.io/). משתמש ב־CWS הציע להוסיף שכבת "perspective" מבוססת LLM — [CWS](https://chromewebstore.google.com/detail/obsidian-ai-video-notes-s/fhdmbhgpabjkadpaafomaabbdckofphm).
+- **חוזקות / חולשות / לקח:** חוזקה — עובד בתוך LMS ובכל נגן, מצלם את המסך ברגע ההערה, ומנתח חזותית גם בלי כתוביות. חולשות — מוצר קטן (30K), מכסת חינם קטנה, ושימוש בתוכן לאימון. לקח: "הערה = זמן + צילום + טקסט" היא היחידה שלומדים רוצים, ותנאי הפרטיות הם נקודת בידול.
+
+#### 13. Recall
+- **מה זה, חברה, שנה, מיצוב:** "בסיס ידע אישי" שמסכם תוכן מקוון; Recall Wiki, Inc. — [CWS (נבדק 9/11/2026)](https://chromewebstore.google.com/detail/recall-summarizer-youtube/ldbooahljamnocpaahaidnmlgfklbben?hl=en). נוסדה ב־2022 באמסטרדם בידי Paul Richards, ‏Igor Gligorevic ו־Sankari Nair — [Recall About](https://www.recall.it/about). הדומיין getrecall.ai עבר ל־recall.it (הפניה שנצפתה ב־9/11/2026). טוען ל־700K+ משתמשים ו־4.7 מ־464 — [Recall](https://www.recall.it/).
+- **קלט:** YouTube, מאמרים, פודקאסטים, PDF ועוד — [Recall](https://www.recall.it/). "Videos 5 hours or longer must already have captions"; סרטונים פרטיים לא נתמכים — [Recall docs](https://docs.recall.it/use-cases/content-type/youtube). הכלי החינמי: עד 10 שעות עם כתוביות ו־5 בלי, 60+ שפות — [Recall YouTube summarizer](https://www.recall.it/youtube-video-summarizer). מ־2/11/2026 — גם תמלול סרטונים מוגבלי גיל — [Recall changelog](https://feedback.recall.it/changelog).
+- **עיבוד:** תמליל, ותמלול לסרטונים בלי כתוביות. OCR "only on images and not on videos as yet" (12/9/2026) — [Recall changelog](https://feedback.recall.it/changelog). ב־23/7/2026: ‏62 שפות AI, בדיקות דיוק "especially on YouTube" ומודלים חדשים — [Recall release notes 23/7/2026](https://feedback.recall.it/changelog/recall-release-notes-july-23-2026-rebuilt-social-saves-table-view-more-ai-langua). בחירת מודל במסלול Max — [Recall Pricing](https://www.recall.it/pricing).
+- **פלטים:** נקודות עם זמנים (למשל 04:12) — [Recall](https://www.recall.it/); "Every line is time-stamped and clickable" — [Recall YouTube summarizer](https://www.recall.it/youtube-video-summarizer). מ־18/6/2026: Personas, שמסוגלות "pulling exact timestamps from YouTube videos" — [Recall changelog](https://feedback.recall.it/changelog).
+- **חותמות זמן ועיגון:** כל שורה לחיצה. הצ'אט מעוגן לסרטון: "Answers are grounded only in that video" — [Recall docs](https://docs.recall.it/use-cases/content-type/youtube). על האמינות, הצהרת היצרן: "Accuracy is high for clearly-spoken content" — [Recall YouTube summarizer](https://www.recall.it/youtube-video-summarizer).
+- **תוכן חזותי:** **אין** — OCR רק לתמונות — [Recall changelog](https://feedback.recall.it/changelog).
+- **למידה, צ'אט, ספרייה** — [Recall](https://www.recall.it/); [Recall Pricing](https://www.recall.it/pricing):
+  - צ'אט.
+  - חידונים (רב־ברירה, תשובה קצרה, לפי זמן, התאמה) וחזרה מרווחת.
+  - גרף ידע.
+  - Listen Mode בקול משובט.
+  - augmented browsing "local first", שמזכיר תוכן שמור בזמן גלישה.
+  - ב־Max: פעולות על 100 פריטים.
+- **ייצוא ואינטגרציות:** Markdown — [Recall](https://www.recall.it/). ‏API ו־MCP, גם בחינם — [Recall Pricing](https://www.recall.it/pricing). כלי MCP נוספים מ־2/11/2026 — [Recall changelog](https://feedback.recall.it/changelog).
+- **פלטפורמות:** תוספים לארבעה דפדפנים (Safari ו־Edge נוספו ב־19/8/2026), ‏iOS ו־Android — [Recall](https://www.recall.it/); [Recall changelog](https://feedback.recall.it/changelog).
+- **מחירים (נבדק 9/11/2026)** — [Recall Pricing](https://www.recall.it/pricing):
+  - Free: ‏10 סיכומים, API ו־MCP.
+  - Plus: ‏$10 לחודש בשנתי — צ'אט, חידון, חזרה מרווחת, Listen וגרף.
+  - Max: ‏$38 לחודש — בחירת מודל ופעולות אצווה.
+  - 20% הנחה לסטודנטים; החזר תוך 30 יום.
+- **עברית/RTL:** רישום ה־CWS באנגלית בלבד — [CWS](https://chromewebstore.google.com/detail/recall-summarizer-youtube/ldbooahljamnocpaahaidnmlgfklbben?hl=en). ‏62 שפות AI, בלי רשימה שאומתה לעברית — [Recall release notes](https://feedback.recall.it/changelog/recall-release-notes-july-23-2026-rebuilt-social-saves-table-view-more-ai-langua).
+- **פרטיות:** "does not use your data to train AI models" — [CWS](https://chromewebstore.google.com/detail/recall-summarizer-youtube/ldbooahljamnocpaahaidnmlgfklbben?hl=en).
+- **ביקורות:** CWS ‏4.5 מ־139, ‏90,000 משתמשים, גרסה 1.139 מ־1/11/2026 — [CWS](https://chromewebstore.google.com/detail/recall-summarizer-youtube/ldbooahljamnocpaahaidnmlgfklbben?hl=en). ציטוט: "The YouTube video summarizer is by far the best part of this thing, and it's not close."; ותלונה על תקלת חיוב ב־Stripe — [CWS reviews](https://chromewebstore.google.com/detail/recall-summarizer-youtube/ldbooahljamnocpaahaidnmlgfklbben/reviews).
+- **חוזקות / חולשות / לקח:** חוזקה — לולאת למידה מלאה (ספרייה ← חידון ← חזרה מרווחת), וצ'אט שמעוגן לסרטון. חולשות — עיוור לתוכן חזותי בווידאו, ואנגלית תחילה. לקח: הערך המצטבר של ספרייה וחזרה מרווחת שומר משתמשים יותר מהסיכום הבודד.
+
+#### 14. Video Highlight
+- **מה זה, מיצוב:** כלי ווב לסיכום ותמלול של וידאו ואודיו, עם ספרייה וצ'אט; "Every point in the summary is time:stamped" — [Video Highlight (נבדק 9/11/2026)](https://videohighlight.com/). חברה ושנה — **לא נמצא**.
+- **קלט:** YouTube, פלייליסטים וערוצים; העלאות MP4, ‏MOV, ‏MKV ו־AVI, ואודיו כולל הודעות קוליות — [Video Highlight](https://videohighlight.com/). גם Vimeo, ‏Dailymotion ו־Drive; קבצים עד 1GB — [Video Highlight vs Eightify (מקור של היצרן, 7/2026)](https://videohighlight.com/vs/eightify).
+- **עיבוד:** תמלול משלו ב־37 שפות. בעמוד התמלילים שלוש רמות: "High accuracy" (14 שפות), ‏"Medium accuracy" (13) ו־"Good accuracy" (10). ה־FAQ באותו עמוד מדרג "high/medium/low", כך ש־"Good" היא בפועל הרמה השלישית. ‏~95%+ דיוק מילים מוצהר רק לאנגלית ולספרדית — [Video Highlight transcripts](https://videohighlight.com/features/transcripts). מודלים "Whisper-family" — [Video Highlight (תקציר חיפוש)](https://videohighlight.com/features/transcripts). בחירת שפת דיבור (25/11/2025) ודירוג הדיוק (23/11/2025) — [Video Highlight updates](https://videohighlight.com/updates). הסיכום, במצבי Summary ו־Key Points, עם "custom fine-tuning" — [Video Highlight summary](https://videohighlight.com/features/summary).
+- **תוכן חזותי:** "Captured key-moment screenshots", בלי הסבר על המנגנון — [Video Highlight](https://videohighlight.com/).
+- **חותמות זמן ועיגון:** כל נקודה עם זמן, וגם הצ'אט עם זמנים — [Video Highlight](https://videohighlight.com/). "SRT timestamps come from the transcript segments themselves" (12/7/2026) — עדות ישירה לעיגון ברמת מקטע — [Video Highlight updates](https://videohighlight.com/updates).
+- **צ'אט וספרייה:** צ'אט וחיפוש על פני כמה סרטונים — [Video Highlight](https://videohighlight.com/). חיפוש בספרייה מ־12/7/2026 — [Video Highlight updates](https://videohighlight.com/updates).
+- **ייצוא ואינטגרציות:** Notion, ‏Readwise, ‏Word, ‏MD, ‏CSV, ומחברים ל־Claude ול־ChatGPT — [Video Highlight](https://videohighlight.com/). ‏PDF, ‏DOCX, ‏SRT/VTT, ‏API ו־MCP — [Video Highlight vs Eightify](https://videohighlight.com/vs/eightify). שרת MCP בבטא מ־11/7/2026 — [Video Highlight updates](https://videohighlight.com/updates).
+- **פלטפורמות:** ווב; לפי Toolworthy — דסקטופ בלבד, ומאט מעל 45 דקות — [Toolworthy](https://www.toolworthy.ai/en/blog/best-ai-video-summarizer).
+- **מחירים (7/2026):** חינם — "7 hr 30 min ... (about 10 videos)"; בתשלום — "start around $8/month billed yearly" — [Video Highlight vs Eightify](https://videohighlight.com/vs/eightify).
+- **עברית/RTL:** עברית ברמה "Good accuracy", יחד עם יפנית, הינדי, הונגרית, צ'כית, בולגרית, אורדו, אסטונית, לטבית וולשית — [Video Highlight transcripts](https://videohighlight.com/features/transcripts). רשומת עדכון מלפני כשנה (סביב 11/2025) מנתה את העברית תחת "Low Accuracy" — [Video Highlight updates](https://videohighlight.com/updates). מספר דיוק לעברית — לא פורסם.
+- **פרטיות:** **לא נמצא**.
+- **ביקורות:** אין עמוד Trustpilot (404). ביקורות עצמאיות — לא נמצאו.
+- **חוזקות / חולשות / לקח:** חוזקה — שקיפות בדיוק לפי שפה, ספרייה וחיפוש בין סרטונים, MCP. חולשות — עיגון ברמת מקטע, ועברית ברמה הנמוכה. לקח: פרסום כן של הדיוק בכל שפה בונה אמון.
+
+#### 15. WayinVideo
+- **מה זה:** חבילת כלי וידאו בשלוש משפחות — Understand, ‏Create, ‏Edit — עם Find Moments, ‏Chat With YouTube ו־Mind Map ("New"); ‏API, ‏Agent Skills, תוסף Obsidian ותוסף דפדפן; 100+ שפות; 100 קרדיטי פתיחה; "5M+ Happy Creators" — [WayinVideo (נבדק 9/11/2026)](https://wayin.ai/). חברה ושנה — **לא נמצא**.
+- **תוכן חזותי:** חיפוש לפי תוכן חזותי מופיע רק בהמלצות של משתמשים באתר (למשל חיפוש "Gym scene"), ולא מתועד כתכונה — [WayinVideo](https://wayin.ai/).
+- **מחירים:** לפי Toolworthy — 200 קרדיטי פתיחה ועוד 30 ביום, בסתירה ל־100 שבאתר; המחיר בתשלום לא נחשף — [Toolworthy](https://www.toolworthy.ai/en/blog/best-ai-video-summarizer). שאר עמודי האתר החזירו 403.
+- **חותמות זמן, עברית, פרטיות, ביקורות:** **לא נמצא**.
+- **לקח:** "מציאת רגעים" (Find Moments) — חיפוש בתוך הסרטון כפעולה בפני עצמה — היא פורמט שונה מסיכום.
+
+#### 16. Summify
+- **מה זה, חברה:** Betastate Ltd; "The knowledge and memory layer for every AI you use"; ‏pods (אוספים) ו־MCP — [Summify (נבדק 9/11/2026)](https://summify.io/).
+- **פלטים:** 11 סגנונות סיכום; דפי Deep Dive עם תובנות לחיצות, ישויות וטבלאות; צ'אט עם ציטוטים; 130+ שפות — [Summify](https://summify.io/).
+- **פלטפורמות:** ווב; התוסף מסומן "Soon" — [Summify](https://summify.io/).
+- **מחירים (נבדק 9/11/2026):** Starter ‏$8 לחודש ($100 לשנה), ‏Pro ‏$16 ($200), ‏Max ‏$33 ($400); ניסיון של 3 ימים — [Summify Pricing](https://summify.io/pricing). Toolworthy הזכיר בעבר מסלול לכל החיים ב־$179, שלא מופיע היום — [Toolworthy](https://www.toolworthy.ai/en/blog/best-ai-video-summarizer).
+- **2025–2026:** השקה מחדש ב־Product Hunt ב־18/3/2026, ו־MCP ב־21/4/2026 (וגם השקות ב־2023 וב־2024) — [Product Hunt](https://www.producthunt.com/products/summify/launches).
+- **ביקורות:** ‏5.0 מ־200+, ‏50K+ משתמשים ו־30M+ דקות — טענות היצרן — [Summify](https://summify.io/). אין עמוד Trustpilot.
+- **תוכן חזותי, עברית, פרטיות, פירוט חותמות הזמן:** **לא נמצא**.
+- **לקח:** מיצוב כ"שכבת זיכרון" לכל עוזרי ה־AI (דרך MCP) — הסיכום הופך לחומר גלם לסוכנים אחרים.
+
+#### 17. Mapify
+- **מה זה, חברה:** הופך תוכן, כולל וידאו, למפת חשיבה; באתר מופיעה SUPERMIND PTE. LIMITED — [Mapify (נבדק 9/11/2026)](https://mapify.so/), וב־CWS המפתחת היא XMIND LTD. — [CWS](https://chromewebstore.google.com/detail/mapify-ai-summarizer-mind/fldgacclkckcmflokaialbihppmndpbd). טוען ל־"5 million" משתמשים — [Mapify](https://mapify.so/).
+- **פלטים ועיגון:** "Click to navigate key moments from the mind map directly in the video"; תמלילים; ייצוא לתמונה, PDF ו־MD; ‏"Present as Slides" — [Mapify](https://mapify.so/).
+- **מחירים (נבדק 9/11/2026)** — [Mapify Pricing](https://mapify.so/pricing):
+  - Free: ‏30 קרדיטים חד־פעמיים (כ־5 סרטונים).
+  - Basic: ‏$9.99 לחודש, או $5.99 בשנתי.
+  - Pro: ‏$19.99 או $11.99.
+  - Unlimited: ‏$29.99 או $17.99.
+  - 30% הנחה לחינוך.
+- **עברית:** **אין** עברית בין 16 שפות הרישום ב־CWS — [CWS](https://chromewebstore.google.com/detail/mapify-ai-summarizer-mind/fldgacclkckcmflokaialbihppmndpbd).
+- **ביקורות:** CWS ‏4.1 מ־26, ‏100,000 משתמשים, גרסה 1.6.3 מ־19/1/2026 — [CWS](https://chromewebstore.google.com/detail/mapify-ai-summarizer-mind/fldgacclkckcmflokaialbihppmndpbd). ‏Trustpilot ‏3.2 מ־5: "I signed up for the Mapify 3-day free trial, but my account was charged immediately." (8/6/2026) — [Trustpilot](https://www.trustpilot.com/review/mapify.so).
+- **תוכן חזותי, פרטיות:** **לא נמצא**.
+- **לקח:** מפה שכל צומת בה קופץ לרגע בסרטון היא עיגון חזותי של מבנה ההרצאה.
+
+#### 18. Tactiq — חלק ה־YouTube
+- **מה יש:** מחולל תמליל חינמי בלבד. היצרן מזהיר שהתמליל "not always 100% accurate", ובעמוד מופיע © 2024 — [Tactiq YouTube transcript (נבדק 9/11/2026)](https://tactiq.io/tools/youtube-transcript). הכתובת tactiq.io/tools/youtube-summarizer החזירה 404 בבדיקה ב־9/11/2026, ויכולות ה־AI של Tactiq מכוונות לפגישות.
+- **ביקורות:** ‏Trustpilot ‏3.2 מ־15 (על החברה כולה): "The transcript is horrible." — [Trustpilot](https://www.trustpilot.com/review/tactiq.io).
+- **לקח:** מחולל תמליל חינמי משמש כמשפך SEO למוצר אחר.
+
+#### 19. Mindgrasp — חלק הווידאו
+- **מה יש:** קלט מ־YouTube, ‏Vimeo, ‏MP4/MP3, הקלטה חיה, Canvas ו־Blackboard; פלט של הערות, כרטיסיות, חידונים ומורה AI; 20+ שפות; "5M+" ו־"unlimited uploads" — [Mindgrasp (נבדק 9/11/2026)](https://www.mindgrasp.ai/). מחיר — **לא נמצא** (הכתובת /pricing מחזירה 404).
+- **ביקורות:** ‏Trustpilot ‏2.2 מ־136: "poor at providing good summaries of videos"; חיוב שנתי של 187 שהמשתמש לא התכוון אליו; ביטול שדורש "seven steps" — [Trustpilot](https://www.trustpilot.com/review/mindgrasp.ai).
+- **תוכן חזותי, חותמות זמן, עברית:** **לא נמצא**.
+
+#### 20. ScreenApp — מסכם הווידאו
+- **המסכם:** תמליל, זיהוי דוברים ופרקים לחיצים; "AI reads video frames ... when you ask about something on screen" — כלומר הפריימים נקראים רק כשהמשתמש שואל בצ'אט; ייצוא בתשלום ל־PDF, ‏DOCX, ‏SRT ו־VTT; 100+ שפות; בחינם 2 תמלולים של עד 45 דקות, ב־Pro עד שעתיים וב־Max עד 3 שעות; ובעמוד עצמו מצוינת חולשה ב־"narration-free slides" — [ScreenApp AI summarizer (נבדק 9/11/2026)](https://screenapp.io/features/ai-summarizer).
+- **Video OCR (כלי נפרד):** מזהה "slides, captions, on-screen labels, signage, and graphics" עם חותמות זמן; התוכן "not used to train AI models" — [ScreenApp Video OCR](https://screenapp.io/features/video-ocr).
+- **מחירים (נבדק 9/11/2026):** Pro ‏$30 לחודש או $19 בשנתי ($228); ‏Max ‏$69 או $34; ‏Enterprise מ־$199; ניסיון של 7 ימים שהופך לחיוב שנתי של $228 — [ScreenApp Pricing](https://screenapp.io/pricing).
+- **ביקורות:** ‏Trustpilot ‏1.3 מ־54: "doesn't deliver on what's shown to you on video demos"; חיוב אוטומטי של $114 (11/2026) — [Trustpilot](https://www.trustpilot.com/review/screenapp.io).
+- **עברית:** **לא נמצא** (מוצהרות 100+ שפות, בלי רשימה).
+- **לקח:** OCR ככלי חיפוש נפרד, ופריימים רק לפי דרישה בצ'אט — שניהם לא משולבים בסיכום עצמו.
+
+#### 21. Notta — חלק הווידאו
+- **מה יש:** מסכם YouTube בווב; **עברית מופיעה ברשימת שפות הפלט**; סיכום אחד חינם לכל משתמש; תוסף עם "timestamp breakdowns" ו־50+ שפות — [Notta YouTube summarizer (נבדק 9/11/2026)](https://www.notta.ai/en/tools/youtube-video-summarizer).
+- **מחירים:** Pro ‏$8.17 לחודש בחיוב שנתי (1,800 דקות) — [Notta pricing (לפי 06)](https://www.notta.ai/en/pricing). ‏58 שפות ו־50% הנחה לחינוך — [Scrimba](https://scrimba.com/articles/best-ai-video-summarizers-2026/).
+- **ביקורות:** הדירוג ב־Trustpilot מוסתר בגלל הפרת כללים וביקורות מזויפות; 170 ביקורות, 87% מהן כוכב אחד; תלונות: "throws in random words", "failed to recognize Greek", וחיובים — [Trustpilot](https://www.trustpilot.com/review/notta.ai).
+- **תוכן חזותי:** **לא נמצא**.
+- **לקח:** עברית ברשימת שפות הפלט היא אחת הראיות הישירות המעטות לעברית בפלט במוצרי הקטגוריה, אבל בלי שום עדות לאיכות.
+
+#### 22. הפלטפורמה עצמה — Ask בדף הצפייה ו־Ask YouTube
+- **Ask בדף הצפייה:** כלי שיחה שעונה על שאלות על הסרטון הנצפה, בסרטונים נבחרים בלבד ומגיל 13; ב־Android, ‏iOS, ווב וטלוויזיה. **עברית ברשימת השפות הנתמכות.** השיחות נמחקות אחרי 45 יום, ושיחות שנבדקו בידי אדם נשמרות עד 3 שנים — [YouTube Help 14110396 (נבדק 9/11/2026)](https://support.google.com/youtube/answer/14110396).
+- **Ask YouTube (חיפוש שיחתי):** ארה״ב ואנגלית בלבד; התשובות "blend long-form videos, Shorts, and text", וריחוף על סרטון מנגן אותו מהרגע הרלוונטי — [YouTube Help 16943763](https://support.google.com/youtube/answer/16943763?hl=en). ההכרזה ב־I/O ‏(19/5/2026): בשלב זה למנויי Premium מגיל 18 בארה״ב, דרך youtube.com/new, עם כוונה "to roll this out broadly to all YouTube users soon" — [YouTube Blog](https://blog.youtube/news-and-events/youtube-news-google-io-2026/).
+- **מגבלות:** אזהרה שהתשובות "may sometimes produce inaccurate or offensive information"; אין ייצוא — [Scrimba](https://scrimba.com/articles/best-ai-video-summarizers-2026/).
+- **לקח:** שאלות ותשובות בסיסיות על סרטון, כולל בעברית, הופכות לתכונה חינמית של הפלטפורמה. הערך של מוצר עצמאי חייב להיות במה שהפלטפורמה לא נותנת: ייצוא, עומק, ראייה, ספרייה, וכל סרטון — לא רק סרטונים נבחרים.
+
+#### 23. מחברות ודפדפנים עם AI מובנה
+- **Gemini Notebook (לשעבר NotebookLM):** לפי בלוג של HoverNotes (מוצר משלים, עודכן 30/10/2026): השם שונה ב־16/7/2026; "Gemini Notebook doesn't watch videos" (נשען על הכתוביות); וקורסים מאחורי התחברות לא נכנסים — [בלוג HoverNotes](https://hovernotes.io/en/blog/add-any-video-to-notebooklm-with-hovernotes). לא אומת במקור ראשוני.
+- **דפדפנים עם AI:** העמודים הרשמיים של Gemini in Chrome, ‏Comet ו־Brave Leo לא מזכירים במפורש סיכום של YouTube (נבדק 9/11/2026) — [Gemini in Chrome](https://gemini.google/overview/gemini-in-chrome/); [Comet](https://www.perplexity.ai/comet); [Brave Leo](https://brave.com/leo/).
+
+#### 24. מצטרפים חדשים בולטים 2025–2026 (תמצית; הפירוט בשאלה 5)
+- **Summd** — תוסף קטן (259 משתמשים) שמצהיר על "frame analysis" שמאפשר "ask about what's on screen"; ‏15 הודעות חינם — [CWS](https://chromewebstore.google.com/detail/youtube-ai-chat-summary/cjhickmaokeejgncknjhgiebnloakppe).
+- **YTSummarizer** — הושק ב־20/4/2026 עם חבילות חד־פעמיות: $9 ל־30 סיכומים, $19 ל־200, $49 ל־1,000 — [Product Hunt](https://www.producthunt.com/products/ytsummarizer/launches).
+- **Summario** — ‏10K משתמשים, ‏4.9; מוסיף המלצה אם שווה לצפות, ציר זמן, צ'אט וסנטימנט של התגובות — [CWS](https://chromewebstore.google.com/detail/summario-ai-youtube-summa/omjcmicfodhllalfjnkpcblodloljpmi).
+- **Memories.ai** — מאמר של הספק (3/1/2026) קובע שאף אחד מחמשת המסכמים שסקר לא מנתח פריימים — [Memories.ai blog](https://memories.ai/blogs/best-5-ai-youtube-video-summarizer-tools-in-2026).
+- **קוד פתוח:** steipete/summarize — פריימים לפי סצנה, OCR אופציונלי (tesseract) ופלט עם זמנים — [GitHub](https://github.com/steipete/summarize). ‏Fabric — דגל `--visual` ("OCR and FFmpeg frame extraction") — [GitHub](https://github.com/danielmiessler/Fabric).
+
+### Inferences
+- הקטגוריה מתחלקת לחמישה ארכיטיפים: (1) מסכמי YouTube ייעודיים בתוסף (Eightify, ‏Glasp, ‏Glarity, ‏Summario); (2) סרגלי AI כלליים, שבהם YouTube הוא פיצ'ר אחד (Sider, ‏Monica, ‏Merlin, ‏HARPA, ‏MaxAI); (3) פלטפורמות ידע ולמידה (Recall, ‏Readray, ‏Summify, ‏Video Highlight, ‏NoteGPT, ‏Mindgrasp, ‏Mapify); (4) מוצרים שהראייה בבסיסם (BibiGPT, ‏HoverNotes, ‏ScreenApp OCR, ‏Summd); (5) הפלטפורמה עצמה (Ask ב־YouTube, ‏Gemini Notebook). לכל אחד מהם יש חלק קטן מהתמונה שאנחנו מכוונים אליה.
+- **ב־2026 הראייה עברה מניסוי לתכונת Pro** (BibiGPT ב־4/2026, ‏Readray ב־10/2026, ‏ScreenApp OCR), אבל אף מוצר לא משלב ראיות חזותיות כברירת מחדל בכל ניתוח. אצל כולם זו תוספת נפרדת: Beta, צ'אט או כלי OCR עצמאי.
+- אצל המוצרים הכי גדולים (Sider, ‏Monica, ‏Merlin) YouTube הוא פיצ'ר משני, והוא נשבר בלי תחזוקה. העדות: ביקורות על Merlin ב־2026 ועל Monica ב־10/2025. ההיקף הגדול לא מבטיח את איכות היכולת הספציפית.
+- החפיר שמחזיק משתמשים הוא כנראה הספרייה, הלמידה והאינטגרציות (Recall, ‏Glasp, ‏Video Highlight, ‏Summify), ולא איכות הסיכום הבודד, שהפך למצרך. לסיכום עצמו כבר יש חלופה חינמית בפלטפורמה.
+- כל העיגון בזמן שתועד הוא ברמת מקטע כתובית, שורה או סצנה (Video Highlight מצהיר זאת במפורש). ‏Readray אפילו מחזיר בצ'אט מספר משפט. אף מוצר לא מצהיר על תזמון ברמת מילה.
+
+### Gaps
+- אף מוצר לא הופעל בפועל — בלי חשבונות ובלי תשלום. כל הנתונים הם הצהרות יצרן, רישומי חנות, ביקורות ומאמרי צד שלישי. אין מדידה עצמאית של דיוק הסיכום או של דיוק חותמות הזמן.
+- **תקציב החיפוש המשותף נגמר** אחרי כ־35 חיפושים. לכן נבדקו רק עמודים שכתובתם הייתה ידועה או נגזרה. ייתכן שחסרים מצטרפים חדשים מ־2026 שלא הופיעו בחיפושים המוקדמים.
+- Reddit, ‏G2, ‏Capterra, ‏AlternativeTo ו־There's An AI For That לא נטענו (403), ו־Google Play חזר ריק. לכן חסרות דעות משתמשים מעמיקות.
+- מחירי Merlin, ‏Sider, ‏Monica ו־WayinVideo לא אומתו (403 או JS), ונשענים רק על רמזים מביקורות.
+- **Taskade ו־Jotform:** חמש כתובות משוערות של עמודי "YouTube summarizer" החזירו 404. לא אומת שיש להם כיום כלי פעיל לסיכום וידאו, ולכן הם לא נכללו במטריצה.
+- Readray: תקציר חיפוש הציג מחירי ווב של $7.99–19.99 לחודש ו־$69.99 לשנה, בסתירה לרשימת הרכישות ב־App Store. לא אומת.
+- Eightify: מימון, מספר עובדים, והתנהגות בסרטון בלי כתוביות — לא נמצאו. ‏BibiGPT: ביקורות עצמאיות ומכסת חינם — לא נמצאו. ‏Kagi Summarizer דורש התחברות ולכן הושמט.
+- **איכות בעברית לא נבדקה באף מוצר.** "עברית ברשימת השפות" ב־CWS מעידה רק על לוקליזציה של הממשק.

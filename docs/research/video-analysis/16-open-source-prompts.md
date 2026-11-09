@@ -361,7 +361,7 @@
 **שלושה פרויקטים בשם VideoAgent**
 
 1. **wxh1996/VideoAgent** (ECCV 2024): ⚠️ אין LICENSE. מקור: [GitHub](https://github.com/wxh1996/VideoAgent).
-2. **YueFan1014/VideoAgent** (Apache-2.0): נבדק על RTX 4090, עם Video-LLaVA ו־OpenAI. מקור: [LICENSE](https://github.com/YueFan1014/VideoAgent/blob/HEAD/LICENSE).
+2. **YueFan1014/VideoAgent** (Apache-2.0): נבדק על RTX 4090, עם Video-LLaVA ו־OpenAI. מקורות: [README](https://github.com/YueFan1014/VideoAgent) ו־[LICENSE](https://github.com/YueFan1014/VideoAgent/blob/HEAD/LICENSE).
 3. **HKUDS/VideoAgent** (MIT, ‏EMNLP 2026)
    - ‏2.0k כוכבים. ‏"An All-in-One Framework for Understanding, Editing, and Generation".
    - "Claude is required as it powers the Agentic Graph Router".
@@ -370,8 +370,8 @@
 
 **VideoTree ו־LLoVi**
 
-- VideoTree (CVPR 2025): ‏MIT. מקור: [LICENSE](https://github.com/Ziyang412/VideoTree/blob/HEAD/LICENSE).
-- LLoVi: ‏MIT. השיטה: כתוביות קצרות לכל קליפ, ואחריהן LLM שמסכם ועונה. מקור: [LICENSE](https://github.com/CeeZh/LLoVi/blob/HEAD/LICENSE).
+- VideoTree (CVPR 2025): ‏MIT. מקורות: [README](https://github.com/Ziyang412/VideoTree) ו־[LICENSE](https://github.com/Ziyang412/VideoTree/blob/HEAD/LICENSE).
+- LLoVi: ‏MIT. השיטה: כתוביות קצרות לכל קליפ, ואחריהן LLM שמסכם ועונה. מקורות: [README](https://github.com/CeeZh/LLoVi) ו־[LICENSE](https://github.com/CeeZh/LLoVi/blob/HEAD/LICENSE).
 
 **microsoft/DeepVideoDiscovery** (MIT, ‏NeurIPS 2025)
 
@@ -518,7 +518,7 @@
 | steipete/summarize | 0.26.0, ‏5/11/2026 | MIT | Node: סמני `[slide:N]`, ‏Parakeet/Canary ב־ONNX | כן | אין מדידה | שילוב שקפים בטקסט ותקציב לשקף |
 | lecture2notes | 5/2025 | ⚠️ AGPL | CNN, ‏OCR, ‏BART/PEGASUS | חלקית | המסווג (הערה 03) | רעיונות בלבד |
 | Meetily | 0.4.1 pre | MIT | Tauri, ‏whisper.cpp, ‏Parakeet | כן (AVX2) | אין מדידה | כמעט כלום. מתמקד בלכידה חיה |
-| WhisperX | 3.8.6, ‏5/2026 | BSD-2 | faster-whisper, ‏wav2vec2, ‏pyannote | כן (int8) | מאמר | יישור, אבל אין מודל עברי מובנה |
+| WhisperX | 3.8.6, ‏5/2026 | BSD-2 | faster-whisper, ‏wav2vec2, ‏pyannote | כן (int8) | לא נבדק כאן (הערה 04) | יישור, אבל אין מודל עברי מובנה |
 | VideoRAG | 3/2026 | MIT + ⚠️ NC-SA | גרף ידע ו־ImageBind | לא (3090) | Video-MME long ‏60.2 | רק את המסגרת |
 | DVD | 10/2025 | MIT | סוכן עם כלים, o3 | ה־LLM בענן | LVBench ‏74.2/76.0 | lite_mode עם כתוביות בלבד, מותאם ל־Claude |
 | MR. Video | 2025 | MIT | map→reduce | לא (Gemini ו־OpenAI) | +10% ב־LVBench | התבנית בלבד |
