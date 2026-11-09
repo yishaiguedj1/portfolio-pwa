@@ -104,7 +104,7 @@
   - מצב עיגון למיקום בעמוד (grounding) מוסיף כ־25% טוקני פלט: 1,433 מול 1,158 לעמוד.
 - **PaddleOCR-VL-1.6** (‏0.96B, ‏Apache-2.0, נוצר 27/5/2026; הכרטיס מציין שחרור ב־28/5): ‏OmniDocBench v1.6 ‏96.33% — [כרטיס](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.6).
 - **GLM-OCR** (‏0.9B, ‏MIT, נוצר 30/1/2026): ‏OmniDocBench V1.5 ‏94.62. השפות בכרטיס: zh, ‏en, ‏fr, ‏es, ‏ru, ‏de, ‏ja, ‏ko — [כרטיס](https://huggingface.co/zai-org/GLM-OCR).
-- **MiniCPM-OCR 1.0** (‏1.3B, ‏Apache-2.0, נוצר 21/10/2026): ‏1.2 עמודים לשנייה. "Primary languages: Chinese and English". נתמך מהיום הראשון ב־vLLM, ‏SGLang, ‏llama.cpp ו־Ollama — [כרטיס](https://huggingface.co/openbmb/MiniCPM-OCR-1.0).
+- **MiniCPM-OCR 1.0** (‏1.3B, ‏Apache-2.0, נוצר 21/10/2026): ‏1.2 עמודים לשנייה. בטבלת הכרטיס, בשורה "Primary languages": ‏"Chinese and English". נתמך "from day one" ב־vLLM, ‏SGLang, ‏llama.cpp ו־Ollama. השרשרת: מודל הפריסה PP-DocLayoutV3 חותך אזורים, וכל אזור נשלח ב־HTTP לשירות הזיהוי — [כרטיס](https://huggingface.co/openbmb/MiniCPM-OCR-1.0).
 - **DeepSeek-OCR-2** (‏3.39B, ‏Apache-2.0, נוצר 27/1/2026): מספר הטוקנים החזותיים הוא (0–6)×144+256 — [כרטיס](https://huggingface.co/deepseek-ai/DeepSeek-OCR-2).
 - **WeVisOne-VL-2B** (‏Tencent, ‏Apache-2.0, ‏2.44B, נוצר 22/10/2026): בנוי על Qwen3-VL; זיהוי עצמים, עיגון, OCR וחיתוך רקע — [כרטיס](https://huggingface.co/tencent/WeVisOne-VL-2B).
 - **אזהרת llama.cpp**: מודלי OCR "are trained with specific prompt and input structure". התיעוד מפנה לדיונים ייעודיים עבור PaddleOCR-VL, ‏GLM-OCR, ‏DeepSeek-OCR, ‏Dots.OCR ו־HunyuanOCR — [llama.cpp docs/multimodal.md](https://github.com/ggml-org/llama.cpp/blob/master/docs/multimodal.md).
@@ -408,9 +408,11 @@ CTranslate2 לא תומך במודלי ראייה, ו־TGI במצב תחזוקה
 
 | תרחיש | חישוב לפריים (TFLOP) | שניות לפריים | ‏100 פריימים |
 |---|---|---|---|
-| Qwen3.5-2B ב־720p (‏900 טוקנים; מקודד של כ־0.33B על כ־3,600 טלאים) | ≈7 | 15–35 (כולל ~150 טוקני פלט) | 25–60 דקות |
+| Qwen3.5-2B ב־720p (‏900 טוקנים; מקודד של כ־0.33B לפי גודל ה־mmproj ב־F16, ‏0.67GB, על כ־3,600 טלאים של 16 פיקסלים) | ≈7 | 15–35 (כולל ~150 טוקני פלט) | 25–60 דקות |
 | Qwen3.5-2B ב־768×432 (‏324 טוקנים) | ≈2.3 | 5–15 (עם פלט JSON קצר של 30–50 טוקנים) | 8–25 דקות |
-| MiniCPM-V 4.6 (‏0.8B LM, קידוד חזותי מקוצץ ב־50%+, דחיסת טוקנים) | ≈1 | 3–8 | 5–13 דקות |
+| MiniCPM-V 4.6 בתצורת מיון (`max_slice_nums=1`, דחיסה 16x; ‏0.8B LM; קידוד חזותי מקוצץ ב־50%+) | ≈0.5–1 | 2–5 | 3–8 דקות |
+
+  - **MiniCPM בקריאת שקפים מלאה** (ברירת המחדל 9 פרוסות, ו־36 מומלץ לתמונות): החישוב גדל בערך לפי מספר הפרוסות. לכן במצב הזה הוא לא בהכרח זול מ־Qwen3.5-2B ב־720p (הערכה; גודל הפרוסה לא מופיע בכרטיס).
 
   - **Qwen3.5-9B**: פי 4–5 יותר — לא מעשי ב־CX53 לצד תרגום.
 - **זיכרון**:
@@ -455,9 +457,10 @@ CTranslate2 לא תומך במודלי ראייה, ו־TGI במצב תחזוקה
 | GEX430 | ‏4× RTX PRO 6000 | €3,599.00 | €5.7676 | €3,599.00 |
 
 - **GEX44 לא מופיע עוד** בדף המטריצה. דף התיעוד (עודכן 21/10/2026) מונה את GEX44 ו־GEX130 בלי מחירים — [Hetzner docs gpu-server](https://docs.hetzner.com/robot/dedicated-server/server-lines/gpu-server/); [GEX44](https://www.hetzner.com/dedicated-rootserver/gex44/).
-- **מחירים היסטוריים** (לא אומת, מתקצירי חיפוש) — [הכרזת GEX44](https://www.hetzner.com/news/new-gpu-server); [השוואה צד שלישי](https://www.centron.de/en/vergleich/gpu-hetzner):
-  - ‏GEX44 הושק ב־€184 לחודש ועוד €79 הקמה. אחר כך: €232.30 ועוד €114.
-  - ‏GEX131 ביוני 2026: ‏€1,197.30 ועוד €599.
+- **מחירים היסטוריים** (לא אומת: מתקצירי חיפוש בלבד, כי דף התאמות המחיר הרשמי החזיר 404) — [הכרזת GEX44](https://www.hetzner.com/news/new-gpu-server); [השוואה צד שלישי](https://www.centron.de/en/vergleich/gpu-hetzner):
+  - ‏GEX44 הושק ב־€184 לחודש ועוד €79 הקמה. בטבלת התאמת מחירים מאוחרת יותר: ‏€232.30 בלי IPv4, ועוד €114 הקמה. ההשוואה של צד שלישי מביאה €234 ועוד €114.
+  - ‏GEX131 הוכרז בדצמבר 2025 בלי דמי הקמה. לפי מאמר השוואה, אחר כך נקבעו €159 הקמה, ובמחירון של יוני 2026: ‏€1,197.30 בלי IPv4 ועוד €599 הקמה.
+  - **סתירה ומגמה**: היום הדף הרשמי מציג ל־GEX131 ‏€1,499 לחודש ו־€1,499 הקמה. כלומר דמי ההקמה עלו בחדות בתוך שנה — לבדוק את המחיר בדף ביום ההזמנה.
 - **Modal** (דולר, חיוב לפי שנייה, נבדק 9/11/2026) — [Modal pricing](https://modal.com/pricing):
   - לשעה: ‏T4 ‏$0.59, ‏L4 ‏$0.80 ($0.000222 לשנייה), ‏A10 ‏$1.10, ‏L40S ‏$1.95, ‏A100-40GB ‏$2.10, ‏A100-80GB ‏$2.50, ‏RTX PRO 6000 ‏$3.03, ‏H100 ‏$3.95, ‏H200 ‏$4.54, ‏B200 ‏$6.25.
   - מעבד: כ־$0.0472 לליבה פיזית לשעה. זיכרון: כ־$0.008 ל־GiB לשעה.
@@ -514,17 +517,20 @@ CTranslate2 לא תומך במודלי ראייה, ו־TGI במצב תחזוקה
 | Qwen3.8-27B / OpenRouter | $0.15 / $1.875 | ≈ $0.043 |
 | qwen3.8-27b / Alibaba | $0.5 / $3 | ≈ $0.095 |
 
-  - **"כל הסרטון"**: ב־0.5 fps זה ≈198K טוקנים. ב־Qwen3.5-9B או Qwen3.6-35B-A3B יוצא כ־$0.02–0.04 לשעה.
-  - **השוואה ל־Claude**: זה פחות ממחצית מה שעולה היום Claude לפרק של 22 דקות.
+  - **"כל הסרטון"**: ב־0.5 fps זה ≈198K טוקנים. ב־Qwen3.5-9B או Qwen3.6-35B-A3B יוצא כ־$0.02–0.04 להרצאה של שעה.
+  - **לשם השוואה**: Claude עולה היום $0.084–0.112 לפרק של 22 דקות (medium), רובו על תרגום — [studio-learning.md](../../studio-learning.md). עלות שליחת אותם פריימים ל־Claude לא חושבה כאן.
 - **GPU לפי שנייה** (הערכה גסה):
   - ‏Qwen3.5-9B ב־FP8 (≈10GB) על L4/4090 בשרשרת vLLM.
   - עיבוד מוקדם של 100K טוקנים ≈ ‏2×9.65e9×1e5 ≈ ‏1.9 PFLOP. בתפוקה אפקטיבית של עשרות TFLOPS זה עשרות שניות.
   - פענוח 15K טוקנים באצוות, ועוד הפעלה קרה וטעינת משקלים של 1–3 דקות, נותנים כ־3–5 דקות GPU.
-  - **עלות**: Modal ‏L4 ≈ ‏$0.04–0.07; ‏RunPod ‏L4 קהילתי / ‏Vast 4090 ≈ ‏$0.02–0.04.
-  - **קרדיטים**: ‏$30 בחודש ב־Modal ≈ ‏37 שעות L4 ≈ כמה מאות הרצאות בחודש בלי תשלום. בתנאי שהקרדיטים לא דורשים אמצעי תשלום — לא נבדק.
+  - **עלות**:
+    - Modal ‏L4: ‏GPU בלבד ≈ ‏$0.04–0.07. ‏Modal גובה בנוסף על ליבות וזיכרון. בתצורה של 2–4 ליבות פיזיות ו־16–32GiB זה עוד כ־$0.22–0.45 לשעה, ולכן ≈ ‏$0.05–0.10 להרצאה.
+    - RunPod Serverless (מחלקת 24GB, ‏$0.75 לשעה) ≈ ‏$0.04–0.06.
+    - ‏RunPod ‏L4 קהילתי / ‏Vast 4090 (שרת שמדליקים ומכבים) ≈ ‏$0.02–0.04.
+  - **קרדיטים**: ‏$30 בחודש ב־Modal ≈ ‏24–37 שעות L4 (עם או בלי תוספת המעבד והזיכרון) ≈ כמה מאות הרצאות בחודש בלי תשלום. בתנאי שהקרדיטים לא דורשים אמצעי תשלום — לא נבדק.
 - **שרת GEX45 ייעודי**:
   - שנה ראשונה: €214×12+€209 ≈ €2,777, כלומר כ־€231 לחודש.
-  - מול API ב־~$0.02 להרצאה, נקודת האיזון היא כ־10,000+ הרצאות בחודש (בהנחת שער של כ־1.1 דולר לאירו — הנחה).
+  - מול API ב־~$0.02 להרצאה, נקודת האיזון היא כ־12,700 הרצאות בחודש (‏€231×1.1 ÷ ‏$0.02; שער של כ־1.1 דולר לאירו — הנחה).
   - **מתי כן**: הוא משתלם רק אם מעבירים אליו גם את faster-whisper והיישור, שיתקצרו מאוד על GPU. זו החלטה נפרדת.
   - **24GB מספיקים** ל־Qwen3.5-9B ב־FP8, ול־Qwen3.6-35B-A3B ב־Q4 עם הקשר קטן (היסק לפי גודלי הקבצים).
   - ‏"מחיר לשעה" של GEX עם €209 הקמה לא מתאים להשכרה קצרה.
@@ -626,9 +632,12 @@ CTranslate2 לא תומך במודלי ראייה, ו־TGI במצב תחזוקה
 #### עברית ב־MTEB — ניתוח מקורי של קובצי התוצאות (CC0)
 מקור הנתונים לכל השורות בתת־סעיף הזה: [mteb/results](https://huggingface.co/datasets/mteb/results). שלפתי את קובצי ה־parquet ב־9/11/2026 וסיננתי את השורות בעברית.
 
-- **BelebeleRetrieval** (‏194 מודלים; הציון הראשי של MTEB; עברית–עברית / שאילתה בעברית → מסמך באנגלית / שאילתה באנגלית → מסמך בעברית):
+- **BelebeleRetrieval** (‏194 מודלים; nDCG@10, הציון הראשי של המשימה, מוכפל ב־100). כיוון העמודות לפי קוד המשימה: בתת־קבוצה "X-Y" המסמכים בשפה X והשאילתות בשפה Y — [קוד המשימה ב־MTEB](https://github.com/embeddings-benchmark/mteb/blob/main/mteb/tasks/retrieval/multilingual/belebele_retrieval.py). לכן:
+  - **he→he**: שאילתה ומסמך בעברית.
+  - **en→he**: שאילתה באנגלית, מסמך בעברית (תת־הקבוצה `heb_Hebr-eng_Latn`).
+  - **he→en**: שאילתה בעברית, מסמך באנגלית (`eng_Latn-heb_Hebr`) — המקרה של שאילתה עברית מול שקף באנגלית.
 
-| מודל | he→he | he→en | en→he |
+| מודל | he→he | en→he | he→en |
 |---|---|---|---|
 | geevec-embeddings-1.0 | 97.17 | 98.54 | 95.15 |
 | Qwen3-Embedding-8B | 96.86 | 98.78 | 95.98 |
@@ -636,7 +645,7 @@ CTranslate2 לא תומך במודלי ראייה, ו־TGI במצב תחזוקה
 | harrier-oss-v1-27b | 94.97 | 95.79 | 92.54 |
 | llama-embed-nemotron-8b (NSCL) | 94.85 | 96.75 | 93.61 |
 | multilingual-e5-large | 92.54 | 92.04 | 83.82 |
-| Qwen3-Embedding-4B | 91.94 | 95.26 | 87.19 |
+| Qwen3-Embedding-4B | 91.94 | 95.27 | 87.19 |
 | multilingual-e5-large-instruct | 91.54 | 91.91 | 82.21 |
 | bge-m3 | 91.11 | 89.39 | 85.89 |
 | mSlideOn (דליל) | 90.90 | 85.99 | 73.07 |
@@ -649,7 +658,7 @@ CTranslate2 לא תומך במודלי ראייה, ו־TGI במצב תחזוקה
 | F2LLM-v2-0.6B | 83.23 | 87.77 | 76.72 |
 | Qwen3-Embedding-0.6B | 82.31 | 84.04 | 67.74 |
 | granite-embedding-311m-multilingual-r2 | 81.08 | 79.06 | 58.09 |
-| text-embedding-3-large (API) | 79.84 | 91.15 | 70.02 |
+| text-embedding-3-large (API) | 79.84 | 91.16 | 70.02 |
 | embeddinggemma-2 | 79.72 | 85.12 | 75.24 |
 | embeddinggemma-300m | 73.96 | 84.45 | 62.43 |
 | LaBSE | 68.87 | 73.71 | 63.00 |
@@ -670,7 +679,7 @@ CTranslate2 לא תומך במודלי ראייה, ו־TGI במצב תחזוקה
 | siglip-large-patch16-384 | 31.82 |
 | siglip-so400m-patch14-384 (SigLIP 1) | 4.09 |
 
-  - **נכשלים** (כ־0.2–0.4): כל מודלי CLIP של OpenAI ו־LAION, ‏EVA02-CLIP, ‏nomic-embed-vision-v1.5 ו־BLIP.
+  - **נכשלים** (‏0.1–0.4): כל מודלי CLIP של OpenAI ו־LAION, ‏EVA02-CLIP, ‏nomic-embed-vision-v1.5 ו־BLIP. גם SigLIP-base באנגלית (גרסאות 2024) מקבל רק 12.8–13.5.
 - **WebFAQRetrieval בעברית**: ‏jina-embeddings-v3 ‏86.80; ‏F2LLM-v2-0.6B ‏85.85; ‏multilingual-e5-large ‏84.29; ‏multilingual-e5-large-instruct ‏83.58; ‏multilingual-e5-small ‏74.74; ‏gte-multilingual-base ‏66.08.
 - **חסרים בתוצאות העבריות**: SigLIP 2, ‏jina-clip-v2, ‏jina-embeddings-v4, ‏Qwen3-VL-Embedding ו־Nemotron-3.5-Embed.
 
@@ -684,7 +693,7 @@ CTranslate2 לא תומך במודלי ראייה, ו־TGI במצב תחזוקה
   - כוילה על 36 השפות של XM3600, ו־`he` ברשימה. ב־XM3600, טקסט→תמונה עולה מ־48.7 ל־59.5 בממוצע.
   - **מלכודת**: ב־`transformers` ‏4.57.x ומטה "zero keys match and the model is randomly initialized" — רק אזהרה, בלי שגיאה. זה נכון גם למודל הבסיס.
 - **e5-omni-7B** (‏MIT, ‏8.93B, מבוסס Qwen2.5-Omni-7B, נוצר 6/1/2026) — [HF API](https://huggingface.co/api/models/Haon-Chen/e5-omni-7B).
-- **geevec-embeddings-1.0** (‏Apache-2.0, נוצר 31/3/2026): ‏"8B activated parameters", ‏PseudoMoE על בסיס Qwen3, ממד 4096, הקשר 32,768. דורש `trust_remote_code` — [כרטיס](https://huggingface.co/geevec-ai/geevec-embeddings-1.0).
+- **geevec-embeddings-1.0** (‏Apache-2.0, נוצר 31/3/2026): ‏"8B activated parameters", ארכיטקטורת PseudoMoE על "a Qwen3-style base model", ממד 4096, הקשר 32,768. דורש `trust_remote_code` (קובצי מודל מותאמים) — [כרטיס](https://huggingface.co/geevec-ai/geevec-embeddings-1.0).
 - **Qwen3-VL-Embedding 2B/8B** (‏Apache-2.0, נוצרו 7/1/2026): ‏MMEB-V2 ‏73.2/77.8; ‏MMTEB ‏63.87/67.88; מעל 30 שפות; הקשר 32K; ממדים 64–2048. יש גם Qwen3-VL-Reranker 2B/8B — [כרטיס Qwen3-VL-Embedding-2B](https://huggingface.co/Qwen/Qwen3-VL-Embedding-2B); [כרטיס Qwen3-VL-Reranker-2B](https://huggingface.co/Qwen/Qwen3-VL-Reranker-2B).
 - **Qwen3-Embedding 0.6B/4B/8B** (‏Apache-2.0, נוצרו 3/6/2025): ‏MMTEB ‏64.33/69.45/70.58; ממדים 1024/2560/4096; מעל 100 שפות; הקשר 32K; תומכים בהוראות — [כרטיס Qwen3-Embedding-0.6B](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B).
 - **Rerankers** (‏MMTEB-R על 100 התוצאות הראשונות של Qwen3-Embedding-0.6B, שמקבל לבדו 64.64) — [כרטיס Qwen3-Reranker-0.6B](https://huggingface.co/Qwen/Qwen3-Reranker-0.6B):
@@ -702,8 +711,8 @@ CTranslate2 לא תומך במודלי ראייה, ו־TGI במצב תחזוקה
 - **multilingual-e5-large** (‏MIT, ‏0.56B): ‏24 שכבות, ממד 1024, קידומות "query: "/"passage: ", חיתוך ב־512 טוקנים — [כרטיס](https://huggingface.co/intfloat/multilingual-e5-large). ב־HF יש לו תגיות `onnx` ו־`openvino` — [HF API](https://huggingface.co/api/models/intfloat/multilingual-e5-large).
 - **harrier-oss-v1** (‏MIT, נוצר 30/3/2026): ‏MTEB v2 ‏66.5 (‏270m), ‏69.0 (‏0.6b), ‏74.3 (‏27b); הקשר 32,768; עברית ברשימת השפות — [כרטיס harrier-oss-v1-0.6b](https://huggingface.co/microsoft/harrier-oss-v1-0.6b).
 - **granite-embedding-311m-multilingual-r2** (‏Apache-2.0, נוצר 20/4/2026): ‏ModernBERT במקום XLM-RoBERTa; הקשר 32,768; ממד 768; "Released with ONNX and OpenVINO models; compatible with vLLM and llama.cpp (GGUF)" — [כרטיס](https://huggingface.co/ibm-granite/granite-embedding-311m-multilingual-r2).
-- **mSlideOn** (‏Apache-2.0, ‏0.34B, נוצר 13/10/2026): הטמעה דלילה לאינדקס הפוך. עברית לא מופיעה ברשימת השפות, ובכל זאת הציון ב־Belebele עברית הוא 90.90 (למעלה) — [כרטיס](https://huggingface.co/lightonai/mSlideOn).
-- **Nemotron-3.5-Embed-1B** (‏OpenMDW-1.1, ‏1.55B, נוצר 7/10/2026): מטמיע עמוד כתמונה, כטקסט או כשניהם; לא הוערך בעברית — [כרטיס](https://huggingface.co/nvidia/Nemotron-3.5-Embed-1B-BF16). ‏Nemotron-3.5-Rerank-8B — [כרטיס](https://huggingface.co/nvidia/Nemotron-3.5-Rerank-8B-BF16).
+- **mSlideOn** (‏Apache-2.0, ‏0.34B, נוצר 13/10/2026): מודל אחזור דליל (sparse retrieval). עברית לא בין שפות אימון האחזור (אנגלית, צרפתית, גרמנית, איטלקית, ספרדית, פורטוגזית, שוודית, נורווגית, ערבית וקוד), ובכל זאת הציון ב־Belebele עברית–עברית הוא 90.90 (למעלה) — [כרטיס](https://huggingface.co/lightonai/mSlideOn).
+- **Nemotron-3.5-Embed-1B** (‏OpenMDW-1.1, ‏1.55B, נוצר 7/10/2026): מטמיע עמוד כתמונה, כטקסט או כשניהם; עברית לא בין 34 תגיות השפה שלו ב־HF — [כרטיס](https://huggingface.co/nvidia/Nemotron-3.5-Embed-1B-BF16). ‏Nemotron-3.5-Rerank-8B — [כרטיס](https://huggingface.co/nvidia/Nemotron-3.5-Rerank-8B-BF16).
 - **SigLIP 2** (‏Apache-2.0, נוצר 17/2/2025): המאמר נקרא "SigLIP 2: Multilingual Vision-Language Encoders…" — [כרטיס siglip2-so400m-patch14-384](https://huggingface.co/google/siglip2-so400m-patch14-384).
 - **TIPSv2** (‏Apache-2.0, נוצר 9/4/2026): תכונות מרחביות לכל טלאי, 412M לראייה ו־448M לטקסט — [כרטיס](https://huggingface.co/google/tipsv2-so400m14).
 - **EVIE-4.5B** (‏Apache-2.0, נוצר 4/9/2026): אחזור מסמכים חזותי — [HF API](https://huggingface.co/api/models/tencent/EVIE-4.5B).
@@ -718,9 +727,10 @@ CTranslate2 לא תומך במודלי ראייה, ו־TGI במצב תחזוקה
 
 ### היסקים (Inferences)
 - **ההמלצה לטקסט על ה־CX53**:
-  - **ראשית**: multilingual-e5-large (‏MIT, ‏0.56B, יש ONNX/OpenVINO) או bge-m3 (‏MIT). שניהם ~91–92.5 בעברית.
-  - **חשבון זמן**: הרצאה של שעה ≈ ‏7,600 מילים, לפי כ־2,800 מילים ל־22 דקות ([studio-learning.md](../../studio-learning.md)) ≈ ‏30–40 קטעים של 512 טוקנים (הנחה של 1.5–2 טוקנים למילה). בערך 0.6 TFLOP לקטע, כלומר ≈ דקה מעבד להרצאה (הערכה).
-  - **בדרך כלל עדיף bge-m3**: הוא מוסיף ייצוג דליל לחיפוש מונחים מדויק (שמות, קוד) בלי מודל נוסף.
+  - **ראשית**: multilingual-e5-large (‏MIT, ‏0.56B, יש ONNX/OpenVINO) או bge-m3 (‏MIT). שניהם ~91–92.5 בעברית–עברית.
+  - **שאילתה בעברית מול טקסט באנגלית** (he→en, למשל שקפים באנגלית): bge-m3 ‏85.89 עדיף על multilingual-e5-large ‏83.82. ‏Qwen3-Embedding-4B מקבל 87.19; ‏Qwen3-Embedding-8B ‏95.98 ו־geevec ‏95.15 — קפיצה של כ־10 נקודות.
+  - **חשבון זמן**: הרצאה של שעה ≈ ‏7,600 מילים, לפי כ־2,800 מילים ל־22 דקות ([studio-learning.md](../../studio-learning.md)). זה ≈ ‏11–15 אלף טוקנים (הנחה של 1.5–2 טוקנים למילה), כלומר ≈ ‏25–35 קטעים של 512 טוקנים עם חפיפה. בערך 0.6 TFLOP לקטע, כלומר פחות מדקה עד דקה מעבד להרצאה (הערכה).
+  - **בדרך כלל עדיף bge-m3**: הוא חזק יותר בכיוון he→en, ומוסיף ייצוג דליל לחיפוש מונחים מדויק (שמות, קוד) בלי מודל נוסף.
 - **שדרוג איכות**: Qwen3-Embedding-4B או 8B (‏Apache) — ‏91.9 עד 96.9 בעברית. דרך GPU, או דרך API בכ־$0.10 ל־1M ב־Fireworks לגרסת 8B.
 - **Reranker**: Qwen3-Reranker-0.6B על CPU ל־20–50 מועמדים בשאילתה.
 - **שקפים — שני ערוצים:**
