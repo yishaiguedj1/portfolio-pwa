@@ -925,6 +925,134 @@ class LineBreaks2510(unittest.TestCase):
         self.assertFalse((self.pd / 'tr' / 'linebreak.json').exists())
 
 
+class Card0911(unittest.TestCase):
+    """09/11/2026: כרטיס ה־100K של Haiku 5.5 — בדיקה מול 151 עבודות אמיתיות: שבירת השורות (כל הכתוביות בבקשה אחת)
+    עברה את הסף ב־3 מתוך 6 העבודות הארוכות ושילמה פי 5. כל קריאה ל־Claude עוברת עכשיו בדיקת סף או שהיא חסומה בגודל."""
+    setUp, tearDown, engine = FlowTests.setUp, FlowTests.tearDown, FlowTests.engine
+
+    # כל מקום בצנרת שקורא ל־complete — ולמה הוא לא עובר את הסף. מקום חדש = שורה כאן (אחרת הבדיקה נכשלת)
+    GUARDS = {
+        'Pipeline.proofread': 'fits_card — מעל הסף בלי כתוביות המקור (הן בהגהה בחלקים)',
+        'Pipeline.proof_parts.one': 'חלק של PROOF_PART_WORDS מילים + הבלוק הקבוע של ההגהה',
+        'Pipeline.brief_subs': 'fits_card — אזהרה בלבד: הקובץ הוא הקלט היחיד',
+        'Pipeline._tl_part': 'הבלוק מ־tl_fixer (חלון מהמקור מעל הסף, עם TL_ASK_RESERVE)',
+        'Pipeline._tl_manual': 'העתק־הדבק — אין כרטיס',
+        'Pipeline.arbitrate': 'tl_fixer + TL_ASK_RESERVE (ARB_MAX_CUES כתוביות)',
+        'Pipeline.fix_round': 'tl_fixer + TL_ASK_RESERVE, מנות של FIX_BATCH',
+        'Pipeline.judge.call': 'עד JG_ALL_MAX כתוביות (נמדד ~44 טוקנים לכתובית)',
+        'Pipeline.review.one': 'fits_card — קטעים',
+        'Pipeline.viewer': 'card_slices + tl_fixer',
+        'Pipeline.qc_round': 'tl_fixer',
+        'Pipeline.line_breaks.one': 'lb_parts',
+        'post_incident': 'עובדות התקלה — קטן',
+    }
+
+    def test_every_call_site_is_guarded(self):
+        import ast
+        src = Path(P.__file__).read_text(encoding='utf-8')
+        found = set()
+
+        def walk(node, stack):
+            for ch in ast.iter_child_nodes(node):
+                if isinstance(ch, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    walk(ch, stack + [ch.name])
+                    continue
+                if isinstance(ch, ast.Call) and isinstance(ch.func, ast.Attribute) and ch.func.attr == 'complete':
+                    found.add('.'.join(stack))
+                walk(ch, stack)
+        walk(ast.parse(src), [])
+        self.assertEqual(found - set(self.GUARDS), set(), 'קריאה חדשה ל־Claude בלי בדיקת סף — להוסיף בדיקה ושורה ב־GUARDS')
+        self.assertLess(__import__('job').JG_ALL_MAX * 60, 90_000, 'השופט: עד JG_ALL_MAX כתוביות נשאר מתחת לסף')
+
+    def test_ledger_merge_keeps_calls(self):
+        a, b = llm.Ledger(), llm.Ledger()
+        for _ in range(3):
+            a.add('lb', 'claude-haiku-5-5', {'i': 10, 'o': 2}, 0.001)
+        b.add('sub', 'claude-sonnet-5-5', {'i': 5, 'o': 1}, 0.01)      # הדוח אחרי תקלה — באותה שורה
+        b.merge('sub', a.list()[0])
+        r = b.list()[0]
+        self.assertEqual((r['n'], r['i'], r['o'], r['usd']), (4, 35, 7, 0.013))
+
+    def test_card_slices(self):
+        eng = NS(fits_card=lambda fixed, prompt, extra='', reserve=0: len(prompt) <= 3)
+        self.assertEqual(P.card_slices(eng, '', list('abc'), ''.join), [['a', 'b', 'c']])
+        self.assertEqual(P.card_slices(eng, '', list('abcdefg'), ''.join), [['a', 'b'], ['c', 'd'], ['e', 'f'], ['g']])
+        no = NS(fits_card=lambda *a, **k: False)
+        self.assertEqual(len(P.card_slices(no, '', list('abcd'), ''.join)), 4, 'בלי לולאה אינסופית')
+
+    def test_line_breaks_split_under_card(self):
+        from vt import linebreak as LB
+        words = ' '.join(['מילה'] * 60)
+        items = [{'id': k, 'text': words, 'cands': [29, 30, 31]} for k in range(1, 9)]
+        td, J, base = self.pd / 'tr', self.J, self.J.vt
+
+        def vt(ctx, args):
+            if args[0] == 'build':
+                (td / 'lb_items.json').write_text(json.dumps(items), encoding='utf-8')
+                return []
+            if args[0] == 'lb-prompt':
+                (td / 'lb_prompt.md').write_text(LB.prompt(items), encoding='utf-8')
+                return []
+            if args[0] == 'lb-apply':
+                self.answer = Path(args[3]).read_text(encoding='utf-8')
+                (td / 'linebreak.json').write_text(json.dumps({'v': 1, 'model': args[5], 'picks': {'x': 1}}), encoding='utf-8')
+                return []
+            return base(ctx, args)
+        J.vt = vt
+        one = llm.est_tokens(P.RULES) + llm.est_tokens(LB.prompt(items[:2])) + 64
+        lim = int(one / llm.CARD_MARGIN) + 50                  # שני פריטים נכנסים, יותר — לא
+        seen = []
+
+        def h(kw):
+            ids = re.findall(r'### (\d+)', kw['messages'][0]['content'])
+            seen.append(ids)
+            return msg('\n'.join(f'#{i} 2' for i in ids))
+        old = dict(llm.CARD_LIMIT)
+        llm.CARD_LIMIT['claude-haiku-5-5'] = lim
+        self.addCleanup(llm.CARD_LIMIT.update, old)
+        pl = P.Pipeline(self.ctx, self.J, self.engine(h, 'sonnet-medium'))
+        st = pl.line_breaks()
+        self.assertEqual(len(seen), 4, 'מנות של שני פריטים')
+        self.assertEqual(sorted(sum(seen, []), key=int), [str(k) for k in range(1, 9)], 'כל פריט בדיוק פעם אחת')
+        for ids in seen:
+            pr = LB.prompt([it for it in items if str(it['id']) in ids])
+            self.assertTrue(pl.eng.__class__(llm.Spec(*P.LB_SPEC), client=self.client).fits_card(P.RULES, pr))
+        self.assertEqual(sorted(self.answer.split()), sorted(f'#{k}' for k in range(1, 9)) + ['2'] * 8, 'כל התשובות לקובץ אחד')
+        self.assertEqual({r['k']: r['n'] for r in pl.eng.ledger.list()}['sub'], 4, 'כל מנה נספרת כקריאה')
+        self.assertEqual(st['lbn'], 8)
+
+    def test_line_breaks_one_call_when_it_fits(self):
+        from vt import linebreak as LB
+        items = [{'id': 4, 'text': 'א ב ג', 'cands': [1, 2]}]
+        P.Pipeline  # noqa: B018
+        self.assertEqual(P.lb_parts(NS(fits_card=lambda *a, **k: True), items, LB.prompt(items)), [(items, LB.prompt(items))])
+
+    def test_proofread_drops_ref_over_card(self):
+        P.PROOF_SPLIT_WORDS, old = 1, P.PROOF_SPLIT_WORDS
+        self.addCleanup(setattr, P, 'PROOF_SPLIT_WORDS', old)
+        pl = P.Pipeline(self.ctx, self.J, self.engine(lambda kw: msg('=== PATCH ===\n=== BRIEF ===\nתדריך\n=== GLOSSARY ===\n')))
+        pl.sub_ref = lambda edit: [(0.0, 'Hello and welcome.')]
+        pl.eng.fits_card = lambda fixed, prompt, extra='', reserve=0: '<existing_subtitles>' not in prompt
+        got = {}
+        pl.proof_parts = lambda fixed, cur, brief, gl, terms, ref=None, **k: got.setdefault('ref', ref) and []
+        pl.proofread()
+        content = self.client.calls[0]['messages'][0]['content']
+        self.assertNotIn('<existing_subtitles>', content, 'מעל הסף — ההגהה הראשית בלי כתוביות המקור')
+        self.assertIn('<transcript>', content)
+        self.assertEqual(got['ref'], [(0.0, 'Hello and welcome.')], 'כתוביות המקור עוברות להגהה בחלקים')
+
+    def test_tl_fixer_reserves_room_for_arbitration(self):
+        pl = P.Pipeline(self.ctx, self.J, self.engine(lambda kw: msg(''), 'haiku-medium'))
+        full = pl.fixed_tl()
+        n = pl.eng.prompt_tokens(full, '')
+        old = dict(llm.CARD_LIMIT)
+        self.addCleanup(llm.CARD_LIMIT.update, old)
+        llm.CARD_LIMIT['claude-haiku-5-5'] = int((n + P.TL_ASK_RESERVE // 2) / llm.CARD_MARGIN)
+        self.assertTrue(callable(pl.tl_fixer()), 'הבלוק נכנס לבד אבל לא עם ההכרעה — חלון מהמקור')
+        llm.CARD_LIMIT['claude-haiku-5-5'] = int((n + P.TL_ASK_RESERVE + 10) / llm.CARD_MARGIN)
+        self.assertEqual(pl.tl_fixer(), full)
+
+
 class PostIncident(unittest.TestCase):
     """15/10/2026: דוח אחרי תקלה גם במצב השרת — Sonnet כותב את הסיכום מהעובדות של הלקיחה, נשלח פעם אחת, כשל לא מפיל."""
     setUp, tearDown, engine = FlowTests.setUp, FlowTests.tearDown, FlowTests.engine

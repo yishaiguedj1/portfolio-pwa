@@ -200,6 +200,18 @@ class Ledger:
         vals = [r['usd'] for r in self.rows.values()]
         return None if any(v is None for v in vals) else round(sum(vals), 6)
 
+    def merge(self, k: str, row: dict):
+        """09/11/2026: שורה שלמה מספר של מנוע אחר (שבירת השורות — כמה מנות) תחת השלב k, עם מספר הקריאות שלה.
+        add סופר קריאה אחת לכל הוספה — כאן n של השורה נשמר."""
+        r = self.rows.setdefault(k, {'k': k, 'm': row.get('m'), 'n': 0, 'i': 0, 'o': 0, 'cr': 0, 'c5': 0, 'c1': 0, 'usd': 0.0})
+        for f in ('n', 'i', 'o', 'cr', 'c5', 'c1'):
+            r[f] += int(row.get(f) or 0)
+        usd = row.get('usd')
+        r['usd'] = None if usd is None or r['usd'] is None else round(r['usd'] + usd, 6)
+        for f in ('bn', 'bu'):
+            if row.get(f):
+                r[f] = round(r.get(f, 0) + row[f], 6) if f == 'bu' else r.get(f, 0) + row[f]
+
     def list(self) -> list[dict]:
         return list(self.rows.values())
 
@@ -489,10 +501,11 @@ class Engine:
                 pass
         return rough
 
-    def fits_card(self, fixed: str, prompt: str, extra: str = '') -> bool:
-        """הבקשה נשארת בכרטיס הזול? מודל בלי כרטיסים (Opus/Sonnet) — תמיד כן."""
+    def fits_card(self, fixed: str, prompt: str, extra: str = '', reserve: int = 0) -> bool:
+        """הבקשה נשארת בכרטיס הזול? מודל בלי כרטיסים (Opus/Sonnet) — תמיד כן. reserve (09/11/2026) = טוקנים שעוד
+        יתווספו לבקשה (בלוק קבוע שנבדק פעם אחת ומשמש בקשות גדולות יותר — ההכרעה בין הטיוטות, סבבי התיקון)."""
         lim = self.card_limit
-        return lim is None or self.prompt_tokens(fixed, prompt, extra) <= lim * CARD_MARGIN
+        return lim is None or self.prompt_tokens(fixed, prompt, extra) + max(0, int(reserve)) <= lim * CARD_MARGIN
 
     # ------------------------------------------------------------------ Anthropic
     def _client_or_new(self):
@@ -798,7 +811,7 @@ class ManualEngine:
         self._ask = ask
         self._lock = threading.Lock()
 
-    def fits_card(self, fixed: str, prompt: str, extra: str = '') -> bool:
+    def fits_card(self, fixed: str, prompt: str, extra: str = '', reserve: int = 0) -> bool:
         return True
 
     def complete(self, k: str, system_fixed: str, prompt: str, max_tokens: int = 32000,
