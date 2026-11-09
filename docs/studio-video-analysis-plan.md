@@ -51,7 +51,7 @@
 
 ### 0.5 פריטים פתוחים שנמצאו בדרך
 - **(א) באג ב־foliate-js**: ‏`vendor/foliate-js/view.js:279` — ‏`.find(x => x.index = resolved.index)`, השמה במקום השוואה. הקוד ברכיב Media Overlays, ש־Academy לא מחברת היום (מחקר 8.6). רלוונטי רק אם EPUB עם סנכרון שמע ייכנס (V113, רשות ב־PR 4.2). אז: לתקן ל־`===`, ולרשום את התיקון ליד גרסת הספרייה ב־`vendor/`.
-- **(ב) MMS_FA** (רישיון NC) — **לא ישמש בניתוח בשום שלב**. היישור בניתוח: CTC הקיים (`vt/align_ctc.py`, ‏`vt/align_he.py`). החלפתו בתרגום — משימה קיימת (סבב 1 של Studio Pro ב־`משימות-פתוחות.md`).
+- **(ב) MMS_FA** (רישיון NC) — **לא ישמש בניתוח בשום שלב**. היישור בניתוח: עברית — `vt/align_he.py` (CTC עברי, ‏Apache-2.0); אנגלית — Qwen3-ForcedAligner (`vt/align_onnx.py`, ‏Apache-2.0) וזמני המילים של Parakeet, עם `consensus` (`vt/align_ctc.py:223`) על שני המקורות האלה — **בלי `ctc_align`** (`vt/align_ctc.py:174`, הוא ה־MMS_FA). החלפתו בתרגום — משימה קיימת (סבב 1 של Studio Pro ב־`משימות-פתוחות.md`).
 
 ## 1. מטרות, קהלים ומדדי הצלחה
 
@@ -106,7 +106,7 @@
 | קליטה | חיי המקור | `SRC_TTL` (יום) ‏studioscan.js:184, ‏`JOB_TTL` (30 יום) ‏:177, ‏`srcDueAt` ‏:198 | כמות שהוא; תוצרי `vi` — ה12 |
 | שמע | ASR אנגלי | `vt/asr_parakeet.py` (‏`tokens_to_words` ‏:67, ‏`audio_stats` ‏:99) | כמות שהוא |
 | שמע | ASR עברי, CTC עברי | `vt/align_he.py` (‏`transcribe` ‏:76, ‏`load_ctc` ‏:142); מודל ivrit בשלב `karaokehe` ‏(infra/worker/Dockerfile:153) | בסיס ל־`vt/asr_he.py` |
-| שמע | יישור, דוברים, שפה | `vt/align_ctc.py`, ‏`vt/diarize.py`, ‏`vt/lang.py`; ‏`_release_memory` ‏vt/cli.py:224 | כמות שהוא (בלי MMS_FA) |
+| שמע | יישור, דוברים, שפה | `vt/align_onnx.py` (Qwen3-ForcedAligner), ‏`vt/align_ctc.py`, ‏`vt/diarize.py`, ‏`vt/lang.py`; ‏`_release_memory` ‏vt/cli.py:224 | כמות שהוא, **בלי `ctc_align`** (‏:174 — MMS_FA); ההכרעה — `consensus` (‏:223) על Qwen וזמני ה־ASR |
 | מסך | מעברי צילום, פריים | `detect_shots` ‏vt/media.py:137, ‏`_shots_and_burn` ‏:160, ‏`frame_png` ‏:213 | `frame_png` כמות שהוא; הגלאי החדש לצדו |
 | מסך | OCR קיים | `vt/burnin.py` (PP-OCRv3 דרך RapidOCR, שלב `burnin` ‏Dockerfile:191) | נפילה לשורות לטיניות |
 | ניתוב | עבודה אוטומטית, קריוקי | `auto` ‏job.py:4528, ‏`karaoke` ‏:5002, ‏`finish` ‏:5426, ‏`AUX_FILES` ‏:5126 | ענף `vi_run` ליד הקריוקי |
@@ -160,7 +160,7 @@
   ─▶ הסוכן (agent.py: perf_kind 'vi', MEM_PRIOR['vi'], קבלה חזויה, SLOTS_MAX) ─▶ job.py auto ─▶ vi_run (analyze.py)
      up  קליטה: url_fetch / Drive / קובץ — זרם ≤480p לגלאי + הזרם הגבוה לפריימים
      tr  שמע 16kHz ─▶ ASR (אנגלית: Parakeet · עברית: vt/asr_he.py) ─▶ מילים עם זמן
-     al  מסך: vt/slides.py (1fps) ─▶ frame_png (1080p) ─▶ vt/ocr.py  ‖  יישור CTC ─▶ wd
+     al  מסך: vt/slides.py (1fps) ─▶ frame_png (1080p) ─▶ vt/ocr.py  ‖  יישור מילים ─▶ wd
          יחידות ראיה + מלאים + "רק על המסך" + מועמדי גבול  (CPU, אפס טוקנים)
      rv  Claude: vm מיפוי לכל פרק ─▶ vs סינתזה ─▶ vicheck ─▶ vv אימות (Citations)   [vl לימוד — גל 3]
      bn  vi.json · vis (שקפים) · vtt (פרקים) · cues (תמליל) · small (480p) · thumb
@@ -176,7 +176,7 @@
 | 2 | tr | שמע 16kHz מונו | ffmpeg | קטן | שניות | — |
 | 3 | tr | ASR אנגלי | Parakeet (קיים) | כמו בתרגום | 3–7 דק׳ | — |
 | 4 | tr | ASR עברי: VAD ‏≤10–15 שנ׳ → ivrit turbo לכל קטע (`condition_on_previous_text=False`, ‏`hotwords` מהשקף — גל 2) → zipformer לבדיקת כיסוי → פענוח חוזר לקטעים חשודים | ivrit (בתמונה), ‏sherpa-onnx | 2.1GB + ‏0.24GB | 8–10 + כ־2 דק׳ | zipformer לבד + "איכות תמלול: נמוכה" |
-| 5 | al | זמן לכל מילה | CTC קיים (`align_ctc`/`align_he`) | עד 5.3GB לשעה ועשרים (נמדד בתרגום, הערה ב־agent.py:842) | 6.5–12.5 דק׳ | זמני קטע + דגל `ts_coarse` |
+| 5 | al | זמן לכל מילה | עברית: `align_he` (CTC עברי) · אנגלית: Qwen3-ForcedAligner (`align_onnx`) + זמני Parakeet, ‏`consensus` — בלי MMS_FA | פחות מ־5.3GB לשעה ועשרים (השיא בתרגום כולל MMS_FA; ‏agent.py:842) — נמדד בגל 0 | 6.5–12.5 דק׳ | זמני קטע + דגל `ts_coarse` |
 | 6 | al | גלאי שקפים: 1fps, ‏640×360 אפור, מסכת תנועה ל־PiP, חציון של 3 דגימות, "תוספתי מול מחליף" | ffmpeg + numpy | פחות מ־500MB | 1–3 דק׳ | בלי שקפים → ניתוח שמע בלבד (`vi_noscreen`) |
 | 7 | al | פריים 1080p לכל מצב יציב | `frame_png` ‏(vt/media.py:213) | קטן | פחות מדקה | 720p |
 | 8 | al | OCR: ‏`heb+eng`, ‏`--psm 3`, ‏TSV, סידור RTL; תהליכים single-thread | Tesseract 5 | כ־150MB לתהליך | 2–5 דק׳ ל־100 שקפים | PP-OCRv3 (burnin) לשורות לטיניות; שקף בלי טקסט + `vi_ocr` |
@@ -595,7 +595,7 @@ thinking לכל מודל — מחקר 3.4. **בקוד** (PR 1.1): ‏`ROLE_EFFOR
 |---|---|---|---|---|---|
 | V12 | תמלול אנגלי בשרת (Parakeet), תמיד — לא תלוי בכתוביות | P0 | 1 | — | 0 |
 | V13 | תמלול עברי לניתוח: VAD → ivrit turbo → zipformer → פענוח חוזר | P0 | 0–1 | גל 0 | 0 |
-| V14 | זמן לכל מילה (יישור CTC, בלי MMS_FA) | P0 | 1 | V12, ‏V13 | 0 |
+| V14 | זמן לכל מילה (עברית: CTC עברי; אנגלית: Qwen3-ForcedAligner + זמני ה־ASR; בלי MMS_FA) | P0 | 1 | V12, ‏V13 | 0 |
 | V15 | הטיית התמלול במונחי השקף (`hotwords`) | P1 | 2 | V22 | 0 |
 | V16 | דגל "שמע לא ברור" לקטע, מביטחון המילים | P1 | 1 | V14 | 0 |
 | V17 | דוברים (diarize הקיים); שמות — מטקסט בלבד | P1 | 2 | — | ז |
@@ -1093,7 +1093,8 @@ thinking לכל מודל — מחקר 3.4. **בקוד** (PR 1.1): ‏`ROLE_EFFOR
 | מודל ivrit (turbo) | לפי כרטיס המודל | ASR עברי | קיים בתמונה |
 | sherpa-onnx + zipformer עברי | Apache-2.0 (המנוע); המודל — לבדוק | בדיקת כיסוי | חדש |
 | VAD (Silero) | MIT | חלוקה לקטעים | לבדוק אם כבר בתמונה |
-| מודלי ה־CTC הקיימים | לפי מודל | יישור | קיים |
+| CTC עברי (wav2vec2-large-xlsr-53-hebrew) | Apache-2.0 | יישור עברית (`vt/align_he.py`) | קיים |
+| Qwen3-ForcedAligner-0.6B | Apache-2.0 | יישור אנגלית (`vt/align_onnx.py`; בלי עברית) | קיים |
 | **MMS_FA** | **CC-BY-NC** | — | **אסור בניתוח** (סעיף 0.5) |
 | דיאריזציה | לפי מחקר 4.6, ‏4.9 — בלי רכיבי NC | דוברים | קיים |
 | numpy · Pillow · imagehash · PySceneDetect | BSD-3 · HPND · BSD-2 · BSD-3 | גלאי, תמונות | numpy ו־Pillow כנראה קיימים; השאר רשות |
