@@ -340,6 +340,77 @@ def cmd_shots(a):
     pr.mark("shots", count=len(shots))
 
 
+# ---------------------------------------------------------------- ניתוח סרטונים — כלים על קבצים (גל 0, PR 0.1)
+# בלי פרויקט: קובץ נכנס, JSON יוצא (‏--out, או לפלט הרגיל). הצנרת עצמה (analyze.py, ‏PR 0.2) קוראת לאותם מודולים.
+
+def _vi_out(a, data) -> None:
+    import json
+    if a.out:
+        write_json(a.out, data)
+        log(f"נכתב: {a.out}")
+    else:
+        print(json.dumps(data, ensure_ascii=False, indent=1))
+
+
+def cmd_slides(a):
+    """גלאי השקפים (vt/slides.py) על סרטון → יחידות s<n> ומצבים s<n>.<k>."""
+    from . import slides
+    if not Path(a.src).is_file():
+        die(f"אין קובץ: {a.src}")
+    _vi_out(a, slides.detect(a.src, fps=a.fps, max_s=a.max_s, log=log))
+
+
+def cmd_ocr(a):
+    """OCR (vt/ocr.py) על תמונות של שקפים → שורות בסדר קריאה, עם תיבה, שפה וכיוון."""
+    from . import ocr
+    if not ocr.available():
+        die("Tesseract לא מותקן")
+    miss = [x for x in a.images if not Path(x).is_file()]
+    if miss:
+        die(f"אין קובץ: {miss[0]}")
+    import time
+    t0 = time.time()
+    pool = ocr.Pool(a.procs)
+    res = pool.map(a.images)
+    out = {"v": ocr.V, "engine": ocr.version(), "langs": ocr.LANGS, "procs": pool.max,
+           "images": [dict(r, src=Path(x).name) for x, r in zip(a.images, res)]}
+    bad = sum(1 for r in res if r.get("error"))
+    log(f"OCR: {len(res)} תמונות, {sum(len(r['lines']) for r in res)} שורות, {bad} שגיאות · "
+        f"{time.time() - t0:.1f} שנ׳ ({pool.max} תהליכים)")
+    _vi_out(a, out)
+
+
+def cmd_asr_he(a):
+    """התמלול העברי לניתוח (vt/asr_he.py): VAD → ivrit turbo לכל קטע → zipformer לכיסוי → פענוח חוזר."""
+    import tempfile
+    from . import asr_he, media
+    src = Path(a.src)
+    if not src.is_file():
+        die(f"אין קובץ: {src}")
+    with tempfile.TemporaryDirectory(prefix="vi-asr-") as td:
+        wav = src
+        if src.suffix.lower() != ".wav" or not _is_16k_mono(src):
+            wav = Path(td) / "a.wav"
+            media.extract_audio(src, wav, asr_he.SR)
+        try:
+            r = asr_he.run(str(wav), log=log, use_ivrit=not a.no_ivrit, use_zf=not a.no_zf)
+        except RuntimeError as e:
+            die(str(e))
+    s = r["stats"]
+    log(f"תמלול עברי ({r['engine']}, איכות {r['quality']}): {s['n_seg']} קטעים, {s['w_words']} מילים · "
+        f"כיסוי {s['cover']} · חשודים {s['n_susp']}, תוקנו {s['n_w2']} · {r['timing']}")
+    _vi_out(a, r)
+
+
+def _is_16k_mono(p: Path) -> bool:
+    try:
+        import soundfile as sf
+        i = sf.info(str(p))
+        return i.samplerate == 16000 and i.channels == 1
+    except Exception:  # noqa: BLE001 — לא WAV שאפשר לקרוא: נחלץ מחדש
+        return False
+
+
 def cmd_plan(a):
     from .segment import plan
     pr = Project(a.name)
@@ -835,6 +906,20 @@ def main(argv=None):
     p.add_argument("--fps", default="24000/1001", help="קצב הפריימים לגריד התזמון (בלי סרטון)")
     p = add("shots", cmd_shots, "name", help="חילופי שוטים")
     p.add_argument("--threshold", type=float)
+    p = add("slides", cmd_slides, help="ניתוח סרטונים: גלאי השקפים על קובץ (JSON)")
+    p.add_argument("src")
+    p.add_argument("--fps", type=float, help="דגימות לשנייה (ברירת מחדל VI_FPS, ‏1)")
+    p.add_argument("--max-s", type=float, help="רק השניות הראשונות")
+    p.add_argument("--out")
+    p = add("ocr", cmd_ocr, help="ניתוח סרטונים: OCR של תמונות שקפים (Tesseract heb+eng, ‏JSON)")
+    p.add_argument("images", nargs="+")
+    p.add_argument("--procs", type=int, help="תהליכים במקביל (ברירת מחדל VI_OCR_PROCS, ‏4)")
+    p.add_argument("--out")
+    p = add("asr-he", cmd_asr_he, help="ניתוח סרטונים: התמלול העברי (ivrit + zipformer, ‏JSON)")
+    p.add_argument("src", help="WAV ‏16kHz מונו, או סרטון/קול (הקול יחולץ)")
+    p.add_argument("--no-ivrit", action="store_true", help="zipformer לבד (מהיר, איכות נמוכה)")
+    p.add_argument("--no-zf", action="store_true", help="ivrit לבד, בלי בדיקת הכיסוי")
+    p.add_argument("--out")
     add("plan", cmd_plan, "name", help="תכנון כתוביות")
     p = add("tr-prep", cmd_tr_prep, "name", help="קובץ המקור לתרגום (tr/source.md)")
     p.add_argument("--size", type=int, default=150, help="כתוביות בחלק (= קובץ תשובה אחד)")
