@@ -1104,6 +1104,35 @@ QC_KINDS = ('קצב קריאה', 'שורה של', 'רחבה מהמסך', 'שור
 _QC_ERR_RE = re.compile(r'^- #(\d+) `[^`]*`: (.*)$')
 LB_SPEC = ('anthropic', 'claude-haiku-5-5', 'low')     # 25/10/2026: בחירה מתוך רשימה — מאמץ נמוך מספיק
 LB_MAX_OUT = 16000
+TL_ASK_RESERVE = 12_000    # 09/11/2026: הבקשה הגדולה ביותר על הבלוק של התרגום — הכרעה ב־ARB_MAX_CUES כתוביות (tl_fixer)
+LB_PAR = 4                # מנות של שבירת השורות במקביל (רק בסרטון ארוך)
+
+
+def lb_parts(eng, items, prompt: str) -> list:
+    """09/11/2026 (בדיקת כרטיס ה־100K מול 151 עבודות אמיתיות): כל הכתוביות הדו־שורתיות נשלחו בבקשה אחת, ‏~245 טוקנים
+    לכתובית (כל אפשרות חוזרת על כל הטקסט) — הסף נחצה מכ־400 כתוביות, ו־3 מתוך 6 העבודות הארוכות (63–103 דק׳) שילמו
+    פי 5 על הקריאה (114–153K טוקנים). כאן: מנות שכל אחת נכנסת בכרטיס הזול (fits_card — ליד הסף count_tokens המדויק).
+    הבחירה לכל כתובית עצמאית, ולכן החלוקה לא משנה את התשובה. מחזיר [(הפריטים, ההנחיה)]; vt בלי linebreak — הבקשה האחת."""
+    items = items if isinstance(items, list) else []
+    if len(items) < 2 or eng.fits_card(RULES, prompt):
+        return [(items, prompt)]
+    try:
+        from vt import linebreak as LB
+    except Exception:                    # noqa: BLE001
+        return [(items, prompt)]
+    return [(s, LB.prompt(s)) for s in card_slices(eng, RULES, items, LB.prompt, n0=2)]
+
+
+def card_slices(eng, fixed: str, rows: list, wrap, n0: int = 1) -> list:
+    """09/11/2026: קטעים רצופים של rows שכל אחד (wrap(קטע) = הבקשה) נכנס בכרטיס הזול של Haiku 5.5 — מחלקים לשניים
+    עד שכולם נכנסים. מודל בלי כרטיס (Opus/Sonnet) — קטע אחד. ‏fits_card ליד הסף = count_tokens (חינם, מכסה נפרדת)."""
+    n = max(1, n0)
+    while True:
+        size = max(1, -(-len(rows) // n))
+        sl = [rows[i:i + size] for i in range(0, len(rows), size)] or [rows]
+        if size <= 1 or all(eng.fits_card(fixed, wrap(s)) for s in sl):
+            return sl
+        n *= 2
 
 JG_TASK = """אתה בודק איכות של כתוביות בעברית (מאנגלית). אתה לא מתקן ולא כותב תרגום — רק נותן ציון.
 במדגם: לכל כתובית `#מספר` והמקור באנגלית, ובשורה שאחריה `→` והתרגום.
@@ -1231,14 +1260,22 @@ class Pipeline:
                              block('brief_template', (HERE / 'templates' / 'brief.md').read_text(encoding='utf-8'))])
         ref = self.sub_ref(edit)
         note = SUBREF_NOTE_MID if (ctx.st.get('srq') or {}).get('g') == 'mid' else SUBREF_NOTE
-        prompt = '\n\n'.join(x for x in [
-            block('user_terms', terms) if terms else '',
-            candidates_block(edit),
-            block('voice', voice_block(self.pd)) if voice_block(self.pd) else '',
-            self.sm_part(edit, '\n'.join(l for _, l in ref) if ref else ''),
-            note if ref else '',
-            block('existing_subtitles', '\n'.join(l for _, l in ref)) if ref else '',
-            block('transcript', edit)] if x)
+
+        def ask(with_ref):
+            return '\n\n'.join(x for x in [
+                block('user_terms', terms) if terms else '',
+                candidates_block(edit),
+                block('voice', voice_block(self.pd)) if voice_block(self.pd) else '',
+                self.sm_part(edit, '\n'.join(l for _, l in ref) if ref else ''),
+                note if with_ref else '',
+                block('existing_subtitles', '\n'.join(l for _, l in ref)) if with_ref else '',
+                block('transcript', edit)] if x)
+        prompt = ask(bool(ref))
+        if ref and len(edit.split()) > PROOF_SPLIT_WORDS and not self.eng.fits_card(fixed, prompt):
+            # 09/11/2026: כתוביות המקור מכפילות את הבקשה — עם תמליל של ~3 שעות Haiku עבר את סף ה־100K ושילם פי 5.
+            # ההגהה הראשית בלעדיהן; הן נשארות בהגהה בחלקים (חלון לכל חלק — ref_window), שרצה תמיד בתמליל כזה
+            prompt = ask(False)
+            print(f'· {self.eng.spec.model}: עם כתוביות המקור ההגהה עוברת את סף 100K — הן נכנסות רק להגהה בחלקים')
         if not self.eng.fits_card(fixed, prompt):
             # תמליל של שעות רבות: ההגהה צריכה את כל התמליל בבת אחת — נשארת בקריאה אחת, במחיר המלא (רשום ב־ledger)
             print(f'· {self.eng.spec.model}: התמליל מעל סף 100K הטוקנים — ההגהה תתומחר בכרטיס היקר')
@@ -1492,7 +1529,9 @@ class Pipeline:
         """הבלוק הקבוע של התרגום והתיקונים. רגיל — מחרוזת אחת (כל המקור, משותפת ובמטמון לכל הקריאות).
         Haiku מעל סף ה־100K — פונקציה: ids → [(בלוק עם חלון המקור של החלק, ה־ids שלו)], כדי להישאר בכרטיס הזול."""
         full = self.fixed_tl()
-        if self.eng.fits_card(full, 'x' * 400):
+        # 09/11/2026: הבדיקה הניחה בקשה של 400 תווים, אבל הבלוק משרת גם את ההכרעה בין הטיוטות (~11K טוקנים ל־120
+        # כתוביות) ואת סבבי התיקון — בלוק של 86–90K עבר שם את הסף. TL_ASK_RESERVE = הבקשה הגדולה שתבוא אחריו
+        if self.eng.fits_card(full, '', reserve=TL_ASK_RESERVE):
             return full
         head, parts = parse_source((self.pd / 'tr' / 'source.md').read_text(encoding='utf-8'))
         where = {i: n for n, p in enumerate(parts) for i in p['ids']}
@@ -1989,13 +2028,22 @@ class Pipeline:
         if len(rows) < 10:
             return {}
         self.ctx.report('rv', 0.75, 'צופה שלא שומע אנגלית קורא את הכתוביות', force=True)
-        try:
-            res = self.eng.complete('rv', VW_TASK, block('hebrew_subtitles', '\n'.join(rows)), max_tokens=32000, partial_ok=True)
-        except llm.LLMError as e:
-            print('· הצופה המדומה נכשל (' + e.code + ') — ממשיכים בלעדיו.')
-            return {}
+        # 09/11/2026: כל הכתוביות בבקשה אחת (~33 טוקנים לכתובית) — מעל ~3,000 כתוביות (3 שעות ומעלה) Haiku היה עובר את
+        # סף ה־100K ומשלם פי 5. קטעים רצופים שכל אחד בכרטיס הזול; בסרטון רגיל — קטע אחד, כמו קודם
+        wrap = lambda rs: block('hebrew_subtitles', '\n'.join(rs))       # noqa: E731
+        sls = card_slices(self.eng, VW_TASK, rows, wrap)
+        if len(sls) > 1:
+            print(f'· הצופה המדומה ב־{len(sls)} קטעים — כל קטע מתחת לסף 100K הטוקנים')
+        texts = []
+        for s in sls:
+            try:
+                texts.append(kept_text(self.eng.complete('rv', VW_TASK, wrap(s), max_tokens=32000, partial_ok=True)))
+            except llm.LLMError as e:
+                print('· הצופה המדומה נכשל (' + e.code + ')' + (' בקטע אחד' if len(sls) > 1 else ' — ממשיכים בלעדיו.'))
         self.save_usage()
-        seen = viewer_lines(kept_text(res), set(order))
+        if not texts:
+            return {}
+        seen = viewer_lines('\n'.join(texts), set(order))
         if not seen:
             print('✓ הצופה המדומה הבין הכל')
             return {}
@@ -2168,17 +2216,27 @@ class Pipeline:
         leng = llm.Engine(spec, client=self.eng._client)
         # 27/10/2026 (ניתוח 15 פרקי סדרה): עם חשיבה — 15 מתוך 15 קריאות נקטעו בתקרה, 100% מהפלט חשיבה, "Haiku בחר ל־0"
         leng.no_think = True
-        try:
-            res = leng.complete('lb', RULES, prompt, max_tokens=min(LB_MAX_OUT, 2000 + 12 * st['lbn']), partial_ok=True)
-        except llm.LLMError as e:
-            print('· שבירת השורות ב־Haiku נכשלה (' + e.code + ') — ממשיכים עם המודל התחבירי.')
-            for r in leng.ledger.list():
-                self.eng.ledger.add('sub', r['m'], r, r['usd'])
-            return st
-        self.eng.ledger.add('sub', spec.model, res.usage, res.usd)    # 'sub' — בלי סוג עלות חדש בשלושת הצדדים
+        parts = lb_parts(leng, items, prompt)
+        if len(parts) > 1:
+            print(f'· שבירת השורות: {st["lbn"]} כתוביות ב־{len(parts)} מנות — כל מנה מתחת לסף 100K הטוקנים (המחיר הזול)')
+
+        def one(p):
+            its, pr = p
+            try:
+                return leng.complete('lb', RULES, pr, max_tokens=min(LB_MAX_OUT, 2000 + 12 * len(its)), partial_ok=True)
+            except llm.LLMError as e:
+                print('· שבירת השורות ב־Haiku נכשלה (' + e.code + ')' + (' במנה אחת — ממשיכים עם השאר' if len(parts) > 1 else
+                                                                         ' — ממשיכים עם המודל התחבירי.'))
+                return None
+        with ThreadPoolExecutor(max_workers=min(LB_PAR, len(parts))) as ex:
+            got = list(ex.map(one, parts))
+        for r in leng.ledger.list():               # גם קריאה שנכשלה עלתה כסף; n = מספר המנות
+            self.eng.ledger.merge('sub', r)            # 'sub' — בלי סוג עלות חדש בשלושת הצדדים
         self.save_usage()
+        if not any(got):
+            return st
         ans = td / 'lb_answer.txt'
-        ans.write_text(kept_text(res).strip() + '\n', encoding='utf-8')
+        ans.write_text('\n'.join(kept_text(r).strip() for r in got if r is not None) + '\n', encoding='utf-8')
         try:
             self.J.vt(ctx, ['lb-apply', ctx.name, '--answer', str(ans), '--model', spec.model])
             lb = json.loads((td / 'linebreak.json').read_text(encoding='utf-8'))
