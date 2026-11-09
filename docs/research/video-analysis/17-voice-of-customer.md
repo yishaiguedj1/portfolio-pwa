@@ -438,7 +438,7 @@
 ### Cited Findings
 
 #### 5א. כמה משלמים — סקרים
-- **flytedesk** (1,575 סטודנטים ב־115 אוניברסיטאות, 5/2025; המאמר פורסם 20/3/2026):
+- **flytedesk** (1,575 סטודנטים ב־115 אוניברסיטאות, 5/2025, ו־1,464 סטודנטים ב־12 אוניברסיטאות, 1/2024; העמוד לא משייך כל נתון לסקר מסוים; המאמר פורסם 20/3/2026):
   - 11.17% מהמשתמשים משלמים על שירות AI, ו־59.62% "would not consider paying".
   - יותר מ־70% יעברו לכלי אחר תמורת פרימיום מוזל או חינמי.
   - פרשנות הכותבים: "Free versions appear sufficient for most academic needs" — [flytedesk](https://flytedesk.com/insights/student-ai-usage-a-market-forming-in-real-time-on-campus).
