@@ -134,11 +134,50 @@ class Image(unittest.TestCase):
         self.assertIn('COPY --from=separator /opt/separator /opt/separator', d)
         self.assertIn('K.sep_ready()', d, 'בדיקת עשן בתמונה')
 
+    def test_video_analysis_stage(self):
+        """09/11/2026: ניתוח סרטונים (גל 0, PR 0.1) — sherpa-onnx בשכבה נפרדת (/opt/vi/py) נעולה ב־hash לשתי
+        הארכיטקטורות, zipformer בגרסה נעולה ומאומת מול sha256, Tesseract עם heb ו־eng אחרי השכבות הכבדות, ובדיקות עשן."""
+        lk = read('infra/worker/requirements-vi.lock')
+        names = re.findall(r'(?m)^([A-Za-z0-9_.-]+)==', lk)
+        self.assertEqual(sorted(names), ['sherpa-onnx', 'sherpa-onnx-core'])
+        for b in re.split(r'(?m)^(?=[A-Za-z])', lk):
+            if re.match(r'[A-Za-z]', b):
+                self.assertEqual(len(re.findall(r'--hash=sha256:[0-9a-f]{64}', b)), 2,
+                                 'hash לכל ארכיטקטורה (x86_64, ‏aarch64): ' + b.split()[0])
+        others = set()
+        for f in ('requirements.lock', 'requirements-karaoke.lock'):
+            others |= set(re.findall(r'(?m)^([A-Za-z0-9_.-]+)==', read('infra/worker/' + f)))
+        self.assertFalse(others & set(names), 'חבילה ששתי רשימות מתקינות — לא להכפיל')
+        d = read('infra/worker/Dockerfile')
+        fin_at = d.index('# ---------------------------------------------------------------- התמונה הסופית')
+        st, fin = d[d.index('FROM deps AS vi'):fin_at], d[fin_at:]
+        self.assertIn('--require-hashes --no-deps --only-binary=:all:', st)
+        self.assertIn('--target /opt/vi/py -r /tmp/requirements-vi.lock', st)
+        self.assertRegex(st, r"'ivrit-ai/zipformer2-66m-streaming-he', 'sherpa-onnx/' \+ f, revision='[0-9a-f]{40}'",
+                         'המודל בגרסה נעולה')
+        for f in ('encoder.int8.onnx', 'decoder.int8.onnx', 'joiner.int8.onnx', 'tokens.txt'):
+            self.assertRegex(st, r'"[0-9a-f]{64}  zf/' + re.escape(f) + '"', 'sha256 למודל: ' + f)
+        self.assertIn('sha256sum -c', st)
+        self.assertIn('find /opt/vi -type f -exec chmod 644', st, 'ההרשאות בשלב עצמו')
+        self.assertIn('COPY --from=vi /opt/vi /opt/vi', fin)
+        self.assertNotIn('/opt/vi -type', fin, 'chmod בשלב הסופי מעתיק כל קובץ שהשתנה לשכבה נוספת')
+        self.assertRegex(fin, r'apt-get install[^\n]*tesseract-ocr tesseract-ocr-heb tesseract-ocr-eng')
+        # השכבות הכבדות לפני Tesseract — הן נשארות זהות לתמונה הקודמת, והשרת מושך רק את החדשות
+        for heavy in ('COPY --from=deps /opt/vt', 'COPY --from=karaokehe', 'COPY --from=separator /opt/separator'):
+            self.assertLess(fin.index(heavy), fin.index('tesseract-ocr-heb'), heavy)
+        self.assertLess(fin.index('tesseract-ocr-heb'), fin.index('COPY --chown=root:root translator'))
+        self.assertLess(fin.index('tesseract-ocr-heb'), fin.index('ARG SNB_VERSION'), 'ARG משתנה מבטל את המטמון')
+        for smoke in ('O.available()', 'A.Zipformer()', 'A.vad(a)', 'S.detect_frames'):
+            self.assertIn(smoke, fin, 'בדיקת עשן: ' + smoke)
+        asr = read('translator/vt/asr_he.py')
+        self.assertIn('"/opt/vi/zf"', asr, 'הקוד מחפש את המודל באותו נתיב')
+        self.assertIn('"/opt/vi/py"', asr)
+
     def test_dockerignore_keeps_context_small(self):
         di = read('.dockerignore').splitlines()
         self.assertEqual(di[1], '*', 'ברירת המחדל: שום דבר לא נכנס')
         self.assertIn('!translator/', di)
-        for f in ('requirements.lock', 'requirements-arm64.lock', 'requirements-karaoke.lock'):
+        for f in ('requirements.lock', 'requirements-arm64.lock', 'requirements-karaoke.lock', 'requirements-vi.lock'):
             self.assertIn('!infra/worker/' + f, di, 'קובץ שה־Dockerfile מעתיק חייב להיכנס להקשר: ' + f)
 
 

@@ -196,6 +196,27 @@ RUN /opt/vt/bin/python -c \
     "897a3ededb38fee0dae2c1ccee38241f37df202c9509e3abca02e9217c5ee615  ch_PP-OCRv3_rec_infer.onnx" \
     | sha256sum -c -
 
+# ---------------------------------------------------------------- ניתוח סרטונים — בדיקת הכיסוי של התמלול העברי (09/11/2026, translator/vt/asr_he.py)
+# ivrit-ai/zipformer2-66m-streaming-he ‏(CC-BY-4.0, ‏int8, ‏~72MB) ב־sherpa-onnx ‏(Apache-2.0): מתמלל את כל ציר הזמן מהר,
+# ומגלה קטעים ש־ivrit turbo השמיט. הגלגלים (requirements-vi.lock, ‏hash לכל ארכיטקטורה) ל־/opt/vi/py — ‏--no-deps ו־--target,
+# כך ש־/opt/vt לא נבנית מחדש. המודל בגרסה נעולה ומאומת מול sha256. ההרשאות נקבעות כאן ולא בשלב הסופי — ‏chmod שם
+# מעתיק כל קובץ שהשתנה לשכבה חדשה. בלי המודל: ivrit לבד.
+FROM deps AS vi
+COPY infra/worker/requirements-vi.lock /tmp/requirements-vi.lock
+RUN /opt/vt/bin/pip install --no-cache-dir -q --require-hashes --no-deps --only-binary=:all: \
+        --target /opt/vi/py -r /tmp/requirements-vi.lock \
+ && HF_HOME=/tmp/hf HF_HUB_DISABLE_TELEMETRY=1 /opt/vt/bin/python -c \
+    "from huggingface_hub import hf_hub_download as d; [d('ivrit-ai/zipformer2-66m-streaming-he', 'sherpa-onnx/' + f, revision='ee769a2a13b887f91572eec349458bfb0fe79e7a', local_dir='/tmp/zf') for f in ('encoder.int8.onnx', 'decoder.int8.onnx', 'joiner.int8.onnx', 'tokens.txt')]" \
+ && mv /tmp/zf/sherpa-onnx /opt/vi/zf \
+ && cd /opt/vi && printf '%s\n' \
+    "6c6febcb74a09435315a1d872a6539f6e7fc2c333533f14c74edc0e85c49ffcd  zf/encoder.int8.onnx" \
+    "feb03e7c8aa761593a9284a6fa1e91259be3702de75f630062256c1a59c5a906  zf/decoder.int8.onnx" \
+    "1d2c6d8e6dabc5eb52de52e95718e9bdfbffbfe7ead3808fb5ffd74e83bd9cae  zf/joiner.int8.onnx" \
+    "e4ebb5e72a6aeef47437a55fa2308ebbedb7c51c557de7a89bf965c23ea9af4a  zf/tokens.txt" \
+    | sha256sum -c - \
+ && rm -rf /tmp/hf /tmp/zf /opt/vi/zf/.cache \
+ && find /opt/vi -type d -exec chmod 755 {} + && find /opt/vi -type f -exec chmod 644 {} +
+
 # ---------------------------------------------------------------- התמונה הסופית
 FROM ${PY_IMAGE}
 # 24/10/2026: ARG שמשתנה בכל בנייה (הקומיט, ה־sha של ffmpeg) נכנס לסביבה של כל RUN אחריו ומבטל את המטמון שלו —
@@ -218,6 +239,13 @@ COPY --from=separator /opt/sepdeps /opt/sepdeps
 COPY --from=separator /opt/separator /opt/separator
 COPY --from=karaokehe /opt/karaoke-he /opt/karaoke-he
 COPY --from=lid /opt/lid /opt/lid
+COPY --from=vi /opt/vi /opt/vi
+# 09/11/2026: ניתוח סרטונים — Tesseract 5 עם heb ו־eng ‏(Apache-2.0; ה־tessdata ה"מהיר" של Debian) ל־OCR של השקפים
+# (translator/vt/ocr.py). שכבה נפרדת אחרי השכבות הכבדות: הן נשארות זהות לתמונה הקודמת, והשרת מושך רק את החדשות.
+RUN apt-get update -qq \
+ && apt-get install -y -qq --no-install-recommends tesseract-ocr tesseract-ocr-heb tesseract-ocr-eng >/dev/null \
+ && rm -rf /var/lib/apt/lists/* \
+ && tesseract --list-langs 2>&1 | grep -qx heb && tesseract --list-langs 2>&1 | grep -qx eng
 COPY --chown=root:root translator /app/translator
 # 16/10/2026: הגדרת השרת לעדכון ידני בלי שרת חדש — נתונים בלבד, שום דבר לא מריץ אותם לבד (infra/worker/snb-host-apply)
 COPY --chown=root:root infra/host/snb-common.sh infra/compose.yaml infra/host/snb-update infra/host/snb-update.timer infra/host/snb-update.service /opt/snb-host/
@@ -243,6 +271,14 @@ RUN cd /app/translator && /opt/vt/bin/python -c "import karaoke as K; assert K.s
 RUN cd /app/translator && HF_HUB_OFFLINE=1 /opt/vt/bin/python -c "import karaoke; from vt import align_he as H; assert H.ready(), 'karaoke-he'; import stable_whisper, faster_whisper, ctranslate2; m = H.load_ivrit(); c, d = H.load_ctc(); assert '[pad]' in d; print('karaoke-he', stable_whisper.__version__, ctranslate2.__version__)"
 # 01/11/2026 (A12): מודל זיהוי השפה נטען בלי רשת
 RUN cd /app/translator && HF_HUB_OFFLINE=1 /opt/vt/bin/python -c "from vt import lang as L; assert L.ready(), 'lid'; m = L._model(); print('lid', L.LID_DIR)"
+# 09/11/2026: ניתוח סרטונים (גל 0) — Tesseract קורא שורה שצוירה ב־Pillow; zipformer נטען ומפענח שקט באותו תהליך עם ה־VAD
+# של faster-whisper (שני עותקים של onnxruntime — נבדק שהם חיים יחד); גלאי השקפים רץ על פריימים סינתטיים
+RUN cd /app/translator && /opt/vt/bin/python -B -c \
+    "from vt import ocr as O; assert O.available() and {'heb', 'eng'} <= set(O.langs()), O.langs(); from PIL import Image, ImageDraw, ImageFont; im = Image.new('L', (900, 140), 255); ImageDraw.Draw(im).text((30, 30), 'SNOWBALL 2026', fill=0, font=ImageFont.truetype('fonts/Arimo-Bold.ttf', 64)); r = O.ocr(im); t = ' '.join(x['text'] for x in r['lines']); assert 'SNOWBALL' in t, r; print('ocr', O.version(), t)" \
+ && cd /app/translator && HF_HUB_OFFLINE=1 /opt/vt/bin/python -B -c \
+    "from vt import asr_he as A; import numpy as n; assert A.zf_ready() and A.ivrit_ready(), 'vi models'; a = n.zeros(32000, 'float32'); print('vad', A.vad(a)); print('zf', A.Zipformer().many(a, [(0.0, 2.0)]))" \
+ && cd /app/translator && /opt/vt/bin/python -B -c \
+    "from vt import slides as S; import numpy as n; f = n.full((S.H, S.W), 235, n.uint8); f[40:70, 60:580] = 30; g = f.copy(); g[100:140, 60:580] = 30; r = S.detect_frames([f] * 4 + [g] * 4); s = [[x['rel'] for x in u['states']] for u in r['units']]; assert s == [['new', 'reveal']], r; print('slides', s)"
 RUN cd /app/translator && ANTHROPIC_API_KEY=build-check /opt/vt/bin/python -B -c \
     "import llm; c = llm.Engine(llm.Spec.of(llm.DEFAULT_MODE))._client_or_new(); assert c.timeout.read == llm.API_READ_TIMEOUT, c.timeout" \
  && cd /app/translator && /opt/vt/bin/python -B -c \
