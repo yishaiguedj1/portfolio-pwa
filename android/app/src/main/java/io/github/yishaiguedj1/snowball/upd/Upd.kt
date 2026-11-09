@@ -12,7 +12,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import io.github.yishaiguedj1.snowball.R
 import java.io.File
@@ -21,9 +20,11 @@ import java.net.URL
 
 /* 08/11/2026 (בקשת המשתמש): עדכון עצמי שקט — כמו "עדכון תוכנה" של המכשיר, בכל שבע האפליקציות (source set ראשי).
    1. בדיקה: latest.json מהקישור הקבוע (android-latest) — פעם ביום ברקע (UpdJob) או בכפתור במסך (UpdActivity).
-   2. "עדכון": ההורדה ב־DownloadManager של המערכת, מוסתרת (בלי התראה ובלי קובץ בתיקיית ההורדות — בתיקייה הפרטית
-      של האפליקציה), ממשיכה גם כשיוצאים מהמסך ובניתוק רשת.
-   3. בסוף ההורדה (UpdDlReceiver) → UpdJob בודק גודל + sha256 + חבילה + מספר גרסה, ומעביר ל־PackageInstaller עם
+   2. "עדכון": ההורדה בג'וב שלנו (UpdJob, ‏JOB_DL) לתיקייה הפרטית של האפליקציה, ממשיכה גם כשיוצאים מהמסך,
+      ובניתוק / עצירה של הג'וב — ממשיכה מהמקום שנעצר (Range).
+      09/11/2026: לא DownloadManager — הוא עוצר הורדה גדולה ברשת סלולרית "עד Wi‑Fi" (המגבלה המומלצת של המפעיל/היצרן),
+      ועם הורדה מוסתרת המשתמש לא רואה את השאלה: Studio (77MB) נתקע על 0% יותר משעה ב־5G, והקטנות עברו.
+   3. בסוף ההורדה (באותו ג'וב) → בדיקת גודל + sha256 + חבילה + מספר גרסה, והעברה ל־PackageInstaller עם
       USER_ACTION_NOT_REQUIRED: באנדרואיד 12+ אפליקציה שמעדכנת את עצמה (UPDATE_PACKAGES_WITHOUT_USER_ACTION) —
       בלי חלון אישור ובלי "מקור לא ידוע". אם המערכת בכל זאת מבקשת אישור (אנדרואיד ישן) — UpdStatus מציג אותו.
    4. אחרי ההחלפה המערכת מפעילה את הגרסה החדשה ב־MY_PACKAGE_REPLACED (UpdDone) → התראה אחת: "עודכנה לגרסה X".
@@ -31,13 +32,13 @@ import java.net.URL
 object Upd {
     const val BASE = "https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/"
     const val JOB_CHECK = 7351
-    const val JOB_INSTALL = 7352
+    const val JOB_DL = 7353
     private const val CH = "snb_upd"
     private const val N_ID = 7451
     private const val DAY = 24L * 60 * 60 * 1000
 
     // מצבים: "" — כלום, "dl" — מוריד, "inst" — מתקין, "err" — נכשל (err = סיבה)
-    data class St(val phase: String, val rel: UpdCore.Rel?, val checked: Long, val err: String, val dlId: Long)
+    data class St(val phase: String, val rel: UpdCore.Rel?, val checked: Long, val err: String)
 
     private fun sp(c: Context) = c.getSharedPreferences("snb_upd", Context.MODE_PRIVATE)
 
@@ -70,7 +71,7 @@ object Upd {
         val code = s.getLong("code", 0)
         val rel = if (code > 0) UpdCore.Rel(code, s.getString("name", "") ?: "", s.getString("file", "") ?: "",
             s.getLong("size", 0), s.getString("sha", "") ?: "") else null
-        return St(s.getString("phase", "") ?: "", rel, s.getLong("checked", 0), s.getString("err", "") ?: "", s.getLong("dl", -1))
+        return St(s.getString("phase", "") ?: "", rel, s.getLong("checked", 0), s.getString("err", "") ?: "")
     }
 
     /** יש גרסה חדשה יותר ממה שמותקן (לפי הבדיקה האחרונה) */
@@ -80,11 +81,11 @@ object Upd {
         sp(c).edit().putString("phase", phase).putString("err", err).putLong("pt", System.currentTimeMillis()).apply()
     }
 
-    /** עדכון בתהליך: הורדה שעוד קיימת ב־DownloadManager, או התקנה מהדקות האחרונות (תהליך שנהרג באמצע — אפשר לנסות שוב) */
+    /** עדכון בתהליך: ג'וב ההורדה עוד קיים (רץ או מחכה לרשת), או התקנה מהדקות האחרונות (תהליך שנהרג באמצע — אפשר לנסות שוב) */
     fun busy(c: Context): Boolean {
         val st = state(c)
         return when (st.phase) {
-            "dl" -> progress(c) != null
+            "dl" -> try { c.getSystemService(JobScheduler::class.java)?.getPendingJob(JOB_DL) != null } catch (e: Exception) { false }
             "inst" -> System.currentTimeMillis() - sp(c).getLong("pt", 0) < 3 * 60 * 1000L
             else -> false
         }
@@ -106,56 +107,89 @@ object Upd {
         return true
     }
 
-    /** "עדכון": מתחיל הורדה מוסתרת. false = אין עדכון / אין אחסון */
+    /** "עדכון": מתחיל את ג'וב ההורדה. false = אין עדכון / אין אחסון */
     fun start(c: Context): Boolean {
         val st = state(c)
         val r = st.rel ?: return false
         if (!UpdCore.newer(installedCode(c), r)) return false
         if (busy(c)) return true
         val dir = c.getExternalFilesDir("upd") ?: return false.also { setPhase(c, "err", "space") }
+        cleanup(c)
         dir.listFiles()?.forEach { it.delete() }
-        val dm = c.getSystemService(DownloadManager::class.java) ?: return false
-        val id = try {
-            dm.enqueue(DownloadManager.Request(Uri.parse(BASE + r.file))
-                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_HIDDEN)
-                .setDestinationInExternalFilesDir(c, "upd", "u.apk")
-                .setAllowedOverMetered(true).setAllowedOverRoaming(true)
-                .setTitle(c.getString(R.string.app_name)))
-        } catch (e: Exception) { setPhase(c, "err", "dl"); return false }
-        sp(c).edit().putLong("dl", id).putString("phase", "dl").putString("err", "").putLong("pt", System.currentTimeMillis()).apply()
+        sp(c).edit().putString("phase", "dl").putString("err", "").putLong("pt", System.currentTimeMillis())
+            .putLong("got", 0).putInt("tries", 0).apply()
+        val js = c.getSystemService(JobScheduler::class.java) ?: return false.also { setPhase(c, "err", "dl") }
+        val ok = try {
+            js.schedule(JobInfo.Builder(JOB_DL, ComponentName(c, UpdJob::class.java))
+                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).setPersisted(true).build()) == JobScheduler.RESULT_SUCCESS
+        } catch (e: Exception) { false }
+        if (!ok) setPhase(c, "err", "dl")
+        return ok
+    }
+
+    /** התקדמות ההורדה: (ירד, סה״כ); null = אין הורדה */
+    fun progress(c: Context): Pair<Long, Long>? {
+        val st = state(c)
+        if (st.phase != "dl") return null
+        return sp(c).getLong("got", 0) to (st.rel?.size ?: 0)
+    }
+
+    /** מ־UpdJob (JOB_DL, בתהליכון): ההורדה, מהמקום שנעצר; בסוף — התקנה. מחזיר true = לנסות שוב אחר כך (הג'וב מתוזמן מחדש) */
+    fun download(c: Context, stop: () -> Boolean): Boolean {
+        val st = state(c)
+        val r = st.rel
+        if (st.phase != "dl" || r == null || !UpdCore.newer(installedCode(c), r)) return false
+        val f = File(c.getExternalFilesDir("upd") ?: run { fail(c, "space"); return false }, "u.apk")
+        var have = if (f.isFile) f.length() else 0L
+        if (r.size > 0 && have > r.size) { f.delete(); have = 0 }
+        val before = have
+        var lastSave = 0L
+        fun save() { sp(c).edit().putLong("got", have).apply() }
+        try {
+            if (r.size <= 0 || have < r.size) {
+                val conn = URL(BASE + r.file).openConnection() as HttpURLConnection
+                try {
+                    conn.connectTimeout = 20000; conn.readTimeout = 30000; conn.instanceFollowRedirects = true
+                    if (have > 0) conn.setRequestProperty("Range", "bytes=$have-")
+                    val code = conn.responseCode
+                    val at = UpdCore.writeFrom(code, have)
+                    if (at == null) {
+                        if (code == 416) { f.delete(); sp(c).edit().putLong("got", 0).apply() }   // הקובץ המקומי לא תואם — מההתחלה
+                        return if (UpdCore.transient(code)) retry(c, false) else { fail(c, "dl"); false }
+                    }
+                    have = at
+                    java.io.FileOutputStream(f, at > 0).use { out ->
+                        conn.inputStream.use { inp ->
+                            val buf = ByteArray(1 shl 16)
+                            while (true) {
+                                if (stop()) { save(); return true }
+                                val n = inp.read(buf)
+                                if (n < 0) break
+                                out.write(buf, 0, n); have += n
+                                val now = System.currentTimeMillis()
+                                if (now - lastSave > 400) { lastSave = now; save() }
+                            }
+                        }
+                    }
+                } finally { conn.disconnect() }
+            }
+        } catch (e: Exception) { save(); return retry(c, have > before) }
+        save()
+        if (r.size > 0 && have != r.size) return retry(c, have > before)   // נקטע באמצע — ממשיכים בפעם הבאה
+        setPhase(c, "inst")
+        install(c)
+        return false
+    }
+
+    /** ניסיון חוזר (הג'וב מתוזמן מחדש עם המתנה שגדלה). ניסיון שהתקדם מאפס את הספירה; 8 ניסיונות בלי התקדמות = נכשל */
+    private fun retry(c: Context, progressed: Boolean): Boolean {
+        val n = if (progressed) 0 else sp(c).getInt("tries", 0) + 1
+        sp(c).edit().putInt("tries", n).apply()
+        if (n > 8) { fail(c, "dl"); return false }
         return true
     }
 
-    /** התקדמות ההורדה: (ירד, סה״כ); null = אין הורדה פעילה */
-    fun progress(c: Context): Pair<Long, Long>? {
-        val id = state(c).dlId
-        if (id < 0) return null
-        val dm = c.getSystemService(DownloadManager::class.java) ?: return null
-        return try {
-            dm.query(DownloadManager.Query().setFilterById(id))?.use { q ->
-                if (!q.moveToFirst()) null
-                else q.getLong(q.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)) to
-                    q.getLong(q.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
-            }
-        } catch (e: Exception) { null }
-    }
-
-    /** מ־UpdDlReceiver: ההורדה שלנו הסתיימה → התקנה ב־UpdJob (ג'וב — העתקה ו־sha256 של קובץ גדול לא בתוך broadcast) */
-    fun onDownloaded(c: Context, id: Long) {
-        if (id < 0 || id != state(c).dlId) return   // לא ההורדה שלנו (ה־broadcast מגיע מספק ההורדות — לא סומכים עליו)
-        val dm = c.getSystemService(DownloadManager::class.java) ?: return
-        val ok = try {
-            dm.query(DownloadManager.Query().setFilterById(id))?.use { q ->
-                q.moveToFirst() && q.getInt(q.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)) == DownloadManager.STATUS_SUCCESSFUL
-            } ?: false
-        } catch (e: Exception) { false }
-        if (!ok) { fail(c, "dl"); return }
-        setPhase(c, "inst")
-        val js = c.getSystemService(JobScheduler::class.java) ?: return
-        js.schedule(JobInfo.Builder(JOB_INSTALL, ComponentName(c, UpdJob::class.java)).setOverrideDeadline(0).build())
-    }
-
-    /** מ־UpdJob: בדיקת הקובץ והעברה למתקין של המערכת (חוסם — רץ בתהליכון של הג'וב) */
+    /** מ־download: בדיקת הקובץ והעברה למתקין של המערכת (חוסם — רץ בתהליכון של הג'וב) */
     fun install(c: Context) {
         val st = state(c)
         val r = st.rel
@@ -191,7 +225,10 @@ object Upd {
 
     private fun cleanup(c: Context) {
         c.getExternalFilesDir("upd")?.listFiles()?.forEach { it.delete() }
-        sp(c).edit().putLong("dl", -1).apply()
+        // גרסאות עד 09/11/2026 הורידו ב־DownloadManager — הורדה ישנה שנשארה תקועה "עד Wi‑Fi" נמחקת
+        val old = sp(c).getLong("dl", -1)
+        if (old >= 0) try { c.getSystemService(DownloadManager::class.java)?.remove(old) } catch (e: Exception) {}
+        sp(c).edit().putLong("dl", -1).putLong("got", 0).apply()
     }
 
     /** מ־UpdDone (MY_PACKAGE_REPLACED, כבר בגרסה החדשה) / UpdStatus (הצלחה) — פעם אחת לכל גרסה */

@@ -35,9 +35,11 @@ ok(/optLong\("code"/.test(core) && /optJSONObject\("apps"\)/.test(core) && /optS
 const U = R('android/app/src/main/java/io/github/yishaiguedj1/snowball/upd/Upd.kt');
 const mf = R('android/app/src/main/AndroidManifest.xml');
 ok(/USER_ACTION_NOT_REQUIRED/.test(U) && /UPDATE_PACKAGES_WITHOUT_USER_ACTION/.test(mf) && /REQUEST_INSTALL_PACKAGES/.test(mf), 'התקנה בלי חלון אישור (אנדרואיד 12+)');
-ok(/VISIBILITY_HIDDEN/.test(U) && /DOWNLOAD_WITHOUT_NOTIFICATION/.test(mf) && /setDestinationInExternalFilesDir\(c, "upd"/.test(U), 'הורדה מוסתרת לתיקייה הפרטית');
+// 09/11/2026: לא DownloadManager — עוצר הורדה גדולה בסלולר "עד Wi‑Fi" בלי לשאול (Studio 77MB נתקע על 0%)
+ok(!/dm\.enqueue|DownloadManager\.Request/.test(U) && !/DOWNLOAD_WITHOUT_NOTIFICATION|UpdDlReceiver/.test(mf), 'ההורדה לא ב־DownloadManager');
+ok(/JOB_DL/.test(U) && /NETWORK_TYPE_ANY/.test(U) && /"Range", "bytes=\$have-"/.test(U) && /UpdCore\.writeFrom\(code, have\)/.test(U) && /getExternalFilesDir\("upd"\)/.test(U), 'הורדה בג׳וב שלנו, לתיקייה הפרטית, עם המשך מהמקום שנעצר');
+ok(/p\.jobId == Upd\.JOB_DL/.test(R('android/app/src/main/java/io/github/yishaiguedj1/snowball/upd/UpdParts.kt')), 'ג׳וב שנעצר — מתוזמן מחדש וממשיך');
 ok(/UpdCore\.verify\(f, r\)/.test(U) && /getPackageArchiveInfo/.test(U) && /info\?\.packageName != c\.packageName/.test(U), 'לפני התקנה: sha256 + חבילה + גרסה');
-ok(/id != state\(c\)\.dlId/.test(U), 'DOWNLOAD_COMPLETE — רק ההורדה שלנו');
 ok(/\.upd\.UpdStatus" android:exported="false"/.test(mf) && /\.upd\.UpdDone" android:exported="false"/.test(mf) && /MY_PACKAGE_REPLACED/.test(mf), 'הודעת סיום מהגרסה החדשה (MY_PACKAGE_REPLACED)');
 ok(/android:scheme="snbupd"/.test(mf) && /BIND_JOB_SERVICE/.test(mf), 'המסך נפתח מהדף; הג׳וב מוגן');
 for (const f of ['main/java/io/github/yishaiguedj1/snowball/MainActivity.kt', 'dm/java/io/github/yishaiguedj1/snowball/dm/DmActivity.kt', 'browser/java/io/github/yishaiguedj1/snowball/br/BrowserActivity.kt'])
