@@ -486,3 +486,117 @@
 ### Gaps
 - אין נתוני גודל שוק, הכנסות או שימוש בפועל (DAU), חוץ ממספרי ההתקנות ב־CWS ומטענות היצרנים.
 - המגמות נגזרו מעמודי ספקים, יומני שינויים וביקורות. לא נמצא מחקר שוק עצמאי על הקטגוריה ב־2026.
+
+---
+
+## שאלה 4: מה אף אחד לא עושה טוב — המרחב הלבן ל־THE SNOWBALL Studio
+
+> הקשר (רק לסעיף הזה): לשונית "ניתוח וידאו" ב־THE SNOWBALL Studio, ‏PWA בעברית, לסטודנטים ולאנשי עסקים דוברי עברית. היא מנתחת הרצאות, וובינרים וקורסים מהאודיו ומהמסך: ‏OCR לשקופיות, לגרפים ולקוד. חותמות הזמן מדויקות ולחיצות, ונגזרות מתזמון ברמת המילה. הניתוח כולל סינתזה עמוקה — עקרונות, תמונה גדולה וביקורת. היא עובדת עם מודלי Claude בלבד, והחילוץ נעשה בצד השרת, על שרת CPU משלנו.
+
+### Takeaway
+אין מוצר שמשלב את ארבעת הרכיבים:
+1. עברית כשפה ראשונה, עם RTL תקין.
+2. ראיות מהמסך (שקופיות, גרפים, קוד) ששזורות בתוך הניתוח עצמו, ולא כתוסף בבטא או בצ'אט.
+3. עיגון מדויק ברמת מילה שאפשר לאמת.
+4. סינתזה אנליטית עמוקה — עקרונות, תמונה גדולה, ביקורת — מעבר ל"נקודות מפתח".
+
+כל רכיב קיים בנפרד, באיכות חלקית, אצל מוצר אחר: ראייה אצל BibiGPT ו־Readray, תבניות ניתוח אצל Readray, למידה אצל Recall, ו־LMS אצל HoverNotes. אף אחד מהם לא מציע עברית מאומתת. זה המרחב הלבן. האיום העיקרי עליו הוא Ask בדף הצפייה של YouTube, שכבר תומך בעברית בסרטונים נבחרים.
+
+### Cited Findings
+**1. עברית — לוקליזציה של ממשק, לא ניתוח בעברית**
+- עברית מופיעה ברשימת שפות הממשק ב־CWS של Eightify, ‏NoteGPT, ‏Sider, ‏Monica, ‏Merlin, ‏Glarity ו־HoverNotes — [Eightify](https://chromewebstore.google.com/detail/eightify-ai-youtube-summa/cdcpabkolgalpgeingbdcebojebfelgb); [NoteGPT](https://chromewebstore.google.com/detail/notegpt-youtube-web-summa/baecjmoceaobpnffgnlkloccenkoibbb); [Sider](https://chromewebstore.google.com/detail/difoiogjjojoaoomphldepapgpbgkhkb); [Monica](https://chromewebstore.google.com/detail/ofpnmcalabcbjgholdjcjblkibolbppb); [Merlin](https://chromewebstore.google.com/detail/merlin-ask-ai-to-research/camppjleccjaphfdbohjdohecfnoikec); [Glarity](https://chromewebstore.google.com/detail/glarity-chatgpt-summary-t/cmnlolelipjlhfkhpohphpedmkfbobjc); [HoverNotes](https://chromewebstore.google.com/detail/obsidian-ai-video-notes-s/fhdmbhgpabjkadpaafomaabbdckofphm).
+- ל־HARPA ול־Mapify אין עברית בכלל — [HARPA](https://chromewebstore.google.com/detail/eanggfilgoajaocelnaflolkadkeghjp); [Mapify](https://chromewebstore.google.com/detail/mapify-ai-summarizer-mind/fldgacclkckcmflokaialbihppmndpbd). הרישומים של Glasp ו־Recall באנגלית בלבד — [Glasp](https://chromewebstore.google.com/detail/youtube-summary-with-chat/nmmicjeknamkfloonkhhcjmomieiodli); [Recall](https://chromewebstore.google.com/detail/recall-summarizer-youtube/ldbooahljamnocpaahaidnmlgfklbben?hl=en).
+- תמלול עברית: Video Highlight מדרג אותה ב־"Good accuracy", הרמה השלישית מתוך שלוש, ובעבר דירג אותה "Low Accuracy" — [Video Highlight transcripts](https://videohighlight.com/features/transcripts); [Video Highlight updates](https://videohighlight.com/updates).
+- ‏OCR: עברית לא נמצאת בין שש שפות ה־OCR של BibiGPT — [BibiGPT v4.318.0](https://bibigpt.co/blog/posts/20260407-bibigpt-v4318-ppt-ocr-local-privacy-en).
+- עברית בפלט מוצהרת רק אצל Notta (ברשימת שפות הפלט) — [Notta](https://www.notta.ai/en/tools/youtube-video-summarizer) — ואצל Ask בדף הצפייה, בסרטונים נבחרים בלבד — [YouTube Help](https://support.google.com/youtube/answer/14110396).
+
+**2. ראייה — נדירה, חלקית או נעולה**
+- רוב השוק מסתמך על תמליל בלבד:
+  - Glasp תלוי בכתוביות — [Toolworthy](https://www.toolworthy.ai/en/blog/best-ai-video-summarizer).
+  - ב־NoteGPT צילום המסך ידני — [NoteGPT blog](https://notegpt.io/blog/how-to-take-screenshots-and-take-notes-on-youtube-videos).
+  - Recall: ‏OCR "only on images and not on videos as yet" — [Recall changelog](https://feedback.recall.it/changelog).
+  - אף אחד מחמשת המובילים שנסקרו במאמר של Memories.ai לא מנתח פריימים — [Memories.ai](https://memories.ai/blogs/best-5-ai-youtube-video-summarizer-tools-in-2026).
+- גם מי שמציע ראייה עושה זאת בחלקיות:
+  - BibiGPT — ב־Beta וב־Pro — [BibiGPT docs](https://docs.bibigpt.co/en/function-usage/platform-function/visual-analysis-online-video.md).
+  - ScreenApp — פריימים רק כשהמשתמש שואל, ו־"narration-free slides" מוצגות כחולשה — [ScreenApp](https://screenapp.io/features/ai-summarizer).
+  - Video Highlight — צילומי רגעים בלי מנגנון מוסבר — [Video Highlight](https://videohighlight.com/).
+- בסרטון של דובר מול מצלמה החילוץ מחזיר מעט פריימים — [BibiGPT docs](https://docs.bibigpt.co/en/function-usage/platform-function/ppt-keyframe-extraction.md). לכן ניתוח חזותי צריך להיות מותנה בסוג הסרטון.
+
+**3. עיגון בזמן — ברמת מקטע, שורה או סצנה**
+- "SRT timestamps come from the transcript segments themselves" — [Video Highlight updates](https://videohighlight.com/updates).
+- "Every line is time-stamped" — [Recall](https://www.recall.it/youtube-video-summarizer).
+- זמני התחלה וסוף לכל סצנה — [BibiGPT](https://bibigpt.co/en/features/youtube-slide-extractor).
+- הצ'אט של Readray מחזיר מספר משפט ולא זמן — [בלוג Lilys](https://lilys.ai/blog/en/free-youtube-summarizer-for-long-videos-2026/).
+
+**4. עומק — פורמטים של "נקודות מפתח" עם תוספות בודדות**
+- Eightify: ‏8 רעיונות, ומיקוד "insightful, actionable, controversial, funny" — [CWS](https://chromewebstore.google.com/detail/eightify-ai-youtube-summa/cdcpabkolgalpgeingbdcebojebfelgb).
+- Readray: "evidence confidence score" בדוחות השקעות — [Readray](https://readray.ai/en).
+- Shortform: "background context and counter-arguments" — [CWS Shortform](https://chromewebstore.google.com/detail/shortform-summary-of-web/anfegbjckcheemfbibglojdmjadgiepe).
+- Summify: ‏11 סגנונות ו־Deep Dive — [Summify](https://summify.io/).
+- Summario: המלצה אם הסרטון שווה צפייה — [CWS Summario](https://chromewebstore.google.com/detail/summario-ai-youtube-summa/omjcmicfodhllalfjnkpcblodloljpmi).
+- HARPA מחלק תמליל ארוך לחלקים "בלי זיכרון" ביניהם — [HARPA](https://harpa.ai/).
+- סרטון של 2:25 שעות הפך ל־28 סעיפים — [בלוג Lilys](https://lilys.ai/blog/en/free-youtube-summarizer-for-long-videos-2026/).
+
+**5. הרצאות ארוכות, קורסים ומקורות סגורים**
+- מגבלות אורך:
+  - Recall: עד 5 שעות בלי כתוביות — [Recall docs](https://docs.recall.it/use-cases/content-type/youtube).
+  - NoteGPT: ‏120–210 דקות בלי כתוביות — [NoteGPT Pricing](https://notegpt.io/pricing).
+  - ScreenApp: ‏45 דקות בחינם, 2–3 שעות בתשלום — [ScreenApp](https://screenapp.io/features/ai-summarizer).
+  - Summario: פחות מ־30 דקות בחינם — [CWS Summario](https://chromewebstore.google.com/detail/summario-ai-youtube-summa/omjcmicfodhllalfjnkpcblodloljpmi).
+- עבודה על פני כמה סרטונים: ספרייה וגרף ב־Recall — [Recall](https://www.recall.it/); צ'אט וחיפוש ב־Video Highlight — [Video Highlight](https://videohighlight.com/); צ'אט על תיקייה ב־Readray — [App Store](https://apps.apple.com/us/app/readray-formerly-lilysai/id6759151868); ‏pods ב־Summify — [Summify](https://summify.io/); אצווה של 20 ב־NoteGPT — [NoteGPT](https://notegpt.io/youtube-video-summarizer).
+- מקורות סגורים:
+  - HoverNotes עובד בתוך Canvas, ‏Moodle, ‏Panopto ו־Kaltura — [HoverNotes](https://hovernotes.io/).
+  - Recall ו־BibiGPT לא תומכים בסרטונים פרטיים — [Recall docs](https://docs.recall.it/use-cases/content-type/youtube); [BibiGPT](https://bibigpt.co/en/features/youtube-slide-extractor).
+  - לפי HoverNotes, ‏Gemini Notebook לא מכניס קורסים שמאחורי התחברות — [בלוג HoverNotes](https://hovernotes.io/en/blog/add-any-video-to-notebooklm-with-hovernotes).
+
+**6. לולאת הלמידה**
+- חידון לפי זמן וחזרה מרווחת ב־Recall — [Recall](https://www.recall.it/).
+- ייצוא הדגשות ל־Anki ב־Glasp — [Glasp newsletter](https://read.glasp.co/p/the-highlights-by-glasp-july-2026).
+- שאלות תרגול ב־Monica — [Monica](https://monica.im/en/products/ai-video-summarizer).
+- מדריכי לימוד וכרטיסיות ב־TwinMind — [CWS TwinMind](https://chromewebstore.google.com/detail/twinmind-summarize-tabs-a/agpbjhhcmoanaljagpoheldgjhclepdj?hl=en).
+- ה־playbook של Readray, עם צילום וזמן לכל שלב, הוא הקרוב ביותר ליחידת ידע שמעוגנת לרגע ולפריים — [Readray](https://readray.ai/en).
+
+**7. אמינות החילוץ** — חסימות IP בענן, ‏PO tokens ותוספים שנשברים (ראו שאלה 3, מגמה 4) — [youtube-transcript-api](https://github.com/jdepoix/youtube-transcript-api); [yt-dlp PO Token Guide](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide).
+
+**8. פרטיות ואמון**
+- HoverNotes עשוי לאמן מודלים על האודיו ועל צילומי המסך — [CWS](https://chromewebstore.google.com/detail/obsidian-ai-video-notes-s/fhdmbhgpabjkadpaafomaabbdckofphm).
+- Recall ו־ScreenApp מצהירים שאינם מאמנים — [CWS Recall](https://chromewebstore.google.com/detail/recall-summarizer-youtube/ldbooahljamnocpaahaidnmlgfklbben?hl=en); [ScreenApp Video OCR](https://screenapp.io/features/video-ocr).
+- Monica מצהירה על איסוף מידע פיננסי ותקשורת אישית — [CWS](https://chromewebstore.google.com/detail/ofpnmcalabcbjgholdjcjblkibolbppb).
+- Ask של YouTube שומר שיחות שנבדקו בידי אדם עד 3 שנים — [YouTube Help](https://support.google.com/youtube/answer/14110396).
+
+**9. חיוב** — פערי Trustpilot ותוכניות "Unlimited" עם תקרות (ראו שאלה 3, מגמה 5).
+
+### Inferences — ההזדמנויות (מנוסחות באופן כללי, לפי עקרונות הבנייה הנקייה)
+1. **עברית תחילה, מקצה לקצה — הבידול הכי ברור.** לא רק ממשק, אלא:
+   - תמלול עברי שמדיוקו מדווח בגלוי;
+   - ‏OCR לשקופיות בעברית ובטקסט מעורב (עברית עם קוד, נוסחאות ומונחים באנגלית);
+   - פלט ב־RTL תקין, כולל ציטוטים, מספרים וקוד בתוך טקסט עברי.
+   
+   בעמודים שנקראו לא נמצא מוצר שמתעד טיפול באחד מהשלושה. זו עדות מהיעדר, ולא בדיקה בפועל.
+2. **ראיות מהמסך כחלק מכל טענה, לא כמוצר נפרד.** כל נקודה בניתוח תוצג עם השקופית, הגרף או הקוד שתומכים בה, ועם הטקסט שחולץ מהם. ההנחיות לביצוע:
+   - בחירת פריימים לפי שינוי חזותי ולא במרווח קבוע. זו גישה מתועדת בשוק ובקוד פתוח: BibiGPT, ‏lecture2notes ו־steipete/summarize.
+   - ניתוח חזותי מותנה בסוג הסרטון, כדי לא לשלם על פריימים של דובר מול מצלמה.
+   - חילוץ הפריימים וה־OCR ירוצו על שרת ה־CPU. רק פריימים נבחרים יעברו למודל ראייה של Claude. העלות והמימוש — `03-slides-ocr-visual.md` ו־`08-claude-pipeline-cost.md`.
+3. **עיגון ברמת מילה, עם אימות.** לכל טענה יוצמד הציטוט שנאמר, וזמן ההתחלה של המילה הראשונה בציטוט. בדיקה אוטומטית תוודא שהציטוט אכן מופיע בתמליל, וטענות שאינן מעוגנות יסומנו. אף מתחרה לא מצהיר על רמה כזו.
+   - יש בסיס פנימי: תזמון ברמת מילה בעברית קיים בשרשרת הקריוקי (ivrit + stable-ts + CTC) — `00-internal-infrastructure.md`, שורה 115.
+   - "הרצאה עברית של שעה — לא נמדדה" — זו המשימה הטכנית הראשונה לבדוק.
+4. **סינתזה בשכבות, מעבר ל"נקודות מפתח".** השכבות: תקציר; מבנה ההרצאה; עקרונות; תמונה גדולה; ביקורת (הנחות סמויות, חולשות בטיעון, מה חסר); שאלות פתוחות. מעליהן — תבניות לפי סוג התוכן: הרצאה אקדמית, וובינר מכירתי, הדרכה טכנית, שיחה על השקעות. הראיות בשוק: Readray מראה שתבניות לפי סוג נותנות ערך, ו־Shortform מראה שיש ביקוש לטיעוני נגד. אבל אף מוצר לא מציע את כל השכבות יחד. הפירוט — `09-analysis-methodology.md`.
+5. **הרצאות ארוכות וקורסים שלמים.**
+   - בלי תקרה נמוכה של אורך.
+   - סינתזה ברמת הקורס, על פני פלייליסט: מושגים חוזרים, תלויות בין שיעורים, סתירות, ומפת הקורס.
+   - הכלים הקיימים מסתפקים בצ'אט ובחיפוש על פני ספרייה, בלי מבנה ברמת הקורס.
+6. **חילוץ בצד השרת — יתרון עם הסתייגות.** הוא מנטרל את שבירוּת התוספים: תמלול משלנו, בלי תלות בכתוביות ובפריסת הדף. אבל שרת בדאטה־סנטר חשוף לאותן חסימות IP ול־PO tokens. לכן גם העלאת קובץ ו־Drive צריכות להיות ערוצים שווים. ההיבט המשפטי — `07-ingestion-legal.md`.
+7. **גשר ללמידה ב־Academy.** כרטיסיות וחידונים שכל אחד מהם מעוגן לרגע ולפריים, וחזרה מרווחת. ההדגשות של Glasp ל־Anki והחידונים של Recall מוכיחים ביקוש. העיגון לפריים לא נמצא אצל אף מוצר.
+8. **פרטיות כמסר מוצרי.** מודלי Claude בלבד, בלי אימון על התוכן, השרת שלנו, ומדיניות שמירה שקופה. זה מנוגד לסעיף האימון אצל HoverNotes ולשמירה של 3 שנים אצל Ask.
+9. **מחיר שקוף.** עלות לכל דקה או לכל ניתוח, שמוצגת מראש, בלי "Unlimited" עם תקרה נסתרת, והסבר מה צרך מכסה. זה עונה ישירות על התלונה החוזרת ב־Trustpilot.
+10. **מה לא לבנות כבידול:** צ'אט, מפת חשיבה וייצוא ל־MD/PDF/Notion. הם נדרשים כבסיס, אבל אינם יתרון. גם התחרות מול Ask של YouTube על שאלות בסיסיות היא קרב אבוד. ההבדל צריך להיות בעומק, בראיות, בעיגון ובעברית.
+11. **איומים למעקב:**
+    - Ask עם עברית עשוי להתרחב לכל הסרטונים.
+    - ‏BibiGPT עשוי להוסיף עברית ל־OCR.
+    - Readray מעמיק בתבניות ניתוח.
+    - הסרגלים הגדולים עשויים להוסיף ראייה במהירות דרך מודלי ראייה כלליים.
+
+### Gaps
+- כל טענות ה"אין עברית" או "אין RTL" נשענות על היעדר בעמודים שנקראו. לא נעשתה בדיקה בפועל בעברית באף מוצר. מומלץ לבצע מבחן ידני על 3–5 הרצאות בעברית בכלים המובילים לפני קביעה סופית.
+- אין נתונים על נכונות לשלם או על שימוש בכלים כאלה בשוק הישראלי. ייתכן ש־`14-competitors-repurpose-hebrew-census.md` מכסה זאת (לפי שם הקובץ).
+- דיוק חותמות הזמן אצל המתחרים לא נמדד, ולכן היתרון של עיגון ברמת מילה הוא טענה שצריך להוכיח מול מדד (`18-golden-set-evaluation.md`).
