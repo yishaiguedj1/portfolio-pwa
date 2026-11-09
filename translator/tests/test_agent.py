@@ -97,7 +97,8 @@ class AgentTests(unittest.TestCase):
         hb = self.fake.hb[0]
         self.assertEqual(hb['busy'], '')
         self.assertTrue(0 <= hb['disk'] <= 100 and hb['free'] >= 0 and 'mem' in hb, 'דופק: דיסק, זיכרון — מספרים בלבד')
-        self.assertEqual(set(hb) - {'v', 'busy', 'disk', 'free', 'load', 'mem', 'up', 'iso', 'iw', 'al', 'ev', 'cpu', 'nj', 'mx'}, set(), 'בלי שום שדה מעבר למספרים, לגרסה ולקודים הקבועים')
+        self.assertEqual(set(hb) - {'v', 'busy', 'disk', 'free', 'load', 'mem', 'up', 'iso', 'iw', 'al', 'ev', 'cpu', 'nj', 'mx', 'vi'}, set(), 'בלי שום שדה מעבר למספרים, לגרסה ולקודים הקבועים')
+        self.assertEqual(hb.get('vi'), 1, '9/11/2026: יכולת קבועה — העובד מריץ ניתוח סרטונים (שומר הלקיחה בשרתון)')
         self.assertEqual([k for _, k in hb['ev']], ['up'], 'ת7: יומן השרת — "הסוכן עלה" נשלח כבר בפנייה הראשונה')
         self.assertTrue(all(isinstance(t, int) and t > 1.6e9 for t, _ in hb['ev']))
         self.assertIn(hb['al'], ('o', 't'), 'שלב 4.1: מנוע היישור — קוד קבוע (בלי גרפים בבדיקה = torch)')
