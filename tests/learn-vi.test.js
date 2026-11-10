@@ -92,6 +92,16 @@ const { fakeR2, ACC } = require('./_r2fake');
     && /askConfirm\(fmt\(t\('admViDrQ'\), \{ m: mn, usd \}\), async \(\) => \{\s*b\.disabled = true;\s*const r = await api\('viRef', \{ job: job\.id, draft: dm, ok: true \}\)/.test(adm)
     && (adm.match(/api\('viJudge', \{ ok: true \}\)|draft: dm, ok: true/g) || []).length === 2 && /vjPaint\(p\);/.test(adm) && /vrDraftUi\(p, job, e\);/.test(adm),
     'מרכז הניהול (1.6): השופט בזוגות וטיוטת הייחוס — רק אחרי אישור עם המחיר');
+  /* PR 1.7 (לפני ה2): דגלים לפי סוג העבודה, זרועות ברירת המחדל של 6.6, אומדן לפי טבלת הניתוח, ורענון עמוד הזהב של הניתוח */
+  const vx = (xf) => SS.waveClone(vsrc, 'jNewxxxxxxxxxxxxxxxxx', 'u', 5, { mode: 'haiku-medium', xf }, 1).spec.xf;
+  const tx = (xf) => SS.waveClone({ id: 'jTrxxxxxxxxxxxxxxxxxx', kind: 'tr', folder: 'R2_jTrxxxxxxxxxxxxxxxxxx', fv: { id: 'x' }, gd: { r: 'abcdefghijkl', n: 1, at: 1 }, spec: { out: ['compact'], mode: 'haiku-medium', xf: ['gq'] } }, 'jNewxxxxxxxxxxxxxxxxx', 'u', 5, { mode: 'haiku-medium', xf }, 1).spec.xf;
+  ok(JSON.stringify(vx(['rvs60', 'vwin'])) === '["vwin"]' && JSON.stringify(vx(['-vwin'])) === '["-vwin"]' && !('xf' in SS.waveClone(vsrc, 'jNewxxxxxxxxxxxxxxxxx', 'u', 5, { mode: 'haiku-medium', xf: ['rvs60'] }, 1).spec)
+    && JSON.stringify(tx(['rvs60', 'vwin'])) === '["rvs60"]' && tx(['vwin']) === undefined && tx(null) === undefined, 'זהב (1.7): waveClone — רק דגלי v… לניתוח, ורק דגלי תרגום לתרגום');
+  const usdH = (src) => (src.match(/VI_USD_H = (\{[^}]*\});/) || [])[1];
+  ok(usdH(adm) && usdH(adm) === usdH(fs.readFileSync(path.join(root, 'studionet.js'), 'utf8')), 'מרכז הניהול (1.7): VI_USD_H = studionet.js');
+  ok(/if \(isVi\(src\)\) return dur \? \(VI_USD_H\[m\] \|\| VI_USD_H\['haiku-medium'\]\)\[src\.spec\.from === 'en' \? 0 : 1\] \* dur \/ 3600 : null;/.test(adm)
+    && /W\.arms = vi \? \[\{ m: 'haiku-medium', xf: \[\] \}, \{ m: 'haiku-medium', xf: \[\] \}, \{ m: 'haiku-high', xf: \[\] \}, \{ m: 'haiku-medium', xf: \['vwin'\] \}\]/.test(adm)
+    && /if \(cur === 'gold' \|\| cur === 'viGold'\) paint\(\);/.test(adm), 'מרכז הניהול (1.7): אומדן הגל של ניתוח, הזרועות של 6.6 והרענון');
   const apiSrc = fs.readFileSync(path.join(root, 'ibkr-proxy/api/studio.js'), 'utf8');
   ok(/if \(op === 'viRef'\) \{[\s\S]{0,400}if \(!isAdmin\(user\)\) return res\.status\(403\)/.test(apiSrc), 'viRef — מנהל בלבד');
   ok(LR.learnRec(Object.assign({}, vjob, { spec: Object.assign({}, vjob.spec, { vi: 0 }) }), Date.now(), null).k === 'tr', 'עבודת תרגום — כמו קודם');
