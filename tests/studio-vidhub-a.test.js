@@ -113,11 +113,14 @@ except Exception as e:
   ok(/function styEditable\(rec\)[\s\S]{0,500}\['bn', 'sv'\]\.includes\(stg\)/.test(st), 'בדף העבודה — רק עד שהצריבה מתחילה');
   ok(/net\.api\('sty', \{ job: rec\.id, sty: rec\.spec\.sty \|\| null \}\)/.test(st) && /setTimeout\([\s\S]{0,300}, 600\)\);/.test(st), 'נשלח לשרתון אחרי 600ms בלי נגיעה (רק הבחירה האחרונה)');
   ok(/\+ keepLine\(\);/.test(st) && /function keepLine\(\)[\s\S]{0,200}if \(!k \|\| !ui\.r2\) return '';/.test(st), 'באומדן: כמה זמן נשמר (רק במצב השרת)');
+  ok(/function keepLine\(\)[\s\S]{0,400}if \(!\(k\.s > 0\)\) return ' ' \+ T\('studioEstKeepAll', \{ t: keepSpan\(k\.j\) \}\);/.test(st) && /ui\.kt = j\.kt && j\.kt\.j > 0 \?/.test(st), 'באומדן: המקור נשמר עם העבודה (10/11/2026) — שורה אחת לכל הקבצים');
+  ok(/function keepSpan\(ms\)[\s\S]{0,300}if \(d % 7\) return T\('studioKeepDays'[\s\S]{0,200}w === 2 \? T\('studioKeep2Weeks'\) : T\('studioKeepWeeks', \{ n: w \}\)/.test(st), 'זמן השמירה במילים — בשבועות ("3 שבועות")');
+  ok(/T\('studioKeepJobP', \{ p: keepSpan\(ui\.kt\.j\), t: fmtDate\(rt\.j\) \}\)/.test(st), 'בדף העבודה: כמה זמן הסרטונים נשמרים ועד מתי');
   ok(/function pageSty\(p\)[\s\S]{0,2000}p\.append\(\.\.\.styControls\(st, stySet\)\)/.test(st), 'ההפקה מחדש משתמשת באותן בקרות');
 
   // מחרוזות בשתי השפות
   const app = read('app.js');
-  for (const k of ['studioStySample1', 'studioStySample2', 'studioEstKeep', 'studioKeepDay', 'studioKeepHours'])
+  for (const k of ['studioStySample1', 'studioStySample2', 'studioEstKeep', 'studioEstKeepAll', 'studioKeepJobP', 'studioKeepWeek', 'studioKeep2Weeks', 'studioKeepWeeks', 'studioKeepDays', 'studioKeepDay', 'studioKeepHours'])
     ok((app.match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, 'מחרוזת ' + k + ' בעברית ובאנגלית');
   ok(!/studioSampleK1/.test(app), 'מחרוזות הקריוקי הוסרו');
 

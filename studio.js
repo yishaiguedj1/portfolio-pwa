@@ -413,11 +413,19 @@ function estText(e, apiOn) {
   if (e.bt) return T('studioEstBt', { usd: fmtUsd(e.usd), left: fmtUsd(e.left || 0) }) + (e.over ? ' ' + T('studioEstOver') : '') + keepLine();
   return T('studioEstApi', { t, usd: fmtUsd(e.usd), left: fmtUsd(e.left || 0) }) + (e.over ? ' ' + T('studioEstOver') : '') + keepLine();
 }
+/* 10/11/2026: זמן השמירה במילים — בשבועות כשהוא מתחלק בשבוע ("3 שבועות"), אחרת בימים */
+export function keepSpan(ms) {
+  const d = Math.max(1, Math.round((+ms || 0) / 86400e3));
+  if (d % 7) return T('studioKeepDays', { n: d });
+  const w = d / 7;
+  return w === 1 ? T('studioKeepWeek') : w === 2 ? T('studioKeep2Weeks') : T('studioKeepWeeks', { n: w });
+}
 /* 26/10/2026 (בעקבות Vid Hub): כמה זמן נשמר — כבר לפני ההתחלה (עד היום רק בדף העבודה, אחריה). רק במצב השרת (R2) */
 function keepLine() {
   const k = ui.kt;
   if (!k || !ui.r2) return '';
   const hrs = Math.round(k.s / 3600e3), days = Math.round(k.j / 86400e3);
+  if (!(k.s > 0)) return ' ' + T('studioEstKeepAll', { t: keepSpan(k.j) });   // 10/11/2026: בלי מחיקה מוקדמת — המקור נשמר כמו כל השאר
   return ' ' + T('studioEstKeep', { s: hrs <= 24 ? T('studioKeepDay') : T('studioKeepHours', { n: hrs }), d: days });
 }
 /* ---------- סבב 2: הצעות לפני ההתחלה — מהבדיקה של הסרטון בטלפון (חינם). לכל הצעה פעולה אחת ----------
@@ -1412,7 +1420,7 @@ async function refreshStatus(force) {
     ui.api = normApi(j.api) || ui.api;   // מצב API של המערכת: תקציב חודשי ושרתים
     ui.eta = normEta(j.eta) || ui.eta;   // 10/10/2026: מודל הצפי (לעבודות שעוד לא נלקחו)
     ui.sc = normScan(j.sc) || ui.sc;   // v378: בדיקת המוכנות האחרונה
-    ui.kt = j.kt && j.kt.s > 0 && j.kt.j > 0 ? { s: +j.kt.s, j: +j.kt.j } : null;   // 26/10: כמה זמן הקבצים נשמרים (לאומדן)
+    ui.kt = j.kt && j.kt.j > 0 ? { s: Math.max(0, +j.kt.s || 0), j: +j.kt.j } : null;   // 26/10: כמה זמן הקבצים נשמרים (לאומדן) · 10/11: s = 0 — המקור נשמר עם העבודה
     ui.r2 = j.r2 === true;              // 11/10: האחסון שלנו (R2) מוגדר — המילון שם, בלי צורך ב־Drive
     ui.gb = j.gb === true;              // 26/10/2026: רשימת הקבצים ב־Drive מוגדרת בשרתון
     if (j.gb === 'r' && !gbAsked) { gbAsked = true; gb().config().then((c) => { if (c.configured) { ui.gb = true; gbAsked = 'y'; if (root) render('none'); } }).catch(() => {}); }   // השרת שלנו בלי המשתנים — אולי ב־Vercel
@@ -8123,7 +8131,7 @@ const srcVid = (rec) => (!srcGone(rec) && ((rec.up.v && rec.up.v.id) || (rec.spe
 function keepNote(rec) {
   const rt = rec.srv && rec.srv.rt;
   if (!rt) return null;
-  const a = [srcGone(rec) ? T('studioSrcGoneS') : rt.s > 0 ? T('studioKeepSrc', { t: fmtDate(rt.s) }) : '', rt.j > 0 ? T('studioKeepJob', { t: fmtDate(rt.j) }) : ''].filter(Boolean);
+  const a = [srcGone(rec) ? T('studioSrcGoneS') : rt.s > 0 ? T('studioKeepSrc', { t: fmtDate(rt.s) }) : '', rt.j > 0 ? (ui.kt && ui.kt.j > 0 ? T('studioKeepJobP', { p: keepSpan(ui.kt.j), t: fmtDate(rt.j) }) : T('studioKeepJob', { t: fmtDate(rt.j) })) : ''].filter(Boolean);   // 10/11/2026: גם כמה זמן
   return a.length ? note(a.join(' · ')) : null;
 }
 /* שורת "הפקה מחדש" — אחרי שהמקור נמחק: הסבר במקום מעבר */
