@@ -479,3 +479,92 @@ def dangling(led: list[dict], item_ids: set) -> int:
             l['drop'] = 'unverified'
             n += 1
     return n
+
+
+# ---------------------------------------------------------------- הסינתזה והאימות (PR 1.2ב)
+SYN_EV_MAX = 12                      # ראיות לפריט סינתזה — של ההערות שהוא נשען עליהן, לפי הסדר
+_CONF_RANK = {'high': 2, 'med': 1, 'low': 0}
+
+
+def synth_item(st: dict | None, kind: str, by_id: dict, ix: Index, inv_nums: set) -> tuple[dict | None, list[str]]:
+    """משפט סינתזה {text, from} → פריט (kind = one/bluf/take/thesis/big), או None. לא משנה את הקלט.
+    - from: רק הערות קיימות (from_bad); בלי אף אחת — "הוסק", ביטחון נמוך, בלי ראיות (no_from).
+    - ev: הראיות של ההערות, בלי כפילות, עד SYN_EV_MAX. ‏t — הראיה המוקדמת.
+    - מספר שלא בהערות ולא בראיות שלהן — num_bad (נמחק); רק במלאי — num_far.
+    - basis: ‏big תמיד "הוסק"; אחרת "speaker" רק אם כל ההערות הן של הדובר. ‏conf = הנמוך מבין ההערות (בהסקה — עד med).
+    - הסתייגות בהערות שנעלמה — hedge (high → med)."""
+    issues: list[str] = []
+    if not st or not str(st.get('text') or '').strip():
+        return None, ['empty']
+    src = [by_id[i] for i in dict.fromkeys(st.get('from') or []) if i in by_id]
+    if len(src) < len(st.get('from') or []):
+        issues.append('from_bad')
+    ev: list[str] = []
+    for n in src:
+        for r in n.get('ev') or []:
+            if r not in ev:
+                ev.append(r)
+    x = {'kind': kind, 'text': str(st['text']).strip(), 'ev': ev[:SYN_EV_MAX]}
+    if not src:
+        issues.append('no_from')
+        x.update(basis='analyst_inference', conf='low')
+    else:
+        sp = kind != 'big' and all(n.get('basis') == 'speaker' for n in src)
+        x['basis'] = 'speaker' if sp else 'analyst_inference'
+        lo = min(_CONF_RANK.get(n.get('conf'), 1) for n in src)
+        if not sp:
+            lo = min(lo, 1)
+        x['conf'] = next(k for k, v in _CONF_RANK.items() if v == lo)
+    tn = nums(x['text'])
+    if tn:
+        near = set()
+        for n in src:
+            near |= nums(n.get('text'))
+        for r in x['ev']:
+            near |= nums(ix.text(r))
+        for n in sorted(tn - near):
+            if n in inv_nums:
+                issues.append('num_far')
+            else:
+                issues.append('num_bad')
+                return None, issues
+    base = ' '.join(str(n.get('text') or '') for n in src)
+    if base and HEDGE_RE.search(base) and not HEDGE_RE.search(x['text']) and x['conf'] == 'high':
+        issues.append('hedge')
+        x['conf'] = 'med'
+    has_sp = any(r in ix.ev for r in x['ev'])
+    has_sc = any(r in ix.sl or r in ix.oc for r in x['ev'])
+    x['src'] = 'both' if has_sp and has_sc else 'screen_only' if has_sc else 'speech'
+    t = anchor(x, ix)
+    if t is not None:
+        x['t'] = t
+    return x, issues
+
+
+VV_DROP = ('con',)                    # סותרת את הראיה — נמחקת (V78)
+
+
+def apply_verdict(it: dict, verdict: str | None, cited: set, has_cites: bool) -> tuple[dict | None, list[str]]:
+    """פסק האימות על פריט → (הפריט, או None אם נמחק; קודים). לא משנה את הקלט.
+    - con → נמחק. ‏uns → "הוסק" בביטחון נמוך (V78: לא מוצג כדברי הדובר).
+    - sup בלי ציטוט מתוך ה־ev של הפריט (כשהמנוע מחזיר Citations) → part: המצביע השני לא מאשר (5.3 סעיף 3).
+    - בלי פסק (חסר בתשובה) → unk."""
+    x = dict(it)
+    iss: list[str] = []
+    if verdict not in ('sup', 'part', 'uns', 'con'):
+        x['ver'] = 'unk'
+        return x, ['vv_none']
+    if verdict in VV_DROP:
+        return None, ['vv_con']
+    if verdict == 'sup' and has_cites and x.get('ev') and not (cited & set(x['ev'])):
+        verdict = 'part'
+        iss.append('cite_off')
+    if verdict == 'uns':
+        iss.append('vv_uns')
+        if x.get('basis') == 'speaker':
+            x['basis'] = 'analyst_inference'
+        x['conf'] = 'low'
+    if verdict == 'part' and x.get('conf') == 'high':
+        x['conf'] = 'med'
+    x['ver'] = verdict
+    return x, iss

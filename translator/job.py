@@ -1305,13 +1305,18 @@ def learn_refs_start(ctx):
             import fetchurl as F
             tmp = VT_WORK / '_ref' / str(ctx.st.get('job') or ctx.name)
             shutil.rmtree(tmp, ignore_errors=True)
-            got = F.get_subs(sp['url'], str(tmp), ref=sp.get('ref') or '')
-            if got:
+            vi = sp.get('vi') == 1                    # 10/11/2026 (ניתוח, 7.5): באותה בקשה גם התיאור והפרקים של היוצר
+            got = F.get_subs(sp['url'], str(tmp), ref=sp.get('ref') or '', meta=vi)
+            md = tmp / 'desc.json'
+            if got or (vi and md.is_file()):
                 d = ctx.pdir / REF_DIR
                 d.mkdir(parents=True, exist_ok=True)
                 for lang, path in got.items():
                     shutil.copyfile(path, d / (lang + '.srt'))
-                print('· כתוביות אנושיות מהמקור לייחוס: ' + ', '.join(sorted(got)))
+                if vi and md.is_file():
+                    shutil.copyfile(md, d / 'desc.json')
+                if got:
+                    print('· כתוביות אנושיות מהמקור לייחוס: ' + ', '.join(sorted(got)))
             shutil.rmtree(tmp, ignore_errors=True)
         except (SystemExit, Exception):           # noqa: BLE001 — מידע משני
             pass

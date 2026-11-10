@@ -321,3 +321,164 @@ class TestMerge(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ---------------------------------------------------------------- הסינתזה והאימות (PR 1.2ב)
+
+def claim_ids(prompt):
+    """הטענות בבקשת האימות (בלוקים, או טקסט שטוח במנוע ידני)"""
+    txt = prompt if isinstance(prompt, str) else "\n".join(b.get("text", "") for b in prompt if b.get("type") == "text")
+    return re.findall(r"Claim (n\d+):", txt)
+
+
+def vs_answer(d):
+    return V.TAGS[0] + json.dumps(d, ensure_ascii=False) + V.TAGS[1]
+
+
+def mapped(sents=EN):
+    vi, m, wd, ev, _ = run_map(sents)
+    wd, ev, slides, ocr = lecture(sents)
+    ix, nums = A.vi_index(ev, slides, ocr, wd, A.inventories(ev, slides, ocr))
+    return m, ix, nums, (ev, slides, ocr, wd[-1]["e"] + 1)
+
+
+def live(m, rest):
+    ev, slides, ocr, dur = rest
+    return A.build_vi_live("en", dur, "file", "t", m, ev, slides, ocr, "ok", [])
+
+
+class TestSynth(unittest.TestCase):
+    def test_briefing_take_adds_and_checks(self):
+        m, ix, nums, rest = mapped()
+        n0 = len(m["items"])
+        ids = [it["id"] for it in m["items"]]
+        d = {"one": {"text": "השיעור על ירידת גרדיאנט", "from": [ids[0]]},
+             "bluf": {"text": "קצב הלמידה 0.01", "from": [ids[1]]},
+             "take": [{"text": "תובנה %d" % i, "from": [ids[i % len(ids)]]} for i in range(7)],
+             "thesis": {"text": "קצב 77 מנצח", "from": [ids[1]]},             # מספר מומצא — נמחק
+             "big": {"text": "התמונה הגדולה", "from": []},                      # בלי from — הוסק
+             "adds": [{"ch": "c1", "text": "תוספת לפרק"}, {"ch": "c1", "text": "שנייה — לא נכנסת"}, {"ch": "c9", "text": "x"}]}
+        eng = Scripted([vs_answer(d)])
+        A.vi_synth(eng, m, ix, nums)
+        st = m["st"]["syn"]
+        self.assertEqual((st["ok"], st["retry"]), (1, 0))
+        self.assertEqual(eng.calls[0]["k"], "vs")
+        self.assertNotRegex(eng.calls[0]["prompt"], r"\d+\.\d+s|\d+:\d\d", "בלי זמנים בסינתזה")
+        new = m["items"][n0:]
+        self.assertEqual([x["id"] for x in new], ["n%d" % (n0 + i + 1) for i in range(len(new))], "מזהים חדשים ברצף")
+        self.assertEqual(len(m["briefing"]["take"]), A.TAKE_MAX, "3–5 תובנות")
+        self.assertNotIn("thesis", m, "מספר שלא בהערות — נמחק")
+        self.assertEqual(st["iss"].get("num_bad"), 1)
+        big = next(x for x in new if x["kind"] == "big")
+        self.assertEqual((big["basis"], big["conf"], big["ev"]), ("analyst_inference", "low", []))
+        self.assertEqual(m["big"], big["id"])
+        one = next(x for x in new if x["kind"] == "one")
+        self.assertEqual(one["ev"], m["items"][0]["ev"], "הראיות — של ההערות")
+        self.assertEqual(one["t"], m["items"][0]["t"])
+        c1 = next(c for c in m["chapters"] if c["id"] == "c1")
+        self.assertEqual(c1["adds"], "תוספת לפרק", "תוספת אחת לפרק ראשי")
+        vi = live(m, rest)
+        self.assertEqual(C.norm_vi(vi), vi, "התוצר תקין אחרי הסינתזה")
+        self.assertIn("vi_unver", vi["quality"]["warn"], "עוד לא אומת")
+        self.assertNotIn("vi_partial", vi["quality"]["warn"])
+
+    def test_schema_retry_then_fail_is_partial(self):
+        m, ix, nums, rest = mapped()
+        before = json.dumps(m["items"])
+        eng = Scripted(["not json", "still not"])
+        A.vi_synth(eng, m, ix, nums)
+        self.assertEqual((m["st"]["syn"]["ok"], m["st"]["syn"]["retry"]), (0, 2))
+        self.assertIn("invalid", eng.calls[1]["prompt"], "ניסיון התיקון עם המשוב")
+        self.assertEqual(json.dumps(m["items"]), before, "המיפוי נשאר כמו שהוא")
+        self.assertIn("vi_partial", live(m, rest)["quality"]["warn"])
+
+    def test_llm_error_does_not_raise(self):
+        m, ix, nums, rest = mapped()
+        A.vi_synth(Scripted([llm.LLMError("budget_cap")]), m, ix, nums)
+        self.assertEqual((m["st"]["syn"]["ok"], m["st"]["syn"]["err"]), (0, "budget_cap"))
+        self.assertIn("vi_partial", live(m, rest)["quality"]["warn"])
+
+
+class TestVerify(unittest.TestCase):
+    def synth(self):
+        m, ix, nums, rest = mapped()
+        ids = [it["id"] for it in m["items"]]
+        A.vi_synth(Scripted([vs_answer({"one": {"text": "סיכום", "from": [ids[0]]}, "bluf": None, "take": [
+            {"text": "תובנה", "from": [ids[1]]}], "thesis": None, "big": None, "adds": []})]), m, ix, nums)
+        return m, ix, rest
+
+    def test_planted_unsupported(self):
+        """קבלה: טענה סותרת נמחקת (גם מהפרק ומהתקציר); לא נתמכת — "הוסק" בביטחון נמוך"""
+        m, ix, rest = self.synth()
+        one = m["briefing"]["one"]
+        first = m["items"][0]["id"]
+        verd = {one: "con", first: "uns"}
+
+        def ans(p):
+            return "\n".join("%s|%s" % (i, verd.get(i, "sup")) for i in claim_ids(p))
+        eng = Scripted(ans)
+        A.vi_verify(eng, m, ix)
+        st = m["st"]["vv"]
+        self.assertEqual(eng.calls[0]["k"], "vv")
+        self.assertTrue(any(b.get("type") == "search_result" for b in eng.calls[0]["prompt"]), "הראיות כ־search_result")
+        self.assertEqual((st["ok"], st["con"], st["uns"]), (1, 1, 1))
+        ids = {x["id"] for x in m["items"]}
+        self.assertNotIn(one, ids)
+        self.assertNotIn("one", m["briefing"])
+        self.assertTrue(all(one not in c["items"] for c in m["chapters"]))
+        x = next(it for it in m["items"] if it["id"] == first)
+        self.assertEqual((x["ver"], x["basis"], x["conf"]), ("uns", "analyst_inference", "low"))
+        vi = live(m, rest)
+        self.assertNotIn("vi_unver", vi["quality"]["warn"])
+        self.assertEqual(vi["quality"]["sup"], sum(1 for it in vi["items"] if it["ver"] == "sup"))
+        self.assertEqual(C.norm_vi(vi), vi)
+
+    def test_missing_verdict_is_unknown(self):
+        m, ix, rest = self.synth()
+        A.vi_verify(Scripted(lambda p: "nothing useful"), m, ix)
+        self.assertTrue(all(it["ver"] == "unk" for it in m["items"]))
+        self.assertEqual(m["st"]["vv"]["ok"], 1, "הקריאה הצליחה — פשוט בלי פסק")
+
+    def test_failed_call_stays_unverified(self):
+        m, ix, rest = self.synth()
+        A.vi_verify(Scripted([llm.LLMError("http_500")]), m, ix)
+        self.assertEqual((m["st"]["vv"]["ok"], m["st"]["vv"]["fail"]), (0, 1))
+        self.assertIn("vi_unver", live(m, rest)["quality"]["warn"], "טיוטה — לא אומתה")
+
+    def test_batches_and_cap(self):
+        m, ix, rest = self.synth()
+        old = A.VV_BATCH
+        A.VV_BATCH = 2
+        try:
+            n = len([it for it in m["items"] if it["ev"]])
+            eng = Scripted([llm.LLMError("budget_cap")])
+            A.vi_verify(eng, m, ix)
+        finally:
+            A.VV_BATCH = old
+        self.assertEqual(len(eng.calls), 1, "בתקרה — לא ממשיכים")
+        self.assertEqual(m["st"]["vv"]["fail"], -(-n // 2), "כל האצוות שלא רצו — נכשלו")
+
+    def test_judge_engine(self):
+        eng = llm.Engine(llm.Spec("anthropic", "claude-sonnet-5-5", "medium"), cap_usd=1.0, transport="api")
+        j = A.judge_engine(eng)
+        self.assertEqual((j.spec.model, j.spec.effort), llm.JUDGE[1:])
+        self.assertIs(j.ledger, eng.ledger, "ספר חשבונות ותקרה משותפים")
+        man = Scripted([])
+        self.assertIs(A.judge_engine(man), man)
+
+
+class TestApplyVerdict(unittest.TestCase):
+    IT = {"id": "n1", "text": "x", "ev": ["e1", "e2"], "basis": "speaker", "conf": "high", "ver": "unk"}
+
+    def test_cite_off(self):
+        x, iss = C.apply_verdict(self.IT, "sup", {"e9"}, True)
+        self.assertEqual((x["ver"], x["conf"], iss), ("part", "med", ["cite_off"]), "הציטוט לא מה־ev — part")
+        x, iss = C.apply_verdict(self.IT, "sup", {"e2"}, True)
+        self.assertEqual((x["ver"], iss), ("sup", []))
+        x, _ = C.apply_verdict(self.IT, "sup", set(), False)
+        self.assertEqual(x["ver"], "sup", "מנוע בלי Citations — לא נענשים")
+
+    def test_codes(self):
+        self.assertEqual(C.apply_verdict(self.IT, "con", set(), True), (None, ["vv_con"]))
+        self.assertEqual(C.apply_verdict(self.IT, None, set(), True)[0]["ver"], "unk")
+        self.assertEqual(self.IT["ver"], "unk", "לא משנה את הקלט")
