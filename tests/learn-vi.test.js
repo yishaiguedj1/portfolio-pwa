@@ -102,6 +102,14 @@ const { fakeR2, ACC } = require('./_r2fake');
   ok(/if \(isVi\(src\)\) return dur \? \(VI_USD_H\[m\] \|\| VI_USD_H\['haiku-medium'\]\)\[src\.spec\.from === 'en' \? 0 : 1\] \* dur \/ 3600 : null;/.test(adm)
     && /W\.arms = vi \? \[\{ m: 'haiku-medium', xf: \[\] \}, \{ m: 'haiku-medium', xf: \[\] \}, \{ m: 'haiku-high', xf: \[\] \}, \{ m: 'haiku-medium', xf: \['vwin'\] \}\]/.test(adm)
     && /if \(cur === 'gold' \|\| cur === 'viGold'\) paint\(\);/.test(adm), 'מרכז הניהול (1.7): אומדן הגל של ניתוח, הזרועות של 6.6 והרענון');
+  /* PR 1.8 (בקשת המשתמש): Opus לטיוטת הייחוס — ברירת המחדל, פי 2 מ־Sonnet; המצב קיים בשרתון ובעובד */
+  const llmSrc = fs.readFileSync(path.join(root, 'translator/llm.py'), 'utf8');
+  const prc = (m) => (new RegExp("'" + m + "': \\(([\\d.]+), ([\\d.]+)").exec(llmSrc) || []).slice(1).map(Number);
+  ok(SS.VP_MODES.o === 'opus-medium' && SS.MODES.includes('opus-medium') && /'opus-medium': \('anthropic', 'claude-opus-5-5'/.test(llmSrc), 'טיוטת ייחוס (1.8): Opus — opus-medium, מצב שקיים בשרתון ובעובד');
+  ok(SS.VP_USD.o === SS.VP_USD.s * 2 && prc('claude-opus-5-5')[0] === 2 * prc('claude-sonnet-5-5')[0] && prc('claude-opus-5-5')[1] === 2 * prc('claude-sonnet-5-5')[1], 'טיוטת ייחוס (1.8): האומדן של Opus = פי 2 מ־Sonnet, כמו המחיר לטוקן');
+  ok(/const VR_DM = \['o', 's', 'h'\]/.test(adm) && /dm = VR_DM\.includes\(D\.vrDm\) \? D\.vrDm : 'o'/.test(adm) && Object.keys(SS.VP_MODES).sort().join() === 'h,o,s', 'מרכז הניהול (1.8): Opus ברירת המחדל, ‏VR_DM = VP_MODES');
+  const appSrc = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+  ok((appSrc.match(/\badmViDrO: "[^"]*\$\{usd\}/g) || []).length === 2, 'מרכז הניהול (1.8): המחרוזת של Opus — בעברית ובאנגלית, עם המחיר');
   const apiSrc = fs.readFileSync(path.join(root, 'ibkr-proxy/api/studio.js'), 'utf8');
   ok(/if \(op === 'viRef'\) \{[\s\S]{0,400}if \(!isAdmin\(user\)\) return res\.status\(403\)/.test(apiSrc), 'viRef — מנהל בלבד');
   ok(LR.learnRec(Object.assign({}, vjob, { spec: Object.assign({}, vjob.spec, { vi: 0 }) }), Date.now(), null).k === 'tr', 'עבודת תרגום — כמו קודם');

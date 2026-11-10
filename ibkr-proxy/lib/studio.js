@@ -1038,10 +1038,11 @@ function vvAdopt(parent, outs) {
   return parent.fo.map((o) => (o && o.k === 'vi' ? { id: nv.id, name: nv.name, size: nv.size, k: 'vi' } : o));
 }
 /* PR 1.6 (10/11/2026, ה5; התוכנית 6.3) — טיוטת ייחוס: עבודת־בת (spec.vp = 1) של ניתוח מקורי שהסתיים, על ה־vi.json שלו (fvi,
-   כמו "אמת שוב"). המודל — Sonnet (s), או Haiku (h) כחלופה הזולה; העובד (analyze.vi_ref_draft) מחזיר טיוטה (vpd), והמנהל עורך
+   כמו "אמת שוב"). המודל — Opus (o, מ־1.8), ‏Sonnet (s), או Haiku (h) כחלופה הזולה; העובד (analyze.vi_ref_draft) מחזיר טיוטה (vpd), והמנהל עורך
    ומאשר בעמוד "ייחוס" — רק אז היא ייחוס. מנהל בלבד, אחרי אומדן ואישור */
 const isVp = (job) => !!(job && job.spec && job.spec.vp === 1);
-const VP_MODES = { s: 'sonnet-medium', h: 'haiku-medium' }, VP_USD = { s: 0.2, h: 0.01 };   // אומדן לסרטון של שעה (מוצג לפני האישור)
+// PR 1.8 (10/11/2026, בקשת המשתמש): Opus (o) — הייחוס הוא הסרגל של כל הגלים; פי 2 מ־Sonnet לטוקן (ANTHROPIC_PRICES ב־llm.py)
+const VP_MODES = { o: 'opus-medium', s: 'sonnet-medium', h: 'haiku-medium' }, VP_USD = { o: 0.4, s: 0.2, h: 0.01 };   // אומדן לסרטון של שעה (מוצג לפני האישור)
 function vpJob(parent, m, id, uid, now) {
   const v = vvJob(parent, id, uid, now);
   v.spec = Object.assign({}, v.spec, { mode: VP_MODES[m], vp: 1 });
