@@ -13,13 +13,15 @@ const VI_WARN = ['vi_noscreen', 'vi_lowres', 'vi_ocr', 'vi_asr_low', 'vi_partial
 const VI_ERR = VI_FAIL.concat(VI_WARN);
 const VI_OUTS = ['vi', 'vis', 'cues', 'small', 'thumb'];   // התוצרים, בסדר ההעלאה (vtt ו־meta — לא בהרצה יבשה)
 
-/* החלק של הניתוח ב־spec (normSpec): null = לא עבודת ניתוח. גל 0 — הרצה יבשה בלבד (dry: בלי Claude; מודדים זמן, זיכרון
+/* החלק של הניתוח ב־spec (normSpec): null = לא עבודת ניתוח. הרצה יבשה (dry: בלי Claude; מודדים זמן, זיכרון
    וטוקנים). מה שלא שייך לניתוח — נדחה (bad_spec): קובץ כתוביות, תרגום בטלפון, העלאה מהאפליקציה, קריוקי, Routine,
    העתק־הדבק. מקישור — כן (העובד מוריד ל־R2, כמו בתרגום) */
 function viSpec(s) {
   if (!s || s.vi !== 1) return null;
-  if (s.dry !== 1 || s.eng !== 'api' || s.src === 'subs' || s.ph === 1 || s.nu === 1 || s.ka === 1 || s.cp === 1 || s.ry === 1) return false;
-  return { vi: 1, dry: 1 };
+  if (s.eng !== 'api' || s.src === 'subs' || s.ph === 1 || s.nu === 1 || s.ka === 1 || s.cp === 1 || s.ry === 1) return false;
+  if (s.dry === 1) return { vi: 1, dry: 1 };
+  // 10/11/2026 (PR 1.5א, V130): ניתוח עם Claude — רק עם הצהרת הזכויות מהטופס (vr). העובד מריץ אותו מ־1.2 (עד אז: vi_off, בלי Claude)
+  return s.vr === 1 ? { vi: 1, vr: 1 } : false;
 }
 /* השפות: מקור עברית או אנגלית, יעד עברית בלבד */
 const viLangOk = (sp) => !!sp && VI_LANGS.includes(sp.from) && Array.isArray(sp.to) && sp.to.length === 1 && sp.to[0] === 'he';

@@ -166,6 +166,10 @@ export function viPlan(pl, durSec, dry) {
   for (const k of ['tr', 'al', 'tl', 'rv', 'bn', 'sv']) { const [a, b] = k === 'rv' && dry ? VI_DRY_RV : VI_STG[k] || [0, 0]; s[k] = Math.round(a + b * m); }
   return Object.assign({}, pl || {}, { s, t: ['tr', 'al', 'tl', 'rv', 'bn', 'sv'].reduce((a, k) => a + (s[k] || 0), 0) });
 }
+/* 10/11/2026 (PR 1.5א): עלות Claude לשעת הרצאה לפי מצב ושפה [אנגלית, עברית] — 5.4 בתוכנית (מחקר 3.5, מיידי). הערכה עד שיש
+   20 רשומות למידה של vi (5.1 — אז השרתון יחשב מהחציון). לאומדן בטופס ובבורר בלבד; התקרה — cap ו־SNB_JOB_CAP_USD בשרתון */
+export const VI_USD_H = { 'haiku-medium': [0.034, 0.051], 'haiku-high': [0.037, 0.054], 'sonnet-low': [0.45, 0.64], 'sonnet-medium': [0.58, 0.76], 'sonnet-high': [0.63, 0.82], 'opus-medium': [1.15, 1.52] };
+export const viUsd = (mode, lang, durSec) => (VI_USD_H[mode] || VI_USD_H['haiku-medium'])[lang === 'he' ? 1 : 0] * Math.max(0, Number(durSec) || 0) / 3600;
 export function progressModel(job, est, up, now, q) {
   const prog = (job && job.prog) || {};
   const stg = prog.stg || {};

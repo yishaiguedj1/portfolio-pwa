@@ -34,7 +34,10 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   const base = { name: 'lecture.mp4', size: 1000, dur: 3600, from: 'he', to: ['he'], out: ['compact', 'small'], eng: 'api', vi: 1, dry: 1, mode: 'opus-medium' };
   const sp = S.normSpec(base);
   ok(sp && sp.vi === 1 && sp.dry === 1 && same(sp.out, []) && sp.from === 'he' && same(sp.to, ['he']), 'ניתוח יבש: vi/dry נשמרים, בלי תוצרי וידאו');
-  ok(S.normSpec(Object.assign({}, base, { dry: 0 })) === null, 'גל 0 — רק הרצה יבשה');
+  ok(S.normSpec(Object.assign({}, base, { dry: 0 })) === null, 'ניתוח בלי הצהרת זכויות (vr) — נדחה');
+  const real = S.normSpec(Object.assign({}, base, { dry: 0, vr: 1 }));
+  ok(real && real.vi === 1 && real.vr === 1 && !('dry' in real) && real.mode === 'opus-medium' && same(real.out, []), '1.5א: ניתוח עם Claude — עם vr, המצב נשמר, בלי תוצרי וידאו');
+  ok(S.normSpec(Object.assign({}, base, { dry: 0, vr: 1, eng: 'cl' })) === null && S.normSpec(Object.assign({}, base, { dry: 0, vr: 1, ka: 1 })) === null, 'גם עם vr — רק בשרת שלנו, ולא קריוקי');
   for (const [k, v] of [['src', 'subs'], ['ph', 1], ['nu', 1], ['ka', 1], ['cp', 1], ['ry', 1], ['eng', undefined]]) {
     ok(S.normSpec(Object.assign({}, base, { [k]: v })) === null, 'לא שייך לניתוח: ' + k);
   }
@@ -124,8 +127,9 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   ok(nj && nj.spec.vi === 1 && nj.spec.dry === 1 && same(nj.spec.out, []), 'normJob: עבודת ניתוח נשארת ניתוח אחרי סנכרון');
   ok(nj && nj.srv && same(nj.srv.vsm, { n: 0, ok: 0, cov: 0, so: 5, d: 60 }), 'normJob: הסיכום — רק המספרים');
   for (const c of VI.VI_FAIL.filter((x) => x !== 'cap')) ok(new RegExp("case '" + c + "': return T\\('studioErr").test(stj), 'errText: ' + c);
-  ok(/const viOk = \(f\) => !!\(ui\.api && ui\.api\.admin && ui\.api\.vi\)/.test(stj), 'הטופס: "ניתוח יבש" — למנהל בלבד');
-  ok(/Object\.assign\(spec, \{ vi: 1, dry: 1, from: VI_LANGS\.includes\(f\.vf\) \? f\.vf : 'he', to: \['he'\], out: \[\], eng: 'api'/.test(stj), 'viSpecOf = normSpec בשרתון');
+  ok(/const viDry = \(f\) => !!\(f && f\.vdry && ui\.api && ui\.api\.admin\);/.test(stj), 'הטופס: "ניתוח יבש" — למנהל בלבד');
+  ok(/Object\.assign\(spec, \{ vi: 1, from: VI_LANGS\.includes\(f\.vf\) \? f\.vf : 'en', to: \['he'\], out: \[\], eng: 'api'/.test(stj)
+    && /if \(viDry\(f\)\) \{ spec\.dry = 1; delete spec\.vr; \} else \{ delete spec\.dry; spec\.vr = 1; \}/.test(stj), 'viSpecOf = normSpec בשרתון (יבש — או הצהרת זכויות)');
   ok((stj.match(/\n\s+if \(f\.vi\) viSpecOf\(f, spec\);/g) || []).length === 1 && /else if \(f\.vi\) viSpecOf\(f, spec\);/.test(stj), 'מקובץ ומקישור');
   ok((stj.match(/const sk = rec\.spec\.ka \? 'ka' : rec\.spec\.vi \? 'vi'/g) || []).length === 2 && /if \(subs === 'vi'\) return/.test(stj), 'שמות השלבים — בדף ובווילון');
   ok(/if \(rec\.spec\.vi\) return viPlan\(pl, rec\.spec\.dur, rec\.spec\.dry === 1\);/.test(stj), 'planFor: התוכנית של הניתוח (= השרתון)');
@@ -160,6 +164,31 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   ok(VI.boundF1([600, 1090], [605, 1200], 5) === 0.5 && VI.boundF1([], [], 5) === null && VI.boundF1([10], [], 5) === 0, 'F1 של הגבולות — התאמה אחד־לאחד בחלון');
   ok(VI.viCostHour(0.05, 1800) === 0.1 && VI.viCostHour(1, 0) === null && VI.viCostHour(-1, 60) === null, 'עלות לשעת הרצאה');
   ok(VI.VI_DROP.length === 10 && VI.VI_GENRES.includes('other') && VI.VI_VER.includes('unk'), 'ה־enum של נספח 19.1');
+
+  /* ---------- 10. הלשונית (PR 1.5א, 10/11/2026) ---------- */
+  ok(/const ST_SIB = \['vi', 'ka', 'home', 'job', 'tower'\];/.test(stj) && /\(k !== 'vi' \|\| viTabOk\(\)\)/.test(stj), 'החוגה: לשונית הניתוח בקצה, רק למי שמורשה');
+  ok(/const viTabOk = \(\) => !!\(ui\.api && ui\.api\.vi && ui\.api\.servers > 0 && ui\.r2\);/.test(stj) && /const viOk = \(f\) => viTabOk\(\) && /.test(stj), 'הלשונית — כמו הקריוקי (שרת ואחסון) + המתג st_vi');
+  ok(/\{ k: 'vi', ico: ST_DIAL_ICO\.vi, lbl: T\('studioDialVi'\) \}/.test(stj) && /if \(vb\) vb\.hidden = !stDialKeys\(\)\.includes\('vi'\);/.test(stj), 'פריט בחוגה, מוסתר בלי הרשאה');
+  ok(/\(x === 'new' && y === 'vi'\) \|\| \(x === 'job' && viJob\(y\)\) \? \['vi', null\]/.test(stj) && /ch\.some\(\(x\) => x\.v === 'vi'\) \? 'vi' : 'home'/.test(stj), 'הטופס ועבודת ניתוח — תחת לשונית הניתוח');
+  ok(/!rec\.spec\.ka === !kaTab && !rec\.spec\.vi === !viTab/.test(stj) && /function pageViL\(p\) \{ pageHome\(p, false, true\); \}/.test(stj) && /ui\.view === 'vi' && viTabOk\(\)\) pageViL\(p\)/.test(stj), 'רשימה משלה — ניתוחים רק בלשונית הניתוח');
+  ok(/const stDialJob|function stDialJob\(\) \{[\s\S]{0,200}store\.jobs\.find\(\(r\) => r && r\.srv && !FINAL/.test(stj), '"העבודה" — הפעילה מכל הסוגים (גם ניתוח)');
+  ok(/go1\.disabled = [^;]*!\(f\.vr \|\| dry\);/.test(stj), 'V130: "נתח" נעול בלי הצהרת זכויות (או הרצה יבשה של המנהל)');
+  ok(/if \(f\.vi\) \{ viForm\(p, f\); return; \}/.test(stj) && !/T\('studioViT'\), sub: T\('studioViS'\), on: !!f\.vi,/.test(stj), 'טופס התרגום — בלי מתג הניתוח (עבר ללשונית)');
+  { const nj2 = P.normJob({ id: 'j' + 'c'.repeat(20), spec: { name: 'x', size: 1, from: 'en', to: ['he'], vi: 1, vr: 1, mode: 'haiku-high', out: [] } });
+    ok(nj2 && nj2.spec.vi === 1 && nj2.spec.vr === 1 && !nj2.spec.dry, 'normJob: הצהרת הזכויות נשמרת'); }
+  // העלות לשעה (5.4) — כל המצבים, ואותו סדר כמו MODE_ORDER
+  const mo = JSON.parse(stj.match(/const MODE_ORDER = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
+  ok(same(Object.keys(N.VI_USD_H), mo) && N.VI_USD_H['haiku-medium'][0] === 0.034 && N.VI_USD_H['opus-medium'][1] === 1.52, 'VI_USD_H — כל המצבים (5.4)');
+  ok(Math.abs(N.viUsd('haiku-medium', 'he', 3600) - 0.051) < 1e-9 && Math.abs(N.viUsd('sonnet-low', 'en', 1800) - 0.225) < 1e-9 && N.viUsd('nope', 'en', 3600) === 0.034 && N.viUsd('haiku-high', 'he', -5) === 0, 'viUsd — לפי משך, שפה ומצב');
+  ok(/fmtUsd\(viUsd\(m\.id, o\.vi, 3600\)\)/.test(stj), 'הבורר: עלות לשעה בניתוח, במקום זמן לשעה');
+  // ההסכמות (LRN_VV) — זהה לשרתון, רק lat/lam/lau
+  const apiSt = read('ibkr-proxy/api/studio.js');
+  ok(P.LRN_VV === 5 && Number((apiSt.match(/const LRN_VV = (\d+);/) || [])[1]) === P.LRN_VV && P.LRN_TV !== P.LRN_VV, 'LRN_VV — זהה לשרתון ונפרד מ־LRN_TV');
+  ok(/net\.api\('learnPref', \{ ack: true, tv: LRN_VV, vi: \{ \[k\]: on \} \}\)/.test(stj) && /\['lat', 'studioViLatT', 'studioViLatS'\], \['lam', 'studioViLamT', 'studioViLamS'\], \['lau', 'studioViLauT', 'studioViLauS'\]/.test(stj), 'הגדרות: שלוש הסכמות נפרדות, דרך learnPref עם vi');
+  ok(/ui\.lat = num\(j\.lat\); ui\.lam = num\(j\.lam\); ui\.lau = num\(j\.lau\);/.test(stj), 'המצב מהסטטוס');
+  const appj = read('app.js');
+  ok(appj.includes('studioViLatS: "כדי לשפר את ניתוח הסרטונים, נשמרים התמליל, הטקסט שעל השקפים והתוצאה של הניתוח — מוצפנים') && appj.includes('studioViLamS: "גם תמונות קטנות של השקפים, מוצפנות באותו אופן."'), 'הנוסח המאושר (docs/privacy.md)');
+  ok(/nuPickOk = \(f\) => phOk\(\) && !!f && !f\.ka && !f\.vi;/.test(stj), 'ניתוח — בלי הורדה בטלפון (העובד מקבל קובץ רגיל)');
 
   console.log(`---- studio-vi: ${n} בדיקות, הכל תקין`);
 })().catch((e) => { console.error(e); process.exit(1); });

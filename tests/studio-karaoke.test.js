@@ -87,16 +87,16 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
     ok(N2({ ka: true }).ka === true && N2({ ka: 1 }).ka === false, 'normApi: ka רק true'); }
   ok(!/const kaRow = /.test(st) && /if \(f\.ka\) \{   \/\/ 26\/10\/2026: קריוקי — המילים/.test(st), 'בטופס: קטע משלו, בלי מתג (30/10: כלי נפרד)');
   ok(/function pageKa\(p\) \{ pageHome\(p, true\); \}/.test(st) && /ui\.view === 'ka' && kaOk\(\)\) pageKa\(p\)/.test(st) && /if \(kaTab\) form\.ka = true/.test(st), '30/10: לשונית קריוקי — רשימה משלה, והפרויקט החדש נפתח ישר במצב קריוקי');
-  ok(/store\.jobs\.filter\(\(rec\) => !rec\.spec\.ka === !kaTab\)/.test(st) && /k !== 'ka' \|\| kaOk\(\)/.test(st), '30/10: שירים רק בלשונית הקריוקי, והלשונית רק למי שמורשה');
-  ok(/if \(!f\.ka\) tracksFor\(f, file\)/.test(st) && /const adv = f\.ka \? null : advRows/.test(st), '30/10: בשיר — בלי חיפוש כתוביות, רצועות ועצות של תרגום');
+  ok(/store\.jobs\.filter\(\(rec\) => !rec\.spec\.ka === !kaTab && /.test(st) && /k !== 'ka' \|\| kaOk\(\)/.test(st), '30/10: שירים רק בלשונית הקריוקי, והלשונית רק למי שמורשה');
+  ok(/if \(!f\.ka && !f\.vi\) tracksFor\(f, file\)/.test(st) && /const adv = f\.ka \|\| f\.vi \? null : advRows/.test(st), '30/10: בשיר — בלי חיפוש כתוביות, רצועות ועצות של תרגום');
   ok(/inp\.accept = f\.ka \? 'audio\/\*,video\/\*/.test(st), 'בקריוקי — גם שיר בלי וידאו');
   ok((st.match(/kaSpec\(f, spec\)/g) || []).length >= 2, 'הקריוקי נשלח גם מקובץ וגם מקישור');
   ok(/if \(est\.min && !f\.ka && !f\.estOk/.test(st) && /if \(est\.min && !f\.ka && typeof askConfirm/.test(st), 'בלי אומדן עלות (אין Claude)');
   ok(/if \(rec\.spec\.ka && \(s\.id === 'tl' \|\| s\.id === 'rv'\)\) continue;/.test(st), 'בדף העבודה — בלי שלבי תרגום וביקורת');
   // 30/10/2026 (הצילום: שיר מקישור שהורד בטלפון חזר כתרגום רגיל, עם מודל ועלות) — הפרדה מלאה בין הכלים
   ok(/\.\.\.\(f\.ka \? \{ ka: true, lyr: kaLyr\(f\.lyr\)/.test(st) && /pend\.f\.ka === true\) Object\.assign\(f, \{ ka: true/.test(st), 'הורדה בטלפון: הקריוקי והמילים נשמרים וחוזרים לטופס');
-  ok(/if \(!f\.ka\) tracksFor\(f, file\);\n  if \(root\) \{ if \(ui\.view !== 'new'\) go\('new', f\.ka \? 'ka' : null/.test(st), 'הורדה בטלפון: חוזרים לטופס של הקריוקי');
-  ok(/go\('new', kaTab \? 'ka' : null\)/.test(st) && /if \(!editing && ui\.param === 'ka'\) form\.ka = true;/.test(st), 'הכלי בכתובת הדף — טופס שנבנה מחדש נשאר קריוקי');
+  ok(/if \(!f\.ka && !f\.vi\) tracksFor\(f, file\);\n  if \(root\) \{ if \(ui\.view !== 'new'\) go\('new', f\.ka \? 'ka' : f\.vi \? 'vi' : null/.test(st), 'הורדה בטלפון: חוזרים לטופס של הקריוקי');
+  ok(/go\('new', kaTab \? 'ka' : viTab \? 'vi' : null\)/.test(st) && /if \(!editing && ui\.param === 'ka'\) form\.ka = true;/.test(st), 'הכלי בכתובת הדף — טופס שנבנה מחדש נשאר קריוקי');
   ok(/\(x === 'new' && y === 'ka'\) \|\| \(x === 'job' && kaJob\(y\)\) \? \['ka', null\]/.test(st), 'שיר ועבודת קריוקי — תחת הקריוקי, לא תחת הסרטונים');
   ok(/rec\.spec\.ka \? null : kvRow\(T\('studioSecMode'\)/.test(st) && /rec\.spec\.ka \? null : kvRow\(T\('studioSecLangs'\)/.test(st), 'פרטי עבודת קריוקי — בלי מודל ושפות');
   ok(/if \(sp\.ka === 1\) Object\.assign\(spec, \{ ka: 1 \}/.test(st), 'normJob שומר את הקריוקי (אחרי רענון / סנכרון — לא נהיה "תרגום")');
