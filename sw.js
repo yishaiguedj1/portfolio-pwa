@@ -4,13 +4,13 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v736';
+const CACHE_NAME = 'portfolio-pwa-v737';
 const HASHES = {
   "./": "1c1b1c7b94b6a27765e902349c5a98a6",
   "./index.html": "1c1b1c7b94b6a27765e902349c5a98a6",
   "./styles.css": "f6b7a9f10eb532b63b71afa0d4c305f7",
   "./glass-btn.css": "fc3022cd33dcb1241881566faf561f0c",
-  "./app.js": "5db445cfa42a292563797765ce220420",
+  "./app.js": "bbbbdd1eacb38d072f8922137d81d940",
   "./returns.js": "3590562b0282025a8a79650ad6b3a49b",
   "./cloud.js": "d403f6c76884375dc9999b80660f1ddf",
   "./firebase-config.js": "8507173a957371e15933229f5fd4dd3f",
@@ -76,7 +76,7 @@ const HASHES = {
   "./academy.html": "5f56f60e654738ec753d8039eeedc8cf",
   "./academy-app.js": "130b15379b74427d8f0071032894b5f0",
   "./strings-academy.js": "cc441f3e633b2c1156a2494f1da4ca8a",
-  "./core.js": "35d2a08709d176c75ee6ed3461586d4f",
+  "./core.js": "f7d308b8cfbaf3609efc25324230ab75",
   "./auth.js": "465d3bc983806d8a2f462e567725df21",
   "./shell.js": "ff3e914427ef1382c23bfb3960212dc8",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -85,11 +85,11 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "47442b4de82da51423435587f25365fc",
+  "./studio.js": "d3720b9acb4d0f5db3855669ca85f988",
   "./studio.css": "e8c2e3e5b0a829fca4a3d303ff971a22",
-  "./studionet.js": "da3e18ba63253b727ee4ecb3b0c15a31",
+  "./studionet.js": "4a79e73652d3f84207edf47d45b16d38",
   "./studioplay.js": "de323b26b534c69f5b6b475ef9d4389e",
-  "./studiovi.js": "e69317eea9a716cab67ced2becf1c956",
+  "./studiovi.js": "29c259ef88a5447788f57ce0af3ad925",
   "./studiosubs.js": "828d04e4aeb15667ad11b0a1e8fc4cae",
   "./studiotracks.js": "45a59e4cedc85da6950554bd2c56289e",
   "./studioedl.js": "344c0e6f0e7ff9bd59e36eb25db1e335",
