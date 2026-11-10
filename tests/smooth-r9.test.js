@@ -23,7 +23,7 @@ ok(!/<script[^>]+src=/.test(page.slice(page.indexOf('<body'))), 'studio.html: א
 ok(['firebase-config.js', 'strings-studio.js', 'core.js', 'auth.js'].every((f) => head.includes('<script src="' + f + '" defer></script>')), 'הסקריפטים הרגילים — defer, באותו סדר');
 ok(!/thumbsReady/.test(boot) && /Promise\.resolve\(openStudio\(\{/.test(boot), 'האתחול לא מחכה ל־IndexedDB — openStudio מיד');
 ok(/'pwa_stthumb_v1'/.test(app.slice(app.indexOf('ACCOUNT_KEYS'), app.indexOf('ACCOUNT_KEYS') + 4000)), 'pwa_stthumb_v1 ב־ACCOUNT_KEYS (מתנקה בהחלפת חשבון)');
-ok(/if \(!kaTab\) thumbsTopSave\(jobs\.map\(\(rec\) => rec\.id\)\);/.test(st) && /if \(thumbsTop\.includes\(id\)\) thumbsTopSave\(\);/.test(st), 'הבית ו־thumbSet מעדכנים את המטמון');
+ok(/if \(!kaTab && !viTab\) thumbsTopSave\(jobs\.map\(\(rec\) => rec\.id\)\);/.test(st) && /if \(thumbsTop\.includes\(id\)\) thumbsTopSave\(\);/.test(st), 'הבית ו־thumbSet מעדכנים את המטמון');
 
 // התנהגות: טעינה ושמירה של התמונות שבראש הבית
 const a = st.indexOf('export const LS_THUMBS'), b = st.indexOf("if (typeof localStorage !== 'undefined') thumbsTopLoad();");

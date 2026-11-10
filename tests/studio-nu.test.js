@@ -164,12 +164,12 @@ const { fakeR2, ENV } = require('./_r2fake');
 
   /* ---------- 6. האתר ---------- */
   const st = await import(path.join(root, 'studio.js')).catch(() => null);
-  ok(/if \(nuPickOk\(f\)\) \{ nuPick\(\); return; \}/.test(src) && /export const nuPickOk = \(f\) => phOk\(\) && !!f && !f\.ka;/.test(src), 'בתוך האפליקציה הבחירה הראשית דרכה (לא בשיר)');
+  ok(/if \(nuPickOk\(f\)\) \{ nuPick\(\); return; \}/.test(src) && /export const nuPickOk = \(f\) => phOk\(\) && !!f && !f\.ka && !f\.vi;/.test(src), 'בתוך האפליקציה הבחירה הראשית דרכה (לא בשיר)');
   ok(/phIntent\('phpick', \{ nu: 1 \}\)/.test(src) && /if \(r\.nu \|\| ask\) f\.ph\.nu = 1;/.test(src), 'nu=1 בבקשה; Studio ישן — לפי הבקשה ששמורה (NU_ASK)');
   ok(/const spec = P\.nu \? \{ name: f\.file\.name[^\n]*\n\s*out: OUTS\.filter\(\(k\) => f\.out\[k\]\)[^\n]*nu: 1, eng: 'api'/.test(src) && /if \(!P\.nu\) spec\.vc = 1;/.test(src) && /else if \(rec\.spec\.nu && /.test(src),
     'nu: התוצרים מהטופס, בלי ph, וכרטיס משלו בדף העבודה');
   // 5/11/2026 (בקשת המשתמש): "חיתוך לפני התרגום" חזר גם כשהסרטון נבחר דרך האפליקציה — תצוגה מקובץ שנבחר שוב באותו גודל
-  ok(/if \(!f\.ka && \(f\.fileObj \|\| nuF \|\| \(f\.drive && !f\.drive\.bx\)\)\)/.test(src) && /if \(nuF && !f\.pv\) pvOpen\(f\); else go\('cutsrc'\)/.test(src)
+  ok(/if \(!f\.ka && !f\.vi && \(f\.fileObj \|\| nuF \|\| \(f\.drive && !f\.drive\.bx\)\)\)/.test(src) && /if \(nuF && !f\.pv\) pvOpen\(f\); else go\('cutsrc'\)/.test(src)
     && /phIntent\('phpv', \{ pid: P\.pid \}, 'pvold'\)/.test(src) && /if \(\/\^snbpv:\/\.test\(String\(e\.t \|\| ''\)\)\) return pvGot\(key, file, e\.t\);/.test(src)
     && /file\.size !== f\.file\.size\) \{ inboxOp\('del', key\); flashSafe\(T\('studioEdPvNo'\)\)/.test(src) && !/pvInp/.test(src)
     && /URL\.createObjectURL\(form\.fileObj \|\| form\.pv\)/.test(src) && /dur: ed \? edlDur\(ed, P\.dur \|\| 0\) : P\.dur \|\| 0/.test(src) && /if \(ed\) spec\.edl = ed;\n\s*if \(!P\.nu && f\.pw/.test(src),

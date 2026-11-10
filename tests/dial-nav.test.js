@@ -71,7 +71,7 @@ ok(!/positionTabIndicator|tab-ind|tabSetBar/.test(app + css), 'בלי שאריו
 
 // Studio ו־Academy (29/10/2026, בקשת המשתמש): אותה חוגה אחד לאחד — רק צבע האפליקציה
 const st = R('studio.js'), lib = R('library.js'), stc = R('studio.css'), libc = R('library.css');
-ok(/const ST_SIB = \['ka', 'home', 'job', 'tower'\]/.test(st) && /const LIB_SIB = \['mine', 'snb', 'notes'\]/.test(lib) && !/k: 'settings'/.test(st + lib), 'הסדר מימין לשמאל: Studio — הגדרות · העבודות · קריוקי (30/10) · העבודה · המגדל; Academy — הגדרות · THE SNOWBALL · הספרייה שלי · מה למדתי');
+ok(/const ST_SIB = \['vi', 'ka', 'home', 'job', 'tower'\]/.test(st) && /const LIB_SIB = \['mine', 'snb', 'notes'\]/.test(lib) && !/k: 'settings'/.test(st + lib), 'הסדר מימין לשמאל: Studio — הגדרות · העבודות · קריוקי (30/10) · העבודה · המגדל; Academy — הגדרות · THE SNOWBALL · הספרייה שלי · מה למדתי');
 ok(/!FINAL\.includes\(r\.srv\.state\)/.test(st) && /r\.srv\.state === 'done'/.test(st), 'Studio: "העבודה" = הפעילה, ואם אין — האחרונה שהסתיימה');
 ok(/dialNavBuild\('st-dial'/.test(st) && /dialNavBuild\('lib-dial'/.test(lib) && /dialHost\(STUDIO_DIAL\)/.test(st) && /dialHost\(LIB_DIAL\)/.test(lib) && /wireDial\(dialNav\)/.test(st) && /wireDial\(libNav\)/.test(lib), 'שתיהן בונות את החוגה מאותו מנוע (core) ומארחות אותו');
 ok(/dialHost\(dialPrev\)/.test(st) && /dialHost\(libDialPrev\)/.test(lib), 'בסגירה המארח חוזר (Invest מתחת לשכבה)');
@@ -98,4 +98,8 @@ console.log(n + ' בדיקות עברו');
 { // 29/10/2026 (סרטון המשתמש, Academy): בחוגה של ארבעה, נבחר בקצה — אין כיתוב לפריטים במרחק 2+ (חפפו ונחתכו בשולי המסך); ב־7 — כמו קודם
   const e4 = A.dialFrame(A.dialRest(0), 4, 390, true), e7 = A.dialFrame(A.dialRest(3), 7, 412, true);
   ok(e4[1].lbl === 1 && e4[2].lbl === 0 && e4[3].lbl === 0 && e7[1].lbl === 1 && e7[5].lbl === 1, 'כיתובים בחוגה קטנה: עד מרחק 1 בלבד (' + e4.map((v) => v.lbl).join('/') + ')');
+}
+{ // 10/11/2026: Studio עם הניתוח — חמישה פריטים, הבית באמצע: הקצוות (מרחק 2) בלי כיתוב, השכנים עם כיתוב
+  const e5 = A.dialFrame(A.dialRest(2), 5, 390, true);
+  ok(e5[0].lbl === 0 && e5[4].lbl === 0 && e5[1].lbl === 1 && e5[3].lbl === 1 && e5[2].lbl === 1, 'חוגה של חמישה: כיתובים עד מרחק 1 (' + e5.map((v) => v.lbl).join('/') + ')');
 }
