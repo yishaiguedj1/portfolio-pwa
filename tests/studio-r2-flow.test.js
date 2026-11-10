@@ -276,8 +276,9 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(w.j.bk === 0, 'גיבוי: קריאה חוזרת באותו יום — בלי גיבוי נוסף');
   ok(BK.bkExpired(['bk/2026-09-25/fs.json.gz', 'bk/2026-09-26/fs.json.gz', 'bk/x/y', 'lib/a.epub'], R.now).join() === 'bk/2026-09-25/fs.json.gz', 'גיבוי: תקופת השמירה לפי התאריך בנתיב בלבד');
 
-  /* ---------- 10. כמה זמן הקבצים נשמרים (26/10/2026, בקשת המשתמש) ----------
-     סרטון המקור והקבצים שנגזרים ממנו — יום מפתיחת הפרויקט (ולא פחות מ־6 שעות אחרי הסיום); הצרוב וכל השאר — 30 יום בייצור, 7 בניסוי */
+  /* ---------- 10. כמה זמן הקבצים נשמרים (26/10/2026, בקשת המשתמש; 10/11/2026 — המקור נשמר כל ימי העבודה) ----------
+     הצרוב וכל השאר — 30 יום בייצור, 7 בניסוי. סרטון המקור — בלי מחיקה מוקדמת (SRC_TTL = 0): נמחק יחד עם העבודה.
+     עבודה ישנה שהמקור שלה כבר נמחק (sx) — עדיין src_gone, והנגן מנגן את הצרוב */
   const SC = require(path.join(root, 'ibkr-proxy/lib/studioscan.js'));
   const H = 3600e3, D = 24 * H, T0 = R.now;
   const sv = (o) => ({ stringValue: JSON.stringify(o) }), iv = (x) => ({ integerValue: String(x) });
@@ -298,38 +299,32 @@ const { fakeR2, ENV } = require('./_r2fake');
   };
   const has = (x, k) => R.objs.has('st/ownerUid0001/' + x.files[k]);
   const srcGone = (x) => !has(x, 'a') && !has(x, 'v') && !has(x, 'l') && !has(x, 'o') && !has(x, 'c');
-  ok(SC.jobTtl('snowball-staging-758f6') === 7 * D && SC.jobTtl('yishaiguedj1-c786e') === 30 * D && SC.jobTtl(undefined) === 30 * D, 'שמירה: הצרוב — 30 יום בייצור, 7 בניסוי');
-  ok(SC.srcDueAt({ created: 0 }) === 0 && SC.srcDueAt({ created: T0, ended: T0 + H }) === T0 + D && SC.srcDueAt({ created: T0, ended: T0 + 30 * H }) === T0 + 36 * H,
-    'שמירה: המקור — יום מפתיחת הפרויקט, ולא פחות מ־6 שעות אחרי הסיום');
+  ok(SC.jobTtl('snowball-staging-758f6') === 7 * D && SC.jobTtl('yishaiguedj1-c786e') === 21 * D && SC.jobTtl(undefined) === 21 * D && SC.JOB_TTL === 21 * D, 'שמירה: המקור והצרוב — 3 שבועות בייצור, 7 ימים בניסוי (10/11/2026)');
+  ok(SC.SRC_TTL === 0 && SC.srcDueAt({ created: T0, ended: T0 + H }) === 0 && SC.srcDueAt({ created: T0, ended: T0 + 30 * H }) === 0,
+    'שמירה: המקור — בלי מחיקה מוקדמת (10/11/2026)');
   ok(SC.expiredJob({ kind: 'tr', state: 'done', folder: 'R2_jAAAAAAAAAAAAAAAAAAAA', ended: T0 - 8 * D }, T0, SC.jobTtl('snowball-staging-758f6')), 'שמירה: בניסוי — עבודה בת 8 ימים נמחקת');
   ok(!SC.expiredJob({ kind: 'tr', state: 'done', folder: 'R2_jAAAAAAAAAAAAAAAAAAAA', ended: T0 - 31 * D }, T0, 30 * D, T0 - 10 * D), 'שמירה: צריבה מחדש לפני 10 ימים באותה תיקייה — העבודה נשארת');
 
-  const due = mkSrc('Due'), young = mkSrc('Yng', { created: iv(T0 - 2 * H), ended: iv(T0 - H), updated: iv(T0 - H) });
-  const late = mkSrc('Lat', { ended: iv(T0 - H), updated: iv(T0 - H) }), gold = mkSrc('Gld', { gd: sv({ r: 'x' }) });
-  const busy = mkSrc('Bsy');
-  db.set('studioJobs/jRetBsyChildxxxxxxxx', { fields: { uid: { stringValue: 'ownerUid0001' }, kind: { stringValue: 'rr' }, state: { stringValue: 'running' }, folder: { stringValue: busy.F },
-    rp: { stringValue: busy.id }, created: iv(T0 - H), updated: iv(T0 - 60e3) }, ut: 't' + (++utSeq) });
+  const due = mkSrc('Due'), late = mkSrc('Lat', { created: iv(T0 - 10 * D), ended: iv(T0 - 9 * D), updated: iv(T0 - 9 * D) });
+  const old = mkSrc('Old', { sx: iv(T0 - D) });   // נמחק לפני השינוי
   const pub0 = (await api('job', { job: due.id })).job;
-  ok(pub0 && pub0.rt && pub0.rt.s === T0 - H && pub0.rt.j === T0 - 24 * H + 30 * D && pub0.sx === 0, 'שמירה: הטלפון רואה עד מתי המקור ועד מתי העבודה');
+  ok(pub0 && pub0.rt && pub0.rt.s === 0 && pub0.rt.j === T0 - 24 * H + 21 * D && pub0.sx === 0, 'שמירה: הטלפון רואה עד מתי העבודה, בלי תאריך מחיקה נפרד למקור');
   studio._reset();
   w = await wcall();
-  ok(w.code === 200 && srcGone(due) && has(due, 'b') && has(due, 's'), 'שמירה: אחרי יום — המקור, הקול, איכויות הצפייה, עותקי הקול ונקודות השמירה נמחקו; הצרוב והכתוביות נשארו');
   const dj = S.fromFields(db.get('studioJobs/' + due.id).fields);
-  ok(dj.sx === T0 && !dj.hl && !dj.hla && Array.isArray(dj.ck) && !dj.ck.length && !db.has('studioUp/' + due.files.v) && db.has('studioUp/' + due.files.b), 'שמירה: העבודה מסומנת sx, והרשומות של הקבצים שנמחקו ירדו');
-  ok(!srcGone(young) && has(young, 'v') && has(late, 'v') && has(gold, 'v') && has(busy, 'v'),
-    'שמירה: לא נמחק — פרויקט בן שעתיים, עבודה שהסתיימה לפני שעה, עבודת זהב, ועבודה שהפקה מחדש שלה רצה');
-  const pub1 = (await api('job', { job: due.id })).job;
-  ok(pub1.sx === T0 && pub1.rt.s === 0 && !pub1.hl, 'שמירה: הטלפון רואה שהמקור נמחק');
-  const rr = await call({ op: 'rerender', idToken: OWNER, job: due.id, out: ['compact'] });
-  ok(rr.code === 409 && rr.j.error === 'src_gone', 'שמירה: הפקה מחדש אחרי שהמקור נמחק — src_gone');
-  ok(S.canResume(Object.assign({}, dj, { state: 'failed' }), T0) === 'src_gone', 'שמירה: "המשך" אחרי שהמקור נמחק — src_gone');
-  // מה שהזמן שלו מגיע בתוך 6 השעות — נמחק בבדיקה הבאה (כל 10 דק׳), בלי סריקה מלאה נוספת
-  R.now = T0 + 5 * H + 60e3;   // late: הסתיים לפני שעה → 6 שעות אחרי הסיום = עוד 5 שעות
-  w = await wcall();
-  ok(srcGone(late) && has(late, 'b') && has(young, 'v'), 'שמירה: המקור של עבודה שהסתיימה לפני 6 שעות נמחק בבדיקה הבאה, בלי לחכות לסריקה המלאה');
-  R.now = T0;
-  for (const x of [due, young, late, gold, busy]) db.delete('studioJobs/' + x.id);
-  db.delete('studioJobs/jRetBsyChildxxxxxxxx');
+  ok(w.code === 200 && !srcGone(due) && has(due, 'a') && has(due, 'v') && has(due, 'l') && has(due, 'o') && has(due, 'c') && has(due, 'b') && has(due, 's'),
+    'שמירה: אחרי יום — המקור, הקול, איכויות הצפייה, עותקי הקול ונקודות השמירה נשארים');
+  ok(!(dj.sx > 0) && Array.isArray(dj.hl) && dj.hl.length === 2 && db.has('studioUp/' + due.files.v), 'שמירה: העבודה לא מסומנת sx, ואיכויות הצפייה נשארות');
+  ok(!srcGone(late) && has(late, 'v'), 'שמירה: גם עבודה בת 9 ימים — המקור עוד שמור');
+  ok(!SC.srcPending(dj) && !SC.srcExpired(dj, T0 + 20 * D) && !SC.expiredJob(dj, T0 + 19 * D, SC.jobTtl(undefined)) && SC.srcFiles(dj).length === 5 && SC.expiredJob(dj, T0 + 21 * D, SC.jobTtl(undefined)),
+    'שמירה: המקור יוצא רק עם העבודה (אחרי 3 שבועות)');
+  ok(S.canResume(Object.assign({}, dj, { state: 'failed' }), T0) !== 'src_gone', 'שמירה: "המשך" — המקור עוד שמור');
+  const pubO = (await api('job', { job: old.id })).job;
+  ok(pubO.sx === T0 - D && pubO.rt.s === 0, 'שמירה: עבודה ישנה שהמקור שלה נמחק — הטלפון רואה sx');
+  const rr = await call({ op: 'rerender', idToken: OWNER, job: old.id, out: ['compact'] });
+  ok(rr.code === 409 && rr.j.error === 'src_gone', 'שמירה: הפקה מחדש בעבודה שהמקור שלה נמחק — src_gone');
+  ok(S.canResume(Object.assign({}, dj, { state: 'failed', sx: T0 - D }), T0) === 'src_gone', 'שמירה: "המשך" אחרי שהמקור נמחק — src_gone');
+  for (const x of [due, late, old]) db.delete('studioJobs/' + x.id);
 
   console.log('\n' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL -', e); process.exit(1); });

@@ -174,16 +174,18 @@ function scanView(sc) {
 }
 /* 21/10/2026 (בקשת המשתמש): עבודה שהקבצים שלה ב־R2 שלנו נשמרת חודש מהסיום, ואז נמחקת לבד (רשומה + קבצים).
    לא נמחקות: עבודת זהב (gd — הייחוס לבדיקות), עבודה שעוד רצה, ועבודה שהקבצים שלה ב־Drive של המשתמש (שם הם שלו) */
-const JOB_TTL = 30 * DAY;
+const JOB_TTL = 21 * DAY;   // 10/11/2026 (בקשת המשתמש): 3 שבועות — גם המקור וגם הצרוב
 /* 26/10/2026 (בקשת המשתמש): כמה זמן הקבצים של עבודה ב־R2 נשמרים — בלי אחסון כפול לחודש.
    הסרטון הצרוב וכל שאר העבודה: jobTtl מהסיום — ייצור 30 יום, סביבת הניסוי 7 — בלי קשר לפתיחה חוזרת של הפרויקט.
    ההפקות מחדש באותה תיקייה נספרות (endAt = הסיום האחרון בתיקייה — folderEnds), כדי שסרטון שנצרב מחדש יקבל את הימים שלו.
    סרטון המקור והקבצים שנגזרים ממנו (הקול, איכויות הצפייה, עותקי הקול, נקודות השמירה) — SRC_TTL מפתיחת הפרויקט (created),
    כדי לערוך ולצרוב מחדש באותו יום בלי להעלות שוב; ולא פחות מ־SRC_GRACE אחרי הסיום (עבודה ארוכה / שחיכתה לסרטון).
-   אחרי המחיקה sx = מתי; הפקה מחדש, "המשך" וסט הזהב — לא אפשריים (src_gone). עבודת זהב והרצות שלה (gs) — לא נוגעים במקור */
-const SRC_TTL = DAY, SRC_GRACE = 6 * 3600e3;
+   אחרי המחיקה sx = מתי; הפקה מחדש, "המשך" וסט הזהב — לא אפשריים (src_gone). עבודת זהב והרצות שלה (gs) — לא נוגעים במקור
+   10/11/2026 (בקשת המשתמש): בלי מחיקה מוקדמת — המקור נשמר כל ימי העבודה (3 שבועות בייצור) ונמחק איתה (expiredJob). בלי המקור הנגן הציג את הסרטון הצרוב:
+   בלי בחירה בין בלי / עברית / אנגלית / שתיהן, ובלי עריכה של העברית (שכבר בתמונה). SRC_TTL = 0 = כבוי; מספר גדול מ־0 = המחיקה המוקדמת */
+const SRC_TTL = 0, SRC_GRACE = 6 * 3600e3;
 const STAGING_PROJECT = 'snowball-staging-758f6';
-const jobTtl = (project) => (project === STAGING_PROJECT ? 7 : 30) * DAY;
+const jobTtl = (project) => (project === STAGING_PROJECT ? 7 : 21) * DAY;   // 10/11/2026: ייצור 3 שבועות (היה 30 יום)
 const endOf = (j) => (j && (j.ended || j.updated)) || 0;
 function folderEnds(jobs) {
   const m = new Map();
@@ -195,7 +197,7 @@ function expiredJob(j, now, ttl = JOB_TTL, endAt = 0) {
   return !!(j && j.kind === 'tr' && !j.gd && FINAL.includes(j.state) && R2_FOLDER_RE.test(String(j.folder || ''))
     && e > 0 && now - e > ttl);
 }
-const srcDueAt = (j) => (j && (j.created || 0) > 0 ? Math.max(j.created + SRC_TTL, endOf(j) + SRC_GRACE) : 0);
+const srcDueAt = (j) => (SRC_TTL > 0 && j && (j.created || 0) > 0 ? Math.max(j.created + SRC_TTL, endOf(j) + SRC_GRACE) : 0);
 /* המזהים של סרטון המקור והקבצים שנגזרים ממנו — רק בתיקייה של העבודה ב־R2 (מקור מ־Drive של המשתמש לא נוגעים בו) */
 function srcFiles(j) {
   if (!j || !R2_FOLDER_RE.test(String(j.folder || ''))) return [];
@@ -205,7 +207,7 @@ function srcFiles(j) {
   return Array.from(new Set(ids.filter((id) => typeof id === 'string' && id.startsWith(pre) && /^[A-Za-z0-9_-]{30,80}$/.test(id))));
 }
 /* מקור שעוד לא נמחק (עבודה שהסתיימה, ב־R2, לא זהב ולא הרצה של זהב) */
-const srcPending = (j) => !!(j && j.kind === 'tr' && !j.gd && !j.gs && !(j.sx > 0) && FINAL.includes(j.state) && srcFiles(j).length > 0);
+const srcPending = (j) => SRC_TTL > 0 && !!(j && j.kind === 'tr' && !j.gd && !j.gs && !(j.sx > 0) && FINAL.includes(j.state) && srcFiles(j).length > 0);
 const srcExpired = (j, now) => srcPending(j) && srcDueAt(j) > 0 && now >= srcDueAt(j);
 /* מה הטלפון רואה: עד מתי סרטון המקור (s, 0 = כבר נמחק / לא נמחק לבד) ועד מתי העבודה (j). רק לעבודה שהסתיימה ב־R2 */
 function retention(j, project, endAt) {

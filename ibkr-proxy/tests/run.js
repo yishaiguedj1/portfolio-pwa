@@ -4347,21 +4347,21 @@ function stubFetch(text, status = 200) {
         for (const [k, v] of keep) db.set(k, v);
         process.env.SNB_LEARNWEEK = 'off'; db.delete('sysBackup/cfg'); db.delete('sysWatch/learnWk'); studio._reset();
       }
-      // 21/10/2026: עבודה ב־R2 שהסתיימה לפני יותר מחודש נמחקת לבד — לא עבודת זהב, לא עבודה ב־Drive, לא עבודה חדשה
+      // 21/10/2026: עבודה ב־R2 שהסתיימה לפני יותר מחודש נמחקת לבד (10/11/2026: 3 שבועות) — לא עבודת זהב, לא עבודה ב־Drive, לא עבודה חדשה
       {
         process.env.SNB_JOBGC = '';
         const D = 86400e3, mkJ = (id, folder, ended, extra) => db.set('studioJobs/' + id, { fields: Object.assign({ uid: { stringValue: 'ownerUid0001' }, kind: { stringValue: 'tr' },
           state: { stringValue: 'done' }, folder: { stringValue: folder }, ended: { integerValue: String(ended) }, updated: { integerValue: String(ended) } }, extra || {}) });
-        mkJ('jGcOldR2aaaaaaaaaaaaa', 'R2_jGcOldR2aaaaaaaaaaaaa', now - 31 * D);
+        mkJ('jGcOldR2aaaaaaaaaaaaa', 'R2_jGcOldR2aaaaaaaaaaaaa', now - 22 * D);
         mkJ('jGcOldDrvaaaaaaaaaaaa', 'DriveFolderId0123456789', now - 40 * D);
         mkJ('jGcOldGoldaaaaaaaaaaa', 'R2_jGcOldGoldaaaaaaaaaaa', now - 40 * D, { gd: { stringValue: '{"ref":"x"}' } });
-        mkJ('jGcNewR2aaaaaaaaaaaaa', 'R2_jGcNewR2aaaaaaaaaaaaa', now - 29 * D);
+        mkJ('jGcNewR2aaaaaaaaaaaaa', 'R2_jGcNewR2aaaaaaaaaaaaa', now - 20 * D);
         const wget = async () => { const x = mockRes(); await studio._handler({ method: 'GET', headers: {} }, x, deps()); return x; };
         studio._reset();
         let a = await wget();
-        ok(a.payload.jg === 1 && !db.has('studioJobs/jGcOldR2aaaaaaaaaaaaa'), 'מחיקה אחרי חודש: עבודה ב־R2 שהסתיימה לפני 31 יום — נמחקה');
+        ok(a.payload.jg === 1 && !db.has('studioJobs/jGcOldR2aaaaaaaaaaaaa'), 'מחיקה אחרי 3 שבועות: עבודה ב־R2 שהסתיימה לפני 22 יום — נמחקה');
         ok(db.has('studioJobs/jGcOldDrvaaaaaaaaaaaa') && db.has('studioJobs/jGcOldGoldaaaaaaaaaaa') && db.has('studioJobs/jGcNewR2aaaaaaaaaaaaa'),
-          'מחיקה אחרי חודש: עבודה ב־Drive, עבודת זהב ועבודה בת 29 יום — נשארו');
+          'מחיקה אחרי 3 שבועות: עבודה ב־Drive, עבודת זהב ועבודה בת 20 יום — נשארו');
         a = await wget();
         ok(a.payload.jg === 0, 'מחיקה אחרי חודש: פעם ב־6 שעות למופע');
         for (const id of ['jGcOldDrvaaaaaaaaaaaa', 'jGcOldGoldaaaaaaaaaaa', 'jGcNewR2aaaaaaaaaaaaa']) db.delete('studioJobs/' + id);
