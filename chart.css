@@ -94,7 +94,7 @@ html.kc-open { overflow: hidden; }
 .kc-now svg { width: 16px; height: 16px; stroke-width: 2.2; }
 .kc-grid:not([data-l="1"]) .kc-cell.act { box-shadow: inset 0 0 0 2px var(--kc-acc-c); }
 .kc-host { position: absolute; inset: 0; touch-action: none; }
-.kc-cell::before { content: ''; position: absolute; top: 0; inset-inline: 0; height: 2px; z-index: 4; background: linear-gradient(90deg, transparent, var(--kc-acc), transparent); background-size: 40% 100%; background-repeat: no-repeat; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.kc-cell::before { content: ''; position: absolute; top: 0; inset-inline: 0; height: 2px; z-index: 4; background: linear-gradient(90deg, transparent, var(--kc-acc) 55%, color-mix(in oklab, var(--kc-acc) 40%, #fff) 82%, #fff 96%, transparent); background-size: 40% 100%; filter: drop-shadow(0 0 3px color-mix(in srgb, color-mix(in oklab, var(--kc-acc) 30%, #fff) 80%, transparent));   /* ת־פס: שביט — ראש לבן וזוהר */ background-repeat: no-repeat; opacity: 0; transition: opacity .2s; pointer-events: none; }
 .kc-cell.busy::before { opacity: 1; animation: kc-load 1s linear infinite; }
 @keyframes kc-load { from { background-position: -40% 0; } to { background-position: 140% 0; } }
 .kc-ctag { position: absolute; top: 4px; inset-inline-end: 70px; z-index: 2; font-size: 12px !important; font-weight: 600; padding: 2px 8px !important; border-radius: var(--radius-xs); background: var(--kc-fill) !important; color: var(--kc-ink2); direction: ltr; }
