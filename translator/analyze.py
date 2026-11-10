@@ -642,7 +642,7 @@ def vi_map(eng, mode: str, lang: str, ev: list[dict], slides: list[dict], ocr: l
 VS_MAX_OUT = 6000               # תשובת הסינתזה
 VV_BATCH = 30                   # טענות בקריאת אימות אחת
 VV_EV = 6                       # ראיות לטענה באימות (הראשונות — הכי ישירות)
-VV_MAX_OUT = 2000
+VV_MAX_OUT = 8000              # 10/11/2026: כולל החשיבה (~2.8K ב־haiku-high) — ב־2000 כל קריאה נקטעה ונשלחה שוב
 VV_EV_CHARS = 1200              # טקסט ראיה באימות — עד כאן
 TAKE_MAX = 5                    # V54: ‏3–5 תובנות
 RAW_MAX = 200000                # טיוטה גולמית לקורפוס (dr) — עד כאן
