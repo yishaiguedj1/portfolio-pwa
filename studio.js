@@ -968,7 +968,7 @@ export function normStore(o) {
   const sugx = (Array.isArray(src.sugx) ? src.sugx : []).filter((x) => typeof x === 'string' && /^[a-z]{2,8}[0-9a-z]{1,8}$/.test(x)).slice(-500);   // מ6: "לא להציע שוב" (טביעות, בלי טקסט)
   const amd = (Array.isArray(src.amd) ? src.amd : []).filter((x) => typeof x === 'string' && JOB_RE.test(x)).slice(-200);   // סבב 10: עבודות שכבר הוצעה להן בדיקת משמעות אוטומטית
   // 29/10/2026 (S1 בסרטון): מצב השרת האחרון — הקפסולה בהדר נכונה כבר בציור הראשון ("שרת המערכת", לא "חיבור Claude" שמתחלף)
-  const st = src.st && typeof src.st === 'object' ? { api: normApi(src.st.api), mf: src.st.mf === true } : null;
+  const st = src.st && typeof src.st === 'object' ? { api: normApi(src.st.api), mf: src.st.mf === true, r2: src.st.r2 === true } : null;
   // 10/11/2026 (PR 1.5ב, V37): המקום בדף הניתוח לכל עבודה — מספרים ומזהי פרקים בלבד (studiovi.js)
   return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d, sugx, amd, st, spkc: normSpkc(src.spkc), vip: normPlaces(src.vip) };
 }
@@ -1424,7 +1424,15 @@ async function refreshStatus(force) {
     ui.url = j.url === true;                   // 22/10/2026: הורדה מקישור (כל מי שמורשה לסטודיו מ־30/10, הדגל, R2)
     ui.yc = j.yc === true;                     // 25/10/2026: יוטיוב לענן דרך חשבון ייעודי בשרת (הוגדר במרכז הניהול ולא נחסם)
     ui.mf = j.mf === true;                     // 15/10: כל מצבי התרגום (המנהל / רשימת "כל המודלים") — אחרת רק "רגיל" ו"ביצועים"
-    store.st = { api: ui.api || null, mf: ui.mf };   // 29/10/2026 (S1): לפתיחה הבאה
+    store.st = { api: ui.api || null, mf: ui.mf, r2: ui.r2 };   // 29/10/2026 (S1): לפתיחה הבאה · 10/11: גם R2 — עמוד הבית (stRoot) כבר בפתיחה
+    if (rootFresh) {   // 10/11/2026: פתיחה ראשונה — עדיין על דף הבית הזמני ולא זזו ממנו: לניתוח, בלי רשומת היסטוריה חדשה
+      rootFresh = false;
+      if (root && ui.view === 'home' && stRoot() === 'vi' && (!CW_OK || stack.length === 1)) {
+        ui.view = 'vi'; ui.param = null;
+        if (CW_OK) stack = [{ v: 'vi', p: null }];
+        afterBack(() => { try { if (root && history.state && history.state.studio === 1) history.replaceState(cleanState({ studio: 1, sv: 'vi', sp: null }), ''); } catch (e) {} });
+      }
+    }
     ui.lrf = num(j.lrf);                       // 15/10: הנוסח של האיסוף המלא (תקופת הפיתוח) — נקרא
     if (!viPrefBusy) { ui.lat = num(j.lat); ui.lam = num(j.lam); ui.lau = num(j.lau); }   // 10/11/2026: ההסכמות של הניתוח (LRN_VV)
     save();
@@ -2295,6 +2303,7 @@ async function runTest() {
    דף אחורה באנימציה שלנו; בדף הבית — יציאה (back תוכנתי, בלי צילום). בלי תמיכה — רשומה לכל דף, ובלי אנימציה כפולה
    כש־Chrome כבר הנפיש (hasUAVisualTransition). */
 const CW_OK = typeof window !== 'undefined' && typeof window.CloseWatcher === 'function';
+let rootFresh = false;            // 10/11/2026: הפתיחה נחתה על התרגום רק כי עוד לא היה סטטוס — הסטטוס הראשון מעביר לעמוד הבית (הניתוח)
 let stack = [];                   // מצב CloseWatcher: הדפים הפתוחים ({v, p}); האחרון = הנוכחי
 let cw = null;
 /* app.js חושף snbAfterBack: pushState/replaceState/back מיד אחרי סגירת חלון (history.back שלו בדרך) נוחת על הרשומה הלא נכונה (לקח v322) */
@@ -2314,7 +2323,7 @@ const viJob = (id) => !!(store && store.jobs && store.jobs.some((r) => r && r.id
    דפי המשנה שלו) החוגה כולה ירדה. עכשיו המגדל אח בחוגה: ההורה = הבית, כמו הקריוקי והעבודה */
 export function chainFor(v, p) {
   if ((v === 'lang' && p !== 'def') || v === 'tracks' || v === 'link' || v === 'linkfmt' || v === 'linksec' || v === 'fmthelp' || v === 'grab' || v === 'cutsrc' || v === 'dpick') { v = 'new'; p = form && form.ka ? 'ka' : form && form.vi ? 'vi' : null; }   // הטופס (והקובץ) לא שורדים רענון; 30/10: טופס של שיר — תחת הקריוקי
-  const parent = (x, y) => (x === 'home' ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : x === 'tower' ? ['home', null] : (x === 'lang' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push' || x === 'credits') ? ['settings', null] : x === 'gloss' || x === 'series' ? ['rules', null] : x === 'ser' ? ['series', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : x === 'vids' ? (vidsParent(y) || ['store', null]) : x === 'kasty' ? ['new', 'ka'] : (x === 'new' && y === 'ka') || (x === 'job' && kaJob(y)) ? ['ka', null] : (x === 'new' && y === 'vi') || (x === 'job' && viJob(y)) ? ['vi', null] : ['home', null]);   // 10/11/2026: ניתוח — תחת לשונית הניתוח   // 30/10: שיר — תחת הקריוקי
+  const parent = (x, y) => (x === stRoot() ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : x === 'tower' || x === 'home' || x === 'ka' || x === 'vi' || x === 'settings' ? [stRoot(), null] : (x === 'lang' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push' || x === 'credits') ? ['settings', null] : x === 'gloss' || x === 'series' ? ['rules', null] : x === 'ser' ? ['series', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : x === 'vids' ? (vidsParent(y) || ['store', null]) : x === 'kasty' ? ['new', 'ka'] : (x === 'new' && y === 'ka') || (x === 'job' && kaJob(y)) ? ['ka', null] : (x === 'new' && y === 'vi') || (x === 'job' && viJob(y)) ? ['vi', null] : ['home', null]);   // 10/11/2026: ניתוח — תחת לשונית הניתוח   // 30/10: שיר — תחת הקריוקי
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -2349,7 +2358,7 @@ function replaceView(view, param) {
   const p = param == null ? null : param;
   leaving();
   ui.view = view; ui.param = p;
-  if (CW_OK) { stack = [{ v: 'home', p: null }, { v: view, p }]; syncState(); }
+  if (CW_OK) { stack = [{ v: stRoot(), p: null }, { v: view, p }]; syncState(); }
   else afterBack(() => { try { if (root && history.state && history.state.studio) history.replaceState(cleanState({ studio: depth(), sv: view, sp: p }), ''); } catch (e) {} });
   render('push');
 }
@@ -2402,7 +2411,7 @@ function onPop(e) {
   if (CW_OK) return;                       // עם CloseWatcher הדפים לא ברשומות (כאן רק "קדימה" חזרה לרשומה שלנו)
   scrolls[viewKey()] = root.scrollTop;
   leaving();
-  ui.view = st.sv || 'home'; ui.param = st.sp == null ? null : st.sp;
+  ui.view = st.sv || stRoot(); ui.param = st.sp == null ? null : st.sp;
   render('pop', uaT);
 }
 /* ---------------- 14/10/2026: החלקה (core: snbSwipe — אותה חוקיות כמו ב־Invest ו־Academy) ----------------
@@ -2410,7 +2419,9 @@ function onPop(e) {
    בלי "החלקה קצרה" לטאבים (בקשת המשתמש) — פרטים · ציר · קשורות רק בלחיצה.
    29/10/2026 (בקשת המשתמש): החוגה של Invest אחד לאחד, באדום — מימין לשמאל: הגדרות · העבודות (הבית, במרכז) · העבודה
    (הפעילה, ואם אין — האחרונה שהסתיימה) · מגדל הפיקוח. מה שמחוץ לחוגה ממופה לאח שלו (stKeyOf) */
-const ST_SIB = ['vi', 'ka', 'home', 'job', 'tower'];   // 10/11/2026 (בקשת המשתמש): ניתוח סרטונים — לשונית משלו, בקצה (מי שלא רואה אותו — החוגה של היום)   // 30/10/2026 (בקשת המשתמש): מימין לשמאל — קריוקי · תרגום סרטונים (הראשי) · העבודה · המגדל; ההגדרות — רק מהתפריט   // 30/10/2026: קריוקי — כלי נפרד עם רשימה משלו (בקשת המשתמש)
+const ST_SIB = ['ka', 'home', 'vi', 'job', 'tower'];   // 10/11/2026 (בקשת המשתמש): הניתוח במרכז ועמוד הבית; מימינו התרגום ומימין לו הקריוקי (מי שלא רואה אותו — החוגה של היום)
+/* עמוד הבית: הניתוח כשהלשונית זמינה, אחרת התרגום. השורש של כל השרשראות (chainFor), ההחלקה והפתיחה */
+const stRoot = () => (viTabOk() ? 'vi' : 'home');
 const ST_NOSWIPE = ['play', 'subs', 'cut', 'cutsrc', 'tracks', 'dpick', 'vids', 'link', 'linkfmt', 'linksec', 'fmthelp', 'grab', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr'];   // עורכים, נגן וטפסים — בלי
 const ST_TAB_KEYS = ['d', 't', 'r'];
 let swipePop = 0;
@@ -2425,7 +2436,8 @@ function stKeyOf(v, p) {          // לאיזה פריט בחוגה שייך ה�
   if (ch.some((x) => x.v === 'tower')) return 'tower';
   const j = ch.find((x) => x.v === 'job'), dj = stDialJob();
   if (j && (j.p === stDialJ || (dj && dj.rec.id === j.p))) return 'job';   // "העבודה" — משותפת לשני הכלים
-  return ch.some((x) => x.v === 'ka') ? 'ka' : ch.some((x) => x.v === 'vi') ? 'vi' : 'home';
+  const sib = ch.slice().reverse().find((x) => x.v === 'ka' || x.v === 'vi' || x.v === 'home');   // העמוק מביניהם (השורש בכל שרשרת)
+  return sib ? sib.v : 'home';
 }
 function stSibTarget(k) {
   if (k === 'job') { const cur = ui.view === 'job' && stKeyOf(ui.view, ui.param) === 'job' ? ui.param : null, dj = stDialJob(); const id = cur || (dj && dj.rec.id); return id ? { v: 'job', p: id } : null; }
@@ -2433,18 +2445,20 @@ function stSibTarget(k) {
 }
 function stSibOk() {              // דף ראשי שהבית נמצא ישר מתחתיו
   if (ui.view === 'job' ? stKeyOf('job', ui.param) !== 'job' : (!ST_SIB.includes(ui.view) || ui.param != null)) return false;
-  if (CW_OK) return ui.view === 'home' ? stack.length <= 1 : stack.length === 2 && stack[0].v === 'home';
-  return ui.view === 'home' ? depth() <= 1 : depth() === 2;
+  const r = stRoot();
+  if (CW_OK) return ui.view === r ? stack.length <= 1 : stack.length === 2 && stack[0].v === r;
+  return ui.view === r ? depth() <= 1 : depth() === 2;
 }
 /* המחסנית / ההיסטוריה אחרי מעבר לאח (החלקה, חוגה): הבית לבד, או הבית ומעליו האח */
 function stSibCommit(v, p) {
   if (v === 'job') stDialJ = p;
-  if (CW_OK) { stack = v === 'home' ? [{ v: 'home', p: null }] : [{ v: 'home', p: null }, { v, p }]; syncState(); return; }
+  const r = stRoot();
+  if (CW_OK) { stack = v === r ? [{ v: r, p: null }] : [{ v: r, p: null }, { v, p }]; syncState(); return; }
   // בלי CloseWatcher (דפדפן ישן): רק רשומה אחת אחורה / קדימה / במקום — בלי history.go עם ספירת רשומות (לקח v350–v352);
   // מעמוד משנה עמוק — האח מחליף את הרשומה הנוכחית
   const d = depth();
-  if (v === 'home' && d === 2) { swipePop++; afterBack(() => { try { history.back(); } catch (e) {} }); return; }
-  if (d <= 1 && v !== 'home') { afterBack(() => { try { history.pushState(cleanState({ studio: 2, sv: v, sp: p }), ''); } catch (e) {} }); return; }
+  if (v === r && d === 2) { swipePop++; afterBack(() => { try { history.back(); } catch (e) {} }); return; }
+  if (d <= 1 && v !== r) { afterBack(() => { try { history.pushState(cleanState({ studio: 2, sv: v, sp: p }), ''); } catch (e) {} }); return; }
   afterBack(() => { try { history.replaceState(cleanState({ studio: Math.max(1, d), sv: v, sp: p }), ''); } catch (e) {} });
 }
 function stSibPage(k) {           // הדף של אח בחוגה: ציור (באמצע קובייה), ביטול, אישור
@@ -2459,7 +2473,7 @@ function stSibPage(k) {           // הדף של אח בחוגה: ציור (בא
   };
 }
 function stSwipePage(next) {
-  if (ui.view === 'settings') return next ? null : stSibPage('home');   // 30/10/2026: ההגדרות (מהתפריט) — החלקה אחורה = "חזור" לעמוד הראשי
+  if (ui.view === 'settings') return next ? null : stSibPage(stRoot());   // 30/10/2026: ההגדרות (מהתפריט) — החלקה אחורה = "חזור" לעמוד הראשי
   if (stSibOk()) { const ks = stDialKeys(), k = ks[ks.indexOf(stKeyOf(ui.view, ui.param)) + (next ? 1 : -1)]; return k ? stSibPage(k) : null; }
   if (next || !CW_OK || stack.length < 2) return null;
   const back = stack[stack.length - 2], pv = ui.view, pp = ui.param, y = root.scrollTop, key = viewKey();
@@ -2483,9 +2497,9 @@ let dialNav = null, dialPrev = null, stDialC = null;
 function stDialNav() {
   if (dialNav || typeof dialNavBuild !== 'function') return dialNav;
   dialNav = dialNavBuild('st-dial', T('studioDialAria'), [
-    { k: 'vi', ico: ST_DIAL_ICO.vi, lbl: T('studioDialVi') },
     { k: 'ka', ico: ST_DIAL_ICO.ka, lbl: T('studioDialKa') },
     { k: 'home', ico: ST_DIAL_ICO.home, lbl: T('studioDialHome') },
+    { k: 'vi', ico: ST_DIAL_ICO.vi, lbl: T('studioDialVi') },
     { k: 'job', ico: ST_DIAL_ICO.job, lbl: T('studioDialLast') }, { k: 'tower', ico: ST_DIAL_ICO.tower, lbl: T('studioDialTower') },
   ], stDialTo);
   return dialNav;
@@ -8255,12 +8269,13 @@ function viView(rec, me) {
     onPlace: (x) => { if (!x) return; store.vip = normPlaces(Object.assign({}, store.vip, { [rec.id]: x })); save(); } });
 }
 /* המיני־נגן: הסרטון המקורי (ואיכויות הצפייה, אם יש) ואחריו העותק שהעובד הכין; התמליל ככתוביות (כבויות כשהקול באותה שפה) */
+/* נגן הניתוח: הסרטון באיכות מלאה, והכתוביות = התמליל בשפת המקור (orig — דולקות, כל שורה בכיוון שלה, גם בשפות משולבות) */
 function viPlayer(rec, me) {
   const srcId = srcVid(rec), bo = burnedOut(rec);
   const src = srcId ? net.mediaUrl(srcId) : '', fb = bo ? net.mediaUrl(bo.id) : '';
   if (!src && !fb) return null;
   const chs = normChapters(me.v.chapters.map((c) => ({ t: c.t0, title: c.title })), me.v.video.dur);
-  const ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: false, cues: me.cues || [], issues: [], chapters: chs, T, subLang: me.v.lang.src,
+  const ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: false, cues: me.cues || [], issues: [], chapters: chs, T, subLang: me.v.lang.src, orig: true,
     ladder: src ? ladderOf(rec) : null, alt: src ? altOf(rec) : null, pq: store.settings.pq, onPq: pqSave, pref: store.settings.pt, onPref: ptSave,
     poster: thumbFor(rec, (u) => { if (va === me && ctl) ctl.setPoster(u); }) });
   const co = outOf(rec, 'cues');
@@ -9619,7 +9634,7 @@ function engReady() {                      // יש מי שיתרגם: Routine מ
 }
 function pageSettings(p) {
   const s = store.settings, m = modeById(s.mode);
-  p.append(navBar({ back: T('studioDialHome'), go: () => stDialTo('home') }));   // בלי כותרת "הגדרות" — בקשת המשתמש; 30/10/2026: "‹ תרגום סרטונים" — לעמוד הראשי
+  p.append(navBar({ back: stRoot() === 'vi' ? T('studioDialVi') : T('studioDialHome'), go: () => stDialTo(stRoot()) }));   // בלי כותרת "הגדרות" — בקשת המשתמש; 30/10/2026: "‹ תרגום סרטונים" — לעמוד הראשי
   // באותה שפת עיצוב כמו ההגדרות של Invest: כרטיס החשבון של Invest בראש העמוד (shell.js, רק בדף העצמאי — בתיק
   // החשבון בהגדרות של Invest), "אפשרויות מתקדמות" ו"תצוגה" — ואז ההגדרות של הסטודיו בכרטיסים (.card מ־styles.css)
   const C = SA && SA.cards, A = SA && SA.auth;
@@ -10463,7 +10478,7 @@ function stKeepTap(e) {
 const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 /* נכנסים לדף: מרעננים ממה שבשרתון (מצב החיבור, העבודות) */
 function onEnter() {
-  if (ui.view === 'home') { refreshStatus(); refreshJobs(); }
+  if (ui.view === 'home' || ui.view === 'vi') { refreshStatus(); refreshJobs(); }   // 10/11/2026: גם הניתוח (עמוד הבית)
   else if (ui.view === 'settings' || ui.view === 'connect' || ui.view === 'eng' || ui.view === 'store') refreshStatus();
   else if (ui.view === 'tower' || ui.view === 'towerx' || TW_SUBS.includes(ui.view)) { refreshStatus(true); refreshJobs(true); }
   else if (ui.view === 'rules' || ui.view === 'alert' || ui.view === 'rlb' || ui.view === 'rlm') refreshStatus(true);
@@ -10487,7 +10502,7 @@ function schedulePoll() {
   // v368: עבודה שמתאוששת — בודקים שוב בסוף החלון (אז השרתון ממשיך אותה)
   const recMs = (list) => { const t = Math.min(...list.filter(recovering).map((r) => r.srv.rw)); return Number.isFinite(t) ? Math.max(2000, Math.min(60000, t - Date.now() + 1500)) : 0; };
   if (ui.view === 'job') { const r = jobRec(ui.param), st = r && r.srv ? r.srv.state : 'new'; ms = st === 'queued' || st === 'running' || (r && r.srv && r.srv.bg) || phBurnLive(r) || phPrepLive(r) ? 4000 : st === 'new' && r && (r.up.started || r.spec.nu) || vcLive(r) ? 15000 : r ? recMs([r]) : 0; }
-  else if (ui.view === 'home') ms = store.jobs.some((r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running' || r.srv.bg)) ? 30000 : recMs(store.jobs);   // 26/10/2026: 30 שנ׳ (op:'jobs' = כל העבודות שלך — קריאה מ־Firestore לכל אחת)
+  else if (ui.view === 'home' || ui.view === 'vi') ms = store.jobs.some((r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running' || r.srv.bg)) ? 30000 : recMs(store.jobs);   // 26/10/2026: 30 שנ׳ (op:'jobs' = כל העבודות שלך — קריאה מ־Firestore לכל אחת)
   else if (ui.view === 'rr') { ms = rrRunning(rrJobs.get(ui.param)) || rrRunning(rrPv.get(ui.param)) ? 4000 : 0; }   // מ2; סבב 10: גם הבדיקה
   else if (ui.view === 'server' && ui.api && ui.api.admin) ms = 15000;   // מסך השרת: הדופק מתעדכן כל 15 שנ׳
   if (ms) pollT = setTimeout(pollNow, ms);
@@ -10506,7 +10521,7 @@ async function pollNow() {
         const j = await net.api('job', { job: x.id });
         if (j.ok && j.job) x.srv = normJob({ id: x.id, srv: j.job }).srv;
       }
-    } else if (ui.view === 'home') {
+    } else if (ui.view === 'home' || ui.view === 'vi') {
       // 28/10/2026: op:'jobs' = קריאה של כל העבודות שלך (70+) מ־Firestore. בזמן עבודה רצה — רק היא (op:'job' = קריאה אחת),
       // והרשימה המלאה לכל היותר פעם ב־JOBS_FULL_MS. 30 שנ׳ × כל הרשימה × כמה שעות של פרקים = המכסה היומית (28/10)
       const isLive = (r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running' || r.srv.bg);
@@ -10570,7 +10585,8 @@ export function openStudio(opt) {
   if (root) { if (jobLink) { if (jobRec(jobLink)) goJobLink(jobLink, linkView); else Promise.resolve(refreshJobs(true)).then(() => { if (root && jobRec(jobLink)) goJobLink(jobLink, linkView); }); } return; }
   const restore = opt && opt.restore && opt.restore.studio ? opt.restore : null;   // רענון בזמן שהסטודיו היה פתוח
   store = load();
-  if (store.st) { if (!ui.api) ui.api = store.st.api; ui.mf = store.st.mf; }   // 29/10/2026 (S1): עד שהסטטוס חוזר — המצב האחרון
+  if (store.st) { if (!ui.api) ui.api = store.st.api; ui.mf = store.st.mf; if (store.st.r2) ui.r2 = true; }   // 29/10/2026 (S1): עד שהסטטוס חוזר — המצב האחרון
+  rootFresh = !restore && stRoot() === 'home';   // 10/11/2026: פתיחה ראשונה (בלי מטמון) — הסטטוס הראשון יעביר לניתוח
   root = h('div', 'st-root no-swipe');
   root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', T('studioTitle'));
   root.tabIndex = -1;
@@ -10604,17 +10620,17 @@ export function openStudio(opt) {
   }
   if (typeof growWatch === 'function') growWatch(root, '.st-banner', () => ui.view + '|' + (ui.param || ''));   // 14/10/2026: פס שמופיע בדף מוצג — נפתח ברכות
   document.documentElement.classList.add('studio-open');
-  if (SA && !restore) { try { history.replaceState(cleanState({ studio: 1, sv: 'home', sp: null }), ''); } catch (e) {} }   // עצמאי — הבית הוא הדף
-  else if (!restore) afterBack(() => { try { history.pushState(cleanState({ studio: 1, sv: 'home', sp: null }), ''); } catch (e) {} });
+  if (SA && !restore) { try { history.replaceState(cleanState({ studio: 1, sv: stRoot(), sp: null }), ''); } catch (e) {} }   // עצמאי — הבית הוא הדף
+  else if (!restore) afterBack(() => { try { history.pushState(cleanState({ studio: 1, sv: stRoot(), sp: null }), ''); } catch (e) {} });
   if (!window._stPop) { window._stPop = true; window.addEventListener('popstate', onPop); }
   if (CW_OK) {
-    stack = restore ? chainFor(restore.sv || 'home', restore.sp == null ? null : restore.sp) : [{ v: 'home', p: null }];
+    stack = restore ? chainFor(restore.sv || stRoot(), restore.sp == null ? null : restore.sp) : [{ v: stRoot(), p: null }];
     const top = stack[stack.length - 1];
     ui.view = top.v; ui.param = top.p;
     if (restore) syncState();
     watch();                               // בתוך הלחיצה (הפעלת משתמש); ברענון — המאזין ה"חינמי"
   } else {
-    ui.view = restore ? (restore.sv || 'home') : 'home';
+    ui.view = restore ? (restore.sv || stRoot()) : stRoot();
     ui.param = restore && restore.sp != null ? restore.sp : null;
   }
   if (restore) root.classList.add('restored');

@@ -8,6 +8,8 @@
       "דווח על טעות" וזיכרון המקום. **כל טקסט מהמודל — textContent בלבד**, אף פעם לא כ־HTML. הנגן, הרשת והמונים
       מגיעים מ־studio.js ב־ctx — המודול לא קורא לרשת בעצמו. */
 
+import { lineDir, langDir } from './studioplay.js';   // כיוון לכל שורה בשפת המקור — אותו כלל כמו בכתוביות של הנגן (שפות משולבות)
+
 /* ---------- 1. vi.json — אותה הסכמה כמו בשרתון (נספח 19.1) ---------- */
 export const VI_V = 'snb.video-analysis/1';
 export const VI_LANGS = ['he', 'en'];
@@ -233,7 +235,7 @@ export const placeMode = (pl, now) => (!pl ? '' : now - pl.at > VI_QUIET_MS && p
 const WHY = ['wrong', 'ts', 'missing', 'attrib', 'overgen', 'shallow', 'unclear', 'long', 'other'];
 export function renderVi(ctx) {
   const { T, h, btn, fmtT, v } = ctx;
-  const ix = viIndex(v), br = briefOf(v, ix), dir = v.lang.src === 'he' ? 'rtl' : 'ltr';
+  const ix = viIndex(v), br = briefOf(v, ix), dir = langDir(v.lang.src) || 'ltr';
   const anchors = new Map(), ptEls = new Map();   // מזהה פריט → זמן העוגן / הרכיבים שלו (להדגשה בזמן ניגון)
   const opened = new Set();
   const t0 = Date.now();
@@ -241,7 +243,7 @@ export function renderVi(ctx) {
   const el = h('div', 'st-vi');
   el.dir = 'rtl';
   const tm = (t) => { const b = h('bdi', 'st-vi-t', fmtT(t)); b.dir = 'ltr'; return b; };
-  const srcTxt = (tag, cls, s) => { const x = h(tag, cls, s); x.lang = v.lang.src; x.dir = dir; return x; };
+  const srcTxt = (tag, cls, s) => { const x = h(tag, cls, s); x.lang = v.lang.src; x.dir = s ? lineDir(s, dir) : dir; return x; };   // משולבת: לפי המילים
   const chipOf = (it) => {
     const a = anchorOf(it, ix, v.slides);
     if (!a) return null;
@@ -272,7 +274,7 @@ export function renderVi(ctx) {
   mini.hidden = true;
   const nowL = h('span', 'st-vi-now');
   const mrow = h('div', 'st-vi-mrow');
-  const backB = btn('st-vi-lnk', T('studioViBackTxt'), () => {
+  const backB = btn('st-linkb', T('studioViBackTxt'), () => {
     const on = curItem && ptEls.get(curItem);
     const tgt = (on && on[0]) || el.querySelector('.st-vi-gist');
     if (tgt && tgt.scrollIntoView) tgt.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -316,7 +318,7 @@ export function renderVi(ctx) {
 
   /* הכותרת הרזה ותווית האיכות */
   const hd = h('header', 'st-vi-hd');
-  hd.append(h('h2', 'st-vi-h', ctx.title || (v.video.title || '')));
+  hd.append(h('h1', 'st-large clamp', ctx.title || (v.video.title || '')));   // כמו דף העבודה
   const meta = h('div', 'st-vi-meta');
   meta.append(tm(v.video.dur), ' · ' + (v.lang.src === 'he' ? T('studioViInHe') : T('studioViInEn')) + ' · ' + T('studioViRead', { n: readMin(v) }));
   const trust = h('div', 'st-vi-trust');
@@ -326,17 +328,17 @@ export function renderVi(ctx) {
   trust.append(h('div', null, v.slides.length ? T('studioViAutoTS') : T('studioViAutoT')), tq);
   hd.append(meta, trust);
   el.append(mini);
-  if (viDraft(v)) el.append(h('div', 'st-vi-draft', T('studioViDraft')));   // 3.5: הנקודות לא אומתו מול התמליל ("אמת שוב" — עם העובד, 1.2ב)
+  if (viDraft(v)) el.append(h('div', 'st-banner warn st-vi-draft', T('studioViDraft')));   // 3.5: הנקודות לא אומתו מול התמליל ("אמת שוב" — עם העובד, 1.2ב)
   el.append(hd);
   const mode = placeMode(ctx.place, ctx.now());
   if (mode === 'ask') {
-    const rb = btn('st-vi-resume', T('studioViResume', { t: fmtT(ctx.place.t) }), () => { rb.remove(); restore(ctx.place); playAt(ctx.place.t); }, 'vi-resume');
+    const rb = btn('st-btn tint sm st-vi-resume', T('studioViResume', { t: fmtT(ctx.place.t) }), () => { rb.remove(); restore(ctx.place); playAt(ctx.place.t); }, 'vi-resume');
     el.append(rb);
   }
 
   /* השורה האחת והנקודות */
   if (br.one || br.pts.length) {
-    const g = h('div', 'st-vi-card st-vi-gist');
+    const g = h('div', 'st-vi-card st-vi-gist');   // כמו .st-jhero (זכוכית, --gl-card-sh)
     if (br.one) { const one = h('p', 'st-vi-one', br.one.text); const c = chipOf(br.one); if (c) one.append(c); g.append(one); }
     if (br.pts.length) { const ul = h('ul', 'st-vi-pts'); for (const it of br.pts) ul.append(point(it, 'st-vi-pt')); g.append(ul); }
     el.append(g);
@@ -347,15 +349,16 @@ export function renderVi(ctx) {
   const chEls = [];
   if (n) {
     el.append(sec(T('studioViOnPage')));
-    const toc = h('nav', 'st-vi-card st-vi-toc');
+    const toc = h('nav', 'st-list st-vi-toc');   // .st-list/.st-row — אותה רשימה כמו בכל הסטודיו
     toc.setAttribute('aria-label', T('studioViChs'));
     v.chapters.forEach((c, i) => {
-      const r = btn('st-vi-tr', null, () => { const d = chEls[i]; if (!d) return; d.open = true; d.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 'toc:' + c.id);
-      r.append(h('span', null, c.title), tm(c.t0));
+      const r = btn('st-row', null, () => { const d = chEls[i]; if (!d) return; d.open = true; d.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 'toc:' + c.id);
+      const l = h('span', 'st-l'); l.append(h('b', null, c.title));
+      r.append(l, tm(c.t0));
       toc.append(r);
     });
     el.append(toc);
-    const allB = btn('st-vi-lnk', T('studioViOpenAll'), () => {
+    const allB = btn('st-linkb', T('studioViOpenAll'), () => {
       const open = chEls.every((d) => d.open);
       for (const d of chEls) d.open = !open;
       allB.textContent = open ? T('studioViOpenAll') : T('studioViCloseAll');
@@ -363,16 +366,18 @@ export function renderVi(ctx) {
     el.append(sec(T('studioViChs'), allB));
     const chs = h('div', 'st-vi-chs');
     v.chapters.forEach((c, i) => {
-      const d = h('details', 'st-vi-card st-vi-ch');
+      const d = h('details', 'st-list st-vi-ch');
       d.dataset.c = c.id;
-      const s = h('summary');
-      const k = h('span', 'st-vi-chk');
+      const s = h('summary', 'st-row');
+      const k = h('span', 'st-l');
       const sm = h('small'); sm.append(T('studioViChOf', { i: i + 1, n }) + ' · ', tm(c.t0));
       k.append(h('b', null, c.title), sm);
-      s.append(k, ctx.ico('chev', 'st-vi-chv'));
+      const chv = ctx.ico('chev', 'st-chev');
+      s.append(k, chv);
       d.append(s);
       let built = false;
       d.addEventListener('toggle', () => {
+        chv.classList.toggle('open', d.open);
         if (!d.open) return;
         if (!opened.has(c.id)) { opened.add(c.id); ctx.onUx('ex'); }
         if (built) return;
@@ -394,7 +399,7 @@ export function renderVi(ctx) {
           }
           body.append(th);
         }
-        body.append(btn('st-vi-lnk st-vi-miss', T('studioViMiss'), (e) => { ctx.onUx('ms'); ctx.flash(T('studioViThanks')); e.currentTarget.disabled = true; }, 'miss:' + c.id));
+        body.append(btn('st-linkb st-vi-miss', T('studioViMiss'), (e) => { ctx.onUx('ms'); ctx.flash(T('studioViThanks')); e.currentTarget.disabled = true; }, 'miss:' + c.id));
         d.append(body);
         if (ctl) paint();
       });
@@ -408,28 +413,33 @@ export function renderVi(ctx) {
   const left = leftOf(v, ix);
   if (left.length) {
     el.append(sec(T('studioViLeft')));
-    const ul = h('ul', 'st-vi-card st-vi-left');
+    const ul = h('ul', 'st-list st-vi-left');
     for (const x of left.slice(0, 12)) {
-      const li = h('li');
-      li.append(x.n ? T('studioViSlide', { n: x.n }) : tm(x.t), ' — ' + whyLeft(x.why));
-      if (x.text) { li.append(' '); li.append(srcTxt('bdi', 'st-vi-lq', '“' + x.text.slice(0, 120) + (x.text.length > 120 ? '…' : '') + '”')); }
+      const li = h('li', 'st-row'), l = h('span', 'st-l'), b = h('b');
+      b.append(whyLeft(x.why) + ' · ', x.n ? T('studioViSlide', { n: x.n }) : tm(x.t));
+      l.append(b);
+      if (x.text) { const q = h('small'); q.append(srcTxt('bdi', 'st-vi-lq', '“' + x.text.slice(0, 120) + (x.text.length > 120 ? '…' : '') + '”')); l.append(q); }
+      li.append(l);
       ul.append(li);
     }
-    if (left.length > 12) ul.append(h('li', 'st-vi-more', T('studioMoreN', { n: left.length - 12 })));
+    if (left.length > 12) { const li = h('li', 'st-row st-vi-more'); li.append(h('span', 'st-l', T('studioMoreN', { n: left.length - 12 }))); ul.append(li); }
     el.append(ul);
   }
 
   /* התמליל המלא — מקופל; השורות נבנות בפתיחה הראשונה. נגיעה בשורה = ניגון ממנה */
   if (v.evidence.length) {
-    const d = h('details', 'st-vi-card st-vi-tx');
-    const s = h('summary'); s.append(h('b', null, T('studioViTx')), ctx.ico('chev', 'st-vi-chv'));
+    const d = h('details', 'st-list st-vi-tx');
+    const s = h('summary', 'st-row'), l = h('span', 'st-l'), chv = ctx.ico('chev', 'st-chev');
+    l.append(h('b', null, T('studioViTx'))); s.append(l, chv);
     d.append(s);
     d.addEventListener('toggle', () => {
+      chv.classList.toggle('open', d.open);
       if (!d.open || txRows) return;
       const box = srcTxt('div', 'st-vi-txb', null);
       txRows = v.evidence.slice().sort((a, b) => a.t0 - b.t0).slice(0, 3000).map((e) => {
         const r = btn('st-vi-txr', null, () => playAt(e.t0), 'tx:' + e.id);
-        r.append(tm(e.t0), h('span', null, e.text));
+        const sp = h('span', null, e.text); sp.dir = lineDir(e.text, dir);   // שורת תמליל בשפה אחרת (עברית בסרטון באנגלית) — בכיוון שלה
+        r.append(tm(e.t0), sp);
         box.append(r);
         return { t: e.t0, el: r };
       });
@@ -440,7 +450,7 @@ export function renderVi(ctx) {
   }
   if (!v.items.length) el.append(h('div', 'st-empty st-empty-sm', T('studioViNone')));
 
-  function sec(t, end) { const s = h('div', 'st-sec-t st-vi-sec'); s.append(h('span', null, t)); if (end) s.append(end); return s; }
+  function sec(t, end) { const s = h('div', end ? 'st-sec-t st-sec-row' : 'st-sec-t'); s.append(h('span', null, t)); if (end) s.append(end); return s; }   // = secT של הסטודיו
   function whyLeft(k) {
     switch (k) {
       case 'sponsor': return T('studioViLeftSponsor');
@@ -464,23 +474,20 @@ export function renderVi(ctx) {
     }
   }
 
-  /* חלונית הראיה (V77): גיליון תחתון לא מודאלי, בלי ערימה — "חזור" סוגר (closeSheet מ־closeRequest), כפתור סגירה */
+  /* חלונית הראיה (V77): הגיליון של הסטודיו (.st-rs — כמו גיליון הדירוג, זכוכית). "חזור" / נגיעה ברקע סוגרים (closeSheet מ־closeRequest) */
   function openSheet(it, a) {
     closeSheet();
     ctx.onUx('sh');
-    sh = h('div', 'st-vi-sh');
+    sh = h('div', 'st-rs st-vi-sh');
     sh.dir = 'rtl';   // כמו הדף: התוכן בעברית גם בממשק באנגלית
-    const box = h('div', 'st-vi-shin');
-    box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'false');
-    const head = h('div', 'st-vi-shh');
-    const ttl = h('b'); ttl.id = 'st-vi-sht'; ttl.append(tm(a.t)); if (a.n) ttl.append(' · ' + T('studioViSlide', { n: a.n }));
-    box.setAttribute('aria-labelledby', ttl.id);
-    const x = btn('st-vi-x', null, () => closeSheet(), 'sh-x'); x.append(ctx.ico('x')); x.setAttribute('aria-label', T('studioViClose'));
-    head.append(ttl, x);
-    box.append(h('div', 'st-rs-grab'), head);
+    sh.setAttribute('role', 'dialog'); sh.setAttribute('aria-modal', 'true');
+    const box = h('div', 'st-rs-box st-vi-shin');
+    const ttl = h('h2', 'st-rs-t'); ttl.id = 'st-vi-sht'; ttl.append(tm(a.t)); if (a.n) ttl.append(' · ' + T('studioViSlide', { n: a.n }));
+    sh.setAttribute('aria-labelledby', ttl.id);
+    box.append(h('div', 'st-rs-grab'), ttl);
     if (a.e) {
       const [pre, mk, post] = markSplit(a.e.text, it && it.q);
-      const bq = srcTxt('blockquote', 'st-vi-bq', null);
+      const bq = srcTxt('blockquote', 'st-vi-bq', null); bq.dir = lineDir(a.e.text, dir);
       bq.append(pre);
       if (mk) bq.append(h('mark', null, mk));
       bq.append(post);
@@ -501,7 +508,7 @@ export function renderVi(ctx) {
       else ocr();
     }
     const acts = h('div', 'st-vi-acts');
-    acts.append(btn('st-btn st-vi-play', T('studioViPlayHere'), () => { const t = a.e ? a.e.t0 : a.t; closeSheet(); playAt(t); }, 'sh-play'));
+    acts.append(btn('st-btn wide st-vi-play', T('studioViPlayHere'), () => { const t = a.e ? a.e.t0 : a.t; closeSheet(); playAt(t); }, 'sh-play'));
     if (it) {
       const why = h('div', 'st-rs-chips st-vi-why');
       why.hidden = true; why.setAttribute('role', 'group'); why.setAttribute('aria-label', T('studioViWhyT'));
@@ -513,14 +520,14 @@ export function renderVi(ctx) {
           setTimeout(closeSheet, 300);
         }, 'why:' + k));
       }
-      acts.append(btn('st-btn ghost st-vi-rep', T('studioViReport'), () => { why.hidden = !why.hidden; }, 'sh-rep'));
+      acts.append(btn('st-btn wide ghost st-vi-rep', T('studioViReport'), () => { why.hidden = !why.hidden; }, 'sh-rep'));
       box.append(acts, why);
     } else box.append(acts);
     sh.append(box);
+    sh.addEventListener('click', (e) => { if (e.target === sh) closeSheet(); });
     document.body.append(sh);
-    requestAnimationFrame(() => { if (sh) sh.classList.add('open'); });
   }
-  function closeSheet() { if (!sh) return false; sh.remove(); sh = null; return true; }
+  function closeSheet() { if (!sh) return false; const was = sh.isConnected; sh.remove(); sh = null; return was; }   // rsClose של הסטודיו יכול להסיר אותה קודם
 
   /* זיכרון המקום */
   function placeNow() {

@@ -60,7 +60,7 @@ for (const [page, mod] of [['academy.html', 'library.js'], ['studio.html', 'stud
   ok(/function curtainDown\(instant\)/.test(R(mod)) && /if \(lg && lg\.decode\) Promise\.race\(\[lg\.decode\(\)/.test(R(mod)), mod + ': הווילון יורד מיד כשמוכן, אחרי שהלוגו פוענח');
 }
 { const sj = R('studio.js');
-  ok(/store\.st = \{ api: ui\.api \|\| null, mf: ui\.mf \};/.test(sj) && /store = load\(\);\n  if \(store\.st\) \{ if \(!ui\.api\) ui\.api = store\.st\.api; ui\.mf = store\.st\.mf; \}/.test(sj) && /const st = src\.st && typeof src\.st === 'object'/.test(sj),
+  ok(/store\.st = \{ api: ui\.api \|\| null, mf: ui\.mf, r2: ui\.r2 \};/.test(sj) && /store = load\(\);\n  if \(store\.st\) \{ if \(!ui\.api\) ui\.api = store\.st\.api; ui\.mf = store\.st\.mf; if \(store\.st\.r2\) ui\.r2 = true; \}/.test(sj) && /const st = src\.st && typeof src\.st === 'object'/.test(sj),
     'סטודיו: קפסולת השרת בהדר מהמצב האחרון כבר בציור הראשון (S1 — לא "חיבור Claude" שמתחלף)'); }
 ok(/\} else curtainDown\(true\);/.test(R('library.js')) && /curtainDown\(!restore( \|\| !!SA)?\);/.test(R('studio.js')), 'הווילון יורד בכל פתיחה (לא רק ברענון)');
 ok(/goJobLink\(jobLink, linkView, 'none'\)/.test(R('studio.js')), 'קישור לעבודה בפתיחה — בלי קובייה על דף שעוד נכנס');

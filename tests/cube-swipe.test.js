@@ -112,7 +112,7 @@ ok(/const LIB_NOBACK = \['edit', 'mgr', 'admin'\]/.test(lib), 'Academy: בלי �
 // ---- Studio
 const r = fn(st, 'render');
 ok(/cubeClone\(root\)/.test(r) && /cubeGhostRun\(root, ghost, cubeSideFwd\(fwd\)\)/.test(r) && /const fwd = kind === 'push' \|\| kind === 'dfwd'/.test(r), 'Studio: מעבר בין דפים = קובייה');
-ok(/const ST_SIB = \['vi', 'ka', 'home', 'job', 'tower'\]/.test(st) && /wireStSwipe\(\);/.test(st), 'Studio: עמודים ראשיים (29–30/10/2026, כמו החוגה) = בית ← קריוקי ← העבודה ← מגדל הפיקוח, ההחלקה מחוברת');
+ok(/const ST_SIB = \['ka', 'home', 'vi', 'job', 'tower'\]/.test(st) && /wireStSwipe\(\);/.test(st), 'Studio: עמודים ראשיים (29–30/10/2026, כמו החוגה) = בית ← קריוקי ← העבודה ← מגדל הפיקוח, ההחלקה מחוברת');
 ok(!/stSwipeTabs|ST_TABS/.test(st) && /stTab\('alTab', k\)/.test(st), 'Studio: בלי החלקה בין הלשוניות — רק בלחיצה');
 ok(/'play', 'subs', 'cut'/.test(st), 'Studio: בלי החלקה בנגן, בעורכים ובטפסים');
 ok(/if \(swipePop > 0\)/.test(fn(st, 'onPop')), 'Studio: חזרה לבית בהחלקה לא מציירת שוב ב־popstate');
@@ -141,4 +141,4 @@ ok(/\[id\]:not\(svg \*\)'\)\.forEach\(\(x\) => x\.removeAttribute\('id'\)\)/.tes
 console.log('# ' + n + ' בדיקות עברו');
 // 30/10/2026 (בקשת המשתמש): ההגדרות נפתחות רק מהתפריט — בכל האפליקציות כפתור והחלקה אחורה לעמוד הראשי
 ok(/if \(ui\.view && ui\.view\.settings\) return next \? null : libSibPage\(libKeyOf\(ui\.view\), 'snb'\)/.test(lib) && /addEventListener\('click', \(\) => libDialTo\('snb'\)\)/.test(lib), 'Academy: מההגדרות — "‹ THE SNOWBALL" והחלקה אחורה לעמוד הראשי');
-ok(/if \(ui\.view === 'settings'\) return next \? null : stSibPage\('home'\)/.test(st) && /navBar\(\{ back: T\('studioDialHome'\), go: \(\) => stDialTo\('home'\) \}\)/.test(st), 'Studio: מההגדרות — "‹ תרגום סרטונים" והחלקה אחורה לעמוד הראשי');
+ok(/if \(ui\.view === 'settings'\) return next \? null : stSibPage\(stRoot\(\)\)/.test(st) && /navBar\(\{ back: stRoot\(\) === 'vi' \? T\('studioDialVi'\) : T\('studioDialHome'\), go: \(\) => stDialTo\(stRoot\(\)\) \}\)/.test(st), 'Studio: מההגדרות — "‹ <עמוד הבית>" (ניתוח, או תרגום סרטונים) והחלקה אחורה אליו');

@@ -118,7 +118,7 @@ function mkDoc() {
   ok(el.byK('ev:n2').textContent.includes('studioViSlide{"n":1}'), 'שבב עם שקף: "12:34 · שקף 1"');
   ok(el.byCls('st-vi-q')[0].all((x) => x.lang === 'en' && x.dir === 'ltr').length === 1, 'הציטוט בשפת המקור, משמאל לימין');
   ok(el.byCls('st-vi-ch').length === 3 && el.byCls('st-vi-chb').length === 0, 'שלושה פרקים, מקופלים (הגוף נבנה בפתיחה)');
-  ok(el.byCls('st-vi-tr').length === 3, '"בעמוד הזה" — שורה לכל פרק');
+  ok(el.byCls('st-vi-toc')[0].byCls('st-row').length === 3 && el.byCls('st-vi-toc')[0].className.includes('st-list'), '"בעמוד הזה" — שורה לכל פרק (.st-list/.st-row של הסטודיו)');
   ok(el.byCls('st-vi-trust')[0].textContent.includes('2/4'), 'תווית האיכות: 2/4 אומתו');
   ok(!el.byCls('st-vi-draft').length, 'בלי vi_unver — בלי פס טיוטה');
   ok(ux.some(([k]) => k === 'o'), 'מונה פתיחה (o)');
@@ -133,7 +133,9 @@ function mkDoc() {
   chip.click();
   const sh = doc.body.byCls('st-vi-sh')[0];
   ok(sh && pg.sheetOpen() && ux.some(([k]) => k === 'ch') && ux.some(([k]) => k === 'sh'), 'שבב → חלונית הראיה (מונים ch, sh)');
-  ok(sh.byCls('st-vi-shin')[0].getAttribute('aria-modal') === 'false', 'החלונית לא מודאלית');
+  ok(sh.className.split(' ').includes('st-rs') && sh.byCls('st-rs-box').length === 1 && sh.byCls('st-rs-grab').length === 1 && sh.byCls('st-rs-t').length === 1 && sh.getAttribute('aria-modal') === 'true',
+    'החלונית — הגיליון של הסטודיו (.st-rs / .st-rs-box, כמו גיליון הדירוג)');
+  ok(sh.byK('sh-play').className.includes('st-btn wide') && sh.byK('sh-rep').className.includes('st-btn wide ghost'), 'הכפתורים — st-btn wide (ו־ghost) של הסטודיו');
   const bq = sh.byCls('st-vi-bq')[0];
   ok(bq && bq.lang === 'en' && bq.all((x) => x.tagName === 'MARK').length === 1, 'הציטוט בשפת המקור, והקטע מהפריט מודגש');
   ok(pg.closeSheet() === true && !doc.body.byCls('st-vi-sh').length && pg.closeSheet() === false, '"חזור" (closeSheet) סוגר את החלונית, ואחר כך לא עושה כלום');
@@ -214,14 +216,15 @@ function mkDoc() {
   ok(keys.length > 40 && dyn.length === 0, 'כל המפתחות מילוליים (' + keys.length + ')');
   const miss = keys.filter((k) => (app.match(new RegExp('\\b' + k + ': "', 'g')) || []).length !== 2);
   ok(miss.length === 0, 'כל מפתח בעברית ובאנגלית' + (miss.length ? ': ' + miss : ''));
-  ok(/\.st-vi-sh \{ position: fixed;[^}]*z-index: 1100/.test(css), 'החלונית מעל החוגה (z-index 1100)');
-  ok(/:where\(\.st-root button, \.st-rs button, \.st-vi-sh button\)/.test(css), 'איפוס כפתורים גם בחלונית');
-  ok(/\[data-theme="dark"\] \.st-vi-sh \{ --st-card/.test(css) && /\[data-theme="dark"\] \.st-vi-trust b/.test(css), 'כהה: החלונית ותווית האיכות');
+  ok(/\.st-rs \{ position: fixed;[^}]*z-index: 1100/.test(css) && /sh = h\('div', 'st-rs st-vi-sh'\)/.test(src), 'החלונית — .st-rs מעל החוגה (z-index 1100)');
+  ok(/\.st-root :is\([^)]*\.st-vi-card\) \{ box-shadow: var\(--gl-card-sh\); \}/.test(css) && /\.st-vi-mini \{[^}]*background: var\(--gl-bar\);[^}]*backdrop-filter: var\(--gl-fx\)/.test(css), 'זכוכית: הכרטיס (--gl-card-sh) והמיני־נגן (--gl-bar, --gl-fx)');
+  ok(["'st-large clamp'", "'st-banner warn st-vi-draft'", "'st-sec-t st-sec-row'", "'st-linkb'", "'st-list st-vi-ch'", "'st-list st-vi-tx'", "'st-list st-vi-left'", "'st-rs-box st-vi-shin'"].every((c) => src.includes(c)), 'רכיבי הסטודיו: כותרת, פס, כותרות סעיפים, קישורים, רשימות, גיליון');
+  ok(/\[data-theme="dark"\] \.st-vi-trust b/.test(css), 'כהה: תווית האיכות');
   const viCss = css.slice(css.indexOf('ניתוח סרטונים, דף הניתוח'));
   ok(!/(?:^|[;{\s])(?:left|right)\s*:|text-align:\s*(?:left|right)|margin-(?:left|right)|padding-(?:left|right)/.test(viCss), 'יישור לוגי בלבד');
   ok(!/border-radius:\s*\d+px[^;]*;/.test(viCss.replace(/border-radius: 2px;|border-radius: 4px;/g, '')), 'עיגולי פינות — משתנים');
   ok(/\.st-vi-ev \{[^}]*min-height: 26px; min-width: 24px/.test(css), 'שבב — יעד מגע של 24×24 לפחות');
-  ok(!/^\.st-vi-chv \{[^}]*transform:/m.test(css) && /details\[open\] > summary \.st-vi-chv \{ transform: rotate\(-90deg\)/.test(css), 'חץ הפרק — סגור הצידה, פתוח למטה (כמו .st-chev)');
+  ok((src.match(/ctx\.ico\('chev', 'st-chev'\)/g) || []).length === 2 && (src.match(/chv\.classList\.toggle\('open', d\.open\)/g) || []).length === 2 && !/st-vi-chv/.test(css), 'חץ הפרק — .st-chev של הסטודיו (סגור הצידה, פתוח למטה)');
 
   // תמונת שקף — קטע בתים דרך studionet.js בלבד (הממשק לא פונה לרשת בעצמו)
   const N = await import(path.join(root, 'studionet.js'));
@@ -234,6 +237,21 @@ function mkDoc() {
     && await net.mediaBytes('abcdefghij12', 'bytes=0-') === null && await net.mediaBytes('../x', 'bytes=0-1') === null && seen.length === 1, 'mediaBytes — טווח הפוך, ענק, פתוח או מזהה לא תקין: בלי בקשה');
   ok(await N.createNet({ sw: null }).mediaBytes('abcdefghij12', 'bytes=0-1') === null, 'mediaBytes — בלי SW שולט: null');
   ok(/net\.mediaBytes\(vo\.id, imgRange\(s\)\)/.test(sj) && !/(?<![A-Za-z0-9_$.])fetch\(/.test(sj), 'studio.js — רק net.mediaBytes, בלי fetch');
+
+  // כתוביות בשפת המקור (10/11/2026): כיוון לכל שורה, גם בשפות משולבות
+  const PL = await import(path.join(root, 'studioplay.js'));
+  ok(PL.langDir('he') === 'rtl' && PL.langDir('ar') === 'rtl' && PL.langDir('fa-IR') === 'rtl' && PL.langDir('en') === 'ltr' && PL.langDir('ru') === 'ltr' && PL.langDir('') === '', 'langDir — עברית/ערבית/פרסית מימין, השאר משמאל');
+  ok(PL.lineDir('שלום לכולם', 'ltr') === 'rtl' && PL.lineDir('Hello everyone', 'rtl') === 'ltr' && PL.lineDir('مرحبا بكم') === 'rtl' && PL.lineDir('Привет всем') === 'ltr', 'lineDir — שורה בשפה אחת: הכיוון שלה, בלי קשר לשפת הסרטון');
+  ok(PL.lineDir('אז ה-transformer לוקח את ה-embedding', 'rtl') === 'rtl' && PL.lineDir('So we say שלום to everyone', 'ltr') === 'ltr' && PL.lineDir('Machine learning זה תחום', 'rtl') === 'rtl' && PL.lineDir('הסבר על machine learning model', 'rtl') === 'rtl', 'lineDir — שורה משולבת: הכיוון של שפת הסרטון');
+  ok(PL.lineDir('ואז ממשיכים בעברית עם API חדש', 'ltr') === 'rtl' && PL.lineDir('So we say שלום to everyone', 'rtl') === 'ltr' && PL.lineDir('the word שלום means peace', 'ltr') === 'ltr', 'lineDir — רוב של יותר מפי 2 גובר על שפת הסרטון');
+  ok(PL.lineDir('אני אוהב את הספר הזה מאוד, really') === 'rtl' && PL.lineDir('I really love this book so much, תודה') === 'ltr' && PL.lineDir('Hi שלום') === 'ltr' && PL.lineDir('12:30 — 45%') === 'auto', 'lineDir — בלי שפת סרטון: הרוב; תיקו — המילה הראשונה; בלי אותיות — auto');
+  const ps = read('studioplay.js');
+  ok(/orig: true,/.test(sj) && /subLang: me\.v\.lang\.src, orig: true/.test(sj), 'נגן הניתוח — orig: הכתוביות = התמליל בשפת המקור');
+  ok(/const orig = !!opts\.orig && !opts\.burned/.test(ps) && /let cc = orig \? ccAuto\(\)/.test(ps) && /orig \? \(cues\.length \? 'he' : 'off'\)/.test(ps), 'orig — דולקות מההתחלה כשיש תמליל (לא כבויות "כי הקול באותה שפה")');
+  ok(/else if \(orig\) \{ cc = cc === 'off' \? 'he' : 'off'; ccTouched = true; \} else \{ cc = nextCc/.test(ps) && /for \(const m of \['he', 'off'\]\) box\.append\(mRow\('', ccName\(m\), null, \(\) => \{ ccTouched = true; setCc\(m\); closeMenu\(\); \}/.test(ps), 'orig — דולק/כבוי בלבד, בלי לשמור להעדפה של נגן התרגום');
+  ok(/if \(orig\) d\.dir = lineDir\(x, oBase\)/.test(ps) && /if \(!orig\) \{ cc = 'off'; paintCc\(\); paintSub\(\); ccB\.disabled = true; \}/.test(ps), 'orig — כל שורה בכיוון שלה, והתמליל נשאר גם בקובץ החלופי');
+  ok(/orig \? T\('studioPlCcSrcL'\)/.test(ps) && /orig \? srcTag\(\)/.test(ps), 'orig — התפריט "שפת המקור (התמליל)", והתווית = שפת הסרטון');
+  ok(/x\.dir = s \? lineDir\(s, dir\) : dir/.test(src) && /sp\.dir = lineDir\(e\.text, dir\)/.test(src) && /bq\.dir = lineDir\(a\.e\.text, dir\)/.test(src) && /dir = langDir\(v\.lang\.src\) \|\| 'ltr'/.test(src), 'הדף — ציטוטים ושורות התמליל בכיוון שלהם (שפות משולבות)');
 
   console.log(`\n${n} בדיקות עברו`);
 })().catch((e) => { console.error(e); process.exit(1); });
