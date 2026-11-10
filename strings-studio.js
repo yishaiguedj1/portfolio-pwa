@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2376 מפתחות מתוך 6686) */
+/* המחרוזות של studio (2380 מפתחות מתוך 6690) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -649,6 +649,8 @@ he: {
   "studioErrViLong": "עד 90 דקות",
   "studioErrViOff": "הניתוח מושבת זמנית",
   "studioErrViSchema": "הניתוח לא הצליח — נסה שוב",
+  "studioErrVvBusy": "האימות כבר רץ.",
+  "studioErrVvLimit": "כבר ניסינו לאמת את הניתוח הזה 3 פעמים.",
   "studioErrWait": "אפשר לבדוק שוב בעוד {s} שניות",
   "studioEstApi": "אומדן: {t} עבודה, כ־{usd}. נשארו {left} החודש. להתחיל?",
   "studioEstBt": "אומדן בחצי מחיר: כ־{usd}, מוכן תוך כמה שעות. נשארו {left} החודש. להתחיל?",
@@ -2291,6 +2293,8 @@ he: {
   "studioViT": "ניתוח יבש",
   "studioViThanks": "תודה — נרשם",
   "studioViTx": "תמליל מלא",
+  "studioViVv": "אמת שוב",
+  "studioViVvBusy": "מאמתים מול התמליל…",
   "studioViWhyAttrib": "ייחוס שגוי",
   "studioViWhyLong": "ארוך מדי",
   "studioViWhyMissing": "חסר משהו חשוב",
@@ -3027,6 +3031,8 @@ en: {
   "studioErrViLong": "Up to 90 minutes",
   "studioErrViOff": "Analysis is temporarily off",
   "studioErrViSchema": "The analysis didn’t work — try again",
+  "studioErrVvBusy": "Verification is already running.",
+  "studioErrVvLimit": "This analysis has already been verified 3 times.",
   "studioErrWait": "You can test again in {s} seconds",
   "studioEstApi": "Estimate: {t} of work, about {usd}. {left} left this month. Start?",
   "studioEstBt": "Half-price estimate: about {usd}, ready within a few hours. {left} left this month. Start?",
@@ -4669,6 +4675,8 @@ en: {
   "studioViT": "Dry analysis",
   "studioViThanks": "Thanks — noted",
   "studioViTx": "Full transcript",
+  "studioViVv": "Verify again",
+  "studioViVvBusy": "Checking against the transcript…",
   "studioViWhyAttrib": "Wrong attribution",
   "studioViWhyLong": "Too long",
   "studioViWhyMissing": "Missing something important",

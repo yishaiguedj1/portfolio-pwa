@@ -1007,6 +1007,32 @@ function dxJob(parent, dx, id, uid, now) {
     spec: { name: sp.name || '', size: 0, type: '', dur: 0, from: sp.from || 'auto', to: sp.to || ['he'], mode: modeNow(sp.mode || DEFAULT_MODE), out: [], style: STYLES[0], terms: '',
       eng: 'api', cap: CAP_MIN_JOB, dx } };
 }
+/* PR 1.2ג (10/11/2026) — "אמת שוב" (התוכנית 3.5): ניתוח שהסתיים כ"טיוטה — לא אומתה" (vi_unver) → עבודת־בת שמריצה רק את
+   האימות (vv) על ה־vi.json שלו. kind 'tr' עם spec.vi = 1 ו־vo = 1 — כך ההתחלה, הלקיחה, הקבלה והעובד עובדים כרגיל (העובד:
+   analyze.vi_reverify); fvi = ה־vi.json של ההורה (באותה תיקייה), dur 0 (בלי צפי ובלי הזמנת זיכרון של סרטון).
+   בסיום — השרתון מחליף את ה־vi בתוצרים של ההורה (vvAdopt). כישלון של עבודת־הבת לא נוגע בהורה: הטיוטה נשארת */
+const VV_MAX = 3;   // אימותים חוזרים לניתוח (כולל כאלה שנכשלו) — "אמת שוב" לא הופך ללולאה של הוצאה
+const viOut = (job) => (job && Array.isArray(job.fo) ? job.fo : []).find((o) => o && o.k === 'vi' && FILE_ID_RE.test(String(o.id || ''))) || null;
+const isVv = (job) => !!(job && job.spec && job.spec.vo === 1);
+function canViVerify(job, now) {
+  if (!job || job.kind !== 'tr' || !job.spec || job.spec.vi !== 1 || job.spec.dry === 1 || isVv(job)) return 'state';
+  if (effState(job, now).state !== 'done' || !viOut(job)) return 'state';
+  if ((job.vr || 0) >= VV_MAX) return 'vv_limit';
+  return '';
+}
+function vvJob(parent, id, uid, now) {
+  const sp = parent.spec || {}, f = viOut(parent);
+  return { id, uid, kind: 'tr', state: 'new', created: now, updated: now, folder: parent.folder, rp: parent.id,
+    fvi: { id: f.id, name: String(f.name || 'vi.json').slice(0, 200), size: Math.max(0, Math.floor(+f.size || 0)) },
+    spec: { name: sp.name || '', size: 0, type: '', dur: 0, from: sp.from || 'auto', to: ['he'], mode: modeNow(sp.mode || DEFAULT_MODE), out: [], style: STYLES[0], terms: '',
+      vi: 1, vo: 1, eng: 'api', cap: CAP_MIN_JOB } };
+}
+/* התוצרים של ההורה עם ה־vi החדש של עבודת־הבת במקום הישן (השאר — כמו שהם), או null */
+function vvAdopt(parent, outs) {
+  const nv = (Array.isArray(outs) ? outs : []).find((o) => o && o.k === 'vi' && FILE_ID_RE.test(String(o.id || '')));
+  if (!nv || !viOut(parent)) return null;
+  return parent.fo.map((o) => (o && o.k === 'vi' ? { id: nv.id, name: nv.name, size: nv.size, k: 'vi' } : o));
+}
 /* פריט 15 (21/10/2026, "ריצת מבחן"): mode = מצב אחר מזה של המקור (השוואה בין מצבים על אותו סרטון); gr = קובץ הייחוס
    (באותה תיקייה) — העובד מחשב את הציון בעצמו בסוף (translator/goldscore.py), בלי שהטלפון פתוח */
 /* 24/10/2026 (ניסוי המאמץ): מאמץ אחר לתפקיד אחד בהרצה של סט הזהב — main = ההגהה והתדריך, tl = התרגום, rv = הביקורת.
@@ -1511,7 +1537,7 @@ function workerJob(job, nm, fb, fm, rl, gl) {
     fb: fb || [],            // v364: ספר התיקונים — תקלות מוכרות עם התיקון שלהן
     ls: job.ls && FP_RE.test(String(job.ls.fp || '')) ? job.ls : null,   // v364: העצירה שלפני ההמשך (לאבחון)
     cap: job.eng === 'api' && job.capc > 0 ? job.capc / 100 : null,   // מצב API: תקרת העבודה ($; נשמרת בסנטים) — כבר אחרי התקציב החודשי שנשאר
-    id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv), s: fileView(job.fsu), r: fileView(job.fsr), c: fileView(job.fc), q: fileView(job.fq), m: fileView(job.fph), w: fileView(job.fpw) },
+    id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv), s: fileView(job.fsu), r: fileView(job.fsr), c: fileView(job.fc), q: fileView(job.fq), m: fileView(job.fph), w: fileView(job.fpw), i: fileView(job.fvi) },   // i — PR 1.2ג: ה־vi.json לאימות חוזר
     qa: job.qa && job.qa.id ? { id: job.qa.id, q: job.qa.q, a: job.qa.a || null, g: job.qa.g || '' } : null,   // v361: גם השאלה — להמשך בסשן חדש
     ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [],   // v361: להמשך (מהאחרונה)
     sh: job.sh && job.sh.n > 0 ? { n: job.sh.n, old: job.sh.old || null } : null,   // v384: מצב צל — המגדל אוכף את הספים הישנים
@@ -1720,7 +1746,7 @@ function normUtl(o) {
   for (const k of UTL_KEYS) { const v = Number(o[k]); if (Number.isFinite(v) && v >= 0 && v <= 1e11) out[k] = Math.round(v); }
   return Object.keys(out).length ? out : null;
 }
-const JSON_FIELDS = ['mon', 'bq', 'btx', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr', 'urt', 'fsr', 'vst', 'vcp', 'vsm'];   // 9/11/2026: vsm = סיכום הניתוח (מספרים)   // 29/10/2026: vst = כמה מהסרטון ב־R2 בפעם האחרונה שזז (העלאה תקועה — upStallStep)   // 26/10/2026: fsr = רצועת הכתוביות שבקובץ, עזר להגהה   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['mon', 'bq', 'btx', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr', 'urt', 'fsr', 'vst', 'vcp', 'vsm', 'fvi'];   // PR 1.2ג: fvi = ה־vi.json של ההורה לעבודת "אמת שוב"   // 9/11/2026: vsm = סיכום הניתוח (מספרים)   // 29/10/2026: vst = כמה מהסרטון ב־R2 בפעם האחרונה שזז (העלאה תקועה — upStallStep)   // 26/10/2026: fsr = רצועת הכתוביות שבקובץ, עזר להגהה   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -1750,7 +1776,7 @@ function fromFields(f) {
 module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, smAlias, smResolve, smRowsMerge, smEvict, smIsName, chKey, jobSeries, SM_BYTES, SM_READ, SM_GL, SM_CH, SM_NEW, SM_DONE, SM_LOCK, SM_UNSURE, SM_FIX, SM_WORKER, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
-  GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XF_KEYS, XF_MAX, normXf, GOLD_ARMS, normArms, waveOrder, waveClone, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, cuesSwap, rrSpec, rrJob,
+  GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, normXe, XF_KEYS, XF_MAX, normXf, GOLD_ARMS, normArms, waveOrder, waveClone, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, cuesSwap, rrSpec, rrJob, VV_MAX, viOut, isVv, canViVerify, vvJob, vvAdopt,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,

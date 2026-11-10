@@ -246,6 +246,8 @@ def poll(server: str, tok: str, op: str = 'poll', busy: str = '', fit: dict | No
             out = {'id': jb['id'], 'key': jb['key'], 'kind': jb.get('kind') or 'tr'}
             if jb.get('vi') == 1:
                 out['vi'] = 1                          # 9/11/2026 (גל 0): ניתוח סרטונים — perf_kind / MEM_PRIOR['vi']
+            if jb.get('vo') == 1:
+                out['vo'] = 1                          # PR 1.2ג: "אמת שוב" — רק האימות (קל, כמו גיליון ה־AI)
             if isinstance(jb.get('dur'), (int, float)) and 0 < jb['dur'] <= 86400:
                 out['dur'] = jb['dur']                 # 21/10/2026: אורך הסרטון — להזמנת הזיכרון
             return {'job': out}
@@ -850,7 +852,10 @@ MEM_PRIOR = {'tr': (4600, 22), 'rr': (2200, 6), 'ai': (700, 0), 'dx': (400, 0), 
 
 
 def perf_kind(jb: dict) -> str:
-    """הסוג לזיכרון ולקבלה החזויה: 'vi' לעבודת ניתוח (השרתון מסמן בלקיחה), אחרת הסוג של העבודה."""
+    """הסוג לזיכרון ולקבלה החזויה: 'vi' לעבודת ניתוח (השרתון מסמן בלקיחה), אחרת הסוג של העבודה. "אמת שוב" (vo, ‏PR 1.2ג)
+    — 'ai': רק קריאות ל־Claude על קובץ קטן, בלי תמלול ובלי וידאו (ולא נלמד — mem_note מדלג)."""
+    if jb.get('vo') == 1:
+        return 'ai'
     return 'vi' if jb.get('vi') == 1 else (jb.get('kind') or 'tr')
 MEM_MARGIN = 1.1                    # ההזמנה = השיא הצפוי + 10%
 MEM_BASE_MB = 400                   # הסוכן עצמו + ההכנה מראש של המודלים
@@ -1139,7 +1144,7 @@ def run_slots(server: str, tok: str, warm, nmax: int, stop_after: int = 0) -> in
                 continue
             print('← סיום ' + sl.id[:6] + '… (' + str(rc) + ') · שיא זיכרון ' + str(int(sl.peak)) + 'MB', flush=True)
             ev(end_code(rc))
-            if rc in (0, 1, 2) and sl.peak > 0:
+            if rc in (0, 1, 2) and sl.peak > 0 and sl.jb.get('vo') != 1:   # PR 1.2ג: "אמת שוב" לא מלמד את הזיכרון
                 mem_note(sl.kind, sl.dur, sl.peak)
             try:
                 flight_send(server, tok, sl.id)          # תהליך המשבצת מת בלי לסיים (נהרג) — היומן שלו עכשיו, לא בעלייה הבאה

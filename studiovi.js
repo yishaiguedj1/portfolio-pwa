@@ -332,7 +332,11 @@ export function renderVi(ctx) {
   trust.append(h('div', null, v.slides.length ? T('studioViAutoTS') : T('studioViAutoT')), tq);
   hd.append(meta, trust);
   el.append(mini);
-  if (viDraft(v)) el.append(h('div', 'st-banner warn st-vi-draft', T('studioViDraft')));   // 3.5: הנקודות לא אומתו מול התמליל ("אמת שוב" — עם העובד, 1.2ב)
+  if (viDraft(v)) {   // 3.5: הנקודות לא אומתו מול התמליל — ו"אמת שוב" (PR 1.2ג; ctx.draftAct — הכפתור מ־studio.js)
+    const db = h('div', 'st-banner warn st-vi-draft', T('studioViDraft'));
+    if (ctx.draftAct) db.append(ctx.draftAct);
+    el.append(db);
+  }
   el.append(hd);
   const mode = placeMode(ctx.place, ctx.now());
   if (mode === 'ask') {

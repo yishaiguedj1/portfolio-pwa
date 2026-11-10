@@ -190,6 +190,23 @@ function mkDoc() {
   seeks.length = 0; rb.click();
   ok(seeks[0] === 300, '"המשך מ־" מנגן מהמקום');
   pd.destroy();
+
+  /* PR 1.2ג — "אמת שוב": הכפתור מ־studio.js (ctx.draftAct) בפס הטיוטה בלבד; עבודת־הבת לא ברשימה; כשהיא מסתיימת — הקובץ החדש נטען */
+  const act = h('span', 'st-vi-vv');
+  const pa = P.renderVi(ctx(vd, { draftAct: act }));
+  ok(pa.el.byCls('st-vi-draft')[0].children.includes(act), 'vi_unver — "אמת שוב" בתוך פס הטיוטה');
+  pa.destroy();
+  const pna = P.renderVi(ctx(P.normVi(good), { draftAct: h('span', 'st-vi-vv') }));
+  ok(!pna.el.byCls('st-vi-vv').length, 'ניתוח מאומת — בלי "אמת שוב"');
+  pna.destroy();
+  ok(/draftAct: vvBtn\(rec, me\)/.test(sj) && /net\.api\('viVerify', \{ job: rec\.id \}\)/.test(sj) && /T\('studioViVvBusy'\)/.test(sj) && /T\('studioViVv'\)/.test(sj),
+    'studio.js: הכפתור קורא ל־op:viVerify, ובזמן שהאימות רץ — "מאמתים…"');
+  ok(/if \(sj\.spec && sj\.spec\.vo === 1\) \{[^\n]*vv\.set\(sj\.rp[^\n]*continue; \}/.test(sj) && /vvJobs = vv;\s*\n\s*vaSync\(\);/.test(sj),
+    'studio.js: עבודת "אמת שוב" לא ברשימה — רק מצבה לפי ההורה, ו־vaSync אחרי כל סנכרון');
+  ok(/o && va\.fid && o\.id !== va\.fid[\s\S]{0,200}viLoad\(rec\)/.test(sj), 'studio.js: vi.json חדש בתוצרים של ההורה — הדף טוען אותו מחדש');
+  ok(/case 'vv_limit': return T\('studioErrVvLimit'\)/.test(sj) && /case 'vv_busy': return T\('studioErrVvBusy'\)/.test(sj), 'studio.js: הודעות השגיאה של "אמת שוב"');
+  ok(['studioViVv', 'studioViVvBusy', 'studioErrVvLimit', 'studioErrVvBusy'].every((k) => (app.match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2), 'מחרוזות "אמת שוב" — בעברית ובאנגלית');
+  ok(/\.st-vi-vv \{[^}]*margin-inline-start: auto/.test(css), 'CSS: הכפתור בקצה הפס (יישור לוגי)');
   seeks.length = 0;
   const pk = P.renderVi(ctx(v, { t0: 754 }));
   await new Promise((r) => setTimeout(r, 0));
