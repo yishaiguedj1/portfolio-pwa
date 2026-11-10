@@ -49,8 +49,8 @@ ok(/l\.scrollTo\(\{ top: Math\.min\(to, max\), behavior: 'smooth' \}\)/.test(st)
 ok(/scroll-snap-type: y proximity/.test(css) && /\.st-list\.st-jobs > \.st-proj \{ scroll-snap-align: start; \}/.test(css) && /touch-action: pan-y/.test(css), 'גלילה באצבע בתוך הכרטיס — נעצרת על תחילת שורה');
 
 const D = 86400e3, now = Date.UTC(2026, 9, 21), F = 'R2_j' + 'a'.repeat(20);
-ok(SC.expiredJob({ kind: 'tr', state: 'done', folder: F, ended: now - 31 * D }, now), 'אחרי חודש — עבודה ב־R2 נמחקת');
-ok(!SC.expiredJob({ kind: 'tr', state: 'done', folder: F, ended: now - 29 * D }, now), 'לפני חודש — נשארת');
+ok(SC.expiredJob({ kind: 'tr', state: 'done', folder: F, ended: now - 22 * D }, now), 'אחרי 3 שבועות — עבודה ב־R2 נמחקת (10/11/2026, היה חודש)');
+ok(!SC.expiredJob({ kind: 'tr', state: 'done', folder: F, ended: now - 20 * D }, now), 'לפני 3 שבועות — נשארת');
 ok(!SC.expiredJob({ kind: 'tr', state: 'running', folder: F, ended: now - 40 * D }, now), 'עבודה שעוד רצה — לא נמחקת');
 ok(!SC.expiredJob({ kind: 'tr', state: 'done', folder: F, ended: now - 40 * D, gd: { ref: 'x' } }, now), 'עבודת זהב — לא נמחקת');
 ok(!SC.expiredJob({ kind: 'tr', state: 'done', folder: 'DriveFolder01234567', ended: now - 40 * D }, now), 'עבודה ב־Drive של המשתמש — לא נמחקת');
