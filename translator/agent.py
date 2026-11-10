@@ -104,6 +104,8 @@ def host_info(busy: str = '') -> dict:
     """מצב השרת למסך השרת באפליקציה — מספרים בלבד (בלי שמות קבצים, בלי תוכן). כל ערך שלא נמדד — לא נשלח."""
     hb = {'v': os.environ.get('SNB_VERSION', 'dev')[:12], 'busy': busy,
           'vi': 1}                     # 9/11/2026: מכיר עבודת ניתוח (analyze.py) — השרתון מוסר אותה רק למי שמצהיר
+    if os.environ.get('SNB_VI_LIVE') != '1':   # 10/11/2026: הניתוח עם Claude סגור (= not analyze.live_ok) — השרתון דוחה
+        hb['vx'] = 1                           # ניתוח לא יבש כבר ביצירה (vi_off), לפני שהטלפון מעלה את כל הסרטון
     if busy:                          # 15/10/2026: הדופק עם השלב הנוכחי (מ־prog.json של job.py)
         pr = _prog()
         if re.match(r'^[a-z0-9_-]{1,24}$', str(pr.get('st') or '')):

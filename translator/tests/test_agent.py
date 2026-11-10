@@ -97,7 +97,7 @@ class AgentTests(unittest.TestCase):
         hb = self.fake.hb[0]
         self.assertEqual(hb['busy'], '')
         self.assertTrue(0 <= hb['disk'] <= 100 and hb['free'] >= 0 and 'mem' in hb, 'דופק: דיסק, זיכרון — מספרים בלבד')
-        self.assertEqual(set(hb) - {'v', 'busy', 'disk', 'free', 'load', 'mem', 'up', 'iso', 'iw', 'al', 'ev', 'cpu', 'nj', 'mx', 'vi'}, set(), 'בלי שום שדה מעבר למספרים, לגרסה ולקודים הקבועים')
+        self.assertEqual(set(hb) - {'v', 'busy', 'disk', 'free', 'load', 'mem', 'up', 'iso', 'iw', 'al', 'ev', 'cpu', 'nj', 'mx', 'vi', 'vx'}, set(), 'בלי שום שדה מעבר למספרים, לגרסה ולקודים הקבועים')
         self.assertEqual(hb.get('vi'), 1, '9/11/2026: יכולת קבועה — העובד מריץ ניתוח סרטונים (שומר הלקיחה בשרתון)')
         self.assertEqual([k for _, k in hb['ev']], ['up'], 'ת7: יומן השרת — "הסוכן עלה" נשלח כבר בפנייה הראשונה')
         self.assertTrue(all(isinstance(t, int) and t > 1.6e9 for t, _ in hb['ev']))
@@ -339,6 +339,31 @@ class BootPollUnit(unittest.TestCase):
         agent.poll('https://x', 't')
         self.assertEqual([b.get('boot') for b in sent], [None, True, True, None])
 
+
+
+class ViGateHbUnit(unittest.TestCase):
+    """10/11/2026: הניתוח עם Claude סגור (SNB_VI_LIVE כבוי) — הדופק מדווח vx, והשרתון דוחה ניתוח לא יבש ביצירה,
+    לפני שהטלפון מעלה את הסרטון. התנאי = analyze.live_ok."""
+
+    def test_vx_follows_live_gate(self):
+        sys.path.insert(0, str(HERE))
+        import agent
+        import analyze
+        saved = os.environ.get('SNB_VI_LIVE')
+        try:
+            for val in (None, '0', '1'):
+                if val is None:
+                    os.environ.pop('SNB_VI_LIVE', None)
+                else:
+                    os.environ['SNB_VI_LIVE'] = val
+                hb = agent.host_info()
+                self.assertEqual(hb.get('vi'), 1)
+                self.assertEqual(hb.get('vx') == 1, not analyze.live_ok(), val)
+        finally:
+            if saved is None:
+                os.environ.pop('SNB_VI_LIVE', None)
+            else:
+                os.environ['SNB_VI_LIVE'] = saved
 
 
 class DiskLowUnit(unittest.TestCase):
