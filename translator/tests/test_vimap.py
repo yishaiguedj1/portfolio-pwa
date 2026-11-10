@@ -1,0 +1,323 @@
+"""המיפוי עם Claude (analyze.vi_map, ‏visheet.py; PR 1.2א) — עם llm.ManualEngine ותשובות מוכנות. בלי רשת ובלי עלות.
+
+| מה | איך |
+|---|---|
+| שלוש הרצאות (אנגלית, עברית, בלי מסך) → vi.json תקין (norm_vi = עצמו), זמן השבב = זמן המילה | "Claude" מדומה שקורא את החלון |
+| ניסיון תיקון לסכמה, מיפוי חוזר מעל 30% פסולים, הסלמה ל־haiku-high, חלון חלקי, vi_schema, ‏vi_card, ‏cap | מנועים מדומים |
+| הפרומפט: בלי זמנים, השלד בבלוק הקבוע, אותו בלוק לכל החלונות | בדיקת הטקסט שנשלח |
+"""
+import json
+import re
+import sys
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import analyze as A  # noqa: E402
+import llm  # noqa: E402
+import vicheck as C  # noqa: E402
+import visheet as V  # noqa: E402
+
+
+def words_of(sents, t=0.0, gap=1.5):
+    """משפטים → מילים עם זמן (0.4 שנ׳ למילה) ויחידות דיבור (analyze.evidence)"""
+    out = []
+    for s in sents:
+        for w in s.split():
+            out.append({"w": w, "s": round(t, 2), "e": round(t + 0.35, 2), "p": 0.9})
+            t += 0.4
+        t += gap
+    return out
+
+
+EN = ["Today we talk about gradient descent.", "The learning rate is 0.01 in our runs.",
+      "This might reduce training time.", "Next we look at momentum.", "Momentum adds 90% of the last step."]
+HE = ["היום נדבר על ירידת גרדיאנט.", "קצב הלמידה הוא 0.01 בניסויים שלנו.", "ייתכן שזה מקצר את האימון.",
+      "עכשיו נעבור למומנטום.", "המומנטום מוסיף 90% מהצעד הקודם."]
+
+
+def lecture(sents, with_screen=True):
+    wd = words_of(sents)
+    ev = A.evidence(wd)
+    slides, ocr = [], []
+    if with_screen:
+        screen = {"units": [
+            {"kind": "slide", "t0": 0.0, "t1": 10.0, "states": [{"t0": 0.0}],
+             "ocr": {"lines": [{"text": "Gradient descent", "conf": 90, "box": [0, 0, 100, 20]},
+                               {"text": "Step size matters most", "conf": 90, "box": [0, 30, 100, 20]}]}},
+            {"kind": "slide", "t0": 10.0, "t1": 30.0, "states": [{"t0": 10.0, "rel": "new"}],
+             "ocr": {"lines": [{"text": "Momentum", "conf": 90, "box": [0, 0, 100, 20]}]}}]}
+        slides, ocr = A.slides_doc(screen)
+        A.screen_only(slides, ocr, wd)
+    return wd, ev, slides, ocr
+
+
+def ids_in(prompt):
+    return re.findall(r"^\[((?:e|s)\d+)(?:\|S\d+)?\]", prompt, re.M)
+
+
+def smart(prompt, he=False):
+    """ "Claude" שקורא את החלון: פרק בתחילת החלון, פריט לכל יחידת דיבור עם ציטוט של 3 המילים הראשונות,
+    פריט לכל שקף עם שורות "רק על המסך", ושקף בלי שורות — נדחה"""
+    lines = [x for x in prompt.splitlines() if re.match(r"^\[(e|s)\d+", x)]
+    first = re.match(r"^\[(\w+)", lines[0]).group(1)
+    items, drop = [], []
+    for ln in lines:
+        m = re.match(r"^\[(e\d+)(?:\|S\d+)?\](?: \(\?\))? (.*)$", ln)
+        if m:
+            txt = m.group(2)
+            nums = " ".join(re.findall(r"\d+(?:\.\d+)?%?", txt))
+            items.append({"kind": "note", "text": ("נקודה " if he else "נקודה על ") + nums, "ev": [m.group(1)],
+                          "q": " ".join(txt.split()[:3]), "src": "speech", "basis": "speaker", "conf": "high"})
+            continue
+        m = re.match(r"^\[(s\d+)\] slide appears(.*)$", ln)
+        if m:
+            so = re.findall(r"\[(o\d+\.\d+) so\]", m.group(2))
+            if so:
+                items.append({"kind": "note", "text": "שקף", "ev": [m.group(1)] + so, "q": "", "src": "screen_only",
+                              "basis": "speaker", "conf": "med"})
+            else:
+                drop.append({"ref": m.group(1), "why": "title_only"})
+    d = {"genre": "academic_lecture", "segments": [{"from": first, "type": "content"}],
+         "chapters": [{"from": first, "lvl": 1, "cont": False, "title": "פתיחה", "sum": "מה לומדים."}],
+         "items": items, "drop": drop}
+    return V.TAGS[0] + json.dumps(d, ensure_ascii=False) + V.TAGS[1]
+
+
+class Scripted:
+    """מנוע מדומה עם רשימת תשובות (או פונקציה) — רושם כל קריאה"""
+    manual = True
+
+    def __init__(self, answers, structured=False, fits=None):
+        self.answers, self.structured, self.fits = answers, structured, fits
+        self.calls = []
+        self.ledger = llm.Ledger()
+        self.cap = None
+
+    def fits_card(self, fixed, prompt, extra="", reserve=0):
+        return True if self.fits is None else self.fits(prompt)
+
+    def complete(self, k, fixed, prompt, max_tokens=32000, system_extra="", on_first_token=None, partial_ok=False, fmt=None):
+        self.calls.append({"k": k, "fixed": fixed, "prompt": prompt, "fmt": fmt})
+        a = self.answers(prompt) if callable(self.answers) else self.answers.pop(0)
+        if isinstance(a, Exception):
+            raise a
+        return llm.Result(a, {}, 0.0, "end_turn")
+
+
+def run_map(sents, he=False, screen=True, eng=None, mode=""):
+    wd, ev, slides, ocr = lecture(sents, screen)
+    inv = A.inventories(ev, slides, ocr)
+    bnd = A.bounds(ev, slides)
+    eng = eng or llm.ManualEngine(lambda k, text: smart(text, he))
+    dur = wd[-1]["e"] + 1
+    m = A.vi_map(eng, mode, "he" if he else "en", ev, slides, ocr, inv, bnd, dur, wd)
+    vi = A.build_vi_live("he" if he else "en", dur, "file", "t", m, ev, slides, ocr, "ok", [] if screen else ["vi_noscreen"])
+    return vi, m, wd, ev, eng
+
+
+class TestFixtures(unittest.TestCase):
+    """הקבלה של 1.2א: 3 הרצאות → vi.json תקין, וזמן השבב = זמן המילה בדיוק"""
+
+    def check(self, vi, wd, ev):
+        self.assertEqual(C.norm_vi(vi), vi, "vi.json תקין — מה שהטלפון יציג")
+        self.assertEqual(vi["pv"], V.PV)
+        self.assertIn("vi_unver", vi["quality"]["warn"], "עד האימות (1.2ב) — טיוטה")
+        self.assertEqual(vi["chapters"][0]["t0"], 0)
+        ix = C.Index(ev, [], [], wd)
+        for it in vi["items"]:
+            if it.get("q"):
+                i = C.quote_word(ix.ev[it["ev"][0]], it["q"], wd)
+                self.assertEqual(it["t"], wd[i]["s"], "זמן השבב = זמן המילה")
+                self.assertEqual(it["t"], ix.ev[it["ev"][0]]["t0"], "הציטוט מתחיל ביחידה")
+        self.assertEqual([x["id"] for x in vi["items"]], ["n%d" % i for i in range(1, len(vi["items"]) + 1)])
+        self.assertTrue(all(x["ch"] == "c1" for x in vi["items"]))
+
+    def test_english(self):
+        vi, m, wd, ev, _ = run_map(EN)
+        self.check(vi, wd, ev)
+        self.assertEqual(vi["genre"], "academic_lecture")
+        self.assertEqual(sum(1 for x in vi["items"] if x["src"] == "screen_only"), 1, "השורה שלא נאמרה (V23)")
+        self.assertIn({"ref": "s2", "drop": "title_only"}, vi["ledger"])
+        self.assertEqual(vi["quality"]["cov"], 1, "כל השקפים והשורות — נוצלו או נדחו")
+        hedge = [x for x in vi["items"] if "might" in (x.get("q") or "")]
+        self.assertEqual(hedge[0]["conf"], "med", "הסתייגות שנעלמה — הביטחון יורד")
+        self.assertEqual(m["st"]["iss"].get("hedge"), 1)
+
+    def test_hebrew(self):
+        vi, m, wd, ev, _ = run_map(HE, he=True)
+        self.check(vi, wd, ev)
+        self.assertEqual(vi["lang"]["src"], "he")
+        self.assertEqual(m["st"]["iss"].get("num_bad", 0), 0, "המספרים מהיחידות — לא מומצאים")
+
+    def test_no_screen(self):
+        vi, m, wd, ev, _ = run_map(EN, screen=False)
+        self.check(vi, wd, ev)
+        self.assertEqual((vi["slides"], vi["ledger"]), ([], []))
+        self.assertIn("vi_noscreen", vi["quality"]["warn"])
+
+
+class TestPrompt(unittest.TestCase):
+    def test_no_times_and_same_fixed_block(self):
+        wd, ev, slides, ocr = lecture(EN)
+        old = A.VI_WIN_TOK
+        A.VI_WIN_TOK = 40                       # חלונות קטנים — כמה קריאות
+        try:
+            sc = Scripted(lambda p: smart(p))
+            A.vi_map(sc, "", "en", ev, slides, ocr, A.inventories(ev, slides, ocr), A.bounds(ev, slides), 30, wd)
+        finally:
+            A.VI_WIN_TOK = old
+        self.assertGreater(len(sc.calls), 1)
+        self.assertEqual(len({c["fixed"] for c in sc.calls}), 1, "בלוק קבוע אחד לכל החלונות (מטמון)")
+        self.assertTrue(sc.calls[0]["fixed"].startswith(V.SYS))
+        self.assertIn("## Slides (id: OCR lines)", sc.calls[0]["fixed"])
+        self.assertIn("[so] Step size matters most", sc.calls[0]["fixed"])
+        for c in sc.calls:
+            self.assertEqual(c["k"], "vm")
+            self.assertIsNone(c["fmt"], "בלי סכמה בצד השרת — JSON בתגיות")
+            self.assertIn(V.TAGS[0], c["prompt"])
+            self.assertFalse(re.search(r"\d+:\d\d|\b\d+\.\d+s\b", c["prompt"].split("## Window")[1].split("Map this window")[0]),
+                             "בלי זמנים בחלון")
+        self.assertIn("This is the beginning", sc.calls[0]["prompt"])
+        self.assertIn("continues the talk", sc.calls[1]["prompt"])
+
+    def test_structured_engine_gets_schema(self):
+        sc = Scripted(lambda p: smart(p).replace(V.TAGS[0], "").replace(V.TAGS[1], ""), structured=True)
+        run_map(EN, eng=sc)
+        self.assertIs(sc.calls[0]["fmt"], V.VM_SCHEMA)
+        self.assertNotIn(V.TAGS[0], sc.calls[0]["prompt"])
+
+    def test_schema_is_strict(self):
+        def walk(s):
+            if s.get("type") == "object":
+                self.assertFalse(s["additionalProperties"])
+                self.assertEqual(sorted(s["required"]), sorted(s["properties"]))
+                for v in s["properties"].values():
+                    walk(v)
+            if s.get("type") == "array":
+                walk(s["items"])
+        walk(V.VM_SCHEMA)
+        self.assertEqual(V.GENRES, C.VI_GENRES)
+        self.assertEqual(V.SEG_TYPES, C.VI_SEG)
+        self.assertTrue(set(V.DROP_MODEL) < set(C.VI_DROP))
+        self.assertEqual(len(V.sys_hash()), 12)
+
+    def test_unit_line_marks_unsure(self):
+        self.assertEqual(V.unit_line({"id": "e3", "spk": "S2", "text": "x", "conf": 0.3}), "[e3|S2] (?) x")
+        self.assertEqual(V.unit_line({"id": "e3", "text": "x", "conf": 0.9}), "[e3] x")
+
+
+class TestRecovery(unittest.TestCase):
+    def test_schema_retry_once(self):
+        n = []
+        sc = Scripted(lambda p: (n.append(1), "oops" if len(n) == 1 else smart(p))[1])
+        vi, m, *_ = run_map(EN, eng=sc)
+        self.assertEqual(m["st"]["retry"], 1)
+        self.assertIn("was invalid", sc.calls[1]["prompt"])
+        self.assertNotIn("vi_partial", vi["quality"]["warn"])
+
+    def test_window_fails_partial(self):
+        n = []
+
+        def ans(p):
+            n.append(1)
+            return "bad" if len(n) <= 2 else smart(p)
+        old = A.VI_WIN_TOK
+        A.VI_WIN_TOK = 40
+        try:
+            vi, m, *_ = run_map(EN, eng=Scripted(ans))
+        finally:
+            A.VI_WIN_TOK = old
+        self.assertEqual(m["st"]["fail"], 1)
+        self.assertIn("vi_partial", vi["quality"]["warn"])
+        self.assertTrue(vi["items"], "שאר החלונות נכנסו")
+
+    def test_all_windows_fail(self):
+        with self.assertRaises(A.VIFail) as e:
+            run_map(EN, eng=Scripted(lambda p: "bad"))
+        self.assertEqual(e.exception.code, "vi_schema")
+
+    def test_api_error_partial_and_cap(self):
+        with self.assertRaises(A.VIFail) as e:
+            run_map(EN, eng=Scripted(lambda p: (_ for _ in ()).throw(llm.LLMError("budget_cap", "x"))))
+        self.assertEqual(e.exception.code, "cap")
+        with self.assertRaises(A.VIFail) as e:
+            run_map(EN, eng=Scripted(lambda p: (_ for _ in ()).throw(llm.LLMError("api_overloaded", "x"))))
+        self.assertEqual(e.exception.code, "vi_schema")
+
+    def test_remap_with_feedback(self):
+        """5.8: יותר מ־30% פריטים בלי ראיה — מיפוי חוזר אחד, עם "לא נמצאה ראיה ל"; הגרסה הטובה נשארת"""
+        n = []
+
+        def ans(p):
+            n.append(1)
+            if len(n) == 1:
+                d = json.loads(smart(p)[len(V.TAGS[0]):-len(V.TAGS[1])])
+                for it in d["items"]:
+                    it["ev"] = ["e999"]
+                return V.TAGS[0] + json.dumps(d) + V.TAGS[1]
+            return smart(p)
+        sc = Scripted(ans)
+        vi, m, *_ = run_map(EN, eng=sc)
+        self.assertEqual((m["st"]["remap"], m["st"]["esc"]), (1, 0), "מנוע ידני — בלי הסלמה")
+        self.assertIn("Problems: ev_bad", sc.calls[1]["prompt"])
+        self.assertTrue(all(x["ev"] for x in vi["items"]))
+
+    def test_escalation_only_haiku_medium(self):
+        e = llm.Engine(llm.Spec.of("haiku-medium"), cap_usd=1.0, client=object())
+        e2 = A._escalated(e, "haiku-medium")
+        self.assertIsNot(e2, e)
+        self.assertEqual(e2.spec.model, llm.Spec.of("haiku-high").model)
+        self.assertEqual(e2.spec.effort, llm.Spec.of("haiku-high").effort)
+        self.assertIs(e2.ledger, e.ledger, "אותו ספר חשבונות ואותה תקרה")
+        self.assertEqual(e2.cap, 1.0)
+        for mode in ("haiku-high", "sonnet-medium", "opus-medium", ""):
+            self.assertIs(A._escalated(e, mode), e, "אף פעם לא ל־Sonnet/Opus, ובלי הסלמה במצבי המנהל")
+        self.assertIs(A._escalated(llm.ManualEngine(lambda k, t: ""), "haiku-medium").__class__, llm.ManualEngine)
+
+    def test_card_split_and_fail(self):
+        sc = Scripted(lambda p: smart(p), fits=lambda p: len(ids_in(p)) <= 3)
+        vi, m, *_ = run_map(EN, eng=sc)
+        self.assertGreater(m["st"]["win"], 1, "חלון שלא נכנס לכרטיס — נחצה")
+        self.assertTrue(all(len(ids_in(c["prompt"])) <= 3 for c in sc.calls))
+        with self.assertRaises(A.VIFail) as e:
+            run_map(EN, eng=Scripted(lambda p: smart(p), fits=lambda p: False))
+        self.assertEqual(e.exception.code, "vi_card")
+
+    def test_refusal_text_installed(self):
+        run_map(EN)
+        self.assertEqual(llm.refusal_text("vm"), V.REFUSAL_VI)
+        self.assertNotEqual(llm.refusal_text("main"), V.REFUSAL_VI)
+
+
+class TestMerge(unittest.TestCase):
+    def test_chapters_cont_levels_snap(self):
+        wd, ev, slides, ocr = lecture(EN + EN)
+        ix = C.Index(ev, slides, ocr, wd)
+        e = [u["id"] for u in ev]
+        wins = [{"t0": ev[0]["t0"], "t1": ev[4]["t1"]}, {"t0": ev[5]["t0"], "t1": ev[-1]["t1"]}]
+
+        def out(chs, segs):
+            return {"d": {"genre": "other", "segments": segs, "chapters": chs, "items": [], "drop": []}, "res": []}
+        outs = [out([{"from": e[1], "lvl": 2, "cont": False, "title": "א", "sum": ""},
+                     {"from": e[3], "lvl": 2, "cont": False, "title": "ב", "sum": "ס"}], [{"from": e[2], "type": "qa"}]),
+                out([{"from": e[5], "lvl": 1, "cont": True, "title": "המשך", "sum": ""},
+                     {"from": e[7], "lvl": 1, "cont": False, "title": "ג", "sum": ""}], [{"from": e[6], "type": "qa"}])]
+        mm = A.merge_map(wins, outs, ix, [], slides, 100.0)
+        ch = mm["chapters"]
+        self.assertEqual([c["title"] for c in ch], ["א", "ב", "ג"], "cont — בלי פרק חדש")
+        self.assertEqual((ch[0]["t0"], ch[0]["lvl"]), (0, 1), "הראשון — מ־0 וברמה 1")
+        self.assertEqual(ch[0]["t1"], ch[2]["t0"], "רמה 1 — עד הפרק הבא ברמה 1")
+        self.assertEqual(ch[1]["t1"], ch[2]["t0"])
+        self.assertEqual(ch[2]["t1"], 100.0)
+        self.assertNotIn("sum", ch[0])
+        sg = mm["segments"]
+        self.assertEqual([g["type"] for g in sg], ["content", "qa"], "רצף מאותו סוג — אחד")
+        self.assertEqual(sg[-1]["t1"], 100.0)
+        mm = A.merge_map(wins, [out([], []), {"d": None, "res": []}], ix, [], slides, 100.0)
+        self.assertEqual(mm["chapters"][0]["title"], "כל ההרצאה")
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -169,6 +169,34 @@ def detect_spans(audio, spans: list, primary: str, model=None, p_min: float = P_
     return out[:MAX_SEG * 4]
 
 
+VOTE_AT = (0.1, 0.25, 0.4, 0.55, 0.7, 0.85)   # main_lang: איפה דוגמים (לא ההתחלה — לרוב מוזיקה / פתיח)
+VOTE_S = 20.0                                # אורך כל דגימה
+
+
+def main_lang(audio, model=None, at=VOTE_AT, win_s: float = VOTE_S) -> dict:
+    """10/11/2026 (ניתוח סרטונים, PR 1.2א — "אוטומטי", התוכנית 9.3 סעיף 2): השפה הראשית של ההקלטה.
+    זיהוי שפה (whisper-small) על כמה דגימות לאורך ההקלטה; כל דגימה מצביעה בביטחון שלה, והשפה עם הסכום הגבוה זוכה.
+    → {lg, p (חלק הקולות של הזוכה), n (דגימות)}. בלי דגימה מתאימה — lg ריק."""
+    m = model or _model()
+    dur = len(audio) / SR
+    votes: dict = {}
+    n = 0
+    for f in at if dur > win_s * 2 else (0.0,):
+        s = max(0.0, min(dur - win_s, dur * f))
+        clip = audio[int(s * SR):int(min(dur, s + win_s) * SR)]
+        if len(clip) < SR:
+            continue
+        _, info = m.transcribe(clip, beam_size=1, condition_on_previous_text=False, vad_filter=False)
+        lg, p = norm_lg(getattr(info, "language", "")), float(getattr(info, "language_probability", 0) or 0)
+        if lg:
+            votes[lg] = votes.get(lg, 0.0) + p
+            n += 1
+    if not votes:
+        return {"lg": "", "p": 0.0, "n": 0}
+    lg = max(votes, key=lambda k: votes[k])
+    return {"lg": lg, "p": round(votes[lg] / sum(votes.values()), 2), "n": n}
+
+
 GAP_S = 1.0             # שקט בין קטעים כשמחברים אותם לקובץ אחד ל־Parakeet
 
 

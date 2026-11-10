@@ -5,7 +5,8 @@
    הנוסח של כל קוד — STRINGS בטלפון (viE_<קוד>). */
 
 const VI_V = 'snb.video-analysis/1';
-const VI_LANGS = ['he', 'en'];   // שפת המקור; הניתוח עצמו בעברית (to = ['he']). בלי "אוטומטי" — ivrit לא מזהה שפה
+const VI_LANGS = ['he', 'en'];   // השפות שהניתוח יודע לתמלל; הניתוח עצמו בעברית (to = ['he'])
+const VI_FROM = ['auto', 'he', 'en'];   // 10/11/2026 (PR 1.2א, 9.3 סעיף 2): מה הטופס שולח — "אוטומטי" = העובד מזהה (vt/lang.py ‏main_lang); לא he/en → vi_lang
 const VI_MAX_S = 5400;           // 90 דק׳ ב־MVP (גל 2 — יותר)
 /* 19.3: כישלון עוצר את העבודה; אזהרה נכנסת ל־vi.json (quality.warn) והעבודה ממשיכה */
 const VI_FAIL = ['vi_off', 'vi_lang', 'vi_long', 'vi_card', 'vi_schema', 'cap'];
@@ -24,7 +25,7 @@ function viSpec(s) {
   return s.vr === 1 ? { vi: 1, vr: 1 } : false;
 }
 /* השפות: מקור עברית או אנגלית, יעד עברית בלבד */
-const viLangOk = (sp) => !!sp && VI_LANGS.includes(sp.from) && Array.isArray(sp.to) && sp.to.length === 1 && sp.to[0] === 'he';
+const viLangOk = (sp) => !!sp && VI_FROM.includes(sp.from) && Array.isArray(sp.to) && sp.to.length === 1 && sp.to[0] === 'he';
 /* האורך מהטלפון (0 = לא ידוע — העובד בודק אחרי הקליטה ומחזיר vi_long) */
 const viTooLong = (sp) => !!sp && sp.dur > VI_MAX_S;
 /* הסיכום שהעובד מדווח בסוף (vsm, 10.5): n פריטים, ok מאומתים, cov כיסוי ×100, so "רק על המסך", d משך בשניות.
@@ -125,6 +126,7 @@ function normVi(o) {
     if (chIds.has(it.ch)) x.ch = it.ch;
     x.text = t;
     x.ev = ids(it.ev, (y) => evIds.has(y), 32);
+    if (fin(it.t, 0, 86400)) x.t = r3(it.t);   // 10/11/2026 (PR 1.2א): זמן המילה של הציטוט (vicheck.anchor בעובד)
     const q = txt(it.q, VI_TXT.q);
     if (q) x.q = q;
     x.src = VI_SRC.includes(it.src) ? it.src : 'speech';
@@ -221,5 +223,5 @@ function viMetrics(vi, ref) {
 /* עלות לשעת הרצאה (5.4, המעבדה): דולר × 3600 ÷ משך. משך לא ידוע — null */
 const viCostHour = (usd, dur) => (fin(usd, 0, 1e6) && fin(dur, 1, 86400) ? r4((usd * 3600) / dur) : null);
 
-module.exports = { VI_V, VI_LANGS, VI_MAX_S, VI_FAIL, VI_WARN, VI_ERR, VI_OUTS, viSpec, viLangOk, viTooLong, viSummary,
+module.exports = { VI_V, VI_LANGS, VI_FROM, VI_MAX_S, VI_FAIL, VI_WARN, VI_ERR, VI_OUTS, viSpec, viLangOk, viTooLong, viSummary,
   VI_SEG, VI_SRC, VI_BASIS, VI_CONF, VI_VER, VI_DROP, VI_GENRES, VI_CAP, normVi, viMetrics, viCostHour, boundF1 };

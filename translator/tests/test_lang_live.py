@@ -181,6 +181,37 @@ class Detect(unittest.TestCase):
             self.assertEqual(L.detect("x.wav", words, model=FakeWhisper(("en", 0.99), {"en": [(" a", 0, 1)]})), [])
 
 
+class MainLang(unittest.TestCase):
+    """PR 1.2א ("אוטומטי", 9.3 סעיף 2): השפה הראשית בהצבעה על כמה דגימות"""
+
+    def test_weighted_vote(self):
+        a = np.zeros(SR * 300, dtype="float32")
+        m = FakeWhisper([("en", 0.6), ("he", 0.95), ("he", 0.9), ("en", 0.5), ("iw", 0.8), ("en", 0.4)])
+        r = L.main_lang(a, model=m)
+        self.assertEqual((r["lg"], r["n"]), ("he", 6), "הסכום של עברית (2.65) גבוה מאנגלית (1.5) — לא רוב הדגימות")
+        self.assertEqual(r["p"], round(2.65 / 4.15, 2))
+        self.assertEqual(len(m.calls), len(L.VOTE_AT))
+        self.assertTrue(all(c["beam_size"] == 1 and c["vad_filter"] is False for c in m.calls))
+
+    def test_short_and_silent(self):
+        m = FakeWhisper(("en", 0.9))
+        self.assertEqual(L.main_lang(np.zeros(SR * 10, dtype="float32"), model=m)["n"], 1, "קצר — דגימה אחת")
+        self.assertEqual(L.main_lang(np.zeros(SR // 2, dtype="float32"), model=m), {"lg": "", "p": 0.0, "n": 0})
+        self.assertEqual(L.main_lang(np.zeros(SR * 100, dtype="float32"), model=FakeWhisper(("", 0.0)))["lg"], "")
+
+    def test_detect_main_and_asr_auto(self):
+        with mock.patch.dict(sys.modules, {"soundfile": fake_sf()}):
+            self.assertEqual(V.detect_main("x.wav", FakeWhisper(("fr", 0.9)))["src"], "lid")
+            self.assertEqual(V.detect_main("x.wav", FakeWhisper(("", 0.0)))["lg"], "en", "לא זוהה — אנגלית")
+            r = V.asr("x.wav", "auto", FakeWhisper(("fr", 0.9)))
+        self.assertEqual((r["lang"], r["engine"], r["words"]), ("fr", "lid", []), "לא עברית/אנגלית — בלי תמלול")
+        self.assertEqual(r["stats"]["auto"]["lg"], "fr")
+        with mock.patch.dict(sys.modules, {"soundfile": fake_sf(sr=44100)}):
+            self.assertEqual(V.detect_main("x.wav", FakeWhisper(("he", 0.9)))["src"], "err", "קצב דגימה אחר — תקלה, אנגלית")
+        with mock.patch.object(L, "ready", lambda: False):
+            self.assertEqual(V.detect_main("x.wav")["src"], "none", "בלי מודל הזיהוי")
+
+
 class LangMix(unittest.TestCase):
     def setUp(self):
         os.environ.pop("SNB_LID", None)

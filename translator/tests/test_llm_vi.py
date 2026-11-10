@@ -81,7 +81,7 @@ class RoleTests(unittest.TestCase):
         e = llm.Engine(llm.Spec.of('haiku-medium'), client=c, transport='api')
         e.complete('vm', 'קבוע', 'חלון', system_extra='הוראה')
         e.complete('tl', 'קבוע', 'חלק')
-        self.assertTrue(c.calls[1]['system'][-1]['text'].endswith(llm.REFUSAL_REFRAME_VI))
+        self.assertTrue(c.calls[1]['system'][-1]['text'].endswith(llm.refusal_text('vm')), 'הנוסח של התפקיד (visheet.py רשאי להחליף)')
         self.assertTrue(c.calls[1]['system'][-1]['text'].startswith('הוראה\n\n'))
         self.assertIn('ניתוח', llm.REFUSAL_REFRAME_VI)
         self.assertNotIn('כתוביות', llm.REFUSAL_REFRAME_VI)

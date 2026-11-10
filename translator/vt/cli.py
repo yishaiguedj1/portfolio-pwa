@@ -973,7 +973,7 @@ def main(argv=None):
     p.add_argument("--out")
     p = add("vi-asr", cmd_vi_asr, help="ניתוח סרטונים: תמלול לשלב tr (JSON)")
     p.add_argument("wav")
-    p.add_argument("--lang", choices=("he", "en"), required=True)
+    p.add_argument("--lang", choices=("auto", "he", "en"), required=True)
     p.add_argument("--out", required=True)
     p = add("vi-align", cmd_vi_align, help="ניתוח סרטונים: זמן לכל מילה ודוברים (JSON)")
     p.add_argument("tr")

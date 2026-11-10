@@ -67,6 +67,9 @@ function mkDoc() {
   ok(a1 && a1.t === 12.5 && a1.e.id === 'e1', 'העוגן: הזמן הראשון מהראיות ויחידת הדיבור');
   ok(a2 && a2.t === 600 && a2.s.id === 's1' && a2.n === 1, 'העוגן: שקף מהראיות → "שקף 1"');
   ok(P.anchorOf({ ev: [] }, ix, v.slides) === null, 'פריט בלי ראיות — בלי שבב');
+  const aw = P.anchorOf({ ev: ['e1'], t: 13.25 }, ix, v.slides), an = P.anchorOf({ ev: ['e1'], t: '13' }, ix, v.slides);
+  ok(aw.t === 13.25 && aw.w === 13.25 && an.w === null && an.t === a1.t, 'PR 1.2א: זמן המילה מהעובד (t) גובר על תחילת היחידה; t לא מספר — מתעלמים');
+  ok(/const CHIP_LEAD = 0\.3;/.test(src) && /const t = a\.w != null \? Math\.max\(0, a\.w - CHIP_LEAD\) : a\.e \? a\.e\.t0 : a\.t;/.test(src), 'נגן מכאן: 0.3 שנ׳ לפני המילה (4.2 סעיף 3)');
   const br = P.briefOf(v, ix);
   ok(br.one.id === 'n2' && same(br.pts.map((x) => x.id), ['n1', 'n3']), 'השורה האחת (one) והנקודות — בלי השורה עצמה');
   ok(same(P.chapterItems(v, ix, v.chapters[0]).map((x) => x.id), ['n1']), 'הפריטים של פרק');

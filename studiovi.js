@@ -31,6 +31,7 @@ const SPK_RE = /^S\d{1,2}$/, KIND_RE = /^[a-z][a-z_]{0,15}$/, LANG_RE = /^[a-z]{
 const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
 const fin = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
 const r3 = (v) => Math.round(v * 1000) / 1000;
+const CHIP_LEAD = 0.3;   // 4.2 סעיף 3: השבב מנגן 0.3 שנ׳ לפני המילה
 const txt = (v, max) => (typeof v === 'string' ? v.replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, '').slice(0, max) : null);
 const span = (o) => (fin(o.t0, 0, 86400) && fin(o.t1, 0, 86400) && o.t1 >= o.t0 ? { t0: r3(o.t0), t1: r3(o.t1) } : null);
 const lst = (a, cap) => (Array.isArray(a) ? a.slice(0, cap) : []);
@@ -95,6 +96,7 @@ export function normVi(o) {
     if (chIds.has(it.ch)) x.ch = it.ch;
     x.text = t;
     x.ev = ids(it.ev, (y) => evIds.has(y), 32);
+    if (fin(it.t, 0, 86400)) x.t = r3(it.t);   // 10/11/2026 (PR 1.2א): זמן המילה של הציטוט (vicheck.anchor בעובד)
     const q = txt(it.q, VI_TXT.q);
     if (q) x.q = q;
     x.src = VI_SRC.includes(it.src) ? it.src : 'speech';
@@ -150,8 +152,10 @@ export function anchorOf(it, ix, slides) {
     if (x && !s) s = x;
   }
   if (t == null) return null;
+  const w = it && fin(it.t, 0, 86400) ? it.t : null;   // PR 1.2א: זמן המילה הראשונה של הציטוט — מהעובד, מדויק (4.2)
+  if (w != null) t = w;
   if (!s) s = (slides || []).find((x) => t >= x.t0 && t < x.t1) || null;
-  return { t, e, s, n: s ? ix.slNo.get(s.id) || 0 : 0 };
+  return { t, e, s, n: s ? ix.slNo.get(s.id) || 0 : 0, w };
 }
 /* השורה האחת והנקודות (3–5): one ← bluf ← thesis; הנקודות מ־take, בלי השורה עצמה */
 export function briefOf(v, ix) {
@@ -508,7 +512,7 @@ export function renderVi(ctx) {
       else ocr();
     }
     const acts = h('div', 'st-vi-acts');
-    acts.append(btn('st-btn wide st-vi-play', T('studioViPlayHere'), () => { const t = a.e ? a.e.t0 : a.t; closeSheet(); playAt(t); }, 'sh-play'));
+    acts.append(btn('st-btn wide st-vi-play', T('studioViPlayHere'), () => { const t = a.w != null ? Math.max(0, a.w - CHIP_LEAD) : a.e ? a.e.t0 : a.t; closeSheet(); playAt(t); }, 'sh-play'));
     if (it) {
       const why = h('div', 'st-rs-chips st-vi-why');
       why.hidden = true; why.setAttribute('role', 'group'); why.setAttribute('aria-label', T('studioViWhyT'));
