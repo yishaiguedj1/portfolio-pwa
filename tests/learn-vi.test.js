@@ -87,6 +87,11 @@ const { fakeR2, ACC } = require('./_r2fake');
   const adm = fs.readFileSync(path.join(root, 'admin-app.js'), 'utf8');
   ok(/page\('labVi'/.test(adm) && /page\('viGold'/.test(adm) && /page\('viRef'/.test(adm) && /api\('viRef', \{ job: job\.id, ref: vrParse\(e\) \}\)/.test(adm)
     && /!j\.sm && !isVi\(j\)\), srcs = jobs\.filter/.test(adm) && /XF_KEYS\.filter\(\(k\) => \(k\[0\] === 'v'\) === !!vi\)/.test(adm), 'מרכז הניהול (1.6): labVi, ‏viGold, ‏viRef; עמוד הזהב של התרגום בלי ניתוחים; דגלי v… רק בגל של הניתוח');
+  // ⛔ בתשלום — השופט והטיוטה רק דרך askConfirm עם המחיר, ורק עם ok: true (השרתון דוחה בלי)
+  ok(/askConfirm\(fmt\(t\('admViJdQ'\), \{ n: v\.np, usd: v\.usd \}\), async \(\) => \{\s*b\.disabled = true;\s*const r = await api\('viJudge', \{ ok: true \}\)/.test(adm)
+    && /askConfirm\(fmt\(t\('admViDrQ'\), \{ m: mn, usd \}\), async \(\) => \{\s*b\.disabled = true;\s*const r = await api\('viRef', \{ job: job\.id, draft: dm, ok: true \}\)/.test(adm)
+    && (adm.match(/api\('viJudge', \{ ok: true \}\)|draft: dm, ok: true/g) || []).length === 2 && /vjPaint\(p\);/.test(adm) && /vrDraftUi\(p, job, e\);/.test(adm),
+    'מרכז הניהול (1.6): השופט בזוגות וטיוטת הייחוס — רק אחרי אישור עם המחיר');
   const apiSrc = fs.readFileSync(path.join(root, 'ibkr-proxy/api/studio.js'), 'utf8');
   ok(/if \(op === 'viRef'\) \{[\s\S]{0,400}if \(!isAdmin\(user\)\) return res\.status\(403\)/.test(apiSrc), 'viRef — מנהל בלבד');
   ok(LR.learnRec(Object.assign({}, vjob, { spec: Object.assign({}, vjob.spec, { vi: 0 }) }), Date.now(), null).k === 'tr', 'עבודת תרגום — כמו קודם');
@@ -323,6 +328,12 @@ const { fakeR2, ACC } = require('./_r2fake');
   ok(/const LRN_VV = 5;/.test(src) && /async function viCorpusPull[\s\S]{0,2500}await viLog\(deps, by, 'pull', opened, now\);/.test(src), 'LRN_VV = 5; כל משיכה שפותחת פריטים — ביומן');
   ok(/job\.spec && job\.spec\.vi === 1\) \|\| !LC\.MEDIA_KINDS/.test(src) && /job\.spec && job\.spec\.vi === 1\) \|\| !sess/.test(src), 'הקול/240p והעריכות של התרגום — לא בעבודת ניתוח');
   ok(VI.VI_ERR.length > 0, 'studiovi נטען');
+  // PR 1.6: הקריטריון (6.7) — viDecide = vimetrics.decide בעובד, על אותה פיקסטורה (אותו LCG ואותו סדר חיבור)
+  const vdf = require('./fixtures/vi-decide.json');
+  ok(vdf.cases.length >= 5 && vdf.cases.every((c) => JSON.stringify(VI.viDecide(c.rows)) === JSON.stringify(c.out)), 'הקריטריון: viDecide זהה ל־vimetrics.decide (הפיקסטורה המשותפת)');
+  ok(VI.wilsonLb(0, 0) === null && VI.wilsonLb(8, 10) === 0.4902 && VI.bootLb({}) === null && VI.bootLb({ v: [0.05, 0.05] }) === 0.05, 'הקריטריון: Wilson ו־bootstrap — מקרי קצה');
+  ok(VI.normVjd({ p: [{ j: 'j' + 'a'.repeat(20), wa: 0, w: 'Y' }] }) === null && VI.normVjd({ p: [{ j: 'j' + 'a'.repeat(20), wa: 1, w: 'Z', ex: -1, a: { support_rate: 2 } }] }).p[0].w === null
+    && VI.normVjd({ p: [{ j: 'j' + 'a'.repeat(20), wa: 1, w: 'X', ex: -1, a: { support_rate: 2 } }] }).p[0].ex === 0, 'השופט: normVjd — זרוע 0 לא נשפטת מול עצמה, ערכים מחוץ לטווח נזרקים');
   void vault;
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL - ' + (e && e.stack || e)); process.exit(1); });

@@ -396,7 +396,7 @@ const monthOf = (t) => (isNum(t) && t > 0 ? new Date(t).toISOString().slice(0, 7
 /* הרשומה: מה שהשרתון יודע (מצב, מצב התרגום, העלות לפי השורות שהוא תמחר) גובר על מה שהעובד דיווח */
 function learnViRec(job, now, effState) {
   const id = require('./vicorpus').viLid(job.id);
-  if (!id) return null;
+  if (!id || (job.spec && (job.spec.vj === 1 || job.spec.vp === 1))) return null;   // PR 1.6: השופט בזוגות וטיוטת הייחוס — לא ניתוח
   const sp = job.spec || {}, e = effBasic(job, now, effState);
   const use = useRows(Array.isArray(job.use) && job.use.length ? job.use : job.use0).filter((r) => VI_ROLES.includes(r.k));
   const lx = normViLx(job.lx) || {};

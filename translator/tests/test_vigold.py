@@ -83,6 +83,13 @@ class Criterion(unittest.TestCase):
         self.assertIsNone(M.boot_lb({}))
         self.assertEqual(M.boot_lb({'v': [0.05] * 3}), 0.05)
 
+    def test_shared_fixture(self):
+        """= viDecide בשרתון (tests/fixtures/vi-decide.json — גם tests/learn-vi.test.js): אותו מחולל, אותו סדר חיבור"""
+        f = json.loads((ROOT.parent / 'tests' / 'fixtures' / 'vi-decide.json').read_text(encoding='utf-8'))
+        self.assertGreaterEqual(len(f['cases']), 5)
+        for c in f['cases']:
+            self.assertEqual(json.dumps(M.decide(c['rows'])), json.dumps(c['out']), c['name'])
+
     def row(self, w, vid='v1', sup=(0.9, 0.9), usd=(1, 1), sec=(10, 10), uns=0):
         return {'vid': vid, 'w': w, 'a': {'support_rate': sup[0], 'kf_cov': 0.5, 'usd': usd[0], 'sec': sec[0]},
                 'b': {'support_rate': sup[1], 'kf_cov': 0.5, 'usd': usd[1], 'sec': sec[1]}, 'b_uns': uns}

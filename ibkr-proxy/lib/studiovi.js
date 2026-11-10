@@ -255,6 +255,72 @@ function normVq(o) {
   return f5 == null && f10 == null ? null : { f5, f10 };
 }
 
+/* ---------------------------------------------------------------- השופט בזוגות והקריטריון (PR 1.6, התוכנית 6.5 ו־6.7)
+   **תאום של translator/vimetrics.py** (wilson_lb, ‏boot_lb, ‏decide) — אותו מחולל (LCG) ואותו סדר חיבור, כך שהתוצאה זהה
+   (tests/fixtures/vi-decide.json נבדק בשני הצדדים). השרתון מכריע על כל המקורות של הגל יחד; העובד שופט זוג אחד */
+const VJ_HARD = ['support_rate', 'ts_acc', 'kf_cov'], VJ_NO_REG = -0.02, VJ_BOOT_N = 1000, VJ_BOOT_SEED = 7, VJ_COST_UP = 0.10, VJ_TIME_UP = 0.05;
+const VJ_W = ['X', 'Y', 'tie'];
+function wilsonLb(k, n, z = 1.96) {
+  if (!(n > 0)) return null;
+  const p = k / n, d = 1 + z * z / n;
+  return r4((p + z * z / (2 * n) - z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / d);
+}
+/* מחולל קבוע (LCG, ‏31 ביט) — = _lcg ב־vimetrics.py. הביטים העליונים (הנמוכים ב־LCG מחזוריים) */
+function lcg(seed) {
+  let s = seed >>> 0;
+  return (n) => { s = ((Math.imul(s, 1103515245) + 12345) >>> 0) & 0x7fffffff; return Math.floor(s / 65536) % n; };
+}
+/* diffs = {סרטון: [הפרשים]} → הגבול התחתון (2.5%) של ממוצע ההפרש, ב־bootstrap שדוגם סרטונים (לא פריטים) */
+function bootLb(diffs, n = VJ_BOOT_N, seed = VJ_BOOT_SEED) {
+  const vids = Object.keys(diffs || {}).sort().filter((v) => (diffs[v] || []).some((x) => x != null));
+  if (!vids.length) return null;
+  const rnd = lcg(seed), means = [];
+  for (let i = 0; i < n; i++) {
+    let t = 0, c = 0;
+    for (let k = 0; k < vids.length; k++) for (const x of diffs[vids[rnd(vids.length)]]) if (x != null) { t += x; c++; }
+    means.push(t / c);
+  }
+  means.sort((a, b) => a - b);
+  return r4(means[Math.floor(0.025 * n)]);
+}
+/* rows — שורה לכל זוג (אותו סרטון): {vid, w: 'X'|'Y'|'tie' (X = A הבסיס, Y = B המועמדת), a: {מדדים, usd, sec}, b: {…}, b_uns}.
+   → {pass, wins, losses, ties, wlb, reg: {מדד: lb}, hard, cost, time, why} */
+function viDecide(rows) {
+  const rs = (Array.isArray(rows) ? rows : []).filter(isObj);
+  const w = rs.filter((r) => r.w === 'Y').length, lo = rs.filter((r) => r.w === 'X').length;
+  const out = { wins: w, losses: lo, ties: rs.length - w - lo, wlb: wilsonLb(w, w + lo), reg: {}, why: [] };
+  if (out.wlb == null || out.wlb <= 0.5) out.why.push('wins');
+  for (const k of VJ_HARD) {
+    const d = {};
+    for (const r of rs) {
+      const a = (r.a || {})[k], b = (r.b || {})[k];
+      if (typeof a === 'number' && typeof b === 'number') (d[String(r.vid)] = d[String(r.vid)] || []).push(b - a);
+    }
+    out.reg[k] = bootLb(d);
+    if (out.reg[k] != null && out.reg[k] < VJ_NO_REG) out.why.push('reg_' + k);
+  }
+  out.hard = rs.reduce((s, r) => s + (Math.floor(+r.b_uns) || 0), 0);
+  if (out.hard > 0) out.why.push('hard');
+  const tot = (side, f) => rs.reduce((s, r) => s + (+((r[side] || {})[f]) || 0), 0);
+  const ca = tot('a', 'usd'), cb = tot('b', 'usd'), ta = tot('a', 'sec'), tb = tot('b', 'sec');
+  out.cost = ca > 0 ? r4(cb / ca - 1) : null;
+  out.time = ta > 0 ? r4(tb / ta - 1) : null;
+  if (out.cost != null && out.cost > VJ_COST_UP) out.why.push('cost');
+  if (out.time != null && out.time > VJ_TIME_UP) out.why.push('time');
+  out.pass = !out.why.length;
+  return out;
+}
+/* מה שהעובד מדווח בסוף עבודת השופט (analyze.vi_judge): {v, p: [{j, wa, w, ex, ey, yu, a, b}], usd} — רק מספרים ומזהים.
+   j = השיבוט של B, ‏wa = הזרוע שלו; ex/ey = נקודות MQM; yu = טענות לא נתמכות ב־B ששתי ההרצות הסכימו עליהן; a/b = המדדים */
+function normVjd(o) {
+  if (!isObj(o) || !Array.isArray(o.p)) return null;
+  const m = (x) => { const r = {}; if (isObj(x)) for (const k of VJ_HARD) if (fin(x[k], 0, 1)) r[k] = r4(x[k]); return r; };
+  const n = (v, hi) => (fin(v, 0, hi) ? Math.floor(v) : 0);
+  const p = o.p.slice(0, 8).filter(isObj).filter((x) => /^j[A-Za-z0-9_-]{20}$/.test(String(x.j || '')) && Number.isInteger(x.wa) && x.wa >= 1 && x.wa < 8)
+    .map((x) => ({ j: String(x.j), wa: x.wa, w: VJ_W.includes(x.w) ? x.w : null, ex: n(x.ex, 1e5), ey: n(x.ey, 1e5), yu: n(x.yu, 1e3), a: m(x.a), b: m(x.b) }));
+  return p.length ? { v: 1, p, usd: fin(o.usd, 0, 100) ? r4(o.usd) : null } : null;
+}
+
 module.exports = { VI_V, VI_LANGS, VI_FROM, VI_MAX_S, VI_FAIL, VI_WARN, VI_ERR, VI_OUTS, viSpec, viLangOk, viTooLong, viSummary,
   VI_SEG, VI_SRC, VI_BASIS, VI_CONF, VI_VER, VI_DROP, VI_GENRES, VI_CAP, normVi, viMetrics, viCostHour, boundF1,
-  VR_V, VR_MAX, VR_CAP, normViRef, viRefBounds, normVrb, normVq };
+  VR_V, VR_MAX, VR_CAP, normViRef, viRefBounds, normVrb, normVq, VJ_HARD, wilsonLb, bootLb, viDecide, normVjd };

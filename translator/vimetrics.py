@@ -10,6 +10,7 @@ translator/tests/fixtures/vi_metrics.json ({in, ref, out}) — tests/studio-vi.t
 
 from __future__ import annotations
 
+import math
 import re
 
 try:
@@ -146,23 +147,36 @@ def wilson_lb(k: int, n: int, z: float = 1.96) -> float | None:
     p = k / n
     d = 1 + z * z / n
     c = p + z * z / (2 * n)
-    s = z * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5)
+    s = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
     return _r4((c - s) / d)
 
 
+def _lcg(seed: int):
+    """מחולל קבוע (LCG, ‏31 ביט) — = lcg ב־ibkr-proxy/lib/studiovi.js, כדי שההכרעה בשרתון ובעובד תהיה זהה"""
+    st = [seed & 0xffffffff]
+
+    def nxt(n: int) -> int:
+        st[0] = ((st[0] * 1103515245 + 12345) & 0xffffffff) & 0x7fffffff
+        return (st[0] // 65536) % n
+    return nxt
+
+
 def boot_lb(diffs: dict, n: int = BOOT_N, seed: int = BOOT_SEED) -> float | None:
-    """diffs = {סרטון: [הפרשים]} → הגבול התחתון (2.5%) של ממוצע ההפרש, ב־bootstrap שדוגם סרטונים (לא פריטים)"""
-    import random
+    """diffs = {סרטון: [הפרשים]} → הגבול התחתון (2.5%) של ממוצע ההפרש, ב־bootstrap שדוגם סרטונים (לא פריטים).
+    חיבור פשוט משמאל לימין (לא sum — בפייתון 3.12 הוא מפוצה) — = bootLb ב־JS"""
     vids = [v for v in sorted(diffs) if [x for x in diffs[v] if x is not None]]
     if not vids:
         return None
-    rnd = random.Random(seed)
+    rnd = _lcg(seed)
     means = []
     for _ in range(n):
-        xs = []
+        t, c = 0.0, 0
         for _v in range(len(vids)):
-            xs.extend(x for x in diffs[vids[rnd.randrange(len(vids))]] if x is not None)
-        means.append(sum(xs) / len(xs))
+            for x in diffs[vids[rnd(len(vids))]]:
+                if x is not None:
+                    t += x
+                    c += 1
+        means.append(t / c)
     means.sort()
     return _r4(means[int(0.025 * n)])
 
@@ -189,7 +203,11 @@ def decide(rows: list[dict]) -> dict:
     out['hard'] = sum(int(r.get('b_uns') or 0) for r in rows)
     if out['hard'] > 0:
         out['why'].append('hard')
-    tot = lambda side, f: sum(float((r.get(side) or {}).get(f) or 0) for r in rows)  # noqa: E731
+    def tot(side, f):                                  # חיבור פשוט, כמו reduce ב־JS (לא sum המפוצה)
+        t = 0.0
+        for r in rows:
+            t += float((r.get(side) or {}).get(f) or 0)
+        return t
     ca, cb, ta, tb = tot('a', 'usd'), tot('b', 'usd'), tot('a', 'sec'), tot('b', 'sec')
     out['cost'] = _r4(cb / ca - 1) if ca > 0 else None
     out['time'] = _r4(tb / ta - 1) if ta > 0 else None

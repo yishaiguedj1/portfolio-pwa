@@ -1400,7 +1400,7 @@ page('labVi', { tab: 'imp', parent: 'lab', title: () => t('admLabVi'), render(p)
 page('viGold', { tab: 'imp', parent: 'labVi', title: () => t('admViGold'), render(p) {
   if (!D.gj) { needGold(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
   if (D.gj.err) { p.append(h('p', 'adm-note', t('admErr'))); return; }
-  const jobs = D.gj.jobs.filter((j) => !j.sm && isVi(j)), fin = jobs.filter((j) => j.state === 'done' && !j.gs && !(j.spec && (j.spec.dry === 1 || j.spec.vo === 1)));
+  const jobs = D.gj.jobs.filter((j) => !j.sm && isVi(j)), fin = jobs.filter((j) => j.state === 'done' && !j.gs && !(j.spec && (j.spec.dry === 1 || j.spec.vo === 1 || j.spec.vj === 1 || j.spec.vp === 1)));
   const srcs = fin.filter((j) => j.vg === 1);
   p.append(h('p', 'adm-sub', t('admViGoldSub')));
   const g = VIV() && VIV().gold;
@@ -1409,7 +1409,34 @@ page('viGold', { tab: 'imp', parent: 'labVi', title: () => t('admViGold'), rende
   p.append(grp(t('admViRefG')), fin.length ? list(...fin.slice(0, 24).map((j) => row({ c: j.vg ? 'orange' : 'gray', ic: j.vg ? '◎' : '○', t: (j.spec && j.spec.name) || j.id,
     s: (j.vg ? t('admViRefHas') : t('admViRefNone')) + ' · ' + day(j.created), on: () => { D.vrJob = j.id; D.vrEd = null; go('viRef'); } }))) : list(row({ c: 'gray', ic: '—', t: t('admViNoJobs') })));
   if (srcs.length) paintWave(p, jobs, srcs, true);
+  vjPaint(p);
 } });
+/* PR 1.6 (התוכנית 6.5 ו־6.7): השופט בזוגות על הגל האחרון — אומדן, אישור, וההכרעה לכל זרוע מול זרוע 0 */
+const VJ_WHY = { wins: 'admViWhyW', hard: 'admViWhyH', cost: 'admViWhyC', time: 'admViWhyT' };
+const vjWhy = (w) => (w || []).map((k) => t(VJ_WHY[k] || 'admViWhyR')).filter((x, i, a) => a.indexOf(x) === i).join(' · ');
+function vjPaint(p) {
+  if (!D.vjv) {
+    if (!D.vjLoading) { D.vjLoading = true; api('viJudge', { get: true }).then((r) => { D.vjLoading = false; D.vjv = r.ok ? r : { err: r.error || 1 }; if (cur === 'viGold') paint(); }); }
+    return;
+  }
+  if (D.vjv.err) return;
+  const v = D.vjv, busy = (v.jobs || []).some((j) => ['new', 'queued', 'running'].includes(j.state));
+  p.append(grp(t('admViJdG')));
+  const rows = (v.dec || []).map((x) => row({ c: x.pass ? 'green' : 'red', ic: x.pass ? '✓' : '✕', t: fmt(t('admViJdArm'), { wa: x.wa }),
+    s: fmt(t('admViJdS'), { w: x.wins, l: x.losses, t: x.ties }) + (nz(x.wlb) ? ' · Wilson ' + x.wlb : '') + (x.pass ? '' : ' · ' + vjWhy(x.why)),
+    v: x.pass ? t('admViJdPass') : t('admViJdFail'), tr: 'MQM ' + x.ex + ' / ' + x.ey }));
+  p.append(list(...(rows.length ? rows : [row({ c: 'gray', ic: '—', t: busy ? t('admViJdBusy') : v.np ? t('admViJdNot') : t('admViJdNone') })])));
+  if (v.np && !busy) {
+    const b = h('button', 'btn secondary-btn', t('admViJdRun')); b.type = 'button';
+    b.addEventListener('click', () => askConfirm(fmt(t('admViJdQ'), { n: v.np, usd: v.usd }), async () => {
+      b.disabled = true;
+      const r = await api('viJudge', { ok: true });
+      D.vjv = null; flash(r.ok ? t('admSaved') : t('admErr') + (r.error ? ' · ' + r.error : '')); paint();
+    }, { ok: t('admViJdRun') }));
+    const br = h('div', 'btn-row'); br.append(b); p.append(br);
+  }
+  p.append(h('p', 'adm-dt', t('admViJdFoot')));
+}
 /* העורך: שורה לכל רשומה, "|" בין השדות. זמן — שניות, דק:שנ׳ או שע:דק:שנ׳ */
 const vrT = (s) => { const x = String(s || '').trim(); if (!/^\d{1,2}(:\d{1,2}){0,2}$|^\d{1,5}$/.test(x)) return null; return x.split(':').reduce((a, b) => a * 60 + +b, 0); };
 const vrTs = (n) => (nz(n) ? Math.floor(n / 60) + ':' + String(Math.round(n) % 60).padStart(2, '0') : '');
@@ -1427,18 +1454,39 @@ function vrLines(r) {
     q: (r.qa || []).map((x) => x.q + ' | ' + x.a + ' | ' + vrTs(x.t) + ' | ' + (x.so ? 1 : 0)).join('\n'), s: (r.slides || []).map((x) => vrTs(x.t) + ' | ' + x.text).join('\n'),
     he: r.he || '', lic: m.lic || '', tier: m.tier || 'a', genre: m.genre || 'other' };
 }
+/* PR 1.6 (ה5): טיוטת ייחוס מהמודל — Sonnet, או Haiku הזול; ⛔ בתשלום — רק אחרי אישור המחיר. "טען" ממלא את העורך, והשמירה היא האישור */
+function vrDraftUi(p, job, e) {
+  const dr = D.vrDr || { usd: {} }, dm = D.vrDm === 'h' ? 'h' : 's', mn = dm === 's' ? 'Sonnet' : 'Haiku', usd = (dr.usd || {})[dm];
+  const busy = ['new', 'queued', 'running'].includes(dr.st);
+  const rows = [row({ c: 'blue', ic: '⇄', t: t('admViDrModel'), v: mn, s: fmt(t(dm === 's' ? 'admViDrS' : 'admViDrH'), { usd }), on: () => { D.vrDm = dm === 's' ? 'h' : 's'; paint(); } })];
+  if (busy) rows.push(row({ c: 'gray', ic: '…', t: t('admViDrBusy') }));
+  else if (dr.d) rows.push(row({ c: 'green', ic: '✓', t: t('admViDrReady'), s: fmt(t('admViDrN'), { b: dr.d.bounds.length, u: dr.d.units.length, q: dr.d.qa.length }),
+    on: () => { D.vrEd = Object.assign(vrLines(dr.d), { he: e.he, lic: e.lic, tier: e.tier }); flash(t('admViDrLoaded')); paint(); } }));
+  else if (dr.st === 'failed') rows.push(row({ c: 'red', ic: '✕', t: t('admViDrFail') }));
+  p.append(grp(t('admViDrG')), list(...rows));
+  if (busy) return;
+  const b = h('button', 'btn secondary-btn', t('admViDrRun')); b.type = 'button';
+  b.addEventListener('click', () => askConfirm(fmt(t('admViDrQ'), { m: mn, usd }), async () => {
+    b.disabled = true;
+    const r = await api('viRef', { job: job.id, draft: dm, ok: true });
+    if (!r.ok) { b.disabled = false; flash(t('admErr') + ' · ' + (r.error || '')); return; }
+    D.vrDr = Object.assign({}, dr, { st: r.dst }); flash(t('admViDrBusy')); paint();
+  }, { ok: t('admViDrRun') }));
+  const br = h('div', 'btn-row'); br.append(b); p.append(br);
+}
 const VR_GENRES = ['academic_lecture', 'course_module', 'business_webinar', 'conference_talk', 'panel', 'interview_podcast', 'software_tutorial', 'product_demo', 'workshop', 'investor_presentation', 'other'];   // = VI_GENRES בשרתון
 page('viRef', { tab: 'imp', parent: 'viGold', title: () => t('admViRefT'), render(p) {
   const job = D.gj && !D.gj.err && D.gj.jobs.find((j) => j.id === D.vrJob);
   if (!job) { p.append(h('p', 'adm-note', t('admErr'))); return; }
   if (!D.vrEd) {
     p.append(h('p', 'adm-dt', t('admLoading')));
-    if (!D.vrLoading) { D.vrLoading = true; api('viRef', { job: job.id, get: true }).then((r) => { D.vrLoading = false; D.vrEd = r.ok ? vrLines(r.ref) : { err: r.error || 1 }; if (cur === 'viRef') paint(); }); }
+    if (!D.vrLoading) { D.vrLoading = true; api('viRef', { job: job.id, get: true }).then((r) => { D.vrLoading = false; D.vrEd = r.ok ? vrLines(r.ref) : { err: r.error || 1 }; D.vrDr = r.ok ? { d: r.draft, st: r.dst, usd: r.usd || {} } : null; if (cur === 'viRef') paint(); }); }
     return;
   }
   if (D.vrEd.err) { p.append(h('p', 'adm-note', t('admErr') + ' · ' + D.vrEd.err)); return; }
   const e = D.vrEd;
   const nm = h('p', 'adm-sub', (job.spec && job.spec.name) || job.id); nm.dir = 'auto'; p.append(nm);
+  vrDraftUi(p, job, e);
   const area = (k, lbl, rows) => { const ta = h('textarea', 'adm-search adm-note-in'); ta.rows = rows; ta.dir = 'auto'; ta.spellcheck = false; ta.value = e[k] || '';
     ta.setAttribute('aria-label', lbl); ta.addEventListener('input', () => { e[k] = ta.value; }); return [grp(lbl), ta]; };
   p.append(...area('b', t('admViRefBounds'), 6), ...area('u', t('admViRefUnits'), 8), ...area('q', t('admViRefQa'), 6), ...area('s', t('admViRefSlides'), 4), ...area('he', t('admViRefHe'), 4));

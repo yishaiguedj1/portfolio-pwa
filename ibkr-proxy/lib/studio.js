@@ -1019,7 +1019,7 @@ const VV_MAX = 3;   // אימותים חוזרים לניתוח (כולל כאל
 const viOut = (job) => (job && Array.isArray(job.fo) ? job.fo : []).find((o) => o && o.k === 'vi' && FILE_ID_RE.test(String(o.id || ''))) || null;
 const isVv = (job) => !!(job && job.spec && job.spec.vo === 1);
 function canViVerify(job, now) {
-  if (!job || job.kind !== 'tr' || !job.spec || job.spec.vi !== 1 || job.spec.dry === 1 || isVv(job)) return 'state';
+  if (!job || job.kind !== 'tr' || !job.spec || job.spec.vi !== 1 || job.spec.dry === 1 || isVv(job) || isVj(job) || isVp(job)) return 'state';
   if (effState(job, now).state !== 'done' || !viOut(job)) return 'state';
   if ((job.vr || 0) >= VV_MAX) return 'vv_limit';
   return '';
@@ -1036,6 +1036,70 @@ function vvAdopt(parent, outs) {
   const nv = (Array.isArray(outs) ? outs : []).find((o) => o && o.k === 'vi' && FILE_ID_RE.test(String(o.id || '')));
   if (!nv || !viOut(parent)) return null;
   return parent.fo.map((o) => (o && o.k === 'vi' ? { id: nv.id, name: nv.name, size: nv.size, k: 'vi' } : o));
+}
+/* PR 1.6 (10/11/2026, ה5; התוכנית 6.3) — טיוטת ייחוס: עבודת־בת (spec.vp = 1) של ניתוח מקורי שהסתיים, על ה־vi.json שלו (fvi,
+   כמו "אמת שוב"). המודל — Sonnet (s), או Haiku (h) כחלופה הזולה; העובד (analyze.vi_ref_draft) מחזיר טיוטה (vpd), והמנהל עורך
+   ומאשר בעמוד "ייחוס" — רק אז היא ייחוס. מנהל בלבד, אחרי אומדן ואישור */
+const isVp = (job) => !!(job && job.spec && job.spec.vp === 1);
+const VP_MODES = { s: 'sonnet-medium', h: 'haiku-medium' }, VP_USD = { s: 0.2, h: 0.01 };   // אומדן לסרטון של שעה (מוצג לפני האישור)
+function vpJob(parent, m, id, uid, now) {
+  const v = vvJob(parent, id, uid, now);
+  v.spec = Object.assign({}, v.spec, { mode: VP_MODES[m], vp: 1 });
+  delete v.spec.vo;
+  return v;
+}
+/* PR 1.6 (10/11/2026, התוכנית 6.5) — השופט בזוגות: עבודת־בת (spec.vj = 1) לכל מקור בגל הזהב האחרון של הניתוח, בתיקייה שלו
+   (השיבוטים שם — העובד קורא רק משם). זוג לכל זרוע מול זרוע 0 (x = A הבסיס, y = B המועמדת); העובד (analyze.vi_judge) מריץ
+   את השופט פעמיים בסדר הפוך ומדווח vjd. ההכרעה (6.7) — כאן, על כל המקורות יחד (VI.viDecide). מנהל בלבד, אחרי אומדן ואישור */
+const isVj = (job) => !!(job && job.spec && job.spec.vj === 1);
+const VJ_USD = 0.03;   // אומדן לזוג (שתי קריאות לשופט, haiku-high, שני ניתוחים + הייחוס) — מוצג לפני האישור
+const jobUsd = (j) => Math.round((Array.isArray(j.use) ? j.use : []).reduce((s, r) => s + (r && typeof r.usd === 'number' ? r.usd : 0), 0) * 1e4) / 1e4;
+const jobSec = (j) => { const c = j.c0 || j.claimed; return j.ended > 0 && c > 0 && j.ended > c ? Math.round((j.ended - c) / 1000) : null; };
+/* הגל האחרון של ניתוחי הזהב (goldRun יוצר את כולו באותו רגע — created זהה) → {at, by: {מקור: [שיבוט לפי זרוע]}}, או null */
+function viWave(jobs) {
+  const cl = (jobs || []).filter((j) => j && j.gs && j.spec && j.spec.vi === 1 && !isVj(j) && Number.isInteger(j.wa));
+  if (!cl.length) return null;
+  const at = Math.max(...cl.map((j) => j.created || 0)), by = {};
+  for (const j of cl) if ((j.created || 0) === at) (by[j.gs] = by[j.gs] || [])[j.wa] = j;
+  return { at, by };
+}
+/* השיבוטים של מקור אחד → הזוגות (רק שיבוטים שהסתיימו עם vi.json): x = זרוע 0, ‏y = כל זרוע אחרת */
+function vjPairs(arms, now) {
+  const side = (j) => { const f = j && effState(j, now).state === 'done' && viOut(j); return f ? { id: f.id, name: String(f.name || 'vi.json').slice(0, 200), size: Math.max(0, Math.floor(+f.size || 0)), j: j.id, wa: j.wa, usd: jobUsd(j), sec: jobSec(j) } : null; };
+  const x = side((arms || [])[0]);
+  return x ? (arms || []).slice(1).map(side).filter(Boolean).map((y) => ({ x, y })).slice(0, GOLD_ARMS - 1) : [];
+}
+/* הזוגות לעובד — רק מזהים וגדלים (הקבצים בתיקיית העבודה) */
+function normVjp(fvj) {
+  const f = (o) => o && FILE_ID_RE.test(String(o.id || '')) && JOB_RE.test(String(o.j || '')) && Number.isInteger(o.wa) ? { id: o.id, size: Math.max(0, Math.floor(+o.size || 0)), j: o.j, wa: o.wa } : null;
+  const p = (fvj && Array.isArray(fvj.p) ? fvj.p : []).map((x) => x && f(x.x) && f(x.y) ? { x: f(x.x), y: f(x.y) } : null).filter(Boolean).slice(0, GOLD_ARMS - 1);
+  return p.length ? p : null;
+}
+function vjJob(src, wave, pairs, id, uid, now) {
+  const sp = src.spec || {};
+  return { id, uid, kind: 'tr', state: 'new', created: now, updated: now, folder: src.folder, rp: src.id, fvj: { at: wave.at, p: pairs }, vref: VI.normViRef(src.vrf),
+    spec: { name: sp.name || '', size: 0, type: '', dur: 0, from: sp.from || 'auto', to: ['he'], mode: modeNow(sp.mode || DEFAULT_MODE), out: [], style: STYLES[0], terms: '',
+      vi: 1, vj: 1, eng: 'api', cap: CAP_MIN_JOB } };
+}
+/* ההכרעה של הגל: שורה לכל זוג שנשפט (מעבודות השופט של אותו גל) → לכל זרוע מועמדת viDecide מול זרוע 0 */
+function vjRows(jobs, at) {
+  const rows = [];
+  for (const j of (jobs || []).filter((x) => isVj(x) && x.fvj && x.fvj.at === at && x.state === 'done')) {
+    const d = VI.normVjd(j.vjd);
+    for (const r of d ? d.p : []) {
+      const pr = (j.fvj.p || []).find((q) => q && q.y && q.y.j === r.j);
+      if (!pr || !r.w) continue;
+      rows.push({ vid: j.rp, wa: r.wa, w: r.w, b_uns: r.yu, ex: r.ex, ey: r.ey,
+        a: Object.assign({}, r.a, { usd: pr.x.usd || 0, sec: pr.x.sec || 0 }), b: Object.assign({}, r.b, { usd: pr.y.usd || 0, sec: pr.y.sec || 0 }) });
+    }
+  }
+  return rows;
+}
+function vjDecide(jobs, at) {
+  const rows = vjRows(jobs, at), by = {};
+  for (const r of rows) (by[r.wa] = by[r.wa] || []).push(r);
+  return Object.keys(by).map(Number).sort((a, b) => a - b).map((wa) => Object.assign({ wa, n: by[wa].length,
+    ex: by[wa].reduce((s, r) => s + r.ex, 0), ey: by[wa].reduce((s, r) => s + r.ey, 0) }, VI.viDecide(by[wa])));
 }
 /* פריט 15 (21/10/2026, "ריצת מבחן"): mode = מצב אחר מזה של המקור (השוואה בין מצבים על אותו סרטון); gr = קובץ הייחוס
    (באותה תיקייה) — העובד מחשב את הציון בעצמו בסוף (translator/goldscore.py), בלי שהטלפון פתוח */
@@ -1551,6 +1615,8 @@ function workerJob(job, nm, fb, fm, rl, gl) {
     ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [],   // v361: להמשך (מהאחרונה)
     sh: job.sh && job.sh.n > 0 ? { n: job.sh.n, old: job.sh.old || null } : null,   // v384: מצב צל — המגדל אוכף את הספים הישנים
     notes: (Array.isArray(job.nh) ? job.nh : []).map((x) => normNoteText(x && x.t)).filter(Boolean).slice(-NOTE_MAX),
+    vjp: isVj(job) ? normVjp(job.fvj) : null,   // PR 1.6: הזוגות לשופט (הקבצים בתיקיית העבודה)
+    vref: isVj(job) ? VI.normViRef(job.vref) : null,   // PR 1.6: יחידות הייחוס לשופט (נשמרו בעבודה ביצירה)
     gref: job.gs && FILE_ID_RE.test(String(job.gr || '')) ? job.gr : null,   // פריט 15: הייחוס של סט הזהב — העובד מחשב את הציון
     cp: cpWorker(job.cp) };   // סבב 10: העתק־הדבק   // v382: ההערות שכבר נקראו — להמשך בסשן חדש
 }
@@ -1608,7 +1674,9 @@ function applyReport(job, r, now) {
   const out = { prog, updated: now };
   if (r.rd === true && r.done !== true && r.fail !== true && !job.rdy) { closeCur(); prog.p = 1; out.rdy = now; out.ended = now; }   // 28/10/2026: התוצרים מוכנים — בטלפון העבודה "הסתיימה" (publicJob), והעובד משלים ברקע
   if (r.done === true) { closeCur(); prog.p = 1; out.state = 'done'; if (!job.rdy) out.ended = now; }
-  if (r.done === true && job.gs && job.spec && job.spec.vi === 1 && VI.normVq(r.vq)) out.vq = VI.normVq(r.vq);   // PR 1.6: הציון מול הייחוס (הרצת זהב)
+  if (r.done === true && job.gs && job.spec && job.spec.vi === 1 && VI.normVq(r.vq)) out.vq = VI.normVq(r.vq);
+  if (r.done === true && isVj(job) && VI.normVjd(r.vjd)) out.vjd = VI.normVjd(r.vjd);   // PR 1.6: מה שהשופט מצא בזוגות
+  if (r.done === true && isVp(job) && VI.normViRef(r.vpd)) out.vpd = VI.normViRef(r.vpd);   // PR 1.6 (ה5): טיוטת הייחוס   // PR 1.6: הציון מול הייחוס (הרצת זהב)
   if (r.done === true && job.spec && job.spec.vi === 1 && VI.viSummary(r.vsm)) out.vsm = VI.viSummary(r.vsm);   // 9/11/2026: סיכום הניתוח (מספרים בלבד)
   else if (r.fail === true) { closeCur(); out.state = 'failed'; out.err = ERR_RE.test(String(r.err || '')) ? r.err : 'worker'; out.ended = now; }
   return out;
@@ -1756,7 +1824,7 @@ function normUtl(o) {
   for (const k of UTL_KEYS) { const v = Number(o[k]); if (Number.isFinite(v) && v >= 0 && v <= 1e11) out[k] = Math.round(v); }
   return Object.keys(out).length ? out : null;
 }
-const JSON_FIELDS = ['mon', 'bq', 'btx', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr', 'urt', 'fsr', 'vst', 'vcp', 'vsm', 'fvi', 'vrf', 'vq'];   // PR 1.6: vrf = חבילת הייחוס של ניתוח בסט הזהב, vq = הציון מולה   // PR 1.2ג: fvi = ה־vi.json של ההורה לעבודת "אמת שוב"   // 9/11/2026: vsm = סיכום הניתוח (מספרים)   // 29/10/2026: vst = כמה מהסרטון ב־R2 בפעם האחרונה שזז (העלאה תקועה — upStallStep)   // 26/10/2026: fsr = רצועת הכתוביות שבקובץ, עזר להגהה   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['mon', 'bq', 'btx', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr', 'urt', 'fsr', 'vst', 'vcp', 'vsm', 'fvi', 'vrf', 'vq', 'fvj', 'vjd', 'vref', 'vpd'];   // PR 1.6: fvj = הזוגות של עבודת השופט, vjd = מה שהשופט מצא, vref = עותק הייחוס לשופט, vpd = טיוטת הייחוס (ה5); vrf = חבילת הייחוס של ניתוח בסט הזהב, vq = הציון מולה   // PR 1.2ג: fvi = ה־vi.json של ההורה לעבודת "אמת שוב"   // 9/11/2026: vsm = סיכום הניתוח (מספרים)   // 29/10/2026: vst = כמה מהסרטון ב־R2 בפעם האחרונה שזז (העלאה תקועה — upStallStep)   // 26/10/2026: fsr = רצועת הכתוביות שבקובץ, עזר להגהה   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -1786,7 +1854,7 @@ function fromFields(f) {
 module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, smAlias, smResolve, smRowsMerge, smEvict, smIsName, chKey, jobSeries, SM_BYTES, SM_READ, SM_GL, SM_CH, SM_NEW, SM_DONE, SM_LOCK, SM_UNSURE, SM_FIX, SM_WORKER, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
-  GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, isGold, isViGold, goldClone, normXe, XF_KEYS, XF_MAX, normXf, GOLD_ARMS, normArms, waveOrder, waveClone, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, cuesSwap, rrSpec, rrJob, VV_MAX, viOut, isVv, canViVerify, vvJob, vvAdopt,
+  GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, isGold, isViGold, goldClone, normXe, XF_KEYS, XF_MAX, normXf, GOLD_ARMS, normArms, waveOrder, waveClone, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, cuesSwap, rrSpec, rrJob, VV_MAX, viOut, isVv, canViVerify, vvJob, vvAdopt, isVj, VJ_USD, isVp, VP_MODES, VP_USD, vpJob, viWave, vjPairs, normVjp, vjJob, vjRows, vjDecide,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,

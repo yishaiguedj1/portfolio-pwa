@@ -1284,6 +1284,133 @@ def vi_reverify(J, ctx, engine=None) -> int:
     return 0
 
 
+VJ_MAX_OUT = 1500                                     # תשובת השופט — אובייקט JSON קצר
+
+
+def _vj_uns(errs: list) -> int:
+    """טענות לא נתמכות חמורות או קריטיות (uns:ma / uns:cr) — החסימה הקשיחה (6.7)"""
+    return sum(1 for e in errs or [] if e in ('uns:ma', 'uns:cr'))
+
+
+def vi_judge(J, ctx, engine=None) -> int:
+    """PR 1.6 — השופט בזוגות (התוכנית 6.5): עבודת־בת (spec.vj) של מקור בסט הזהב. st.vjp = הזוגות (x = זרוע 0, ‏y = המועמדת;
+    ה־vi.json של כל שיבוט בתיקייה של העבודה), st.vref = יחידות הייחוס. כל זוג — פעמיים בסדר הפוך (אי־הסכמה = תיקו), ‏MQM
+    לכל צד, ומדדי vimetrics לכל צד מול הייחוס. בלי תוצרים — רק vjd בדיווח האחרון (ההכרעה בשרתון, ‏viDecide)."""
+    import llm
+    import vicheck
+    import vimetrics
+    import visheet
+    S = Stages(J, ctx)
+    pd = ctx.pdir
+    pd.mkdir(parents=True, exist_ok=True)
+    pairs = [p for p in (ctx.st.get('vjp') or []) if isinstance(p, dict) and isinstance(p.get('x'), dict) and isinstance(p.get('y'), dict)]
+    if not pairs:
+        ctx.report(fail=True, err='vi_schema', msg='אין זוגות לשפוט', force=True)
+        raise SystemExit('✗ שופט: אין זוגות.')
+    ref = ctx.st.get('vref') if isinstance(ctx.st.get('vref'), dict) else {}
+    mref = {'chapters': [{'t0': b.get('t0')} for b in ref.get('bounds') or [] if isinstance(b, dict) and b.get('lv', 1) == 1]}
+    S.go('up', 'קוראים את הניתוחים')
+    vis: dict = {}
+    sides = [s for p in pairs for s in (p['x'], p['y'])]
+    for i, f in enumerate(sides):
+        if f['id'] in vis:
+            continue
+        p_in = pd / ('vj.%d.json' % i)
+        J.fetch_input(ctx, f['id'], p_in, int(f.get('size') or 0), lambda x, i=i: ctx.report('up', (i + x) / len(sides)))
+        vis[f['id']] = vicheck.norm_vi(_read_json(p_in))
+    S.go('rv', 'השופט משווה')
+    eng = engine or make_engine(ctx.st)
+    if hasattr(J, 'LIVE_USAGE'):
+        J.LIVE_USAGE = eng.ledger.list
+    jeng = judge_engine(eng)
+    ref_text = visheet.vj_ref_text(ref)
+    hd = [m for m in vimetrics.HARD]
+    out, fail = [], 0
+    for pi, p in enumerate(pairs):
+        vx, vy = vis.get(p['x']['id']), vis.get(p['y']['id'])
+        if not vx or not vy:
+            fail += 1
+            continue
+        tx, ty = visheet.vj_text(vx), visheet.vj_text(vy)
+        runs = []
+        for a, b in ((tx, ty), (ty, tx)):
+            try:
+                res = jeng.complete('vv', visheet.VJ_SYS, visheet.vj_prompt(a, b, ref_text), max_tokens=VJ_MAX_OUT)
+                runs.append(visheet.parse_vj(res.text))
+            except llm.LLMError as e:
+                runs.append(None)
+                if e.code == 'budget_cap':
+                    break
+        r = visheet.vj_pair(runs[0] if runs else None, runs[1] if len(runs) > 1 else None)
+        if r is None:
+            fail += 1
+            continue
+        mx = vimetrics.metrics(vx, mref) or {}
+        my = vimetrics.metrics(vy, mref) or {}
+        out.append({'j': p['y'].get('j'), 'wa': p['y'].get('wa'), 'w': r['w'], 'ex': visheet.mqm(r['x']), 'ey': visheet.mqm(r['y']),
+                    'yu': min(_vj_uns(runs[0]['b']), _vj_uns(runs[1]['a'])),
+                    'a': {k: mx.get(k) for k in hd if mx.get(k) is not None}, 'b': {k: my.get(k) for k in hd if my.get(k) is not None}})
+        ctx.report('rv', (pi + 1) / len(pairs))
+    S.end()
+    tot = eng.ledger.total()
+    vjd = {'v': visheet.VJ_V, 'p': out, 'usd': round(tot, 4) if tot is not None else None, 'h': visheet.vj_hash()}
+    print('VI_VJ ' + json.dumps({'n': len(pairs), 'ok': len(out), 'fail': fail, 'usd': vjd['usd']}, separators=(',', ':')), flush=True)
+    if not out:
+        ctx.report(fail=True, err='vi_schema', msg='השופט לא החזיר תשובה תקינה', force=True, usage=eng.ledger.list() or None)
+        raise SystemExit('✗ שופט: אף זוג לא נשפט.')
+    ctx.report(done=True, vjd=vjd, force=True, msg='נשפטו %d מתוך %d זוגות' % (len(out), len(pairs)), usage=eng.ledger.list() or None)
+    print('✓ שופט: %d/%d זוגות' % (len(out), len(pairs)))
+    return 0
+
+
+VP_MAX_OUT = 8000                                     # טיוטת הייחוס — עד ~40 יחידות ו־20 שאלות
+
+
+def vi_ref_draft(J, ctx, engine=None) -> int:
+    """PR 1.6 (ה5, התוכנית 6.3) — טיוטת ייחוס: עבודת־בת (spec.vp) שקוראת את ה־vi.json של הניתוח (st.files.i, כמו "אמת שוב")
+    ומבקשת מהמודל של העבודה (spec.mode — Sonnet, או Haiku כחלופה הזולה) חבילת ייחוס. בלי תוצרים — הטיוטה (vpd) בדיווח
+    האחרון; השרתון מנרמל (normViRef), והמנהל עורך ומאשר בעמוד "ייחוס" — רק אז היא ייחוס."""
+    import llm
+    import vicheck
+    import visheet
+    S = Stages(J, ctx)
+    pd = ctx.pdir
+    pd.mkdir(parents=True, exist_ok=True)
+    f = (ctx.st.get('files') or {}).get('i') or {}
+    if not f.get('id'):
+        ctx.report(fail=True, err='vi_schema', msg='אין ניתוח', force=True)
+        raise SystemExit('✗ טיוטת ייחוס: אין vi.json.')
+    S.go('up', 'קוראים את הניתוח')
+    p_in = pd / 'vi.in.json'
+    J.fetch_input(ctx, f['id'], p_in, int(f.get('size') or 0), lambda x: ctx.report('up', x))
+    vi = vicheck.norm_vi(_read_json(p_in))
+    if not vi or not vi.get('evidence'):
+        S.end()
+        ctx.report(fail=True, err='vi_schema', msg='אין בניתוח תמליל', force=True)
+        raise SystemExit('✗ טיוטת ייחוס: הקובץ לא תקין או בלי תמליל.')
+    S.go('rv', 'מכינים טיוטת ייחוס')
+    eng = engine or make_engine(ctx.st)
+    if hasattr(J, 'LIVE_USAGE'):
+        J.LIVE_USAGE = eng.ledger.list
+    d = None
+    try:
+        res = eng.complete('vs', visheet.VP_SYS, visheet.vp_prompt(vi), max_tokens=VP_MAX_OUT)
+        d = visheet.parse_vp(res.text)
+    except llm.LLMError as e:
+        S.end()
+        ctx.report(fail=True, err='cap' if e.code == 'budget_cap' else 'vi_schema', msg='הטיוטה לא הוכנה', force=True, usage=eng.ledger.list() or None)
+        raise SystemExit('✗ טיוטת ייחוס: ' + e.code)
+    S.end()
+    if not d:
+        ctx.report(fail=True, err='vi_schema', msg='התשובה לא הייתה טיוטה תקינה', force=True, usage=eng.ledger.list() or None)
+        raise SystemExit('✗ טיוטת ייחוס: התשובה לא תקינה.')
+    d['meta'] = {'tier': 'a', 'genre': vi.get('genre') or 'other', 'lic': ''}
+    print('VI_VP ' + json.dumps({k: len(d[k]) for k in ('bounds', 'units', 'qa', 'slides')}, separators=(',', ':')), flush=True)
+    ctx.report(done=True, vpd=d, force=True, msg='הטיוטה מוכנה', usage=eng.ledger.list() or None)
+    print('✓ טיוטת ייחוס: %d פרקים, %d יחידות, %d שאלות' % (len(d['bounds']), len(d['units']), len(d['qa'])))
+    return 0
+
+
 def gold_score(vi: dict, spec: dict) -> dict | None:
     """PR 1.6 (התוכנית 6.4): הרצת זהב — F1 של גבולות הפרקים מול הייחוס (spec.vrb = תחילת הפרקים בייחוס, מהשרתון),
     ב־±5 וב־±10 שנ׳. = viMetrics בשרתון (vimetrics.metrics). בלי ייחוס / ניתוח לא תקין — None"""
@@ -1314,6 +1441,10 @@ def vi_run(J, args, engine=None) -> int:
         raise SystemExit('✗ ניתוח: הניתוח עם Claude עוד סגור (SNB_VI_LIVE).')
     if spec.get('vo') == 1:                           # PR 1.2ג: "אמת שוב" — רק האימות, על ה־vi.json של הניתוח
         return vi_reverify(J, ctx, engine)
+    if spec.get('vj') == 1:                           # PR 1.6: השופט בזוגות — על ה־vi.json של שיבוטי הזהב
+        return vi_judge(J, ctx, engine)
+    if spec.get('vp') == 1:                           # PR 1.6 (ה5): טיוטת ייחוס — על ה־vi.json של הניתוח
+        return vi_ref_draft(J, ctx, engine)
     S = Stages(J, ctx)
     pd = ctx.pdir
     pd.mkdir(parents=True, exist_ok=True)
