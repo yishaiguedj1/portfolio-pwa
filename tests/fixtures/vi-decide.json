@@ -1,0 +1,811 @@
+{
+ "v": 1,
+ "note": "PR 1.6: הקריטריון (6.7) — vimetrics.decide = viDecide בשרתון. נוצר מפייתון; שתי הבדיקות משוות",
+ "cases": [
+  {
+   "name": "pass",
+   "rows": [
+    {
+     "vid": "v0",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "kf_cov": 0.5,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.92,
+      "kf_cov": 0.55,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v1",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "kf_cov": 0.5,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.92,
+      "kf_cov": 0.55,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v2",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "kf_cov": 0.5,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.92,
+      "kf_cov": 0.55,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v3",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "kf_cov": 0.5,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.92,
+      "kf_cov": 0.55,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v4",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "kf_cov": 0.5,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.92,
+      "kf_cov": 0.55,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v5",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "kf_cov": 0.5,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.92,
+      "kf_cov": 0.55,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v6",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "kf_cov": 0.5,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.92,
+      "kf_cov": 0.55,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v7",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "kf_cov": 0.5,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.92,
+      "kf_cov": 0.55,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v8",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "kf_cov": 0.5,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.92,
+      "kf_cov": 0.55,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v9",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "kf_cov": 0.5,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.92,
+      "kf_cov": 0.55,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v10",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "kf_cov": 0.5,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.92,
+      "kf_cov": 0.55,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v11",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "kf_cov": 0.5,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.92,
+      "kf_cov": 0.55,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    }
+   ],
+   "out": {
+    "wins": 12,
+    "losses": 0,
+    "ties": 0,
+    "wlb": 0.7575,
+    "reg": {
+     "support_rate": 0.02,
+     "ts_acc": null,
+     "kf_cov": 0.05
+    },
+    "why": [],
+    "hard": 0,
+    "cost": 0,
+    "time": 0,
+    "pass": true
+   }
+  },
+  {
+   "name": "few_wins",
+   "rows": [
+    {
+     "vid": "v1",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.9,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v2",
+     "w": "X",
+     "a": {
+      "support_rate": 0.9,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.9,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v3",
+     "w": "tie",
+     "a": {
+      "support_rate": 0.9,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.9,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    }
+   ],
+   "out": {
+    "wins": 1,
+    "losses": 1,
+    "ties": 1,
+    "wlb": 0.0945,
+    "reg": {
+     "support_rate": 0,
+     "ts_acc": null,
+     "kf_cov": null
+    },
+    "why": [
+     "wins"
+    ],
+    "hard": 0,
+    "cost": 0,
+    "time": 0,
+    "pass": false
+   }
+  },
+  {
+   "name": "regression",
+   "rows": [
+    {
+     "vid": "v0",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.95,
+      "kf_cov": 0.8,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.85,
+      "kf_cov": 0.79,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v1",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.95,
+      "kf_cov": 0.8,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.85,
+      "kf_cov": 0.79,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v2",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.95,
+      "kf_cov": 0.8,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.85,
+      "kf_cov": 0.79,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v3",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.95,
+      "kf_cov": 0.8,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.85,
+      "kf_cov": 0.79,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v4",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.95,
+      "kf_cov": 0.8,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.85,
+      "kf_cov": 0.79,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v5",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.95,
+      "kf_cov": 0.8,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.85,
+      "kf_cov": 0.79,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v6",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.95,
+      "kf_cov": 0.8,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.85,
+      "kf_cov": 0.79,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v7",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.95,
+      "kf_cov": 0.8,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.85,
+      "kf_cov": 0.79,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v8",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.95,
+      "kf_cov": 0.8,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.85,
+      "kf_cov": 0.79,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v9",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.95,
+      "kf_cov": 0.8,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.85,
+      "kf_cov": 0.79,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    }
+   ],
+   "out": {
+    "wins": 10,
+    "losses": 0,
+    "ties": 0,
+    "wlb": 0.7225,
+    "reg": {
+     "support_rate": -0.1,
+     "ts_acc": null,
+     "kf_cov": -0.01
+    },
+    "why": [
+     "reg_support_rate"
+    ],
+    "hard": 0,
+    "cost": 0,
+    "time": 0,
+    "pass": false
+   }
+  },
+  {
+   "name": "hard_cost_time",
+   "rows": [
+    {
+     "vid": "v0",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.9,
+      "usd": 1.2,
+      "sec": 110
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v1",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.9,
+      "usd": 1.2,
+      "sec": 110
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v2",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.9,
+      "usd": 1.2,
+      "sec": 110
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v3",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.9,
+      "usd": 1.2,
+      "sec": 110
+     },
+     "b_uns": 1
+    },
+    {
+     "vid": "v4",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.9,
+      "usd": 1.2,
+      "sec": 110
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v5",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.9,
+      "usd": 1.2,
+      "sec": 110
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v6",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.9,
+      "usd": 1.2,
+      "sec": 110
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v7",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.9,
+      "usd": 1.2,
+      "sec": 110
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v8",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.9,
+      "usd": 1.2,
+      "sec": 110
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "v9",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.9,
+      "usd": 1.2,
+      "sec": 110
+     },
+     "b_uns": 0
+    }
+   ],
+   "out": {
+    "wins": 10,
+    "losses": 0,
+    "ties": 0,
+    "wlb": 0.7225,
+    "reg": {
+     "support_rate": 0,
+     "ts_acc": null,
+     "kf_cov": null
+    },
+    "why": [
+     "hard",
+     "cost",
+     "time"
+    ],
+    "hard": 1,
+    "cost": 0.2,
+    "time": 0.1,
+    "pass": false
+   }
+  },
+  {
+   "name": "mixed",
+   "rows": [
+    {
+     "vid": "a",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.9,
+      "kf_cov": 0.4,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.93,
+      "kf_cov": 0.42,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "a",
+     "w": "X",
+     "a": {
+      "support_rate": 0.8,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.78,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "b",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.7,
+      "kf_cov": 0.2,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.71,
+      "kf_cov": 0.1,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "c",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.88,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.9,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "d",
+     "w": "tie",
+     "a": {
+      "support_rate": 0.6,
+      "kf_cov": 0.5,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.62,
+      "kf_cov": 0.52,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    },
+    {
+     "vid": "e",
+     "w": "Y",
+     "a": {
+      "support_rate": 0.91,
+      "kf_cov": 0.33,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b": {
+      "support_rate": 0.9,
+      "kf_cov": 0.36,
+      "usd": 1.0,
+      "sec": 100
+     },
+     "b_uns": 0
+    }
+   ],
+   "out": {
+    "wins": 4,
+    "losses": 1,
+    "ties": 1,
+    "wlb": 0.3755,
+    "reg": {
+     "support_rate": -0.0014,
+     "ts_acc": null,
+     "kf_cov": -0.07
+    },
+    "why": [
+     "wins",
+     "reg_kf_cov"
+    ],
+    "hard": 0,
+    "cost": 0,
+    "time": 0,
+    "pass": false
+   }
+  },
+  {
+   "name": "empty",
+   "rows": [],
+   "out": {
+    "wins": 0,
+    "losses": 0,
+    "ties": 0,
+    "wlb": null,
+    "reg": {
+     "support_rate": null,
+     "ts_acc": null,
+     "kf_cov": null
+    },
+    "why": [
+     "wins"
+    ],
+    "hard": 0,
+    "cost": null,
+    "time": null,
+    "pass": false
+   }
+  }
+ ]
+}

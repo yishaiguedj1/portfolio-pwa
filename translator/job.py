@@ -401,6 +401,8 @@ def run(args):
                     'pir': pir_valid(got.get('pir')),                                    # v379: דוח אחרי תקלה שמחכה לסיכום
                     'full': got.get('full') == 1,                                        # 15/10: האיסוף המלא (הדגל learn_full + הנוסח נקרא)
                     'gref': job.get('gref') if FILE_ID_RE.match(str(job.get('gref') or '')) else None,   # פריט 15: הייחוס של סט הזהב
+                    'vjp': job.get('vjp') if isinstance(job.get('vjp'), list) else None,   # PR 1.6: הזוגות לשופט (analyze.vi_judge)
+                    'vref': job.get('vref') if isinstance(job.get('vref'), dict) else None,   # PR 1.6: יחידות הייחוס לשופט
                     'notes': notes_valid(job.get('notes')),                              # v382: הערות שלך שכבר נקראו (להמשך)
                     'gl': [list(r) for r in gl_rows(job.get('gl'))] if gl_rows(job.get('gl')) is not None else None,   # 11/10: המילון מ־R2 (None = מ־Drive)
                     'xd': 1 if job.get('xd') == 1 else 0,                                 # 28/10/2026: ניסוי "טיוטה אחת"

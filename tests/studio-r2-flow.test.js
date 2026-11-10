@@ -385,5 +385,88 @@ const { fakeR2, ENV } = require('./_r2fake');
   db.get('studioJobs/' + pv.id).fields.vr = iv(0);
   ok((await api('remove', { job: pv.id })).ok && !db.has('studioJobs/' + CH2) && !db.has('studioJobs/' + pv.id), 'אמת שוב: מחיקת הניתוח מוחקת גם את עבודות־הבת');
 
+  /* ---------- 12. סט הזהב של הניתוח (PR 1.6, 10/11/2026): חבילת ייחוס (viRef, מנהל), מקור זהב, הרצת גל והציון מול הייחוס ---------- */
+  const gv = mkVi('G', { fv: sv({ id: 'R2_jViGxxxxxxxxxxxxxxxxx_srcvideozzz', name: 'talk.mp4', size: 10 }) });
+  const REF = { bounds: [{ t0: 0, lv: 1, title: 'פתיחה' }, { t0: 120, lv: 1, title: 'חלק ב' }, { t0: 130, lv: 2, title: 'משנה' }],
+    units: [{ text: 'הזיכרון נבנה בשני שלבים', w: 3 }, { text: '<b>x</b>', w: 9 }], qa: [{ q: 'מה?', a: 'כך', t: 125, so: 1 }], meta: { tier: 'z', genre: 'panel', lic: 'CC-BY' }, junk: 1 };
+  ok((await api('viRef', { job: gv.id, get: true })).ref === null, 'זהב ניתוח: לפני השמירה — אין ייחוס');
+  ok((await api('viRef', { job: gv.id, ref: { units: [] } })).error === 'bad_params', 'זהב ניתוח: ייחוס ריק — bad_params');
+  ok((await other('viRef', { job: gv.id, ref: REF })).error === 'no_job', 'זהב ניתוח: משתמש אחר — no_job');
+  let vgr = await api('viRef', { job: gv.id, ref: REF });
+  const gj = jobOf(gv.id);
+  ok(vgr.ok && vgr.job.vg === 1 && vgr.job.gd === null && gj.gd.vr === 1 && gj.vrf && gj.vrf.v === 'snb.vi-ref/1' && gj.vrf.units[1].w === 1 && gj.vrf.meta.tier === 'a' && !('junk' in gj.vrf),
+    'זהב ניתוח: הייחוס נשמר מנורמל (JSON, לא "[object Object]"), הניתוח מסומן (vg) ו־gd אמיתי שומר עליו מהניקויים');
+  ok((await api('viRef', { job: gv.id, get: true })).ref.bounds.length === 3 && S.goldSources([gj]).length === 1 && S.isGold(gj) && !S.isGold({ kind: 'tr', spec: { vi: 1 }, gd: { vr: 1 } }),
+    'זהב ניתוח: get מחזיר אותו, והניתוח הוא מקור זהב (goldSources)');
+  ok((await api('gold', { job: gv.id, ref: 'x'.repeat(12) })).error === 'no_srt', 'זהב ניתוח: סימון של התרגום (gold) — לא לניתוח');
+  // ה5: טיוטת ייחוס — עבודת־בת על ה־vi.json (Sonnet / Haiku), רק אחרי אישור; הטיוטה חוזרת ב־get
+  ok((await api('viRef', { job: gv.id, draft: 's' })).error === 'confirm' && (await api('viRef', { job: gv.id, draft: 'z', ok: true })).error === 'bad_params', 'טיוטת ייחוס: בלי אישור — confirm; מודל לא מוכר — bad_params');
+  const vdr = await api('viRef', { job: gv.id, draft: 's', ok: true });
+  const VPJ = [...db.keys()].filter((k) => k.startsWith('studioJobs/')).map((k) => Object.assign(jobOf(k.slice(11)), { id: k.slice(11) })).find((x) => S.isVp(x) && x.rp === gv.id);
+  ok(vdr.ok && vdr.dst === 'queued' && VPJ && VPJ.spec.mode === 'sonnet-medium' && VPJ.spec.vi === 1 && !VPJ.spec.vo && VPJ.fvi.id === gv.vi && VPJ.folder === gv.F && S.workerJob(VPJ).files.i.id === gv.vi,
+    'טיוטת ייחוס: עבודת־בת עם Sonnet על ה־vi.json של הניתוח, בתיקייה שלו, ונכנסת לתור');
+  ok((await api('viRef', { job: gv.id, draft: 'h', ok: true })).error === 'vp_busy' && (await api('viRef', { job: VPJ.id, get: true })).error === 'state', 'טיוטת ייחוס: שוב בזמן שהיא רצה — vp_busy; על עבודת־הבת עצמה — state');
+  const KP = crypto.randomBytes(32).toString('base64url');
+  Object.assign(db.get('studioJobs/' + VPJ.id).fields, { kh: { stringValue: crypto.createHash('sha256').update(KP).digest('hex') }, kx: iv(R.now + 3600e3), state: { stringValue: 'running' } });
+  await call({ op: 'report', job: VPJ.id, key: KP, done: true, vpd: { bounds: [{ t0: 0, lv: 1, title: 'פתיחה' }], units: [{ w: 9, text: 'יחידה' }], qa: [], slides: [], meta: { genre: 'nope' }, junk: 1 } }, true);
+  const gd2 = await api('viRef', { job: gv.id, get: true });
+  ok(gd2.ok && gd2.dst === 'done' && gd2.draft && gd2.draft.units[0].w === 1 && gd2.draft.meta.genre === 'other' && !('junk' in gd2.draft) && gd2.ref.units.length === 2 && gd2.usd.s === S.VP_USD.s,
+    'טיוטת ייחוס: הטיוטה נשמרת מנורמלת (JSON) וחוזרת ב־get לצד הייחוס המאושר — לא מחליפה אותו');
+  ok(require('../ibkr-proxy/lib/studiolearn').learnRec(jobOf(VPJ.id), R.now, S.effState) === null, 'טיוטת ייחוס: לא נכנסת למאגר הלמידה');
+  db.delete('studioJobs/' + VPJ.id);
+  // גל: זרוע עם הדגל vwin — העבודה שומרת את התוצרים של הניתוח, vg ו־vrb (תחילת הפרקים ברמה 1)
+  const wv = await api('goldRun', { ok: true, arms: [{ mode: 'haiku-medium', xf: ['vwin', 'nope'] }, { mode: 'haiku-high' }] });
+  const wc = (wv.jobs || []).map((x) => jobOf(x.id));
+  ok(wv.ok && wc.length === 2 && wc.every((c) => c.gs === gv.id && c.spec.vi === 1 && c.spec.vg === 1 && JSON.stringify(c.spec.vrb) === '[0,120]' && JSON.stringify(c.spec.out) === '[]' && !c.vrf)
+    && JSON.stringify(wc[0].spec.xf) === '["vwin"]' && wc[0].wa === 0 && wc[1].wa === 1, 'זהב ניתוח: "הרץ גל" — עבודת ניתוח לכל זרוע, עם vg, ‏vrb ו־xf (דגל לא מוכר נזרק)');
+  ok((await api('goldRun', { ok: true, arms: [{ mode: 'haiku-high' }] })).error === 'gold_busy', 'זהב ניתוח: גל שני בזמן שהראשון פתוח — gold_busy');
+  // העובד מדווח done עם vq — נשמר רק בהרצת זהב, ומוצג לטלפון
+  const GK = crypto.randomBytes(32).toString('base64url'), C0 = wv.jobs[0].id;
+  Object.assign(db.get('studioJobs/' + C0).fields, { kh: { stringValue: crypto.createHash('sha256').update(GK).digest('hex') }, kx: iv(R.now + 3600e3), state: { stringValue: 'running' } });
+  const gw = (op, b) => call(Object.assign({}, b, { op, job: C0, key: GK }), true).then((r) => r.j);
+  const vgu = await gw('r2wup', { size: nvi.length, type: 'application/json', name: 'talk.vi.json' });
+  await R.fetch(vgu.urls[1], { method: 'PUT', body: nvi });
+  await gw('r2wdone', { id: vgu.id, up: vgu.up });
+  await call({ op: 'report', job: C0, key: GK, done: true, out: [{ id: vgu.id, name: 'talk.vi.json', size: nvi.length, k: 'vi' }], vsm: { n: 5, ok: 5, cov: 80, so: 0, d: 600 }, vq: { f5: 0.5, f10: 2 } }, true);
+  ok(jobOf(C0).state === 'done' && jobOf(C0).vq.f5 === 0.5 && jobOf(C0).vq.f10 === null && (await api('job', { job: C0 })).job.vq.f5 === 0.5, 'זהב ניתוח: הציון מול הייחוס (vq) נשמר ומוצג; ערך מחוץ לטווח נזרק');
+  /* ---------- 13. השופט בזוגות (PR 1.6): viJudge — אומדן, אישור, עבודת שופט למקור, vjd וההכרעה ---------- */
+  const C1 = wv.jobs[1].id, GK1 = crypto.randomBytes(32).toString('base64url');
+  Object.assign(db.get('studioJobs/' + C1).fields, { kh: { stringValue: crypto.createHash('sha256').update(GK1).digest('hex') }, kx: iv(R.now + 3600e3), state: { stringValue: 'running' } });
+  const gw1 = (op, b) => call(Object.assign({}, b, { op, job: C1, key: GK1 }), true).then((r) => r.j);
+  const vgu1 = await gw1('r2wup', { size: nvi.length, type: 'application/json', name: 'talk.vi.json' });
+  await R.fetch(vgu1.urls[1], { method: 'PUT', body: nvi });
+  await gw1('r2wdone', { id: vgu1.id, up: vgu1.up });
+  await call({ op: 'report', job: C1, key: GK1, done: true, out: [{ id: vgu1.id, name: 'talk.vi.json', size: nvi.length, k: 'vi' }] }, true);
+  ok(jobOf(C1).state === 'done', 'השופט: שתי הזרועות של הגל הסתיימו');
+  ok((await other('viJudge', { get: true })).error === 'admin', 'השופט: לא מנהל — admin');
+  let jg = await api('viJudge', { get: true });
+  ok(jg.ok && jg.np === 1 && jg.ns === 1 && jg.usd === S.VJ_USD && jg.dec.length === 0 && jg.jobs.length === 0, 'השופט: get — זוג אחד (זרוע 1 מול 0) והאומדן, עוד בלי הכרעה');
+  ok((await api('viJudge', {})).error === 'confirm', 'השופט: בלי אישור — confirm');
+  const jn = await api('viJudge', { ok: true });
+  const VJ = jn.jobs && jn.jobs[0] && jn.jobs[0].id, vjj = VJ && jobOf(VJ);
+  ok(jn.ok && vjj && S.isVj(vjj) && vjj.rp === gv.id && vjj.folder === jobOf(gv.id).folder && vjj.spec.vi === 1 && vjj.spec.dur === 0 && jn.jobs[0].state === 'queued'
+    && vjj.fvj.p.length === 1 && vjj.fvj.p[0].x.j === C0 && vjj.fvj.p[0].y.j === C1 && vjj.fvj.p[0].y.id === vgu1.id && vjj.vref && vjj.vref.units.length === 2,
+    'השופט: עבודת שופט למקור — בתיקייה שלו, עם הזוג (x = זרוע 0) ועותק הייחוס (JSON), ונכנסת לתור');
+  ok((await api('viJudge', { ok: true })).error === 'gold_busy', 'השופט: שוב בזמן שהוא רץ — gold_busy');
+  const wjv = S.workerJob(vjj);
+  ok(wjv.vjp.length === 1 && wjv.vjp[0].x.id === vgu.id && wjv.vjp[0].y.wa === 1 && wjv.vref.units.length === 2 && S.workerJob(jobOf(C0)).vjp === null, 'השופט: העובד מקבל את הזוגות ואת הייחוס (רק בעבודת השופט)');
+  const KJ = crypto.randomBytes(32).toString('base64url');
+  Object.assign(db.get('studioJobs/' + VJ).fields, { kh: { stringValue: crypto.createHash('sha256').update(KJ).digest('hex') }, kx: iv(R.now + 3600e3), state: { stringValue: 'queued' }, fired: iv(R.now) });
+  const clj = (await call({ op: 'claim', job: VJ, key: KJ }, true)).j;
+  ok(clj.ok && clj.job.spec.vj === 1 && clj.job.vjp.length === 1 && clj.job.vref.units.length === 2 && clj.job.files.i === null, 'השופט: העובד לוקח את העבודה עם הזוגות והייחוס (job.py שומר vjp ו־vref)');
+  Object.assign(db.get('studioJobs/' + VJ).fields, { state: { stringValue: 'running' } });
+  await call({ op: 'report', job: VJ, key: KJ, done: true, vjd: { v: 1, p: [{ j: C1, wa: 1, w: 'Y', ex: 6, ey: 0, yu: 0, a: { support_rate: 0.9, junk: 5 }, b: { support_rate: 0.95 } }, { j: 'bad', wa: 1, w: 'Y' }], usd: 0.02 } }, true);
+  const vjd = jobOf(VJ).vjd;
+  ok(jobOf(VJ).state === 'done' && vjd && vjd.p.length === 1 && vjd.p[0].w === 'Y' && !('junk' in vjd.p[0].a) && vjd.usd === 0.02, 'השופט: vjd נשמר מנורמל (JSON; זוג לא תקין ושדה זר נזרקים)');
+  jg = await api('viJudge', { get: true });
+  ok(jg.dec.length === 1 && jg.dec[0].wa === 1 && jg.dec[0].n === 1 && jg.dec[0].wins === 1 && jg.dec[0].ex === 6 && jg.dec[0].pass === false && jg.dec[0].why.includes('wins') && jg.jobs[0].state === 'done',
+    'השופט: ההכרעה לזרוע 1 — ניצחון אחד לא מספיק (Wilson)');
+  ok(require('../ibkr-proxy/lib/studiolearn').learnRec(jobOf(VJ), R.now, S.effState) === null && S.canViVerify(jobOf(VJ), R.now) === 'state', 'השופט: לא נכנס למאגר הלמידה, ואין לו "אמת שוב"');
+  db.delete('studioJobs/' + VJ);
+  vgr = await api('viRef', { job: gv.id, ref: null });
+  ok(vgr.ok && vgr.job.vg === 0 && !jobOf(gv.id).gd && !jobOf(gv.id).vrf, 'זהב ניתוח: הסרה — הייחוס והסימון נמחקים');
+  ok((await api('viRef', { job: C0, get: true })).error === 'state', 'זהב ניתוח: ייחוס רק לניתוח מקורי (לא להרצת זהב)');
+  for (const c of wv.jobs) db.delete('studioJobs/' + c.id);
+
   console.log('\n' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL -', e); process.exit(1); });

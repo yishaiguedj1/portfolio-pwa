@@ -593,6 +593,146 @@ class TestReverify(unittest.TestCase):
         self.assertEqual(J.got, [])
 
 
+
+class _JJ(_J):
+    """job מדומה לשופט: כל מזהה — הקובץ שלו"""
+
+    def __init__(self, files, ctx):
+        super().__init__(None, ctx)
+        self.files = files
+
+    def fetch_input(self, ctx, fid, dest, size, cb):
+        self.got.append(fid)
+        Path(dest).write_text(json.dumps(self.files[fid], ensure_ascii=False), encoding="utf-8")
+        cb(1.0)
+
+
+class TestJudge(unittest.TestCase):
+    """PR 1.6 — השופט בזוגות (spec.vj): כל זוג פעמיים בסדר הפוך, בלי תוצרים — רק vjd בדיווח. מוקים בלבד (בלי הוצאה)"""
+
+    def pair_vis(self):
+        m, ix, nums, rest = mapped()
+        ids = [it["id"] for it in m["items"]]
+        A.vi_synth(Scripted([vs_answer({"one": {"text": "סיכום", "from": [ids[0]]}, "bluf": None, "take": [
+            {"text": "תובנה", "from": [ids[1]]}], "thesis": None, "big": None, "adds": []})]), m, ix, nums)
+        A.vi_verify(Scripted(lambda p: "\n".join("%s|sup" % i for i in claim_ids(p))), m, ix)
+        x = live(m, rest)
+        y = json.loads(json.dumps(x))
+        y["items"][0]["text"] = "BETTER " + y["items"][0]["text"]
+        return x, y
+
+    def run_vj(self, eng, pairs=None, ref=None):
+        import io
+        import tempfile
+        from contextlib import redirect_stdout
+        x, y = self.pair_vis()
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        jx, jy = "j" + "a" * 20, "j" + "b" * 20
+        pairs = pairs if pairs is not None else [{"x": {"id": "R2_x", "size": 1, "j": jx, "wa": 0}, "y": {"id": "R2_y", "size": 1, "j": jy, "wa": 1}}]
+        ctx = _Ctx({"spec": {"vi": 1, "vj": 1, "from": "auto", "to": ["he"], "mode": ""}, "vjp": pairs,
+                    "vref": ref if ref is not None else {"bounds": [{"t0": 0, "lv": 1, "title": "פתיחה"}], "units": [{"w": 3, "text": "יחידה"}]}},
+                   Path(td.name) / "p")
+        J = _JJ({"R2_x": x, "R2_y": y}, ctx)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = A.vi_run(J, None, engine=eng)
+        return rc, ctx, J, jy
+
+    @staticmethod
+    def fair(p):
+        """שופט עקבי: מעדיף את הניתוח עם BETTER, בכל סדר"""
+        a = p.split("=== Analysis A ===")[1].split("=== Analysis B ===")[0]
+        return '{"w":"A","a":[],"b":["uns:ma","flu:mi"]}' if "BETTER" in a else '{"w":"B","a":["uns:ma","flu:mi"],"b":[]}'
+
+    def test_pair_both_orders(self):
+        eng = Scripted(self.fair)
+        rc, ctx, J, jy = self.run_vj(eng)
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(eng.calls), 2, "פעמיים — בסדר הפוך")
+        self.assertTrue(all(c["fixed"] == V.VJ_SYS for c in eng.calls))
+        self.assertIn("יחידה", eng.calls[0]["prompt"], "יחידות הייחוס בבקשה")
+        self.assertEqual(sorted(J.got), ["R2_x", "R2_y"])
+        self.assertEqual(J.put, [], "בלי תוצרים")
+        last = ctx.reports[-1]
+        self.assertTrue(last.get("done"))
+        self.assertNotIn("out", last)
+        [r] = last["vjd"]["p"]
+        self.assertEqual((r["j"], r["wa"], r["w"]), (jy, 1, "Y"))
+        self.assertEqual((r["ex"], r["ey"], r["yu"]), (12, 0, 0))
+        self.assertIn("support_rate", r["a"])
+        self.assertEqual(last["vjd"]["h"], V.vj_hash())
+
+    def test_disagree_is_tie_and_uns_needs_both(self):
+        """שופט שתמיד בוחר A (הטיית מיקום) — תיקו; טענה לא נתמכת ב־B רק בהרצה אחת — לא נספרת"""
+        eng = Scripted(lambda p: '{"w":"A","a":[],"b":["uns:cr"]}')
+        rc, ctx, J, jy = self.run_vj(eng)
+        r = ctx.reports[-1]["vjd"]["p"][0]
+        self.assertEqual(r["w"], "tie")
+        self.assertEqual(r["yu"], 0)
+        self.assertEqual((r["ex"], r["ey"]), (25, 25))
+
+    def test_all_fail(self):
+        """השופט נכשל בכל הזוגות — העבודה נכשלת (לא "נשפט")"""
+        with self.assertRaises(SystemExit):
+            self.run_vj(Scripted(lambda p: llm.LLMError("http_500")))
+
+    def test_no_pairs(self):
+        with self.assertRaises(SystemExit):
+            self.run_vj(Scripted([]), pairs=[])
+
+
+
+class TestRefDraft(unittest.TestCase):
+    """PR 1.6 (ה5) — טיוטת ייחוס (spec.vp): קריאה אחת למודל של העבודה, בלי תוצרים — vpd בדיווח. מוקים בלבד (בלי הוצאה)"""
+
+    def run_vp(self, eng):
+        import io
+        import tempfile
+        from contextlib import redirect_stdout
+        m, ix, nums, rest = mapped()
+        vi = live(m, rest)
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        ctx = _Ctx({"spec": {"vi": 1, "vp": 1, "from": "auto", "to": ["he"], "mode": "sonnet-medium"},
+                    "files": {"i": {"id": "R2_vi", "size": 1}}}, Path(td.name) / "p")
+        J = _JJ({"R2_vi": vi}, ctx)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = A.vi_run(J, None, engine=eng)
+        return rc, ctx, J, vi
+
+    def test_draft(self):
+        ans = json.dumps({"bounds": [{"t0": 0, "lv": 1, "title": "פתיחה"}], "units": [{"w": 3, "text": "יחידה"}, "x"],
+                          "qa": [{"q": "ש", "a": "ת", "t": 5, "so": 0}], "slides": [], "junk": 1}, ensure_ascii=False)
+        eng = Scripted(["הנה:\n" + ans])
+        rc, ctx, J, vi = self.run_vp(eng)
+        self.assertEqual(rc, 0)
+        [c] = eng.calls
+        self.assertEqual((c["k"], c["fixed"]), ("vs", V.VP_SYS))
+        self.assertIn(vi["evidence"][0]["text"], c["prompt"], "התמליל בבקשה")
+        self.assertNotIn(vi["evidence"][0]["id"] + "]", c["prompt"], "בלי מזהים")
+        self.assertEqual(J.put, [], "בלי תוצרים")
+        last = ctx.reports[-1]
+        self.assertTrue(last.get("done"))
+        d = last["vpd"]
+        self.assertEqual(d["units"], [{"w": 3, "text": "יחידה"}], "פריט שאינו אובייקט נזרק")
+        self.assertNotIn("junk", d)
+        self.assertEqual(d["meta"]["tier"], "a")
+
+    def test_bad_answer_fails(self):
+        with self.assertRaises(SystemExit):
+            self.run_vp(Scripted(["לא JSON"]))
+        rc = None
+        with self.assertRaises(SystemExit):
+            rc = self.run_vp(Scripted([llm.LLMError("http_500")]))
+        self.assertIsNone(rc)
+
+    def test_parse(self):
+        self.assertIsNone(V.parse_vp('{"bounds":[],"units":[],"qa":[]}'), "טיוטה ריקה — לא טיוטה")
+        self.assertEqual(V.parse_vp('{"units":[{"w":1,"text":"a"}]}')["bounds"], [])
+
+
 class TestApplyVerdict(unittest.TestCase):
     IT = {"id": "n1", "text": "x", "ev": ["e1", "e2"], "basis": "speaker", "conf": "high", "ver": "unk"}
 

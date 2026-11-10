@@ -2024,7 +2024,7 @@ async function server(req, res, body, deps) {
       if (!got) continue;
       await patchDoc(deps, 'studioServers', p.sid, Object.assign(seen, { job: job.id }));
       const dur = job.spec && job.spec.dur > 0 ? Math.round(job.spec.dur) : 0;
-      return res.status(200).json({ ok: true, job: Object.assign({ id: job.id, key, kind: job.kind }, dur ? { dur } : {}, job.spec && job.spec.vi === 1 ? Object.assign({ vi: 1 }, job.spec.vo === 1 ? { vo: 1 } : {}) : {}), now });   // vi — הסוכן: perf_kind / MEM_PRIOR['vi']; vo — "אמת שוב" (קל)
+      return res.status(200).json({ ok: true, job: Object.assign({ id: job.id, key, kind: job.kind }, dur ? { dur } : {}, job.spec && job.spec.vi === 1 ? Object.assign({ vi: 1 }, job.spec.vo === 1 || job.spec.vj === 1 || job.spec.vp === 1 ? { vo: 1 } : {}) : {}), now });   // vi — הסוכן: perf_kind / MEM_PRIOR['vi']; vo — "אמת שוב", השופט בזוגות וטיוטת הייחוס (PR 1.6): קל, בלי סרטון, לא מלמד את הזיכרון
     }
     // שרת שעדיין מריץ עבודה (nj) ושאל אם יש עוד — העבודה שלו נשארת רשומה. 27/10/2026: בלי שינוי — לא כותבים (seenDue)
     const clr = !(hb.nj > 0) && !!srv.job;
@@ -2160,7 +2160,7 @@ async function doResume(deps, uid, job, now, body, auto, adm) {
    עבודה מקישור (create עם start:true), ומהבדיקה המתוזמנת (startAll — גם כשהטלפון סגור). סירוב נרשם במסמך העבודה
    (sw = הקוד, swt = מתי): מכשיר אחר רואה למה העבודה מחכה, והבדיקה המתוזמנת מנסה שוב רק סירוב חולף (S.START_RETRY).
    g = { adm, modeLocked, engLocked } — מהבקשה; בבדיקה המתוזמנת אין משתמש (adm שקר, והמצב / המנוע כבר נבדקו ביצירה) */
-const filesReady = (job) => job.kind === 'dx' || (S.isVv(job) ? !!(job.fvi && job.fvi.id) : !(job.kind === 'ai' ? !job.fq : job.spec && job.spec.src === 'subs' ? !job.fsu : job.spec && job.spec.src === 'url' ? !SR.isFolder(job.folder) : job.spec && job.spec.ph === 1 ? (job.spec.pw === 1 ? !(job.fpw && job.fph) : !job.fa) || !SR.isFolder(job.folder) : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc)));   // 1.2ג: "אמת שוב" — רק ה־vi.json של ההורה
+const filesReady = (job) => job.kind === 'dx' || (S.isVj(job) ? !!S.normVjp(job.fvj) : S.isVv(job) || S.isVp(job) ? !!(job.fvi && job.fvi.id) : !(job.kind === 'ai' ? !job.fq : job.spec && job.spec.src === 'subs' ? !job.fsu : job.spec && job.spec.src === 'url' ? !SR.isFolder(job.folder) : job.spec && job.spec.ph === 1 ? (job.spec.pw === 1 ? !(job.fpw && job.fph) : !job.fa) || !SR.isFolder(job.folder) : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc)));   // 1.2ג: "אמת שוב" — רק ה־vi.json של ההורה
 const jobView = (j, now) => Object.assign(S.publicJob(j, now), updWaiting(j, now) ? { uw: 1 } : {});
 async function startJob(deps, uid, job, body, now, g) {
   const r = await startJob0(deps, uid, job, body, now, g);
@@ -2573,7 +2573,7 @@ async function removeJobRec(deps, uid, job, now) {
   const gone = [learnId(job)];   // 10/11/2026: המזהה במאגר — לניתוח viLid
   if (job.kind === 'tr' && Array.isArray(job.fo) && job.fo.length) {   // מ2 · מ7: ההפקות מחדש, גיליונות ה־AI והשמירות ל־Drive (dx) של העבודה הולכים איתה
     const sub = job.fo.some((o) => o && o.k === 'cues') ? ['rr', 'ai', 'dx'] : ['dx'];
-    for (const r of (await listJobs(deps, uid)).filter((j) => (sub.includes(j.kind) || S.isVv(j)) && j.rp === job.id)) { await delDoc(deps, 'studioJobs', r.id); gone.push(LR.lid(r.id)); }   // PR 1.2ג: גם "אמת שוב"
+    for (const r of (await listJobs(deps, uid)).filter((j) => (sub.includes(j.kind) || S.isVv(j) || S.isVj(j) || S.isVp(j)) && j.rp === job.id)) { await delDoc(deps, 'studioJobs', r.id); gone.push(LR.lid(r.id)); }   // PR 1.2ג: גם "אמת שוב" · PR 1.6: והשופט
   }
   await learnGone(deps, uid, gone, now);   // 15/10 (מ׳1): כדי ש"מחק את התרומות שלי" ימצא גם אותן
   await closeJobOps(deps, uid, job.id, now);
@@ -3957,6 +3957,38 @@ async function handler(req, res, deps = {}) {
       }
       return res.status(200).json({ ok: true, jobs: made });
     }
+    if (op === 'viJudge') {
+      // PR 1.6 (10/11/2026, התוכנית 6.5 ו־6.7): השופט בזוגות על הגל האחרון של ניתוחי הזהב — מנהל בלבד. get: הגל, האומדן
+      // וההכרעה (לכל זרוע מול זרוע 0); אחרת (ok: true אחרי אישור המחיר בטלפון) — עבודת שופט לכל מקור, בתיקייה שלו
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'admin' });
+      const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
+      const wv = S.viWave(all);
+      const srcs = wv ? Object.keys(wv.by).map((id) => [all.find((j) => j.id === id && S.isViGold(j)), wv.by[id]]).filter((x) => x[0]) : [];
+      const plan = srcs.map(([j, arms]) => [j, S.vjPairs(arms, now)]).filter((x) => x[1].length);
+      const np = plan.reduce((t, x) => t + x[1].length, 0);
+      const vj = wv ? all.filter((j) => S.isVj(j) && j.fvj && j.fvj.at === wv.at) : [];
+      if (body.get === true) {
+        return res.status(200).json({ ok: true, at: wv ? wv.at : null, ns: plan.length, np, usd: Math.round(np * S.VJ_USD * 100) / 100,
+          dec: wv ? S.vjDecide(all, wv.at) : [], jobs: vj.map((j) => ({ id: j.id, rp: j.rp, state: S.effState(j, now).state })) });
+      }
+      if (body.ok !== true) return res.status(400).json({ ok: false, error: 'confirm' });
+      if ((await readStats(deps, uid)).halt) return res.status(409).json({ ok: false, error: 'halted' });
+      if (!plan.length) return res.status(400).json({ ok: false, error: 'no_pairs' });
+      if (all.some((j) => (j.gs || S.isVj(j)) && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'gold_busy' });
+      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length + plan.length > S.maxActive(true)) return res.status(409).json({ ok: false, error: 'too_many' });
+      const probe = await viCreateErr(S.vjJob(plan[0][0], wv, plan[0][1], 'x', uid, now).spec);
+      if (probe) return res.status(probe[0]).json({ ok: false, error: probe[1] });
+      for (const old of all.filter((j) => S.isVj(j) && S.FINAL.includes(S.effState(j, now).state))) await delDoc(deps, 'studioJobs', old.id);   // רק השיפוט האחרון נשמר
+      const made = [];
+      for (const [src, pairs] of plan) {
+        const v = S.vjJob(src, wv, pairs, S.newJobId(), uid, now);
+        await patchJob(deps, v.id, v);
+        const [, out] = await startJob(deps, uid, v, {}, now, { adm: true, modeLocked, engLocked });
+        if (!out.ok && !S.START_RETRY.includes(out.error)) { await delDoc(deps, 'studioJobs', v.id).catch(() => {}); return res.status(409).json({ ok: false, error: out.error || 'state', jobs: made }); }   // סירוב קבוע — בלי עבודה תלויה
+        made.push(view(out.job ? Object.assign({}, v, out.job) : v));
+      }
+      return res.status(200).json({ ok: true, jobs: made, np });
+    }
     let job = await mine(body.job);
     if (!job) return res.status(404).json({ ok: false, error: 'no_job' });
     if (op === 'job' && await autoRecover(deps, uid, [job], now)) job = await readJob(deps, job.id);   // v368
@@ -3970,7 +4002,7 @@ async function handler(req, res, deps = {}) {
       if (body.ref == null) { await patchJob(deps, job.id, { gd: null, gq: null, updated: now }); job.gd = null; job.gq = null; return res.status(200).json({ ok: true, job: view(job) }); }
       const ref = String(body.ref || '');
       if (!S.FILE_ID_RE.test(ref)) return res.status(400).json({ ok: false, error: 'bad_params' });
-      const others = (await listJobs(deps, uid)).filter((j) => j.id !== job.id && S.normGd(j.gd));
+      const others = (await listJobs(deps, uid)).filter((j) => j.id !== job.id && S.isGold(j));   // PR 1.6: גם ניתוח בזהב
       if (others.length >= S.goldMax(isAdmin(user))) return res.status(409).json({ ok: false, error: 'gold_full' });   // 02/11/2026: למנהל 16
       const f = await driveFileInFolder(deps, uid, job.folder, ref);
       if (!f) return res.status(400).json({ ok: false, error: 'file_bad' });
@@ -3979,6 +4011,42 @@ async function handler(req, res, deps = {}) {
       const gd = { r: ref, n: f.size, at: now };
       await patchJob(deps, job.id, { gd, gq: null, updated: now });
       job.gd = gd; job.gq = null;
+      return res.status(200).json({ ok: true, job: view(job) });
+    }
+    if (op === 'viRef') {
+      // PR 1.6 (10/11/2026, התוכנית 6.3): חבילת הייחוס של ניתוח בסט הזהב — מנהל בלבד. get: מחזירה אותה (לעריכה);
+      // ref: שומרת (= אישור המנהל) ומסמנת את הניתוח כזהב; ref: null — מסירה. בעבודה עצמה (vrf), לא בריפו
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'admin' });
+      if (job.kind !== 'tr' || !job.spec || job.spec.vi !== 1 || job.spec.dry === 1 || S.isVv(job) || S.isVj(job) || S.isVp(job) || job.gs || st !== 'done') return res.status(409).json({ ok: false, error: 'state' });
+      if (body.get === true) {   // + הטיוטה האחרונה (ה5) ומצבה
+        const dj = (await listJobs(deps, uid)).filter((j) => S.isVp(j) && j.rp === job.id).sort((a, b) => (a.created || 0) - (b.created || 0)).pop();
+        return res.status(200).json({ ok: true, ref: VI.normViRef(job.vrf), job: view(job), draft: dj ? VI.normViRef(dj.vpd) : null, dst: dj ? S.effState(dj, now).state : null, usd: S.VP_USD });
+      }
+      if (body.draft != null) {
+        // PR 1.6 (ה5): טיוטת ייחוס — עבודת־בת על ה־vi.json (Sonnet, או Haiku הזול). ⛔ בתשלום: רק אחרי אישור המחיר (ok: true)
+        if (body.ok !== true) return res.status(400).json({ ok: false, error: 'confirm' });
+        if (!S.VP_MODES[body.draft] || !S.viOut(job)) return res.status(400).json({ ok: false, error: 'bad_params' });
+        if ((await readStats(deps, uid)).halt) return res.status(409).json({ ok: false, error: 'halted' });
+        const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
+        if (all.some((j) => S.isVp(j) && j.rp === job.id && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'vp_busy' });
+        if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.maxActive(true)) return res.status(409).json({ ok: false, error: 'too_many' });
+        const v = S.vpJob(job, body.draft, S.newJobId(), uid, now);
+        const ve = await viCreateErr(v.spec);
+        if (ve) return res.status(ve[0]).json({ ok: false, error: ve[1] });
+        for (const old of all.filter((j) => S.isVp(j) && j.rp === job.id && S.FINAL.includes(S.effState(j, now).state))) await delDoc(deps, 'studioJobs', old.id);   // רק האחרונה נשמרת
+        await patchJob(deps, v.id, v);
+        const [code, out] = await startJob(deps, uid, v, {}, now, { adm: true, modeLocked, engLocked });
+        if (!out.ok && !S.START_RETRY.includes(out.error)) { await delDoc(deps, 'studioJobs', v.id).catch(() => {}); return res.status(code).json({ ok: false, error: out.error || 'state' }); }   // סירוב קבוע — בלי עבודה תלויה
+        return res.status(200).json({ ok: true, dst: (out.job && out.job.state) || 'new' });
+      }
+      if (body.ref === null) { await patchJob(deps, job.id, { gd: null, vrf: null, updated: now }); job.gd = null; job.vrf = null; return res.status(200).json({ ok: true, job: view(job) }); }
+      if (job.sx > 0 || !(job.fa || job.fv)) return res.status(409).json({ ok: false, error: 'src_gone' });   // בלי מקור אין הרצה חוזרת
+      const ref = VI.normViRef(body.ref);
+      if (!ref) return res.status(400).json({ ok: false, error: 'bad_params' });
+      if (!S.isViGold(job) && (await listJobs(deps, uid)).filter((j) => j.id !== job.id && S.isGold(j)).length >= S.goldMax(true)) return res.status(409).json({ ok: false, error: 'gold_full' });
+      const gd = { vr: 1, n: Buffer.byteLength(JSON.stringify(ref)), at: now };
+      await patchJob(deps, job.id, { gd, vrf: ref, updated: now });
+      job.gd = gd; job.vrf = ref;
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'btNow') {
