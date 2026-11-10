@@ -299,7 +299,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   };
   const has = (x, k) => R.objs.has('st/ownerUid0001/' + x.files[k]);
   const srcGone = (x) => !has(x, 'a') && !has(x, 'v') && !has(x, 'l') && !has(x, 'o') && !has(x, 'c');
-  ok(SC.jobTtl('snowball-staging-758f6') === 7 * D && SC.jobTtl('yishaiguedj1-c786e') === 30 * D && SC.jobTtl(undefined) === 30 * D, 'שמירה: הצרוב — 30 יום בייצור, 7 בניסוי');
+  ok(SC.jobTtl('snowball-staging-758f6') === 7 * D && SC.jobTtl('yishaiguedj1-c786e') === 21 * D && SC.jobTtl(undefined) === 21 * D && SC.JOB_TTL === 21 * D, 'שמירה: המקור והצרוב — 3 שבועות בייצור, 7 ימים בניסוי (10/11/2026)');
   ok(SC.SRC_TTL === 0 && SC.srcDueAt({ created: T0, ended: T0 + H }) === 0 && SC.srcDueAt({ created: T0, ended: T0 + 30 * H }) === 0,
     'שמירה: המקור — בלי מחיקה מוקדמת (10/11/2026)');
   ok(SC.expiredJob({ kind: 'tr', state: 'done', folder: 'R2_jAAAAAAAAAAAAAAAAAAAA', ended: T0 - 8 * D }, T0, SC.jobTtl('snowball-staging-758f6')), 'שמירה: בניסוי — עבודה בת 8 ימים נמחקת');
@@ -308,7 +308,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   const due = mkSrc('Due'), late = mkSrc('Lat', { created: iv(T0 - 10 * D), ended: iv(T0 - 9 * D), updated: iv(T0 - 9 * D) });
   const old = mkSrc('Old', { sx: iv(T0 - D) });   // נמחק לפני השינוי
   const pub0 = (await api('job', { job: due.id })).job;
-  ok(pub0 && pub0.rt && pub0.rt.s === 0 && pub0.rt.j === T0 - 24 * H + 30 * D && pub0.sx === 0, 'שמירה: הטלפון רואה עד מתי העבודה, בלי תאריך מחיקה נפרד למקור');
+  ok(pub0 && pub0.rt && pub0.rt.s === 0 && pub0.rt.j === T0 - 24 * H + 21 * D && pub0.sx === 0, 'שמירה: הטלפון רואה עד מתי העבודה, בלי תאריך מחיקה נפרד למקור');
   studio._reset();
   w = await wcall();
   const dj = S.fromFields(db.get('studioJobs/' + due.id).fields);
@@ -316,8 +316,8 @@ const { fakeR2, ENV } = require('./_r2fake');
     'שמירה: אחרי יום — המקור, הקול, איכויות הצפייה, עותקי הקול ונקודות השמירה נשארים');
   ok(!(dj.sx > 0) && Array.isArray(dj.hl) && dj.hl.length === 2 && db.has('studioUp/' + due.files.v), 'שמירה: העבודה לא מסומנת sx, ואיכויות הצפייה נשארות');
   ok(!srcGone(late) && has(late, 'v'), 'שמירה: גם עבודה בת 9 ימים — המקור עוד שמור');
-  ok(!SC.srcPending(dj) && !SC.srcExpired(dj, T0 + 29 * D) && SC.srcFiles(dj).length === 5 && SC.expiredJob(dj, T0 + 31 * D, SC.jobTtl(undefined)),
-    'שמירה: המקור יוצא רק עם העבודה (אחרי 30 יום)');
+  ok(!SC.srcPending(dj) && !SC.srcExpired(dj, T0 + 20 * D) && !SC.expiredJob(dj, T0 + 19 * D, SC.jobTtl(undefined)) && SC.srcFiles(dj).length === 5 && SC.expiredJob(dj, T0 + 21 * D, SC.jobTtl(undefined)),
+    'שמירה: המקור יוצא רק עם העבודה (אחרי 3 שבועות)');
   ok(S.canResume(Object.assign({}, dj, { state: 'failed' }), T0) !== 'src_gone', 'שמירה: "המשך" — המקור עוד שמור');
   const pubO = (await api('job', { job: old.id })).job;
   ok(pubO.sx === T0 - D && pubO.rt.s === 0, 'שמירה: עבודה ישנה שהמקור שלה נמחק — הטלפון רואה sx');
