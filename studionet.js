@@ -1202,6 +1202,15 @@ export function createNet(env) {
     }
     return MEDIA_PATH + id;
   }
+  /* דף הניתוח (1.5ב): קטע בתים מקובץ מדיה (תמונת שקף בתוך vis.bin) — דרך ה־SW, עד 8MB */
+  async function mediaBytes(id, range) {
+    const m = /^bytes=(\d{1,12})-(\d{1,12})$/.exec(String(range || ''));
+    if (!m || +m[2] < +m[1] || +m[2] - +m[1] >= 8 * 1048576) return null;
+    const u = mediaUrl(id);
+    if (!u) return null;
+    const r = await E.fetch(u, { headers: { Range: range } });
+    return r.ok ? new Uint8Array(await r.arrayBuffer()) : null;
+  }
   /* לשאלה של ה־SW: אסימון + גודל וסוג הקובץ (Content-Range נבנה ב־SW מהגודל — לא חשוף בתשובת CORS של Drive) */
   const mediaMeta = new Map();
   async function mediaInfo(id, fresh) {
@@ -1310,5 +1319,5 @@ export function createNet(env) {
   const goldUpload = (folderId, text) => textUpload(folderId, GOLD_REF_NAME, 'application/x-subrip', text, { snbRef: '1' });
 
 
-  return { api, signedPut, driveApi, driveToken, browseList, rangeBlob, vidsRoot, vidsList, vidsFolder, vidsSub, driveRename, driveTrash, driveMoveTo, jobFolder, upload, r2ToDrive, r2Get, cloudInitTemplate, glossLoad, glossSave, driveText, driveBlob, driveJson, goldUpload, textUpload, mediaUrl, driveMeta, driveMove, driveCopy, lyricsSearch, subsFind, subsGet, _forget: () => { dtok = null; } };
+  return { api, signedPut, driveApi, driveToken, browseList, rangeBlob, vidsRoot, vidsList, vidsFolder, vidsSub, driveRename, driveTrash, driveMoveTo, jobFolder, upload, r2ToDrive, r2Get, cloudInitTemplate, glossLoad, glossSave, driveText, driveBlob, driveJson, goldUpload, textUpload, mediaUrl, mediaBytes, driveMeta, driveMove, driveCopy, lyricsSearch, subsFind, subsGet, _forget: () => { dtok = null; } };
 }

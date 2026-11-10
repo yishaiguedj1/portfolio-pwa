@@ -37,7 +37,7 @@ A.onChange((st) => {
   try { last = +sessionStorage.getItem('pwa_auth_rl') || 0; sessionStorage.setItem('pwa_auth_rl', String(Date.now())); } catch (e) {}
   if (Date.now() - last > 8000) location.reload();
 });
-const link = /[#&]studio=(j[A-Za-z0-9_-]{20})(?:&v=(play|subs))?/.exec(location.hash || '');
+const link = /[#&]studio=(j[A-Za-z0-9_-]{20})(?:&v=(play|subs))?(?:&t=(\d{1,5}))?/.exec(location.hash || '');
 // 22/10/2026: "שיתוף ← Studio" מאנדרואיד (MainActivity: ‎#share=<הטקסט ששותף>) — דף "מקישור" עם הבדיקה כבר רצה
 const hashArg = (k, max) => { const m = new RegExp('[#&]' + k + '=([^&]*)').exec(location.hash || ''); try { return m ? decodeURIComponent(m[1]).slice(0, max) : ''; } catch (e) { return ''; } };
 // 30/10/2026 (הצילום: "חסרות הכתוביות שבקובץ"): ‎#phpick= כולל גם את הכתוביות שבקובץ (מקטע שלישי, עד 800 אלף — parsePhPick).
@@ -81,16 +81,16 @@ else if (first === 'boot') ready.then((st) => { if (st === 'out') loginGate({ ap
    הסינכרונית של המודול — רק היא חוסמת ציור (blocking="render" ב־studio.html; נמדד: await ברמה העליונה לא חוסם). כך הציור
    הראשון של הדף = הבית המלא, ומסך הפתיחה של ה־TWA יורד אליו. התמונות כבר בזיכרון (נקראו בראש הדף — thumbsSync); אם עוד לא —
    האריחים מקבלים אותן כשהן מגיעות, במקום מסך ריק עד 400ms. qa-sweep: "ציור ראשון בלי תוכן" */
-Promise.resolve(openStudio({ standalone: sa, restore: hs && hs.studio && !share && !got ? hs : null, job: link ? link[1] : '', view: link && link[2] ? link[2] : '', share, ref: shareRef, probe: shareProbe, to: shareTo, got, dle }))
+Promise.resolve(openStudio({ standalone: sa, restore: hs && hs.studio && !share && !got ? hs : null, job: link ? link[1] : '', view: link && link[2] ? link[2] : '', t: link && link[3] ? +link[3] : 0, share, ref: shareRef, probe: shareProbe, to: shareTo, got, dle }))
   .then(() => { if (phpick) studioPhPick(phpick); if (phe) studioPhErr(link[1], phe); });   // 24/10/2026: תרגום בטלפון
 /* 27/10/2026: נגיעה בהתראה כש־Studio כבר פתוחה — sw.js מנווט לאותו דף עם ‎#studio=<עבודה>, וזה מגיע כשינוי ב־hash בלבד.
    עד היום רק הטעינה הראשונה קראה אותו, והנגיעה לא פתחה את העבודה */
 function jobLinkNow() {
-  const jl = /[#&]studio=(j[A-Za-z0-9_-]{20})(?:&v=(play|subs))?/.exec(location.hash || '');
+  const jl = /[#&]studio=(j[A-Za-z0-9_-]{20})(?:&v=(play|subs))?(?:&t=(\d{1,5}))?/.exec(location.hash || '');
   if (!jl) return false;
   const pe = hashArg('phe', 24);
   try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
-  openStudio({ standalone: sa, job: jl[1], view: jl[2] || '' });
+  openStudio({ standalone: sa, job: jl[1], view: jl[2] || '', t: jl[3] ? +jl[3] : 0 });   // 10/11/2026 (PR 1.5ב, V125): ‎&t= — דף הניתוח מנגן משם
   if (pe) studioPhErr(jl[1], pe);
   return true;
 }

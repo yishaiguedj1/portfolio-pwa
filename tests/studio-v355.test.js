@@ -173,7 +173,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const st = read('studio.js');
   const ED = await import(path.join(root, 'studioedl.js'));   // מ4: normJob שומר את החיתוך — הפונקציה האמיתית
   const STUBS = { createNet: () => ({}), probeVideo: async () => ({}), extractAudio: async () => ({}), uploadBoth: async () => {}, stageEstimates: N.stageEstimates, progressModel: N.progressModel, createBackup: () => ({}), waitOAuthCode: () => {},
-    normEdl: ED.normEdl, edlPre: ED.edlPre, outDur: ED.outDur, edlDur: ED.edlDur, normTrackPref: (x) => ({ a: '', cc: '', ...(x || {}) }), normPq: (v) => (v === 'auto' || [4320, 2160, 1440, 1080, 720, 480, 360, 240, 144].includes(v) ? v : 'src'), normLadder: () => null, normChapters: () => [], normSty: () => null, STY_COLORS: {}, STY_Y: 40 };
+    normEdl: ED.normEdl, edlPre: ED.edlPre, outDur: ED.outDur, edlDur: ED.edlDur, normTrackPref: (x) => ({ a: '', cc: '', ...(x || {}) }), normPq: (v) => (v === 'auto' || [4320, 2160, 1440, 1080, 720, 480, 360, 240, 144].includes(v) ? v : 'src'), normLadder: () => null, normChapters: () => [], normSty: () => null, normPlaces: () => ({}), STY_COLORS: {}, STY_Y: 40 };
   const body = st.replace(/^export (const|function) /gm, '$1 ').replace(/^import \{([^}]+)\} from '[^']+';$/gm, 'const {$1} = __stubs;');
   const S = new Function('t', '__stubs', body + '\nreturn { normJob, normStore, sameFile, jobPhase, normSettings, upHalt };')(undefined, STUBS);
   const J = { id: 'jAAAAAAAAAAAAAAAAAAAA', created: 5, spec: { name: 'a.mkv', size: 100, to: ['he', 'zz'], mode: 'x', out: ['same', 'evil'] },
@@ -210,7 +210,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   if (swVer >= 355) ok(/const STUDIO_SHELL = \[[^\]]*'\.\/studionet\.js'[^\]]*'\.\/libbackup\.js'/.test(sw), 'sw.js: גם studionet.js ו־libbackup.js נטענים מראש (הסטודיו נפתח אופליין)');
   else ok(true, 'sw.js עוד בגרסה הקודמת (שלב התוכן בפרוטוקול הדו־שלבי)');
   const imports = [...st.matchAll(/^import .* from '\.\/([\w.-]+)';$/gm)].map((x) => x[1]);
-  ok(imports.sort().join() === 'libbackup.js,studioai.js,studiobg.js,studioedl.js,studionet.js,studioplay.js,studiostore.js,studiosubs.js,studiotracks.js', 'studio.js מייבא רק את studionet.js, libbackup.js, studiostore.js (ת4: מזהים של R2), studiobg.js (העלאה ברקע, 23/10) ומודולי העורכים (מ1 הנגן · מ2 הכתוביות · מ4 הווידאו · מ7 גיליון ה־AI)');
+  ok(imports.sort().join() === 'libbackup.js,studioai.js,studiobg.js,studioedl.js,studionet.js,studioplay.js,studiostore.js,studiosubs.js,studiotracks.js,studiovi.js', 'studio.js מייבא רק את studionet.js, libbackup.js, studiostore.js (ת4: מזהים של R2), studiobg.js (העלאה ברקע, 23/10) ומודולי העורכים (מ1 הנגן · מ2 הכתוביות · מ4 הווידאו · מ7 גיליון ה־AI) ודף הניתוח (studiovi.js)');
   // v387: כל מודול שהסטודיו מייבא — בקבצי הסטודיו של sw.js (studiostore.js חסר שם עד v386 → הסטודיו לא נפתח אופליין)
   const shell = (sw.match(/const STUDIO_SHELL = \[([^\]]*)\]/) || [])[1] || '';
   if (swVer >= 387) ok(imports.every((m) => shell.includes("'./" + m + "'")), 'sw.js: כל מה ש־studio.js מייבא נמצא ב־STUDIO_SHELL');

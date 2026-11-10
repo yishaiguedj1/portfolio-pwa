@@ -16,6 +16,7 @@ import { bgEligible, bgUpload, bgIdOf, bgDb, bgUpOk } from './studiobg.js';
 import { createPlayer, normCues, issuesList, fmtT, normLadder, normAlt, normPq, normTrackPref, normChapters, normSty, STY_COLORS, STY_Y } from './studioplay.js';
 import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, toStl, termIssues, flagIndex, noteIndex, normMeta, createTimeline, editDiff, editStats, importSubs, seriesOfName, smChanges, cuesReplace, cuesWith, fmtTc, toLectureMd } from './studiosubs.js';
 import { listTracks, extractTracks, cuesToFile, lang2 } from './studiotracks.js';
+import { normVi, renderVi, normPlaces, imgRange } from './studiovi.js';
 import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs, cutFillers, normOv, OV_T_MAX, OV_LG_MAX, OV_POS, previewEdl, PV_LEN } from './studioedl.js';
 import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, AI_NOTE_MAX, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges, parseChapters } from './studioai.js';
 
@@ -968,7 +969,8 @@ export function normStore(o) {
   const amd = (Array.isArray(src.amd) ? src.amd : []).filter((x) => typeof x === 'string' && JOB_RE.test(x)).slice(-200);   // סבב 10: עבודות שכבר הוצעה להן בדיקת משמעות אוטומטית
   // 29/10/2026 (S1 בסרטון): מצב השרת האחרון — הקפסולה בהדר נכונה כבר בציור הראשון ("שרת המערכת", לא "חיבור Claude" שמתחלף)
   const st = src.st && typeof src.st === 'object' ? { api: normApi(src.st.api), mf: src.st.mf === true } : null;
-  return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d, sugx, amd, st, spkc: normSpkc(src.spkc) };
+  // 10/11/2026 (PR 1.5ב, V37): המקום בדף הניתוח לכל עבודה — מספרים ומזהי פרקים בלבד (studiovi.js)
+  return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d, sugx, amd, st, spkc: normSpkc(src.spkc), vip: normPlaces(src.vip) };
 }
 /* C3 (סבב 4 של השדרוג): הצבע שבחרת לכל שם דובר — { שם: 0–5 }, עד SPKC_MAX שמות (האחרונים) */
 export const SPKC_MAX = 100;
@@ -2320,6 +2322,7 @@ export function chainFor(v, p) {
 
 function leaving() {              // יציאה מדף: המפתח שהודבק באשף לא נשאר בזיכרון
   if (ui.view === 'play') playClose();   // מ1: הנגן נעצר ומשחרר את הסרטון
+  if (ui.view === 'job') vaClose();       // PR 1.5ב: דף הניתוח — המקום נשמר, הנגן נעצר, תמונות השקפים משוחררות
   if (ui.view === 'subs') seStop();      // מ2: הנגן של העורך נעצר; העריכה נשארת בזיכרון
   if (ui.view === 'cut' || ui.view === 'cutsrc') ceStop();   // מ4–מ5: החיתוך עצמו נשמר (rrEdl / form.edl)
   if (ui.view === 'sty') syStop();   // סבב 5: העיצוב עצמו נשמר (rrOpt.sty / ההגדרות)
@@ -2378,6 +2381,7 @@ function closeRequest() {
   if (window.snbMenuClose && window.snbMenuClose()) { if (root) watch(); return; }   // התפריט של ההדר המשותף פתוח — "חזור" סוגר רק אותו
   // חלון אישור של האפליקציה (askConfirm) פתוח — "חזור" = הביטול שלו (יש לו רשומה משלו, והוא מוריד אותה)
   if (vlUp()) { if (root) watch(); return; }   // 26/10/2026: ״הסרטונים שלי״ — ״חזור״ בתוך תיקייה = תיקייה אחת למעלה
+  if (va && va.view && va.view.closeSheet()) { if (root) watch(); return; }   // PR 1.5ב: חלונית הראיה — "חזור" סוגר רק אותה
   if (rsClose()) { if (root) watch(); return; }   // 25/10/2026: הגיליון "מה לא היה טוב?" — "חזור" סוגר רק אותו   // ה־Picker של Google פתוח — "חזור" סוגר רק אותו
   const plm = document.querySelector('.st-pl-menu:not([hidden])');   // תפריט ההגדרות של הנגן — "חזור" סוגר אותו (לפי ת־נגן)
   const dlg = document.querySelector('.dlg-veil.on');
@@ -2704,7 +2708,16 @@ let uxT = 0;
 function uxAdd(rec, g, k, v = 1) {
   if (!rec || !rec.srv || rec.srv.kind !== 'tr' || !(UX_SHAPE[g] || []).includes(k) || !(v > 0)) return;
   const m = uxQ.get(rec.id) || {}, x = m[g] || (m[g] = {});
-  x[k] = k === 'cov' ? Math.max(x[k] || 0, Math.min(1, v)) : (x[k] || 0) + Math.round(v);
+  x[k] = k === 'cov' ? Math.max(x[k] || 0, Math.min(1, v)) : k === 'lv' ? Math.round(v) : (x[k] || 0) + Math.round(v);   // lv — הפרק שבו עזבו (האחרון, כמו בשרתון)
+  uxQ.set(rec.id, m);
+  clearTimeout(uxT); uxT = setTimeout(uxFlush, 8000);
+}
+/* 10/11/2026 (PR 1.5ב, V81): "דווח על טעות" בדף הניתוח — שורה {id הפריט, why, at דקה} בקבוצה vf (לא מונה; normVf בשרתון) */
+export const VF_WHY = ['wrong', 'ts', 'missing', 'attrib', 'overgen', 'shallow', 'unclear', 'long', 'other'];   // = VF_WHY ב־lib/studiolearn.js
+function vfAdd(rec, id, why, sec) {
+  if (!rec || !rec.srv || rec.srv.kind !== 'tr' || !/^[a-z]\d{1,6}(\.\d{1,4})?$/.test(String(id || '')) || !VF_WHY.includes(why)) return;
+  const m = uxQ.get(rec.id) || {};
+  m.vf = (m.vf || []).concat({ id, why, at: Math.max(0, Math.round((Number(sec) || 0) / 60)) }).slice(-50);
   uxQ.set(rec.id, m);
   clearTimeout(uxT); uxT = setTimeout(uxFlush, 8000);
 }
@@ -8198,6 +8211,76 @@ async function playLoad(rec, phFile) {
   }
   plPaint();
 }
+/* ---------------- דף הניתוח (10/11/2026, ניתוח סרטונים גל 1 — PR 1.5ב; התוכנית 9.4, ‏studiovi.js) ----------------
+   עבודת ניתוח שהסתיימה (לא הרצה יבשה) נפתחת בדף הניתוח במקום דף העבודה. vi.json נטען פעם אחת ועובר normVi (מה שלא עבר —
+   לא מוצג). הנגן = createPlayer של התרגום עם הסרטון באיכות מלאה (ה4), ונבנה רק ב"נגן מכאן". תמונות השקפים — טווח בתים
+   מ־vis.bin דרך ה־SW (כמו הסרטון), בלי קריאת Firestore לפריט */
+const viPageOk = (rec) => !!(rec && rec.spec && rec.spec.vi && !rec.spec.dry && rec.srv && rec.srv.state === 'done' && outOf(rec, 'vi'));
+let va = null;                    // { id, st: 'load'|'ok'|'err', v, view, urls: Map<מזהה שקף, blob:>, cues, t0 }
+let viLinkT = null;               // { id, t } — מהקישור העמוק (V125)
+function vaClose() {
+  if (!va) return;
+  if (va.view) va.view.destroy();
+  for (const u of va.urls.values()) { try { URL.revokeObjectURL(u); } catch (e) {} }
+  va = null;
+}
+function pageVi(p, rec) {
+  p.append(navBar({ back: T('studioDialVi') }));
+  if (!va || va.id !== rec.id) {
+    vaClose();
+    va = { id: rec.id, st: 'load', v: null, view: null, urls: new Map(), cues: null, t0: viLinkT && viLinkT.id === rec.id ? viLinkT.t : 0 };
+    viLinkT = null;
+    viLoad(rec);
+  }
+  if (va.st === 'load') { p.append(h('div', 'st-pl-ph', T('studioPlLoading'))); return; }
+  if (va.st === 'err') { p.append(h('div', 'st-empty st-empty-sm', T('studioViLoadErr'))); return; }
+  if (!va.view) va.view = viView(rec, va);
+  p.append(va.view.el);
+}
+async function viLoad(rec) {
+  const me = va;
+  try {
+    const v = normVi(await net.driveJson(outOf(rec, 'vi').id));
+    if (va !== me) return;
+    me.v = v; me.st = v ? 'ok' : 'err';
+  } catch (e) { if (va !== me) return; me.st = 'err'; }
+  plPaint();
+}
+function viView(rec, me) {
+  const v = me.v;
+  return renderVi({ T, h, btn, ico, fmtT, v, title: fileTitle(rec.spec.name) || v.video.title || T('studioUntitled'),
+    place: (store.vip || {})[rec.id] || null, now: () => Date.now(), scroller: () => root, flash: flashSafe, t0: me.t0,
+    mkPlayer: () => viPlayer(rec, me), slideUrl: (s) => viSlideUrl(rec, me, s),
+    onUx: (k, x) => uxAdd(rec, 'vi', k, x == null ? 1 : x), onVf: (id, why, sec) => vfAdd(rec, id, why, sec),
+    onPlace: (x) => { if (!x) return; store.vip = normPlaces(Object.assign({}, store.vip, { [rec.id]: x })); save(); } });
+}
+/* המיני־נגן: הסרטון המקורי (ואיכויות הצפייה, אם יש) ואחריו העותק שהעובד הכין; התמליל ככתוביות (כבויות כשהקול באותה שפה) */
+function viPlayer(rec, me) {
+  const srcId = srcVid(rec), bo = burnedOut(rec);
+  const src = srcId ? net.mediaUrl(srcId) : '', fb = bo ? net.mediaUrl(bo.id) : '';
+  if (!src && !fb) return null;
+  const chs = normChapters(me.v.chapters.map((c) => ({ t: c.t0, title: c.title })), me.v.video.dur);
+  const ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: false, cues: me.cues || [], issues: [], chapters: chs, T, subLang: me.v.lang.src,
+    ladder: src ? ladderOf(rec) : null, alt: src ? altOf(rec) : null, pq: store.settings.pq, onPq: pqSave, pref: store.settings.pt, onPref: ptSave,
+    poster: thumbFor(rec, (u) => { if (va === me && ctl) ctl.setPoster(u); }) });
+  const co = outOf(rec, 'cues');
+  if (!me.cues && co) net.driveJson(co.id).then((j) => { if (va === me) { me.cues = normCues(j); ctl.setCues(me.cues); } }, () => {});
+  return ctl;
+}
+/* תמונת שקף: הטווח שלה בתוך vis.bin (img.o/img.l), בדיוק באורך הצפוי; הסוג לפי החתימה (WebP / JPEG / PNG) */
+async function viSlideUrl(rec, me, s) {
+  if (me.urls.has(s.id)) return me.urls.get(s.id);
+  const vo = outOf(rec, 'vis');
+  if (!vo || !s.img) return '';
+  const b = await net.mediaBytes(vo.id, imgRange(s));   // הרשת רק דרך studionet.js
+  if (!b || va !== me || b.length !== s.img.l) return '';
+  const sig = String.fromCharCode(...b.subarray(0, 12));
+  const type = sig.startsWith('RIFF') && sig.slice(8, 12) === 'WEBP' ? 'image/webp' : b[0] === 0xff && b[1] === 0xd8 ? 'image/jpeg' : sig.slice(1, 4) === 'PNG' ? 'image/png' : '';
+  if (!type) return '';
+  const url = URL.createObjectURL(new Blob([b], { type }));
+  me.urls.set(s.id, url);
+  return url;
+}
 function rvfSub(rvf) {
   const ks = new Set((rvf || []).map((f) => f[1]));
   return RVF_CODES.filter((k) => ks.has(k)).map((k) => issueName('rv' + k)).join(' · ');
@@ -9172,6 +9255,7 @@ function rateFlagOpts(rec) {
 function pageJob(p) {
   const rec = jobRec(ui.param);
   if (!rec) { back(); return; }
+  if (viPageOk(rec)) { pageVi(p, rec); return; }   // PR 1.5ב: ניתוח שהסתיים — דף הניתוח (9.4)
   const id = rec.id;
   amMaybe(rec);
   p.append(navBar({ back: T('studioShort') }));
@@ -10115,6 +10199,7 @@ function shapeKey() {
     + (rec.spec.ph && rec.srv ? 'P' + (rec.srv.m ? 1 : 0) + (rec.srv.pbn ? rec.srv.pbn.s + (rec.srv.pbn.at || '') : '') + (phBurnLive(rec) ? 'b' : '') + (phKeys.has(rec.id) ? 'k' : '') + (rec.srv.ppr ? (rec.srv.ppr.s === 'err' ? 'E' : phPrepLive(rec) ? 'L' : '') : '') + (rec.spec.vc ? 'V' + (rec.srv.fv ? 1 : rec.srv.vcp ? (rec.srv.vcp.e ? 'e' : Math.round(rec.srv.vcp.p * 20)) : '') : '') : '')
     + (rec.spec.nu && rec.srv ? 'U' + (rec.srv.fv ? 1 : rec.srv.vcp && rec.srv.vcp.e ? 'e' : '') + (nuStuck(rec, Date.now()) ? 's' : '') + (phKeys.has(rec.id) ? 'k' : '') : ''); };   // 24/10/2026: תרגום בטלפון — המדידות והצריבה   // v382: הערה שנקראה / ממתינה; סבב 10: העתק־הדבק
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
+  if (ui.view === 'job' && va && va.id === ui.param) return 'vi|' + va.id + '|' + va.st + '|' + ui.access;   // PR 1.5ב: דף הניתוח לא נבנה מחדש (הנגן והגלילה)
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param) + '|' + (r && r.up.dx ? r.up.dx.st + Math.round(r.up.dx.p * 20) + r.up.dx.n : '') + (dxBusy === ui.param ? 'X' : ''); }   // 26/10/2026: השמירה ב־Drive
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');
   if (ui.view === 'tower' || ui.view === 'towerx' || TW_SUBS.includes(ui.view)) return ui.view + '|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(curNorm()) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag) + JSON.stringify(ui.pb) + (ui.pbAll ? 1 : 0) + JSON.stringify(ui.rb) + JSON.stringify(ui.sc) + JSON.stringify(ui.va) + JSON.stringify(ui.slo) + JSON.stringify(ui.sh) + JSON.stringify(ui.an);   // v383 · v384
@@ -10481,6 +10566,7 @@ export function openStudio(opt) {
   if (SA) { SA.settings = () => go('settings'); SA.tower = () => go('tower'); }
   const jobLink = opt && /^j[A-Za-z0-9_-]{20}$/.test(String(opt.job || '')) ? opt.job : '';   // שלב 4: מההתראה
   const linkView = opt && (opt.view === 'play' || opt.view === 'subs') ? opt.view : '';          // פעולה בהתראה: צפייה / עריכה
+  if (jobLink && Number.isFinite(+opt.t) && +opt.t > 0) viLinkT = { id: jobLink, t: Math.min(86400, Math.floor(+opt.t)) };   // PR 1.5ב (V125): ‎#studio=<עבודה>&t=<שניות> — דף הניתוח מנגן משם
   if (root) { if (jobLink) { if (jobRec(jobLink)) goJobLink(jobLink, linkView); else Promise.resolve(refreshJobs(true)).then(() => { if (root && jobRec(jobLink)) goJobLink(jobLink, linkView); }); } return; }
   const restore = opt && opt.restore && opt.restore.studio ? opt.restore : null;   // רענון בזמן שהסטודיו היה פתוח
   store = load();

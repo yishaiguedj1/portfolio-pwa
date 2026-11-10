@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של cashflow (253 מפתחות מתוך 6629) */
+/* המחרוזות של cashflow (253 מפתחות מתוך 6676) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
