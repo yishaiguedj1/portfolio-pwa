@@ -6,15 +6,17 @@
 # תמיד בסוף: הכלל והמפתח נמחקים, Rescue כבוי, השרת דולק, ההשהיה יורדת. השרת לא זמין כ־5 דקות.
 #
 # check = מצב בלבד, בלי שום שינוי.
+# learn = 10/11/2026: מפתחות הדלי של מאגר הלמידה (הסודות R2L_ACCESS_KEY_ID, ‏R2L_SECRET_ACCESS_KEY, ורשות R2L_ACCOUNT_ID)
+#         נכתבים ל־/etc/snb/app.env של השרתון בשרת הקיים — אותו מסלול Rescue (כ־5 דק׳ אחרי סוף העבודות). הערכים לא מודפסים.
 name: hostfix
 
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'check = מצב בלבד · apply = להתקין את קובצי המארח · diag = לקרוא את היומן של snb-update ומצב הקונטיינרים, בלי לשנות (apply ו־diag: אתחול של כ־5 דק׳ אחרי סוף העבודות)'
+        description: 'check = מצב בלבד · apply = להתקין את קובצי המארח · diag = לקרוא את היומן של snb-update ומצב הקונטיינרים, בלי לשנות · learn = מפתחות מאגר הלמידה לשרתון (apply, ‏diag ו־learn: אתחול של כ־5 דק׳ אחרי סוף העבודות)'
         type: choice
-        options: [check, apply, diag]
+        options: [check, apply, diag, learn]
         default: check
 
 permissions: {}
@@ -47,6 +49,13 @@ jobs:
         env:
           MODE: ${{ inputs.mode }}
         run: node tools/server-hostfix.js "$MODE" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: מפתחות מאגר הלמידה לשרתון, דרך Rescue
+        if: inputs.mode == 'learn'
+        env:
+          R2L_ACCESS_KEY_ID: ${{ secrets.R2L_ACCESS_KEY_ID }}
+          R2L_SECRET_ACCESS_KEY: ${{ secrets.R2L_SECRET_ACCESS_KEY }}
+          R2L_ACCOUNT_ID: ${{ secrets.R2L_ACCOUNT_ID }}
+        run: node tools/server-hostfix.js learn | tee -a "$GITHUB_STEP_SUMMARY"
       - name: ניקוי (תמיד — גם בכישלון או ביטול)
-        if: always() && (inputs.mode == 'apply' || inputs.mode == 'diag')
+        if: always() && (inputs.mode == 'apply' || inputs.mode == 'diag' || inputs.mode == 'learn')
         run: node tools/server-hostfix.js clean | tee -a "$GITHUB_STEP_SUMMARY"

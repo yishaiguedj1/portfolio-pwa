@@ -21,6 +21,9 @@
  *   check — בלי שום שינוי: השרת, הדיסק לפי הדופק של העובד, מה רץ, האם נשאר משהו מריצה קודמת.
  *   apply — הכל. GITHUB_OUTPUT: done=1 | stopped=<קוד>.
  *   clean — רק הניקוי (כלל, מפתח, Rescue, השהיה) — צעד always.
+ *   learn — 10/11/2026: מפתחות הדלי של מאגר הלמידה (R2L_*, מהסודות של GitHub) נכתבים ל־/etc/snb/app.env של השרתון
+ *           בשרת הקיים. עד היום הם נכנסו רק בהקמה (PROD_APP_EXTRA), והשרת הוקם בלי — 421 והגיבוי ב־Vercel חסום (402),
+ *           כך שהקורפוס של התרגום ושל הניתוח לא נשמר. compose קורא את env_file מחדש ב־snb-update אחרי האתחול.
  * כל ערך סודי — רק בזיכרון. */
 'use strict';
 const fs = require('fs');
@@ -57,7 +60,27 @@ const DU = [
   ['apt', 'var/cache/apt'],
 ];
 const IP4_RE = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
+/* 10/11/2026 — מצב learn: רק השמות האלה, ורק ערכים בצורה של מפתח R2 (בלי רווח/מירכאות — env_file של compose) */
+const LEARN_ENV = [
+  ['R2L_BUCKET', /^[a-z0-9][a-z0-9-]{2,62}$/, 'snb-learn'],
+  ['R2L_ACCESS_KEY_ID', /^[A-Za-z0-9]{16,128}$/],
+  ['R2L_SECRET_ACCESS_KEY', /^[A-Za-z0-9]{32,128}$/],
+  ['R2L_ACCOUNT_ID', /^[a-f0-9]{32}$/, '', 1],   // רשות — בלי: החשבון של snb-studio (R2_ACCOUNT_ID)
+];
 function fail(code, msg) { const e = new Error(msg || code); e.code = code; throw e; }
+
+/* טהורה: מהסביבה של ההרצה (הסודות) → [[שם, ערך]]. חסר / בצורה לא נכונה — שגיאה עם השמות בלבד, לפני שנוגעים בשרת */
+function learnEnv(env) {
+  const out = [], bad = [];
+  for (const [k, re, def, opt] of LEARN_ENV) {
+    const v = String(env[k] || def || '').trim();
+    if (!v && opt) continue;
+    if (!re.test(v)) { bad.push(k); continue; }
+    out.push([k, v]);
+  }
+  if (bad.length) fail('learn_secret', 'חסרים או לא בצורה של מפתח R2 בסודות של GitHub: ' + bad.join(', '));
+  return out;
+}
 
 /* ---------------------------------------------------------------- הסקריפט שרץ ב־Rescue */
 
@@ -142,6 +165,16 @@ function rescueScript(files, o = {}) {
     '  echo "SNBPUT /$1"',
     '}',
   ];
+  // 10/11/2026 (learn): משתנים לשרתון של הייצור — מחליפים שורה קיימת באותו שם, שאר הקובץ (SNB_ENV_GZ) כמו שהוא.
+  // הערך עובר ב־base64 בתוך הסקריפט (stdin של ssh) — לא בפקודה ולא בפלט; בפלט רק השם. cat > שומר בעלים והרשאות
+  if (o.env && o.env.length) {
+    L.push('F="$R/etc/snb/app.env"', '[ -s "$F" ] || { echo "SNBERR noenv"; exit 5; }');
+    for (const [k, v] of o.env) {
+      if (!/^[A-Z][A-Z0-9_]{1,60}$/.test(k)) fail('env_name', 'שם משתנה לא תקין');
+      L.push('{ grep -v "^' + k + '=" "$F" || true; printf "%s=%s\\n" "' + k + '" "$(printf %s ' + Buffer.from(String(v)).toString('base64') + ' | base64 -d)"; } > "$F.snb-new"',
+        'cat "$F.snb-new" > "$F" && rm -f "$F.snb-new" && echo "SNBSETENV ' + k + '"');
+    }
+  }
   for (const f of files) {
     L.push('put ' + f.dst + ' ' + f.mode + " <<'SNBEOF'");
     L.push(...Buffer.from(f.body).toString('base64').match(/.{1,76}/g));
@@ -165,7 +198,7 @@ function rescueScript(files, o = {}) {
 
 /* טהורה: הפלט של הסקריפט → מספרים בלבד (שורה שלא בצורה — מתעלמים) */
 function parseOut(text) {
-  const o = { put: [], same: [], del: [], du: {}, vol: {}, img: null, df: null, busy: [], err: '', ok: false, diag: null };
+  const o = { put: [], same: [], del: [], setenv: [], du: {}, vol: {}, img: null, df: null, busy: [], err: '', ok: false, diag: null };
   for (const line of String(text || '').split('\n')) {
     let m;
     if ((m = /^SNB(LOG|ENV|TMR|CT|SUM|BOOT|SYS) (.*)$/.exec(line))) {
@@ -177,6 +210,7 @@ function parseOut(text) {
     if ((m = /^SNBPUT (\/[a-z0-9/._-]+)$/.exec(line))) o.put.push(m[1]);
     else if ((m = /^SNBSAME (\/[a-z0-9/._-]+)$/.exec(line))) o.same.push(m[1]);
     else if ((m = /^SNBDEL (\/[a-z0-9/._-]+)$/.exec(line))) o.del.push(m[1]);
+    else if ((m = /^SNBSETENV ([A-Z][A-Z0-9_]{1,60})$/.exec(line))) o.setenv.push(m[1]);
     else if ((m = /^SNBDU ([a-z]+) (\d+)$/.exec(line))) o.du[m[1]] = +m[2];
     else if ((m = /^SNBVOL ([A-Za-z0-9_.-]{1,64}) (\d+)$/.exec(line))) o.vol[m[1]] = +m[2];
     else if ((m = /^SNBIMG (\d+)$/.exec(line))) o.img = +m[1];
@@ -197,6 +231,7 @@ function report(o) {
   for (const [k, v] of Object.entries(o.vol)) L.push('    ' + k + ': ' + gb(v));
   if (o.img != null) L.push('  מספר התמונות: ' + o.img);
   if (o.del.length) L.push('נמחקו: ' + o.del.join(', '));
+  if (o.setenv.length) L.push('הוגדרו בשרתון של הייצור (app.env): ' + o.setenv.join(', '));
   if (o.put.length || o.same.length) L.push('הותקנו: ' + (o.put.join(', ') || 'אין (כבר מעודכן)') + (o.same.length ? ' · זהים: ' + o.same.length : ''));
   if (o.diag) {
     const sec = (t, a) => { L.push('', '### ' + t, '```', ...(a.length ? a : ['(ריק)']), '```'); };
@@ -290,8 +325,8 @@ async function diskNow(e, deps) {
 }
 
 async function apply(e, deps, opts = {}) {
-  const files = opts.diag ? [] : loadFiles(opts.root || path.join(__dirname, '..'));
-  const script = rescueScript(files, { diag: true });   // האבחון — בכל הרצה (קריאה בלבד, לפני האתחול)
+  const files = opts.diag || opts.env ? [] : loadFiles(opts.root || path.join(__dirname, '..'));
+  const script = rescueScript(files, { diag: true, env: opts.env });   // האבחון — בכל הרצה (קריאה בלבד, לפני האתחול)
   deps.shCheck(script);                                     // תחביר — לפני שנוגעים בשרת
   const left = await clean(e, deps);                        // שאריות מריצה שנקטעה
   const srv = await U.theServer(e, deps);
@@ -335,6 +370,7 @@ async function apply(e, deps, opts = {}) {
     r = deps.ssh(ip, key.path, script);
     out = parseOut(r.out);
     if (!out.ok) fail(out.err ? 'rescue_' + out.err : 'rescue_fail', 'הסקריפט ב־Rescue נכשל (' + (out.err || r.code) + ')');
+    if (opts.env && out.setenv.length !== opts.env.length) fail('rescue_env', 'לא כל המשתנים נכתבו (' + out.setenv.length + '/' + opts.env.length + ')');
   } finally {
     // יציאה מ־Rescue: כיבוי Rescue → אתחול רגיל. תמיד — גם בכישלון (השרת לא נשאר ב־Rescue ולא כבוי)
     if (rescueOn) await U.action(e, deps, '/servers/' + srv.id + '/actions/disable_rescue', null, 5 * 60e3).catch(() => {});
@@ -349,7 +385,7 @@ async function apply(e, deps, opts = {}) {
   if (bad) fail('no_health', 'השרתון לא עונה אחרי האתחול (' + bad + ')');
   const t0 = deps.now();
   let disk1 = null;
-  while (deps.now() - t0 < HF.DISK_MAX) {
+  while (!opts.env && deps.now() - t0 < HF.DISK_MAX) {   // learn — אין מה לחכות לדיסק
     disk1 = await diskNow(e, deps).catch(() => null);
     if (disk1 != null && (disk0 == null || disk1 < disk0 - 5)) break;
     await deps.sleep(30e3);
@@ -414,6 +450,14 @@ if (require.main === module) {
       console.log(report(r.out));
       return;
     }
+    if (cmd === 'learn') {
+      const r = await apply(process.env, deps, { env: learnEnv(process.env) });
+      out('done', '1');
+      console.log('✓ מפתחות מאגר הלמידה נכתבו לשרתון של הייצור והשרת חזר לעבוד');
+      console.log(report(r.out));
+      console.log('רץ עכשיו (healthz): ייצור ' + (r.sha.prod || '?') + ' · ניסוי ' + (r.sha.stg || '?'));
+      return;
+    }
     if (cmd === 'apply') {
       const r = await apply(process.env, deps);
       out('done', '1');
@@ -431,4 +475,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { HF, FILES, DU, DIAG, redact, rescueScript, parseOut, report, clean, apply, check, loadFiles };
+module.exports = { HF, FILES, DU, DIAG, LEARN_ENV, learnEnv, redact, rescueScript, parseOut, report, clean, apply, check, loadFiles };

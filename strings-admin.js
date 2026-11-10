@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1633 מפתחות מתוך 6786) */
+/* המחרוזות של admin (1634 מפתחות מתוך 6787) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1420,6 +1420,7 @@ he: {
   "admViDrLoaded": "הטיוטה נטענה — עבור עליה ושמור",
   "admViDrModel": "מודל",
   "admViDrN": "{b} פרקים · {u} יחידות · {q} שאלות",
+  "admViDrO": "הכי מדויק · כ־${usd} לשעת סרטון",
   "admViDrQ": "{m} יכין טיוטת ייחוס מהתמליל והשקפים של הניתוח. עלות משוערת: ${usd} לשעת סרטון (Claude, חיוב Anthropic). הטיוטה לא נשמרת כייחוס עד שתעבור עליה ותשמור. להמשיך?",
   "admViDrReady": "טיוטה מוכנה — הקש כדי לטעון לעורך",
   "admViDrRun": "הצע טיוטה",
@@ -3055,6 +3056,7 @@ en: {
   "admViDrLoaded": "Draft loaded — review it and save",
   "admViDrModel": "Model",
   "admViDrN": "{b} chapters · {u} units · {q} questions",
+  "admViDrO": "Most accurate · about ${usd} per hour of video",
   "admViDrQ": "{m} will draft a reference from the analysis transcript and slides. Estimated cost: ${usd} per hour of video (Claude, billed by Anthropic). The draft is not a reference until you review and save it. Continue?",
   "admViDrReady": "Draft ready — tap to load it into the editor",
   "admViDrRun": "Draft a reference",

@@ -209,7 +209,47 @@ function world(o = {}) {
     fs.mkdirSync(path.join(root, 'etc/systemd/system'), { recursive: true }); fs.writeFileSync(path.join(root, 'etc/systemd/system/snb-update.service'), '[Unit]\n');
     ok(/SNBSYS ls system: .*snb-update\.service/.test(cp.spawnSync('sh', [], { input: H.rescueScript([], { diag: true }), encoding: 'utf8', env: Object.assign({}, process.env, { SNB_TEST_ROOT: root }) }).stdout), 'diag: רשימת היחידות בשורש הבדיקה');
   }
-  ok(/'diag'/.test(read('tools/server-hostfix.js')) && /\[check, apply, diag\]/.test(read('.github/workflows/hostfix.yml')), 'ה־workflow מציע diag');
+  ok(/'diag'/.test(read('tools/server-hostfix.js')) && /\[check, apply, diag(, learn)?\]/.test(read('.github/workflows/hostfix.yml')), 'ה־workflow מציע diag');
+
+  // ---------------- learn (10/11/2026): מפתחות מאגר הלמידה ל־app.env בשרת הקיים — שאר הקובץ נשמר, הערך לא בפלט
+  {
+    const KID = 'a1'.repeat(16), SEC = 'b2'.repeat(32), ACC = 'c'.repeat(32);
+    let le = H.learnEnv({ R2L_ACCESS_KEY_ID: KID, R2L_SECRET_ACCESS_KEY: SEC });
+    ok(JSON.stringify(le) === JSON.stringify([['R2L_BUCKET', 'snb-learn'], ['R2L_ACCESS_KEY_ID', KID], ['R2L_SECRET_ACCESS_KEY', SEC]]), 'learn: הדלי כברירת מחדל, החשבון — רשות');
+    ok(H.learnEnv({ R2L_ACCESS_KEY_ID: KID, R2L_SECRET_ACCESS_KEY: SEC, R2L_ACCOUNT_ID: ACC }).length === 4, 'learn: R2L_ACCOUNT_ID כשהוגדר');
+    let le2 = null;
+    try { H.learnEnv({ R2L_ACCESS_KEY_ID: KID, R2L_SECRET_ACCESS_KEY: 'x y"' + SEC }); } catch (x) { le2 = x; }
+    ok(le2 && le2.code === 'learn_secret' && /R2L_SECRET_ACCESS_KEY/.test(le2.message) && !le2.message.includes(SEC), 'learn: ערך חסר/בצורה לא נכונה — עצירה עם השם בלבד');
+    le2 = null;
+    try { H.learnEnv({}); } catch (x) { le2 = x; }
+    ok(le2 && /R2L_ACCESS_KEY_ID, R2L_SECRET_ACCESS_KEY/.test(le2.message), 'learn: בלי הסודות — עצירה לפני שנוגעים בשרת');
+    const ls = H.rescueScript([], { diag: true, env: le });
+    ok(cp.spawnSync('sh', ['-n'], { input: ls }).status === 0 && !ls.includes(SEC) && !ls.includes(KID), 'learn: הסקריפט תקין, והערכים לא בטקסט גלוי');
+    const lr = fakeRoot();
+    fs.mkdirSync(path.join(lr, 'etc/snb'), { recursive: true });
+    const F = path.join(lr, 'etc/snb/app.env');
+    fs.writeFileSync(F, 'SNB_ENV_GZ=H4sIAAAA+/=\nR2L_BUCKET=old\nOTHER=1\n'); fs.chmodSync(F, 0o600);
+    const before = fs.readFileSync(path.join(lr, 'usr/local/sbin/snb-update'), 'utf8');
+    r = runScript(ls, lr);
+    o = H.parseOut(r.out);
+    const got = fs.readFileSync(F, 'utf8');
+    ok(r.code === 0 && o.ok && JSON.stringify(o.setenv) === JSON.stringify(['R2L_BUCKET', 'R2L_ACCESS_KEY_ID', 'R2L_SECRET_ACCESS_KEY']), 'learn: שלושת המשתנים נכתבו');
+    ok(got === 'SNB_ENV_GZ=H4sIAAAA+/=\nOTHER=1\nR2L_BUCKET=snb-learn\nR2L_ACCESS_KEY_ID=' + KID + '\nR2L_SECRET_ACCESS_KEY=' + SEC + '\n', 'learn: שורה קיימת מוחלפת, SNB_ENV_GZ ושאר הקובץ — כמו שהם');
+    ok((fs.statSync(F).mode & 0o777) === 0o600 && !fs.existsSync(F + '.snb-new'), 'learn: ההרשאות נשמרות, בלי קובץ זמני');
+    ok(!r.out.includes(SEC) && !r.out.includes(KID) && /הוגדרו בשרתון של הייצור \(app\.env\): R2L_BUCKET/.test(H.report(o)), 'learn: בפלט ובדוח — רק השמות');
+    ok(fs.readFileSync(path.join(lr, 'usr/local/sbin/snb-update'), 'utf8') === before, 'learn: קובצי המארח לא נוגעים');
+    runScript(ls, lr);
+    ok(fs.readFileSync(F, 'utf8') === got, 'learn: הרצה שנייה — אותו קובץ (בלי כפילויות)');
+    const nr = fakeRoot();
+    r = runScript(ls, nr);
+    ok(r.code === 5 && H.parseOut(r.out).err === 'noenv' && !fs.existsSync(path.join(nr, 'etc/snb/app.env')), 'learn: בלי app.env (אין שרתון ייצור) — עצירה, לא יוצר קובץ');
+    const lw = world({ root: lr });
+    const lres = await H.apply(E, lw.deps, { env: le });
+    ok(lres.out.ok && lres.out.put.length === 0 && lres.out.setenv.length === 3 && !lw.srv.inRescue && lw.rules.length === 0 && lw.keys.length === 0, 'learn: מקצה לקצה דרך Rescue — בלי קבצים, חומת האש סגורה בסוף');
+    const wfl = read('.github/workflows/hostfix.yml');
+    ok(/\[check, apply, diag, learn\]/.test(wfl) && /if: inputs\.mode == 'learn'[\s\S]*R2L_SECRET_ACCESS_KEY: \$\{\{ secrets\.R2L_SECRET_ACCESS_KEY \}\}[\s\S]*server-hostfix\.js learn/.test(wfl) && /inputs\.mode == 'learn'\)[\s\S]*server-hostfix\.js clean/.test(wfl), 'ה־workflow: learn, הסודות רק לשלב שלו, והניקוי גם אחריו');
+    ok(!/^\s+R2L_[A-Z_]+: \$\{\{ secrets/m.test(wfl.split('steps:')[0]), 'הסודות לא ברמת ה־job');
+  }
 
   // ---------------- מקצה לקצה
   let w = world({ root: fakeRoot() });
