@@ -1807,12 +1807,8 @@ details.note[open] > :not(summary) { animation: demoIn .28s cubic-bezier(.2, .9,
 @keyframes demoIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .demo-inline h2 { margin: 2px 0 4px; font-size: 20px; }
 .demo-prog-sub { margin: 0 0 16px; font-size: 14.5px; color: var(--on-surface-var); }
-.demo-prog-bar { height: 8px; border-radius: var(--pill); background: var(--surface-2); overflow: hidden; }
-.demo-prog-bar span {
-  display: block; height: 100%; width: 0; border-radius: inherit;
-  background: linear-gradient(90deg, var(--primary), color-mix(in srgb, var(--primary) 60%, #7ee2a8));
-  transition: width .45s cubic-bezier(.2, .9, .25, 1);
-}
+.demo-prog-bar { --cmt-c: var(--primary); }   /* ת־פס (סוף הקובץ) */
+.demo-prog-bar span { width: 0; transition: width .45s cubic-bezier(.2, .9, .25, 1); }
 .demo-prog-pct { margin: 8px 0 14px; font-size: 13.5px; font-weight: 700; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
 .demo-steps { list-style: none; margin: 0; padding: 0; text-align: start; }
 .demo-step { display: flex; align-items: center; gap: 12px; padding: 9px 2px; font-size: 15.5px; color: var(--on-surface-var); transition: color .25s ease; }
@@ -2074,9 +2070,8 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 .ip-htxt { min-width: 0; }
 .ibkr-prog .ip-head h2 { margin: 0; font-size: 20px; }
 .ip-sub { margin: 2px 0 0; font-size: 14px; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
-.ip-bar { height: 8px; border-radius: var(--pill); background: color-mix(in srgb, var(--ibkr) 12%, var(--surface-2)); overflow: hidden; }
-.ip-bar span { display: block; height: 100%; width: 0; border-radius: inherit;
-  background: linear-gradient(90deg, var(--ibkr), color-mix(in srgb, var(--ibkr) 65%, #ff8fa0)); transition: width .45s cubic-bezier(.2, .9, .25, 1); }
+.ip-bar { --cmt-c: var(--ibkr); }   /* ת־פס (סוף הקובץ) */
+.ip-bar span { width: 0; transition: width .45s cubic-bezier(.2, .9, .25, 1); }
 .ip-meta { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 8px 2px 10px;
   font-size: 14px; font-weight: 700; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
 .ip-clock { font-weight: 600; }
@@ -2398,3 +2393,52 @@ html[data-theme="dark"] .lib-root .lib-back { background: var(--gl-back) !import
 .tab-snow .tab-lbl { font-size: 13px; letter-spacing: -.02em; }
 .tab-bub-fill { width: 46px; height: 46px; }   /* סמל מלא (הסקירה) */
 .tab-bub-fill path { fill: #fff; stroke: none; }
+
+/* ==== ת־פס — פס התקדמות "שביט" בכל המערכת (10/11/2026, בקשת המשתמש: "במדויק עם כל האפקטים", לפי סרטון מהטלפון) ====
+   מסילה דקה ושקופה; המילוי בצבע של הפס (--cmt-c על המסילה) שמתבהר ללבן בראש; מאחורי הראש זוהר רך בצורת טיפה
+   מחודדת שנושם לאט. פס "חי" (טעינה / ניגון) — עם הראש והזוהר. פס עומד (נגן בהשהיה, התקדמות קריאה) — מילוי אחיד בלי זוהר.
+   בגרירה בנגן — המסילה מתעבה והזוהר נעלם (studio.css). הצבע לא משתנה: כל פס נשאר בצבע שהיה לו.
+   במצב בהיר — ראש בגוון בהיר של הצבע וזוהר צבעוני (לבן על לבן לא נראה). מעל תמונה/וידאו — תמיד כמו בכהה.
+   הוספת פס: המסילה לרשימת המסילות, המילוי לרשימת המילויים, ו־--cmt-c על המסילה. בלי background/overflow ברכיב
+   הזוהר מגיב לקצב ההתקדמות: --cmt-v (0–1) מהדוגם ב־app.js (<core>) — מהר = ארוך, חזק ונושם מהר; תקוע = קצר ועמום.
+   (tests/progress-comet.test.js בודק את הרשימות). */
+@property --cmt-h { syntax: '<color>'; inherits: true; initial-value: #fff; }
+@property --cmt-g { syntax: '<number>'; inherits: true; initial-value: 1; }
+@property --cmt-v { syntax: '<number>'; inherits: true; initial-value: .5; }   /* קצב ההתקדמות (app.js, <core>): .5 = המראה של הסרטון */
+:root { --cmt-hk: 0%; --cmt-gk: 20%; --cmt-ga: 72%; }
+:root:not([data-theme="dark"]) { --cmt-hk: 42%; --cmt-gk: 100%; --cmt-ga: 50%; }
+:where(.demo-prog-bar, .ip-bar, .lib-bar, .lib-mini, .st-tprog, .st-pbar, .st-ut-bar, .st-pl-track, .adm-lbar) {
+  --cmt-h: color-mix(in oklab, var(--cmt-c, var(--primary)) var(--cmt-hk), #fff); --cmt-g: 1;
+  display: block; height: 4.5px; border-radius: var(--pill); background: var(--cmt-trk, color-mix(in srgb, var(--on-surface) 15%, transparent));
+  transition: --cmt-h .4s ease, --cmt-g .45s cubic-bezier(.2, .9, .25, 1), --cmt-v 1.2s ease, height .22s cubic-bezier(.2, .9, .25, 1);
+}
+:where(.demo-prog-bar > span, .ip-bar > span, .lib-bar > i, .lib-mini > i, .st-tprog > i, .st-pbar > i, .st-ut-bar > i, .st-pl-track > .pl, .adm-lbar > i) {
+  --cmt-to: 90deg; --cmt-x: 100%; --cmt-cx: 58%; --cmt-a: 270deg;
+  --cmt-gc: color-mix(in oklab, var(--cmt-c, var(--primary)) var(--cmt-gk), #fff);
+  --cmt-bg: linear-gradient(var(--cmt-to), var(--cmt-c, var(--primary)) 0 calc(62% - 24% * var(--cmt-v)), color-mix(in oklab, var(--cmt-c, var(--primary)) 45%, var(--cmt-h)) calc(84% - 12% * var(--cmt-v)), var(--cmt-h) 97%);
+  position: relative; display: block; height: 100%; border-radius: var(--pill); background: var(--cmt-bg);
+}
+:where(.demo-prog-bar > span, .ip-bar > span, .lib-bar > i, .lib-mini > i, .st-tprog > i, .st-pbar > i, .st-ut-bar > i, .st-pl-track > .pl, .adm-lbar > i):dir(rtl) { --cmt-to: 270deg; --cmt-x: 0%; --cmt-cx: 42%; --cmt-a: 90deg; }
+:where(.demo-prog-bar > span, .ip-bar > span, .lib-bar > i, .lib-mini > i, .st-tprog > i, .st-pbar > i, .st-ut-bar > i, .st-pl-track > .pl, .adm-lbar > i)::after {
+  content: ''; position: absolute; top: 50%; inset-inline-end: 0; width: min(calc(56px + 80px * var(--cmt-v)), 100%); height: calc(22px + 12px * var(--cmt-v)); margin-top: calc(-11px - 6px * var(--cmt-v)); pointer-events: none;
+  background: radial-gradient(ellipse 72% 50% at var(--cmt-cx) 50%, color-mix(in srgb, var(--cmt-gc) min(100%, var(--cmt-ga) * (.6 + .8 * var(--cmt-v))), transparent), color-mix(in srgb, var(--cmt-gc) min(100%, var(--cmt-ga) * (.28 + .38 * var(--cmt-v))), transparent) 45%, transparent 100%);
+  -webkit-mask-image: conic-gradient(from calc(var(--cmt-a) - 15deg) at var(--cmt-x) 50%, transparent, #000 10deg, #000 20deg, transparent 30deg), linear-gradient(var(--cmt-to), transparent, #000 55%);
+  -webkit-mask-composite: source-in;
+  mask-image: conic-gradient(from calc(var(--cmt-a) - 15deg) at var(--cmt-x) 50%, transparent, #000 10deg, #000 20deg, transparent 30deg), linear-gradient(var(--cmt-to), transparent, #000 55%);
+  mask-composite: intersect;
+  filter: blur(2px); opacity: var(--cmt-g); transform: scaleX(var(--cmt-g)); transform-origin: var(--cmt-x) 50%;
+  animation: cmtBreath 2.6s ease-in-out infinite alternate;
+}
+@keyframes cmtBreath { from { scale: .94 .86; } to { scale: 1.04 1.08; } }
+/* קצב הנשימה לפי קצב ההתקדמות (שלוש מדרגות — שינוי משך באמצע אנימציה קופץ, לכן לא רציף) */
+:where([data-cmt="slow"]) > *::after { animation-duration: 4.2s; }
+:where([data-cmt="fast"]) > *::after { animation-duration: 1.3s; }
+/* פס עומד — מילוי אחיד בצבע, בלי ראש לבן ובלי זוהר */
+:where(.lib-mini, .lib-cont .lib-bar, .ac-progress .lib-bar) { --cmt-h: var(--cmt-c, var(--primary)); --cmt-g: 0; }
+/* מעל תמונה או וידאו — תמיד בגוונים של הכהה */
+:where(.st-tprog, .st-pl-track) { --cmt-hk: 0%; --cmt-gk: 20%; --cmt-ga: 72%; --cmt-trk: rgba(255, 255, 255, .28); }
+:is(html.calm, html.hush) :where(.demo-prog-bar, .ip-bar, .lib-bar, .lib-mini, .st-tprog, .st-pbar, .st-ut-bar, .st-pl-track, .adm-lbar) > *::after { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  :where(.demo-prog-bar, .ip-bar, .lib-bar, .lib-mini, .st-tprog, .st-pbar, .st-ut-bar, .st-pl-track, .adm-lbar) { transition: none; }
+  :where(.demo-prog-bar, .ip-bar, .lib-bar, .lib-mini, .st-tprog, .st-pbar, .st-ut-bar, .st-pl-track, .adm-lbar) > *::after { animation: none; }
+}

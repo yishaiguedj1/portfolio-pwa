@@ -196,8 +196,8 @@ a.st-row { color: inherit; text-decoration: none; -webkit-tap-highlight-color: t
 .st-list.st-jobs::-webkit-scrollbar { display: none; }
 .st-jobs-more { display: block; margin: 8px auto 0; padding: 8px 16px; border-radius: var(--pill); font-size: 14px; font-weight: 600; color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
 .st-jobs-more[hidden] { display: none; }
-.st-tprog { position: absolute; inset-inline: 0; bottom: 0; height: 3px; background: rgba(255, 255, 255, .3); }
-.st-tprog i { display: block; height: 100%; width: 0; background: var(--st-ok); transition: width .5s ease; }
+.st-tprog { position: absolute; inset-inline: 0; bottom: 0; height: 3px; --cmt-c: var(--st-ok); }   /* ת־פס (סוף styles.css) */
+.st-tprog i { width: 0; transition: width .5s ease; }
 .st-ptx { font-variant-numeric: tabular-nums; }
 .st-pinfo { flex: 1; min-width: 0; display: grid; gap: 3px; }
 .st-pinfo b { font-size: 15px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -359,6 +359,7 @@ a.st-wbtn:active { opacity: .7; }
 .st-stg.done .st-stg-t { color: var(--st-ok-ink); }
 .st-stg.now .st-stg-t { color: var(--on-surface); }
 .st-pbar[hidden] { display: none; }
+.st-pbar.ind { clip-path: inset(-16px 0); }   /* הפס הנע לא יוצא מהמסילה; הזוהר כן (למעלה ולמטה) */
 .st-pbar.ind i { width: 30% !important; animation: st-pind 1.4s ease-in-out infinite; }   /* 25/10/2026: שלב בלי אחוז (הטלפון מכין את הקול / מזהה דוברים) */
 @keyframes st-pind { from { transform: translateX(-110%); } to { transform: translateX(360%); } }
 [dir="rtl"] .st-pbar.ind i { animation-name: st-pind-rtl; }
@@ -366,8 +367,8 @@ a.st-wbtn:active { opacity: .7; }
 .st-root .st-ph > b, .st-root .st-ph > small { display: block; }
 .st-root .st-ph > small + small, .st-root .st-ph > b + small { margin-top: 4px; }
 @keyframes st-pind-rtl { from { transform: translateX(110%); } to { transform: translateX(-360%); } }
-.st-pbar { display: block; height: 6px; margin-top: 7px; border-radius: 3px; background: var(--st-fill); overflow: hidden; }
-.st-pbar i { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--st-ok); transition: width .6s ease; }
+.st-pbar { margin-top: 7px; --cmt-c: var(--st-ok); }   /* ת־פס (סוף styles.css) */
+.st-pbar i { width: 0; transition: width .6s ease; }
 .st-stg .st-l .st-stg-ov { display: block; margin-top: 5px; color: var(--st-amber); font-weight: 600; }
 .st-stg .st-l .st-stg-ov[hidden] { display: none; }
 .st-vcard { display: flex; align-items: flex-start; gap: 12px; margin: 0 16px; padding: 14px; border-radius: var(--radius-sm); background: var(--st-card); }
@@ -718,12 +719,13 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-pl-tsep { opacity: .7; white-space: pre; }
 .st-pl-time .st-pl-b.fs { width: 40px; height: 40px; flex: none; }
 .st-pl-bar { position: relative; height: 22px; display: flex; align-items: center; cursor: pointer; touch-action: none; }
-.st-pl-track { position: relative; width: 100%; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, .3); overflow: hidden; }
+.st-pl-track { position: relative; width: 100%; height: 4px; --cmt-c: #C8C8CC; }   /* ת־פס (סוף styles.css), בגרסה הלבנה (בקשת המשתמש 10/11/2026 — הווידאו הוא הצבע): מנגן — ראש לבן וזוהר; בהשהיה — אחיד; בגרירה — מתעבה, בלי זוהר */
+.st-pl-bar:not(.cmt-on) .st-pl-track { --cmt-h: var(--cmt-c); --cmt-g: 0; }
+.st-pl-bar.cmt-drag .st-pl-track { --cmt-h: #fff; --cmt-g: 0; height: 8px; }
 .st-pl-bar:focus-visible .st-pl-track { outline: 2px solid #fff; outline-offset: 3px; }
-.st-pl-track i { position: absolute; inset-block: 0; inset-inline-start: 0; }   /* הנגן dir=ltr — inline-start = שמאל */
-.st-pl-track .buf { background: rgba(255, 255, 255, .45); }
-.st-pl-track .pl { background: var(--primary); }
-.st-pl-knob { position: absolute; top: 50%; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent); pointer-events: none; }
+.st-pl-track i { position: absolute; inset-block: 0; inset-inline-start: 0; padding: 0; }   /* הנגן dir=ltr — inline-start = שמאל */
+.st-pl-track .buf { border-radius: var(--pill); background: rgba(255, 255, 255, .16); }
+.st-pl-knob { display: none; }   /* ת־פס: בלי ידית — בגרירה המסילה מתעבה (10/11/2026) */
 .st-pl-heat { position: absolute; inset-inline: 0; bottom: 13px; height: 14px; pointer-events: none; }
 .st-pl-heat i { position: absolute; bottom: 0; width: calc(100% / 60); background: rgba(255, 159, 10, .75); border-radius: 2px 2px 0 0; }
 /* פרקים: רווח קטן בפס בתחילת כל פרק + שם הפרק הנוכחי בשורת הזמן (לפי ת־נגן) */
@@ -969,9 +971,8 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-ut-dot.ok { background: var(--st-ok); }
 .st-ut-dot.wait { background: #F5A524; }
 .st-ut-dot.bad { background: var(--loss); }
-.st-ut-bar { display: block; height: 5px; border-radius: var(--pill); background: color-mix(in srgb, var(--on-surface) 10%, transparent); margin-top: 7px; overflow: hidden; }
+.st-ut-bar { margin-top: 7px; --cmt-c: var(--st-ok); }   /* ת־פס (סוף styles.css) */
 .st-ut-bar[hidden] { display: none; }
-.st-ut-bar i { display: block; height: 100%; background: var(--st-ok); border-radius: var(--pill); }
 .st-ut-tail { flex: none; display: flex; align-items: center; }
 .st-ut-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 16px; }
 .st-ut-tile { display: flex; flex-direction: column; gap: 2px; background: var(--st-card); border-radius: var(--radius-sm); padding: 14px 16px; }

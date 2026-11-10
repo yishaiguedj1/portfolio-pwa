@@ -944,6 +944,7 @@ export function createPlayer(opts) {
   function paintPlay() {
     playB.replaceChildren(icon(v.paused ? 'play' : 'pause'));
     playB.setAttribute('aria-label', v.paused ? T('studioPlPlay') : T('studioPlPause'));
+    bar.classList.toggle('cmt-on', !v.paused && !v.ended);   // ת־פס: מנגן — ראש לבן וזוהר; בהשהיה — מילוי אחיד
   }
   function poke() {
     if (holding) return;   // בלחיצה ארוכה הפקדים מוסתרים (לפי ת־נגן) — גם כשהניגון מתחיל
@@ -1008,9 +1009,9 @@ export function createPlayer(opts) {
   };
   wrap.addEventListener('pointerup', holdEnd); wrap.addEventListener('pointercancel', holdEnd);
   wrap.addEventListener('contextmenu', (e) => { if (holdOn(e)) e.preventDefault(); });
-  bar.addEventListener('pointerdown', (e) => { dragging = true; try { bar.setPointerCapture(e.pointerId); } catch (x) {} seekX(e.clientX); poke(); e.stopPropagation(); });
+  bar.addEventListener('pointerdown', (e) => { dragging = true; bar.classList.add('cmt-drag'); try { bar.setPointerCapture(e.pointerId); } catch (x) {} seekX(e.clientX); poke(); e.stopPropagation(); });
   bar.addEventListener('pointermove', (e) => { if (dragging) seekX(e.clientX); });
-  const endDrag = () => { if (dragging) { dragging = false; poke(); } };
+  const endDrag = () => { if (dragging) { dragging = false; bar.classList.remove('cmt-drag'); poke(); } };   // ת־פס: בגרירה המסילה מתעבה
   bar.addEventListener('pointerup', endDrag); bar.addEventListener('pointercancel', endDrag);
   bar.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); jump(e.key === 'ArrowRight' ? 5 : -5); }
