@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2370 מפתחות מתוך 6680) */
+/* המחרוזות של studio (2371 מפתחות מתוך 6681) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -655,6 +655,7 @@ he: {
   "studioEstCp": "העתקה והדבקה: השרת מתמלל, מיישר וצורב; Claude שלך מתרגם — בלי עלות. בכל שלב תקבלו בקשה להעתיק ל־Claude ולהדביק את התשובה בחזרה (בדרך כלל 3–5 פעמים). להתחיל?",
   "studioEstGo": "להתחיל",
   "studioEstKeep": "הסרטון המקורי נשמר {s}, והכתוביות והסרטון המוכן — {d} ימים.",
+  "studioEstKeepAll": "הסרטון המקורי, הכתוביות והסרטון המוכן נשמרים {d} ימים.",
   "studioEstOver": "(יותר ממה שנשאר — התקרה תעצור באמצע)",
   "studioEstSub": "אומדן: {t} עבודה. מהמנוי שלך — שווה ערך לכ־{usd} במחירי ה־API. להתחיל?",
   "studioEtaK": "הצפי מבוסס על",
@@ -3027,6 +3028,7 @@ en: {
   "studioEstCp": "Copy & paste: the server transcribes, aligns and renders; your Claude translates — no cost. At each step you get a request to copy into Claude and paste the answer back (usually 3–5 times). Start?",
   "studioEstGo": "Start",
   "studioEstKeep": "Your original video is kept for {s}; the subtitles and finished video for {d} days.",
+  "studioEstKeepAll": "Your original video, the subtitles and the finished video are kept for {d} days.",
   "studioEstOver": "(More than what is left — the cap will stop it midway)",
   "studioEstSub": "Estimate: {t} of work. From your subscription — about {usd} at API prices. Start?",
   "studioEtaK": "Estimate based on",

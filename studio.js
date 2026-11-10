@@ -418,6 +418,7 @@ function keepLine() {
   const k = ui.kt;
   if (!k || !ui.r2) return '';
   const hrs = Math.round(k.s / 3600e3), days = Math.round(k.j / 86400e3);
+  if (!(k.s > 0)) return ' ' + T('studioEstKeepAll', { d: days });   // 10/11/2026: בלי מחיקה מוקדמת — המקור נשמר כמו כל השאר
   return ' ' + T('studioEstKeep', { s: hrs <= 24 ? T('studioKeepDay') : T('studioKeepHours', { n: hrs }), d: days });
 }
 /* ---------- סבב 2: הצעות לפני ההתחלה — מהבדיקה של הסרטון בטלפון (חינם). לכל הצעה פעולה אחת ----------
@@ -1412,7 +1413,7 @@ async function refreshStatus(force) {
     ui.api = normApi(j.api) || ui.api;   // מצב API של המערכת: תקציב חודשי ושרתים
     ui.eta = normEta(j.eta) || ui.eta;   // 10/10/2026: מודל הצפי (לעבודות שעוד לא נלקחו)
     ui.sc = normScan(j.sc) || ui.sc;   // v378: בדיקת המוכנות האחרונה
-    ui.kt = j.kt && j.kt.s > 0 && j.kt.j > 0 ? { s: +j.kt.s, j: +j.kt.j } : null;   // 26/10: כמה זמן הקבצים נשמרים (לאומדן)
+    ui.kt = j.kt && j.kt.j > 0 ? { s: Math.max(0, +j.kt.s || 0), j: +j.kt.j } : null;   // 26/10: כמה זמן הקבצים נשמרים (לאומדן) · 10/11: s = 0 — המקור נשמר עם העבודה
     ui.r2 = j.r2 === true;              // 11/10: האחסון שלנו (R2) מוגדר — המילון שם, בלי צורך ב־Drive
     ui.gb = j.gb === true;              // 26/10/2026: רשימת הקבצים ב־Drive מוגדרת בשרתון
     if (j.gb === 'r' && !gbAsked) { gbAsked = true; gb().config().then((c) => { if (c.configured) { ui.gb = true; gbAsked = 'y'; if (root) render('none'); } }).catch(() => {}); }   // השרת שלנו בלי המשתנים — אולי ב־Vercel
