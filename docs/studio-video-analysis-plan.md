@@ -1243,7 +1243,7 @@ thinking לכל מודל — מחקר 3.4. **בקוד** (PR 1.1): ‏`ROLE_EFFOR
   - טענות לא נתמכות שתולות נמחקות או עוברות ל"הוסק".
   - מטעני הלמידה = ה־fixture של הרשימה המותרת.
 
-**PR 1.3 — השרתון: ניתוח, למידה ופרטיות** · L.
+**PR 1.3 — השרתון: ניתוח, למידה ופרטיות** · L · **נבנה 10/11/2026** (מה בוצע והסטיות — 16.10).
 - **קבצים**:
   - `lib/studiovi.js` — ‏`normVi`, ‏`viSummary`, ‏`viMetrics`, ‏`viCostHour`.
   - `lib/vicorpus.js` — ‏`VI_V`, ‏`normViCorpus`, ‏`scrubVi`.
@@ -1374,6 +1374,22 @@ thinking לכל מודל — מחקר 3.4. **בקוד** (PR 1.1): ‏`ROLE_EFFOR
   - `Ledger` לא השתנה: טוקני התמונה כבר בתוך `usage` שה־API מחזיר. הספירה של תמונות היא באומדן שלפני הקריאה (`prompt_est`).
   - נוסח הסירוב של הניתוח ברירת מחדל ב־llm.py (`REFUSAL_REFRAME_VI`), כדי שתפקיד `v*` לא יקבל אף פעם את מסגור התרגום; visheet.py מחליף אותו ב־1.2.
   - נמצא פער: `USE_KINDS` (סעיף 0.5 ג) — 1.2א אחרי 1.3.
+
+**PR 1.3** (השרתון; מספר בנייה 732):
+- **`USE_KINDS`** = ‏`main, tl, rv, jg, sub` + ‏`vm, vs, vv, vl, vx, vc` — בשלושה מקומות (‏lib/studio.js, ‏studio.js, ‏job.py), ו־`ROLES` ב־studiolearn.js. ‏`TR_KINDS` ב־studio.js — רשימה מפורשת (‏`USE_KINDS` מוגדר אחריו בקובץ).
+- **`lib/studiovi.js`**: ‏`normVi` (נספח 19.1; ‏fixtures ‏`vi_ok`/`vi_bad`/`vi_bad.norm`), ‏`viMetrics` ו־`boundF1` (‏`vi_metrics.json`), ‏`viCostHour`. ‏vicheck.py ב־1.2א חייב לתת אותו פלט על אותם קבצים.
+- **`lib/vicorpus.js`** (חדש): ‏`scrubVi`, ‏`normViCorpus` (הרשימה של 7.3; ‏`cl` רק באיסוף המלא), ‏`viLid` (‏HMAC, ‏`learn-vi-lid`), ‏DEK לכל עבודה (`dekWrap`/`dekUnwrap`, ‏KEK ‏`learn-vi-kek`, ‏kid בעטיפה), ‏`vcSeal`/`vcOpen` (‏deflate + ‏AES-GCM, ‏AAD = ‏lid), המפתחות `viq/` ‏`vic/` ‏`vik/` ו־`viStats`.
+- **`lib/studiolearn.js`**: ‏`normViLx` (‏fixture ‏`translator/tests/fixtures/vi_facts.json`, משותף לעובד ב־1.2ב), ‏`learnViRec` (‏`learnRec` מאציל כש־`spec.vi === 1`), ‏`UX_SHAPE` ‏`vi`/`vf` (‏`vf` = שורות `{id, why, at}` עד 50, ‏`lv` = האחרון), ‏`VER_DIMS` ‏`vp/vo/vh` עם `VER_MET` ‏`vsup/vcph/vmph/vkf`, ‏`viView` (סעיף `vi` ב־`learnView`/`learnBrief`), ושבעה קודי מסקנה (`vi_unsup`, ‏`vi_ts`, ‏`vi_mid`, ‏`vi_ocr_he`, ‏`vi_cost`, ‏`vi_slow`, ‏`vi_dn`) עם השמות במסך המנהל בשתי השפות.
+- **api/studio.js**: ‏`learnSkip` — ניתוח רק של המנהל (עד ה7); ‏`report.lx` → ‏`normViLx`; ‏`learnPut` → ‏`learnViPut` (‏`lat`); האצווה `learnViBatch` (רק פריט שנפתח עובר; תפוגה של התוכן וה־DEK; ‏DEK יתום נמחק); ‏`learnCorpusForget` ו־`learnForget` (‏`learnId` — ‏viLid לניתוח); ‏`learnGone` מקבל מזהי מאגר; ‏`learnUx` — בניתוח רק `vi`/`vf` ורק ב־`lau`; ‏`learnPref` — ‏`vi:{lat,lam,lau}` עם `tv` ≥ ‏`LRN_VV` 5; ‏`status` מחזיר אותן; ‏`learnPull` עם `vi: 1` (‏`viCorpusPull`, יומן הפענוח `sysLearn/vilog`); ‏`r2url` עם `ks` (עד 6); ‏`learnCorpusView` — ‏`vi` = ספירות.
+- **בדיקות**: ‏`tests/learn-vi.test.js` (85), ‏studio-vi (סעיף 11), ‏learn-ux/learn-loop/admin-lab (הקבוצות, הממדים והקודים החדשים).
+- **סטיות**:
+  - `VC_V` (גרסת הקורפוס, 1) במקום `VI_V` — `VI_V` כבר תפוס בשרתון (מחרוזת הסכמה של vi.json).
+  - **הזמן ברשומת הניתוח — ביום** (`at`) ובחודש (`m`), לא בחודש בלבד: חלונות 30 יום והגרסאות (28 יום) צריכים אותו. אין שעה ואין `end`.
+  - `vi_unans` — בגל 3, עם הקבוצה `vl` (הצ'אט). שבעה קודים ב־1.3.
+  - **השקפים הממוזערים (`lam`)** — עם העובד (1.2ב); ‏`learnMedia` דוחה היום עבודת ניתוח. גם `learnEditPut` (עורך הכתוביות).
+  - `viRef` ‏ו־`labVi` — ב־1.6. אין שורות `SCOPE` חדשות: ‏`/api/studio` כבר ‏`['studio']` בכל הפעולות.
+  - `tv` ≥ 5 רושם גם `lrt`/`lrm`/`lrf` (כמו כל נוסח גבוה — הוא מכסה את הקודמים). האיסוף המלא בפועל רק כשהדגל `learn_full` דולק.
+  - **נוסח `LRN_TV` 5** — ב־`docs/privacy.md` (״ניתוח סרטונים — הנוסח המוצע״), לאישור המשתמש; הטלפון עובר אליו ב־1.5א.
 
 ## 17. סיכונים
 | קוד | הסיכון | הסימן | המענה | איפה |

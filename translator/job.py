@@ -453,7 +453,7 @@ PRICES = {
     'claude-haiku-5-5': (0.10, 0.50, 0.01),
     'claude-haiku-4-5': (1.0, 5.0, 0.10),
 }
-USE_KINDS = ('main', 'tl', 'rv', 'jg', 'sub')       # תיאום (הסשן הראשי) · תרגום · ביקורת · שופט האיכות (v375) · סוכן־משנה אחר
+USE_KINDS = ('main', 'tl', 'rv', 'jg', 'sub', 'vm', 'vs', 'vv', 'vl', 'vx', 'vc')   # תיאום (הסשן הראשי) · תרגום · ביקורת · שופט האיכות (v375) · סוכן־משנה אחר · 10/11/2026: תפקידי הניתוח (llm.VI_ROLES; = lib/studio.js ו־studio.js)
 USE_MAX = 6
 MODEL_RE = re.compile(r'^claude-[a-z0-9-]{1,50}$')
 

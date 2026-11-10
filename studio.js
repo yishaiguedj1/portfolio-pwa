@@ -609,7 +609,7 @@ export function normPir(o) {
 }
 export const majorOn = (inc) => !!(inc && inc.mi && !inc.mi.x);
 /* v373: עקיבה (מהשרתון, בעבודה) ומלאי הסוכנים (op jobs) — רק מספרים, מזהי מודל וקודים */
-const TR_KINDS = ['main', 'tl', 'rv', 'jg', 'sub'], TR_KEY = /^(?:(?:job|vt):[a-z][a-z_-]{1,19}|[A-Za-z]{1,24})$/;
+const TR_KINDS = ['main', 'tl', 'rv', 'jg', 'sub', 'vm', 'vs', 'vv', 'vl', 'vx', 'vc'], TR_KEY = /^(?:(?:job|vt):[a-z][a-z_-]{1,19}|[A-Za-z]{1,24})$/;
 export function normTrace(t) {
   if (!t || typeof t !== 'object' || !t.a || typeof t.a !== 'object') return null;
   const int = (v) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 1e7 ? v : 0);
@@ -894,7 +894,7 @@ export function qaPending(rec) {
   return !!(s && s.qa && !s.qa.a && !s.qa.nb && (s.state === 'queued' || s.state === 'running'));   // שאלה שלא עוצרת — לא "מחכה לך"
 }
 /* v359: טוקנים ועלות של עבודה — אותה בדיקה כמו בשרתון (lib/studio.js normUsage): עד 6 שורות, מודל claude-…, מספרים בלבד */
-const USE_KINDS = ['main', 'tl', 'rv', 'jg', 'sub'];   // v375: jg = שופט האיכות
+const USE_KINDS = ['main', 'tl', 'rv', 'jg', 'sub', 'vm', 'vs', 'vv', 'vl', 'vx', 'vc'];   // v375: jg = שופט האיכות   // 10/11/2026: תפקידי הניתוח (= lib/studio.js ו־job.py)
 export function normUse(a) {
   if (!Array.isArray(a) || !a.length || a.length > 6) return null;
   const out = [];
@@ -2691,7 +2691,7 @@ function rowExt(o) {
 /* ---------- מאגר הלמידה מ׳3 (15/10/2026): מה קרה אחרי העבודה ----------
    תוספות מספרים לכל עבודת תרגום (צפייה, הורדות ושיתוף, הצעות, גיליון ה־AI, מונחים), נשלחות יחד (op:'learnUx') אחרי
    8 שנ׳ שקט / כשהאפליקציה יורדת לרקע. השרתון מחליט אם לשמור (המתג של מאגר הלמידה). **UX_SHAPE זהה לשרתון (lib/studiolearn.js)** */
-export const UX_SHAPE = { e: ['s', 'ws', 'n', 'cd', 'wd', 'm', 'wa', 'ca', 'sb', 'sr', 'txt', 'tm', 'sp', 'mg', 'add', 'del', 'mx'], pl: ['n', 'sec', 'cov'], o: ['dl', 'sh', 'dx'], sg: ['a', 'r'], ai: ['q', 'a', 'r'], gl: ['a'], pv: ['h', 'f', 'st', 'er'] };   // pv — 25/10/2026: איך הנגן ניגן (playStats)
+export const UX_SHAPE = { e: ['s', 'ws', 'n', 'cd', 'wd', 'm', 'wa', 'ca', 'sb', 'sr', 'txt', 'tm', 'sp', 'mg', 'add', 'del', 'mx'], pl: ['n', 'sec', 'cov'], o: ['dl', 'sh', 'dx'], sg: ['a', 'r'], ai: ['q', 'a', 'r'], gl: ['a'], pv: ['h', 'f', 'st', 'er'], vi: ['o', 'rd', 'cov', 'ch', 'sh', 'pl', 'ex', 'cp', 'xp', 'up', 'dn', 'ms', 'ed', 'rr', 'lv', 'md'], vf: ['id', 'why', 'at'] };   // pv — 25/10/2026: איך הנגן ניגן (playStats) · vi/vf — 10/11/2026: עמוד הניתוח (vf = שורות משוב, לא מונים — PR 1.5)
 const uxQ = new Map();
 let uxT = 0;
 function uxAdd(rec, g, k, v = 1) {

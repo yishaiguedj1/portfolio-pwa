@@ -92,7 +92,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   ok(/if \(job\.spec && job\.spec\.vi === 1 && hb\.vi !== 1\) continue;/.test(api), 'הלקיחה: רק לעובד שמכיר ניתוח (עובד ישן היה מריץ אותו כתרגום, עם Claude)');
   ok(/job\.spec && job\.spec\.vi === 1 \? \{ vi: 1 \} : \{\}/.test(api), 'תשובת הלקיחה: vi לסוכן');
   ok(/if \(job\.spec\.vi === 1\) ep = ETA\.viPlan\(ep, job\.spec\.dur, job\.spec\.dry === 1\);/.test(api), 'הלקיחה: התוכנית של הניתוח');
-  ok(/job\.spec\.src === 'subs' \|\| job\.spec\.vi === 1/.test(api) && /if \(job && job\.spec && job\.spec\.vi === 1\) return true;/.test(api), 'סוף העבודה: לא מלמד את "הרגיל" ואת מאגר הלמידה של התרגום');
+  ok(/job\.spec\.src === 'subs' \|\| job\.spec\.vi === 1/.test(api) && /job\.spec\.vi === 1 && \(!job\.uid \|\| job\.uid !== \(await adminUid\(deps/.test(api) && /if \(sp\.vi === 1\) return job\.kind === 'tr' \? learnViRec\(/.test(read('ibkr-proxy/lib/studiolearn.js')), 'סוף העבודה: לא מלמד את "הרגיל"; במאגר — רשומה משלו (k:vi), ורק של המנהל (PR 1.3)');
   ok(/v: sp\.ka \? 'ka' : sp\.vi === 1 \? 'vi'/.test(api), 'התראת השלב: vi');
   const agent = read('translator/agent.py');
   ok(/'vi': 1\}/.test(agent) && /if jb\.get\('vi'\) == 1/.test(agent), 'הסוכן מצהיר (hb.vi) ומעביר את vi לעבודה');
@@ -138,6 +138,28 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     'studioOutVi', 'studioOutViS', 'studioNowRunningVi', 'studioViT', 'studioViS', 'studioViStart', 'studioViNote', 'studioViDry', 'studioViSo',
     'studioErrViOff', 'studioErrViLang', 'studioErrViLong', 'studioErrViCard', 'studioErrViSchema', 'admFlStVi', 'admFlStViS', 'admTyVi'];
   for (const k of keys) ok(app.split(' ' + k + ': "').length === 3, 'המחרוזת ' + k + ' בעברית ובאנגלית');
+
+  /* ---------- 11. vi.json והמדדים (גל 1, PR 1.3) — fixtures משותפים עם vicheck.py ו־vimetrics.py (PR 1.2) ---------- */
+  const fx = (f) => JSON.parse(read('translator/tests/fixtures/' + f));
+  const vok = fx('vi_ok.json'), vbad = fx('vi_bad.json'), vnorm = fx('vi_bad.norm.json'), vmx = fx('vi_metrics.json');
+  ok(same(VI.normVi(vok), vok), 'vi.json תקין — יוצא בדיוק כמו שנכנס (גם הסדר)');
+  ok(same(VI.normVi(vbad), vnorm), 'vi.json פגום — בדיוק הפלט המנורמל שבקובץ (= vicheck.py)');
+  ok(same(VI.normVi(vnorm), vnorm), 'normVi אידמפוטנטי');
+  const nb = VI.normVi(vbad), flatB = JSON.stringify(nb);
+  ok(!/u-should-drop|secret|\/home\/x/.test(flatB) && !('uid' in nb) && !('path' in nb.video) && !('secret' in nb.items[0]), 'שדות לא מוכרים — נזרקים (גם בתוך פריט)');
+  ok(nb.genre === 'other' && nb.lang.src === 'en' && nb.lang.out === 'he' && nb.items.find((x) => x.id === 'n3').ver === 'unk' && nb.items.find((x) => x.id === 'n4').basis === 'speaker',
+    'ערך מחוץ ל־enum — ברירת המחדל הזהירה (ver → unk)');
+  ok(!flatB.includes('e404') && !flatB.includes('n404') && !flatB.includes('o404') && !flatB.includes('c99') && !nb.briefing.one && !nb.thesis, 'הפניה למזהה שלא קיים — נזרקת');
+  ok(!nb.evidence.some((e) => e.id === 'e4') && !nb.chapters.some((c) => c.id === 'c4') && !nb.items.some((x) => x.id === 'n5'), 'טווח הפוך / טקסט ריק — הרשומה נזרקת');
+  ok(nb.evidence.find((e) => e.id === 'e5').text === 'ctl <b>kept as text</b>', 'תווי בקרה נמחקים; HTML נשאר טקסט (הדף מציג טקסט בלבד)');
+  ok(nb.ledger.every((l) => ('used' in l) !== ('drop' in l)) && !nb.ledger.some((l) => l.drop === 'boring'), 'הפנקס: נוצל או נדחה מסיבה ידועה — לא שניהם');
+  ok(VI.normVi(Object.assign({}, vok, { v: 'snb.video-analysis/2' })) === null && VI.normVi(null) === null && VI.normVi([]) === null, 'גרסה אחרת / לא אובייקט — null');
+  ok(same(VI.viMetrics(fx(vmx.in), vmx.ref), vmx.out), 'viMetrics = הפלט שבקובץ (= vimetrics.py)');
+  const m0 = VI.viMetrics(vok);
+  ok(m0.support_rate === 0.5 && m0.kf_used === 2 && m0.kf_total === 3 && !('ch_f1_5' in m0), 'בלי ייחוס — בלי F1 של הגבולות');
+  ok(VI.boundF1([600, 1090], [605, 1200], 5) === 0.5 && VI.boundF1([], [], 5) === null && VI.boundF1([10], [], 5) === 0, 'F1 של הגבולות — התאמה אחד־לאחד בחלון');
+  ok(VI.viCostHour(0.05, 1800) === 0.1 && VI.viCostHour(1, 0) === null && VI.viCostHour(-1, 60) === null, 'עלות לשעת הרצאה');
+  ok(VI.VI_DROP.length === 10 && VI.VI_GENRES.includes('other') && VI.VI_VER.includes('unk'), 'ה־enum של נספח 19.1');
 
   console.log(`---- studio-vi: ${n} בדיקות, הכל תקין`);
 })().catch((e) => { console.error(e); process.exit(1); });

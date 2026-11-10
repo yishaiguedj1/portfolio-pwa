@@ -1969,6 +1969,13 @@ function insName(k) {
     case 'shot_near': return t('admI_shot_near');
     case 'name_var': return t('admI_name_var');
     case 'gl_miss': return t('admI_gl_miss');
+    case 'vi_unsup': return t('admI_vi_unsup');
+    case 'vi_ts': return t('admI_vi_ts');
+    case 'vi_mid': return t('admI_vi_mid');
+    case 'vi_ocr_he': return t('admI_vi_ocr_he');
+    case 'vi_cost': return t('admI_vi_cost');
+    case 'vi_slow': return t('admI_vi_slow');
+    case 'vi_dn': return t('admI_vi_dn');
     default: return k;
   }
 }
@@ -2008,6 +2015,13 @@ function insAct(k) {
     case 'shot_near': return t('admA_shot_near');
     case 'name_var': return t('admA_name_var');
     case 'gl_miss': return t('admA_gl_miss');
+    case 'vi_unsup': return t('admA_vi_unsup');
+    case 'vi_ts': return t('admA_vi_ts');
+    case 'vi_mid': return t('admA_vi_mid');
+    case 'vi_ocr_he': return t('admA_vi_ocr_he');
+    case 'vi_cost': return t('admA_vi_cost');
+    case 'vi_slow': return t('admA_vi_slow');
+    case 'vi_dn': return t('admA_vi_dn');
     default: return '';
   }
 }
@@ -2347,6 +2361,9 @@ function verDim(d) {
     case 'rv': return t('admVdRv');
     case 'rb': return t('admVdRb');
     case 'jg': return t('admVdJg');
+    case 'vp': return t('admVdVp');
+    case 'vo': return t('admVdVo');
+    case 'vh': return t('admVdVh');
     default: return ltr(String(d || ''));
   }
 }
@@ -2369,10 +2386,14 @@ function verMetName(k) {
     case 'spm': return t('admKspm');
     case 'ht': return t('admKht');
     case 'num': return t('admMxNum');
+    case 'vsup': return t('admKvsup');
+    case 'vcph': return t('admKvcph');
+    case 'vmph': return t('admKvmph');
+    case 'vkf': return t('admKvkf');
     default: return ltr(String(k || ''));
   }
 }
-const VER_FMT = { q: numTxt, jd: numTxt, ok: pcTxt, cpm: (x) => usdTxt(x, 3), spm: numTxt, ht: pcTxt, num: pcTxt };
+const VER_FMT = { q: numTxt, jd: numTxt, ok: pcTxt, cpm: (x) => usdTxt(x, 3), spm: numTxt, ht: pcTxt, num: pcTxt, vsup: pcTxt, vcph: (x) => usdTxt(x, 2), vmph: numTxt, vkf: pcTxt };
 function verRow(v) {
   const x = (v.ver || [])[0];
   return row({ c: 'purple', ic: '⇄', t: t('admLabVer'), s: x ? verDim(x.d) + ' · ' + verV(x.v)[0] : t('admLabVerNone'), v: (v.ver || []).length || '', on: () => go('labVer') });
