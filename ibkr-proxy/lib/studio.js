@@ -1623,6 +1623,7 @@ function normHb(h) {
     // bp = בקשות שעוד לא נשלחו, bf = batches בדרך, bo = מתי נשלח הוותיק שבהם (שניות)
     be: BT_ERRS.includes(h.be) ? h.be : '', bn: n(h.bn, 0, 1e6), bp: n(h.bp, 0, 1e6), bf: n(h.bf, 0, 1e4), bo: n(h.bo, 0, 4e9),
     vi: h.vi === 1 ? 1 : 0,   // 9/11/2026: העובד מכיר עבודת ניתוח (analyze.py) — רק לו היא נמסרת; עובד ישן היה מריץ אותה כתרגום (עם Claude)
+    vx: h.vx === 1 ? 1 : 0,   // 10/11/2026: הניתוח עם Claude סגור בעובד (SNB_VI_LIVE) — viCreateErr דוחה ניתוח לא יבש לפני ההעלאה
     dl: h.dl === 1 ? 1 : 0,   // 26/10/2026: פחות מ־8GB פנויים — העובד לא לוקח עבודה חדשה (translator/agent.py — disk_low)
     ev: normEv(h.ev) };   // ת7: יומן השרת — האירועים האחרונים (קודים מקטלוג קבוע + זמן)
 }
@@ -1683,6 +1684,12 @@ function serversDown(list, now) {
    שמישהו נכנס לקונסולה). השרתון רושם `ba` (פנייה אחרונה שנדחתה) לכל היותר פעם ב־BAD_AUTH_GAP; פנייה תקינה מאפסת */
 const BAD_AUTH_GAP = 10 * 60e3;
 const badAuthDue = (srv, now) => !!srv && !(srv.ba > 0 && now - srv.ba < BAD_AUTH_GAP);
+/* 10/11/2026: הניתוח עם Claude סגור בכל העובדים שיכולים לקחת אותו (מחוברים, לא מושהים, מכירים ניתוח — hb.vi): כולם מדווחים vx.
+   אין שרת כזה (כבוי, או עובד ישן בלי vx) — לא נחשב סגור: העבודה מחכה בתור כמו קודם, והעובד (analyze.live_ok) נשאר השער */
+function viClosed(list) {
+  const vs = (Array.isArray(list) ? list : []).filter((s) => s && s.online && !s.paused && s.hb && s.hb.vi === 1);
+  return vs.length > 0 && vs.every((s) => s.hb.vx === 1);
+}
 function serverView(s, now) {
   if (!s || !SRV_ID_RE.test(String(s.id || ''))) return null;
   return { id: s.id, name: clean(s.name, 40) || s.id, created: s.created || 0, seen: s.seen || 0, ba: s.ba > 0 ? s.ba : 0,
@@ -1754,5 +1761,5 @@ module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, 
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, EARLY_FAIL_MS, EARLY_WAIT, recoverWait, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, excludeWait, toFields, fromFields, normFit, peakNeed, perfBlock,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, BAD_AUTH_GAP, badAuthDue, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
-  serverMatches, normHb, normEv, SRV_EV, parkable, bwParkable, BW_MAX, BT_ERRS, normBq, bqView, BQ_SILENT_MS, bwLost, BQ_LOST_MS, BL_MAX, WL_RE, PARK_MAX, serverView, monthKey, monthUsed, addMonth, jobCap,
+  serverMatches, normHb, normEv, SRV_EV, parkable, bwParkable, BW_MAX, BT_ERRS, normBq, bqView, BQ_SILENT_MS, bwLost, BQ_LOST_MS, BL_MAX, WL_RE, PARK_MAX, serverView, viClosed, monthKey, monthUsed, addMonth, jobCap,
 };

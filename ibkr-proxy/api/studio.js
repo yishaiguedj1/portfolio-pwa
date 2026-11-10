@@ -3049,7 +3049,9 @@ async function handler(req, res, deps = {}) {
   // 9/11/2026: ניתוח סרטונים (studiovi.js) — ביצירה, לפני ההעלאה: st_vi כבוי = המנהל בלבד (vi_off); גל 0 — הרצה יבשה, רק המנהל;
   // שפה, אורך ו־R2 (התוצרים נקראים בטלפון דרך R2). [קוד HTTP, שגיאה] או null
   const viCreateErr = async (spec) => (!isAdmin(user) && !(await flagOn(deps, 'st_vi', now)) ? [409, 'vi_off'] : spec.dry && !isAdmin(user) ? [403, 'not_allowed']
-    : !VI.viLangOk(spec) ? [400, 'vi_lang'] : VI.viTooLong(spec) ? [400, 'vi_long'] : !R2.config().ok ? [503, 'r2_needed'] : null);
+    : !VI.viLangOk(spec) ? [400, 'vi_lang'] : VI.viTooLong(spec) ? [400, 'vi_long']
+    // 10/11/2026: הניתוח עם Claude סגור בעובד (hb.vx = SNB_VI_LIVE כבוי) — גם למנהל, לפני שהטלפון מעלה את כל הסרטון (הרצה יבשה — עוברת)
+    : !spec.dry && S.viClosed(await servers().catch(() => [])) ? [409, 'vi_off'] : !R2.config().ok ? [503, 'r2_needed'] : null);
   if ((op === 'status' || op === 'jobs') && watchDue(now)) await checkServers(deps, now, uid).catch(() => 0);
   if (op === 'status' && isAdmin(user)) await offsiteOwner(deps, uid).catch(() => {});   // 11/10/2026: בעל הגיבוי ב־Drive
   // v357: חיבור Drive של הסטודיו (חלון ההסכמה של Google — אותו מנגנון של גיבוי הספרייה, לקוח אחר)
