@@ -193,11 +193,15 @@ const { fakeR2, ACC } = require('./_r2fake');
   // הסכמה ומנהל
   const a = await newJob(OWNER, true);
   ok((await a.put(body(corpIn))).j.saved === false, 'בלי הסכמה לתוכן הניתוח (lat) — לא נשמר');
-  ok((await api('learnPref', { ack: true, tv: 3, vi: { lat: true } })).lat === undefined, 'הסכמה עם נוסח ישן (tv 3) — lat לא נרשם (וגם לא האיסוף המלא)');
+  ok((await call({ op: 'learnPref', ack: true, tv: 3, vi: { lat: true }, idToken: OWNER })).code === 400, 'הסכמה עם נוסח ישן (tv 3) — נדחית, lat לא נרשם');
+  const lr0 = (await api('status', {}));
   const pf = await api('learnPref', { ack: true, tv: 5, vi: { lat: true, lau: true, lam: 'yes' } });
   ok(pf.ok && pf.lat > 0 && pf.lau > 0 && !('lam' in pf), 'הנוסח LRN_VV (tv 5): lat ו־lau נרשמו; ערך לא בוליאני — לא');
+  ok(!('lrf' in pf) && !('lrt' in pf) && !('lra' in pf), 'ההסכמה לניתוח לא מחזירה/רושמת את ההסכמות של התרגום');
   const st0 = (await api('status', {}));
   ok(st0.lat > 0 && st0.lau > 0 && st0.lam === 0, 'status מחזיר את ההסכמות של הניתוח');
+  ok(st0.lrf === lr0.lrf && st0.lrt === lr0.lrt && st0.lrm === lr0.lrm && st0.lra === lr0.lra && st0.lrn === lr0.lrn, 'lra/lrt/lrm/lrf והמתג — בלי שינוי אחרי ההסכמה לניתוח');
+  ok((await call({ op: 'learnPref', ack: true, tv: 6, vi: { lat: true }, idToken: OWNER })).code === 400 && (await call({ op: 'learnPref', ack: true, tv: 5, vi: {}, idToken: OWNER })).code === 400, 'נוסח לא מוכר / בלי מטרה — 400');
   const pr = await a.put(body(corpIn));
   ok(pr.j.ok && pr.j.saved === true, 'learnPut (ניתוח, המנהל, lat): נשמר');
   ok((await keysIn('viq/')).join() === 'viq/' + a.lid + '.bin' && (await keysIn('vik/')).join() === 'vik/' + a.lid && (await keysIn('q/')).length === 0, 'בתור viq/<lid> וה־DEK ב־vik/<lid> — לא בתור של התרגום');

@@ -636,7 +636,7 @@ async function learnCorpusForget(deps, ids) {
    העטוף. lid = HMAC בכספת (לא sha256 גלוי). DEK חדש לכל עבודה (AES-256-GCM), עטוף ב־KEK מהכספת: מחיקה = השמדת ה־DEK,
    כך שגם עותק שנשאר במקום אחר לא נפתח (מחיקה קריפטוגרפית). רק כשהדגל learn דולק, המתג לא כבוי, העבודה של המנהל (עד ה7)
    וההסכמה לתוכן הניתוח (lat — נוסח LRN_VV) נשמרה. כל פתיחה של פריט מחוץ לאצווה (משיכה לניתוח) נרשמת ביומן הפענוח */
-const LRN_VV = 5;   // **זהה ל־LRN_TV ב־studio.js** — הנוסח שמכסה את הניתוח: התמליל, טקסט השקפים והתוצאה נשמרים (lat), שקפים ממוזערים (lam), אירועי השימוש (lau)
+const LRN_VV = 5;   // **זהה ל־LRN_VV ב־studio.js** (נפרד מ־LRN_TV/LRN_FV — הסכמה לניתוח לא רושמת את ההסכמות של התרגום) — הנוסח שמכסה את הניתוח: התמליל, טקסט השקפים והתוצאה נשמרים (lat), שקפים ממוזערים (lam), אירועי השימוש (lau)
 const VI_PULL_MAX = 10, VI_LOG_MAX = 200;
 async function learnViPut(deps, job, b64, now) {
   try {
@@ -3528,9 +3528,16 @@ async function handler(req, res, deps = {}) {
     if (op === 'learnPref') {
       // 14/10/2026: המתג בהגדרות — לכל משתמש (לא רק למנהל). 15/10 (מ׳1): ack = ההודעה בכניסה הראשונה נקראה (lra)
       // 15/10/2026: tv = גרסת הנוסח שנקרא. LRN_TV ומעלה (הנוסח שאומר שגם טקסט הכתוביות ושמות הדוברים נשמרים) = גם lrt — ההסכמה לטקסט
+      // 10/11/2026 (ניתוח, 7.11): הסכמה לכל מטרה — lat תוכן הניתוח והתמליל, lam מדיה, lau אירועי שימוש. רק עם הנוסח LRN_VV; false = ביטול.
+      // בקשה עם vi נוגעת **רק** בשלוש האלה — לא ב־lra/lrt/lrm/lrf ולא במתג (הסכמה לניתוח איננה קריאה של נוסח התרגום או האיסוף המלא)
+      if (body.vi !== undefined) {
+        const vx = {};
+        if (body.ack === true && (body.tv | 0) === LRN_VV && body.vi && typeof body.vi === 'object') for (const k of ['lat', 'lam', 'lau']) if (typeof body.vi[k] === 'boolean') vx[k] = body.vi[k] ? now : 0;
+        if (!Object.keys(vx).length) return res.status(400).json({ ok: false, error: 'bad_request' });
+        await patchDoc(deps, 'studioStats', uid, Object.assign({ updated: now }, vx));
+        return res.status(200).json(Object.assign({ ok: true }, vx));
+      }
       const tx = body.ack === true && (body.tv | 0) >= LRN_TV ? Object.assign({ lrt: now }, (body.tv | 0) >= LRN_MV ? { lrm: now } : {}, (body.tv | 0) >= LRN_FV ? { lrf: now } : {}) : {};   // 4 = האיסוף המלא   // מ׳4: 3 = גם הקול ו־240p
-      // 10/11/2026 (ניתוח, 7.11): הסכמה לכל מטרה — lat תוכן הניתוח והתמליל, lam מדיה, lau אירועי שימוש. רק עם הנוסח LRN_VV; false = ביטול
-      if (body.ack === true && (body.tv | 0) >= LRN_VV && body.vi && typeof body.vi === 'object') for (const k of ['lat', 'lam', 'lau']) if (typeof body.vi[k] === 'boolean') tx[k] = body.vi[k] ? now : 0;
       if (body.ack === true && body.on === undefined) { await patchDoc(deps, 'studioStats', uid, Object.assign({ lra: now, updated: now }, tx)); return res.status(200).json(Object.assign({ ok: true, lra: now }, tx)); }
       const on = body.on === true;
       await patchDoc(deps, 'studioStats', uid, Object.assign({ lo: on ? 0 : 1, updated: now }, body.ack === true ? Object.assign({ lra: now }, tx) : {}));
