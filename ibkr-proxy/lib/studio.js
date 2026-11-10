@@ -1146,7 +1146,9 @@ function waveOrder(srcs, arms) {
 function waveClone(src, id, uid, now, arm, i) {
   const c = goldClone(src, id, uid, now, arm.mode);
   if (!(c.spec && c.spec.vi === 1)) c.spec = Object.assign({}, c.spec, { out: ['srt'] });   // הרצת גל: רק SRT — בלי צריבה ובלי העלאת וידאו (כמו עבודת העשן). ניתוח — vg (goldClone)
-  if (arm.xf) c.spec.xf = arm.xf;
+  // 10/11/2026 (PR 1.7, לפני ה2): רק דגלים מהסוג של העבודה — v… לניתוח, השאר לתרגום (דגל זר היה מתייג את הזרוע בלי להשפיע)
+  const xf = arm.xf ? arm.xf.filter((k) => (k.replace(/^-/, '')[0] === 'v') === (c.spec && c.spec.vi === 1)) : [];
+  if (xf.length) c.spec.xf = xf; else delete c.spec.xf;
   if (arm.bt === 1 && c.spec.eng === 'api' && !c.spec.ka) c.spec.bt = 1; else delete c.spec.bt;   // חצי מחיר לכל זרוע (כמו body.bt בהרצה הרגילה)
   c.wa = i;   // מספר הזרועה בגל (0..) — לזיווג בניתוח
   return c;
