@@ -3970,7 +3970,7 @@ async function handler(req, res, deps = {}) {
       if (body.ref == null) { await patchJob(deps, job.id, { gd: null, gq: null, updated: now }); job.gd = null; job.gq = null; return res.status(200).json({ ok: true, job: view(job) }); }
       const ref = String(body.ref || '');
       if (!S.FILE_ID_RE.test(ref)) return res.status(400).json({ ok: false, error: 'bad_params' });
-      const others = (await listJobs(deps, uid)).filter((j) => j.id !== job.id && S.normGd(j.gd));
+      const others = (await listJobs(deps, uid)).filter((j) => j.id !== job.id && S.isGold(j));   // PR 1.6: גם ניתוח בזהב
       if (others.length >= S.goldMax(isAdmin(user))) return res.status(409).json({ ok: false, error: 'gold_full' });   // 02/11/2026: למנהל 16
       const f = await driveFileInFolder(deps, uid, job.folder, ref);
       if (!f) return res.status(400).json({ ok: false, error: 'file_bad' });
@@ -3979,6 +3979,22 @@ async function handler(req, res, deps = {}) {
       const gd = { r: ref, n: f.size, at: now };
       await patchJob(deps, job.id, { gd, gq: null, updated: now });
       job.gd = gd; job.gq = null;
+      return res.status(200).json({ ok: true, job: view(job) });
+    }
+    if (op === 'viRef') {
+      // PR 1.6 (10/11/2026, התוכנית 6.3): חבילת הייחוס של ניתוח בסט הזהב — מנהל בלבד. get: מחזירה אותה (לעריכה);
+      // ref: שומרת (= אישור המנהל) ומסמנת את הניתוח כזהב; ref: null — מסירה. בעבודה עצמה (vrf), לא בריפו
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'admin' });
+      if (job.kind !== 'tr' || !job.spec || job.spec.vi !== 1 || job.spec.dry === 1 || S.isVv(job) || job.gs || st !== 'done') return res.status(409).json({ ok: false, error: 'state' });
+      if (body.get === true) return res.status(200).json({ ok: true, ref: VI.normViRef(job.vrf), job: view(job) });
+      if (body.ref === null) { await patchJob(deps, job.id, { gd: null, vrf: null, updated: now }); job.gd = null; job.vrf = null; return res.status(200).json({ ok: true, job: view(job) }); }
+      if (job.sx > 0 || !(job.fa || job.fv)) return res.status(409).json({ ok: false, error: 'src_gone' });   // בלי מקור אין הרצה חוזרת
+      const ref = VI.normViRef(body.ref);
+      if (!ref) return res.status(400).json({ ok: false, error: 'bad_params' });
+      if (!S.isViGold(job) && (await listJobs(deps, uid)).filter((j) => j.id !== job.id && S.isGold(j)).length >= S.goldMax(true)) return res.status(409).json({ ok: false, error: 'gold_full' });
+      const gd = { vr: 1, n: Buffer.byteLength(JSON.stringify(ref)), at: now };
+      await patchJob(deps, job.id, { gd, vrf: ref, updated: now });
+      job.gd = gd; job.vrf = ref;
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'btNow') {

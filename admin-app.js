@@ -1265,7 +1265,7 @@ function goldEst(src, m) {
 page('gold', { tab: 'imp', parent: 'imp', title: () => t('admGoldT'), render(p) {
   if (!D.gj) { needGold(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
   if (D.gj.err) { p.append(h('p', 'adm-note', t('admErr'))); return; }
-  const jobs = D.gj.jobs.filter((j) => !j.sm), srcs = jobs.filter((j) => j.gd && j.state === 'done' && !j.gs);
+  const jobs = D.gj.jobs.filter((j) => !j.sm && !isVi(j)), srcs = jobs.filter((j) => j.gd && j.state === 'done' && !j.gs);   // PR 1.6: הניתוח — בעמוד משלו (viGold)
   p.append(h('p', 'adm-sub', t('admGoldSub')));
   if (!srcs.length) { p.append(list(row({ c: 'gray', ic: '◎', t: t('admGoldNone'), s: t('admGoldNoneS') }))); return; }
   if (!srcs.some((j) => j.id === D.gSrc)) D.gSrc = srcs[0].id;
@@ -1307,37 +1307,39 @@ page('gold', { tab: 'imp', parent: 'imp', title: () => t('admGoldT'), render(p) 
 } });
 /* ---- "הרץ גל" (02/11/2026, תוכנית איכות התרגום 1.8): עד 3 זרועות (מצב + דגלי xf) × כל עבודות הזהב, בקריאת goldRun אחת
    משולבת; רק SRT. הניתוח (זוגות עיוורים, MQM) — tools/quality-bench.py מחוץ לטלפון. מנהל בלבד (השרתון אוכף) ---- */
-const XF_KEYS = ['smf', 'gq', 'qskip', 'rvs60'], GOLD_ARMS = 4;   // = S.XF_KEYS / S.GOLD_ARMS בשרתון ו־translator/xflags.py
-function paintWave(p, jobs, srcs) {
-  if (!D.wArms) D.wArms = [{ m: 'haiku-medium', xf: [] }, { m: 'haiku-medium', xf: ['rvs60'] }];
-  if (!D.wSrc) D.wSrc = new Set(srcs.map((j) => j.id));
-  for (const id of Array.from(D.wSrc)) if (!srcs.some((j) => j.id === id)) D.wSrc.delete(id);
-  const ss = srcs.filter((j) => D.wSrc.has(j.id)), arms = D.wArms;
+const XF_KEYS = ['smf', 'gq', 'qskip', 'rvs60', 'vwin'], GOLD_ARMS = 4;   // = S.XF_KEYS / S.GOLD_ARMS בשרתון ו־translator/xflags.py
+function paintWave(p, jobs, srcs, vi) {
+  // PR 1.6: גם לניתוח (vi) — מצב נפרד, דגלי v… בלבד, והתוצאות רק של הגל מאותו סוג
+  const W = vi ? (D.vwv || (D.vwv = {})) : (D.trw || (D.trw = {})), XK = XF_KEYS.filter((k) => (k[0] === 'v') === !!vi);
+  if (!W.arms) W.arms = [{ m: 'haiku-medium', xf: [] }, { m: 'haiku-medium', xf: ['rvs60'] }];
+  if (!W.src) W.src = new Set(srcs.map((j) => j.id));
+  for (const id of Array.from(W.src)) if (!srcs.some((j) => j.id === id)) W.src.delete(id);
+  const ss = srcs.filter((j) => W.src.has(j.id)), arms = W.arms;
   const rows = [];
   arms.forEach((a, i) => {
-    const on = D.wOpen === i;
+    const on = W.open === i;
     rows.push(row({ c: on ? 'purple' : 'gray', ic: String.fromCharCode(0x5d0 + i), t: fmt(t('admWaveArm'), { n: i + 1 }) + ' · ' + modeName(a.m),
-      s: h('bdi', null, (a.xf.length ? a.xf.join(' · ') : t('admWaveNoXf')) + (a.bt ? ' · ½' : '')), on: () => { D.wOpen = on ? -1 : i; paint(); } }));
+      s: h('bdi', null, (a.xf.length ? a.xf.join(' · ') : t('admWaveNoXf')) + (a.bt ? ' · ½' : '')), on: () => { W.open = on ? -1 : i; paint(); } }));
     if (!on) return;
     rows.push(row({ c: 'blue', ic: '⇄', t: t('admWaveMode'), v: modeName(a.m), on: () => { a.m = GOLD_MODES[(GOLD_MODES.indexOf(a.m) + 1) % GOLD_MODES.length]; paint(); } }));
-    for (const k of XF_KEYS) rows.push(row({ c: a.xf.includes(k) ? 'purple' : 'gray', ic: a.xf.includes(k) ? '✓' : '', t: k,
+    for (const k of XK) rows.push(row({ c: a.xf.includes(k) ? 'purple' : 'gray', ic: a.xf.includes(k) ? '✓' : '', t: k,
       on: () => { a.xf = a.xf.includes(k) ? a.xf.filter((x) => x !== k) : a.xf.concat([k]).sort(); paint(); } }));
     rows.push(row({ c: a.bt ? 'green' : 'gray', ic: a.bt ? '✓' : '', t: t('admWaveBt'), on: () => { a.bt = !a.bt; paint(); } }));
     // 02/11/2026 (M1): מקורות לזרוע — בלי בחירה = המקורות של הגל (למטה); עם בחירה — רק אלה (src בזרוע)
     rows.push(row({ c: a.src ? 'orange' : 'gray', ic: a.src ? '✓' : '', t: t('admWaveArmAll'), s: a.src ? fmt(t('admWaveArmN'), { n: a.src.length }) : '', on: () => { a.src = null; paint(); } }));
-    for (const j of srcs) { const inA = a.src ? a.src.includes(j.id) : D.wSrc.has(j.id);
+    for (const j of srcs) { const inA = a.src ? a.src.includes(j.id) : W.src.has(j.id);
       rows.push(row({ c: inA ? 'orange' : 'gray', ic: inA ? '✓' : '', t: (j.spec && j.spec.name) || j.id,
         on: () => { const cur = a.src || ss.map((x) => x.id); a.src = cur.includes(j.id) ? cur.filter((x) => x !== j.id) : cur.concat([j.id]); paint(); } })); }
-    if (arms.length > 1) rows.push(row({ c: 'red', ic: '×', t: t('admWaveDel'), on: () => { arms.splice(i, 1); D.wOpen = -1; paint(); } }));
+    if (arms.length > 1) rows.push(row({ c: 'red', ic: '×', t: t('admWaveDel'), on: () => { arms.splice(i, 1); W.open = -1; paint(); } }));
   });
-  if (arms.length < GOLD_ARMS) rows.push(row({ c: 'gray', ic: '+', t: t('admWaveAdd'), on: () => { arms.push({ m: arms[0].m, xf: [] }); D.wOpen = arms.length - 1; paint(); } }));
-  p.append(grp(t('admWaveT')), h('p', 'adm-sub', t('admWaveS')), list(...rows));
-  p.append(grp(t('admWaveSrcs')), list(...srcs.map((j) => row({ c: D.wSrc.has(j.id) ? 'orange' : 'gray', ic: D.wSrc.has(j.id) ? '✓' : '',
-    t: (j.spec && j.spec.name) || j.id, on: () => { if (D.wSrc.has(j.id)) D.wSrc.delete(j.id); else D.wSrc.add(j.id); paint(); } }))));
+  if (arms.length < GOLD_ARMS) rows.push(row({ c: 'gray', ic: '+', t: t('admWaveAdd'), on: () => { arms.push({ m: arms[0].m, xf: [] }); W.open = arms.length - 1; paint(); } }));
+  p.append(grp(t('admWaveT')), h('p', 'adm-sub', t(vi ? 'admViWaveS' : 'admWaveS')), list(...rows));
+  p.append(grp(t('admWaveSrcs')), list(...srcs.map((j) => row({ c: W.src.has(j.id) ? 'orange' : 'gray', ic: W.src.has(j.id) ? '✓' : '',
+    t: (j.spec && j.spec.name) || j.id, on: () => { if (W.src.has(j.id)) W.src.delete(j.id); else W.src.add(j.id); paint(); } }))));
   const armSrc = (a) => (a.src ? srcs.filter((j) => a.src.includes(j.id)) : ss);
   const n = arms.reduce((x, a) => x + armSrc(a).length, 0), mins = Math.round(arms.reduce((x, a) => x + armSrc(a).reduce((y, j) => y + ((j.spec && +j.spec.dur) || 0), 0), 0) / 60);
   const tot = arms.reduce((x, a) => x + (a.bt ? 0.5 : 1) * armSrc(a).reduce((y, j) => y + (goldEst(j, a.m) || 0), 0), 0);   // bt: בערך חצי (רק במנוע api)
-  const busy = jobs.some((j) => j.gs && ['new', 'queued', 'running'].includes(j.state));
+  const busy = jobs.some((j) => j.gs && ['new', 'queued', 'running'].includes(j.state));   // השרתון: גל אחד בכל רגע (gold_busy), גם בין תרגום לניתוח
   const b = h('button', 'btn', fmt(t('admWaveRun'), { n, u: usd(tot) })); b.type = 'button'; b.disabled = !n || busy || n > GOLD_MAX * arms.length || arms.some((a) => !armSrc(a).length);
   b.addEventListener('click', () => busyGuard(() => askConfirm(fmt(t('admWaveQ'), { n, m: mins, u: usd(tot) }), async () => {
     b.disabled = true;
@@ -1352,17 +1354,119 @@ function paintWave(p, jobs, srcs) {
   const br = h('div', 'btn-row'); br.append(b); p.append(br, h('p', 'adm-foot', fmt(t('admWaveSum'), { n, m: mins })));
   if (busy) p.append(h('p', 'adm-foot', t('admGoldBusy')));
   // הגל האחרון: לכל זרוע — כמה הסתיימו ומה עלה (העבודות עם wa, מהקריאה האחרונה)
-  const wj = jobs.filter((j) => j.gs && j.wa >= 0), last = wj.reduce((x, j) => Math.max(x, j.created || 0), 0);
+  const wj = jobs.filter((j) => j.gs && j.wa >= 0 && isVi(j) === !!vi), last = wj.reduce((x, j) => Math.max(x, j.created || 0), 0);
   const cur1 = wj.filter((j) => last - (j.created || 0) < 120000);
   if (cur1.length) {
     const by = Array.from({ length: GOLD_ARMS }, (_, i) => i).map((i) => cur1.filter((j) => j.wa === i)).filter((x) => x.length);
     p.append(grp(t('admWaveRes'), [t('admGoldRefresh'), () => needGold(true)]), list(...by.map((x) => {
       const i = x[0].wa, d = x.filter((j) => j.state === 'done').length, f = x.some((j) => j.state === 'failed');
       return row({ c: f ? 'red' : d === x.length ? 'green' : 'blue', ic: String.fromCharCode(0x5d0 + i), t: fmt(t('admWaveArm'), { n: i + 1 }) + ' · ' + modeName(x[0].spec && x[0].spec.mode),
-        s: fmt(t('admWaveResS'), { d, n: x.length }), v: usd(x.reduce((y, j) => y + jobUsd(j), 0)) });
-    })), h('p', 'adm-foot', t('admWaveFoot')));
+        s: fmt(t('admWaveResS'), { d, n: x.length }) + (vi ? viResTxt(x) : ''), v: usd(x.reduce((y, j) => y + jobUsd(j), 0)) });
+    })), h('p', 'adm-foot', t(vi ? 'admViWaveFoot' : 'admWaveFoot')));
   }
 }
+/* ---- ניתוח סרטונים במעבדה ובסט הזהב (PR 1.6, 10/11/2026; התוכנית 6.3–6.7, 7.7). labVi = learnView().vi (studiolearn.viView);
+   viGold = הניתוחים שהסתיימו, הייחוס שלהם, "הרץ גל" לניתוח והזרועות; viRef = עורך חבילת הייחוס (op viRef, מנהל בלבד) ---- */
+const isVi = (j) => !!(j && j.spec && j.spec.vi === 1);
+const viResTxt = (x) => { const q = x.map((j) => j.vq && j.vq.f10).filter(nz); return q.length ? ' · F1 ' + numTxt(q.reduce((a, b) => a + b, 0) / q.length * 100) : ''; };
+const VIV = () => { const v = LV(); return v && v.vi; };
+const viTile = (c, lbl, key, dir, f) => { const v = VIV(); if (!v) return null; const a = (v.k || {})[key], b = (v.kp || {})[key];
+  if (a == null && b == null) return null; const [tr, trc] = trend(a, b, dir, f); return tileEl(c, lbl, f(a), tr || (nz(b) ? fmt(t('admWas'), { v: f(b) }) : ''), trc, []); };
+const viKpTxt = (x) => [fmt(t('admViN'), { n: x.n || 0 }), nz(x.sup) ? fmt(t('admViSupS'), { p: pcTxt(x.sup) }) : '', nz(x.cph) ? usdTxt(x.cph, 2) + t('admViPerH') : ''].filter(Boolean).join(' · ');
+function viLabRow() {
+  const v = VIV();
+  return row({ c: 'purple', ic: '▶', t: t('admLabVi'), s: v ? viKpTxt(v.k || {}) : t('admNoData'), v: v ? v.n90 : '', on: () => go('labVi') });
+}
+page('labVi', { tab: 'imp', parent: 'lab', title: () => t('admLabVi'), render(p) {
+  if (!needLab(p)) return;
+  const v = VIV();
+  if (!v) { p.append(list(row({ c: 'gray', ic: '—', t: t('admNoData') })), list(row({ c: 'orange', ic: '◎', t: t('admViGold'), on: () => go('viGold') }))); return; }
+  p.append(h('p', 'adm-dt', fmt(t('admViDt'), { n: v.n, m: v.n90 })));
+  p.append(grp(t('admLab30')), tiles(
+    viTile('green', t('admViSup'), 'sup', 1, pcTxt), viTile('red', t('admViUns'), 'uns', -1, pcTxt),
+    viTile('blue', t('admViKf'), 'kf', 1, pcTxt), viTile('orange', t('admViTs'), 'ts', -1, pcTxt),
+    viTile('purple', t('admViCph'), 'cph', -1, (x) => usdTxt(x, 2)), viTile('gray', t('admViMph'), 'mph', -1, numTxt),
+    viTile('red', t('admViDn'), 'dn', -1, pcTxt)));
+  if ((v.ins || []).length) p.append(grp(t('admLabIns')), list(...v.ins.map((x) => row({ c: x.sev === 1 ? 'red' : 'orange', ic: '!', t: insName(x.k), s: insAct(x.k) }))));
+  const g = v.gold;
+  p.append(list(row({ c: 'orange', ic: '◎', t: t('admViGold'), s: g ? viKpTxt(g) : t('admViGoldNone'), v: g ? g.n : '', on: () => go('viGold') })));
+  if ((v.by || []).length) p.append(grp(t('admViBy')), list(...v.by.map((x) => { const [m, l, gn] = String(x.g).split('|');
+    return row({ c: 'blue', ic: '▦', t: modeName(m) + ' · ' + l + ' · ' + gn, s: viKpTxt(x), v: nz(x.kf) ? pcTxt(x.kf) : '', tr: nz(x.kf) ? t('admViKf') : '' }); })));
+  if ((v.fb || []).length) p.append(grp(t('admViFb')), list(...v.fb.slice(0, 8).map(([why, n]) => row({ c: 'red', ic: '👎', t: String(why), v: n }))));
+  if ((v.weak || []).length) p.append(grp(t('admViWeak')), list(...v.weak.map((x) => row({ c: 'gray', ic: '↓', t: x.id + ' · ' + modeName(x.mode) + (x.genre ? ' · ' + x.genre : ''),
+    s: day(x.at) + ' · ' + Math.round((x.dur || 0) / 60) + "'", v: pcTxt(x.sup), tr: t('admViSup') }))));
+  p.append(h('p', 'adm-foot', t('admViFoot')));
+} });
+page('viGold', { tab: 'imp', parent: 'labVi', title: () => t('admViGold'), render(p) {
+  if (!D.gj) { needGold(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  if (D.gj.err) { p.append(h('p', 'adm-note', t('admErr'))); return; }
+  const jobs = D.gj.jobs.filter((j) => !j.sm && isVi(j)), fin = jobs.filter((j) => j.state === 'done' && !j.gs && !(j.spec && (j.spec.dry === 1 || j.spec.vo === 1)));
+  const srcs = fin.filter((j) => j.vg === 1);
+  p.append(h('p', 'adm-sub', t('admViGoldSub')));
+  const g = VIV() && VIV().gold;
+  if (g && (g.arms || []).length) p.append(grp(t('admViArmsG')), list(...g.arms.map((x) => { const [m, xf] = String(x.g).split('|');
+    return row({ c: 'purple', ic: '◇', t: modeName(m) + (xf ? ' · ' + xf : ''), s: viKpTxt(x) + (nz(x.f10) ? ' · F1 ' + numTxt(x.f10 * 100) : ''), v: nz(x.kf) ? pcTxt(x.kf) : '', tr: nz(x.kf) ? t('admViKf') : '' }); })));
+  p.append(grp(t('admViRefG')), fin.length ? list(...fin.slice(0, 24).map((j) => row({ c: j.vg ? 'orange' : 'gray', ic: j.vg ? '◎' : '○', t: (j.spec && j.spec.name) || j.id,
+    s: (j.vg ? t('admViRefHas') : t('admViRefNone')) + ' · ' + day(j.created), on: () => { D.vrJob = j.id; D.vrEd = null; go('viRef'); } }))) : list(row({ c: 'gray', ic: '—', t: t('admViNoJobs') })));
+  if (srcs.length) paintWave(p, jobs, srcs, true);
+} });
+/* העורך: שורה לכל רשומה, "|" בין השדות. זמן — שניות, דק:שנ׳ או שע:דק:שנ׳ */
+const vrT = (s) => { const x = String(s || '').trim(); if (!/^\d{1,2}(:\d{1,2}){0,2}$|^\d{1,5}$/.test(x)) return null; return x.split(':').reduce((a, b) => a * 60 + +b, 0); };
+const vrTs = (n) => (nz(n) ? Math.floor(n / 60) + ':' + String(Math.round(n) % 60).padStart(2, '0') : '');
+const vrCells = (txt) => String(txt || '').split('\n').map((l) => l.split('|').map((c) => c.trim())).filter((c) => c.join(''));
+function vrParse(e) {
+  return { bounds: vrCells(e.b).map(([tm, lv, ti]) => ({ t0: vrT(tm), lv: lv === '2' ? 2 : 1, title: ti || '' })).filter((x) => x.t0 != null),
+    units: vrCells(e.u).map(([w, tx]) => ({ w: Math.max(1, Math.min(3, parseInt(w, 10) || 1)), text: tx || '' })).filter((x) => x.text),
+    qa: vrCells(e.q).map(([q, a, tm, so]) => ({ q: q || '', a: a || '', t: vrT(tm), so: so && so !== '0' ? 1 : 0 })).filter((x) => x.q && x.a),
+    slides: vrCells(e.s).map(([tm, tx]) => ({ t: vrT(tm), text: tx || '' })).filter((x) => x.t != null && x.text),
+    he: String(e.he || '').trim(), meta: { lic: String(e.lic || '').trim(), tier: e.tier === 'b' ? 'b' : 'a', genre: e.genre || 'other' } };
+}
+function vrLines(r) {
+  r = r || {}; const m = r.meta || {};
+  return { b: (r.bounds || []).map((x) => vrTs(x.t0) + ' | ' + x.lv + ' | ' + x.title).join('\n'), u: (r.units || []).map((x) => x.w + ' | ' + x.text).join('\n'),
+    q: (r.qa || []).map((x) => x.q + ' | ' + x.a + ' | ' + vrTs(x.t) + ' | ' + (x.so ? 1 : 0)).join('\n'), s: (r.slides || []).map((x) => vrTs(x.t) + ' | ' + x.text).join('\n'),
+    he: r.he || '', lic: m.lic || '', tier: m.tier || 'a', genre: m.genre || 'other' };
+}
+const VR_GENRES = ['academic_lecture', 'course_module', 'business_webinar', 'conference_talk', 'panel', 'interview_podcast', 'software_tutorial', 'product_demo', 'workshop', 'investor_presentation', 'other'];   // = VI_GENRES בשרתון
+page('viRef', { tab: 'imp', parent: 'viGold', title: () => t('admViRefT'), render(p) {
+  const job = D.gj && !D.gj.err && D.gj.jobs.find((j) => j.id === D.vrJob);
+  if (!job) { p.append(h('p', 'adm-note', t('admErr'))); return; }
+  if (!D.vrEd) {
+    p.append(h('p', 'adm-dt', t('admLoading')));
+    if (!D.vrLoading) { D.vrLoading = true; api('viRef', { job: job.id, get: true }).then((r) => { D.vrLoading = false; D.vrEd = r.ok ? vrLines(r.ref) : { err: r.error || 1 }; if (cur === 'viRef') paint(); }); }
+    return;
+  }
+  if (D.vrEd.err) { p.append(h('p', 'adm-note', t('admErr') + ' · ' + D.vrEd.err)); return; }
+  const e = D.vrEd;
+  const nm = h('p', 'adm-sub', (job.spec && job.spec.name) || job.id); nm.dir = 'auto'; p.append(nm);
+  const area = (k, lbl, rows) => { const ta = h('textarea', 'adm-search adm-note-in'); ta.rows = rows; ta.dir = 'auto'; ta.spellcheck = false; ta.value = e[k] || '';
+    ta.setAttribute('aria-label', lbl); ta.addEventListener('input', () => { e[k] = ta.value; }); return [grp(lbl), ta]; };
+  p.append(...area('b', t('admViRefBounds'), 6), ...area('u', t('admViRefUnits'), 8), ...area('q', t('admViRefQa'), 6), ...area('s', t('admViRefSlides'), 4), ...area('he', t('admViRefHe'), 4));
+  const lic = h('input', 'adm-search'); lic.maxLength = 80; lic.dir = 'auto'; lic.value = e.lic; lic.setAttribute('aria-label', t('admViRefLic')); lic.placeholder = t('admViRefLic'); lic.addEventListener('input', () => { e.lic = lic.value; });
+  p.append(grp(t('admViRefLic')), lic);
+  p.append(grp(t('admViRefMeta')), list(
+    row({ c: 'blue', ic: '⇄', t: t('admViRefTier'), v: e.tier === 'b' ? 'B' : 'A', on: () => { e.tier = e.tier === 'b' ? 'a' : 'b'; paint(); } }),
+    row({ c: 'blue', ic: '⇄', t: t('admViRefGenre'), v: e.genre, on: () => { e.genre = VR_GENRES[(VR_GENRES.indexOf(e.genre) + 1) % VR_GENRES.length]; paint(); } })));
+  const sv = h('button', 'btn', t('admViRefSave')); sv.type = 'button';
+  sv.addEventListener('click', async () => {
+    sv.disabled = true;
+    const r = await api('viRef', { job: job.id, ref: vrParse(e) });
+    sv.disabled = false;
+    if (!r.ok) { flash(r.error === 'bad_params' ? t('admViRefBad') : t('admErr') + ' · ' + (r.error || '')); return; }
+    flash(t('admViRefSaved')); needGold(true);
+  });
+  const br = h('div', 'btn-row'); br.append(sv);
+  if (job.vg) {
+    const del = h('button', 'btn secondary-btn', t('admViRefDel')); del.type = 'button';
+    del.addEventListener('click', () => askConfirm(t('admViRefDelQ'), async () => {
+      const r = await api('viRef', { job: job.id, ref: null });
+      if (!r.ok) { flash(t('admErr') + ' · ' + (r.error || '')); return; }
+      D.vrEd = null; needGold(true); go('viGold');
+    }, { danger: true, ok: t('admViRefDel') }));
+    br.append(del);
+  }
+  p.append(br, h('p', 'adm-foot', t('admViRefFoot')));
+} });
 /* ---- סשנים ומשימות (15/10/2026): משימות-פתוחות.md מהריפו — מה בעבודה ובידי איזה סשן, מה עם תאריך, PR פתוחים ---- */
 async function needTasks() {
   if (D.tk && Date.now() - D.tkAt < 60000) return;
@@ -2104,6 +2208,7 @@ page('lab', { tab: 'imp', parent: 'imp', title: () => t('admLabT'), render(p) {
     faRow(),
     dmRow(),
     fnlRow(),
+    viLabRow(),
     row({ c: 'red', ic: '✕', t: t('admLabFails'), s: fails.length ? ltr(fails[0].e) + ' · ' + fails[0].n : t('admLabFailsNone'), v: fails.length ? fails.reduce((a, x) => a + x.n, 0) : 0, on: () => go('labFails') }),
     row({ c: 'purple', ic: '⇆', t: t('admLabModes'), s: (v.modes || []).map((x) => modeTxt(x.m)).join(' · '), v: (v.modes || []).length, on: () => go('labModes') }),
     row({ c: 'blue', ic: '↻', t: t('admLabAfter'), s: fmt(t('admLabAfterS'), { e: (v.follow || {}).ed || 0, r: (v.follow || {}).rr || 0 }), v: nz(k.ht) ? pcTxt(k.ht) : '', tr: nz(k.ht) ? 'HTER' : '', on: () => go('labAfter') }),

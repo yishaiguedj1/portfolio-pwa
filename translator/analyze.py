@@ -32,11 +32,14 @@ import time
 import unicodedata
 from pathlib import Path
 
+import xflags
+
 VI_V = 'snb.video-analysis/1'
 VI_LANGS = ('he', 'en')
 VI_FROM = ('auto', 'he', 'en')   # 1.2א (9.3 סעיף 2): "אוטומטי" — vi-asr מזהה (vt/lang.py ‏main_lang); לא he/en → vi_lang
 VI_MAX_S = int(os.environ.get('VI_MAX_S') or 5400)                   # ב־MVP — 90 דק׳ (ה־0.4 מכייל)
 VI_WIN_TOK = int(os.environ.get('VI_WIN_TOK') or 12000)              # גודל חלון המיפוי (טוקנים, באומדן)
+VI_WIN_TOK_X = 18000                                                   # PR 1.6: דגל הניסוי vwin — חלון גדול יותר (פחות קריאות, יותר הקשר)
 # קודי השגיאה והאזהרה (נספח 19.3) — = VI_ERR ב־ibkr-proxy/lib/studiovi.js = STRINGS (tests/studio-vi.test.js)
 VI_FAIL = ('vi_off', 'vi_lang', 'vi_long', 'vi_card', 'vi_schema', 'cap')
 VI_WARN = ('vi_noscreen', 'vi_lowres', 'vi_ocr', 'vi_asr_low', 'vi_partial', 'vi_unver', 'vi_ledger', 'ts_coarse')
@@ -588,7 +591,7 @@ def vi_index(ev: list[dict], slides: list[dict], ocr: list[dict], words: list[di
 
 
 def vi_map(eng, mode: str, lang: str, ev: list[dict], slides: list[dict], ocr: list[dict], inv: dict, bnd: list[dict],
-           dur: float, words: list[dict], on_progress=None) -> dict:
+           dur: float, words: list[dict], on_progress=None, win_tok: int = 0) -> dict:
     """המיפוי כולו (rv): השלד, החלונות (מתחת לכרטיס — V36), קריאה לכל חלון והאיחוד. כישלון של כל החלונות → vi_schema;
     חלון שלא נכנס לכרטיס גם בשורה אחת → vi_card; תקרת העלות → cap (LLMError budget_cap)."""
     import llm
@@ -597,7 +600,7 @@ def vi_map(eng, mode: str, lang: str, ev: list[dict], slides: list[dict], ocr: l
     t0 = time.time()
     ix, inv_nums = vi_index(ev, slides, ocr, words, inv)
     fixed = visheet.system_fixed(visheet.skeleton(lang, bnd, inv, slides, ocr))
-    queue = win_plan(ev, slides, ocr, VI_WIN_TOK)
+    queue = win_plan(ev, slides, ocr, win_tok or VI_WIN_TOK)
     wins: list[dict] = []
     while queue:                                             # 5.5: חלון שלא נכנס לכרטיס — חוצים לשניים
         w = queue.pop(0)
@@ -1281,6 +1284,22 @@ def vi_reverify(J, ctx, engine=None) -> int:
     return 0
 
 
+def gold_score(vi: dict, spec: dict) -> dict | None:
+    """PR 1.6 (התוכנית 6.4): הרצת זהב — F1 של גבולות הפרקים מול הייחוס (spec.vrb = תחילת הפרקים בייחוס, מהשרתון),
+    ב־±5 וב־±10 שנ׳. = viMetrics בשרתון (vimetrics.metrics). בלי ייחוס / ניתוח לא תקין — None"""
+    vrb = spec.get('vrb') if isinstance(spec, dict) else None
+    if spec.get('vg') != 1 or not isinstance(vrb, list) or not vrb:
+        return None
+    import vimetrics
+    try:
+        m = vimetrics.metrics(vi, {'chapters': [{'t0': t} for t in vrb if isinstance(t, (int, float))]})
+    except Exception:                               # noqa: BLE001 — הציון משני; לא מפילים את סוף העבודה
+        return None
+    if not m or (m.get('ch_f1_5') is None and m.get('ch_f1_10') is None):
+        return None
+    return {'f5': m.get('ch_f1_5'), 'f10': m.get('ch_f1_10')}
+
+
 def vi_run(J, args, engine=None) -> int:
     """עבודת ניתוח. J = המודול job (כמו pipeline.run_auto). engine — לבדיקות (מנוע מדומה); אחרת make_engine."""
     ctx = J.Ctx(J.load_state())
@@ -1361,7 +1380,7 @@ def vi_run(J, args, engine=None) -> int:
         S.go('rv', 'ממפים את ההרצאה')
         try:
             m = vi_map(eng, str(spec.get('mode') or ''), lang, ev, slides, ocr, inv, bnd, dur, words,
-                       on_progress=lambda x: ctx.report('rv', 0.7 * x))
+                       on_progress=lambda x: ctx.report('rv', 0.7 * x), win_tok=VI_WIN_TOK_X if xflags.on(spec, 'vwin') else 0)
         except VIFail as e:
             S.end()
             lx = facts_safe(spec, lang, dur, None, None, eng, None, S.out, tr, words, screen, n_so, len(ocr), st='failed', err=e.code)
@@ -1388,7 +1407,7 @@ def vi_run(J, args, engine=None) -> int:
         vi = build_vi_live(lang, dur, src_kind, title, m, ev, slides, ocr, tr.get('quality') or 'ok', warn)
     (pd / 'vi.json').write_text(json.dumps(vi, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     (pd / 'cues.json').write_text(json.dumps(cues(words), ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
-    if info['video']:
+    if info['video'] and spec.get('vg') != 1:        # PR 1.6: הרצת זהב (vg) — בלי הסרטון באיכות מלאה (רק ה־vi.json נמדד)
         J.vt(ctx, ['vi-same', str(src), '--out', str(pd / 'same.mp4')], 'bn', 0.1, 1.0)
     # 6. שמירה
     S.go('sv', 'שומרים')
@@ -1402,6 +1421,7 @@ def vi_run(J, args, engine=None) -> int:
         up.append({'id': fid, 'name': name, 'size': size, 'k': k})
     S.end()
     vs = summary(vi)
+    vq = gold_score(vi, spec) if not dry else None
     facts = {'v': 1, 'lang': lang, 'dur': round(dur), 'stg': S.out, 'cpu': cpu_facts(), 'tok': tok, 'ev': len(ev), 'sl': len(slides),
              'ocr': len(ocr), 'so': n_so, 'w': len(words), 'ts': wd.get('ts'), 'asr': tr.get('quality'), 'warn': warn,
              'scr': {k: v for k, v in (screen.get('stats') or {}).items() if isinstance(v, (int, float))}}
@@ -1423,7 +1443,7 @@ def vi_run(J, args, engine=None) -> int:
     print(('VI_DRY ' if dry else 'VI_RUN ') + json.dumps(facts, separators=(',', ':')), flush=True)
     # vsm (לא vs: בדיווח של התרגום vs = גודל הגרסה הארוזה של איכויות הצפייה) — מספרים שלמים בלבד; השרתון שומר ב־job.vsm
     ctx.report(done=True, out=up, vsm=vs, msg='הניתוח היבש מוכן' if dry else 'הניתוח מוכן', force=True,
-               usage=(eng.ledger.list() or None) if eng else None, lx=lx)
+               usage=(eng.ledger.list() or None) if eng else None, lx=lx, **({'vq': vq} if vq else {}))
     for p in (src, wav):
         try:
             p.unlink()

@@ -223,5 +223,38 @@ function viMetrics(vi, ref) {
 /* עלות לשעת הרצאה (5.4, המעבדה): דולר × 3600 ÷ משך. משך לא ידוע — null */
 const viCostHour = (usd, dur) => (fin(usd, 0, 1e6) && fin(dur, 1, 86400) ? r4((usd * 3600) / dur) : null);
 
+/* ---------- PR 1.6 (10/11/2026): חבילת הייחוס של סט הזהב — snb.vi-ref/1 (התוכנית 6.3) ----------
+   המנהל עורך ומאשר בעמוד "ייחוס" (op viRef, מנהל בלבד). נשמרת בעבודת הניתוח עצמה (vrf, ב־JSON_FIELDS) — לא בריפו.
+   bounds = גבולות פרקים (רמה 1–2), units = יחידות תוכן במשקל 1–3, qa = שאלות עם תשובה, זמן ודגל "רק על המסך",
+   slides = שקפי מפתח, he = קטע תמליל ידני בעברית, meta = רישיון, דרגה (a/b) וז'אנר. שדה לא מוכר — נזרק */
+const VR_V = 'snb.vi-ref/1', VR_MAX = 48000, VR_CAP = { bounds: 80, units: 80, qa: 30, slides: 40 };
+const VR_TIERS = ['a', 'b'];
+function normViRef(o) {
+  if (!isObj(o)) return null;
+  const tt = (v) => (fin(v, 0, 86400) ? Math.round(v) : null);
+  const s = (v, max) => { const x = txt(v, max); return x ? x.trim() : ''; };
+  const bounds = list(o.bounds, VR_CAP.bounds).filter(isObj).map((b) => ({ t0: tt(b.t0), lv: b.lv === 2 ? 2 : 1, title: s(b.title, 160) }))
+    .filter((b) => b.t0 != null).sort((a, b) => a.t0 - b.t0 || a.lv - b.lv);
+  const units = list(o.units, VR_CAP.units).filter(isObj).map((u) => ({ text: s(u.text, 400), w: [1, 2, 3].includes(u.w) ? u.w : 1 })).filter((u) => u.text);
+  const qa = list(o.qa, VR_CAP.qa).filter(isObj).map((x) => ({ q: s(x.q, 300), a: s(x.a, 400), t: tt(x.t), so: x.so === 1 ? 1 : 0 })).filter((x) => x.q && x.a);
+  const slides = list(o.slides, VR_CAP.slides).filter(isObj).map((x) => ({ t: tt(x.t), text: s(x.text, 400) })).filter((x) => x.t != null && x.text);
+  const m = isObj(o.meta) ? o.meta : {};
+  const meta = { lic: s(m.lic, 80), tier: VR_TIERS.includes(m.tier) ? m.tier : 'a', genre: VI_GENRES.includes(m.genre) ? m.genre : 'other' };
+  const out = { v: VR_V, bounds, units, qa, slides, he: s(o.he, 4000), meta };
+  if (!bounds.length && !units.length && !qa.length) return null;   // ייחוס ריק — לא ייחוס
+  return Buffer.byteLength(JSON.stringify(out)) <= VR_MAX ? out : null;
+}
+/* מה שהעובד צריך לציון מול הייחוס: תחילת הפרקים ברמה 1, בשניות (גם הראשון — viMetrics מדלג עליו) */
+const viRefBounds = (ref) => (ref && Array.isArray(ref.bounds) ? ref.bounds.filter((b) => b.lv === 1).map((b) => b.t0).slice(0, VR_CAP.bounds) : []);
+const normVrb = (a) => (Array.isArray(a) ? a.filter((t) => fin(t, 0, 86400)).map(Math.round).sort((x, y) => x - y).slice(0, VR_CAP.bounds) : []);
+/* הציון של הרצת זהב מול הייחוס (העובד — vimetrics.py, בדיווח האחרון): F1 של הגבולות ב־±5 וב־±10 שנ׳, 0..1. חסר — null */
+function normVq(o) {
+  if (!isObj(o)) return null;
+  const p = (v) => (fin(v, 0, 1) ? r4(v) : null);
+  const f5 = p(o.f5), f10 = p(o.f10);
+  return f5 == null && f10 == null ? null : { f5, f10 };
+}
+
 module.exports = { VI_V, VI_LANGS, VI_FROM, VI_MAX_S, VI_FAIL, VI_WARN, VI_ERR, VI_OUTS, viSpec, viLangOk, viTooLong, viSummary,
-  VI_SEG, VI_SRC, VI_BASIS, VI_CONF, VI_VER, VI_DROP, VI_GENRES, VI_CAP, normVi, viMetrics, viCostHour, boundF1 };
+  VI_SEG, VI_SRC, VI_BASIS, VI_CONF, VI_VER, VI_DROP, VI_GENRES, VI_CAP, normVi, viMetrics, viCostHour, boundF1,
+  VR_V, VR_MAX, VR_CAP, normViRef, viRefBounds, normVrb, normVq };

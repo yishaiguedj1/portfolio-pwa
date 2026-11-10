@@ -406,8 +406,11 @@ function learnViRec(job, now, effState) {
   const f = normViLx(Object.assign({}, lx, { mode: MODES.includes(sp.mode) ? sp.mode : lx.mode, roles, gs: job.gs ? 1 : 0, xf: sp.xf,
     dur_s: isNum(lx.dur_s) ? lx.dur_s : sp.dur, lang: lx.lang || { src: sp.from, out: 'he' }, usd: use.length ? usdSum(use) : lx.usd })) || {};
   delete f.v;
+  // PR 1.6: הרצת זהב — מספר הזרוע בגל (wa) והציון מול הייחוס (vq: F1 של הגבולות) — לתצוגת הזהב ב־labVi
+  const vq = job.gs ? viC().normVq(job.vq) : null;
+  const gx = job.gs ? Object.assign(Number.isInteger(job.wa) && job.wa >= 0 && job.wa < 8 ? { wa: job.wa } : {}, vq ? { vq } : {}) : {};
   return Object.assign({ v: LR_V, k: 'vi', id, at: dayOf(job.created), m: monthOf(job.created), st: e.st, err: e.err, eng: 'api',
-    dur: isNum(f.dur_s) ? f.dur_s : 0, pr: priced(use) ? 1 : 0 }, f, { ux: normUx(job.ux) });
+    dur: isNum(f.dur_s) ? f.dur_s : 0, pr: priced(use) ? 1 : 0 }, f, gx, { ux: normUx(job.ux) });
 }
 /* טביעה — כתיבה רק כשמשהו השתנה */
 const recHash = (rec) => crypto.createHash('sha1').update(JSON.stringify(rec)).digest('hex').slice(0, 16);
@@ -839,8 +842,18 @@ function viView(records, now) {
     roles, fb: Object.entries(fb).sort((a, b) => b[1] - a[1]), errs: Object.entries(errs).sort((a, b) => b[1] - a[1]), warn: Object.entries(warn).sort((a, b) => b[1] - a[1]),
     weak: rs.filter((r) => r.st === 'done' && isNum(viVals(r).vsup)).sort((a, b) => viVals(a).vsup - viVals(b).vsup).slice(0, 5)
       .map((r) => ({ id: r.id.slice(0, 8), at: r.at, sup: rnd(viVals(r).vsup, 3), genre: r.genre || '', dur: r.dur, mode: r.mode || '' })),
-    gold: gold.length ? Object.assign({ n: gold.length }, viKpis(gold.filter((r) => r.at >= now - 90 * DAY))) : null,
+    gold: gold.length ? Object.assign({ n: gold.length }, viKpis(gold.filter((r) => r.at >= now - 90 * DAY)), { arms: viArms(gold.filter((r) => r.at >= now - 90 * DAY)) }) : null,
   };
+}
+/* PR 1.6 (התוכנית 6.4, 7.13): הזהב לפי "זרוע" = מצב + דגלי xf — המדדים, ה־F1 של הגבולות מול הייחוס (vq) והעלות לשעה.
+   ההכרעה (זוגות עיוורים, Wilson, ‏bootstrap — 6.7) — vimetrics.decide בעובד, על אותן רשומות */
+function viArms(rs) {
+  const by = {};
+  for (const r of rs) { const g = (r.mode || '?') + '|' + (Array.isArray(r.xf) && r.xf.length ? r.xf.join(',') : ''); (by[g] = by[g] || []).push(r); }
+  return Object.entries(by).map(([g, l]) => {
+    const d = l.filter((r) => r.st === 'done'), q = d.map((r) => r.vq).filter(Boolean);
+    return Object.assign({ g, f5: rnd(mean(q.map((x) => x.f5)), 3), f10: rnd(mean(q.map((x) => x.f10)), 3), nq: q.length }, viKpis(l));
+  }).sort((a, b) => b.n - a.n || (a.g < b.g ? -1 : 1)).slice(0, 8);
 }
 /* records = כל הרשומות (מכל המשתמשים, אנונימיות). now = עכשיו */
 function learnView(records, now) {
@@ -961,4 +974,4 @@ function learnBrief(view, now) {
 }
 
 module.exports = { CT_KINDS, ctView, versionsView, weekSum, VER_DIMS, VER_MET, normUx, mergeUx, UX_SHAPE, ED_KINDS, learnBrief, INS_HE, LR_V, lid, normLx, learnRec, recHash, learnView, kpis, insights, cacheSavable, MODES, STAGES,
-  VI_ROLES, VI_VDIMS, VF_WHY, VF_MAX, normViLx, learnViRec, viView, viKpis, viInsights };
+  VI_ROLES, VI_VDIMS, VF_WHY, VF_MAX, normViLx, learnViRec, viView, viKpis, viInsights, viArms };

@@ -385,5 +385,39 @@ const { fakeR2, ENV } = require('./_r2fake');
   db.get('studioJobs/' + pv.id).fields.vr = iv(0);
   ok((await api('remove', { job: pv.id })).ok && !db.has('studioJobs/' + CH2) && !db.has('studioJobs/' + pv.id), 'אמת שוב: מחיקת הניתוח מוחקת גם את עבודות־הבת');
 
+  /* ---------- 12. סט הזהב של הניתוח (PR 1.6, 10/11/2026): חבילת ייחוס (viRef, מנהל), מקור זהב, הרצת גל והציון מול הייחוס ---------- */
+  const gv = mkVi('G', { fv: sv({ id: 'R2_jViGxxxxxxxxxxxxxxxxx_srcvideozzz', name: 'talk.mp4', size: 10 }) });
+  const REF = { bounds: [{ t0: 0, lv: 1, title: 'פתיחה' }, { t0: 120, lv: 1, title: 'חלק ב' }, { t0: 130, lv: 2, title: 'משנה' }],
+    units: [{ text: 'הזיכרון נבנה בשני שלבים', w: 3 }, { text: '<b>x</b>', w: 9 }], qa: [{ q: 'מה?', a: 'כך', t: 125, so: 1 }], meta: { tier: 'z', genre: 'panel', lic: 'CC-BY' }, junk: 1 };
+  ok((await api('viRef', { job: gv.id, get: true })).ref === null, 'זהב ניתוח: לפני השמירה — אין ייחוס');
+  ok((await api('viRef', { job: gv.id, ref: { units: [] } })).error === 'bad_params', 'זהב ניתוח: ייחוס ריק — bad_params');
+  ok((await other('viRef', { job: gv.id, ref: REF })).error === 'no_job', 'זהב ניתוח: משתמש אחר — no_job');
+  let vgr = await api('viRef', { job: gv.id, ref: REF });
+  const gj = jobOf(gv.id);
+  ok(vgr.ok && vgr.job.vg === 1 && vgr.job.gd === null && gj.gd.vr === 1 && gj.vrf && gj.vrf.v === 'snb.vi-ref/1' && gj.vrf.units[1].w === 1 && gj.vrf.meta.tier === 'a' && !('junk' in gj.vrf),
+    'זהב ניתוח: הייחוס נשמר מנורמל (JSON, לא "[object Object]"), הניתוח מסומן (vg) ו־gd אמיתי שומר עליו מהניקויים');
+  ok((await api('viRef', { job: gv.id, get: true })).ref.bounds.length === 3 && S.goldSources([gj]).length === 1 && S.isGold(gj) && !S.isGold({ kind: 'tr', spec: { vi: 1 }, gd: { vr: 1 } }),
+    'זהב ניתוח: get מחזיר אותו, והניתוח הוא מקור זהב (goldSources)');
+  ok((await api('gold', { job: gv.id, ref: 'x'.repeat(12) })).error === 'no_srt', 'זהב ניתוח: סימון של התרגום (gold) — לא לניתוח');
+  // גל: זרוע עם הדגל vwin — העבודה שומרת את התוצרים של הניתוח, vg ו־vrb (תחילת הפרקים ברמה 1)
+  const wv = await api('goldRun', { ok: true, arms: [{ mode: 'haiku-medium', xf: ['vwin', 'nope'] }, { mode: 'haiku-high' }] });
+  const wc = (wv.jobs || []).map((x) => jobOf(x.id));
+  ok(wv.ok && wc.length === 2 && wc.every((c) => c.gs === gv.id && c.spec.vi === 1 && c.spec.vg === 1 && JSON.stringify(c.spec.vrb) === '[0,120]' && JSON.stringify(c.spec.out) === '[]' && !c.vrf)
+    && JSON.stringify(wc[0].spec.xf) === '["vwin"]' && wc[0].wa === 0 && wc[1].wa === 1, 'זהב ניתוח: "הרץ גל" — עבודת ניתוח לכל זרוע, עם vg, ‏vrb ו־xf (דגל לא מוכר נזרק)');
+  ok((await api('goldRun', { ok: true, arms: [{ mode: 'haiku-high' }] })).error === 'gold_busy', 'זהב ניתוח: גל שני בזמן שהראשון פתוח — gold_busy');
+  // העובד מדווח done עם vq — נשמר רק בהרצת זהב, ומוצג לטלפון
+  const GK = crypto.randomBytes(32).toString('base64url'), C0 = wv.jobs[0].id;
+  Object.assign(db.get('studioJobs/' + C0).fields, { kh: { stringValue: crypto.createHash('sha256').update(GK).digest('hex') }, kx: iv(R.now + 3600e3), state: { stringValue: 'running' } });
+  const gw = (op, b) => call(Object.assign({}, b, { op, job: C0, key: GK }), true).then((r) => r.j);
+  const vgu = await gw('r2wup', { size: nvi.length, type: 'application/json', name: 'talk.vi.json' });
+  await R.fetch(vgu.urls[1], { method: 'PUT', body: nvi });
+  await gw('r2wdone', { id: vgu.id, up: vgu.up });
+  await call({ op: 'report', job: C0, key: GK, done: true, out: [{ id: vgu.id, name: 'talk.vi.json', size: nvi.length, k: 'vi' }], vsm: { n: 5, ok: 5, cov: 80, so: 0, d: 600 }, vq: { f5: 0.5, f10: 2 } }, true);
+  ok(jobOf(C0).state === 'done' && jobOf(C0).vq.f5 === 0.5 && jobOf(C0).vq.f10 === null && (await api('job', { job: C0 })).job.vq.f5 === 0.5, 'זהב ניתוח: הציון מול הייחוס (vq) נשמר ומוצג; ערך מחוץ לטווח נזרק');
+  vgr = await api('viRef', { job: gv.id, ref: null });
+  ok(vgr.ok && vgr.job.vg === 0 && !jobOf(gv.id).gd && !jobOf(gv.id).vrf, 'זהב ניתוח: הסרה — הייחוס והסימון נמחקים');
+  ok((await api('viRef', { job: C0, get: true })).error === 'state', 'זהב ניתוח: ייחוס רק לניתוח מקורי (לא להרצת זהב)');
+  for (const c of wv.jobs) db.delete('studioJobs/' + c.id);
+
   console.log('\n' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL -', e); process.exit(1); });

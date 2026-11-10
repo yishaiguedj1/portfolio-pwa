@@ -50,6 +50,45 @@ const { fakeR2, ACC } = require('./_r2fake');
   ok(rec.ux && rec.ux.vi.o === 3 && rec.ux.vf.length === 1 && rec.xf.join() === 'dual' && rec.gs === 0, 'ux, xf ו־gs ברשומה');
   ok(!/my-private|ownerUid|"uid"|"name"/.test(JSON.stringify(rec)), 'ברשומה אין uid ושם קובץ');
   ok(LR.learnRec(Object.assign({}, vjob, { kind: 'rr' }), Date.now(), null) === null, 'הפקה מחדש של ניתוח — אין רשומה');
+  /* PR 1.6: הרצת זהב — wa ו־vq ברשומה; רשומה רגילה — בלי */
+  const gRec = LR.learnRec(Object.assign({}, vjob, { gs: 'jSrcxxxxxxxxxxxxxxxxx', wa: 1, vq: { f5: 0.4, f10: 0.75 }, spec: Object.assign({}, vjob.spec, { xf: ['vwin'] }) }), Date.UTC(2026, 9, 15), null);
+  ok(gRec.gs === 1 && gRec.wa === 1 && gRec.vq.f10 === 0.75 && !('wa' in rec) && !('vq' in rec), 'זהב (1.6): מספר הזרוע והציון מול הייחוס — רק בהרצת זהב');
+  const gNo = LR.learnRec(Object.assign({}, vjob, { wa: 2, vq: { f5: 1 } }), Date.UTC(2026, 9, 15), null);
+  ok(!('wa' in gNo) && !('vq' in gNo), 'זהב (1.6): עבודה רגילה לא נושאת wa/vq גם אם יש בה');
+  const GNOW = Date.UTC(2026, 9, 20);
+  const vv = LR.viView([Object.assign({}, rec, { at: GNOW - 86400e3 }), Object.assign({}, gRec, { at: GNOW - 86400e3 }), Object.assign({}, gRec, { at: GNOW - 86400e3, vq: { f5: 0.2, f10: 0.25 } }),
+    Object.assign({}, gRec, { at: GNOW - 86400e3, mode: 'haiku-high', xf: [], vq: null })], GNOW);
+  const arm = (g) => vv.gold.arms.find((x) => x.g === g);
+  ok(vv.k.n === 1 && vv.gold.n === 3 && vv.gold.arms.length === 2 && arm(gRec.mode + '|vwin').n === 2 && arm(gRec.mode + '|vwin').f10 === 0.5 && arm(gRec.mode + '|vwin').nq === 2
+    && arm('haiku-high|').nq === 0 && arm('haiku-high|').f10 === null, 'זהב (1.6): viView — הזרועות (מצב + דגלים), ממוצע F1 מול הייחוס; הזהב לא במדדים הרגילים');
+  /* PR 1.6: חבילת הייחוס snb.vi-ref/1 */
+  const R0 = VI.normViRef({ bounds: [{ t0: 300.4, lv: 2, title: 'ב' }, { t0: 0, title: 'א\u0007' }, { t0: -1 }, { t0: 90000 }], units: [{ text: ' יחידה ', w: 3 }, { text: '' }, { text: 'x', w: 7 }],
+    qa: [{ q: 'ש', a: 'ת', t: 61, so: 1 }, { q: 'ש' }], slides: [{ t: 5, text: 'שקף' }, { text: 'בלי זמן' }], he: 'קטע', meta: { tier: 'b', genre: 'nope', lic: 'CC' }, extra: 1 });
+  ok(R0.v === 'snb.vi-ref/1' && R0.bounds.length === 2 && R0.bounds[0].t0 === 0 && R0.bounds[0].title === 'א' && R0.bounds[1].t0 === 300 && R0.bounds[1].lv === 2
+    && R0.units.length === 2 && R0.units[0].text === 'יחידה' && R0.units[1].w === 1 && R0.qa.length === 1 && R0.qa[0].so === 1 && R0.slides.length === 1
+    && R0.meta.tier === 'b' && R0.meta.genre === 'other' && !('extra' in R0), 'ייחוס (1.6): normViRef — שדה לא מוכר, זמן מחוץ לטווח, טקסט ריק ותו בקרה נזרקים');
+  ok(VI.normViRef({ he: 'רק טקסט' }) === null && VI.normViRef(null) === null && VI.normViRef({ units: Array.from({ length: 80 }, () => ({ text: 'א'.repeat(400) })) }) === null,
+    'ייחוס (1.6): ריק (בלי פרקים, יחידות או שאלות) או גדול מ־VR_MAX — null');
+  ok(JSON.stringify(VI.viRefBounds(R0)) === '[0]' && JSON.stringify(VI.viRefBounds(null)) === '[]' && JSON.stringify(VI.normVrb([30.6, 'x', -2, 10])) === '[10,31]',
+    'ייחוס (1.6): viRefBounds — רק רמה 1; normVrb ממיין ומעגל');
+  ok(JSON.stringify(VI.normVq({ f5: 0.33333, f10: 1.2 })) === '{"f5":0.3333,"f10":null}' && VI.normVq({}) === null && VI.normVq('x') === null, 'ייחוס (1.6): normVq — 0..1, ארבע ספרות');
+  /* PR 1.6: goldClone/waveClone של ניתוח — התוצרים שלו נשמרים, vg + vrb; של תרגום — כמו קודם (SRT) */
+  const SS = require(path.join(root, 'ibkr-proxy/lib/studio.js'));
+  const vsrc = { id: 'jSrcxxxxxxxxxxxxxxxxx', kind: 'tr', state: 'done', folder: 'R2_jSrcxxxxxxxxxxxxxxxxx', fv: { id: 'x' }, gd: { vr: 1, n: 10, at: 1 },
+    vrf: VI.normViRef({ bounds: [{ t0: 0 }, { t0: 200 }], units: [{ text: 'u' }] }), spec: { vi: 1, vr: 1, eng: 'api', out: ['vi', 'cues'], mode: 'haiku-high', xf: ['smf'], vg: 1, vrb: [9] } };
+  const vc = SS.waveClone(vsrc, 'jNewxxxxxxxxxxxxxxxxx', 'u', 5, { mode: 'haiku-medium', xf: ['vwin'] }, 2);
+  ok(JSON.stringify(vc.spec.out) === '["vi","cues"]' && vc.spec.vg === 1 && JSON.stringify(vc.spec.vrb) === '[0,200]' && JSON.stringify(vc.spec.xf) === '["vwin"]' && vc.spec.vr === 1
+    && vc.wa === 2 && vc.gs === vsrc.id && vc.gr === '' && !vc.vrf && !vc.gd, 'זהב (1.6): waveClone של ניתוח — התוצרים, vg, ‏vrb מהייחוס, xf של הזרוע; בלי gr ובלי הייחוס עצמו');
+  const tc = SS.waveClone({ id: 'jTrxxxxxxxxxxxxxxxxxx', kind: 'tr', folder: 'R2_jTrxxxxxxxxxxxxxxxxxx', fv: { id: 'x' }, gd: { r: 'abcdefghijkl', n: 1, at: 1 }, spec: { out: ['compact'], mode: 'haiku-high' } }, 'jN2xxxxxxxxxxxxxxxxxx', 'u', 5, { mode: 'haiku-high', xf: [] }, 0);
+  ok(JSON.stringify(tc.spec.out) === '["srt"]' && !('vg' in tc.spec) && tc.gr === 'abcdefghijkl', 'זהב (1.6): waveClone של תרגום — כמו קודם');
+  ok(SS.isViGold(vsrc) && !SS.isViGold(Object.assign({}, vsrc, { vrf: null })) && !SS.isViGold(Object.assign({}, vsrc, { spec: { vi: 1, dry: 1 } })) && SS.goldSources([vsrc]).length === 1
+    && SS.publicJob(vsrc).vg === 1 && SS.publicJob(vsrc).gd === null && SS.publicJob(vsrc).vq === null, 'זהב (1.6): isViGold / goldSources / publicJob');
+  ok(SS.XF_KEYS.includes('vwin') && JSON.stringify(SS.normXf(['vwin', '-vwin', 'x'])) === '["-vwin","vwin"]', 'זהב (1.6): הדגל vwin ברשימה הסגורה');
+  const adm = fs.readFileSync(path.join(root, 'admin-app.js'), 'utf8');
+  ok(/page\('labVi'/.test(adm) && /page\('viGold'/.test(adm) && /page\('viRef'/.test(adm) && /api\('viRef', \{ job: job\.id, ref: vrParse\(e\) \}\)/.test(adm)
+    && /!j\.sm && !isVi\(j\)\), srcs = jobs\.filter/.test(adm) && /XF_KEYS\.filter\(\(k\) => \(k\[0\] === 'v'\) === !!vi\)/.test(adm), 'מרכז הניהול (1.6): labVi, ‏viGold, ‏viRef; עמוד הזהב של התרגום בלי ניתוחים; דגלי v… רק בגל של הניתוח');
+  const apiSrc = fs.readFileSync(path.join(root, 'ibkr-proxy/api/studio.js'), 'utf8');
+  ok(/if \(op === 'viRef'\) \{[\s\S]{0,400}if \(!isAdmin\(user\)\) return res\.status\(403\)/.test(apiSrc), 'viRef — מנהל בלבד');
   ok(LR.learnRec(Object.assign({}, vjob, { spec: Object.assign({}, vjob.spec, { vi: 0 }) }), Date.now(), null).k === 'tr', 'עבודת תרגום — כמו קודם');
 
   /* ---------- 2. אירועי השימוש (7.4) ---------- */
