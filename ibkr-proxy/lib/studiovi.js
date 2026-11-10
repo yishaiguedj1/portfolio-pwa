@@ -12,7 +12,7 @@ const VI_MAX_S = 5400;           // 90 דק׳ ב־MVP (גל 2 — יותר)
 const VI_FAIL = ['vi_off', 'vi_lang', 'vi_long', 'vi_card', 'vi_schema', 'cap'];
 const VI_WARN = ['vi_noscreen', 'vi_lowres', 'vi_ocr', 'vi_asr_low', 'vi_partial', 'vi_unver', 'vi_ledger', 'ts_coarse'];
 const VI_ERR = VI_FAIL.concat(VI_WARN);
-const VI_OUTS = ['vi', 'vis', 'cues', 'small', 'thumb'];   // התוצרים, בסדר ההעלאה (vtt ו־meta — לא בהרצה יבשה)
+const VI_OUTS = ['vi', 'vis', 'cues', 'same', 'thumb'];   // התוצרים, בסדר ההעלאה (vtt ו־meta — לא בהרצה יבשה) · 1.2ב: same (איכות מלאה, 4.4) במקום small
 
 /* החלק של הניתוח ב־spec (normSpec): null = לא עבודת ניתוח. הרצה יבשה (dry: בלי Claude; מודדים זמן, זיכרון
    וטוקנים). מה שלא שייך לניתוח — נדחה (bad_spec): קובץ כתוביות, תרגום בטלפון, העלאה מהאפליקציה, קריוקי, Routine,

@@ -1,6 +1,6 @@
 """ניתוח סרטונים — השלבים הכבדים בעובד (גל 0, PR 0.2; docs/studio-video-analysis-plan.md 3.1–3.3, 16.2).
 
-כל שלב הוא פקודת vt (‏vi-asr, ‏vi-align, ‏vi-screen, ‏vi-small), והמתזמר (translator/analyze.py) מריץ אותן דרך job.vt.
+כל שלב הוא פקודת vt (‏vi-asr, ‏vi-align, ‏vi-screen, ‏vi-same), והמתזמר (translator/analyze.py) מריץ אותן דרך job.vt.
 כך לכל אחת נרשמים זמן, שיא זיכרון וזמן מעבד ב־snb-timing.json (‏devPull), ותקלת זיכרון מסומנת כמו בתרגום.
 השלבים רצים ברצף ולא במקביל, כך שבכל רגע יש בזיכרון מודל אחד בלבד (3.3).
 
@@ -33,8 +33,7 @@ FRAME_H = 1080                 # פריים ל־OCR — עד 1080p (מחקר 8.5
 VIS_W = 1280                   # רוחב מרבי בחבילת השקפים (10.3)
 VIS_Q = 80                     # איכות WebP
 THUMB_W = 480
-SMALL_H = 480                  # עותק הצפייה — ‏480p בלי צריבה (4.4)
-SMALL_CRF = 30
+SAME_CRF = 20                  # הסרטון לנגן, כשאי אפשר להעתיק (4.4, ה4 — איכות מלאה, ברזולוציה של המקור)
 LOWRES_H = 480                 # מתחת לזה — ‏vi_lowres (קשה ל־OCR)
 GUARD_S = 2.0                  # שומר הזיכרון: דגימה כל 2 שנ׳ (3.3)
 GUARD_HI, GUARD_LO = 0.9, 0.6  # מעל 90% מההזמנה — פחות תהליכים; מתחת ל־60% — חוזרים לאט
@@ -240,7 +239,7 @@ def _asr(wav: str, lang: str, t0: float) -> dict:
         segs = [g for g in r.get("segments") or [] if str(g.get("text") or "").strip()]
         words, lid = lang_mix(wav, words_from_segments(segs), segs, "he")
         st = {k: v for k, v in (r.get("stats") or {}).items() if isinstance(v, (int, float)) and not isinstance(v, bool)}
-        return {"v": V, "lang": "he", "engine": r.get("engine"), "quality": r.get("quality") or "ok", "words": words,
+        return {"v": V, "vh": asr_he.V, "lang": "he", "engine": r.get("engine"), "quality": r.get("quality") or "ok", "words": words,
                 "stats": dict(st, **lid, n=len(words), s=round(time.time() - t0, 1)), "timing": r.get("timing") or {}}
     from . import asr_parakeet
     r = asr_parakeet.transcribe(wav, quantization="int8")
@@ -378,8 +377,8 @@ def screen(src: str, out_dir: Path, procs: int | None = None, mem_mb: float = 0.
     t0 = time.time()
     v = probe(Path(src)).get("video") or {}
     w, h = int(v.get("width") or 0), int(v.get("height") or 0)
-    res = {"v": V, "w": w, "h": h, "units": [], "noscreen": True, "lowres": bool(h and h < LOWRES_H),
-           "img": None, "stats": {}}
+    res = {"v": V, "vo": f"{S.V}.{O.V}", "w": w, "h": h, "units": [], "noscreen": True, "lowres": bool(h and h < LOWRES_H),
+           "img": None, "stats": {}}   # vo — גרסת הגלאי וה־OCR (ממדי הגרסה, מאגר הלמידה)
     if not w or not h:
         res["stats"] = {"wall_s": round(time.time() - t0, 1)}
         return res
@@ -464,15 +463,34 @@ def _safe(fn, x):
         return e
 
 
-# ---------------------------------------------------------------- עותק הצפייה
+# ---------------------------------------------------------------- הסרטון לנגן (4.4, ה4 — איכות מלאה)
 
-def small(src: str, out: Path, dur: float) -> None:
-    """‏480p בלי צריבה, בקידוד אחד (CRF) — לנגן של הניתוח (4.4). שורות "N%" ל־job.vt."""
+def same_plan(info: dict) -> tuple[bool, bool]:
+    """(להעתיק את התמונה, להעתיק את הקול): H.264 ב־4:2:0 — העתקה בלי קידוד; AAC (או בלי קול) — העתקה"""
+    v, a = info.get("video") or {}, info.get("audio")
+    cv = v.get("codec") == "h264" and v.get("pix_fmt") in ("yuv420p", "yuvj420p", None)
+    return cv, a is None or a.get("codec") == "aac"
+
+
+def same(src: str, out: Path, info: dict) -> str:
+    """הסרטון באיכות המקור, בלי צריבה — לנגן של הניתוח (במקום עותק 480p). התמונה מועתקת כשהיא H.264 (רק faststart),
+    אחרת — קידוד ברזולוציה של המקור; הקול — העתקה כש־AAC, אחרת AAC. העתקה שנכשלה → קידוד. מחזיר copy / mix / enc."""
     from .util import run_progress
-    cmd = [_ffmpeg(), "-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", str(src), "-map", "0:v:0", "-map", "0:a:0?",
-           "-vf", f"scale=-2:'min({SMALL_H},ih)'", "-c:v", "libx264", "-preset", "veryfast", "-crf", str(SMALL_CRF),
-           "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "64k", "-ac", "1", "-movflags", "+faststart", str(out)]
-    run_progress(cmd, dur, "עותק צפייה", every=0.05)
+    dur = float(info.get("duration") or 0) or 1.0
+    base = [_ffmpeg(), "-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", str(src), "-map", "0:v:0", "-map", "0:a:0?",
+            "-sn", "-dn", "-map_metadata", "-1"]
+    enc_v = ["-c:v", "libx264", "-preset", "veryfast", "-crf", str(SAME_CRF), "-pix_fmt", "yuv420p"]
+    enc_a = ["-c:a", "aac", "-b:a", "128k"]
+    cv, ca = same_plan(info)
+    if cv:
+        try:
+            run_progress(base + ["-c:v", "copy"] + (["-c:a", "copy"] if ca else enc_a) + ["-movflags", "+faststart", str(out)],
+                         dur, "הסרטון לנגן", every=0.1)
+            return "copy" if ca else "mix"
+        except subprocess.CalledProcessError:
+            log("הסרטון לנגן: ההעתקה נכשלה — מקודדים")
+    run_progress(base + enc_v + enc_a + ["-movflags", "+faststart", str(out)], dur, "הסרטון לנגן", every=0.05)
+    return "enc"
 
 
 def write(path: Path, data: dict) -> None:

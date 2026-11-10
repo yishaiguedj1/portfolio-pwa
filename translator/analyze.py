@@ -1,23 +1,24 @@
 """ניתוח סרטונים — המתזמר (גל 0, PR 0.2: שלד והרצה יבשה; docs/studio-video-analysis-plan.md 3.1–3.3, 4.1, 10, 16.2).
 
-job.py auto מפנה לכאן עבודה עם spec.vi. במצב dry אין קריאה ל־Claude. במצב חי (PR 1.2א) — המיפוי עם Claude,
-רק כש־SNB_VI_LIVE=1 בסביבת העובד (live_ok); בלעדיו — vi_off לפני הקליטה. סדר השלבים:
+job.py auto מפנה לכאן עבודה עם spec.vi. במצב dry אין קריאה ל־Claude. במצב חי — המיפוי (PR 1.2א), הסינתזה והאימות
+(PR 1.2ב) עם Claude, רק כש־SNB_VI_LIVE=1 בסביבת העובד (live_ok); בלעדיו — vi_off לפני הקליטה. סדר השלבים:
 
 | שלב | מה קורה |
 |---|---|
 | up | קליטה (קישור / קובץ), בדיקת אורך ושפה |
 | tr | שמע 16kHz → תמלול (פקודת vt ‏vi-asr; ‏"auto" — קודם השפה הראשית, vt/lang.py ‏main_lang) |
 | al | מסך: שקפים, OCR, חבילת WebP (‏vi-screen) · זמן לכל מילה ודוברים (‏vi-align) · יחידות ראיה (‏e/s/o), מלאים, "רק על המסך" ומועמדי גבול — כאן, בלי מודל |
-| rv | dry: מה שהמיפוי היה שולח, נספר ב־count_tokens (חינם). חי: vi_map — השלד בבלוק הקבוע (visheet.py), חלון לכל ~VI_WIN_TOK, תשובה של מזהים בלבד; הבדיקות בקוד (vicheck.py) קובעות את הזמנים ומסננות |
-| bn | ‏vi.json (חי: build_vi_live → norm_vi, ‏"טיוטה — לא אומתה" עד 1.2ב), ‏vis, ‏cues (התמליל), ‏small (‏480p), ‏thumb |
+| rv | dry: מה שהמיפוי היה שולח, נספר ב־count_tokens (חינם). חי: vi_map — השלד בבלוק הקבוע (visheet.py), חלון לכל ~VI_WIN_TOK, תשובה של מזהים בלבד; הבדיקות בקוד (vicheck.py) קובעות את הזמנים ומסננות · vi_synth — התקציר, התובנות, התזה והתמונה הגדולה מההערות (לא מהתמליל) · vi_verify — השופט (Haiku) מול הראיות ב־Citations: סותר — נמחק, לא נתמך — "הוסק" |
+| bn | ‏vi.json (חי: build_vi_live → norm_vi; אימות שלא הושלם — "טיוטה — לא אומתה"), ‏vis, ‏cues (התמליל), ‏same (הסרטון באיכות המקור, 4.4), ‏thumb |
 | sv | העלאה (‏VI_FILES דרך put_output) |
 
 כל שלב נרשם ב־snb-timing.json: שורה לכל פקודת vt (זמן, שיא MB, מעבד — job.vt), ושורת סיכום לכל שלב (`vi_<שלב>`).
 משם הנתונים מגיעים ל־devPull, יחד עם שורת VI_DRY / ‏VI_RUN בסוף היומן (דגלי המעבד, הטוקנים, המספרים, ובחי — map:
 חלונות, כשלים, ניסיונות תיקון, מיפוי חוזר, הסלמה, ספירת הבעיות לפי סוג). בלי שום טקסט של המשתמש — רק מספרים.
+מאגר הלמידה (7.2–7.5): ‏vi_facts (מספרים בלבד, ‏lx בדיווח האחרון) ו־vi_corpus (‏learnPut — השרתון מחליט אם לשמור ומצפין).
 
 חלק הבנייה (יחידות, מלאים, vi.json, האיחוד) הוא פונקציות טהורות. הבדיקות (tests/test_analyze.py, ‏test_vimap.py,
-‏test_vicheck.py) מריצות אותן על נתונים סינתטיים, ואת vi_run כולו על סרטון ש־ffmpeg מייצר, עם פקודות vt ומנוע מדומים.
+‏test_vicheck.py, ‏test_vi_learn.py) מריצות אותן על נתונים סינתטיים, ואת vi_run כולו על סרטון ש־ffmpeg מייצר, עם פקודות vt ומנוע מדומים.
 """
 
 from __future__ import annotations
@@ -48,7 +49,8 @@ VI_FILES = (
     ('vi', 'vi.json', ' (ניתוח).json', 'application/json'),
     ('vis', 'screen/vis.bin', ' (שקפים).bin', 'application/octet-stream'),
     ('cues', 'cues.json', '.cues.json', 'application/json'),
-    ('small', 'small.mp4', ' (צפייה).mp4', 'video/mp4'),
+    # 4.4 (ה4, ‏1.2ב): הסרטון לנגן באיכות המקור — במקום עותק 480p
+    ('same', 'same.mp4', ' (איכות מקור).mp4', 'video/mp4'),
     ('thumb', 'screen/thumb.jpg', ' (תמונה).jpg', 'image/jpeg'),
 )
 UNIT_MAX_S = 25.0               # יחידת דיבור — משפט, עד כ־25 שנ׳ (4.1)
@@ -437,6 +439,7 @@ def _ask(eng, fixed: str, w: dict, first: bool, fb: str) -> tuple[dict | None, i
         prompt = visheet.window_prompt(w['lines'], first, bool(getattr(eng, 'structured', False)), fb)
         res = eng.complete('vm', fixed, prompt, max_tokens=VM_MAX_OUT,
                            fmt=visheet.VM_SCHEMA if getattr(eng, 'structured', False) else None)
+        w['raw'] = str(res.text)[:RAW_MAX]                   # הטיוטה הגולמית (m0, מאגר הלמידה)
         try:
             return visheet.parse_vm(res.text), retries
         except visheet.SchemaError as e:
@@ -575,19 +578,25 @@ def merge_map(wins: list[dict], outs: list[dict], ix, bnd: list[dict], slides: l
             'chapters': out_ch, 'items': out_it, 'ledger': led, 'miss': miss, 'used': used, 'hang': hang}
 
 
+def vi_index(ev: list[dict], slides: list[dict], ocr: list[dict], words: list[dict], inv: dict):
+    """האינדקס של יחידות הראיה ומספרי המלאי — למיפוי, לסינתזה ולאימות"""
+    import vicheck
+    inv_nums: set = set()
+    for x in (inv or {}).get('num') or []:
+        inv_nums |= vicheck.nums(x.get('v'))
+    return vicheck.Index(ev, slides, ocr, words), inv_nums
+
+
 def vi_map(eng, mode: str, lang: str, ev: list[dict], slides: list[dict], ocr: list[dict], inv: dict, bnd: list[dict],
            dur: float, words: list[dict], on_progress=None) -> dict:
     """המיפוי כולו (rv): השלד, החלונות (מתחת לכרטיס — V36), קריאה לכל חלון והאיחוד. כישלון של כל החלונות → vi_schema;
     חלון שלא נכנס לכרטיס גם בשורה אחת → vi_card; תקרת העלות → cap (LLMError budget_cap)."""
     import llm
-    import vicheck
     import visheet
     llm.REFUSAL_BY_ROLE['vm'] = visheet.REFUSAL_VI          # 5.8: נוסח הסירוב של הניתוח (llm.refusal_text)
-    ix = vicheck.Index(ev, slides, ocr, words)
+    t0 = time.time()
+    ix, inv_nums = vi_index(ev, slides, ocr, words, inv)
     fixed = visheet.system_fixed(visheet.skeleton(lang, bnd, inv, slides, ocr))
-    inv_nums = set()
-    for x in (inv or {}).get('num') or []:
-        inv_nums |= vicheck.nums(x.get('v'))
     queue = win_plan(ev, slides, ocr, VI_WIN_TOK)
     wins: list[dict] = []
     while queue:                                             # 5.5: חלון שלא נכנס לכרטיס — חוצים לשניים
@@ -620,19 +629,419 @@ def vi_map(eng, mode: str, lang: str, ev: list[dict], slides: list[dict], ocr: l
     if wins and st['fail'] == len(wins):
         raise VIFail('vi_schema', 'המיפוי נכשל בכל החלונות')
     m = merge_map(wins, outs, ix, bnd, slides, dur)
-    m['st'] = dict(st, iss=issues, sh=visheet.sys_hash(), pv=visheet.PV)
+    m['st'] = dict(st, iss=issues, sh=visheet.sys_hash(), pv=visheet.PV, ms=int((time.time() - t0) * 1000))
+    m['raw'] = {'m0': '\n'.join(w.get('raw') or '' for w in wins)[:RAW_MAX],
+                'm1': json.dumps(m['items'], ensure_ascii=False, separators=(',', ':'))[:RAW_MAX]}
     return m
+
+
+# ---------------------------------------------------------------- הסינתזה והאימות (PR 1.2ב)
+VS_MAX_OUT = 6000               # תשובת הסינתזה
+VV_BATCH = 30                   # טענות בקריאת אימות אחת
+VV_EV = 6                       # ראיות לטענה באימות (הראשונות — הכי ישירות)
+VV_MAX_OUT = 2000
+VV_EV_CHARS = 1200              # טקסט ראיה באימות — עד כאן
+TAKE_MAX = 5                    # V54: ‏3–5 תובנות
+RAW_MAX = 200000                # טיוטה גולמית לקורפוס (dr) — עד כאן
+
+
+def _cnt(d: dict, codes) -> None:
+    for c in codes:
+        d[c] = d.get(c, 0) + 1
+
+
+def vi_synth(eng, m: dict, ix, inv_nums: set) -> dict:
+    """הסינתזה (vs, ‏V53–V56): מההערות שאחרי הבדיקות — לא מהתמליל. מוסיף פריטים (one/bluf/take/thesis/big), את
+    briefing/thesis/big ואת adds בפרקים הראשיים. נכשלה (סכמה פעמיים, תקלה, תקרה) — m נשאר כמו שהוא, ‏st.syn.ok = 0
+    (vi_partial; 3.5: תוצאה חלקית עדיפה על כישלון)."""
+    import llm
+    import vicheck
+    import visheet
+    st = {'ok': 0, 'retry': 0, 'n': 0, 'iss': {}, 'ms': 0}
+    m['st']['syn'] = st
+    if not m['items']:
+        return m
+    structured = bool(getattr(eng, 'structured', False))
+    d, fb, t0 = None, '', time.time()
+    try:
+        for _ in range(2):
+            res = eng.complete('vs', visheet.VS_SYS, visheet.synth_prompt(m['chapters'], m['items'], structured, fb),
+                               max_tokens=VS_MAX_OUT, fmt=visheet.VS_SCHEMA if structured else None)
+            m.setdefault('raw', {})['s0'] = str(res.text)[:RAW_MAX]
+            try:
+                d = visheet.parse_vs(res.text)
+                break
+            except visheet.SchemaError as e:
+                fb = 'Your previous answer was invalid: %s. Answer again, following the schema exactly.' % e
+                st['retry'] += 1
+    except llm.LLMError as e:
+        st['err'] = e.code
+    st['ms'] = int((time.time() - t0) * 1000)
+    if d is None:
+        return m
+    by_id = {it['id']: it for it in m['items']}
+    n = max(int(it['id'][1:]) for it in m['items'])
+    new: list[dict] = []
+
+    def add(stmt, kind):
+        nonlocal n
+        if not stmt or not stmt.get('text'):
+            return None
+        x, iss = vicheck.synth_item(stmt, kind, by_id, ix, inv_nums)
+        _cnt(st['iss'], iss)
+        if x is None:
+            return None
+        n += 1
+        it = {'id': 'n%d' % n, 'kind': kind, 'text': re.sub(r'\s+', ' ', x['text']).strip()[:2000], 'ev': x['ev']}
+        if 't' in x:
+            it['t'] = x['t']
+        it.update(src=x['src'], basis=x['basis'], conf=x['conf'], ver='unk')
+        new.append(it)
+        return it['id']
+    bf: dict = {'take': []}
+    for k in ('one', 'bluf'):
+        i = add(d[k], k)
+        if i:
+            bf[k] = i
+    for s in d['take'][:TAKE_MAX]:
+        i = add(s, 'take')
+        if i:
+            bf['take'].append(i)
+    th, big = add(d['thesis'], 'thesis'), add(d['big'], 'big')
+    # adds (V56) — רק לפרק ראשי, ובלי מספר שלא בהערות של הפרק או בראיות שלהן
+    main = {c['id']: c for c in m['chapters'] if c['lvl'] == 1}
+    for a in d['adds']:
+        c = main.get(a['ch'])
+        if not c or c.get('adds'):
+            continue
+        near = set()
+        for i in c['items']:
+            near |= vicheck.nums(by_id[i]['text']) if i in by_id else set()
+            for r in (by_id.get(i) or {}).get('ev') or []:
+                near |= vicheck.nums(ix.text(r))
+        if vicheck.nums(a['text']) - near - inv_nums:
+            _cnt(st['iss'], ['num_bad'])
+            continue
+        c['adds'] = re.sub(r'\s+', ' ', a['text']).strip()[:2000]
+    m['items'] = m['items'] + new
+    m['briefing'] = bf
+    if th:
+        m['thesis'] = th
+    if big:
+        m['big'] = big
+    st.update(ok=1, n=len(new))
+    return m
+
+
+def judge_engine(eng):
+    """האימות — השופט הקבוע (llm.JUDGE, ‏haiku-high), באותו ספר חשבונות ותקרה. מנוע ידני — אותו מנוע."""
+    import llm
+    if getattr(eng, 'manual', False) or not isinstance(eng, llm.Engine):
+        return eng
+    j = llm.Engine(llm.judge_spec(), cap_usd=eng.cap, client=eng._client, transport=eng.transport)
+    j.ledger = eng.ledger
+    return j
+
+
+def vi_verify(jeng, m: dict, ix, on_progress=None) -> dict:
+    """האימות (vv, ‏V75 ו־V78): כל פריט עם ראיות (חוץ מ"ידע חיצוני") מול הראיות שלו, ב־Citations. ‏con — נמחק;
+    ‏uns — "הוסק"; ‏sup בלי ציטוט מה־ev — part (5.3 סעיף 3); חסר בתשובה / קריאה שנכשלה — unk.
+    ‏st.vv.ok = 1 רק כשכל הקריאות הצליחו — אחרת הניתוח נשאר "טיוטה — לא אומתה" (vi_unver)."""
+    import llm
+    import vicheck
+    import visheet
+    st = {'ok': 0, 'n': 0, 'calls': 0, 'fail': 0, 'cite': 0, 'ms': 0, 'sup': 0, 'part': 0, 'uns': 0, 'con': 0, 'unk': 0, 'iss': {}}
+    m['st']['vv'] = st
+    claims = [it for it in m['items'] if it['ev'] and it['basis'] != 'external_knowledge']
+    st['n'] = len(claims)
+    has_c = isinstance(jeng, llm.Engine) and getattr(jeng, 'transport', '') == 'api'
+    verdicts: dict = {}
+    raw: list[str] = []
+    batches = [claims[i:i + VV_BATCH] for i in range(0, len(claims), VV_BATCH)]
+    t0 = time.time()
+    for bi, b in enumerate(batches):
+        cl = [{'id': it['id'], 'text': it['text'],
+               'ev': [{'id': r, 'text': vicheck.norm_ws(ix.text(r))[:VV_EV_CHARS]} for r in it['ev'][:VV_EV]]} for it in b]
+        blocks, refs = visheet.vv_blocks(cl)
+        try:
+            res = jeng.complete('vv', visheet.VV_SYS, blocks, max_tokens=VV_MAX_OUT)
+        except llm.LLMError as e:
+            st['fail'] += 1
+            st['err'] = e.code
+            if e.code == 'budget_cap':
+                st['fail'] += len(batches) - bi - 1
+                break
+            continue
+        st['calls'] += 1
+        st['cite'] += int(bool(res.cites))
+        raw.append(str(res.text))
+        got = visheet.parse_vv(res.text, res.cites, refs)
+        for it in b:
+            if it['id'] in got:
+                verdicts[it['id']] = got[it['id']]
+        if on_progress:
+            on_progress((bi + 1) / len(batches))
+    st['ms'] = int((time.time() - t0) * 1000)
+    m.setdefault('raw', {})['v0'] = '\n'.join(raw)[:RAW_MAX]
+    keep, gone = [], set()
+    for it in m['items']:
+        vd, cited = verdicts.get(it['id'], (None, set()))
+        x, iss = vicheck.apply_verdict(it, vd, cited, has_c)
+        _cnt(st['iss'], [c for c in iss if c != 'vv_none'])
+        if x is None:
+            gone.add(it['id'])
+            st['con'] += 1
+            continue
+        st[x['ver']] += 1
+        keep.append(x)
+    m['items'] = keep
+    if gone:
+        for c in m['chapters']:
+            c['items'] = [i for i in c['items'] if i not in gone]
+        bf = m.get('briefing') or {'take': []}
+        m['briefing'] = dict({k: v for k, v in bf.items() if k != 'take' and v not in gone},
+                             take=[i for i in bf.get('take') or [] if i not in gone])
+        for k in ('thesis', 'big'):
+            if m.get(k) in gone:
+                m.pop(k)
+        m['hang'] += vicheck.dangling(m['ledger'], {x['id'] for x in keep})
+    st['ok'] = int(st['fail'] == 0)
+    return m
+
+
+# ---------------------------------------------------------------- מאגר הלמידה של הניתוח (PR 1.2ב, התוכנית 7.2–7.5)
+# שני מטענים, ורק מה שברשימה המותרת: הרשומה המספרית (vi_facts → ‏lx בדיווח האחרון → ‏normViLx בשרתון, לתמיד) והקורפוס
+# (vi_corpus → ‏learnPut → ‏normViCorpus, מוצפן, 24 חודשים). השרתון מחליט אם לשמור (הדגל, המתג, רק המנהל) ומנקה שוב.
+# תקלה באיסוף לעולם לא מפילה את העבודה (כמו job.learn_safe).
+VC_V = 1                                    # **זהה ל־VC_V ב־ibkr-proxy/lib/vicorpus.js** (גרסת הקורפוס)
+VK_STAGES = ('m0', 'm1', 's0', 'v0')        # **זהה ל־VK_STAGES שם**: מיפוי גולמי, אחרי הבדיקות, סינתזה גולמית, אימות
+LX_ROLES = ('vm', 'vs', 'vv')               # התפקידים שרצים היום (vl, ‏vx, ‏vc — בגלים הבאים)
+REJ_CODES = ('num_bad', 'empty', 'vv_con')  # קודים שמוחקים פריט (counts.rej)
+VC_MAX_B64 = 2400000                        # = job.LC_MAX_B64 (השרתון מקבל עד LC_MAX_BODY)
+VC_DROPS = ((), ('dr',), ('dr', 'tr'), ('dr', 'tr', 'scr'))   # גדול מדי — מוותרים קודם על הטיוטות, אחר כך על התמליל
+HEX_RE = re.compile(r'^[0-9a-f]{7,12}$')
+ENG_RE = re.compile(r'^[a-z][a-z0-9_-]{0,15}$')
+
+
+def _eff(eng) -> str | None:
+    return getattr(getattr(eng, 'spec', None), 'effort', None)
+
+
+def _model(eng) -> str | None:
+    return getattr(getattr(eng, 'spec', None), 'model', None)
+
+
+def lx_roles(m: dict | None, eng, jeng=None) -> dict:
+    """לכל תפקיד: הטוקנים והעלות מהספר המשותף, המאמץ מהמנוע, הזמן והניסיונות מ־m['st']"""
+    st = (m or {}).get('st') or {}
+    syn, vv = st.get('syn') or {}, st.get('vv') or {}
+    th = dict(getattr(eng, 'think', None) or {})
+    if jeng is not None and jeng is not eng:
+        th.update(getattr(jeng, 'think', None) or {})
+    rows = {r.get('k'): r for r in (eng.ledger.list() if eng is not None else [])}
+    out = {}
+    for k in LX_ROLES:
+        r = rows.get(k)
+        x = {}
+        if r:
+            x = {'model': r.get('m'), 'in': int(r.get('i') or 0), 'out': int(r.get('o') or 0), 'cr': int(r.get('cr') or 0),
+                 'cw': int(r.get('c5') or 0) + int(r.get('c1') or 0), 'n': int(r.get('n') or 0)}
+            if isinstance(r.get('usd'), (int, float)):
+                x['usd'] = round(float(r['usd']), 6)
+        e = _eff(jeng if k == 'vv' and jeng is not None else eng)
+        if x and e:
+            x['eff'] = e
+        if k in th and x:
+            x['th'] = int(th[k])
+        ms, rt = {'vm': (st.get('ms'), st.get('retry')), 'vs': (syn.get('ms'), syn.get('retry')), 'vv': (vv.get('ms'), None)}[k]
+        if x and isinstance(ms, int):
+            x['ms'] = ms
+        if x and isinstance(rt, int):
+            x['retry'] = rt
+        if x:
+            out[k] = x
+    return out
+
+
+def cov3(vi: dict) -> list[float] | None:
+    """לכל שליש של הסרטון: חלק יחידות הדיבור שפריט כלשהו מצטט (V79 — הכיסוי לא נופל באמצע)"""
+    dur = (vi.get('video') or {}).get('dur') or 0
+    ev = vi.get('evidence') or []
+    if dur <= 0 or not ev:
+        return None
+    used = {r for it in vi.get('items') or [] for r in it.get('ev') or []}
+    out = []
+    for k in range(3):
+        lo, hi = dur * k / 3, dur * (k + 1) / 3
+        us = [e for e in ev if lo <= e['t0'] < hi or (k == 2 and e['t0'] >= hi)]
+        out.append(round(sum(1 for e in us if e['id'] in used) / len(us), 4) if us else 0.0)
+    return out
+
+
+def vi_facts(spec: dict, lang: str, dur: float, vi: dict | None, m: dict | None, eng, jeng, stages: dict, tr: dict,
+             words: list, screen: dict, n_so: int, n_ocr: int, st: str = 'done', err: str | None = None) -> dict:
+    """הרשומה המספרית (7.2) — מספרים ו־enum בלבד, בלי טקסט. = הרשימה של normViLx (translator/tests/fixtures/vi_facts.json)"""
+    import vimetrics
+    import visheet
+    out: dict = {'v': 1, 'lang': {'src': lang, 'out': 'he'}, 'dur_s': round(float(dur or 0), 1), 'out': {'st': st}}
+    if spec.get('mode'):
+        out['mode'] = str(spec['mode'])
+    if err:
+        out['out']['err'] = err
+    roles = lx_roles(m, eng, jeng)
+    if roles:
+        out['roles'] = roles
+    tot = eng.ledger.total() if eng is not None else None
+    if tot is not None:
+        out['usd'] = round(tot, 6)
+    ex = vimetrics.worker_extra(vi or {'video': {'dur': dur}, 'ocr': []}, words)
+    a = {k: v for k, v in (('conf', ex.get('asr_conf')), ('low', ex.get('asr_low')), ('wpm', ex.get('wpm'))) if v is not None}
+    eng_name = str(tr.get('engine') or '').lower()
+    if ENG_RE.match(eng_name):
+        a['eng'] = eng_name
+    if a:
+        out['asr'] = a
+    stt = (screen or {}).get('stats') or {}
+    sc = {}
+    if vi:
+        sc = {'n_slides': len(vi['slides']), 'n_states': sum(len(s.get('states') or []) for s in vi['slides'])}
+        if ex.get('ocr_conf') is not None:
+            sc['ocr_conf'] = round(ex['ocr_conf'] / 100, 4)          # vimetrics — 0–100; ‏normViLx — 0–1
+    if n_ocr:
+        sc['so_share'] = round(n_so / n_ocr, 4)
+    for k, f in (('n_cuts', 'cuts'), ('pip', 'pip')):              # כשהגלאי מדווח (עוד לא)
+        if isinstance(stt.get(f), int) and not isinstance(stt.get(f), bool):
+            sc[k] = stt[f]
+    if sc:
+        out['scr'] = sc
+    if vi:
+        out['genre'] = vi.get('genre')
+        out['n_spk'] = len({e['spk'] for e in vi['evidence'] if e.get('spk')})
+        its = vi['items']
+        c = {'claims': len(its)}
+        for v in ('sup', 'part', 'uns', 'unk'):
+            c[v] = sum(1 for x in its if x.get('ver') == v)
+        iss = [(m or {}).get('st', {}).get('iss') or {}] + [((m or {}).get('st', {}).get(k) or {}).get('iss') or {} for k in ('syn', 'vv')]
+        c['ts_off'] = int(iss[0].get('q_bad') or 0)                 # ציטוט שלא נמצא — הזמן מתחילת היחידה, לא מהמילה
+        c['rej'] = sum(int(d.get(k) or 0) for d in iss for k in REJ_CODES)
+        mt = vimetrics.metrics(vi) or {}
+        c['kf_total'], c['kf_used'] = mt.get('kf_total', 0), mt.get('kf_used', 0)
+        c3 = cov3(vi)
+        if c3:
+            c['cov3'] = c3
+        out['counts'] = c
+        w = list((vi.get('quality') or {}).get('warn') or [])
+        if w:
+            out['warn'] = w
+    t = {k: round(v['s'] / 60, 3) for k, v in (stages or {}).items() if isinstance(v, dict) and isinstance(v.get('s'), (int, float))}
+    if t:
+        out['t'] = t
+    mem = {k: int(v['mb']) for k, v in (stages or {}).items() if isinstance(v, dict) and isinstance(v.get('mb'), (int, float)) and v['mb'] > 0}
+    if mem:
+        out['mem'] = mem
+    w = re.sub(r'[^0-9a-f]', '', os.environ.get('SNB_VERSION', '').lower())[:12]
+    if HEX_RE.match(w):
+        out['build'] = {'worker': w}
+    pv = {'vp': str(visheet.PV)}
+    for k, v in (('vo', (screen or {}).get('vo')), ('vh', (tr or {}).get('vh'))):
+        if v is not None:
+            pv[k] = str(v)
+    out['pv'] = pv
+    xf = [str(x) for x in spec.get('xf') or [] if isinstance(x, str)]
+    if xf:
+        out['xf'] = xf[:8]
+    return out
+
+
+def vi_refs(pd: Path, spec: dict) -> list[dict]:
+    """7.5: הייחוסים שיש ברגע העבודה — התיאור והפרקים של היוצר (ref/desc.json, ‏job.learn_refs_start מקישור).
+    אין — רשימה ריקה. המצגת, הסיכום האנושי והזהב — בגלים הבאים (מהטלפון)."""
+    d = _read_json(pd / 'ref' / 'desc.json')
+    if not isinstance(d, dict):
+        return []
+    kind = 'yt' if 'youtu' in str(spec.get('url') or '') else 'url'
+    out = []
+    if isinstance(d.get('desc'), str) and d['desc'].strip():
+        out.append({'src': 'desc', 'kind': kind, 'data': d['desc'][:20000]})
+    ch = [[float(c[0]), str(c[1])[:300]] for c in d.get('ch') or []
+          if isinstance(c, (list, tuple)) and len(c) == 2 and isinstance(c[0], (int, float)) and str(c[1]).strip()]
+    if ch:
+        out.append({'src': 'ch', 'kind': kind, 'data': ch[:400]})
+    return out
+
+
+def vi_corpus(spec: dict, vi: dict, m: dict, eng, jeng, refs: list[dict]) -> dict:
+    """הקורפוס (7.3) — מערכים קומפקטיים, = הרשימה של normViCorpus. בלי שם הסרטון, הקישור או שם הקובץ."""
+    import visheet
+    ch_of = {i: c['id'] for c in vi['chapters'] for i in c.get('items') or []}
+    oc = {o['id']: o for o in vi['ocr']}
+    st = m.get('st') or {}
+    roles = lx_roles(m, eng, jeng)
+    out: dict = {
+        'v': VC_V,
+        'tr': [[e['id'], e['t0'], e['t1'], e.get('spk') or 'S?', e['text'], e.get('conf')] for e in vi['evidence']],
+        'scr': [[s['id'], s['t0'], s['t1'], s.get('kind') or 'slide', [[x['k'], x['t0']] for x in s.get('states') or []],
+                 [[oc[i]['text'], oc[i].get('conf'), oc[i].get('lang')] for i in s.get('ocr') or [] if i in oc]]
+                for s in vi['slides']],
+        'ol': [[c['id'], c['t0'], c['t1'], c.get('lvl') or 1, c.get('title') or '', None] for c in vi['chapters']],
+        'it': [[x['id'], x.get('kind'), ch_of.get(x['id']), x['text'], x.get('ev') or [], x.get('q'), x.get('basis'),
+                x.get('conf'), x.get('ver')] for x in vi['items']],
+        'led': [[r['ref'], r.get('used') or r.get('drop')] for r in vi['ledger']],
+        'rej': [[sg, c, int(n), None] for sg, d in (('m1', st.get('iss')), ('s0', (st.get('syn') or {}).get('iss')),
+                                                    ('v0', (st.get('vv') or {}).get('iss'))) for c, n in sorted((d or {}).items())],
+        'dr': {k: v for k, v in (m.get('raw') or {}).items() if k in VK_STAGES and v},
+        'cf': {'genre': vi.get('genre'), 'mode': str(spec.get('mode') or '') or None, 'pv': visheet.PV,
+               'sys_hash': visheet.sys_hash(),
+               'st': {k: [r['model'], r.get('eff')] for k, r in roles.items() if r.get('model')}},
+        'tk': [[k, r.get('in', 0), r.get('out', 0), r.get('cr', 0), r.get('cw', 0), r.get('usd'), r.get('ms', 0)] for k, r in roles.items()],
+        'refs': refs,
+    }
+    return out
+
+
+def vi_learn_put(J, ctx, data: dict) -> bool:
+    """הקורפוס לשרתון (learnPut) — gzip+base64; גדול מדי → בלי הטיוטות, ואז בלי התמליל. תקלה — רק שורה בלוג."""
+    stop = getattr(J, 'Stop', None)
+    try:
+        import base64
+        import gzip
+        for drop in VC_DROPS:
+            x = {k: v for k, v in data.items() if k not in drop}
+            b = base64.b64encode(gzip.compress(json.dumps(x, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))).decode('ascii')
+            if len(b) <= VC_MAX_B64:
+                j = ctx.c.raw('learnPut', lc=b) or {}
+                if not j.get('saved'):
+                    print('· מאגר הלמידה (ניתוח): לא נשמר (' + str(j.get('error') or 'השרתון לא שמר')[:40] + ')')
+                return bool(j.get('saved'))
+        print('· מאגר הלמידה (ניתוח): לא נשמר (גדול מדי)')
+        return False
+    except Exception as e:                          # noqa: BLE001 — מידע משני; אבל לא בשקט
+        if stop is not None and isinstance(e, stop):
+            raise
+        print('· מאגר הלמידה (ניתוח): לא נשמר (' + type(e).__name__ + ')')
+        return False
+
+
+def facts_safe(*a, **k) -> dict | None:
+    """vi_facts לדיווח האחרון — תקלה כאן לא מפילה את סוף העבודה"""
+    try:
+        return vi_facts(*a, **k)
+    except Exception as e:                          # noqa: BLE001
+        print('· מאגר הלמידה (ניתוח): בלי הרשומה המספרית (' + type(e).__name__ + ')')
+        return None
 
 
 def build_vi_live(lang: str, dur: float, src_kind: str, title: str, m: dict, ev: list[dict], slides: list[dict],
                   ocr: list[dict], asr_q: str, warn: list[str]) -> dict:
-    """vi.json אחרי המיפוי (19.1) — כבר מנורמל (vicheck.norm_vi = מה שהטלפון יציג). ‏sup = 0 והאזהרה vi_unver עד
-    האימות (PR 1.2ב). ‏cov = חלק השקפים ושורות "רק על המסך" שנוצלו או נדחו בכוונה (V79)."""
+    """vi.json (19.1) — כבר מנורמל (vicheck.norm_vi = מה שהטלפון יציג). ‏vi_unver — כשהאימות לא רץ או לא הושלם
+    (3.5: "טיוטה — לא אומתה"); ‏vi_partial — חלון שנכשל או סינתזה שנכשלה. ‏sup = הפריטים שאומתו במלואם.
+    ‏cov = חלק השקפים ושורות "רק על המסך" שנוצלו או נדחו בכוונה (V79)."""
     import vicheck
     import visheet
     tot = len(m['ledger'])
-    w = list(warn) + ['vi_unver']
-    if m['st']['fail']:
+    vv, syn = m['st'].get('vv') or {}, m['st'].get('syn') or {}
+    w = list(warn) + ([] if vv.get('ok') else ['vi_unver'])
+    if m['st']['fail'] or ('syn' in m['st'] and not syn.get('ok')):
         w.append('vi_partial')
     if m['hang']:
         w.append('vi_ledger')
@@ -640,8 +1049,9 @@ def build_vi_live(lang: str, dur: float, src_kind: str, title: str, m: dict, ev:
           'video': {'dur': round(dur, 2), 'src': src_kind, 'title': title[:200]},
           'evidence': [{k: v for k, v in u.items() if k != 'ts'} for u in ev],
           'slides': slides, 'ocr': ocr, 'segments': m['segments'], 'chapters': m['chapters'], 'items': m['items'],
-          'briefing': {'take': []}, 'ledger': m['ledger'],
-          'quality': {'items': len(m['items']), 'sup': 0, 'cov': round(1 - m['miss'] / tot, 3) if tot else 1,
+          'briefing': m.get('briefing') or {'take': []}, 'thesis': m.get('thesis'), 'big': m.get('big'), 'ledger': m['ledger'],
+          'quality': {'items': len(m['items']), 'sup': sum(1 for x in m['items'] if x.get('ver') == 'sup'),
+                      'cov': round(1 - m['miss'] / tot, 3) if tot else 1,
                       'asr': {'ok': 'high'}.get(asr_q, asr_q if asr_q in ('high', 'med', 'low') else 'med'),
                       'warn': [x for x in dict.fromkeys(w) if x in VI_WARN]}}
     return vicheck.norm_vi(vi)
@@ -856,7 +1266,7 @@ def vi_run(J, args, engine=None) -> int:
     n_so = screen_only(slides, ocr, words)
     inv = inventories(ev, slides, ocr)
     bnd = bounds(ev, slides)
-    eng, m = None, None
+    eng, jeng, m = None, None, None
     if dry:
         # 4. מה היה נשלח ל־Claude — נספר בלבד
         S.go('rv', 'סופרים את הטוקנים (בלי לשלוח)')
@@ -864,17 +1274,26 @@ def vi_run(J, args, engine=None) -> int:
         tok['img'] = sum(int(s['img']['w']) * int(s['img']['h']) // IMG_TOK_DIV for s in slides if s.get('img'))
         tok['h'] = int(round(tok['tok'] * 3600 / dur)) if dur > 0 else 0
     else:
-        # 4. המיפוי עם Claude (1.2א). הסינתזה והאימות — 1.2ב; עד אז הניתוח "טיוטה — לא אומתה" (vi_unver)
+        # 4. עם Claude: המיפוי (1.2א, ‏0–70%), הסינתזה (1.2ב, ‏70–85%) והאימות מול הראיות (85–100%). סינתזה שנכשלה —
+        # vi_partial; אימות שלא הושלם — "טיוטה — לא אומתה" (vi_unver). שניהם לא מפילים את העבודה (3.5)
         eng = engine or make_engine(ctx.st)
         if hasattr(J, 'LIVE_USAGE'):
             J.LIVE_USAGE = eng.ledger.list
         S.go('rv', 'ממפים את ההרצאה')
         try:
             m = vi_map(eng, str(spec.get('mode') or ''), lang, ev, slides, ocr, inv, bnd, dur, words,
-                       on_progress=lambda x: ctx.report('rv', x))
+                       on_progress=lambda x: ctx.report('rv', 0.7 * x))
         except VIFail as e:
-            ctx.report(fail=True, err=e.code, msg=str(e)[:200], force=True, usage=eng.ledger.list() or None)
+            S.end()
+            lx = facts_safe(spec, lang, dur, None, None, eng, None, S.out, tr, words, screen, n_so, len(ocr), st='failed', err=e.code)
+            ctx.report(fail=True, err=e.code, msg=str(e)[:200], force=True, usage=eng.ledger.list() or None, lx=lx)
             raise SystemExit('✗ ניתוח: %s' % e.code) from None
+        ix, inv_nums = vi_index(ev, slides, ocr, words, inv)
+        ctx.report('rv', 0.7, 'מסכמים', force=True)
+        vi_synth(eng, m, ix, inv_nums)
+        jeng = judge_engine(eng)
+        ctx.report('rv', 0.85, 'מאמתים מול הראיות', force=True)
+        vi_verify(jeng, m, ix, on_progress=lambda x: ctx.report('rv', 0.85 + 0.15 * x))
         tot = eng.ledger.total()
         tok = {'win': m['st']['win'], 'src': 'usage', 'usd': round(tot, 4) if tot is not None else None,
                'in': sum(int(r.get(f) or 0) for r in eng.ledger.list() for f in ('i', 'cr', 'c5', 'c1')),
@@ -891,7 +1310,7 @@ def vi_run(J, args, engine=None) -> int:
     (pd / 'vi.json').write_text(json.dumps(vi, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     (pd / 'cues.json').write_text(json.dumps(cues(words), ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     if info['video']:
-        J.vt(ctx, ['vi-small', str(src), '--out', str(pd / 'small.mp4')], 'bn', 0.1, 1.0)
+        J.vt(ctx, ['vi-same', str(src), '--out', str(pd / 'same.mp4')], 'bn', 0.1, 1.0)
     # 6. שמירה
     S.go('sv', 'שומרים')
     res = [(k, pd / fn, title + sfx, mime) for k, fn, sfx, mime in VI_FILES if (pd / fn).is_file() and (pd / fn).stat().st_size > 0]
@@ -907,12 +1326,25 @@ def vi_run(J, args, engine=None) -> int:
     facts = {'v': 1, 'lang': lang, 'dur': round(dur), 'stg': S.out, 'cpu': cpu_facts(), 'tok': tok, 'ev': len(ev), 'sl': len(slides),
              'ocr': len(ocr), 'so': n_so, 'w': len(words), 'ts': wd.get('ts'), 'asr': tr.get('quality'), 'warn': warn,
              'scr': {k: v for k, v in (screen.get('stats') or {}).items() if isinstance(v, (int, float))}}
+    lx = None
     if m:
         facts['map'] = m['st']
+        # 7.2–7.5: מאגר הלמידה — הרשומה המספרית בדיווח האחרון, הקורפוס לפניו. השרתון מחליט אם לשמור
+        lx = facts_safe(spec, lang, dur, vi, m, eng, jeng, S.out, tr, words, screen, n_so, len(ocr))
+        th = (getattr(J, '_REF', None) or {}).get('t')       # התיאור והפרקים (job.learn_refs_start, מתחילת העבודה)
+        if th is not None and th.is_alive():
+            th.join(getattr(J, 'REF_JOIN_S', 30))
+        try:
+            corpus = vi_corpus(spec, vi, m, eng, jeng, vi_refs(pd, spec))
+        except Exception as e:                      # noqa: BLE001 — מידע משני
+            corpus = None
+            print('· מאגר הלמידה (ניתוח): בלי הקורפוס (' + type(e).__name__ + ')')
+        if corpus and hasattr(ctx, 'c'):
+            vi_learn_put(J, ctx, corpus)
     print(('VI_DRY ' if dry else 'VI_RUN ') + json.dumps(facts, separators=(',', ':')), flush=True)
     # vsm (לא vs: בדיווח של התרגום vs = גודל הגרסה הארוזה של איכויות הצפייה) — מספרים שלמים בלבד; השרתון שומר ב־job.vsm
     ctx.report(done=True, out=up, vsm=vs, msg='הניתוח היבש מוכן' if dry else 'הניתוח מוכן', force=True,
-               usage=(eng.ledger.list() or None) if eng else None)
+               usage=(eng.ledger.list() or None) if eng else None, lx=lx)
     for p in (src, wav):
         try:
             p.unlink()
