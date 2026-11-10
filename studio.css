@@ -1283,8 +1283,8 @@ html.st-dock .toast { bottom: calc(var(--dock-h, 120px) + 12px + env(safe-area-i
 .st-vi-tag { display: inline-block; margin-inline-start: 6px; padding: 0 8px; border: 1px solid var(--separator); border-radius: var(--pill); font-size: 12px; color: var(--on-surface-var); white-space: nowrap; }
 .st-vi-toc .st-vi-t, .st-vi-txr .st-vi-t { flex: none; font-size: 13px; color: var(--on-surface-var); }
 .st-vi-chs { display: grid; gap: 10px; }
-.st-vi-ch > summary, .st-vi-tx > summary { list-style: none; cursor: pointer; }
-.st-vi-ch > summary::-webkit-details-marker, .st-vi-tx > summary::-webkit-details-marker { display: none; }
+.st-vi-ch > summary, .st-vi-tx > summary, .st-vi-vw > summary, .st-vi-defs > summary { list-style: none; cursor: pointer; }
+.st-vi-ch > summary::-webkit-details-marker, .st-vi-tx > summary::-webkit-details-marker, .st-vi-vw > summary::-webkit-details-marker, .st-vi-defs > summary::-webkit-details-marker { display: none; }
 .st-vi-chb { display: grid; gap: 12px; padding: 0 14px 14px; }
 .st-vi-sum, .st-vi-adds { margin: 0; line-height: 1.5; }
 .st-vi-adds { color: var(--on-surface-var); font-size: 15px; }
@@ -1315,4 +1315,19 @@ html.st-dock .toast { bottom: calc(var(--dock-h, 120px) + 12px + env(safe-area-i
 .st-vi-sht { margin-block: 0; color: var(--on-surface-var); font-size: 15px; line-height: 1.45; }
 .st-vi-shsl p { margin: 0; padding: 4px 12px; font-size: 14px; }
 .st-vi-shsl:not(.st-vi-sl) { padding-block: 8px; border-radius: var(--radius-xs); background: var(--st-fill); }
+/* PR 2.1 (10/11/2026): התצוגה (קהל · רמה · אורך) מקופלת בשורה אחת, והתבניות לפי סוגה — כרטיסים באותה שפה כמו התמצית */
+.st-vi-vw { margin-bottom: 12px; }
+.st-vi-vwv { flex: 0 1 auto; min-width: 0; font-size: 14px; color: var(--on-surface-var); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-vi-vwb { display: grid; gap: 8px; padding: 0 12px 12px; }
+.st-vi-vw2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.st-vi-vwb .st-seg2 button { min-height: 40px; }
+.st-vi-lec, .st-vi-steps, .st-vi-pitch, .st-vi-deep { display: grid; gap: 10px; margin-top: 12px; padding: 16px; }
+.st-vi-ct { margin: 0; font-size: 17px; font-weight: 700; }
+.st-vi-cs { margin: -6px 0 0; font-size: 13px; color: var(--on-surface-var); }
+.st-vi-gt { margin: 4px 0 0; font-size: 13px; font-weight: 600; color: var(--on-surface-var); }
+.st-vi-ol { counter-reset: vs; }
+.st-vi-ol > li { counter-increment: vs; }
+.st-vi-ol > li > p:first-child::before { content: counter(vs) ". "; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--on-surface-var); }
+.st-root .st-vi-pitch { background: var(--st-fill); box-shadow: none; }   /* טענות המציג — רקע ניטרלי, לא כרטיס "שלנו" */
+.st-vi-defs { margin-top: 12px; }
 @media (prefers-reduced-motion: reduce) { .st-vi-mini, .st-vi-pt, .st-vi-note { transition: none; } }

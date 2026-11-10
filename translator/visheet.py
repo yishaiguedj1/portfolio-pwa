@@ -17,13 +17,13 @@ import hashlib
 import json
 import re
 
-PV = 1
+PV = 2   # 10/11/2026 (PR 2.1): הז'אנר בפרומפט, הסוגים formula/derivation ‏(V43) והתבניות לפי ז'אנר בסינתזה ‏(V59, ‏V72, ‏V50–V52)
 
 GENRES = ('academic_lecture', 'course_module', 'business_webinar', 'conference_talk', 'panel', 'interview_podcast',
           'software_tutorial', 'product_demo', 'workshop', 'investor_presentation', 'other')
 SEG_TYPES = ('content', 'intro', 'qa', 'pitch', 'sponsor', 'self_promo', 'interaction_reminder', 'preview_recap',
              'filler', 'logistics', 'demo', 'exercise')
-ITEM_KINDS = ('note', 'definition', 'claim', 'example', 'data', 'question', 'caveat', 'action')
+ITEM_KINDS = ('note', 'definition', 'formula', 'derivation', 'claim', 'example', 'data', 'question', 'caveat', 'action')
 SRC = ('speech', 'screen_only', 'both')
 BASIS = ('speaker', 'analyst_inference', 'external_knowledge')
 CONF = ('high', 'med', 'low')
@@ -53,8 +53,10 @@ For every note ("item"):
 - Numbers, names, terms and units are copied exactly as in the units. Never invent a number.
 - "Not said in the talk" is a valid answer; never fill gaps from general knowledge as if the speaker said it.
 - Screen-only lines ([so]) that carry content (a definition, a number, a list item, a caveat) MUST appear in a note with src "screen_only" or "both", or be listed in drop with a reason.
+- kind: "definition" (a term and its meaning), "formula" (an equation or formula, copied exactly as written or said, with what its symbols mean), "derivation" (one step of a derivation or proof, in order), "example" (a worked or illustrative example), "claim", "data" (a number or measurement), "question", "caveat", "action" (something the viewer is told to do); otherwise "note".
 
 Structure:
+- genre: the kind of video — academic_lecture (a university or school lecture), course_module (a lesson of an online course), business_webinar, conference_talk, panel, interview_podcast, software_tutorial (how to use software or code, step by step), product_demo (showing a product), workshop (a hands-on session), investor_presentation, other.
 - segments: where a new kind of segment starts (from = the first unit id of the segment). Types: content, intro, qa, pitch, sponsor, self_promo, interaction_reminder, preview_recap, filler, logistics, demo, exercise. Only real changes; most of a lecture is "content".
 - chapters: topic chapters in two levels. lvl 1 = a main topic (typically 4-15 minutes), lvl 2 = a sub-topic inside it. Start a chapter at one of the boundary candidates when possible (from = its unit id). For the first chapter of this window set cont = true if it simply continues the topic of the previous window (then its title and sum are ignored).
 - Chapter title: 2-7 Hebrew words. sum: 1-3 Hebrew sentences on what the chapter teaches.
@@ -203,6 +205,25 @@ def parse_vm(text: str) -> dict:
 # מקבלת את ההערות אחרי הבדיקות בקוד — לא את התמליל (5.5: 10–20K). מחזירה טקסט + מזהי ההערות שהוא נשען עליהן (from);
 # הקוד בונה מזה פריטים (kind = one/bluf/take/thesis/big) עם הראיות של ההערות, ובודק מספרים והסתייגויות כמו במיפוי.
 SYN_KINDS = ('one', 'bluf', 'take', 'thesis', 'big')
+# PR 2.1 (V59): תבנית לפי ז'אנר — סעיפים נוספים בסינתזה, כל אחד רשימת משפטים עם from כמו take. הסוג של הפריט = שם הסעיף.
+# השלמת הרצאה (V72): learn/board/stress/exam · צעדים לשחזור (V52): step · הצעת מכר בתיבה ניטרלית (V50, ‏V51): offer/price/check/free
+TPL_SECS = ('learn', 'board', 'stress', 'exam', 'step', 'offer', 'price', 'check', 'free')
+TPL_PITCH = ('offer', 'price', 'check', 'free')
+TPL_BY_GENRE = {
+    'academic_lecture': ('learn', 'board', 'stress', 'exam'), 'course_module': ('learn', 'board', 'stress', 'exam'),
+    'workshop': ('learn', 'step'), 'software_tutorial': ('step',), 'product_demo': ('step',) + TPL_PITCH,
+    'business_webinar': TPL_PITCH, 'investor_presentation': TPL_PITCH,
+}
+TPL_MAX = {'learn': 7, 'board': 8, 'stress': 5, 'exam': 5, 'step': 20, 'offer': 3, 'price': 3, 'check': 5, 'free': 5}
+
+
+def tpl_secs(genre: str, segments: list | None = None) -> tuple:
+    """הסעיפים לפי הז'אנר; קטע pitch (V33) מוסיף את תיבת המכר בכל ז'אנר. בסדר של TPL_SECS."""
+    want = set(TPL_BY_GENRE.get(genre, ()))
+    if any(isinstance(g, dict) and g.get('type') == 'pitch' for g in segments or []):
+        want |= set(TPL_PITCH)
+    return tuple(k for k in TPL_SECS if k in want)
+
 
 VS_SYS = """You are the synthesis stage of a lecture-analysis system. You receive the chapters and the verified notes of one recorded talk (in Hebrew) and write the top layer of the analysis, in Hebrew.
 
@@ -215,6 +236,16 @@ Every statement you write lists in "from" the note ids (n...) it rests on (1-8, 
 - thesis: the speaker's central claim in one sentence. If the talk has no central claim (a tutorial, a demo), text = "" and from = [].
 - big: the big picture — how the parts connect and why it matters, 2-4 sentences.
 - adds: for every main chapter (lvl 1) — one sentence on what it adds to the whole (ch = the chapter id).
+- tpl: extra sections for this genre. Fill only the sections the request names; every other section is []. Each entry is one statement with "from":
+  - learn: what the lecture teaches — 3-7 statements, in the order of the talk.
+  - board: what was written or shown on the board or the slides that matters (a formula, a definition, a diagram, a list) — copy formulas exactly.
+  - stress: what the speaker explicitly stressed as important.
+  - exam: only what the speaker explicitly said will be in the exam or must be remembered. Nothing else; [] if not said.
+  - step: steps to reproduce what was done, in order, one action each (what to do, not why).
+  - offer: what is being sold or offered, in neutral words ("מוצע: ...").
+  - price: the price exactly as said or shown, with its terms. Never compute or estimate a price; [] if none was given.
+  - check: the presenter's claims about the offer that a viewer should verify before buying, as claims ("לטענת המציג, ...").
+  - free: what the viewer can use or do from this talk without buying anything.
 
 Rules:
 - Keep the speaker's hedges ("ייתכן", "כנראה", "לדעתם") when the notes have them. Never turn a hedge into a fact.
@@ -227,11 +258,13 @@ _STMT = _obj({'text': _S, 'from': {'type': 'array', 'items': _S}})
 VS_SCHEMA = _obj({
     'one': _STMT, 'bluf': _STMT, 'take': {'type': 'array', 'items': _STMT}, 'thesis': _STMT, 'big': _STMT,
     'adds': {'type': 'array', 'items': _obj({'ch': _S, 'text': _S})},
+    'tpl': _obj({k: {'type': 'array', 'items': _STMT} for k in TPL_SECS}),
 })
 
 
-def synth_prompt(chapters: list[dict], items: list[dict], structured: bool, feedback: str = '') -> str:
-    """הפרקים וההערות (בלי זמנים): "c3 (lvl 1) כותרת — סיכום", ואז "[n12|c3] (inferred) טקסט"."""
+def synth_prompt(chapters: list[dict], items: list[dict], structured: bool, feedback: str = '', genre: str = 'other',
+                 secs: tuple = ()) -> str:
+    """הפרקים וההערות (בלי זמנים): "c3 (lvl 1) כותרת — סיכום", ואז "[n12|c3] (inferred) טקסט". ‏secs — סעיפי התבנית (tpl_secs)."""
     out = ['## Chapters']
     for c in chapters:
         out.append('%s%s (lvl %d): %s%s' % ('  ' if c.get('lvl', 1) > 1 else '', c['id'], c.get('lvl', 1), c['title'],
@@ -241,7 +274,8 @@ def synth_prompt(chapters: list[dict], items: list[dict], structured: bool, feed
         tag = it['id'] + ('|' + it['ch'] if it.get('ch') else '')
         flag = ' (inferred)' if it.get('basis') != 'speaker' else ''
         out.append('[%s]%s %s' % (tag, flag, it['text']))
-    out += ['', 'Write the synthesis: one, bluf, take, thesis, big and adds, as described. Cite only note ids from the list.']
+    out += ['', 'Genre: %s. tpl sections to fill: %s; all other tpl sections are [].' % (genre, ', '.join(secs) if secs else 'none'),
+            'Write the synthesis: one, bluf, take, thesis, big, adds and tpl, as described. Cite only note ids from the list.']
     if feedback:
         out += ['', 'A previous attempt had problems. Fix them:', _clip(feedback, FIX_MAX)]
     if not structured:
@@ -285,6 +319,8 @@ def parse_vs(text: str) -> dict:
         raise SchemaError('"one" and "bluf" are missing: each needs {"text": "...", "from": ["n1", ...]}')
     out['adds'] = [{'ch': str(a['ch']), 'text': a['text'].strip()} for a in d.get('adds') or []
                    if isinstance(a, dict) and isinstance(a.get('ch'), str) and isinstance(a.get('text'), str) and a['text'].strip()]
+    tp = d.get('tpl') if isinstance(d.get('tpl'), dict) else {}   # PR 2.1: חסר / לא רשימה — ריק (התבנית רשות, לא סיבה לנסות שוב)
+    out['tpl'] = {k: [s for s in (_stmt(x) for x in tp.get(k)) if s and s['text']] if isinstance(tp.get(k), list) else [] for k in TPL_SECS}
     return out
 
 

@@ -49,10 +49,12 @@ const VI_DROP = ['duplicate', 'decorative', 'agenda', 'title_only', 'sponsor', '
 const VI_GENRES = ['academic_lecture', 'course_module', 'business_webinar', 'conference_talk', 'panel', 'interview_podcast', 'software_tutorial', 'product_demo', 'workshop', 'investor_presentation', 'other'];
 const VI_ASRQ = ['high', 'med', 'low'];
 /* תקרות: מספר רשומות לכל רשימה ואורך טקסט לכל שדה (הרצאה של 90 דק׳ ≈ 1,000 יחידות דיבור) */
-const VI_CAP = { evidence: 20000, slides: 3000, ocr: 30000, segments: 2000, chapters: 400, items: 3000, ledger: 40000, states: 40, refs: 24, take: 7, warn: 16 };
+const VI_CAP = { evidence: 20000, slides: 3000, ocr: 30000, segments: 2000, chapters: 400, items: 3000, ledger: 40000, states: 40, refs: 24, take: 7, warn: 16, tpl: 20 };
+// PR 2.1 (V59): סעיפי התבנית לפי ז'אנר — מזהי פריטים בלבד. **זהה ל־VI_TPL ב־vicheck.py ובעותק השני (שרתון/טלפון)**
+const VI_TPL = ['learn', 'board', 'stress', 'exam', 'step', 'offer', 'price', 'check', 'free'];
 const VI_TXT = { text: 2000, q: 600, title: 300, sum: 3000, adds: 2000, vtitle: 300 };
 const ID = { e: /^e\d{1,6}$/, s: /^s\d{1,5}$/, o: /^o\d{1,5}\.\d{1,4}$/, c: /^c\d{1,4}$/, n: /^n\d{1,5}$/ };
-const VI_KEYS = ['v', 'pv', 'lang', 'genre', 'video', 'evidence', 'slides', 'ocr', 'segments', 'chapters', 'items', 'briefing', 'thesis', 'big', 'ledger', 'quality'];
+const VI_KEYS = ['v', 'pv', 'lang', 'genre', 'video', 'evidence', 'slides', 'ocr', 'segments', 'chapters', 'items', 'briefing', 'thesis', 'big', 'tpl', 'ledger', 'quality'];
 const SPK_RE = /^S\d{1,2}$/, KIND_RE = /^[a-z][a-z_]{0,15}$/, LANG_RE = /^[a-z]{2,3}$/, VSRC_RE = /^[a-z]{1,8}$/;
 
 const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
@@ -151,6 +153,9 @@ function normVi(o) {
   out.briefing.take = ids(bf.take, (y) => itIds.has(y), VI_CAP.take);
   if (one(o.thesis)) out.thesis = o.thesis;
   if (one(o.big)) out.big = o.big;
+  const tp = isObj(o.tpl) ? o.tpl : {}, tpl = {};
+  for (const k of VI_TPL) { const x = ids(tp[k], (y) => itIds.has(y), VI_CAP.tpl); if (x.length) tpl[k] = x; }
+  if (Object.keys(tpl).length) out.tpl = tpl;
   // פנקס הכיסוי: כל יחידת ראיה — או נוצלה בפריט, או נדחתה מסיבה ידועה
   out.ledger = [];
   for (const l of list(o.ledger, VI_CAP.ledger)) {
@@ -322,5 +327,5 @@ function normVjd(o) {
 }
 
 module.exports = { VI_V, VI_LANGS, VI_FROM, VI_MAX_S, VI_FAIL, VI_WARN, VI_ERR, VI_OUTS, viSpec, viLangOk, viTooLong, viSummary,
-  VI_SEG, VI_SRC, VI_BASIS, VI_CONF, VI_VER, VI_DROP, VI_GENRES, VI_CAP, normVi, viMetrics, viCostHour, boundF1,
+  VI_SEG, VI_SRC, VI_BASIS, VI_CONF, VI_VER, VI_DROP, VI_GENRES, VI_CAP, VI_TPL, normVi, viMetrics, viCostHour, boundF1,
   VR_V, VR_MAX, VR_CAP, normViRef, viRefBounds, normVrb, normVq, VJ_HARD, wilsonLb, bootLb, viDecide, normVjd };

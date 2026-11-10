@@ -213,6 +213,58 @@ function mkDoc() {
   ok(seeks[0] === 754, 'קישור עמוק ‎&t= — הנגן נפתח מהזמן');
   pk.destroy();
 
+  /* ---------- 4ב. PR 2.1 — התצוגות (קהל · רמה · אורך) והתבניות לפי ז'אנר ---------- */
+  ok(same(P.VI_TPL, VI.VI_TPL) && P.VI_TPL.length === 9, 'VI_TPL = השרתון');
+  ok(P.viAudAuto('business_webinar') === 'biz' && P.viAudAuto('panel') === 'res' && P.viAudAuto('academic_lecture') === 'st' && P.viAudAuto(undefined) === 'st', 'הקהל לפי הז׳אנר');
+  ok(same(P.normVw({ a: 'zzz', x: 1, c: '1', q: 2 }), { a: '', x: 1, c: 0 }) && same(P.normVw(null), { a: '', x: 0, c: 0 }) && same(P.normVw({ a: '__proto__' }), { a: '', x: 0, c: 0 }), 'normVw: רק a/x/c, ערכים מותרים');
+  ok(P.viVw({ genre: 'investor_presentation' }, {}).a === 'biz' && P.viVw({ genre: 'investor_presentation' }, { a: 'st' }).a === 'st', 'viVw: בחירה מפורשת גוברת על הז׳אנר');
+  ok(same(P.viBlocks({ a: 'biz' }), ['gist', 'pitch', 'steps', 'chs']) && P.viBlocks({ a: 'res' }).includes('deep') && same(P.viBlocks({}), P.viBlocks({ a: 'st' })), 'viBlocks לפי הקהל');
+  const ids = (xs) => xs.map((x) => x.id).join();
+  const its6 = [{ id: 'a', kind: 'example' }, { id: 'b', kind: 'claim' }, { id: 'c', kind: 'formula' }, { id: 'd', kind: 'story' }, { id: 'e', kind: 'data' }, { id: 'f', kind: 'definition' }];
+  ok(ids(P.chView(its6, { a: 'st', x: 0, c: 0 })) === 'a,b,c,d,e,f', 'chView מלא — הכל');
+  ok(ids(P.chView(its6, { a: 'st', x: 1, c: 0 })) === 'b,c,d,e', 'מומחה — בלי הגדרות ודוגמאות');
+  ok(ids(P.chView(its6, { a: 'biz', x: 0, c: 0 })) === 'a,b,d,e,f', 'עסקים — בלי נוסחאות וגזירות');
+  ok(ids(P.chView(its6, { a: 'st', x: 0, c: 1 })) === 'b,c,e', 'תמציתי — 3 מהליבה, בסדר הזמן');
+  const vd2 = { items: [{ id: 'x1', kind: 'example', ch: 'c1' }, { id: 'x2', kind: 'definition', ch: 'c1' }, { id: 'x3', kind: 'formula', ch: 'c2' }, { id: 'x4', kind: 'definition', ch: '' }] };
+  ok(same(P.defsOf(vd2, { a: 'st', x: 0 }).map((g) => g.k + ':' + ids(g.its)), ['definition:x2', 'formula:x3', 'example:x1']), 'defsOf — לפי סוג, רק פריטים בפרק');
+  ok(same(P.defsOf(vd2, { a: 'st', x: 1 }).map((g) => g.k), ['formula']) && same(P.defsOf(vd2, { a: 'biz', x: 0 }).map((g) => g.k), ['definition', 'example']), 'defsOf — מומחה ועסקים מסננים');
+  ok(same(P.tplOf(v, ix).map((g) => g.k + ':' + ids(g.its)), ['learn:n1,n2', 'exam:n4', 'step:n3']) && same(P.tplOf(v, ix, ['price']), []), 'tplOf — בסדר VI_TPL, רק מה שיש');
+  const vws = [];
+  const pt = P.renderVi(ctx(v, { vw: { a: '', x: 0, c: 0 }, onVw: (x) => vws.push(x) }));
+  await new Promise((r) => setTimeout(r, 0));
+  const et = pt.el, vwr = et.byCls('st-vi-vw')[0];
+  ok(vwr && vwr.tagName === 'DETAILS' && et.byCls('st-vi-vwv')[0].textContent === 'studioViAudSt · studioViLvBeg · studioViLenFull', 'שורת התצוגה — מקופלת, ומציגה את הבחירה (סטודנט לפי הז׳אנר)');
+  ok(vwr.byCls('st-seg2').length === 3 && vwr.all((x) => x.getAttribute('role') === 'radio').length === 7 && vwr.all((x) => x.getAttribute('role') === 'radiogroup').length === 3, 'שלוש בחירות st-seg2 (3+2+2) — radiogroup/radio');
+  const lec = et.byCls('st-vi-lec')[0], stp = et.byCls('st-vi-steps')[0];
+  ok(lec && lec.byCls('st-vi-gt').map((x) => x.textContent).join() === 'studioViTpLearn,studioViTpExam' && lec.byCls('st-vi-note').length === 3, 'כרטיס ההרצאה: "מה לומדים" ו"למבחן"');
+  ok(stp && stp.byCls('st-vi-ol')[0].tagName === 'OL' && stp.byCls('st-vi-note').length === 1, 'השלבים — רשימה ממוספרת');
+  ok(!et.byCls('st-vi-pitch').length && !et.byCls('st-vi-defs').length && !et.byCls('st-vi-deep').length, 'בלי סעיפים ריקים');
+  const kinds = (e) => e.byCls('st-vi-body')[0].children.map((c) => (/st-vi-(gist|lec|steps|deep|pitch|defs|toc)\b/.exec(c.className) || [])[1]).filter(Boolean).join();
+  ok(kinds(et) === 'gist,lec,steps,toc', 'הסדר: התמצית, ההרצאה, השלבים, הפרקים');
+  et.byK('vwa:res').click();
+  ok(same(vws[vws.length - 1], { a: 'res', x: 0, c: 0 }) && kinds(et) === 'gist,deep,steps,toc' && et.byCls('st-vi-vwv')[0].textContent.startsWith('studioViAudRes'), 'חוקר — התזה והתמונה הרחבה במקום ההרצאה; ההעדפה נשמרת (onVw)');
+  ok(et.byK('vwa:res').getAttribute('aria-checked') === 'true' && et.byK('vwa:st').getAttribute('aria-checked') === 'false', 'aria-checked מתעדכן');
+  ok(et.byCls('st-vi-deep')[0].byCls('st-vi-gt').map((x) => x.textContent).join() === 'studioViThesis,studioViBig', 'התזה והתמונה הרחבה');
+  const n0 = vws.length; et.byK('vwa:res').click();
+  ok(vws.length === n0, 'לחיצה על הבחירה הנוכחית — כלום');
+  et.byK('vwa:biz').click();
+  ok(kinds(et) === 'gist,steps,toc', 'עסקים — בלי כרטיס ההרצאה');
+  et.byK('vwc:1').click();
+  ok(same(vws[vws.length - 1], { a: 'biz', x: 0, c: 1 }), 'תמציתי — נשמר');
+  const chc = et.byCls('st-vi-ch')[1];
+  chc.open = true;
+  ok(chc.byCls('st-vi-chb').length === 1 && !chc.byCls('st-vi-th').length && !chc.byCls('st-vi-adds').length, 'תמציתי — בלי שקפים ו"מה מוסיף" בפרק');
+  et.byK('vwa:st').click();
+  ok(et.byCls('st-vi-ch').every((d) => !d.open) && kinds(et) === 'gist,lec,steps,toc', 'החלפת תצוגה בונה מחדש את הגוף (הפרקים מקופלים)');
+  const vf2 = P.normVi(Object.assign({}, good, { genre: 'business_webinar', tpl: { price: ['n2'], check: ['n3'] } }));
+  const pp = P.renderVi(ctx(vf2, { vw: {} }));
+  await new Promise((r) => setTimeout(r, 0));
+  const pit = pp.el.byCls('st-vi-pitch')[0];
+  ok(pit && pit.byCls('st-vi-cs')[0].textContent === 'studioViPitchS' && pit.byCls('st-vi-gt').map((x) => x.textContent).join() === 'studioViTpPrice,studioViTpCheck' && kinds(pp.el) === 'gist,pitch,toc', 'וובינר — עסקים מעצמו, "ההצעה" עם "לטענת המציג"');
+  pt.destroy(); pp.destroy();
+  ok(/vw: normVw\(src\.vw\)/.test(sj) && /onVw: \(x\) => \{ store\.vw = normVw\(x\); save\(\); \}/.test(sj), 'studio.js: התצוגה נשמרת ב־store (pwa_studio_v1 — ב־ACCOUNT_KEYS)');
+  ok(/\.st-vi-ol > li > p:first-child::before \{ content: counter\(vs\)/.test(css) && /\.st-root \.st-vi-pitch \{ background: var\(--st-fill\); box-shadow: none; \}/.test(css), 'CSS: מספור השלבים, ו"ההצעה" ברקע ניטרלי');
+
   /* ---------- 5. החיבורים ב־studio.js ---------- */
   ok(/if \(viPageOk\(rec\)\) \{ pageVi\(p, rec\); return; \}/.test(sj), 'עבודת ניתוח שהסתיימה → דף הניתוח');
   ok(/const viPageOk = \(rec\) => !!\(rec && rec\.spec && rec\.spec\.vi && !rec\.spec\.dry && rec\.srv && rec\.srv\.state === 'done' && outOf\(rec, 'vi'\)\)/.test(sj), 'הרצה יבשה — נשארת בדף העבודה');
@@ -244,7 +296,7 @@ function mkDoc() {
   ok(!/(?:^|[;{\s])(?:left|right)\s*:|text-align:\s*(?:left|right)|margin-(?:left|right)|padding-(?:left|right)/.test(viCss), 'יישור לוגי בלבד');
   ok(!/border-radius:\s*\d+px[^;]*;/.test(viCss.replace(/border-radius: 2px;|border-radius: 4px;/g, '')), 'עיגולי פינות — משתנים');
   ok(/\.st-vi-ev \{[^}]*min-height: 26px; min-width: 24px/.test(css), 'שבב — יעד מגע של 24×24 לפחות');
-  ok((src.match(/ctx\.ico\('chev', 'st-chev'\)/g) || []).length === 2 && (src.match(/chv\.classList\.toggle\('open', d\.open\)/g) || []).length === 2 && !/st-vi-chv/.test(css), 'חץ הפרק — .st-chev של הסטודיו (סגור הצידה, פתוח למטה)');
+  ok((src.match(/ctx\.ico\('chev', 'st-chev'\)/g) || []).length === 4 && (src.match(/chv\.classList\.toggle\('open', d\.open\)/g) || []).length === 3 && !/st-vi-chv/.test(css), 'חץ הפרק — .st-chev של הסטודיו (סגור הצידה, פתוח למטה)');
 
   // תמונת שקף — קטע בתים דרך studionet.js בלבד (הממשק לא פונה לרשת בעצמו)
   const N = await import(path.join(root, 'studionet.js'));

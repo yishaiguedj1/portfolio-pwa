@@ -16,7 +16,7 @@ import { bgEligible, bgUpload, bgIdOf, bgDb, bgUpOk } from './studiobg.js';
 import { createPlayer, normCues, issuesList, fmtT, normLadder, normAlt, normPq, normTrackPref, normChapters, normSty, STY_COLORS, STY_Y } from './studioplay.js';
 import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, toStl, termIssues, flagIndex, noteIndex, normMeta, createTimeline, editDiff, editStats, importSubs, seriesOfName, smChanges, cuesReplace, cuesWith, fmtTc, toLectureMd } from './studiosubs.js';
 import { listTracks, extractTracks, cuesToFile, lang2 } from './studiotracks.js';
-import { normVi, renderVi, normPlaces, imgRange } from './studiovi.js';
+import { normVi, renderVi, normPlaces, normVw, imgRange } from './studiovi.js';
 import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs, cutFillers, normOv, OV_T_MAX, OV_LG_MAX, OV_POS, previewEdl, PV_LEN } from './studioedl.js';
 import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, AI_NOTE_MAX, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges, parseChapters } from './studioai.js';
 
@@ -978,7 +978,7 @@ export function normStore(o) {
   // 29/10/2026 (S1 בסרטון): מצב השרת האחרון — הקפסולה בהדר נכונה כבר בציור הראשון ("שרת המערכת", לא "חיבור Claude" שמתחלף)
   const st = src.st && typeof src.st === 'object' ? { api: normApi(src.st.api), mf: src.st.mf === true, r2: src.st.r2 === true } : null;
   // 10/11/2026 (PR 1.5ב, V37): המקום בדף הניתוח לכל עבודה — מספרים ומזהי פרקים בלבד (studiovi.js)
-  return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d, sugx, amd, st, spkc: normSpkc(src.spkc), vip: normPlaces(src.vip) };
+  return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d, sugx, amd, st, spkc: normSpkc(src.spkc), vip: normPlaces(src.vip), vw: normVw(src.vw) };   // PR 2.1: תצוגת הניתוח (קהל, רמה, אורך)
 }
 /* C3 (סבב 4 של השדרוג): הצבע שבחרת לכל שם דובר — { שם: 0–5 }, עד SPKC_MAX שמות (האחרונים) */
 export const SPKC_MAX = 100;
@@ -8281,7 +8281,8 @@ function viView(rec, me) {
     mkPlayer: () => viPlayer(rec, me), slideUrl: (s) => viSlideUrl(rec, me, s),
     draftAct: vvBtn(rec, me),   // PR 1.2ג: "אמת שוב" בפס הטיוטה
     onUx: (k, x) => uxAdd(rec, 'vi', k, x == null ? 1 : x), onVf: (id, why, sec) => vfAdd(rec, id, why, sec),
-    onPlace: (x) => { if (!x) return; store.vip = normPlaces(Object.assign({}, store.vip, { [rec.id]: x })); save(); } });
+    onPlace: (x) => { if (!x) return; store.vip = normPlaces(Object.assign({}, store.vip, { [rec.id]: x })); save(); },
+    vw: store.vw, onVw: (x) => { store.vw = normVw(x); save(); } });   // PR 2.1 (V87, ‏V88, ‏V90): התצוגה — לכל הניתוחים
 }
 /* PR 1.2ג — "אמת שוב" (התוכנית 3.5) בפס "טיוטה — לא אומתה": עבודת־בת שמריצה רק את האימות (op:'viVerify'; ~$0.004).
    בזמן שהיא רצה — "מאמתים…"; כשהיא מסתיימת, השרתון מחליף את ה־vi.json של הניתוח ו־vaSync טוען את החדש */

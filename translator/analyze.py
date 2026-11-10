@@ -645,6 +645,7 @@ VV_EV = 6                       # ראיות לטענה באימות (הראשו
 VV_MAX_OUT = 2000
 VV_EV_CHARS = 1200              # טקסט ראיה באימות — עד כאן
 TAKE_MAX = 5                    # V54: ‏3–5 תובנות
+TPL_SAID = ('stress', 'exam', 'price')   # PR 2.1: סעיפי תבנית שהם "הדובר אמר" — רק מהערות של הדובר
 RAW_MAX = 200000                # טיוטה גולמית לקורפוס (dr) — עד כאן
 
 
@@ -665,10 +666,11 @@ def vi_synth(eng, m: dict, ix, inv_nums: set) -> dict:
     if not m['items']:
         return m
     structured = bool(getattr(eng, 'structured', False))
+    secs = visheet.tpl_secs(m.get('genre') or 'other', m.get('segments'))   # PR 2.1 (V59): התבנית לפי הז'אנר
     d, fb, t0 = None, '', time.time()
     try:
         for _ in range(2):
-            res = eng.complete('vs', visheet.VS_SYS, visheet.synth_prompt(m['chapters'], m['items'], structured, fb),
+            res = eng.complete('vs', visheet.VS_SYS, visheet.synth_prompt(m['chapters'], m['items'], structured, fb, m['genre'], secs),
                                max_tokens=VS_MAX_OUT, fmt=visheet.VS_SCHEMA if structured else None)
             m.setdefault('raw', {})['s0'] = str(res.text)[:RAW_MAX]
             try:
@@ -726,8 +728,28 @@ def vi_synth(eng, m: dict, ix, inv_nums: set) -> dict:
             _cnt(st['iss'], ['num_bad'])
             continue
         c['adds'] = re.sub(r'\s+', ' ', a['text']).strip()[:2000]
+    # PR 2.1 (V59, ‏V72, ‏V50–V52): סעיפי התבנית — רק מה שהז'אנר ביקש, ורק משפט שנשען על הערות (בלי "הוסק" לבד).
+    # מה שהדובר אמר (הודגש, במבחן, מחיר) — רק מהערות של הדובר. הצעדים — לפי הזמן
+    tpl: dict = {}
+    for k in secs:
+        for s in d['tpl'].get(k, [])[:visheet.TPL_MAX[k]]:
+            if not [i for i in s.get('from') or [] if i in by_id]:
+                _cnt(st['iss'], ['tpl_nofrom'])
+                continue
+            i = add(s, k)
+            if i and k in TPL_SAID and new[-1]['basis'] != 'speaker':
+                new.pop()
+                _cnt(st['iss'], ['tpl_inf'])
+                continue
+            if i:
+                tpl.setdefault(k, []).append(i)
+    if tpl.get('step'):
+        at = {x['id']: x.get('t', 0) for x in new}
+        tpl['step'].sort(key=lambda i: at.get(i, 0))
     m['items'] = m['items'] + new
     m['briefing'] = bf
+    if tpl:
+        m['tpl'] = tpl
     if th:
         m['thesis'] = th
     if big:
@@ -807,6 +829,8 @@ def vi_verify(jeng, m: dict, ix, on_progress=None) -> dict:
         for k in ('thesis', 'big'):
             if m.get(k) in gone:
                 m.pop(k)
+        if m.get('tpl'):   # PR 2.1
+            m['tpl'] = {k: [i for i in v if i not in gone] for k, v in m['tpl'].items() if [i for i in v if i not in gone]}
         m['hang'] += vicheck.dangling(m['ledger'], {x['id'] for x in keep})
     st['ok'] = int(st['fail'] == 0)
     return m
@@ -1052,7 +1076,8 @@ def build_vi_live(lang: str, dur: float, src_kind: str, title: str, m: dict, ev:
           'video': {'dur': round(dur, 2), 'src': src_kind, 'title': title[:200]},
           'evidence': [{k: v for k, v in u.items() if k != 'ts'} for u in ev],
           'slides': slides, 'ocr': ocr, 'segments': m['segments'], 'chapters': m['chapters'], 'items': m['items'],
-          'briefing': m.get('briefing') or {'take': []}, 'thesis': m.get('thesis'), 'big': m.get('big'), 'ledger': m['ledger'],
+          'briefing': m.get('briefing') or {'take': []}, 'thesis': m.get('thesis'), 'big': m.get('big'), 'tpl': m.get('tpl'),
+          'ledger': m['ledger'],
           'quality': {'items': len(m['items']), 'sup': sum(1 for x in m['items'] if x.get('ver') == 'sup'),
                       'cov': round(1 - m['miss'] / tot, 3) if tot else 1,
                       'asr': {'ok': 'high'}.get(asr_q, asr_q if asr_q in ('high', 'med', 'low') else 'med'),
@@ -1225,7 +1250,7 @@ def vi_from_file(vi: dict):
          'miss': int(round((1 - float(q.get('cov') or 0)) * len(led))) if led else 0,
          'hang': int('vi_ledger' in warn) + vicheck.dangling(led, {x['id'] for x in items}),
          'st': {'fail': int('vi_partial' in warn)}}
-    for k in ('thesis', 'big'):
+    for k in ('thesis', 'big', 'tpl'):
         if vi.get(k):
             m[k] = vi[k]
     return m, vicheck.Index(vi.get('evidence') or [], vi.get('slides') or [], vi.get('ocr') or [])

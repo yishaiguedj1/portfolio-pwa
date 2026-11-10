@@ -100,7 +100,7 @@ class TestFacts(unittest.TestCase):
         self.assertEqual(len(lx["counts"]["cov3"]), 3)
         self.assertEqual(lx["t"]["rv"], round(61 / 60, 3), "דקות")
         self.assertEqual(lx["mem"], {"rv": 900})
-        self.assertEqual(lx["pv"], {"vp": "1", "vo": "1.1"})
+        self.assertEqual(lx["pv"], {"vp": str(__import__("visheet").PV), "vo": "1.1"})
         self.assertEqual(lx["xf"], ["-vv"])
         self.assertEqual(lx["asr"]["eng"], "parakeet")
         self.assertTrue(0 <= lx["scr"]["ocr_conf"] <= 1, "0–1 (vimetrics נותן 0–100)")

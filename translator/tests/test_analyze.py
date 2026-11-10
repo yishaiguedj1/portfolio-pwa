@@ -513,7 +513,7 @@ class TestViRun(unittest.TestCase):
         self.assertEqual(lx["counts"]["claims"], len(vi["items"]))
         self.assertEqual(lx["counts"]["sup"], len(vi["items"]))
         self.assertEqual(sorted(lx["t"]), ["al", "bn", "rv", "sv", "tr", "up"])
-        self.assertEqual(lx["pv"]["vp"], "1")
+        self.assertEqual(lx["pv"]["vp"], str(__import__("visheet").PV))   # PR 2.1: עולה עם PV
         [(op, kw)] = ctx.c.put
         self.assertEqual(op, "learnPut")
         import base64
@@ -526,7 +526,7 @@ class TestViRun(unittest.TestCase):
         self.assertEqual(ctx.reports[-1]["msg"], "הניתוח מוכן")
         facts = json.loads([x for x in out.splitlines() if x.startswith("VI_RUN ")][0][7:])
         self.assertEqual(facts["map"]["win"], 1)
-        self.assertEqual(facts["map"]["pv"], 1)
+        self.assertEqual(facts["map"]["pv"], __import__("visheet").PV)
         self.assertEqual(facts["tok"]["src"], "usage")
 
     def test_live_fail_reports_code(self):

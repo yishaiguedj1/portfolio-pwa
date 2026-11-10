@@ -38,12 +38,14 @@ VI_GENRES = ('academic_lecture', 'course_module', 'business_webinar', 'conferenc
              'software_tutorial', 'product_demo', 'workshop', 'investor_presentation', 'other')
 VI_ASRQ = ('high', 'med', 'low')
 VI_CAP = {'evidence': 20000, 'slides': 3000, 'ocr': 30000, 'segments': 2000, 'chapters': 400, 'items': 3000, 'ledger': 40000,
-          'states': 40, 'refs': 24, 'take': 7, 'warn': 16}
+          'states': 40, 'refs': 24, 'take': 7, 'warn': 16, 'tpl': 20}
+# PR 2.1 (V59): סעיפי התבנית לפי ז'אנר (visheet.TPL_SECS) — מזהי פריטים בלבד. **זהה ל־VI_TPL ב־studiovi.js (טלפון ושרתון)**
+VI_TPL = ('learn', 'board', 'stress', 'exam', 'step', 'offer', 'price', 'check', 'free')
 VI_TXT = {'text': 2000, 'q': 600, 'title': 300, 'sum': 3000, 'adds': 2000, 'vtitle': 300}
 ID = {'e': re.compile(r'^e\d{1,6}$'), 's': re.compile(r'^s\d{1,5}$'), 'o': re.compile(r'^o\d{1,5}\.\d{1,4}$'),
       'c': re.compile(r'^c\d{1,4}$'), 'n': re.compile(r'^n\d{1,5}$')}
 VI_KEYS = ('v', 'pv', 'lang', 'genre', 'video', 'evidence', 'slides', 'ocr', 'segments', 'chapters', 'items', 'briefing',
-           'thesis', 'big', 'ledger', 'quality')
+           'thesis', 'big', 'tpl', 'ledger', 'quality')
 SPK_RE = re.compile(r'^S\d{1,2}$')
 KIND_RE = re.compile(r'^[a-z][a-z_]{0,15}$')
 LANG_RE = re.compile(r'^[a-z]{2,3}$')
@@ -234,6 +236,11 @@ def norm_vi(o):
         out['thesis'] = o['thesis']
     if one(o.get('big')):
         out['big'] = o['big']
+    tp = o.get('tpl') if isinstance(o.get('tpl'), dict) else {}
+    tpl = {k: _ids(tp.get(k), lambda y: y in it_ids, VI_CAP['tpl']) for k in VI_TPL}
+    tpl = {k: v for k, v in tpl.items() if v}
+    if tpl:
+        out['tpl'] = tpl
     out['ledger'] = []
     for l in _list(o.get('ledger'), VI_CAP['ledger']):
         if not isinstance(l, dict) or l.get('ref') not in ev_ids:

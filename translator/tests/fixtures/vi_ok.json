@@ -238,6 +238,18 @@
  },
  "thesis": "n2",
  "big": "n3",
+ "tpl": {
+  "learn": [
+   "n1",
+   "n2"
+  ],
+  "exam": [
+   "n4"
+  ],
+  "step": [
+   "n3"
+  ]
+ },
  "ledger": [
   {
    "ref": "s1",

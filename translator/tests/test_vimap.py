@@ -382,6 +382,60 @@ class TestSynth(unittest.TestCase):
         self.assertIn("vi_unver", vi["quality"]["warn"], "עוד לא אומת")
         self.assertNotIn("vi_partial", vi["quality"]["warn"])
 
+    def test_template_by_genre(self):
+        """PR 2.1 (V59, ‏V72): הרצאה אקדמית — learn/board/stress/exam בלבד; בלי from נזרק; "במבחן" רק מהערות של הדובר"""
+        m, ix, nums, rest = mapped()
+        m["genre"] = "academic_lecture"
+        ids = [it["id"] for it in m["items"]]
+        m["items"][1]["basis"] = "analyst_inference"
+        n0 = len(m["items"])
+        d = {"one": {"text": "סיכום", "from": [ids[0]]}, "bluf": None, "take": [], "thesis": None, "big": None, "adds": [],
+             "tpl": {"learn": [{"text": "מה נלמד", "from": [ids[0]]}, {"text": "בלי ראיות", "from": []}],
+                     "board": [{"text": "על הלוח", "from": [ids[2]]}],
+                     "exam": [{"text": "יהיה במבחן", "from": [ids[1]]}],
+                     "step": [{"text": "צעד שלא התבקש", "from": [ids[0]]}], "price": "x"}}
+        eng = Scripted([vs_answer(d)])
+        A.vi_synth(eng, m, ix, nums)
+        self.assertIn("tpl sections to fill: learn, board, stress, exam;", eng.calls[0]["prompt"])
+        self.assertIn("Genre: academic_lecture.", eng.calls[0]["prompt"])
+        new = {x["id"]: x for x in m["items"][n0:]}
+        self.assertEqual(sorted(m["tpl"]), ["board", "learn"], "רק סעיפי הז'אנר; exam מהסקה — נזרק")
+        self.assertEqual([new[i]["kind"] for i in m["tpl"]["learn"]], ["learn"])
+        self.assertEqual(new[m["tpl"]["board"][0]]["ev"], m["items"][2]["ev"], "הראיות — של ההערות")
+        self.assertEqual((m["st"]["syn"]["iss"].get("tpl_nofrom"), m["st"]["syn"]["iss"].get("tpl_inf")), (1, 1))
+        self.assertFalse([x for x in new.values() if x["kind"] in ("step", "exam", "price")])
+        vi = live(m, rest)
+        self.assertEqual(vi["tpl"], m["tpl"])
+        self.assertEqual(C.norm_vi(vi), vi, "התוצר תקין עם התבנית")
+
+    def test_template_pitch_and_steps(self):
+        """PR 2.1 (V50–V52): מדריך תוכנה — צעדים לפי הזמן; קטע pitch מוסיף את תיבת המכר בכל ז'אנר"""
+        m, ix, nums, rest = mapped()
+        m["genre"] = "software_tutorial"
+        m["segments"] = m["segments"] + [{"t0": 0, "t1": 1, "type": "pitch"}]
+        self.assertEqual(V.tpl_secs(m["genre"], m["segments"]), ("step", "offer", "price", "check", "free"))
+        its = sorted(m["items"], key=lambda x: x.get("t", 0))
+        late, early = its[-1]["id"], its[0]["id"]
+        d = {"one": {"text": "סיכום", "from": [early]}, "bluf": None, "take": [], "thesis": None, "big": None, "adds": [],
+             "tpl": {"step": [{"text": "צעד מאוחר", "from": [late]}, {"text": "צעד מוקדם", "from": [early]}],
+                     "offer": [{"text": "מוצע: קורס", "from": [early]}], "learn": [{"text": "לא בתבנית", "from": [early]}]}}
+        A.vi_synth(Scripted([vs_answer(d)]), m, ix, nums)
+        by = {x["id"]: x for x in m["items"]}
+        self.assertEqual([by[i]["text"] for i in m["tpl"]["step"]], ["צעד מוקדם", "צעד מאוחר"], "הצעדים לפי הזמן")
+        self.assertEqual(sorted(m["tpl"]), ["offer", "step"])
+        self.assertEqual(V.tpl_secs("panel"), ())
+        self.assertEqual(V.tpl_secs("academic_lecture", [{"type": "pitch"}]), ("learn", "board", "stress", "exam", "offer", "price", "check", "free"))
+
+    def test_parse_vs_tpl_optional(self):
+        base = {"one": {"text": "x", "from": []}}
+        self.assertEqual(V.parse_vs(json.dumps(base))["tpl"], {k: [] for k in V.TPL_SECS}, "בלי tpl — ריק, לא שגיאה")
+        self.assertEqual(V.parse_vs(json.dumps(dict(base, tpl=[1])))["tpl"]["learn"], [])
+        self.assertEqual(V.VS_SCHEMA["properties"]["tpl"]["required"], list(V.TPL_SECS))
+        self.assertEqual(set(V.TPL_SECS) & set(V.ITEM_KINDS + V.SYN_KINDS), set(), "סוג הפריט = שם הסעיף, בלי התנגשות")
+        self.assertEqual(V.TPL_SECS, C.VI_TPL)
+        self.assertIn("formula", V.ITEM_KINDS)
+        self.assertIn("derivation", V.ITEM_KINDS)
+
     def test_schema_retry_then_fail_is_partial(self):
         m, ix, nums, rest = mapped()
         before = json.dumps(m["items"])

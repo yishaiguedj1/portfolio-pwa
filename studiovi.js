@@ -22,10 +22,12 @@ export const VI_VER = ['sup', 'part', 'uns', 'con', 'unk'];
 export const VI_DROP = ['duplicate', 'decorative', 'agenda', 'title_only', 'sponsor', 'filler', 'budget', 'low_salience', 'unverified', 'asr_noise'];
 export const VI_GENRES = ['academic_lecture', 'course_module', 'business_webinar', 'conference_talk', 'panel', 'interview_podcast', 'software_tutorial', 'product_demo', 'workshop', 'investor_presentation', 'other'];
 const VI_ASRQ = ['high', 'med', 'low'];
-const VI_CAP = { evidence: 20000, slides: 3000, ocr: 30000, segments: 2000, chapters: 400, items: 3000, ledger: 40000, states: 40, refs: 24, take: 7, warn: 16 };
+const VI_CAP = { evidence: 20000, slides: 3000, ocr: 30000, segments: 2000, chapters: 400, items: 3000, ledger: 40000, states: 40, refs: 24, take: 7, warn: 16, tpl: 20 };
+// PR 2.1 (V59): סעיפי התבנית לפי ז'אנר — מזהי פריטים בלבד. **זהה ל־VI_TPL ב־vicheck.py ובעותק השני (שרתון/טלפון)**
+export const VI_TPL = ['learn', 'board', 'stress', 'exam', 'step', 'offer', 'price', 'check', 'free'];
 const VI_TXT = { text: 2000, q: 600, title: 300, sum: 3000, adds: 2000, vtitle: 300 };
 const ID = { e: /^e\d{1,6}$/, s: /^s\d{1,5}$/, o: /^o\d{1,5}\.\d{1,4}$/, c: /^c\d{1,4}$/, n: /^n\d{1,5}$/ };
-const VI_KEYS = ['v', 'pv', 'lang', 'genre', 'video', 'evidence', 'slides', 'ocr', 'segments', 'chapters', 'items', 'briefing', 'thesis', 'big', 'ledger', 'quality'];
+const VI_KEYS = ['v', 'pv', 'lang', 'genre', 'video', 'evidence', 'slides', 'ocr', 'segments', 'chapters', 'items', 'briefing', 'thesis', 'big', 'tpl', 'ledger', 'quality'];
 const SPK_RE = /^S\d{1,2}$/, KIND_RE = /^[a-z][a-z_]{0,15}$/, LANG_RE = /^[a-z]{2,3}$/, VSRC_RE = /^[a-z]{1,8}$/;
 
 const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
@@ -120,6 +122,9 @@ export function normVi(o) {
   out.briefing.take = ids(bf.take, (y) => itIds.has(y), VI_CAP.take);
   if (one(o.thesis)) out.thesis = o.thesis;
   if (one(o.big)) out.big = o.big;
+  const tp = isObj(o.tpl) ? o.tpl : {}, tpl = {};
+  for (const k of VI_TPL) { const x = ids(tp[k], (y) => itIds.has(y), VI_CAP.tpl); if (x.length) tpl[k] = x; }
+  if (Object.keys(tpl).length) out.tpl = tpl;
   out.ledger = [];
   for (const l of lst(o.ledger, VI_CAP.ledger)) {
     if (!isObj(l) || !evIds.has(l.ref)) continue;
@@ -157,6 +162,35 @@ export function anchorOf(it, ix, slides) {
   if (!s) s = (slides || []).find((x) => t >= x.t0 && t < x.t1) || null;
   return { t, e, s, n: s ? ix.slNo.get(s.id) || 0 : 0, w };
 }
+/* ---------- PR 2.1 (10/11/2026; התוכנית 8.6–8.9): תבניות לפי ז'אנר ותצוגות קהל — מעל אותו JSON, בלי טוקנים ----------
+   ההעדפה (store.vw — ACCOUNT_KEYS דרך pwa_studio_v1): a — קהל (ריק = לפי הז'אנר), x — מומחה (בלי הגדרות ודוגמאות),
+   c — תמציתי (3 נקודות לפרק, בלי "מה מוסיף" ושקפים). הבלוקים לפי הקהל; עסקים — בלי נוסחאות וגזירות, ו־bluf בראש */
+export const VI_AUD = ['st', 'biz', 'res'];
+const AUD_BIZ = ['business_webinar', 'investor_presentation', 'product_demo'], AUD_RES = ['conference_talk', 'panel', 'interview_podcast'];
+export const viAudAuto = (g) => (AUD_BIZ.includes(g) ? 'biz' : AUD_RES.includes(g) ? 'res' : 'st');
+export function normVw(o) {
+  const x = isObj(o) ? o : {};
+  return { a: VI_AUD.includes(x.a) ? x.a : '', x: x.x === 1 ? 1 : 0, c: x.c === 1 ? 1 : 0 };
+}
+export const viVw = (v, o) => { const p = normVw(o); p.a = p.a || viAudAuto(v && v.genre); return p; };
+const VI_BLOCKS = { st: ['gist', 'lec', 'steps', 'defs', 'pitch', 'chs'], biz: ['gist', 'pitch', 'steps', 'chs'], res: ['gist', 'deep', 'pitch', 'steps', 'chs', 'defs'] };
+export const viBlocks = (vw) => VI_BLOCKS[vw && vw.a] || VI_BLOCKS.st;
+export const VI_DEFK = ['definition', 'formula', 'derivation', 'example'];
+export const VI_CONCISE_N = 3;
+const CORE_K = ['claim', 'data', 'caveat', 'action', 'definition', 'formula'];
+const hideK = (k, vw) => (vw.x && (k === 'definition' || k === 'example')) || (vw.a === 'biz' && (k === 'formula' || k === 'derivation'));
+/* פריטי הפרק לפי התצוגה. תמציתי — עד 3: קודם טענות, נתונים, הסתייגויות, פעולות, הגדרות ונוסחאות; בסדר הזמן */
+export function chView(its, vw) {
+  const a = its.filter((it) => !hideK(it.kind, vw));
+  if (!vw.c) return a;
+  const keep = new Set(a.filter((it) => CORE_K.includes(it.kind)).concat(a.filter((it) => !CORE_K.includes(it.kind))).slice(0, VI_CONCISE_N));
+  return a.filter((it) => keep.has(it));
+}
+/* V43: ההגדרות, הנוסחאות, הגזירות והדוגמאות מכל הפרקים — לפי סוג, ובתוכו לפי הסדר */
+export const defsOf = (v, vw) => VI_DEFK.filter((k) => !hideK(k, vw)).map((k) => ({ k, its: v.items.filter((it) => it.kind === k && it.ch) })).filter((g) => g.its.length);
+/* סעיפי התבנית (v.tpl) → [{k, its}] בסדר המבוקש, רק מה שיש */
+export const tplOf = (v, ix, keys) => (keys || VI_TPL).map((k) => ({ k, its: ((v.tpl || {})[k] || []).map((id) => ix.it.get(id)).filter(Boolean) })).filter((g) => g.its.length);
+
 /* השורה האחת והנקודות (3–5): one ← bluf ← thesis; הנקודות מ־take, בלי השורה עצמה */
 export function briefOf(v, ix) {
   const one = ix.it.get(v.briefing.one) || ix.it.get(v.briefing.bluf) || ix.it.get(v.thesis) || null;
@@ -344,19 +378,82 @@ export function renderVi(ctx) {
     el.append(rb);
   }
 
-  /* השורה האחת והנקודות */
-  if (br.one || br.pts.length) {
-    const g = h('div', 'st-vi-card st-vi-gist');   // כמו .st-jhero (זכוכית, --gl-card-sh)
-    if (br.one) { const one = h('p', 'st-vi-one', br.one.text); const c = chipOf(br.one); if (c) one.append(c); g.append(one); }
-    if (br.pts.length) { const ul = h('ul', 'st-vi-pts'); for (const it of br.pts) ul.append(point(it, 'st-vi-pt')); g.append(ul); }
-    el.append(g);
+  /* PR 2.1 (V87, ‏V88, ‏V90): התצוגה — קהל, מתחיל/מומחה, תמציתי/מלא — מעל אותו JSON. שינוי בונה מחדש רק את הגוף */
+  let vw = viVw(v, ctx.vw);
+  const body = h('div', 'st-vi-body');
+  // מקופל בשורה אחת ("תצוגה · סטודנט · מלא"); בפתיחה — שלוש בחירות st-seg2, כמו בשאר הסטודיו
+  const vwRow = h('details', 'st-list st-vi-vw');
+  const vwS = h('summary', 'st-row'), vwL = h('span', 'st-l'), vwV = h('span', 'st-vi-vwv'), vwChv = ctx.ico('chev', 'st-chev');
+  vwL.append(h('b', null, T('studioViVw'))); vwS.append(vwL, vwV, vwChv); vwRow.append(vwS);
+  const vwBox = h('div', 'st-vi-vwb');
+  vwRow.append(vwBox);
+  vwRow.addEventListener('toggle', () => vwChv.classList.toggle('open', vwRow.open));
+  const AUD = [['st', T('studioViAudSt')], ['biz', T('studioViAudBiz')], ['res', T('studioViAudRes')]], LV = [[0, T('studioViLvBeg')], [1, T('studioViLvExp')]], LN = [[0, T('studioViLenFull')], [1, T('studioViLenShort')]];
+  const seg = (opts, cur, set, k) => {
+    const g = h('div', 'st-seg2'); g.setAttribute('role', 'radiogroup'); g.setAttribute('aria-label', T('studioViVw'));
+    for (const [val, lbl] of opts) {
+      const b = btn(null, null, () => { if (val === cur) return; set(val); if (ctx.onVw) ctx.onVw(normVw(vw)); paintVw(); build(); }, 'vw' + k + ':' + val);
+      b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', val === cur ? 'true' : 'false'); b.append(h('b', null, lbl));
+      g.append(b);
+    }
+    return g;
+  };
+  const lbl = (opts, val) => (opts.find((o) => o[0] === val) || opts[0])[1];
+  function paintVw() {
+    vwV.textContent = [lbl(AUD, vw.a), lbl(LV, vw.x), lbl(LN, vw.c)].join(' · ');
+    const two = h('div', 'st-vi-vw2');
+    two.append(seg(LV, vw.x, (x) => { vw.x = x; }, 'x'), seg(LN, vw.c, (x) => { vw.c = x; }, 'c'));
+    vwBox.textContent = ''; vwBox.append(seg(AUD, vw.a, (x) => { vw.a = x; }, 'a'), two);
+  }
+  const list = (its, cls, tag) => { const ul = h(tag || 'ul', cls); for (const it of its) ul.append(point(it, 'st-vi-note')); return ul; };
+  const card = (cls, ttl, sub) => { const c = h('div', 'st-vi-card ' + cls); c.append(h('h2', 'st-vi-ct', ttl)); if (sub) c.append(h('p', 'st-vi-cs', sub)); return c; };
+  const TPL_T = { learn: T('studioViTpLearn'), board: T('studioViTpBoard'), stress: T('studioViTpStress'), exam: T('studioViTpExam'), offer: T('studioViTpOffer'), price: T('studioViTpPrice'), check: T('studioViTpCheck'), free: T('studioViTpFree') };
+  const DEF_T = { definition: T('studioViDfDef'), formula: T('studioViDfFor'), derivation: T('studioViDfDer'), example: T('studioViDfEx') };
+  const groups = (c, gs, names) => { for (const g of gs) c.append(h('h3', 'st-vi-gt', names[g.k]), list(vw.c ? g.its.slice(0, VI_CONCISE_N) : g.its, 'st-vi-notes')); return c; };
+  const chEls = [];
+  const BLK = {
+    gist() {   // השורה האחת והנקודות; עסקים — השורה התחתונה (bluf) קודם
+      const top = vw.a === 'biz' ? ix.it.get(v.briefing.bluf) || br.one : br.one, pts = br.pts.filter((x) => x !== top).slice(0, vw.c ? VI_CONCISE_N : 5);
+      if (!top && !pts.length) return null;
+      const g = h('div', 'st-vi-card st-vi-gist');   // כמו .st-jhero (זכוכית, --gl-card-sh)
+      if (top) { const one = h('p', 'st-vi-one', top.text); const c = chipOf(top); if (c) one.append(c); g.append(one); }
+      if (pts.length) { const ul = h('ul', 'st-vi-pts'); for (const it of pts) ul.append(point(it, 'st-vi-pt')); g.append(ul); }
+      return g;
+    },
+    deep() {   // חוקר: התזה והתמונה הרחבה
+      const gs = [[T('studioViThesis'), ix.it.get(v.thesis)], [T('studioViBig'), ix.it.get(v.big)]].filter((x) => x[1]);
+      if (!gs.length) return null;
+      const c = h('div', 'st-vi-card st-vi-deep');
+      for (const [t, it] of gs) c.append(h('h3', 'st-vi-gt', t), list([it], 'st-vi-notes'));
+      return c;
+    },
+    lec() { const gs = tplOf(v, ix, ['learn', 'board', 'stress', 'exam']); return gs.length ? groups(card('st-vi-lec', T('studioViLec')), gs, TPL_T) : null; },
+    steps() { const gs = tplOf(v, ix, ['step']); if (!gs.length) return null; const c = card('st-vi-steps', T('studioViSteps')); c.append(list(gs[0].its, 'st-vi-notes st-vi-ol', 'ol')); return c; },
+    pitch() { const gs = tplOf(v, ix, ['offer', 'price', 'check', 'free']); return gs.length ? groups(card('st-vi-pitch', T('studioViPitch'), T('studioViPitchS')), gs, TPL_T) : null; },
+    defs() {   // V43 — מקופל; נבנה בפתיחה הראשונה
+      const gs = defsOf(v, vw);
+      if (!gs.length) return null;
+      const d = h('details', 'st-list st-vi-defs');
+      const s = h('summary', 'st-row'), l = h('span', 'st-l'), chv = ctx.ico('chev', 'st-chev');
+      l.append(h('b', null, T('studioViDefs'))); s.append(l, chv); d.append(s);
+      let built = false;
+      d.addEventListener('toggle', () => { chv.classList.toggle('open', d.open); if (!d.open || built) return; built = true; d.append(groups(h('div', 'st-vi-chb'), gs, DEF_T)); if (ctl) paint(); });
+      return d;
+    },
+    chs() { return chaptersBlock(); },
+  };
+  function build() {
+    body.textContent = '';
+    anchors.clear(); ptEls.clear(); chEls.length = 0; curItem = null;
+    for (const k of viBlocks(vw)) { const x = BLK[k](); if (x) body.append(...[].concat(x)); }
+    if (ctl) paint();
   }
 
   /* "בעמוד הזה" והפרקים המקופלים: הכותרת היא המסקנה, "פרק 3 מתוך 7" */
   const n = v.chapters.length;
-  const chEls = [];
-  if (n) {
-    el.append(sec(T('studioViOnPage')));
+  function chaptersBlock() {
+    if (!n) return null;
+    const out = [sec(T('studioViOnPage'))];
     const toc = h('nav', 'st-list st-vi-toc');   // .st-list/.st-row — אותה רשימה כמו בכל הסטודיו
     toc.setAttribute('aria-label', T('studioViChs'));
     v.chapters.forEach((c, i) => {
@@ -365,13 +462,13 @@ export function renderVi(ctx) {
       r.append(l, tm(c.t0));
       toc.append(r);
     });
-    el.append(toc);
+    out.push(toc);
     const allB = btn('st-linkb', T('studioViOpenAll'), () => {
       const open = chEls.every((d) => d.open);
       for (const d of chEls) d.open = !open;
       allB.textContent = open ? T('studioViOpenAll') : T('studioViCloseAll');
     }, 'vi-all');
-    el.append(sec(T('studioViChs'), allB));
+    out.push(sec(T('studioViChs'), allB));
     const chs = h('div', 'st-vi-chs');
     v.chapters.forEach((c, i) => {
       const d = h('details', 'st-list st-vi-ch');
@@ -392,10 +489,10 @@ export function renderVi(ctx) {
         built = true;
         const body = h('div', 'st-vi-chb');
         if (c.sum) body.append(h('p', 'st-vi-sum', c.sum));
-        const its = chapterItems(v, ix, c);
-        if (its.length) { const ul = h('ul', 'st-vi-notes'); for (const it of its) ul.append(point(it, 'st-vi-note')); body.append(ul); }
-        if (c.adds) body.append(h('p', 'st-vi-adds', c.adds));
-        const sls = chapterSlides(v, ix, c, its);
+        const its = chView(chapterItems(v, ix, c), vw);
+        if (its.length) body.append(list(its, 'st-vi-notes'));
+        if (c.adds && !vw.c) body.append(h('p', 'st-vi-adds', c.adds));
+        const sls = vw.c ? [] : chapterSlides(v, ix, c, its);
         if (sls.length) {
           const th = h('div', 'st-vi-thumbs');
           for (const s2 of sls) {
@@ -414,8 +511,12 @@ export function renderVi(ctx) {
       chEls.push(d);
       chs.append(d);
     });
-    el.append(chs);
+    out.push(chs);
+    return out;
   }
+  paintVw();
+  el.append(vwRow, body);
+  build();
 
   /* "מה לא נכנס" — הפנקס */
   const left = leftOf(v, ix);
