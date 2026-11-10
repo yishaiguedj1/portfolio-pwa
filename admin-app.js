@@ -1255,11 +1255,15 @@ async function needGold(force) {
   if (D.gj && !force && Date.now() - D.gjAt < 30000) return;
   const [j, s] = await Promise.all([api('jobs'), api('status')]);
   D.gj = j.ok ? { jobs: j.jobs || [], nA: (s && s.normA) || {} } : { err: true }; D.gjAt = Date.now();
-  if (cur === 'gold') paint();
+  if (cur === 'gold' || cur === 'viGold') paint();   // PR 1.7: גם עמוד הזהב של הניתוח (נתקע על "טוען")
 }
+/* PR 1.7 (10/11/2026): ניתוח — עלות לשעה לפי מצב ושפה [אנגלית, עברית] = VI_USD_H ב־studionet.js (5.4 בתוכנית; tests/learn-vi
+   משווה). מחיר שעת התרגום (normA) ותוספת 0.05 לעבודה ניפחו את האומדן של גל ניתוח פי כמה */
+const VI_USD_H = { 'haiku-medium': [0.034, 0.051], 'haiku-high': [0.037, 0.054], 'sonnet-low': [0.45, 0.64], 'sonnet-medium': [0.58, 0.76], 'sonnet-high': [0.63, 0.82], 'opus-medium': [1.15, 1.52] };
 function goldEst(src, m) {
-  const ph = D.gj && D.gj.nA[m] && typeof D.gj.nA[m].ph === 'number' ? D.gj.nA[m].ph : null;
   const dur = (src && src.spec && +src.spec.dur) || 0;
+  if (isVi(src)) return dur ? (VI_USD_H[m] || VI_USD_H['haiku-medium'])[src.spec.from === 'en' ? 0 : 1] * dur / 3600 : null;
+  const ph = D.gj && D.gj.nA[m] && typeof D.gj.nA[m].ph === 'number' ? D.gj.nA[m].ph : null;
   return ph == null || !dur ? null : ph * dur / 3600 + 0.05;
 }
 page('gold', { tab: 'imp', parent: 'imp', title: () => t('admGoldT'), render(p) {
@@ -1311,7 +1315,9 @@ const XF_KEYS = ['smf', 'gq', 'qskip', 'rvs60', 'vwin'], GOLD_ARMS = 4;   // = S
 function paintWave(p, jobs, srcs, vi) {
   // PR 1.6: גם לניתוח (vi) — מצב נפרד, דגלי v… בלבד, והתוצאות רק של הגל מאותו סוג
   const W = vi ? (D.vwv || (D.vwv = {})) : (D.trw || (D.trw = {})), XK = XF_KEYS.filter((k) => (k[0] === 'v') === !!vi);
-  if (!W.arms) W.arms = [{ m: 'haiku-medium', xf: [] }, { m: 'haiku-medium', xf: ['rvs60'] }];
+  // PR 1.7: ניתוח — ארבע הזרועות של ה2 (6.6): א/א′ haiku-medium (A/A), ב haiku-high, ג haiku-medium + vwin. ‏rvs60 הוא דגל תרגום
+  if (!W.arms) W.arms = vi ? [{ m: 'haiku-medium', xf: [] }, { m: 'haiku-medium', xf: [] }, { m: 'haiku-high', xf: [] }, { m: 'haiku-medium', xf: ['vwin'] }]
+    : [{ m: 'haiku-medium', xf: [] }, { m: 'haiku-medium', xf: ['rvs60'] }];
   if (!W.src) W.src = new Set(srcs.map((j) => j.id));
   for (const id of Array.from(W.src)) if (!srcs.some((j) => j.id === id)) W.src.delete(id);
   const ss = srcs.filter((j) => W.src.has(j.id)), arms = W.arms;
