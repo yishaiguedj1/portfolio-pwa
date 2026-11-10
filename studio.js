@@ -3726,22 +3726,22 @@ export function kaLyr(t) {
 }
 /* 9/11/2026: ניתוח סרטונים, גל 0 — הרצה יבשה למנהל (= normSpec ו־studiovi.js בשרתון): מקור עברית/אנגלית, יעד עברית,
    בלי תוצרי וידאו, בלי חיתוך ובלי Claude — רק השרת שלנו. ui.api.vi = המתג st_vi (המנהל — תמיד) */
-const VI_LANGS = ['he', 'en'];
+const VI_FROM = ['auto', 'he', 'en'];   // 10/11/2026 (PR 1.2א, 9.3 סעיף 2): זיהוי אוטומטי (העובד — vt/lang.py), עם דריסה לעברית או לאנגלית
 /* 10/11/2026 (PR 1.5א): לשונית הניתוח — כמו kaOk (שרת ו־R2), ו־ui.api.vi (המנהל תמיד; אחרים — כשהמתג st_vi דולק, ה8) */
 const viTabOk = () => !!(ui.api && ui.api.vi && ui.api.servers > 0 && ui.r2);
 const viOk = (f) => viTabOk() && !!f && !f.ka && !f.subs && !f.ph;
 const viDry = (f) => !!(f && f.vdry && ui.api && ui.api.admin);   // הרצה יבשה (בלי Claude) — המנהל בלבד; השרתון אוכף
 function viSpecOf(f, spec) {
-  Object.assign(spec, { vi: 1, from: VI_LANGS.includes(f.vf) ? f.vf : 'en', to: ['he'], out: [], eng: 'api', cap: store.settings.cap });
+  Object.assign(spec, { vi: 1, from: VI_FROM.includes(f.vf) ? f.vf : 'auto', to: ['he'], out: [], eng: 'api', cap: store.settings.cap });
   if (viDry(f)) { spec.dry = 1; delete spec.vr; } else { delete spec.dry; spec.vr = 1; }   // V130: הצהרת הזכויות (הכפתור נעול בלעדיה)
   for (const k of ['cp', 'ry', 'edl', 'bt', 'sty', 'wl']) delete spec[k];
   return spec;
 }
 /* הטופס של הניתוח (9.3): שפה · מצב (אותו בורר; העלות לשעה של הניתוח) · הצהרת זכויות · מה נשמר (V131) · אומדן. בלי שום אפשרות נוספת */
 function viForm(p, f) {
-  if (!VI_LANGS.includes(f.vf)) f.vf = 'en';
+  if (!VI_FROM.includes(f.vf)) f.vf = 'auto';
   const ul0 = uiLang(), dry = viDry(f);
-  p.append(secT(T('studioViLang')), list(...VI_LANGS.map((c) => rowRadio({ label: langName(c, ul0), on: f.vf === c, onClick: () => { f.vf = c; render('none'); }, k: 'vf:' + c }))));
+  p.append(secT(T('studioViLang')), list(...VI_FROM.map((c) => rowRadio({ label: c === 'auto' ? T('studioAuto') : langName(c, ul0), on: f.vf === c, onClick: () => { f.vf = c; render('none'); }, k: 'vf:' + c }))));
   if (!dry) p.append(secT(T('studioViMode')), ...modePicker(f.mode, (id) => { f.mode = id; render('none'); }, { vi: f.vf }));
   const rows = [rowCheck({ label: T('studioViRights'), on: !!f.vr, onClick: () => { f.vr = !f.vr; render('none'); }, k: 'vr' })];
   if (ui.api && ui.api.admin) rows.push(rowCheck({ label: T('studioViT'), sub: T('studioViS'), on: !!f.vdry, onClick: () => { f.vdry = !f.vdry; render('none'); }, k: 'vdry' }));

@@ -10,6 +10,7 @@
 מוקים בלבד."""
 import io
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -327,6 +328,8 @@ class FakeJ:
     def __init__(self, ctx, src):
         self.ctx, self.src, self.calls, self.put = ctx, src, [], []
         self.Ctx = lambda st: ctx
+        self.lid = "en"                     # מה ש־vi-asr "מזהה" כשמבקשים auto (vt/lang.py ‏main_lang)
+        self.LIVE_USAGE = None
 
     def load_state(self):
         return self.ctx.st
@@ -359,7 +362,9 @@ class FakeJ:
         out = Path(args[args.index("--out") + 1])
         if args[0] == "vi-asr":
             ws = [W("Gradient", 1.0, 1.5, p=0.9), W("descent", 1.6, 2.2), W("works.", 2.3, 4.5), W("Next", 6.0, 6.5)]
-            VI.write(out, {"v": 1, "lang": args[args.index("--lang") + 1], "engine": "x", "quality": "ok", "words": ws, "stats": {}})
+            lg = args[args.index("--lang") + 1]
+            lg = self.lid if lg == "auto" else lg
+            VI.write(out, {"v": 1, "lang": lg, "engine": "x", "quality": "ok", "words": ws if lg in ("he", "en") else [], "stats": {}})
         elif args[0] == "vi-align":
             tr = json.loads(Path(args[1]).read_text())
             VI.write(out, {"v": 1, "lang": tr["lang"], "aligner": "x", "ts": "word", "words": tr["words"], "stats": {"n": 4}})
@@ -390,15 +395,17 @@ class TestViRun(unittest.TestCase):
     def tearDown(self):
         self.td.cleanup()
 
-    def run_vi(self, **spec):
+    def run_vi(self, engine=None, lid="en", **spec):
         st = {"job": "jtestvi", "spec": dict({"vi": 1, "dry": 1, "from": "en", "to": ["he"], "name": "הרצאה.mp4", "mode": ""}, **spec),
               "files": {"v": {"id": "r2:v", "size": 1}}}
         ctx = Ctx(st, self.dir / "proj")
         J = FakeJ(ctx, self.src)
+        J.lid = lid
+        self.ctx, self.J = ctx, J
         from contextlib import redirect_stdout
         buf = io.StringIO()
         with redirect_stdout(buf):
-            rc = A.vi_run(J, None)
+            rc = A.vi_run(J, None, engine=engine)
         return rc, ctx, J, buf.getvalue()
 
     def test_dry_run_end_to_end(self):
@@ -433,9 +440,71 @@ class TestViRun(unittest.TestCase):
         self.assertEqual(cues[0]["lines"], ["Gradient descent works."])
 
     def test_refusals(self):
-        for spec, err in (({"from": "fr"}, "vi_lang"), ({"from": "auto"}, "vi_lang"), ({"dry": 0}, "vi_off")):
+        os.environ.pop("SNB_VI_LIVE", None)
+        for spec, err in (({"from": "fr"}, "vi_lang"), ({"dry": 0}, "vi_off")):
             with self.assertRaises(SystemExit):
                 self.run_vi(**spec)
+            self.assertEqual(self.ctx.reports[-1]["err"], err)
+            self.assertEqual(self.J.calls, [], "נדחה לפני הקליטה — בלי הוצאה")
+        with self.assertRaises(SystemExit):
+            self.run_vi(**{"from": "auto", "lid": "fr"})
+        self.assertEqual(self.ctx.reports[-1]["err"], "vi_lang", "זוהתה שפה שלא נתמכת")
+        self.assertNotIn("vi-screen", self.J.calls)
+
+    def test_auto_lang(self):
+        """9.3 סעיף 2: "אוטומטי" — vi-asr מקבל auto, והשפה שזוהתה נכנסת ל־vi.json"""
+        rc, ctx, J, out = self.run_vi(**{"from": "auto", "lid": "he"})
+        self.assertEqual(rc, 0)
+        vi = json.loads((ctx.pdir / "vi.json").read_text())
+        self.assertEqual(vi["lang"]["src"], "he")
+        self.assertIn('"lang":"he"', [x for x in out.splitlines() if x.startswith("VI_DRY ")][0])
+
+    def test_live_end_to_end(self):
+        """1.2א: עבודה לא יבשה עם מנוע מדומה (ManualEngine) — vi.json עם פרקים ופריטים, "טיוטה — לא אומתה", ו־VI_RUN"""
+        import llm
+        seen = []
+
+        def ask(k, text):
+            seen.append(text)
+            e = re.findall(r"^\[(e\d+)", text, re.M)
+            d = {"genre": "academic_lecture", "segments": [{"from": e[0], "type": "content"}],
+                 "chapters": [{"from": e[0], "lvl": 1, "cont": False, "title": "ירידת גרדיאנט", "sum": "השיטה עובדת."}],
+                 "items": [{"kind": "claim", "text": "ירידת גרדיאנט עובדת", "ev": [e[0]], "q": "descent works.", "src": "speech",
+                            "basis": "speaker", "conf": "high"}],
+                 "drop": []}
+            return "<json>" + json.dumps(d, ensure_ascii=False) + "</json>"
+        rc, ctx, J, out = self.run_vi(engine=llm.ManualEngine(ask), dry=0)
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(seen), 1)
+        self.assertNotIn("1.6", seen[0].split("## Window")[1], "בלי זמנים בחלון")
+        vi = json.loads((ctx.pdir / "vi.json").read_text())
+        self.assertEqual(vi["chapters"][0]["title"], "ירידת גרדיאנט")
+        it = vi["items"][0]
+        self.assertEqual((it["id"], it["ch"], it["t"], it["src"]), ("n1", "c1", 1.6, "speech"), "זמן המילה descent")
+        self.assertIn("vi_unver", vi["quality"]["warn"])
+        self.assertNotIn("tok", vi, "vi.json חי עובר norm_vi — העלות רק בדיווח ובעובדות")
+        self.assertTrue(callable(J.LIVE_USAGE), "העלות בזמן ריצה — כמו בתרגום")
+        self.assertEqual(ctx.reports[-1]["msg"], "הניתוח מוכן")
+        facts = json.loads([x for x in out.splitlines() if x.startswith("VI_RUN ")][0][7:])
+        self.assertEqual(facts["map"]["win"], 1)
+        self.assertEqual(facts["map"]["pv"], 1)
+        self.assertEqual(facts["tok"]["src"], "usage")
+
+    def test_live_fail_reports_code(self):
+        import llm
+        with self.assertRaises(SystemExit):
+            self.run_vi(engine=llm.ManualEngine(lambda k, t: "not json"), dry=0)
+        r = self.ctx.reports[-1]
+        self.assertEqual((r["err"], r["fail"]), ("vi_schema", True))
+        self.assertNotIn("vi-small", self.J.calls, "בלי תוצרים")
+
+    def test_live_gate_env(self):
+        os.environ["SNB_VI_LIVE"] = "1"
+        try:
+            self.assertTrue(A.live_ok())
+        finally:
+            os.environ.pop("SNB_VI_LIVE", None)
+        self.assertFalse(A.live_ok())
 
     def test_too_long(self):
         old = A.VI_MAX_S

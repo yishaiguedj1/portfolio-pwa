@@ -23,6 +23,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   /* ---------- 1. זהה לעובד (19.3) ---------- */
   ok(py.includes("VI_V = '" + VI.VI_V + "'"), 'VI_V זהה בעובד');
   ok(same(pyTuple('VI_LANGS'), VI.VI_LANGS), 'VI_LANGS זהה בעובד');
+  ok(same(pyTuple('VI_FROM'), VI.VI_FROM) && VI.VI_FROM[0] === 'auto' && VI.VI_LANGS.every((c) => VI.VI_FROM.includes(c)), 'VI_FROM (עם "אוטומטי", 1.2א) זהה בעובד');
   ok(same(pyTuple('VI_FAIL'), VI.VI_FAIL) && same(pyTuple('VI_WARN'), VI.VI_WARN), 'קודי הכישלון והאזהרה זהים בעובד');
   ok(new RegExp("^VI_MAX_S = int\\(os\\.environ\\.get\\('VI_MAX_S'\\) or " + VI.VI_MAX_S + '\\)', 'm').test(py), 'VI_MAX_S — ברירת המחדל זהה בעובד');
   const files = [...py.matchAll(/^\s+\('(\w+)', '[^']+', '[^']+', '[^']+'\),?$/gm)].map((x) => x[1]);
@@ -50,7 +51,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
   /* ---------- 3. השפות והאורך ---------- */
   ok(S.langReady(sp) && S.langReady(Object.assign({}, sp, { from: 'en' })), 'מקור עברית או אנגלית');
-  ok(!S.langReady(Object.assign({}, sp, { from: 'auto' })) && !S.langReady(Object.assign({}, sp, { from: 'fr' })), 'בלי "אוטומטי" ובלי שפות אחרות');
+  ok(S.langReady(Object.assign({}, sp, { from: 'auto' })) && !S.langReady(Object.assign({}, sp, { from: 'fr' })), '1.2א: "אוטומטי" — העובד מזהה; בלי שפות אחרות');
   ok(!S.langReady(Object.assign({}, sp, { to: ['he', 'en'] })) && !S.langReady(Object.assign({}, sp, { to: ['en'] })), 'יעד — עברית בלבד');
   ok(S.langReady({ from: 'auto', to: ['he'] }) && !S.langReady({ from: 'he', to: ['he'] }), 'התרגום — בלי שינוי');
   ok(VI.viTooLong({ dur: VI.VI_MAX_S + 1 }) && !VI.viTooLong({ dur: VI.VI_MAX_S }) && !VI.viTooLong({ dur: 0 }), 'vi_long — מעל VI_MAX_S (0 = לא ידוע, העובד בודק)');
@@ -128,7 +129,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   ok(nj && nj.srv && same(nj.srv.vsm, { n: 0, ok: 0, cov: 0, so: 5, d: 60 }), 'normJob: הסיכום — רק המספרים');
   for (const c of VI.VI_FAIL.filter((x) => x !== 'cap')) ok(new RegExp("case '" + c + "': return T\\('studioErr").test(stj), 'errText: ' + c);
   ok(/const viDry = \(f\) => !!\(f && f\.vdry && ui\.api && ui\.api\.admin\);/.test(stj), 'הטופס: "ניתוח יבש" — למנהל בלבד');
-  ok(/Object\.assign\(spec, \{ vi: 1, from: VI_LANGS\.includes\(f\.vf\) \? f\.vf : 'en', to: \['he'\], out: \[\], eng: 'api'/.test(stj)
+  ok(/Object\.assign\(spec, \{ vi: 1, from: VI_FROM\.includes\(f\.vf\) \? f\.vf : 'auto', to: \['he'\], out: \[\], eng: 'api'/.test(stj)
     && /if \(viDry\(f\)\) \{ spec\.dry = 1; delete spec\.vr; \} else \{ delete spec\.dry; spec\.vr = 1; \}/.test(stj), 'viSpecOf = normSpec בשרתון (יבש — או הצהרת זכויות)');
   ok((stj.match(/\n\s+if \(f\.vi\) viSpecOf\(f, spec\);/g) || []).length === 1 && /else if \(f\.vi\) viSpecOf\(f, spec\);/.test(stj), 'מקובץ ומקישור');
   ok((stj.match(/const sk = rec\.spec\.ka \? 'ka' : rec\.spec\.vi \? 'vi'/g) || []).length === 2 && /if \(subs === 'vi'\) return/.test(stj), 'שמות השלבים — בדף ובווילון');
@@ -186,6 +187,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   const mo = JSON.parse(stj.match(/const MODE_ORDER = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
   ok(same(Object.keys(N.VI_USD_H), mo) && N.VI_USD_H['haiku-medium'][0] === 0.034 && N.VI_USD_H['opus-medium'][1] === 1.52, 'VI_USD_H — כל המצבים (5.4)');
   ok(Math.abs(N.viUsd('haiku-medium', 'he', 3600) - 0.051) < 1e-9 && Math.abs(N.viUsd('sonnet-low', 'en', 1800) - 0.225) < 1e-9 && N.viUsd('nope', 'en', 3600) === 0.034 && N.viUsd('haiku-high', 'he', -5) === 0, 'viUsd — לפי משך, שפה ומצב');
+  ok(N.viUsd('haiku-medium', 'auto', 3600) === N.viUsd('haiku-medium', 'he', 3600), '1.2א: "אוטומטי" — לפי עברית (היקרה)');
   ok(/fmtUsd\(viUsd\(m\.id, o\.vi, 3600\)\)/.test(stj), 'הבורר: עלות לשעה בניתוח, במקום זמן לשעה');
   // ההסכמות (LRN_VV) — זהה לשרתון, רק lat/lam/lau
   const apiSt = read('ibkr-proxy/api/studio.js');

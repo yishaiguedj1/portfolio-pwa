@@ -195,9 +195,45 @@ def lang_mix(wav: str, words: list[dict], segs: list[dict] | None, primary: str,
     return words, st
 
 
-def asr(wav: str, lang: str) -> dict:
-    """שמע 16kHz → מילים עם זמן. עברית — vt/asr_he.py (‏VAD → ivrit → zipformer); אנגלית — Parakeet, כמו בתרגום."""
+def detect_main(wav: str, model=None) -> dict:
+    """"אוטומטי" (PR 1.2א): השפה הראשית — vt/lang.py ‏main_lang. בלי מודל הזיהוי / תקלה — אנגלית (src none),
+    כמו ברירת המחדל של הטופס לפני 1.2א."""
+    from . import lang as L
+    if model is None and not L.ready():
+        return {"lg": "en", "p": 0.0, "n": 0, "src": "none"}
+    try:
+        import soundfile as sf
+        audio, sr = sf.read(wav, dtype="float32")
+        if getattr(audio, "ndim", 1) > 1:
+            audio = audio.mean(axis=1)
+        if sr != L.SR:
+            raise ValueError("sr")
+        r = L.main_lang(audio, model=model)
+        return dict(r, src="lid") if r["lg"] else {"lg": "en", "p": 0.0, "n": 0, "src": "none"}
+    except Exception as e:  # noqa: BLE001
+        log(f"זיהוי השפה נכשל ({type(e).__name__}) — אנגלית")
+        return {"lg": "en", "p": 0.0, "n": 0, "src": "err"}
+
+
+def asr(wav: str, lang: str, lid_model=None) -> dict:
+    """שמע 16kHz → מילים עם זמן. עברית — vt/asr_he.py (‏VAD → ivrit → zipformer); אנגלית — Parakeet, כמו בתרגום.
+    lang = "auto" (PR 1.2א): קודם השפה הראשית (detect_main). שפה שאינה עברית/אנגלית — בלי תמלול (המתזמר: vi_lang)."""
     t0 = time.time()
+    auto = None
+    if lang == "auto":
+        auto = detect_main(wav, lid_model)
+        lang = auto["lg"]
+        log(f"השפה הראשית: {lang} ({auto['p']}, {auto['n']} דגימות)")
+        if lang not in ("he", "en"):
+            return {"v": V, "lang": lang, "engine": "lid", "quality": "low", "words": [],
+                    "stats": {"auto": auto, "n": 0, "s": round(time.time() - t0, 1)}}
+    r = _asr(wav, lang, t0)
+    if auto:
+        r["stats"]["auto"] = auto
+    return r
+
+
+def _asr(wav: str, lang: str, t0: float) -> dict:
     if lang == "he":
         from . import asr_he
         r = asr_he.run(wav, log=log)

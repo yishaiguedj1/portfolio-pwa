@@ -269,6 +269,7 @@
     "e2",
     "s1"
    ],
+   "t": "12",
    "src": "both",
    "basis": "speaker",
    "conf": "high",
@@ -283,6 +284,7 @@
     "e3",
     "o2.1"
    ],
+   "t": -5,
    "src": "both",
    "basis": "speaker",
    "conf": "med",
@@ -296,6 +298,7 @@
    "ev": [
     "o1.2"
    ],
+   "t": 99999,
    "src": "screen_only",
    "basis": "vibes",
    "conf": "med",
@@ -313,7 +316,8 @@
    "ev": [
     "e5",
     "e5"
-   ]
+   ],
+   "t": 3.14159
   }
  ],
  "briefing": {
