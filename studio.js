@@ -1176,8 +1176,9 @@ function stageName(id, to, subs) {
     default: return T('studioStgSv');
   }
 }
-function stageSub(id, subs) {
-  if (subs === 'vi') return id === 'up' ? T('studioStgUpViS') : id === 'al' ? T('studioStgAlViS') : id === 'rv' ? T('studioStgRvViS') : id === 'bn' ? T('studioStgBnViS') : stageSub(id, '');
+function stageSub(id, subs, dry) {
+  // 10/11/2026 (המשתמש: "למה מופיע הרצה יבשה אם לא סימנתי?"): הכיתוב של היבשה רק ביבשה — אחרת Claude מנתח
+  if (subs === 'vi') return id === 'up' ? T('studioStgUpViS') : id === 'al' ? T('studioStgAlViS') : id === 'rv' ? (dry ? T('studioStgRvViS') : T('studioStgRvViCS')) : id === 'bn' ? T('studioStgBnViS') : stageSub(id, '');
   if (subs === 'ka' && (id === 'up' || id === 'tr' || id === 'al' || id === 'bn')) return id === 'up' ? T('studioStgUpKaS') : id === 'tr' ? T('studioStgTrKaS') : id === 'al' ? T('studioStgAlKaS') : T('studioStgBnKaS');
   if (subs && (id === 'up' || id === 'tr' || id === 'al' || id === 'bn')) return id === 'up' ? T('studioStgUpSubsS') : id === 'tr' ? T('studioStgTrSubsS') : id === 'al' ? T('studioStgAlSubsS') : T('studioStgBnSubsS');
   switch (id) {
@@ -8046,7 +8047,7 @@ async function goldRun(bt) {
 const costMeas = (r) => (r && r.srv && r.srv.sla && r.srv.sla.u && (r.srv.state === 'running' || r.srv.state === 'queued') ? r.srv.sla.u.sp : null);
 /* 1/11/2026 (המשתמש: "רק התקציב מתעדכן בזמן אמת"): הכרטיס נבנה פעם אחת והדף לא נבנה מחדש כשהעלות משתנה —
    עכשיו הוא מתעדכן במקום (live) מהרשומה העדכנית, ונבנה מחדש רק כשהנתונים השתנו */
-function costCard(cv, tr, id) {
+function costCard(cv, tr, id, api) {
   const box = h('div');
   box.style.display = 'contents';
   live(box, (el) => {
@@ -8059,7 +8060,7 @@ function costCard(cv, tr, id) {
   });
   const out = [secT(T('studioSecCost')), box];
   if (tr && tr.g.length) out.push(trDetails(tr));
-  out.push(note(T('studioCostNote')));
+  out.push(note(api ? T('studioCostNoteApi') : T('studioCostNote')));   // 10/11/2026: במנוע ה־API (מפתח בשרת) — חיוב אמיתי, לא מכסת המנוי
   return out;
 }
 function costBody(cv, tr) {
@@ -9475,7 +9476,7 @@ function pageJob(p) {
     else if (s.state === 'now') dot.append(h('span', 'st-spin'));
     const txt = h('span', 'st-l');
     const sk = rec.spec.ka ? 'ka' : rec.spec.vi ? 'vi' : rec.spec.src === 'subs';
-    txt.append(h('b', null, stageName(s.id, toTxt, sk)), h('small', null, stageSub(s.id, sk)));
+    txt.append(h('b', null, stageName(s.id, toTxt, sk)), h('small', null, stageSub(s.id, sk, rec.spec.dry === 1)));
     const tm = h('span', 'st-stg-t');
     row.append(dot, txt, tm);
     if (s.state === 'now') { const pb = h('span', 'st-pbar'); const pi = h('i'); pb.append(pi); txt.append(pb); live(pb, () => { const mm = modelFor(jobRec(id) || rec).stages.find((x) => x.id === s.id); pi.style.width = Math.round(100 * shownPct(jobRec(id) || rec, mm && (mm.pv != null ? mm.pv : mm.p), s.id)) + '%'; }); }
@@ -9509,7 +9510,7 @@ function pageJob(p) {
   p.append(...orgRows(rec));   // 28/10/2026: מאיפה הגיע כל קובץ
   // v359: עלות — שורה לכל שלב, עלות הפתיחה של כל סוכן־משנה, סכום כולל
   const cv = rec.srv && rec.srv.use ? costView(rec.srv.use, rec.spec.mode) : null;
-  if (cv) p.append(...costCard(cv, rec.srv.tr, rec.id));
+  if (cv) p.append(...costCard(cv, rec.srv.tr, rec.id, (rec.srv && rec.srv.eng) === 'api' || rec.spec.eng === 'api'));
 
   // הסרטון המלא — עולה ברקע אחרי הקול (Claude צריך אותו רק לצריבה)
   if (!rec.up.noAudio && !rec.up.v.done && (ph0 === 'queued' || ph0 === 'running')) {

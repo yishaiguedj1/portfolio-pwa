@@ -2356,14 +2356,18 @@ def px_of(media):
 
 def report_px(ctx):
     """21/10/2026: אחרי הקליטה — המידות והקצב האמיתיים לשרתון, שמחשב מחדש את זמן הצריבה בתוכנית (פעם אחת לעבודה).
-    גם מתוך הצירוף ברקע (QuietCtx) — זה לא דיווח התקדמות. תקלה כאן לא נוגעת בעבודה."""
+    גם מתוך הצירוף ברקע (QuietCtx) — זה לא דיווח התקדמות. תקלה כאן לא נוגעת בעבודה.
+    10/11/2026: גם האורך (du) — קישור בלי אורך ידוע מקבל רק עכשיו תוכנית ויעד זמן ותקציב (השרתון מתעלם כשהאורך כבר ידוע)."""
     try:
         if ctx.st.get('pxs'):
             return
-        px = px_of(_read_json(ctx.pdir / 'media.json'))
-        if px is None:
+        md = _read_json(ctx.pdir / 'media.json')
+        px = px_of(md)
+        du = (md or {}).get('duration') if isinstance(md, dict) else None
+        ex = {'du': int(round(du))} if _num_ok(du) and 1 <= du <= 86400 else {}
+        if px is None and not ex:
             return
-        Ctx.report(ctx, px=px, force=True)
+        Ctx.report(ctx, force=True, **(dict({'px': px}, **ex) if px is not None else ex))
         ctx.st['pxs'] = 1
         save_state(ctx.st)
     except Stop:

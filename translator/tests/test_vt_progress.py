@@ -288,6 +288,26 @@ class PxOf(unittest.TestCase):
         self.assertIsNone(job.px_of({}))
         self.assertIsNone(job.px_of({'video': {'width': 0, 'height': 1080}}))
 
+    def test_report_du(self):
+        # 10/11/2026: גם האורך (du) — קישור בלי אורך ידוע מקבל תוכנית ויעד זמן ותקציב רק אחרי הקליטה
+        import tempfile
+        from types import SimpleNamespace
+        from unittest import mock
+        sent = []
+        for md, want in (({'video': {'width': 1920, 'height': 1080, 'fps_float': 30}, 'duration': 1499.6}, {'px': 1.0, 'du': 1500}),
+                         ({'video': None, 'duration': 600.2}, {'du': 600}),
+                         ({'video': None, 'duration': 0}, None)):
+            with tempfile.TemporaryDirectory() as d:
+                Path(d, 'media.json').write_text(json.dumps(md), encoding='utf-8')
+                ctx = SimpleNamespace(st={}, pdir=Path(d))
+                sent.clear()
+                with mock.patch.object(job.Ctx, 'report', lambda c, *a, **k: sent.append(k)), mock.patch.object(job, 'save_state', lambda st: None):
+                    job.report_px(ctx)
+                if want is None:
+                    self.assertEqual(sent, [], 'בלי מידות ובלי אורך — לא מדווחים')
+                else:
+                    self.assertEqual({k: v for k, v in sent[0].items() if k != 'force'}, want)
+
 
 class CkNext(unittest.TestCase):
     """21/10/2026: "המשך" מנקודת התמלול עם ההגהה בפנים — היישור, לא "כותבים כל מילה" שכבר הסתיים."""

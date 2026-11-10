@@ -2620,6 +2620,29 @@ async function trashTarget(deps, uid, token, x) {
 }
 
 /* ---------- העובד בענן ---------- */
+/* 10/10/2026: התוכנית (p50 לכל שלב + אי־ודאות) מהמודל הנלמד; יעד הזמן = p90 + דקה ("חרגה" רק כשבאמת חריג).
+   v377: יעדי השירות (זמן ותקציב) — פעם אחת לעבודה. מחזירה רק מה שחסר (ep / tg); בלי אורך סרטון — כלום.
+   10/11/2026: גם מהדיווח של העובד, כשהאורך נודע רק אחרי הקליטה (קישור שהבדיקה לא החזירה לו אורך / "בלי בדיקה") */
+async function planTargets(deps, job, stats, nm, now) {
+  const out = {};
+  if (job.kind !== 'tr' || !job.spec) return out;
+  let ep = job.ep;
+  if (!ep && job.spec.dur > 0) {
+    const gd = job.eng === 'api' || job.spec.ka === 1 ? ((await readDoc(deps, 'studioEta', 'a').catch(() => null)) || {}) : {};
+    const ge = job.eng === 'api' ? gd.et : null;
+    ep = ETA.etaPlan(ETA.etaModel(ETA.etSamplesFor(stats.et, ge, job.eng === 'api' ? 'a' : 'r'), job.eng === 'api' ? 'a' : 'r', now), job.spec.mode, job.spec.dur, ETA.jobFactors(job));
+    if (job.spec.src === 'subs') ep = ETA.subsPlan(ep);   // 22/10/2026: קובץ כתוביות — בלי תמלול, יישור וצריבה
+    if (job.spec.vi === 1) ep = ETA.viPlan(ep, job.spec.dur, job.spec.dry === 1);   // 9/11/2026: ניתוח — השלבים שלו (VI_STG; ‏PR 0.4 מכייל)
+    if (job.spec.ka === 1) ep = ETA.kaPlan(ep, job.spec.dur, job.spec.bv === 1, ETA.kaModel(gd.ka, now));   // 26/10/2026: קריוקי — הפרדה, יישור וצריבה, בלי תרגום · 31/10: נלמד (studioEta/a.ka)
+    out.ep = ep;
+  }
+  if (!job.tg) {
+    const tg = L.targets(job.spec, nm ? nm.ph : S.normDef(job.spec.mode, job.eng), S.normFixed(job.eng));
+    if (tg && ep) tg.t = ETA.etaTarget(ep);
+    if (tg) out.tg = tg;
+  }
+  return out;
+}
 async function worker(req, res, body, deps) {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -2664,22 +2687,7 @@ async function worker(req, res, body, deps) {
       if (!job.c0) patch.c0 = now;
       if (job.kind === 'tr' && !job.c0 && S.dualAb(job, now)) patch.xd = 1;   // 28/10/2026: טיוטה אחת (הניסוי הסתיים — לכל עבודה)
       if (job.kind === 'tr' && !job.c0 && S.rvAb(job, now)) patch.xr = 1;   // 28/10/2026: ניסוי "ביקורת ב־medium"
-      // 10/10/2026: התוכנית (p50 לכל שלב + אי־ודאות) מהמודל הנלמד; יעד הזמן = p90 + דקה ("חרגה" רק כשבאמת חריג)
-      let ep = job.ep;
-      if (job.kind === 'tr' && !ep && job.spec && job.spec.dur > 0) {
-        const gd = job.eng === 'api' || job.spec.ka === 1 ? ((await readDoc(deps, 'studioEta', 'a').catch(() => null)) || {}) : {};
-        const ge = job.eng === 'api' ? gd.et : null;
-        ep = ETA.etaPlan(ETA.etaModel(ETA.etSamplesFor(stats.et, ge, job.eng === 'api' ? 'a' : 'r'), job.eng === 'api' ? 'a' : 'r', now), job.spec.mode, job.spec.dur, ETA.jobFactors(job));
-        if (job.spec.src === 'subs') ep = ETA.subsPlan(ep);   // 22/10/2026: קובץ כתוביות — בלי תמלול, יישור וצריבה
-        if (job.spec.vi === 1) ep = ETA.viPlan(ep, job.spec.dur, job.spec.dry === 1);   // 9/11/2026: ניתוח — השלבים שלו (VI_STG; ‏PR 0.4 מכייל)
-        if (job.spec.ka === 1) ep = ETA.kaPlan(ep, job.spec.dur, job.spec.bv === 1, ETA.kaModel(gd.ka, now));   // 26/10/2026: קריוקי — הפרדה, יישור וצריבה, בלי תרגום · 31/10: נלמד (studioEta/a.ka)
-        patch.ep = ep;
-      }
-      if (job.kind === 'tr' && !job.tg) {
-        const tg = L.targets(job.spec, nm ? nm.ph : S.normDef(job.spec && job.spec.mode, job.eng), S.normFixed(job.eng));
-        if (tg && ep) tg.t = ETA.etaTarget(ep);
-        if (tg) patch.tg = tg;
-      }
+      Object.assign(patch, await planTargets(deps, job, stats, nm, now));
       if (/^[0-9a-f]{12}$/.test(String(body.ev || ''))) patch.ev = body.ev;   // v371: גרסת הסביבה של העובד ("אחרי שינוי בסביבה")
       const pv = S.normPv(body.pv); if (pv) patch.pv = pv;   // v373: גרסת ההנחיות של כל סוכן (מלאי הסוכנים)
       await patchJob(deps, id, patch);
@@ -2873,6 +2881,18 @@ async function worker(req, res, body, deps) {
     }
     if (job.state === 'queued') { up.state = up.state || 'running'; up.claimed = now; up.warn = ''; if (!job.c0) up.c0 = now; }
     // v377: מחכים לסרטון מהטלפון (wv) — השעון של יעד הזמן עוצר; דיווח התקדמות הבא בלי wv ממשיך אותו (אירוע בודד — לא)
+    // 10/11/2026 (המשתמש: "למה לא מופיע התקציב והזמן שעברו?"): קישור שהבדיקה לא החזירה לו אורך (או "בלי בדיקה") — בלקיחה
+    // לא היה על מה לקבוע תוכנית ויעדים, ו"יעד זמן ותקציב" לא הופיע כל העבודה. העובד מדווח את האורך אחרי הקליטה (du) — נקבעים עכשיו
+    const du = Math.round(Number(body.du));
+    if (job.kind === 'tr' && job.spec && !(job.spec.dur > 0) && du >= 1 && du <= 86400) {
+      up.spec = Object.assign({}, job.spec, { dur: du });
+      const j2 = Object.assign({}, job, { spec: up.spec });
+      const st2 = await readStats(deps, job.uid);
+      Object.assign(up, await planTargets(deps, j2, st2, S.learnedNorm(st2.ns, job.spec.mode, job.eng), now));
+      if (up.ep) job.ep = up.ep;
+      if (up.tg) job.tg = up.tg;
+      job.spec = up.spec;   // הצריבה (px) באותו דיווח — לפי האורך האמיתי
+    }
     // 21/10/2026: העובד גילה את המידות והקצב האמיתיים (אחרי הקליטה) — שלב הצריבה בתוכנית מחושב מחדש, פעם אחת
     if (job.kind === 'tr' && !job.pxm && Number.isFinite(+body.px) && +body.px >= 0.02 && +body.px <= 16) {
       up.pxm = Math.round(+body.px * 1000);   // שלם (toFields מעגל מספרים) — px × 1000

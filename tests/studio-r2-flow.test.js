@@ -468,5 +468,22 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok((await api('viRef', { job: C0, get: true })).error === 'state', 'זהב ניתוח: ייחוס רק לניתוח מקורי (לא להרצת זהב)');
   for (const c of wv.jobs) db.delete('studioJobs/' + c.id);
 
+  /* ---------- 10/11/2026: קישור בלי אורך ידוע — יעד הזמן והתקציב נקבעים כשהעובד מדווח את האורך אחרי הקליטה (du) ---------- */
+  {
+    const jd = await api('create', { spec: Object.assign({}, spec, { dur: 0 }) });
+    const JD = jd.job.id, KD = crypto.randomBytes(32).toString('base64url');
+    Object.assign(db.get('studioJobs/' + JD).fields, { kh: { stringValue: crypto.createHash('sha256').update(KD).digest('hex') }, kx: { integerValue: String(R.now + 3600e3) }, state: { stringValue: 'queued' }, fired: { integerValue: String(R.now) } });
+    ok((await call({ op: 'claim', job: JD, key: KD }, true)).j.ok && !jobOf(JD).tg && !jobOf(JD).ep, 'אורך לא ידוע: בלקיחה אין תוכנית ואין יעד (אין על מה)');
+    await call({ op: 'report', job: JD, key: KD, st: 'tr', p: 0.1, du: 1500, px: 1 }, true);
+    const a = jobOf(JD);
+    ok(a.spec.dur === 1500 && a.tg && a.tg.t > 0 && a.tg.u > 0 && a.ep && a.ep.t > 0 && a.pxm === 1000, 'אורך מהעובד (du): האורך נשמר, התוכנית ויעד הזמן והתקציב נקבעים, וגם px באותו דיווח');
+    const sv = S.publicJob(a, R.now + 60e3);
+    ok(sv.sla && sv.sla.t && sv.sla.t.tg > 0 && sv.sla.u && sv.sla.u.tg > 0, 'והטלפון מקבל "יעד זמן ותקציב"');
+    await call({ op: 'report', job: JD, key: KD, st: 'tr', p: 0.2, du: 99 }, true);
+    ok(jobOf(JD).spec.dur === 1500 && jobOf(JD).tg.t === a.tg.t, 'אורך ידוע — דיווח נוסף לא משנה אותו');
+    await call({ op: 'report', job: JD, key: KD, st: 'tr', p: 0.3, du: 1e9 }, true);
+    db.delete('studioJobs/' + JD);
+  }
+
   console.log('\n' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL -', e); process.exit(1); });
