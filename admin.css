@@ -186,9 +186,9 @@ html[data-app="admin"] .appbar { --ib: 44px; --pill-h: 44px; }
 @media (prefers-reduced-motion: reduce) { .adm-pulse { animation: none; } }
 .adm-tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: var(--pill); margin-inline-start: 6px; vertical-align: 2px; background: color-mix(in srgb, #F5A524 20%, transparent); color: #B87400; }
 .adm-tag.me { background: color-mix(in srgb, #0A84FF 15%, transparent); color: #0A84FF; }
-.adm-lbar { height: 7px; margin-top: 10px; }
-.adm-lbar i { background: #F5A524; }
-.adm-live.me .adm-lbar i { background: #0A84FF; }
+.adm-lbar { height: 4.5px; margin-top: 10px; overflow: visible; --cmt-c: #F5A524; }   /* ת־פס (סוף styles.css) — גובר על .adm-mtr */
+.adm-lbar i { background: var(--cmt-bg); }
+.adm-live.me .adm-lbar { --cmt-c: #0A84FF; }
 .adm-lln { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--on-surface-var); margin-top: 6px; }
 .adm-lstg { display: flex; gap: 3px; margin-top: 8px; }
 .adm-lstg span { flex: 1; height: 4px; border-radius: var(--pill); background: color-mix(in srgb, var(--on-surface) 10%, transparent); }
