@@ -123,7 +123,7 @@ export function normSettings(o) {
 export function normApi(a) {
   if (!a || typeof a !== 'object') return null;
   const n = (x) => (Number.isFinite(+x) && +x >= 0 ? +x : 0);
-  return { month: n(a.month), cap: n(a.cap), online: Math.floor(n(a.online)), servers: Math.floor(n(a.servers)), admin: a.admin === true, ka: a.ka === true, nc: a.nc === true };   // nc — המנהל: בלי תקרה חודשית של המערכת (29/10/2026)
+  return { month: n(a.month), cap: n(a.cap), online: Math.floor(n(a.online)), servers: Math.floor(n(a.servers)), admin: a.admin === true, ka: a.ka === true, vi: a.vi === true, nc: a.nc === true };   // 10/11/2026: vi (המתג st_vi) — עד היום נזרק כאן, והניתוח לא הוצג גם למנהל   // nc — המנהל: בלי תקרה חודשית של המערכת (29/10/2026)
 }
 /* השרתים (srvList, למנהל) — רק מה שמוצג; השם טקסט בלבד */
 export function normServers(list) {
@@ -3001,7 +3001,7 @@ function modePicker(cur, onPick, o) {   // 10/11/2026: o.vi = שפת ההרצא�
   const nm = h('div', 'st-modenm'); nm.append(h('small', null, modeSub(m.id)));   // שם המודל כבר בבורר — כאן רק במה הוא טוב
   const stat = (lbl, val) => { const d = h('span', 'st-mstat'); d.append(h('small', null, lbl), val); return d; };
   const stats = h('div', 'st-mstats'); stats.setAttribute('aria-hidden', 'true');
-  stats.append(stat(T('studioQuality'), bars(m.q)), stat(T('studioUsage'), bars(m.u, 'amber')), stat(T('studioHourEst'), h('b', null, o && o.vi ? fmtUsd(viUsd(m.id, o.vi, 3600)) : T('studioHrs', { t: fmtHM(m.min) }))));
+  stats.append(...[stat(T('studioQuality'), bars(m.q)), o && o.vi ? null : stat(T('studioUsage'), bars(m.u, 'amber')), stat(T('studioHourEst'), h('b', null, o && o.vi ? fmtUsd(viUsd(m.id, o.vi, 3600)) : T('studioHrs', { t: fmtHM(m.min) })))].filter(Boolean));   // בניתוח — בלי "שימוש במנוי" (ה־API לפי בקשה)
   info.append(nm, stats);
   card.append(info);
   // v367: מעל המצב המקסימלי שבחוקים שלך — לפני שמתחילים נשאל אותך
@@ -3707,10 +3707,10 @@ function viForm(p, f) {
   if (!VI_LANGS.includes(f.vf)) f.vf = 'en';
   const ul0 = uiLang(), dry = viDry(f);
   p.append(secT(T('studioViLang')), list(...VI_LANGS.map((c) => rowRadio({ label: langName(c, ul0), on: f.vf === c, onClick: () => { f.vf = c; render('none'); }, k: 'vf:' + c }))));
-  if (!dry) p.append(secT(T('studioSecMode')), ...modePicker(f.mode, (id) => { f.mode = id; render('none'); }, { vi: f.vf }));
+  if (!dry) p.append(secT(T('studioViMode')), ...modePicker(f.mode, (id) => { f.mode = id; render('none'); }, { vi: f.vf }));
   const rows = [rowCheck({ label: T('studioViRights'), on: !!f.vr, onClick: () => { f.vr = !f.vr; render('none'); }, k: 'vr' })];
   if (ui.api && ui.api.admin) rows.push(rowCheck({ label: T('studioViT'), sub: T('studioViS'), on: !!f.vdry, onClick: () => { f.vdry = !f.vdry; render('none'); }, k: 'vdry' }));
-  p.append(h('div', 'st-gap sm'), list(...rows), note(T(viLrnSaved() ? 'studioViPrivOn' : 'studioViPrivOff')));
+  p.append(h('div', 'st-gap sm'), list(...rows), note(viLrnSaved() ? T('studioViPrivOn') : T('studioViPrivOff')));
   const d = kaDur(f), mode = modeFor(f.mode, ui.mf);
   const min = d ? Math.max(1, Math.round(viPlan(null, d, dry).t / 60)) : 0;
   const est = dry ? T('studioViNote') : d ? T('studioViEst', { t: min < 60 ? T('studioMinShort', { m: min }) : T('studioHMShort', { t: fmtHM(min) }), usd: fmtUsd(viUsd(mode, f.vf, d)) }) : T('studioViEstH', { usd: fmtUsd(viUsd(mode, f.vf, 3600)) });
@@ -9558,8 +9558,8 @@ function pageSettings(p) {
     rowNav({ tile: tile('bell', 'red'), label: T('studioSecPush'), value: pushOnNow ? T('studioOnShort') : T('studioOffShort'), onClick: () => go('push'), k: 'push' }),
     rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), onClick: () => go('guide'), k: 'guide' }),   // מ9: מדריך קצר
     rowNav({ tile: tile('shield', 'gray'), label: T('studioCredits'), onClick: () => go('credits'), k: 'credits' }))));   // Z1: ייחוס
-  p.append(setCard(T('studioLrnGrp'), list(lrnRow(), lrnForgetRow())));   // 25/10/2026: מאגר הלמידה — קבוצה משלו
-  if (viTabOk()) p.append(setCard(T('studioViLrnGrp'), list(...VI_PREF.map(([k, t, s2]) => { const r = rowSwitch({ label: T(t), sub: T(s2), on: ui[k] > 0, onClick: () => setViPref(k, !(ui[k] > 0)), k: 'vp:' + k }); if (viPrefBusy || blocked() || ui.lrn === false) r.disabled = true; return r; })), note(T('studioViLrnNote'))));   // 10/11/2026: הניתוח — שלוש הסכמות נפרדות
+  // 25/10/2026: מאגר הלמידה — קבוצה משלו. 10/11/2026: ובה גם הניתוח — שלוש הסכמות נפרדות (LRN_VV), למי שרואה את הלשונית; המחיקה נשארת אחרונה
+  p.append(setCard(T('studioLrnGrp'), list(lrnRow(), ...(viTabOk() ? viPrefRows() : []), lrnForgetRow()), viTabOk() ? note(T('studioViLrnNote')) : null));
   if (C) p.append(C.display(), C.advRow(() => go('adv')));
 }
 /* 14/10/2026 (בקשת המשתמש): מאגר הלמידה — אפשר לבטל. בלי שם ובלי פרטים אישיים; מה שכבר נאסף לא מקושר לחשבון */
@@ -9590,7 +9590,12 @@ function lrnNotice() {
 /* 10/11/2026 (ניתוח, 7.11): הסכמה לכל מטרה, כבויה עד שמסמנים — הנוסח LRN_VV (נפרד מ־LRN_TV של התרגום; docs/privacy.md).
    השרתון רושם רק lat/lam/lau — לא את ההסכמות של התרגום. כשהמאגר כבוי (ui.lrn) — לא נאסף כלום ממילא */
 export const LRN_VV = 5;   // **זהה ל־LRN_VV בשרתון** (api/studio.js)
-const VI_PREF = [['lat', 'studioViLatT', 'studioViLatS'], ['lam', 'studioViLamT', 'studioViLamS'], ['lau', 'studioViLauT', 'studioViLauS']];
+const VI_PREF = () => [['lat', T('studioViLatT'), T('studioViLatS')], ['lam', T('studioViLamT'), T('studioViLamS')], ['lau', T('studioViLauT'), T('studioViLauS')]];
+const viPrefRows = () => VI_PREF().map(([k, t, s2]) => {
+  const r = rowSwitch({ label: t, sub: s2, on: ui[k] > 0, onClick: () => setViPref(k, !(ui[k] > 0)), k: 'vp:' + k });
+  if (viPrefBusy || blocked() || ui.lrn === false) r.disabled = true;   // מאגר כבוי — לא נאסף כלום ממילא
+  return r;
+});
 let viPrefBusy = false;
 async function setViPref(k, on) {
   if (viPrefBusy) return;

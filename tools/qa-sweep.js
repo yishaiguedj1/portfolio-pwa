@@ -57,7 +57,7 @@ const PROBE = () => {
   requestAnimationFrame(tick);
 };
 
-/* Studio כמו אצל המשתמש: מחובר, מנהל, שרת ו־R2 — כדי שבחוגה יהיו ארבעת הפריטים (קריוקי · תרגום · העבודה · המגדל) */
+/* Studio כמו אצל המשתמש: מחובר, מנהל, שרת ו־R2 — כדי שבחוגה יהיו חמשת הפריטים (ניתוח · קריוקי · תרגום · העבודה · המגדל; 10/11/2026) */
 const MOCK = { jobs: 0, delay: 0 };
 async function studioMock(ctx) {
   await ctx.route(/\/auth\.js(\?|$)/, (r) => r.fulfill({ contentType: 'application/javascript', body: `(function(){var cbs=[],u={uid:'qa',email:'qa@example.com',displayName:'QA',getIdToken:async()=>'tok'};
@@ -69,7 +69,7 @@ async function studioMock(ctx) {
   const JOBS = mkJobs(6);
   await ctx.route(/\/api\/studio/, (r) => { let b = {}; try { b = JSON.parse(r.request().postData() || '{}'); } catch (e) {}
     const now = Date.now(), J = (o) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o), headers: { 'access-control-allow-origin': '*' } }).catch(() => {});
-    if (b.op === 'status') return setTimeout(() => J({ ok: true, kinds: [], r2: true, lra: now, lrt: now, lrm: now, lrf: now, api: { month: 0, cap: 100, online: 1, servers: 1, admin: true, ka: true }, conn: { hint: 'x', ok: now }, drive: { connected: true, email: 'qa@example.com' }, now }), 60);
+    if (b.op === 'status') return setTimeout(() => J({ ok: true, kinds: [], r2: true, lra: now, lrt: now, lrm: now, lrf: now, api: { month: 0, cap: 100, online: 1, servers: 1, admin: true, ka: true, vi: true }, conn: { hint: 'x', ok: now }, drive: { connected: true, email: 'qa@example.com' }, now }), 60);
     if (b.op === 'jobs') { const L = MOCK.jobs ? mkJobs(MOCK.jobs) : JOBS; return setTimeout(() => J({ ok: true, jobs: L, now }), MOCK.delay || 60); }   // רענון שקט: רשימה אחרת, מאוחר
     if (b.op === 'job') return setTimeout(() => J({ ok: true, job: JOBS.find((x) => x.id === b.job) || null }), 60);
     return J({ ok: false, error: 'x' }); });

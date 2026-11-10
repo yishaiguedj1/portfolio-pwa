@@ -272,7 +272,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   // 1/11/2026: nu — בחירה דרך האפליקציה לתרגום רגיל בשרת (האפליקציה רק מעלה)
   ok(W.parsePhPick(PID + '.' + enc({ pid: PID, size: 9, nu: 1 })).nu === true && W.parsePhPick(PID + '.' + enc({ pid: PID, size: 9 })).nu === false, 'nu מהאפליקציה — רק 1 מפורש');
   ok(/if \(nuPickOk\(f\)\) \{ nuPick\(\); return; \}/.test(src) && /phIntent\('phpick', \{ nu: 1 \}\)/.test(src), 'nu: עם Studio לאנדרואיד — הבחירה הראשית דרך האפליקציה');
-  ok(/export const nuPickOk = \(f\) => phOk\(\) && !!f && !f\.ka;/.test(src), 'nu: קריוקי — מהדפדפן');
+  ok(/export const nuPickOk = \(f\) => phOk\(\) && !!f && !f\.ka && !f\.vi;/.test(src), 'nu: קריוקי — מהדפדפן');
   ok(/if \(r\.nu \|\| ask\) f\.ph\.nu = 1;/.test(src), 'nu: Studio ישן שלא החזיר nu — עדיין עבודה רגילה (לפי NU_ASK), לא תרגום בטלפון');
   ok(/out: OUTS\.filter\(\(k\) => f\.out\[k\]\), style: f\.style, \.\.\.\(f\.sty \? \{ sty: f\.sty \} : \{\}\), terms: f\.terms, nu: 1, eng: 'api'/.test(src), 'nu: עבודה רגילה (התוצרים מהטופס), לא spec.ph');
   ok(/else if \(rec\.spec\.nu && [^\n]*p\.append\(nuCard\(rec\)\)/.test(src) && /rec\.spec\.ph \|\| rec\.spec\.nu\) && rec\.srv && rec\.srv\.fv/.test(src), 'nu: כרטיס ההעלאה בדף העבודה, והנגן מהסרטון שבענן');

@@ -166,6 +166,8 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   ok(VI.VI_DROP.length === 10 && VI.VI_GENRES.includes('other') && VI.VI_VER.includes('unk'), 'ה־enum של נספח 19.1');
 
   /* ---------- 10. הלשונית (PR 1.5א, 10/11/2026) ---------- */
+  { const NA = new Function('return ' + (stj.match(/export function normApi\(a\) \{[\s\S]*?\n\}/) || [''])[0].replace('export ', ''))();
+    ok(NA({ vi: true }).vi === true && NA({ vi: 1 }).vi === false && NA({}).vi === false, 'normApi: vi עובר מהסטטוס (נזרק עד 1.5א — הניתוח לא הוצג גם למנהל)'); }
   ok(/const ST_SIB = \['vi', 'ka', 'home', 'job', 'tower'\];/.test(stj) && /\(k !== 'vi' \|\| viTabOk\(\)\)/.test(stj), 'החוגה: לשונית הניתוח בקצה, רק למי שמורשה');
   ok(/const viTabOk = \(\) => !!\(ui\.api && ui\.api\.vi && ui\.api\.servers > 0 && ui\.r2\);/.test(stj) && /const viOk = \(f\) => viTabOk\(\) && /.test(stj), 'הלשונית — כמו הקריוקי (שרת ואחסון) + המתג st_vi');
   ok(/\{ k: 'vi', ico: ST_DIAL_ICO\.vi, lbl: T\('studioDialVi'\) \}/.test(stj) && /if \(vb\) vb\.hidden = !stDialKeys\(\)\.includes\('vi'\);/.test(stj), 'פריט בחוגה, מוסתר בלי הרשאה');
@@ -184,7 +186,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   // ההסכמות (LRN_VV) — זהה לשרתון, רק lat/lam/lau
   const apiSt = read('ibkr-proxy/api/studio.js');
   ok(P.LRN_VV === 5 && Number((apiSt.match(/const LRN_VV = (\d+);/) || [])[1]) === P.LRN_VV && P.LRN_TV !== P.LRN_VV, 'LRN_VV — זהה לשרתון ונפרד מ־LRN_TV');
-  ok(/net\.api\('learnPref', \{ ack: true, tv: LRN_VV, vi: \{ \[k\]: on \} \}\)/.test(stj) && /\['lat', 'studioViLatT', 'studioViLatS'\], \['lam', 'studioViLamT', 'studioViLamS'\], \['lau', 'studioViLauT', 'studioViLauS'\]/.test(stj), 'הגדרות: שלוש הסכמות נפרדות, דרך learnPref עם vi');
+  ok(/net\.api\('learnPref', \{ ack: true, tv: LRN_VV, vi: \{ \[k\]: on \} \}\)/.test(stj) && /\['lat', T\('studioViLatT'\), T\('studioViLatS'\)\], \['lam', T\('studioViLamT'\), T\('studioViLamS'\)\], \['lau', T\('studioViLauT'\), T\('studioViLauS'\)\]/.test(stj), 'הגדרות: שלוש הסכמות נפרדות, דרך learnPref עם vi');
   ok(/ui\.lat = num\(j\.lat\); ui\.lam = num\(j\.lam\); ui\.lau = num\(j\.lau\);/.test(stj), 'המצב מהסטטוס');
   const appj = read('app.js');
   ok(appj.includes('studioViLatS: "כדי לשפר את ניתוח הסרטונים, נשמרים התמליל, הטקסט שעל השקפים והתוצאה של הניתוח — מוצפנים') && appj.includes('studioViLamS: "גם תמונות קטנות של השקפים, מוצפנות באותו אופן."'), 'הנוסח המאושר (docs/privacy.md)');

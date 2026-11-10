@@ -101,7 +101,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/rec\.spec\.ka \? null : kvRow\(T\('studioSecMode'\)/.test(st) && /rec\.spec\.ka \? null : kvRow\(T\('studioSecLangs'\)/.test(st), 'פרטי עבודת קריוקי — בלי מודל ושפות');
   ok(/if \(sp\.ka === 1\) Object\.assign\(spec, \{ ka: 1 \}/.test(st), 'normJob שומר את הקריוקי (אחרי רענון / סנכרון — לא נהיה "תרגום")');
   ok(/if \(styEditable\(rec\) && !rec\.spec\.ka\)/.test(st) && /if \(sla\.u && !rec\.spec\.ka\)/.test(st), 'עבודת קריוקי — בלי עיצוב כתוביות ובלי תקציב');
-  ok(/end: f\.ka \? null : saveTop/.test(st), 'לטופס של שיר אין "שמירה" (טיוטות — רק לתרגום)');
+  ok(/end: f\.ka \|\| f\.vi \? null : saveTop/.test(st), 'לטופס של שיר אין "שמירה" (טיוטות — רק לתרגום)');
   const app = read('app.js');
   for (const k of ['studioKaRow', 'studioKaLyr', 'studioKaStart', 'studioStgTrKa', 'studioOutInst', 'studioKaNoAudio'])
     ok((app.match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, 'מחרוזת ' + k + ' בשתי השפות');
