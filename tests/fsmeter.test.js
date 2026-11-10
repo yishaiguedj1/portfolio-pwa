@@ -55,13 +55,13 @@ const FSM = require(path.join(root, 'ibkr-proxy/lib/fsmeter.js'));
   // 5/11/2026: המונה עוטף את ה־fetch האמיתי, והמסד שלנו (lib/ldbsync.js) עוטף את המונה — קריאה מקומית לא נספרת במכסה
   ok(/const inner = FSM\.wrapFetch\(globalThis\.fetch\)/.test(srv) && /globalThis\.fetch = LDB\.wrapFetch\(inner\)/.test(srv) && /FSM\.run\(FSM\.tagOf\(name, req\)/.test(srv), 'server.js — העטיפה והתיוג מחוברים');
 
-  // הסטודיו: הבית בזמן עבודה רצה — op:'job' לעבודות הרצות, הרשימה המלאה רק פעם ב־JOBS_FULL_MS
+  // הסטודיו: הבית (התרגום, או הניתוח — עמוד הבית מ־10/11/2026) בזמן עבודה רצה — op:'job' לעבודות הרצות, הרשימה המלאה רק פעם ב־JOBS_FULL_MS
   const st = fs.readFileSync(path.join(root, 'studio.js'), 'utf8');
   const fm = /const JOBS_FULL_MS = (\d+) \* 60e3/.exec(st);
   ok(fm && +fm[1] >= 5, 'JOBS_FULL_MS — לפחות 5 דקות');
-  const home = st.slice(st.indexOf("} else if (ui.view === 'home') {", st.indexOf('async function pollNow')), st.indexOf("else if (ui.view === 'server') await refreshServers();", st.indexOf('async function pollNow')));
+  const home = st.slice(st.indexOf("} else if (ui.view === 'home' || ui.view === 'vi') {", st.indexOf('async function pollNow')), st.indexOf("else if (ui.view === 'server') await refreshServers();", st.indexOf('async function pollNow')));
   ok(/net\.api\('job'/.test(home) && /JOBS_FULL_MS/.test(home), 'pollNow בבית — עבודה בודדת, לא כל הרשימה בכל טיק');
-  const sp = /else if \(ui\.view === 'home'\) ms = [^;]*\? (\d+) :/.exec(st);
+  const sp = /else if \(ui\.view === 'home' \|\| ui\.view === 'vi'\) ms = [^;]*\? (\d+) :/.exec(st);
   ok(sp && +sp[1] >= 15000, 'קצב הריענון בבית — לא מתחת ל־15 שנ׳');
   ok(/j\.error === 'fs_http_429' \? 'quota'/.test(st) && /studioErrQuota/.test(st), 'מכסה — הודעה משלה');
   const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');

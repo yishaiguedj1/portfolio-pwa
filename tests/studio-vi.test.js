@@ -168,10 +168,14 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   /* ---------- 10. הלשונית (PR 1.5א, 10/11/2026) ---------- */
   { const NA = new Function('return ' + (stj.match(/export function normApi\(a\) \{[\s\S]*?\n\}/) || [''])[0].replace('export ', ''))();
     ok(NA({ vi: true }).vi === true && NA({ vi: 1 }).vi === false && NA({}).vi === false, 'normApi: vi עובר מהסטטוס (נזרק עד 1.5א — הניתוח לא הוצג גם למנהל)'); }
-  ok(/const ST_SIB = \['vi', 'ka', 'home', 'job', 'tower'\];/.test(stj) && /\(k !== 'vi' \|\| viTabOk\(\)\)/.test(stj), 'החוגה: לשונית הניתוח בקצה, רק למי שמורשה');
+  ok(/const ST_SIB = \['ka', 'home', 'vi', 'job', 'tower'\];/.test(stj) && /\(k !== 'vi' \|\| viTabOk\(\)\)/.test(stj), 'החוגה: הניתוח במרכז (מימינו התרגום ומימין לו הקריוקי, 10/11), רק למי שמורשה');
+  ok(/const stRoot = \(\) => \(viTabOk\(\) \? 'vi' : 'home'\);/.test(stj) && /\[\{ v: stRoot\(\), p: null \}\]/.test(stj) && /ui\.view = restore \? \(restore\.sv \|\| stRoot\(\)\) : stRoot\(\);/.test(stj), 'עמוד הבית = הניתוח (כשהלשונית זמינה), אחרת התרגום');
+  ok(/rootFresh = !restore && stRoot\(\) === 'home';/.test(stj) && /if \(rootFresh\) \{[^]*?rootFresh = false;[^]*?ui\.view === 'home' && stRoot\(\) === 'vi' && \(!CW_OK \|\| stack\.length === 1\)[^]*?ui\.view = 'vi'; ui\.param = null;[^]*?history\.state\.studio === 1\) history\.replaceState\(cleanState\(\{ studio: 1, sv: 'vi', sp: null \}\)/.test(stj),
+    'פתיחה ראשונה בלי מטמון: הסטטוס הראשון מעביר מהתרגום לניתוח — פעם אחת, רק אם לא זזו, בלי רשומת היסטוריה');
+  ok(/if \(ui\.view === 'home' \|\| ui\.view === 'vi'\) \{ refreshStatus\(\); refreshJobs\(\); \}/.test(stj) && /r2: src\.st\.r2 === true/.test(stj), 'עמוד הבית החדש מרענן כמו הבית; R2 במטמון — הניתוח כבר בפתיחה');
   ok(/const viTabOk = \(\) => !!\(ui\.api && ui\.api\.vi && ui\.api\.servers > 0 && ui\.r2\);/.test(stj) && /const viOk = \(f\) => viTabOk\(\) && /.test(stj), 'הלשונית — כמו הקריוקי (שרת ואחסון) + המתג st_vi');
   ok(/\{ k: 'vi', ico: ST_DIAL_ICO\.vi, lbl: T\('studioDialVi'\) \}/.test(stj) && /if \(vb\) vb\.hidden = !stDialKeys\(\)\.includes\('vi'\);/.test(stj), 'פריט בחוגה, מוסתר בלי הרשאה');
-  ok(/\(x === 'new' && y === 'vi'\) \|\| \(x === 'job' && viJob\(y\)\) \? \['vi', null\]/.test(stj) && /ch\.some\(\(x\) => x\.v === 'vi'\) \? 'vi' : 'home'/.test(stj), 'הטופס ועבודת ניתוח — תחת לשונית הניתוח');
+  ok(/\(x === 'new' && y === 'vi'\) \|\| \(x === 'job' && viJob\(y\)\) \? \['vi', null\]/.test(stj) && /ch\.slice\(\)\.reverse\(\)\.find\(\(x\) => x\.v === 'ka' \|\| x\.v === 'vi' \|\| x\.v === 'home'\)/.test(stj), 'הטופס ועבודת ניתוח — תחת לשונית הניתוח');
   ok(/!rec\.spec\.ka === !kaTab && !rec\.spec\.vi === !viTab/.test(stj) && /function pageViL\(p\) \{ pageHome\(p, false, true\); \}/.test(stj) && /ui\.view === 'vi' && viTabOk\(\)\) pageViL\(p\)/.test(stj), 'רשימה משלה — ניתוחים רק בלשונית הניתוח');
   ok(/const stDialJob|function stDialJob\(\) \{[\s\S]{0,200}store\.jobs\.find\(\(r\) => r && r\.srv && !FINAL/.test(stj), '"העבודה" — הפעילה מכל הסוגים (גם ניתוח)');
   ok(/go1\.disabled = [^;]*!\(f\.vr \|\| dry\);/.test(stj), 'V130: "נתח" נעול בלי הצהרת זכויות (או הרצה יבשה של המנהל)');

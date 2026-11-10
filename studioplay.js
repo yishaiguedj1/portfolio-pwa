@@ -109,6 +109,27 @@ export function autoCc(audioLang, hasCues, burned, subLang) {
   const to = subLang || 'he';
   return audioLang && (audioLang === to || (to === 'he' && audioLang === 'heb') || (to === 'he' && audioLang === 'iw')) ? 'off' : 'he';
 }
+/* דף הניתוח (10/11/2026): כתוביות בשפת המקור — כיוון לכל שורה, גם כשהשפות משולבות (עברית + אנגלית, ובהמשך עוד).
+   סופרים מילים בכתב מימין לשמאל (עברית, ערבית, פרסית, אורדו, יידיש…) מול השאר. רק אחד מהם — הכיוון שלו. משולבת — הכיוון של
+   שפת הסרטון (base), אלא אם לשני יותר מפי 2 מילים ("ואז ממשיכים עם API חדש" בסרטון באנגלית = מימין). בלי base — הרוב
+   (תיקו = המילה הראשונה, כמו dir=auto). שורה בלי אותיות — auto */
+export const RTL_LANGS = ['he', 'iw', 'heb', 'yi', 'ar', 'ara', 'fa', 'per', 'ur', 'ps', 'sd', 'ug', 'ckb', 'dv', 'syr'];
+export function langDir(l) {
+  const b = String(l || '').toLowerCase().split(/[-_]/)[0];
+  return !b ? '' : RTL_LANGS.includes(b) ? 'rtl' : 'ltr';
+}
+const RTL_CH = /^[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufeff]/;
+export function lineDir(s, base) {
+  const ws = String(s || '').match(/\p{L}[\p{L}\p{M}]*/gu) || [];
+  let r = 0, l = 0;
+  for (const w of ws) { if (RTL_CH.test(w)) r++; else l++; }
+  if (!r && !l) return 'auto';
+  if (!l) return 'rtl';
+  if (!r) return 'ltr';
+  if (base === 'rtl') return l > 2 * r ? 'ltr' : 'rtl';
+  if (base === 'ltr') return r > 2 * l ? 'rtl' : 'ltr';
+  return r > l ? 'rtl' : l > r ? 'ltr' : RTL_CH.test(ws[0]) ? 'rtl' : 'ltr';
+}
 /* הבחירה בפועל: ידנית כשהיא אפשרית (אנגלית / שתיהן — רק כשיש מקור באנגלית), אחרת האוטומטית */
 export function resolveCc(prefCc, auto, hasEn, burned) {
   if (burned) return 'off';
@@ -511,7 +532,7 @@ export function normSty(o) {
   return Object.keys(out).length ? out : null;
 }
 
-/* opts: { src, fallback, cues, issues, chapters, T, burned } — fallback = כתובת לסרטון הצרוב אם המקור לא מתנגן (אז בלי כתוביות מעליו).
+/* opts: { src, fallback, cues, issues, chapters, T, burned, orig } — orig = הניתוח: התמליל בשפת המקור; fallback = כתובת לסרטון הצרוב אם המקור לא מתנגן (אז בלי כתוביות מעליו).
    מחזיר { el, video, seek, play, pause, setCues, setChapters, destroy }. el יציב — studio.js משאיר אותו בין ציורים (וידאו שמוצא מהמסמך נעצר) */
 // לפי ת־נגן: הקשה כפולה = 5 שנ׳, כל הקשה נוספת ברצף (עד TAP_RUN אחרי הקודמת) = עוד 5; לחיצה ארוכה = ×2
 export const TAP_STEP = 5, TAP_RUN = 700, HOLD_MS = 450, FAST_RATE = 2;
@@ -519,11 +540,14 @@ export function createPlayer(opts) {
   const T = opts.T || ((k) => k);
   let cues = opts.cues || [], issues = opts.issues || [], chs = normChapters(opts.chapters), chNow = -2;
   let pref = normTrackPref(opts.pref);
+  // דף הניתוח: התמליל בשפת המקור — דולקות מההתחלה, דולק/כבוי בלבד, וההעדפה של נגן התרגום (pt) לא נוגעת ולא נשמרת
+  const orig = !!opts.orig && !opts.burned, oBase = orig ? langDir(opts.subLang) : '';
+  let ccTouched = false;
   const hasEn = () => cues.some((c) => c.en);
   const curLang = () => { const i = audNow(), L = audList(); return i >= 0 && L[i] ? L[i].l || '' : ''; };
-  const ccAuto = () => autoCc(curLang(), cues.length > 0, !!opts.burned, opts.subLang);
+  const ccAuto = () => (orig ? (cues.length ? 'he' : 'off') : autoCc(curLang(), cues.length > 0, !!opts.burned, opts.subLang));
   const savePref = (p) => { pref = normTrackPref(Object.assign({}, pref, p)); if (opts.onPref) opts.onPref(pref); };
-  let cc = resolveCc(pref.cc, autoCc('', (opts.cues || []).length > 0, !!opts.burned, opts.subLang), (opts.cues || []).some((c) => c.en), !!opts.burned), hideT = 0, lastTap = 0, tapT = 0, dragging = false, destroyed = false;
+  let cc = orig ? ccAuto() : resolveCc(pref.cc, autoCc('', (opts.cues || []).length > 0, !!opts.burned, opts.subLang), (opts.cues || []).some((c) => c.en), !!opts.burned), hideT = 0, lastTap = 0, tapT = 0, dragging = false, destroyed = false;
   const wrap = el('div', 'st-pl' + (opts.burned ? ' burned' : '')); wrap.dir = 'ltr';
   const v = el('video', 'st-pl-v'); v.playsInline = true; v.preload = 'metadata'; v.setAttribute('playsinline', '');
   // 21/10/2026 (בקשת המשתמש — לפי ת־נגן): תמונה לפני הניגון. קפיצה לנקודה (seek) מורידה אותה ומציגה את הפריים של הנקודה
@@ -533,7 +557,7 @@ export function createPlayer(opts) {
   const ui = el('div', 'st-pl-ui');
   const top = el('div', 'st-pl-top'), mid = el('div', 'st-pl-mid'), bot = el('div', 'st-pl-bot');
   // 25/10/2026: בסרטון צרוב — רק המקור באנגלית מעל (העברית כבר בתמונה), בלי לשמור העדפה
-  const ccB = ib('cc', 'cc', T('studioPlCc'), () => { if (opts.burned) cc = cc === 'en' ? 'off' : 'en'; else { cc = nextCc(cc, hasEn()); savePref({ cc }); } paintCc(); paintSub(); });
+  const ccB = ib('cc', 'cc', T('studioPlCc'), () => { if (opts.burned) cc = cc === 'en' ? 'off' : 'en'; else if (orig) { cc = cc === 'off' ? 'he' : 'off'; ccTouched = true; } else { cc = nextCc(cc, hasEn()); savePref({ cc }); } paintCc(); paintSub(); });
   const ccL = el('span', 'st-pl-ccl'); ccB.append(ccL);
   // ההגדרות — לפי ת־נגן: גלגל שיניים → איכות / מהירות (בתוך הנגן, גם במסך מלא)
   const gearB = ib('gear', 'gear', T('studioPlSettings'), () => openMenu(''));
@@ -739,6 +763,8 @@ export function createPlayer(opts) {
         }, { on: (!!pref.a || audManual) && i === ai })));
       } else if (page === 't' && opts.burned) {   // צרוב: כבויות / המקור באנגלית מעל
         for (const m of ['off', 'en']) box.append(mRow('', ccName(m), null, () => { setCc(m); closeMenu(); }, { on: cc === m }));
+      } else if (page === 't' && orig) {   // הניתוח: שפת המקור / כבויות
+        for (const m of ['he', 'off']) box.append(mRow('', ccName(m), null, () => { ccTouched = true; setCc(m); closeMenu(); }, { on: cc === m }));
       } else if (page === 't') {
         const en = hasEn();
         box.append(mRow('', T('studioPlAutoNow', { q: ccName(ccAuto()) }), null, () => { savePref({ cc: '' }); setCc(ccAuto()); closeMenu(); }, { on: !pref.cc }));
@@ -765,7 +791,11 @@ export function createPlayer(opts) {
     clearTimeout(hideT);
   }
   let audManual = false;
-  function ccName(m) { return m === 'off' ? T('studioPlCcOff') : m === 'en' ? T('studioPlCcEnL') : m === 'both' ? T('studioPlCcBothL') : T('studioPlCcHeL'); }
+  function srcTag() {   // הניתוח: התווית = שפת המקור (עב / EN / קוד השפה)
+    const b = String(opts.subLang || '').toLowerCase().split(/[-_]/)[0];
+    return b === 'he' || b === 'iw' || b === 'heb' ? T('studioPlCcHe') : b === 'en' || b === 'eng' ? T('studioPlCcEn') : b.slice(0, 3).toUpperCase();
+  }
+  function ccName(m) { return m === 'off' ? T('studioPlCcOff') : m === 'en' ? T('studioPlCcEnL') : m === 'both' ? T('studioPlCcBothL') : orig ? T('studioPlCcSrcL') : T('studioPlCcHeL'); }
   function setCc(m) { cc = m; paintCc(); paintSub(); }
   function setAudio(i) {
     if (fileAud()) { setFileAudio(i); return; }
@@ -820,7 +850,7 @@ export function createPlayer(opts) {
 
   function paintCc() {
     ccB.classList.toggle('on', cc !== 'off');
-    ccL.textContent = cc === 'en' ? T('studioPlCcEn') : cc === 'he' ? T('studioPlCcHe') : cc === 'both' ? T('studioPlCcBoth') : '';
+    ccL.textContent = cc === 'en' ? T('studioPlCcEn') : cc === 'he' ? (orig ? srcTag() : T('studioPlCcHe')) : cc === 'both' ? T('studioPlCcBoth') : '';
     ccB.setAttribute('aria-pressed', cc !== 'off' ? 'true' : 'false');
   }
   let shown = -2;
@@ -835,7 +865,7 @@ export function createPlayer(opts) {
     const lines = cc === 'en' ? (c.en ? [c.en] : []) : c.lines;
     sub.dir = cc === 'en' ? 'ltr' : 'rtl';
     const enCls = cc === 'en' && opts.burned ? 'st-pl-sub2' : null;   // 26/10/2026: מעל עברית צרובה = שתי השפות — האנגלית בצהוב
-    for (const x of lines) { const d = el('div', enCls); d.append(el('span', null, x)); sub.append(d); }   // span — הרקע של "עם רקע" לפי אורך השורה
+    for (const x of lines) { const d = el('div', enCls); if (orig) d.dir = lineDir(x, oBase); d.append(el('span', null, x)); sub.append(d); }   // הניתוח: כל שורה בכיוון שלה   // span — הרקע של "עם רקע" לפי אורך השורה
     if (cc === 'both' && c.en) { const d = el('div', 'st-pl-sub2'); d.dir = 'ltr'; d.append(el('span', null, c.en)); sub.append(d); }   // 23/10/2026: שתי השפות — המקור מתחת
   }
   function paintBar() {
@@ -988,7 +1018,7 @@ export function createPlayer(opts) {
     if (hls) return;   // ב־hls התקלות מגיעות מ־hls.js (ERROR) — שם הנפילה לקובץ
     if (opts.fallback && v.src.indexOf(opts.fallback) < 0) {   // המקור לא מתנגן (קודק / MKV) — הסרטון הצרוב, בלי כתוביות מעליו
       const t = v.currentTime || 0;
-      cc = 'off'; paintCc(); paintSub(); ccB.disabled = true;
+      if (!orig) { cc = 'off'; paintCc(); paintSub(); ccB.disabled = true; }   // הניתוח: החלופי (same/small) בלי כתוביות צרובות — התמליל נשאר
       v.src = opts.fallback; v.currentTime = t;
       return;
     }
@@ -1026,7 +1056,7 @@ export function createPlayer(opts) {
     setCues(c, iss) {
       cues = c || []; issues = iss || issuesList(cues); shown = -2;
       if (opts.burned) ccB.disabled = !hasEn();
-      if (!ccB.disabled) { cc = resolveCc(pref.cc, ccAuto(), hasEn(), !!opts.burned); paintCc(); }   // 23/10/2026: הכתוביות הגיעו — ברירת המחדל מחדש
+      if (!ccB.disabled) { cc = orig ? (ccTouched && cues.length ? cc : ccAuto()) : resolveCc(pref.cc, ccAuto(), hasEn(), !!opts.burned); paintCc(); }   // 23/10/2026: הכתוביות הגיעו — ברירת המחדל מחדש
       paintSub(); paintHeat(); paintFlags(); paintFlagB();
     },
     flags: () => [...flags],   // QA ובדיקות

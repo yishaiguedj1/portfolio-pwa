@@ -16,7 +16,7 @@ const ROOT = path.join(__dirname, '..');
 /* המודולים של כל אפליקציה (כל מה ש־library.js / studio.js מייבאים). מודול חדש = להוסיף כאן. */
 const APPS = {
   academy: ['library.js', 'libadmin.js', 'libpolish.js', 'libbackup.js', 'pagecurl.js', 'pagetex.js', 'ribbon3d.js', 'epubkit.js', 'bookedit.js', 'libconvert.js', 'libpro.js', 'libai.js', 'libconnect.js', 'libtrans.js', 'academy-data.js', 'shell.js', 'academy-app.js', 'acclink.js'],
-  studio: ['studio.js', 'studionet.js', 'studioplay.js', 'studiosubs.js', 'studioedl.js', 'studioai.js', 'studiostore.js', 'libbackup.js', 'shell.js', 'studio-app.js', 'acclink.js'],
+  studio: ['studio.js', 'studionet.js', 'studioplay.js', 'studiovi.js', 'studiosubs.js', 'studioedl.js', 'studioai.js', 'studiostore.js', 'libbackup.js', 'shell.js', 'studio-app.js', 'acclink.js'],
   admin: ['shell.js', 'admin-app.js', 'acclink.js'],   // מרכז הניהול (שלב 5א)
   cashflow: ['shell.js', 'cashflow-app.js', 'cashflow.js', 'acclink.js'],   // Cashflow, גל 2 (6/11/2026)
 };
