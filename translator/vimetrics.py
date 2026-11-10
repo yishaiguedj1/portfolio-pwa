@@ -10,6 +10,7 @@ translator/tests/fixtures/vi_metrics.json ({in, ref, out}) — tests/studio-vi.t
 
 from __future__ import annotations
 
+import math
 import re
 
 try:
@@ -125,3 +126,94 @@ def worker_extra(vi: dict, words_list: list | None = None) -> dict:
             'asr_low': round(sum(1 for p in ps if p < 0.5) / len(ps), 4) if ps else None,
             'wpm': round(len(wl) * 60 / dur, 1) if dur > 0 and wl else None,
             'speech_share': round(min(1.0, sp / dur), 4) if dur > 0 else None}
+
+
+# ---------------------------------------------------------------- הקריטריון של גל הזהב (PR 1.6, התוכנית 6.7)
+# 1. ניצחונות בזוגות (visheet.vj_pair): הגבול התחתון של Wilson (95%) על ניצחונות ÷ (ניצחונות + הפסדים) — מעל 0.5.
+# 2. בלי נסיגה במדדים הקשים: bootstrap מקובץ לפי סרטון (1,000 דגימות, זרע קבוע) — הגבול התחתון (2.5%) של ההפרש
+#    B − A ב־support_rate, ‏ts_acc ו־kf_cov לא יורד מתחת ל־−0.02.
+# 3. חסימה קשיחה: טענה לא נתמכת אחת שמוצגת ב־B = נכשל.
+# 4. משאבים: עלות ≤ +10%, זמן ≤ +5% (סכום על כל הסרטונים).
+HARD = ('support_rate', 'ts_acc', 'kf_cov')
+NO_REG = -0.02
+BOOT_N, BOOT_SEED = 1000, 7
+COST_UP, TIME_UP = 0.10, 0.05
+
+
+def wilson_lb(k: int, n: int, z: float = 1.96) -> float | None:
+    """הגבול התחתון של רווח הסמך של Wilson ל־k הצלחות מתוך n. n = 0 — None"""
+    if n <= 0:
+        return None
+    p = k / n
+    d = 1 + z * z / n
+    c = p + z * z / (2 * n)
+    s = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
+    return _r4((c - s) / d)
+
+
+def _lcg(seed: int):
+    """מחולל קבוע (LCG, ‏31 ביט) — = lcg ב־ibkr-proxy/lib/studiovi.js, כדי שההכרעה בשרתון ובעובד תהיה זהה"""
+    st = [seed & 0xffffffff]
+
+    def nxt(n: int) -> int:
+        st[0] = ((st[0] * 1103515245 + 12345) & 0xffffffff) & 0x7fffffff
+        return (st[0] // 65536) % n
+    return nxt
+
+
+def boot_lb(diffs: dict, n: int = BOOT_N, seed: int = BOOT_SEED) -> float | None:
+    """diffs = {סרטון: [הפרשים]} → הגבול התחתון (2.5%) של ממוצע ההפרש, ב־bootstrap שדוגם סרטונים (לא פריטים).
+    חיבור פשוט משמאל לימין (לא sum — בפייתון 3.12 הוא מפוצה) — = bootLb ב־JS"""
+    vids = [v for v in sorted(diffs) if [x for x in diffs[v] if x is not None]]
+    if not vids:
+        return None
+    rnd = _lcg(seed)
+    means = []
+    for _ in range(n):
+        t, c = 0.0, 0
+        for _v in range(len(vids)):
+            for x in diffs[vids[rnd(len(vids))]]:
+                if x is not None:
+                    t += x
+                    c += 1
+        means.append(t / c)
+    means.sort()
+    return _r4(means[int(0.025 * n)])
+
+
+def decide(rows: list[dict]) -> dict:
+    """rows — שורה לכל השוואה (זוג הרצות של אותו סרטון): {vid, w: 'X'|'Y'|'tie' (X = A, Y = B), a: {מדדים, usd, sec},
+    b: {מדדים, usd, sec}, b_uns: טענות לא נתמכות שמוצגות ב־B}. → {pass, wins, losses, ties, wlb, reg: {מדד: lb},
+    hard: n, cost, time, why: [סיבות הכישלון]}"""
+    rows = [r for r in rows or [] if isinstance(r, dict)]
+    w = sum(1 for r in rows if r.get('w') == 'Y')
+    lo = sum(1 for r in rows if r.get('w') == 'X')
+    out = {'wins': w, 'losses': lo, 'ties': len(rows) - w - lo, 'wlb': wilson_lb(w, w + lo), 'reg': {}, 'why': []}
+    if out['wlb'] is None or out['wlb'] <= 0.5:
+        out['why'].append('wins')
+    for k in HARD:
+        d: dict = {}
+        for r in rows:
+            a, b = (r.get('a') or {}).get(k), (r.get('b') or {}).get(k)
+            if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+                d.setdefault(str(r.get('vid')), []).append(b - a)
+        out['reg'][k] = boot_lb(d)
+        if out['reg'][k] is not None and out['reg'][k] < NO_REG:
+            out['why'].append('reg_' + k)
+    out['hard'] = sum(int(r.get('b_uns') or 0) for r in rows)
+    if out['hard'] > 0:
+        out['why'].append('hard')
+    def tot(side, f):                                  # חיבור פשוט, כמו reduce ב־JS (לא sum המפוצה)
+        t = 0.0
+        for r in rows:
+            t += float((r.get(side) or {}).get(f) or 0)
+        return t
+    ca, cb, ta, tb = tot('a', 'usd'), tot('b', 'usd'), tot('a', 'sec'), tot('b', 'sec')
+    out['cost'] = _r4(cb / ca - 1) if ca > 0 else None
+    out['time'] = _r4(tb / ta - 1) if ta > 0 else None
+    if out['cost'] is not None and out['cost'] > COST_UP:
+        out['why'].append('cost')
+    if out['time'] is not None and out['time'] > TIME_UP:
+        out['why'].append('time')
+    out['pass'] = not out['why']
+    return out

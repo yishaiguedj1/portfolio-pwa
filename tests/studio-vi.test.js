@@ -94,7 +94,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   /* התור */
   ok(/\(\(a\.spec \|\| \{\}\)\.vi === 1\) - \(\(b\.spec \|\| \{\}\)\.vi === 1\)/.test(api), 'הלקיחה: הניתוח אחרי התרגום');
   ok(/if \(job\.spec && job\.spec\.vi === 1 && hb\.vi !== 1\) continue;/.test(api), 'הלקיחה: רק לעובד שמכיר ניתוח (עובד ישן היה מריץ אותו כתרגום, עם Claude)');
-  ok(/job\.spec && job\.spec\.vi === 1 \? Object\.assign\(\{ vi: 1 \}, job\.spec\.vo === 1 \? \{ vo: 1 \} : \{\}\) : \{\}/.test(api), 'תשובת הלקיחה: vi לסוכן, ו־vo לעבודת "אמת שוב" (PR 1.2ג)');
+  ok(/job\.spec && job\.spec\.vi === 1 \? Object\.assign\(\{ vi: 1 \}, job\.spec\.vo === 1 \|\| job\.spec\.vj === 1 \|\| job\.spec\.vp === 1 \? \{ vo: 1 \} : \{\}\) : \{\}/.test(api), 'תשובת הלקיחה: vi לסוכן, ו־vo לעבודת "אמת שוב" (PR 1.2ג) ולשופט בזוגות ולטיוטת הייחוס (PR 1.6)');
   ok(/if \(job\.spec\.vi === 1\) ep = ETA\.viPlan\(ep, job\.spec\.dur, job\.spec\.dry === 1\);/.test(api), 'הלקיחה: התוכנית של הניתוח');
   ok(/job\.spec\.src === 'subs' \|\| job\.spec\.vi === 1/.test(api) && /job\.spec\.vi === 1 && \(!job\.uid \|\| job\.uid !== \(await adminUid\(deps/.test(api) && /if \(sp\.vi === 1\) return job\.kind === 'tr' \? learnViRec\(/.test(read('ibkr-proxy/lib/studiolearn.js')), 'סוף העבודה: לא מלמד את "הרגיל"; במאגר — רשומה משלו (k:vi), ורק של המנהל (PR 1.3)');
   ok(/v: sp\.ka \? 'ka' : sp\.vi === 1 \? 'vi'/.test(api), 'התראת השלב: vi');

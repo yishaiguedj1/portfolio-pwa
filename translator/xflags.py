@@ -8,7 +8,7 @@ XF_DEFAULT ∪ spec.xf, ו־'-שם' מכבה דגל שכבר הופעל כברי
 """
 from __future__ import annotations
 
-XF_KEYS = ('smf', 'gq', 'qskip', 'rvs60')
+XF_KEYS = ('smf', 'gq', 'qskip', 'rvs60', 'vwin')   # PR 1.6: v… = דגלי הניתוח (vwin — חלון מיפוי של VI_WIN_TOK_X טוקנים)
 XF_DEFAULT: frozenset = frozenset()
 
 
