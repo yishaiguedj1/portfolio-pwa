@@ -326,5 +326,64 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(S.canResume(Object.assign({}, dj, { state: 'failed', sx: T0 - D }), T0) === 'src_gone', 'שמירה: "המשך" אחרי שהמקור נמחק — src_gone');
   for (const x of [due, late, old]) db.delete('studioJobs/' + x.id);
 
+  /* ---------- 11. "אמת שוב" (PR 1.2ג, 10/11/2026): עבודת־בת שמריצה רק את האימות על ה־vi.json של ניתוח שהסתיים כטיוטה ---------- */
+  const mkVi = (tag, extra) => {
+    const id = ('jVi' + tag + 'xxxxxxxxxxxxxxxxxxxx').slice(0, 21), F = 'R2_' + id, vi = F + '_' + 'vijsonzzzzzz';
+    R.objs.set('st/ownerUid0001/' + vi, Buffer.from('{"v":1}'));
+    db.set('studioUp/' + vi, { fields: { k: { stringValue: 'st/ownerUid0001/' + vi }, s: iv(7), uid: { stringValue: 'ownerUid0001' }, f: { stringValue: F }, ok: iv(1) }, ut: 'u' });
+    db.set('studioJobs/' + id, { fields: Object.assign({ uid: { stringValue: 'ownerUid0001' }, kind: { stringValue: 'tr' }, state: { stringValue: 'done' }, folder: { stringValue: F },
+      created: iv(T0 - 2 * H), ended: iv(T0 - H), updated: iv(T0 - H),
+      spec: sv({ name: 'talk.mp4', size: 10, type: 'video/mp4', dur: 600, from: 'en', to: ['he'], mode: 'haiku-high', out: [], vi: 1, eng: 'api', cap: 5 }),
+      fo: sv([{ id: vi, name: 'talk.vi.json', size: 7, k: 'vi' }]), vsm: sv({ n: 9, ok: 0, cov: 90, so: 0, d: 600 }) }, extra || {}), ut: 'u' });
+    return { id, F, vi };
+  };
+  const jobOf = (id) => S.fromFields(db.get('studioJobs/' + id).fields);
+  const pv = mkVi('A');
+  ok(S.canViVerify(jobOf(pv.id), T0) === '' && S.canViVerify(Object.assign(jobOf(pv.id), { vr: S.VV_MAX }), T0) === 'vv_limit'
+    && S.canViVerify(Object.assign(jobOf(pv.id), { spec: Object.assign({}, jobOf(pv.id).spec, { dry: 1 }) }), T0) === 'state'
+    && S.canViVerify(Object.assign(jobOf(pv.id), { fo: [] }), T0) === 'state' && S.canViVerify(Object.assign(jobOf(pv.id), { state: 'running' }), T0) === 'state',
+    'אמת שוב: רק ניתוח (לא יבש) שהסתיים ויש לו vi.json, ועד VV_MAX פעמים');
+  let vv = await api('viVerify', { job: pv.id });
+  const CH = vv.job && vv.job.id;
+  ok(vv.ok && CH && vv.job.rp === pv.id && vv.job.spec.vo === 1 && vv.job.spec.vi === 1 && vv.job.spec.dur === 0 && vv.job.state === 'queued',
+    'אמת שוב: עבודת־בת (tr, vi+vo, בלי משך) נוצרת ונכנסת לתור');
+  const ch = jobOf(CH);
+  ok(ch.fvi && ch.fvi.id === pv.vi && ch.folder === pv.F && jobOf(pv.id).vr === 1 && jobOf(pv.id).state === 'done',
+    'אמת שוב: עבודת־הבת מצביעה על ה־vi.json של ההורה באותה תיקייה (נשמר כ־JSON), ההורה נספר ונשאר "הסתיים"');
+  ok(S.workerJob(ch).files.i.id === pv.vi && S.workerJob(jobOf(pv.id)).files.i === null, 'אמת שוב: העובד מקבל את ה־vi.json ב־files.i (analyze.vi_reverify)');
+  ok((await api('viVerify', { job: pv.id })).error === 'vv_busy', 'אמת שוב: לחיצה שנייה בזמן שהאימות רץ — vv_busy');
+  ok((await other('viVerify', { job: pv.id })).error === 'no_job', 'אמת שוב: משתמש אחר — no_job');
+  ok((await api('viVerify', { job: CH })).error === 'state', 'אמת שוב: על עבודת־הבת עצמה — לא');
+  const lj = (await api('jobs', {})).jobs || [];
+  ok(lj.some((x) => x.id === CH && x.rp === pv.id && x.spec.vo === 1), 'אמת שוב: הטלפון רואה את עבודת־הבת ב־jobs (rp + vo — מסנן אותה מהרשימה)');
+
+  // העובד: מעלה vi.json חדש ומדווח done — השרתון מחליף את ה־vi של ההורה ואת הסיכום
+  const VK = crypto.randomBytes(32).toString('base64url');
+  Object.assign(db.get('studioJobs/' + CH).fields, { kh: { stringValue: crypto.createHash('sha256').update(VK).digest('hex') }, kx: iv(R.now + 3600e3), state: { stringValue: 'running' } });
+  const vw = (op, b) => call(Object.assign({}, b, { op, job: CH, key: VK }), true).then((r) => r.j);
+  const nvi = Buffer.from('{"v":1,"items":[]}');
+  const vu = await vw('r2wup', { size: nvi.length, type: 'application/json', name: 'talk.vi.json' });
+  await R.fetch(vu.urls[1], { method: 'PUT', body: nvi });
+  ok((await vw('r2wdone', { id: vu.id, up: vu.up })).ok && SR.inFolder(vu.id, pv.F), 'אמת שוב: העובד מעלה vi.json חדש לתיקייה של ההורה');
+  const vd = await vw('report', { done: true, out: [{ id: vu.id, name: 'talk.vi.json', size: nvi.length, k: 'vi' }], vsm: { n: 9, ok: 7, cov: 90, so: 0, d: 600 } });
+  const pa = jobOf(pv.id);
+  ok(vd.ok && jobOf(CH).state === 'done' && pa.fo.length === 1 && pa.fo[0].id === vu.id && pa.fo[0].k === 'vi' && pa.vsm && pa.vsm.ok === 7 && pa.state === 'done',
+    'אמת שוב: בסיום — ה־vi החדש והסיכום נכנסים להורה (במקום הישנים), ההורה נשאר "הסתיים"');
+  ok(S.vvAdopt({ fo: [{ id: pv.vi, k: 'vi' }, { id: 'x', k: 'srt' }] }, [{ id: vu.id, name: 'a', size: 1, k: 'vi' }])[1].id === 'x' && S.vvAdopt({ fo: [] }, [{ id: vu.id, k: 'vi' }]) === null && S.vvAdopt(pa, []) === null,
+    'אמת שוב: vvAdopt — מחליף רק את ה־vi; בלי vi בהורה או בתוצר — כלום');
+
+  // שוב: עבודת־הבת הקודמת שהסתיימה נמחקת (רק האחרונה נשמרת); כישלון לא נוגע בהורה; ואחרי VV_MAX — vv_limit
+  vv = await api('viVerify', { job: pv.id });
+  const CH2 = vv.job && vv.job.id;
+  ok(vv.ok && CH2 !== CH && !db.has('studioJobs/' + CH) && jobOf(pv.id).vr === 2, 'אמת שוב: פעם שנייה — עבודת־הבת הקודמת שהסתיימה נמחקת');
+  const VK2 = crypto.randomBytes(32).toString('base64url');
+  Object.assign(db.get('studioJobs/' + CH2).fields, { kh: { stringValue: crypto.createHash('sha256').update(VK2).digest('hex') }, kx: iv(R.now + 3600e3), state: { stringValue: 'running' } });
+  await call({ op: 'report', job: CH2, key: VK2, fail: true, err: 'vi_schema', msg: 'x' }, true);
+  ok(jobOf(CH2).state === 'failed' && jobOf(pv.id).state === 'done' && jobOf(pv.id).fo[0].id === vu.id, 'אמת שוב: עבודת־הבת נכשלה — ההורה לא נפגע (הקובץ והמצב)');
+  db.get('studioJobs/' + pv.id).fields.vr = iv(S.VV_MAX);
+  ok((await api('viVerify', { job: pv.id })).error === 'vv_limit', 'אמת שוב: אחרי VV_MAX ניסיונות — vv_limit');
+  db.get('studioJobs/' + pv.id).fields.vr = iv(0);
+  ok((await api('remove', { job: pv.id })).ok && !db.has('studioJobs/' + CH2) && !db.has('studioJobs/' + pv.id), 'אמת שוב: מחיקת הניתוח מוחקת גם את עבודות־הבת');
+
   console.log('\n' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL -', e); process.exit(1); });

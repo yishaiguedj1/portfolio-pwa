@@ -2024,7 +2024,7 @@ async function server(req, res, body, deps) {
       if (!got) continue;
       await patchDoc(deps, 'studioServers', p.sid, Object.assign(seen, { job: job.id }));
       const dur = job.spec && job.spec.dur > 0 ? Math.round(job.spec.dur) : 0;
-      return res.status(200).json({ ok: true, job: Object.assign({ id: job.id, key, kind: job.kind }, dur ? { dur } : {}, job.spec && job.spec.vi === 1 ? { vi: 1 } : {}), now });   // vi — הסוכן: perf_kind / MEM_PRIOR['vi']
+      return res.status(200).json({ ok: true, job: Object.assign({ id: job.id, key, kind: job.kind }, dur ? { dur } : {}, job.spec && job.spec.vi === 1 ? Object.assign({ vi: 1 }, job.spec.vo === 1 ? { vo: 1 } : {}) : {}), now });   // vi — הסוכן: perf_kind / MEM_PRIOR['vi']; vo — "אמת שוב" (קל)
     }
     // שרת שעדיין מריץ עבודה (nj) ושאל אם יש עוד — העבודה שלו נשארת רשומה. 27/10/2026: בלי שינוי — לא כותבים (seenDue)
     const clr = !(hb.nj > 0) && !!srv.job;
@@ -2160,7 +2160,7 @@ async function doResume(deps, uid, job, now, body, auto, adm) {
    עבודה מקישור (create עם start:true), ומהבדיקה המתוזמנת (startAll — גם כשהטלפון סגור). סירוב נרשם במסמך העבודה
    (sw = הקוד, swt = מתי): מכשיר אחר רואה למה העבודה מחכה, והבדיקה המתוזמנת מנסה שוב רק סירוב חולף (S.START_RETRY).
    g = { adm, modeLocked, engLocked } — מהבקשה; בבדיקה המתוזמנת אין משתמש (adm שקר, והמצב / המנוע כבר נבדקו ביצירה) */
-const filesReady = (job) => job.kind === 'dx' || !(job.kind === 'ai' ? !job.fq : job.spec && job.spec.src === 'subs' ? !job.fsu : job.spec && job.spec.src === 'url' ? !SR.isFolder(job.folder) : job.spec && job.spec.ph === 1 ? (job.spec.pw === 1 ? !(job.fpw && job.fph) : !job.fa) || !SR.isFolder(job.folder) : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc));
+const filesReady = (job) => job.kind === 'dx' || (S.isVv(job) ? !!(job.fvi && job.fvi.id) : !(job.kind === 'ai' ? !job.fq : job.spec && job.spec.src === 'subs' ? !job.fsu : job.spec && job.spec.src === 'url' ? !SR.isFolder(job.folder) : job.spec && job.spec.ph === 1 ? (job.spec.pw === 1 ? !(job.fpw && job.fph) : !job.fa) || !SR.isFolder(job.folder) : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc)));   // 1.2ג: "אמת שוב" — רק ה־vi.json של ההורה
 const jobView = (j, now) => Object.assign(S.publicJob(j, now), updWaiting(j, now) ? { uw: 1 } : {});
 async function startJob(deps, uid, job, body, now, g) {
   const r = await startJob0(deps, uid, job, body, now, g);
@@ -2554,6 +2554,17 @@ async function driveTrash(deps, token, id) {
   const r = await driveJson(deps, token, DRIVE_Q + 'files/' + id + '?fields=id', { method: 'PATCH', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }) });
   if (r.status !== 200 && r.status !== 404) throw new Error('gd_http_' + r.status);
 }
+/* PR 1.2ג: עבודת "אמת שוב" הסתיימה — ה־vi.json החדש נכנס לתוצרים של הניתוח (ההורה) במקום הישן, עם הסיכום החדש. רק להורה
+   של אותו משתמש ובאותה תיקייה; הקובץ הישן נשאר בתיקייה (נמחק עם העבודה) */
+async function vvDone(deps, job, outs, vsm, now) {
+  if (!S.JOB_RE.test(String(job.rp || ''))) return false;
+  const p = await readJob(deps, job.rp).catch(() => null);
+  if (!p || p.uid !== job.uid || p.kind !== 'tr' || !(p.spec && p.spec.vi === 1) || p.folder !== job.folder) return false;
+  const fo = S.vvAdopt(p, outs);
+  if (!fo) return false;
+  await patchJob(deps, job.rp, Object.assign({ fo, updated: now }, VI.viSummary(vsm) ? { vsm: VI.viSummary(vsm) } : {}));
+  return true;
+}
 /* מחיקת רשומת עבודה (כמו "מחיקה" בטלפון): הרשומה, ההתראות והתקלה שלה. הקבצים ב־Drive נשארים */
 async function removeJobRec(deps, uid, job, now) {
   await learnSave(deps, job, now);   // 14/10/2026: הרשומה במאגר הלמידה נשארת אחרי המחיקה
@@ -2562,7 +2573,7 @@ async function removeJobRec(deps, uid, job, now) {
   const gone = [learnId(job)];   // 10/11/2026: המזהה במאגר — לניתוח viLid
   if (job.kind === 'tr' && Array.isArray(job.fo) && job.fo.length) {   // מ2 · מ7: ההפקות מחדש, גיליונות ה־AI והשמירות ל־Drive (dx) של העבודה הולכים איתה
     const sub = job.fo.some((o) => o && o.k === 'cues') ? ['rr', 'ai', 'dx'] : ['dx'];
-    for (const r of (await listJobs(deps, uid)).filter((j) => sub.includes(j.kind) && j.rp === job.id)) { await delDoc(deps, 'studioJobs', r.id); gone.push(LR.lid(r.id)); }
+    for (const r of (await listJobs(deps, uid)).filter((j) => (sub.includes(j.kind) || S.isVv(j)) && j.rp === job.id)) { await delDoc(deps, 'studioJobs', r.id); gone.push(LR.lid(r.id)); }   // PR 1.2ג: גם "אמת שוב"
   }
   await learnGone(deps, uid, gone, now);   // 15/10 (מ׳1): כדי ש"מחק את התרומות שלי" ימצא גם אותן
   await closeJobOps(deps, uid, job.id, now);
@@ -2748,6 +2759,8 @@ async function worker(req, res, body, deps) {
       }
       if (!job.rdy) up.fo = outs;   // 28/10/2026: אחרי rd התוצרים כבר אצלך (אולי ערכת כתוביות) — הדיווח הסופי לא דורס אותם
     }
+    // PR 1.2ג: "אמת שוב" הסתיים — ה־vi החדש נכנס לתוצרים של הניתוח (ההורה). תקלה כאן לא מפילה את הדיווח
+    if (up.state === 'done' && S.isVv(job)) await vvDone(deps, job, up.fo || job.fo, up.vsm, now).catch(() => false);
     if (body.hl != null && job.kind === 'tr' && job.fv && job.folder) {
       // איכויות הצפייה: המקור הוחלף בגרסה הארוזה (אותו מזהה, גודל חדש = vs) + האיכויות הנמוכות. הכל מאומת מול Drive;
       // משהו לא מסתדר — מתעלמים מהאיכויות (העבודה עצמה נגמרת כרגיל, והנגן מנגן את המקור כמו קודם)
@@ -4126,6 +4139,29 @@ async function handler(req, res, deps = {}) {
       await patchJob(deps, job.id, Object.assign({}, up, { updated: now }));
       Object.assign(job, up);
       return res.status(200).json({ ok: true, job: view(job) });
+    }
+    if (op === 'viVerify') {
+      // PR 1.2ג (10/11/2026) — "אמת שוב" (התוכנית 3.5): ניתוח שהאימות שלו לא הושלם → עבודת־בת שמריצה רק את האימות על ה־vi.json
+      // שלו (בלי מיפוי ובלי סינתזה, ~$0.004). ההרשאה — כמו בעבודה עצמה (mine); השערים — כמו ביצירת ניתוח (viCreateErr) ובהתחלה
+      const why = S.canViVerify(job, now);
+      if (why) return res.status(409).json({ ok: false, error: why });
+      if ((await readStats(deps, uid)).halt) return res.status(409).json({ ok: false, error: 'halted' });
+      const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
+      if (all.some((j) => S.isVv(j) && j.rp === job.id && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'vv_busy' });
+      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.maxActive(isAdmin(user))) return res.status(409).json({ ok: false, error: 'too_many' });
+      const v = S.vvJob(job, S.newJobId(), uid, now);
+      const ve = await viCreateErr(v.spec);
+      if (ve) return res.status(ve[0]).json({ ok: false, error: ve[1] });
+      for (const old of all.filter((j) => S.isVv(j) && j.rp === job.id && S.FINAL.includes(S.effState(j, now).state))) await delDoc(deps, 'studioJobs', old.id);   // רק האחרון נשמר
+      await patchJob(deps, v.id, v);
+      await patchJob(deps, job.id, { vr: (job.vr || 0) + 1, updated: now });   // נספר גם כשההתחלה נדחית — VV_MAX
+      const [code, out] = await startJob(deps, uid, v, {}, now, { adm: isAdmin(user), modeLocked, engLocked });
+      if (!out.ok && !S.START_RETRY.includes(out.error)) {   // סירוב קבוע (מכסה, נעילה...) — בלי עבודה תלויה שתיראה "מאמתים…" לנצח, ובלי לספור
+        await delDoc(deps, 'studioJobs', v.id).catch(() => {});
+        await patchJob(deps, job.id, { vr: job.vr || 0 }).catch(() => {});
+        return res.status(code).json({ ok: false, error: out.error || 'state' });
+      }
+      return res.status(code).json(Object.assign(out, { job: out.job || view(v) }));   // סירוב חולף (תחזוקה, דגל, תקלה רחבה) — הבדיקה המתוזמנת תתחיל
     }
     if (op === 'rerender') {
       // מ2: הפקה מחדש מהכתוביות הנוכחיות — עבודה חדשה (rr) באותה תיקייה; מתחילים אותה ב־op:'start' (כל השמירות הרגילות)

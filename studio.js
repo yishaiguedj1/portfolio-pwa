@@ -1204,6 +1204,8 @@ function errText(code, extra) {
     case 'not_admin': return T('studioErrNotAdmin');
     case 'mode_locked': return T('studioErrModeLocked');   // 15/10: המצב לא פתוח לחשבון הזה
     case 'eng_locked': return T('studioErrEngLocked');   // 25/10: רק השרת של המערכת לחשבון הזה
+    case 'vv_limit': return T('studioErrVvLimit');   // PR 1.2ג: "אמת שוב" — עד VV_MAX (lib/studio.js)
+    case 'vv_busy': return T('studioErrVvBusy');
     case 'vi_off': return T('studioErrViOff');   // 9/11/2026: ניתוח סרטונים — VI_FAIL (studiovi.js = analyze.py); האזהרות — עם דף הניתוח (גל 1)
     case 'vi_lang': return T('studioErrViLang');
     case 'vi_long': return T('studioErrViLong');
@@ -1473,9 +1475,10 @@ async function refreshJobs(force) {
   ui.an = normAn(j.an) || ui.an;   // v385: ציון חריגה
   const have = new Map(store.jobs.map((x) => [x.id, x]));
   const ids = new Set();
-  const rr = new Map(), pv = new Map();
+  const rr = new Map(), pv = new Map(), vv = new Map();
   for (const sj of j.jobs) {
     if (!sj || !JOB_RE.test(String(sj.id || ''))) continue;
+    if (sj.spec && sj.spec.vo === 1) { if (JOB_RE.test(String(sj.rp || ''))) vv.set(sj.rp, String(sj.state || '')); continue; }   // PR 1.2ג: "אמת שוב" — לא ברשימה
     if (sj.sm === 1) continue;   // פריט 13: עבודת הבדיקה אחרי עדכון של העובד — רק במרכז הניהול ובהתראות, לא ברשימה
     if (sj.kind === 'dx' || sj.kind === 'ai') continue;   // 26/10/2026: עבודות משנה (שמירה ב־Drive, גיליון ה־AI) — נעקבות לפי המזהה, לא ברשימה
     if (sj.kind === 'rr') { const x = normJob({ id: sj.id, srv: sj }); if (x && x.srv.rp) (sj.spec && sj.spec.prv === 1 ? pv : rr).set(x.srv.rp, x); continue; }   // מ2; סבב 10: צריבה לבדיקה — בנפרד
@@ -1490,7 +1493,8 @@ async function refreshJobs(force) {
   const keep = (x) => ids.has(x.id) || (runs.get(x.id) && runs.get(x.id).active);
   for (const x of store.jobs) if (!keep(x)) { idbOp('thumbs', 'del', x.id); thumbs.delete(x.id); }   // 21/10/2026: עבודה שנמחקה (גם אחרי חודש, בשרתון) — גם התמונה
   store.jobs = store.jobs.filter(keep).sort((a, b) => b.created - a.created);
-  rrJobs = rr; rrPv = pv;
+  rrJobs = rr; rrPv = pv; vvJobs = vv;
+  vaSync();   // PR 1.2ג: "אמת שוב" הסתיים — הקובץ החדש; או רק מצב הכפתור
   save();
   // v371: התקלה הרחבה עברה — עבודות שחיכו לה מתחילות לבד
   if (ui.inc && !majorOn(ui.inc)) for (const r of store.jobs.filter((x) => x.up.wait === 'major' && !x.up.started)) { r.up.wait = ''; tryStart(r.id); }
@@ -8251,7 +8255,7 @@ function pageVi(p, rec) {
   p.append(navBar({ back: T('studioDialVi') }));
   if (!va || va.id !== rec.id) {
     vaClose();
-    va = { id: rec.id, st: 'load', v: null, view: null, urls: new Map(), cues: null, t0: viLinkT && viLinkT.id === rec.id ? viLinkT.t : 0 };
+    va = { id: rec.id, fid: (outOf(rec, 'vi') || {}).id || '', st: 'load', v: null, view: null, urls: new Map(), cues: null, t0: viLinkT && viLinkT.id === rec.id ? viLinkT.t : 0 };
     viLinkT = null;
     viLoad(rec);
   }
@@ -8274,8 +8278,46 @@ function viView(rec, me) {
   return renderVi({ T, h, btn, ico, fmtT, v, title: fileTitle(rec.spec.name) || v.video.title || T('studioUntitled'),
     place: (store.vip || {})[rec.id] || null, now: () => Date.now(), scroller: () => root, flash: flashSafe, t0: me.t0,
     mkPlayer: () => viPlayer(rec, me), slideUrl: (s) => viSlideUrl(rec, me, s),
+    draftAct: vvBtn(rec, me),   // PR 1.2ג: "אמת שוב" בפס הטיוטה
     onUx: (k, x) => uxAdd(rec, 'vi', k, x == null ? 1 : x), onVf: (id, why, sec) => vfAdd(rec, id, why, sec),
     onPlace: (x) => { if (!x) return; store.vip = normPlaces(Object.assign({}, store.vip, { [rec.id]: x })); save(); } });
+}
+/* PR 1.2ג — "אמת שוב" (התוכנית 3.5) בפס "טיוטה — לא אומתה": עבודת־בת שמריצה רק את האימות (op:'viVerify'; ~$0.004).
+   בזמן שהיא רצה — "מאמתים…"; כשהיא מסתיימת, השרתון מחליף את ה־vi.json של הניתוח ו־vaSync טוען את החדש */
+const VV_ACTIVE = new Set(['new', 'queued', 'running']);
+function vvBtn(rec, me) {
+  const w = h('span', 'st-vi-vv');
+  me.vvb = { w, rec };
+  vvPaint(me);
+  return w;
+}
+function vvPaint(me) {
+  const { w, rec } = me.vvb;
+  const busy = me.vvGo || VV_ACTIVE.has(vvJobs.get(rec.id) || '');
+  w.replaceChildren(busy ? h('span', 'st-vi-vv-busy', T('studioViVvBusy')) : btn('st-btn tint sm', T('studioViVv'), () => viVerifyGo(rec, me), 'vi-vv'));
+}
+async function viVerifyGo(rec, me) {
+  me.vvGo = true; vvPaint(me);
+  try {
+    const j = await net.api('viVerify', { job: rec.id });
+    if (j.ok) vvJobs.set(rec.id, String((j.job && j.job.state) || 'queued'));
+    else flashSafe(errText(j.error));
+  } catch (e) {
+    flashSafe(errText((e && e.code) || 'net'));
+  }
+  me.vvGo = false;
+  if (va === me) vvPaint(me);
+}
+function vaSync() {
+  if (!va) return;
+  const rec = store.jobs.find((x) => x.id === va.id), o = rec && outOf(rec, 'vi');
+  if (o && va.fid && o.id !== va.fid) {   // הקובץ החדש של "אמת שוב"
+    if (va.view) va.view.destroy();
+    Object.assign(va, { fid: o.id, st: 'load', v: null, view: null, vvb: null });
+    viLoad(rec);
+    return;
+  }
+  if (va.vvb) vvPaint(va);
 }
 /* המיני־נגן: הסרטון המקורי (ואיכויות הצפייה, אם יש) ואחריו העותק שהעובד הכין; התמליל ככתוביות (כבויות כשהקול באותה שפה) */
 /* נגן הניתוח: הסרטון באיכות מלאה, והכתוביות = התמליל בשפת המקור (orig — דולקות, כל שורה בכיוון שלה, גם בשפות משולבות) */
@@ -8374,6 +8416,7 @@ const jobFolder = (rec) => (rec && ((rec.up && rec.up.folder) || (rec.srv && rec
 const canEdit = (rec) => !!(rec && rec.srv && rec.srv.state === 'done' && rec.srv.kind === 'tr' && outOf(rec, 'cues') && jobFolder(rec));
 const RR_OUTS = ['compact', 'same', 'mkv', 'small'];
 const RR_STYLES = ['bold', 'classic'];     // מה שהצריבה של vt יודעת (קריוקי — רק בתרגום מלא, בעתיד)
+let vvJobs = new Map();                    // PR 1.2ג: הניתוח → מצב עבודת "אמת שוב" האחרונה (מ־op:'jobs'; לא ברשימה)
 let rrJobs = new Map();                    // העבודה המקורית → ההפקה מחדש האחרונה (מ־op:'jobs'; לא ברשימה הראשית)
 let rrPv = new Map();                      // סבב 10: העבודה המקורית → הצריבה לבדיקה האחרונה (קטע קצר)
 const rrRunning = (x) => !!(x && ['new', 'queued', 'running'].includes(x.srv.state));

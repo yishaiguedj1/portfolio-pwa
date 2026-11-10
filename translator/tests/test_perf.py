@@ -114,6 +114,7 @@ class AgentWiring(unittest.TestCase):
     def test_vi_kind_and_fit(self):
         import agent as A
         self.assertEqual(A.perf_kind({'kind': 'tr', 'vi': 1}), 'vi')
+        self.assertEqual(A.perf_kind({'kind': 'tr', 'vi': 1, 'vo': 1}), 'ai')   # PR 1.2ג: "אמת שוב" — קל, בלי זיכרון של סרטון
         self.assertEqual(A.perf_kind({'kind': 'rr'}), 'rr')
         self.assertEqual(A.perf_kind({}), 'tr')
         self.assertEqual(A.MEM_PRIOR['vi'], A.MEM_PRIOR['tr'], 'גל 0: כמו תרגום עד המדידה (0.3)')

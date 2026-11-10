@@ -1264,6 +1264,9 @@ html.st-dock .toast { bottom: calc(var(--dock-h, 120px) + 12px + env(safe-area-i
 .st-vi-trust b { color: var(--st-ok-ink); font-weight: 600; }
 [data-theme="dark"] .st-vi-trust b { color: var(--st-ok); }
 .st-vi-resume { margin: 0 16px 12px; }
+.st-vi-draft { align-items: center; }
+.st-vi-vv { flex: none; margin-inline-start: auto; }   /* PR 1.2ג: "אמת שוב" בקצה פס הטיוטה */
+.st-vi-vv-busy { font-weight: 500; white-space: nowrap; }
 .st-vi-gist { margin-top: 4px; padding: 18px 16px; }
 .st-vi-one { margin: 0 0 16px; font-size: 19px; font-weight: 600; line-height: 1.45; text-wrap: pretty; }
 .st-vi-one:last-child { margin-bottom: 0; }

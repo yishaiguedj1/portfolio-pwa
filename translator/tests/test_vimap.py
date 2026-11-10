@@ -467,6 +467,132 @@ class TestVerify(unittest.TestCase):
         self.assertIs(A.judge_engine(man), man)
 
 
+class _Ctx:
+    def __init__(self, st, pdir):
+        self.st, self.pdir, self.reports = st, pdir, []
+
+    def report(self, st=None, p=None, msg=None, force=False, **extra):
+        self.reports.append(dict({"st": st, "p": p, "msg": msg}, **extra))
+
+
+class _J:
+    """job מדומה לאימות החוזר: הקלט = ה־vi.json של הניתוח; בלי vt (בלי תמלול, מסך או וידאו)"""
+
+    def __init__(self, src, ctx):
+        self.src, self.put, self.got, self.LIVE_USAGE = src, [], [], None
+        self.Ctx = lambda st: ctx
+        self.load_state = lambda: ctx.st
+
+    def fetch_input(self, ctx, fid, dest, size, cb):
+        self.got.append(fid)
+        Path(dest).write_bytes(Path(self.src).read_bytes())
+        cb(1.0)
+
+    def note_timing(self, ctx, cmd, t0, t1, rss=0, cpu=None):
+        pass
+
+    def vt(self, *a, **k):
+        raise AssertionError("אימות חוזר בלי vt")
+
+    def put_output_retry(self, ctx, p, name, k, mime, cb):
+        cb(1.0)
+        self.put.append((k, name, mime, json.loads(Path(p).read_text(encoding="utf-8"))))
+        return "R2_vinew"
+
+
+class TestReverify(unittest.TestCase):
+    """PR 1.2ג — "אמת שוב": רק האימות על ה־vi.json שנשמר (spec.vo). בלי מיפוי ובלי סינתזה"""
+
+    def draft(self):
+        """ניתוח שהאימות שלו נכשל (תקלה ב־API): טיוטה — לא אומתה"""
+        m, ix, nums, rest = mapped()
+        ids = [it["id"] for it in m["items"]]
+        A.vi_synth(Scripted([vs_answer({"one": {"text": "סיכום", "from": [ids[0]]}, "bluf": None, "take": [
+            {"text": "תובנה", "from": [ids[1]]}], "thesis": None, "big": None, "adds": []})]), m, ix, nums)
+        A.vi_verify(Scripted([llm.LLMError("http_500")]), m, ix)
+        vi = live(m, rest)
+        self.assertIn("vi_unver", vi["quality"]["warn"])
+        return vi
+
+    def run_vo(self, vi, eng):
+        import tempfile
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        src = Path(td.name) / "in.json"
+        src.write_text(json.dumps(vi, ensure_ascii=False), encoding="utf-8")
+        ctx = _Ctx({"spec": {"vi": 1, "vo": 1, "from": "auto", "to": ["he"], "mode": ""},
+                    "files": {"i": {"id": "R2_viold", "name": "t (ניתוח).json", "size": 1}}}, Path(td.name) / "p")
+        J = _J(src, ctx)
+        import io
+        from contextlib import redirect_stdout
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = A.vi_run(J, None, engine=eng)
+        return rc, ctx, J, buf.getvalue()
+
+    def test_rebuild_is_identity(self):
+        """בלי אימות — vi_from_file ואז vi_rebuild מחזירים את אותו קובץ (גם vi_unver, הכיסוי והאזהרות)"""
+        vi = self.draft()
+        m, ix = A.vi_from_file(json.loads(json.dumps(vi)))
+        self.assertEqual(A.vi_rebuild(vi, m), vi)
+        self.assertEqual(ix.text(vi["items"][0]["ev"][0]), next(e["text"] for e in vi["evidence"] if e["id"] == vi["items"][0]["ev"][0]))
+
+    def test_success_clears_draft(self):
+        """קבלה: אימות חוזר שהצליח מוריד את vi_unver; רק vv נקרא — בלי מיפוי ובלי סינתזה"""
+        vi = self.draft()
+        eng = Scripted(lambda p: "\n".join("%s|sup" % i for i in claim_ids(p)))
+        rc, ctx, J, out = self.run_vo(vi, eng)
+        self.assertEqual(rc, 0)
+        self.assertEqual({c["k"] for c in eng.calls}, {"vv"}, "רק האימות")
+        self.assertEqual(J.got, ["R2_viold"])
+        [(k, name, mime, nv)] = J.put
+        self.assertEqual((k, name, mime), ("vi", "t (ניתוח).json", "application/json"))
+        self.assertNotIn("vi_unver", nv["quality"]["warn"])
+        self.assertEqual(nv["quality"]["sup"], len(nv["items"]))
+        self.assertEqual([it["id"] for it in nv["items"]], [it["id"] for it in vi["items"]], "אותם פריטים")
+        self.assertEqual(nv["evidence"], vi["evidence"])
+        self.assertEqual(C.norm_vi(nv), nv)
+        last = ctx.reports[-1]
+        self.assertTrue(last.get("done"))
+        self.assertEqual(last["out"], [{"id": "R2_vinew", "name": "t (ניתוח).json", "size": last["out"][0]["size"], "k": "vi"}])
+        self.assertEqual(last["vsm"]["ok"], len(nv["items"]))
+        self.assertNotIn("lx", last, "בלי מאגר הלמידה")
+        self.assertEqual([r["st"] for r in ctx.reports if r["st"] and r["p"] == 0], ["up", "rv", "sv"])
+        facts = json.loads([x for x in out.splitlines() if x.startswith("VI_VV ")][0][6:])
+        self.assertEqual(facts["vv"]["ok"], 1)
+
+    def test_fail_again_keeps_draft(self):
+        """קבלה: אימות שנכשל שוב — הקובץ נשאר טיוטה, והעבודה מסתיימת (לא נכשלת)"""
+        vi = self.draft()
+        rc, ctx, J, out = self.run_vo(vi, Scripted(lambda p: llm.LLMError("http_500")))
+        self.assertEqual(rc, 0)
+        nv = J.put[0][3]
+        self.assertIn("vi_unver", nv["quality"]["warn"])
+        self.assertTrue(ctx.reports[-1].get("done"))
+        self.assertIn("טיוטה", ctx.reports[-1]["msg"])
+
+    def test_bad_input_fails(self):
+        rc = None
+        with self.assertRaises(SystemExit):
+            rc = self.run_vo({"v": A.VI_V, "items": []}, Scripted([]))
+        self.assertIsNone(rc)
+
+    def test_gate(self):
+        """בלי SNB_VI_LIVE — נדחה לפני הקריאה (בלי הוצאה)"""
+        import os
+        os.environ.pop("SNB_VI_LIVE", None)
+        vi = self.draft()
+        import tempfile
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        ctx = _Ctx({"spec": {"vi": 1, "vo": 1, "from": "auto", "to": ["he"]}, "files": {"i": {"id": "R2_x", "size": 1}}}, Path(td.name))
+        J = _J(Path(td.name) / "none", ctx)
+        with self.assertRaises(SystemExit):
+            A.vi_run(J, None)
+        self.assertEqual(ctx.reports[-1]["err"], "vi_off")
+        self.assertEqual(J.got, [])
+
+
 class TestApplyVerdict(unittest.TestCase):
     IT = {"id": "n1", "text": "x", "ev": ["e1", "e2"], "basis": "speaker", "conf": "high", "ver": "unk"}
 

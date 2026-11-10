@@ -1204,6 +1204,83 @@ def make_engine(st: dict):
     return eng
 
 
+VO_KEEP = ('vi_unver', 'vi_partial', 'vi_ledger')   # האזהרות ש־build_vi_live מחשב מחדש — לא עוברות כ"בסיס"
+
+
+def vi_from_file(vi: dict):
+    """PR 1.2ג: vi.json שנשמר (כבר מנורמל) → (m, ix) לאימות חוזר. הפריטים, הפרקים, התקציר והפנקס — כמו שהם; האינדקס —
+    מהראיות, השקפים וה־OCR שבקובץ (הטקסט של כל מזהה = מה שהאימות שולח). ‏miss מהכיסוי ו־fail מ־vi_partial, כך
+    ש־build_vi_live בלי שינוי מחזיר את אותו קובץ."""
+    import vicheck
+    q = vi.get('quality') or {}
+    warn = q.get('warn') or []
+    led = vi.get('ledger') or []
+    items = vi.get('items') or []
+    # hang: הפניות שכבר הומרו ל־unverified לא נספרות שוב ב־dangling — vi_ledger שהיה נשמר
+    m = {'genre': vi.get('genre') or 'other', 'segments': vi.get('segments') or [], 'chapters': vi.get('chapters') or [],
+         'items': items, 'ledger': led, 'briefing': vi.get('briefing') or {'take': []},
+         'miss': int(round((1 - float(q.get('cov') or 0)) * len(led))) if led else 0,
+         'hang': int('vi_ledger' in warn) + vicheck.dangling(led, {x['id'] for x in items}),
+         'st': {'fail': int('vi_partial' in warn)}}
+    for k in ('thesis', 'big'):
+        if vi.get(k):
+            m[k] = vi[k]
+    return m, vicheck.Index(vi.get('evidence') or [], vi.get('slides') or [], vi.get('ocr') or [])
+
+
+def vi_rebuild(old: dict, m: dict) -> dict:
+    """vi.json מחדש אחרי האימות — אותם ראיות, שקפים, וידאו ואזהרות בסיס; הפריטים והאזהרות המחושבות — מ־m."""
+    q, vd = old.get('quality') or {}, old.get('video') or {}
+    base = [w for w in q.get('warn') or [] if w not in VO_KEEP]
+    return build_vi_live((old.get('lang') or {}).get('src') or 'en', float(vd.get('dur') or 0), vd.get('src') or 'file',
+                         vd.get('title') or '', m, old.get('evidence') or [], old.get('slides') or [], old.get('ocr') or [],
+                         q.get('asr') or 'med', base)
+
+
+def vi_reverify(J, ctx, engine=None) -> int:
+    """PR 1.2ג — "אמת שוב" (3.5): עבודת־בת (spec.vo) שמריצה רק את האימות (vv) על ה־vi.json של הניתוח (st.files.i, באותה
+    תיקייה) — בלי מיפוי, בלי סינתזה, בלי תמלול ובלי מאגר הלמידה. ה־vi.json החדש עולה כתוצר vi, והשרתון מחליף אותו אצל
+    הניתוח (vvAdopt). אימות שנכשל שוב — הקובץ עולה עם vi_unver (הטיוטה נשארת), והעבודה עצמה מסתיימת."""
+    import vicheck
+    S = Stages(J, ctx)
+    pd = ctx.pdir
+    pd.mkdir(parents=True, exist_ok=True)
+    f = (ctx.st.get('files') or {}).get('i') or {}
+    if not f.get('id'):
+        ctx.report(fail=True, err='vi_schema', msg='אין ניתוח לאמת', force=True)
+        raise SystemExit('✗ אימות חוזר: אין vi.json.')
+    S.go('up', 'קוראים את הניתוח')
+    p_in = pd / 'vi.in.json'
+    J.fetch_input(ctx, f['id'], p_in, int(f.get('size') or 0), lambda x: ctx.report('up', x))
+    old = vicheck.norm_vi(_read_json(p_in))
+    if not old or not old.get('items'):
+        S.end()
+        ctx.report(fail=True, err='vi_schema', msg='אין בניתוח נקודות לאמת', force=True)
+        raise SystemExit('✗ אימות חוזר: הקובץ לא תקין או בלי פריטים.')
+    S.go('rv', 'מאמתים מול הראיות')
+    eng = engine or make_engine(ctx.st)
+    if hasattr(J, 'LIVE_USAGE'):
+        J.LIVE_USAGE = eng.ledger.list
+    m, ix = vi_from_file(old)
+    vi_verify(judge_engine(eng), m, ix, on_progress=lambda x: ctx.report('rv', x))
+    vi = vi_rebuild(old, m)
+    S.go('sv', 'שומרים')
+    p = pd / 'vi.json'
+    p.write_text(json.dumps(vi, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
+    name = str(f.get('name') or 'vi.json')[:200]
+    fid = J.put_output_retry(ctx, p, name, 'vi', 'application/json', lambda x: ctx.report('sv', x))
+    S.end()
+    vv = m['st']['vv']
+    tot = eng.ledger.total()
+    facts = {'v': 1, 'stg': S.out, 'vv': {k: vv[k] for k in ('ok', 'n', 'calls', 'fail', 'cite', 'ms', 'sup', 'part', 'uns', 'con', 'unk')},
+             'usd': round(tot, 4) if tot is not None else None}
+    print('VI_VV ' + json.dumps(facts, separators=(',', ':')), flush=True)
+    ctx.report(done=True, out=[{'id': fid, 'name': name, 'size': p.stat().st_size, 'k': 'vi'}], vsm=summary(vi), force=True,
+               msg='האימות הושלם' if vv['ok'] else 'האימות לא הושלם — הניתוח נשאר טיוטה', usage=eng.ledger.list() or None)
+    print('✓ אימות חוזר: ' + ('הושלם' if vv['ok'] else 'לא הושלם — נשאר טיוטה'))
+    return 0
+
+
 def vi_run(J, args, engine=None) -> int:
     """עבודת ניתוח. J = המודול job (כמו pipeline.run_auto). engine — לבדיקות (מנוע מדומה); אחרת make_engine."""
     ctx = J.Ctx(J.load_state())
@@ -1216,6 +1293,8 @@ def vi_run(J, args, engine=None) -> int:
     if not dry and engine is None and not live_ok():
         ctx.report(fail=True, err='vi_off', msg='הניתוח עוד לא פתוח', force=True)
         raise SystemExit('✗ ניתוח: הניתוח עם Claude עוד סגור (SNB_VI_LIVE).')
+    if spec.get('vo') == 1:                           # PR 1.2ג: "אמת שוב" — רק האימות, על ה־vi.json של הניתוח
+        return vi_reverify(J, ctx, engine)
     S = Stages(J, ctx)
     pd = ctx.pdir
     pd.mkdir(parents=True, exist_ok=True)
