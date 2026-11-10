@@ -72,6 +72,6 @@ const api = fs.readFileSync(path.join(root, 'ibkr-proxy/api/studio.js'), 'utf8')
   const g = S.normGate({ k: 'r', cnt: 2, cues: [{ t: '0:05', x: 'שלום', e: 'Hello <b>there</b>' }, { t: '0:09', x: 'תודה' }] }, 'g000000000001');
   ok(g.n.cues[0].e === 'Hello <b>there</b>' && !('e' in g.n.cues[1]), 'gate: e = המקור (מוצג רק כטקסט); בלי מקור — בלי e');
   const sj = fs.readFileSync(path.join(root, 'studio.js'), 'utf8'), ss = fs.readFileSync(path.join(root, 'studiosubs.js'), 'utf8'), css = fs.readFileSync(path.join(root, 'studio.css'), 'utf8');
-  ok(/if \(cu\.e\) tx\.append\(srcLine\(cu\.e\)\)/.test(sj) && /function src\(c\) \{[\s\S]{0,120}srcLine\(c\.en, T\('studioSrcEn'\)/.test(ss) && (ss.match(/if \(c\.en\) body\.append\(src\(c\)\)/g) || []).length === 2   /* סבב 4 של השדרוג: דרך src(c) — עם המילים הלא בטוחות */ && /\.st-src \{/.test(css),
+  ok(/if \(cu\.e\) tx\.append\(srcLine\(cu\.e\)\)/.test(sj) && /function src\(c\) \{[\s\S]{0,320}srcLine\(c\.en, T\('studioSrcEn'\)/.test(ss) && (ss.match(/if \(c\.en \|\| c\.src\) body\.append\(src\(c\)\)/g) || []).length === 2   /* 10/11/2026: גם קטע בשפה אחרת (src) */   /* סבב 4 של השדרוג: דרך src(c) — עם המילים הלא בטוחות */ && /\.st-src \{/.test(css),
     'המקור מוצג בבדיקה לפני הצריבה ובעורך (שורה סגורה ופתוחה)');
 }

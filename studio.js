@@ -7461,8 +7461,9 @@ function pageRules(p) {
 /* 21/10/2026 (בקשת המשתמש): המקור באנגלית של אותה כתובית — מתחת לתרגום, קטן ואפור, משמאל לימין (מיושר לצד השני),
    עם תווית EN קטנה: ברור שזו שפה אחרת, וברור שזה אותו קטע (באותה שורה). אותה צורה בבדיקה לפני הצריבה ובעורך */
 function srcLine(e) {
-  const d = h('div', 'st-src'); d.dir = 'ltr'; d.lang = 'en';
-  const tag = h('span', 'st-src-l', 'EN'); tag.setAttribute('aria-label', T('studioSrcEn'));
+  const lat = !/[^\u0000-\u024f\u1e00-\u1eff\u2000-\u206f]/.test(String(e));   // 10/11/2026: המקור בשפה המדוברת — לא תמיד אנגלית
+  const d = h('div', 'st-src'); d.dir = lat ? 'ltr' : 'auto'; if (lat) d.lang = 'en';
+  const tag = h('span', 'st-src-l', lat ? 'EN' : T('studioSrcTag')); tag.setAttribute('aria-label', lat ? T('studioSrcEn') : T('studioSrcOrig'));
   d.append(tag, h('span', 'st-src-x', e));
   return d;
 }

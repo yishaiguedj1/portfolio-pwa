@@ -2,7 +2,7 @@
    הנגן למעלה (studioplay.js) מציג את הכתוביות הערוכות בזמן אמת; כל כתובית: טקסט, תזמון, פיצול / מיזוג / מחיקה,
    בדיקות חיות (אותם כללים כמו מדד האיכות), חיפוש והחלפה, ביטול וחזרה.
    הלוגיקה טהורה ובלתי משנה (מחזירה מערך חדש) — נבדקת ב־node; ה־DOM רק ב־createSubsEditor. בלי רשת: studio.js שומר. */
-import { cueIssues, cueAt, Q_LEN, Q_CPS, Q_LINES, Q_MIN_DUR } from './studioplay.js';
+import { cueIssues, cueAt, Q_LEN, Q_CPS, Q_LINES, Q_MIN_DUR, langDir, lineDir } from './studioplay.js';
 
 export const MIN_DUR = 0.2;      // כתובית קצרה מזה לא נוצרת בפיצול / בהזזה (מדד האיכות מסמן מתחת ל־0.83)
 export const STEP = 0.1;         // צעד בכפתורי התזמון
@@ -110,7 +110,7 @@ export function toStl(cues, title, now) {
   return buf;
 }
 export function toCuesJson(cues) {
-  return JSON.stringify(cues.map((c, n) => ({ id: n + 1, start: r3(c.s), end: r3(c.e), lines: c.lines.map(clean), en: c.en || '', spk: c.spk || '' })));
+  return JSON.stringify(cues.map((c, n) => ({ id: n + 1, start: r3(c.s), end: r3(c.e), lines: c.lines.map(clean), en: c.en || '', spk: c.spk || '', ...(c.lg ? { lg: c.lg, src: c.src || '' } : {}) })));   // 10/11/2026: השפה של הקטע נשמרת גם אחרי עריכה
 }
 
 /* ---------- שבירת שורות: עד Q_LEN תווים — שורה אחת; אחרת שתיים, מאוזנות, עדיפות אחרי פיסוק ---------- */
@@ -761,9 +761,9 @@ function b(cls, label, fn, k, iconK) {
    מחזיר { el, cues(), ver(), time(t), setSaved(ver), destroy }. כתובית אחת פתוחה לעריכה בכל רגע (תיבת טקסט אחת — קל גם ל־1,500 כתוביות) */
 /* 21/10/2026 (בקשת המשתמש): לכל כתובית גם המקור באנגלית של אותו קטע — קטן ואפור, משמאל לימין, עם תווית EN
    (אותה צורה כמו בבדיקה לפני הצריבה ב־studio.js; העיצוב ב־studio.css: .st-src) */
-function srcLine(e, label, marks, onWord, wLabel) {
-  const d = el('div', 'st-src'); d.dir = 'ltr'; d.lang = 'en';
-  const tag = el('span', 'st-src-l', 'EN'); tag.setAttribute('aria-label', label);
+function srcLine(e, label, marks, onWord, wLabel, lg) {   // 10/11/2026: lg — המקור בשפה המדוברת באותו רגע (התווית = קוד השפה)
+  const d = el('div', 'st-src'); d.dir = lg ? langDir(lg) || lineDir(String(e)) : 'ltr'; d.lang = lg || 'en';
+  const tag = el('span', 'st-src-l', lg ? lg.toUpperCase() : 'EN'); tag.setAttribute('aria-label', label);
   const x = el('span', 'st-src-x'), txt = String(e);
   // C2 (סבב 4 של השדרוג): מילה שהזיהוי לא בטוח בה — קו מנוקד; נגיעה = השמעה של הרגע
   let at = 0;
@@ -1055,6 +1055,7 @@ export function createSubsEditor(opts) {
   }
   /* C2: המקור עם המילים הלא בטוחות; נגיעה במילה = הנגן מהרגע שלפניה */
   function src(c) {
+    if (c.src) return srcLine(c.src, T('studioSrcOrig'), null, null, null, c.lg);   // קטע בשפה אחרת — המקור שלו, בלי סימוני Parakeet
     const uns = tmeta && tmeta.wd ? unsureIn(tmeta.wd, c) : [];
     return srcLine(c.en, T('studioSrcEn'), uns.length ? markUnsure(c.en, uns) : null,
       (u) => { opts.seek(Math.max(0, u.s - 0.4)); opts.play(); }, T('studioUnsure'));
@@ -1094,7 +1095,7 @@ export function createSubsEditor(opts) {
       });
       if (colors.has(c.spk)) body.append(spkPick(k, c));   // C3: הדובר של הכתובית
       body.append(ta);
-      if (c.en) body.append(src(c));
+      if (c.en || c.src) body.append(src(c));
       const nb = noteBox(c, k); if (nb) body.append(nb);
       body.append(el('div', 'st-se-mrow'));
       body.lastChild.append(mt, chips);
@@ -1105,7 +1106,7 @@ export function createSubsEditor(opts) {
       if (colors.has(c.spk)) { const w = el('bdi', 'st-se-who', c.spk); tx.append(w); }   // C3: שם הדובר
       for (const x of c.lines) tx.append(el('div', null, x));
       body.append(tx);
-      if (c.en) body.append(src(c));
+      if (c.en || c.src) body.append(src(c));
       const nb = noteBox(c, k); if (nb) body.append(nb);
       const iss = issOf(c);
       if (iss.length) { const w = el('span', 'st-se-warn'); w.append(icon('warn')); w.setAttribute('aria-label', iss.map(iname).join(', ')); body.append(w); }

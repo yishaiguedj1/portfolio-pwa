@@ -633,10 +633,19 @@ def _build(pr: Project, style_name: str | None, chooser, sty: dict | None = None
     write_text(od / "he.srt", write_srt(final), bom=True)
     write_text(od / "he.vtt", write_vtt(final))
     write_text(od / "he.player.ass", fix(write_ass_compat(final, style, W, H, title)))   # לרצועה הרכה ב־MKV
-    en_cues = [dict(c, en_lines=[c["en"]]) for c in final]
+    if pr.p("foreign.json").exists():   # 10/11/2026: כתובית בשפה אחרת — lg ו־src (המקור בשפה שלה) לטלפון ולעורך
+        from . import lang as L
+        try:
+            nl = L.cue_lang((read_json(pr.p("foreign.json")) or {}).get("seg") or [], final)
+            if nl:
+                log(f"שפות: {nl} כתוביות בשפה אחרת — המקור שלהן בשפה המדוברת")
+        except (ValueError, KeyError, TypeError, AttributeError, IndexError) as e:
+            log(f"שפות: קובץ הקטעים לא תקין ({type(e).__name__}) — הכתוביות בלי שפה")
+    en_cues = [dict(c, en_lines=[c.get("src") or c["en"]]) for c in final]   # קובץ המקור — בשפה המדוברת בכל קטע
     write_text(od / "en.reference.srt", write_srt(en_cues, with_rlm=False, key="en_lines"))
     keep = ("id", "spk", "speech_s", "speech_e", "si", "so", "fi", "fo", "start", "end", "lines", "chars",
-            "cps", "flags", "en", "he", "snap_in", "snap_out", "chained", "merged", "cps_merged", "it", "top", "lift", "tpl", "plan_s")
+            "cps", "flags", "en", "he", "snap_in", "snap_out", "chained", "merged", "cps_merged", "it", "top", "lift", "tpl", "plan_s",
+            "lg", "src")
     write_json(od / "cues.final.json", [{k: c[k] for k in keep if k in c} for c in final])
     # האפשרויות לבחירה של Haiku (pipeline: lb-prompt → Claude → lb-apply → build שוב)
     lb_items = LB.items_for(final, tx.max_chars_line, meas, st.max_line_px)

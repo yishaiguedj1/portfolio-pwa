@@ -7,6 +7,12 @@ Parakeet מתמלל אנגלית בלבד: על משפט בספרדית הוא �
 התוצאה: foreign.json בפרויקט — {"v": 1, "seg": [{"s", "e", "lg", "p", "tx"}]}. **המילים של התמליל לא משתנות**
 (edit-import בונה את en.words.json מחדש בכל align); התרגום מקבל את הקטעים כבלוק נתונים (pipeline.foreign_block),
 והעורך מציג את המקור (notes). בלי המודל בתמונה — בלי השלב, כמו קודם.
+
+10/11/2026 — "השפה המדוברת בכל רגע" (בקשת המשתמש; docs/studio-worker.md):
+  - לכל קטע גם המילים עם זמן (wd = [[מילה, התחלה, סוף]]). קטע בעברית מתומלל ב־ivrit (המודל של העברית), לא ב־whisper-small.
+  - cue_lang: הכתוביות שבתוך קטע כזה מקבלות lg ו־src (המקור בשפה שלו, בזמני הכתובית) — הטלפון מציג אותו במקום הניחוש באנגלית.
+  - detect_spans + transcribe_spans + merge_words: למסלול שבו התמלול הראשי לא באנגלית (ניתוח של סרטון בעברית) —
+    זיהוי שפה בכל קטע של ivrit, וקטע בשפה אחרת מתומלל במנוע שלה (אנגלית — Parakeet; אחרת — whisper-small בשפה שזוהתה).
 """
 
 from __future__ import annotations
@@ -27,10 +33,47 @@ MAX_SEG = 30            # יותר מזה — כנראה רעש/מוזיקה, ל
 LOW_FRAC = 0.6          # לפחות 60% מהמילים ברצף בביטחון נמוך
 P_MIN = 0.75            # ביטחון מינימלי בזיהוי השפה
 TX_MAX = 400
+WD_MAX = 400            # מילים לקטע (30 שנ׳ = ~100)
+SRC_MAX = 600           # המקור של כתובית אחת (כמו en בטלפון)
+P_SPAN = 0.8            # זיהוי על כל קטע (בלי סינון ביטחון של התמלול) — סף מחמיר יותר
+IVRIT_DIR = os.environ.get("SNB_VI_IVRIT") or os.environ.get("SNB_KA_IVRIT") or "/opt/karaoke-he/ivrit"
+LG_ALIAS = {"iw": "he", "jw": "jv"}     # קודים ישנים של whisper
 
 
 def ready() -> bool:
     return (Path(LID_DIR) / "model.bin").is_file()
+
+
+def ivrit_ready() -> bool:
+    return (Path(IVRIT_DIR) / "model.bin").is_file()
+
+
+def norm_lg(lg) -> str:
+    x = str(lg or "").strip().lower()[:5]
+    return LG_ALIAS.get(x, x)
+
+
+def _collect(segs, off: float) -> tuple[str, list]:
+    """קטעי faster-whisper (עם word_timestamps) → (טקסט, [[מילה, התחלה, סוף]]) בזמן המוחלט (off = תחילת הקטע).
+    המילה נשמרת כמו שהיא (עם הרווח שלפניה) — כך שפות בלי רווחים (סינית, יפנית) מתחברות נכון ב־"".join"""
+    parts, wd = [], []
+    for x in segs:
+        t = str(getattr(x, "text", "") or "").strip()
+        if t:
+            parts.append(t)
+        for w in getattr(x, "words", None) or []:
+            ww = str(getattr(w, "word", "") or "")
+            a, b = getattr(w, "start", None), getattr(w, "end", None)
+            if ww.strip() and isinstance(a, (int, float)) and isinstance(b, (int, float)) and len(wd) < WD_MAX:
+                wd.append([ww, round(off + a, 3), round(off + max(a, b), 3)])
+    return " ".join(parts).strip()[:TX_MAX], wd
+
+
+def _ivrit():
+    if os.path.isdir(SEPDEPS) and SEPDEPS not in sys.path:
+        sys.path.append(SEPDEPS)
+    from faster_whisper import WhisperModel
+    return WhisperModel(IVRIT_DIR, device="cpu", compute_type="int8", cpu_threads=max(1, min(8, os.cpu_count() or 4)))
 
 
 def candidates(words: list[dict]) -> list[tuple[float, float]]:
@@ -70,8 +113,8 @@ def _model():
     return WhisperModel(LID_DIR, device="cpu", compute_type="int8", cpu_threads=max(1, min(8, os.cpu_count() or 4)))
 
 
-def detect(wav: str, words: list[dict], model=None) -> list[dict]:
-    """[{s, e, lg, p, tx}] — רק קטעים שזוהו בביטחון כשפה שאינה אנגלית."""
+def detect(wav: str, words: list[dict], model=None, he_model=None) -> list[dict]:
+    """[{s, e, lg, p, tx, wd}] — רק קטעים שזוהו בביטחון כשפה שאינה אנגלית. עברית — ב־ivrit (נטען רק כשנמצא קטע כזה)."""
     cand = candidates(words)
     if not cand:
         return []
@@ -82,19 +125,156 @@ def detect(wav: str, words: list[dict], model=None) -> list[dict]:
     if sr != SR:
         raise ValueError(f"צריך {SR}Hz, התקבל {sr}")
     m = model or _model()
+    he = he_model
     out = []
     for s, e in cand:
         clip = audio[int(s * SR):int(e * SR)]
         if len(clip) < SR:
             continue
-        segs, info = m.transcribe(clip, beam_size=5, condition_on_previous_text=False, vad_filter=False)
-        lg, p = getattr(info, "language", "") or "", float(getattr(info, "language_probability", 0) or 0)
+        segs, info = m.transcribe(clip, beam_size=5, condition_on_previous_text=False, vad_filter=False, word_timestamps=True)
+        lg, p = norm_lg(getattr(info, "language", "")), float(getattr(info, "language_probability", 0) or 0)
         if lg in ("", "en") or p < P_MIN:
             continue
-        tx = " ".join(x.text.strip() for x in segs).strip()[:TX_MAX]
+        tx, wd = "", []
+        if lg == "he" and (he is not None or ivrit_ready()):
+            try:
+                he = he or _ivrit()
+                tx, wd = _collect(he.transcribe(clip, language="he", beam_size=5, condition_on_previous_text=False,
+                                                vad_filter=False, word_timestamps=True)[0], s)
+            except Exception:  # noqa: BLE001 — בלי ivrit: התמלול של whisper-small
+                tx, wd = "", []
+        if not tx:
+            tx, wd = _collect(segs, s)
         if tx:
-            out.append({"s": s, "e": e, "lg": lg[:5], "p": round(p, 2), "tx": tx})
+            out.append({"s": s, "e": e, "lg": lg, "p": round(p, 2), "tx": tx, "wd": wd})
     return out
+
+
+def detect_spans(audio, spans: list, primary: str, model=None, p_min: float = P_SPAN) -> list[dict]:
+    """זיהוי שפה בכל קטע נתון (במסלול העברי — הקטעים של ivrit) → [{s, e, lg, p, i}], רק שפה אחרת בביטחון.
+    רק הזיהוי (transcribe של faster-whisper מזהה מיד ומחזיר מחולל — לא עוברים עליו)."""
+    m = model or _model()
+    out = []
+    for i, sp in enumerate(spans):
+        s, e = float(sp[0]), float(sp[1])
+        if e - s < MIN_S:
+            continue
+        clip = audio[int(s * SR):int(min(e, s + MAX_S) * SR)]
+        if len(clip) < SR:
+            continue
+        _, info = m.transcribe(clip, beam_size=1, condition_on_previous_text=False, vad_filter=False)
+        lg, p = norm_lg(getattr(info, "language", "")), float(getattr(info, "language_probability", 0) or 0)
+        if lg and lg != primary and p >= p_min:
+            out.append({"s": round(s, 3), "e": round(e, 3), "lg": lg, "p": round(p, 2), "i": i})
+    return out[:MAX_SEG * 4]
+
+
+GAP_S = 1.0             # שקט בין קטעים כשמחברים אותם לקובץ אחד ל־Parakeet
+
+
+def parakeet_spans(audio, spans: list, run=None) -> list[list]:
+    """קטעים באנגלית → מילים לכל קטע ([[מילה, התחלה, סוף, ביטחון]], בזמן המוחלט). כל הקטעים בקובץ אחד עם שקט ביניהם —
+    טעינה אחת של המודל. run(wav) → {"words": [{w, s, e, conf}]} (ברירת המחדל: asr_parakeet.transcribe)."""
+    import numpy as np
+    import soundfile as sf
+    import tempfile
+    gap = np.zeros(int(GAP_S * SR), dtype="float32")
+    pieces, off, buf = [], 0.0, []
+    for s, e in spans:
+        clip = audio[int(s * SR):int(e * SR)]
+        pieces.append((off, float(s), len(clip) / SR))
+        buf += [clip, gap]
+        off += len(clip) / SR + GAP_S
+    if run is None:
+        from .asr_parakeet import transcribe as run_p
+
+        def run(w):
+            return run_p(w, quantization="int8")
+    with tempfile.TemporaryDirectory() as td:
+        wav = os.path.join(td, "spans.wav")
+        sf.write(wav, np.concatenate(buf) if buf else gap, SR)
+        res = run(wav) or {}
+    out = [[] for _ in spans]
+    for w in res.get("words") or []:
+        a, b = w.get("s"), w.get("e")
+        if not w.get("w") or not isinstance(a, (int, float)) or not isinstance(b, (int, float)):
+            continue
+        mid = (a + b) / 2
+        for k, (o, s, d) in enumerate(pieces):
+            if o <= mid < o + d:
+                out[k].append([" " + str(w["w"]).strip(), round(s + a - o, 3), round(s + b - o, 3), w.get("conf")])
+                break
+    return out
+
+
+def transcribe_spans(audio, found: list[dict], model=None, en_run=None) -> list[dict]:
+    """הקטעים שזוהו (detect_spans) → אותם קטעים עם tx ו־wd: אנגלית ב־Parakeet (כולם יחד), אחרת whisper-small בשפה שזוהתה.
+    קטע שלא יצאו לו מילים — נזרק (המילים של התמלול הראשי נשארות)."""
+    out = []
+    en = [g for g in found if g["lg"] == "en"]
+    if en:
+        try:
+            ws = parakeet_spans(audio, [(g["s"], g["e"]) for g in en], run=en_run)
+        except Exception:  # noqa: BLE001 — בלי Parakeet: whisper-small באנגלית
+            ws = None
+        if ws is not None:
+            for g, wd in zip(en, ws):
+                if wd:
+                    out.append(dict(g, tx="".join(x[0] for x in wd).strip()[:TX_MAX], wd=wd[:WD_MAX]))
+            en = []
+    m = None
+    for g in [x for x in found if x["lg"] != "en"] + en:
+        m = m or model or _model()
+        clip = audio[int(g["s"] * SR):int(g["e"] * SR)]
+        tx, wd = _collect(m.transcribe(clip, language=g["lg"], beam_size=5, condition_on_previous_text=False,
+                                       vad_filter=False, word_timestamps=True)[0], g["s"])
+        if wd:
+            out.append(dict(g, tx=tx, wd=wd))
+    return sorted(out, key=lambda g: g["s"])
+
+
+def merge_words(words: list[dict], seg: list[dict]) -> list[dict]:
+    """המילים של התמלול הראשי שבתוך קטע בשפה אחרת (לפי אמצע המילה) מוחלפות במילים של הקטע, עם lg — ממוין לפי זמן.
+    מילה של Parakeet שומרת את הביטחון (p). קטע בלי wd — לא נוגעים."""
+    seg = [g for g in seg or [] if g.get("wd")]
+    if not seg:
+        return words
+    keep = [w for w in words if not any(g["s"] <= (w["s"] + w["e"]) / 2 < g["e"] for g in seg)]
+    add = []
+    for g in seg:
+        for x in g["wd"]:
+            if str(x[0]).strip():
+                w = {"w": str(x[0]).strip(), "s": x[1], "e": x[2], "lg": g["lg"]}
+                if len(x) > 3 and isinstance(x[3], (int, float)):
+                    w["p"] = x[3]
+                add.append(w)
+    return sorted(keep + add, key=lambda w: (w["s"], w["e"]))
+
+
+def cue_lang(seg: list[dict], cues: list[dict]) -> int:
+    """cues.final: כתובית שחצייה בתוך קטע בשפה אחרת מקבלת lg, ו־src = המילים של הקטע בזמני הדיבור שלה (הקטע כולו —
+    רק כשהוא כתובית אחת). זה המקור שהטלפון מציג במקום הניחוש באנגלית. מחזיר כמה כתוביות סומנו."""
+    m = cue_map(seg or [], cues)
+    per = {}
+    for g in m.values():
+        per[id(g)] = per.get(id(g), 0) + 1
+    n = 0
+    for c in cues:
+        if not isinstance(c, dict):
+            continue
+        c.pop("lg", None)
+        c.pop("src", None)
+        g = m.get(c.get("id"))
+        if not g or not g.get("lg"):
+            continue
+        a, b = c.get("speech_s", c.get("start")), c.get("speech_e", c.get("end"))
+        ws = [x[0] for x in g.get("wd") or [] if a - 0.15 <= (x[1] + x[2]) / 2 <= b + 0.15]
+        src = "".join(ws).strip() if ws else (str(g.get("tx") or "") if per.get(id(g)) == 1 else "")
+        c["lg"] = norm_lg(g["lg"])
+        if src:
+            c["src"] = src[:SRC_MAX]
+        n += 1
+    return n
 
 
 def cue_map(seg: list[dict], cues: list[dict]) -> dict[int, dict]:

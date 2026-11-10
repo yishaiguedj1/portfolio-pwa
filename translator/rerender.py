@@ -50,6 +50,11 @@ def norm_cues(raw, dur=0.0, pos=False):
             continue
         o = {'start': round(s, 3), 'end': round(e, 3), 'lines': lines,
              'spk': CTRL.sub('', str(c.get('spk') or ''))[:20], 'en': CTRL.sub('', str(c.get('en') or ''))[:400]}
+        if re.fullmatch(r'[a-z]{2,3}', str(c.get('lg') or '')):   # 10/11/2026: קטע בשפה אחרת — השפה והמקור שלו נשמרים בעריכה
+            o['lg'] = c['lg']
+            src = CTRL.sub('', str(c.get('src') or '')).strip()[:600]
+            if src:
+                o['src'] = src
         if pos:
             if c.get('top') is True:
                 o['top'] = True
