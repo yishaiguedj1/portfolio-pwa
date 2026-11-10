@@ -271,6 +271,53 @@ function newsShow(c) {
   }).catch(() => { _newsBusy = false; });
 }
 
+/* ת־פס — הזוהר מגיב לקצב ההתקדמות (10/11/2026, בקשת המשתמש: "שהאפקט יותאם לקצב ההתקדמות של הבאר").
+   דוגם את רוחב המילוי (style.width) של פסי הטעינה פעם בחצי שנייה, מחשב קצב (אחוזים לשנייה, ממוצע נע),
+   וכותב --cmt-v (0–1) על המסילה: מהר = זוהר ארוך, חזק ונושם מהר; לאט / תקוע = קצר, עמום ונושם לאט.
+   הנגן (st-pl-track) לא נדגם — נשאר בדיוק כמו בסרטון (--cmt-v ברירת מחדל .5 = המראה של הסרטון).
+   פסים עומדים (התקדמות קריאה) ופס בלי אחוז (.ind) — לא נדגמים. בלי פסים בדף — הלולאה לא עושה כלום. */
+const CMT_TRACKS = ['demo-prog-bar', 'ip-bar', 'lib-bar', 'st-tprog', 'st-pbar', 'st-ut-bar', 'adm-lbar'];
+/* קצב (אחוזים לשנייה) → 0–1, בסולם לוגריתמי: 0.05%/ש' ≈ תקוע, 1%/ש' ≈ באמצע, 10%/ש' ומעלה = מלא. פונקציה טהורה, נבדקת. */
+function cmtSpeed(rate) {
+  if (!(rate > 0)) return 0.08;
+  return Math.max(0.08, Math.min(1, (Math.log10(rate) + 1.3) / 2.3));
+}
+/* צעד דגימה לפס אחד (טהור, נבדק): st = { w, t, ch, r } — רוחב אחרון, זמן הדגימה, זמן השינוי האחרון, קצב ממוצע.
+   מחזיר את המצב החדש ואת v (או null — עוד אין מספיק מידע). */
+function cmtStep(st, w, now) {
+  if (!st || w < st.w - 0.5) return { s: { w, t: now, ch: now, r: 0 }, v: null };   // פס חדש / התחיל מחדש
+  const s = { w: st.w, t: now, ch: st.ch, r: st.r };
+  if (w > st.w + 0.05) {
+    const dt = Math.max(0.25, (now - st.ch) / 1000), inst = (w - st.w) / dt;
+    s.r = st.r ? st.r * 0.6 + inst * 0.4 : inst; s.w = w; s.ch = now;
+  } else if (now - st.ch > 8000) s.r = st.r * 0.85;   // תקוע — הקצב דועך, והזוהר איתו
+  if (!s.r) return { s, v: null };
+  return { s, v: w >= 99.5 ? 0.5 : cmtSpeed(s.r) };
+}
+if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.getElementsByClassName && typeof setInterval === 'function') {
+  const cols = CMT_TRACKS.map((c) => document.getElementsByClassName(c));   // אוספים חיים — זול, בלי querySelectorAll בכל דגימה
+  const mem = new WeakMap();
+  const tick = () => {
+    if (document.hidden) return;
+    const now = Date.now();
+    for (const col of cols) for (let i = 0; i < col.length; i++) {
+      const tr = col[i], f = tr.firstElementChild;
+      if (!f || tr.classList.contains('ind') || tr.closest('.lib-cont, .ac-progress')) continue;
+      const w = parseFloat(f.style.width);
+      if (!(w >= 0)) continue;
+      const r = cmtStep(mem.get(tr), w, now);
+      mem.set(tr, r.s);
+      if (r.v == null) continue;
+      const old = parseFloat(tr.style.getPropertyValue('--cmt-v'));
+      if (!(Math.abs(old - r.v) < 0.03)) tr.style.setProperty('--cmt-v', r.v.toFixed(2));
+      const tempo = r.v < 0.3 ? 'slow' : r.v > 0.75 ? 'fast' : '';
+      if ((tr.dataset.cmt || '') !== tempo) { if (tempo) tr.dataset.cmt = tempo; else delete tr.dataset.cmt; }
+    }
+  };
+  const iv = setInterval(tick, 500);
+  if (iv && iv.unref) iv.unref();
+}
+
 function dlgAvailable() {
   return typeof document !== 'undefined' && !!document.body && typeof document.body.appendChild === 'function' &&
     typeof document.createElement === 'function' && typeof requestAnimationFrame === 'function';

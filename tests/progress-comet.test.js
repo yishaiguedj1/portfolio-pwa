@@ -52,5 +52,33 @@ ok(/bar\.classList\.toggle\('cmt-on', !v\.paused && !v\.ended\)/.test(play), 'st
 ok(/bar\.classList\.add\('cmt-drag'\)/.test(play) && /bar\.classList\.remove\('cmt-drag'\)/.test(play), 'studioplay: cmt-drag בגרירה');
 ok(/kc-cell::before\s*\{[^}]*#fff 96%[^}]*drop-shadow/.test(strip(read('chart.css'))), 'קו הטעינה בגרף — שביט עם ראש לבן וזוהר');
 
+// 4. הזוהר מגיב לקצב ההתקדמות — הדוגם ב־app.js (<core>), ו־--cmt-v ב־CSS
+const app = read('app.js');
+const a0 = app.indexOf('const CMT_TRACKS'), a1 = app.indexOf('/* </core> */', a0);
+ok(a0 > 0 && app.lastIndexOf('/* <core> */', a0) > app.lastIndexOf('/* </core> */', a0), 'הדוגם בתוך אזור <core> (נטען גם ב־Academy/Studio/ניהול/Cashflow)');
+const vm = require('vm');
+const ctx = {}; vm.createContext(ctx); vm.runInContext(app.slice(a0, a1) + ';this.cmtSpeed=cmtSpeed;this.cmtStep=cmtStep;this.CMT_TRACKS=CMT_TRACKS;', ctx);
+ok(!ctx.CMT_TRACKS.includes('st-pl-track'), 'הנגן לא נדגם — נשאר כמו בסרטון');
+ok(!ctx.CMT_TRACKS.includes('lib-mini'), 'התקדמות קריאה (עומד) לא נדגמת');
+ok(ctx.CMT_TRACKS.every((c) => trackList.includes('.' + c)), 'כל פס נדגם הוא מסילת ת־פס');
+ok(ctx.cmtSpeed(0) === 0.08 && ctx.cmtSpeed(0.01) === 0.08, 'תקוע — זוהר מינימלי');
+ok(Math.abs(ctx.cmtSpeed(1) - 0.565) < 0.01, '1%/ש׳ — באמצע');
+ok(ctx.cmtSpeed(10) === 1 && ctx.cmtSpeed(50) === 1, '10%/ש׳ ומעלה — מלא');
+ok(ctx.cmtSpeed(0.3) < ctx.cmtSpeed(3), 'מהיר יותר = זוהר חזק יותר');
+let st = ctx.cmtStep(null, 10, 0);
+ok(st.v === null, 'דגימה ראשונה — עוד אין קצב');
+st = ctx.cmtStep(st.s, 14, 500);   // 4% בחצי שנייה = 8%/ש׳
+ok(st.v > 0.9, 'מהר — v גבוה (' + st.v + ')');
+let s2 = st.s, t = 500;
+for (let k = 0; k < 30; k++) { t += 500; s2 = ctx.cmtStep(s2, 14, t).s; }
+const stuck = ctx.cmtStep(s2, 14, t + 500);
+ok(stuck.v < st.v, 'נתקע (בלי שינוי מעל 8 שניות) — הזוהר דועך (' + stuck.v + ')');
+ok(ctx.cmtStep(st.s, 2, 1000).v === null, 'הפס התחיל מחדש — מאפסים');
+ok(ctx.cmtStep(ctx.cmtStep(st.s, 100, 1000).s, 100, 1500).v === 0.5, 'בסוף (100%) — חוזר למראה הרגיל');
+ok(/@property --cmt-v\s*\{[^}]*initial-value:\s*\.5/.test(blk), '--cmt-v ברירת מחדל .5 = המראה של הסרטון');
+ok(/::after\s*\{[^}]*width:\s*min\(calc\(56px \+ 80px \* var\(--cmt-v\)\)/.test(blk), 'אורך הזוהר לפי הקצב (96px ב־.5)');
+ok(/\[data-cmt="slow"\][^{]*\{\s*animation-duration/.test(blk) && /\[data-cmt="fast"\][^{]*\{\s*animation-duration/.test(blk), 'קצב הנשימה לפי הקצב');
+ok(/--cmt-v 1\.2s/.test(blk), 'מעבר רך בין קצבים');
+
 console.log(n + ' בדיקות, ' + fails.length + ' נכשלו');
 if (fails.length) { for (const f of fails) console.log('FAIL - ' + f); process.exit(1); }
