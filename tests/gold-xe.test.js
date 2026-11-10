@@ -8,6 +8,7 @@ const ok = (c, m) => { n++; if (c) console.log('ok - ' + m); else { fail++; cons
 const R = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 
 ok(JSON.stringify(S.normXe({ main: 'medium', rv: 'low', tl: 'huge', jg: 'low' })) === '{"main":"medium","rv":"low"}', 'normXe — רק תפקידים ומאמצים מוכרים');
+ok(JSON.stringify(S.normXe({ vm: 'low', vv: 'high', vx: 'max', vq: 'low' })) === '{"vm":"low","vv":"high","vx":"max"}' && S.XE_KEYS.length === 9, 'normXe — תפקידי הניתוח (PR 1.1; = ROLE_EFFORT_KEYS ב־llm.py)');
 ok(S.normXe({ jg: 'low' }) === null && S.normXe('medium') === null && S.normXe([1]) === null && S.normXe(null) === null, 'normXe — ריק / לא תקין = null');
 
 const src = { id: 'jSRC' + '0'.repeat(17), spec: { name: 'a.mp4', size: 9, dur: 600, to: ['he'], mode: 'haiku-high', out: ['compact'], eng: 'api', cap: 3, ry: 1, cp: 1, xe: { tl: 'low' } }, gd: { r: 'refs1234567890', n: 9 }, folder: 'R2_x' };

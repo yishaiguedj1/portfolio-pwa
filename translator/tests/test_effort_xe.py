@@ -32,7 +32,8 @@ class EffortXe(unittest.TestCase):
         self.assertEqual(self.at(e, 'main'), 'medium')
 
     def test_role_cap(self):
-        self.assertEqual(llm.ROLE_CAP, {'main': 'medium'})
+        # 09/11/2026 (ניתוח סרטונים, PR 1.1): המיפוי עד medium, שקף מורכב עד low (התוכנית 5.2)
+        self.assertEqual(llm.ROLE_CAP, {'main': 'medium', 'vm': 'medium', 'vx': 'low'})
         low = llm.Engine(llm.Spec.of('sonnet-low'), client=object())
         self.assertEqual(self.at(low, 'main'), 'low', 'מתחת לתקרה — המצב')
         self.assertEqual(self.at(self.eng({'main': 'high'}), 'main'), 'high', 'ניסוי המאמץ מעל התקרה')
