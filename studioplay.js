@@ -19,7 +19,9 @@ const CUES_MAX = 20000, LINE_MAX = 300;
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : NaN);
 const str = (v, n) => (typeof v === 'string' ? v.replace(/[\u0000-\u0008\u000b-\u001f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').slice(0, n) : '');   // מ2: גם סימני כיווניות (RLM של vt ב־SRT) — כמו quality() בעובד
 
-/* cues.final.json של vt (או SRT מפוענח) → [{i, s, e, lines, en, spk}] בשניות, ממוין, בלי פגומות */
+/* cues.final.json של vt (או SRT מפוענח) → [{i, s, e, lines, en, spk, lg, src}] בשניות, ממוין, בלי פגומות.
+   10/11/2026 (השפה המדוברת בכל רגע): lg = השפה של הקטע כשהיא לא שפת הסרטון, src = המקור בשפה הזו (vt/lang.py:cue_lang) */
+const LG_RE = /^[a-z]{2,3}$/;
 export function normCues(arr) {
   if (!Array.isArray(arr)) return [];
   const out = [];
@@ -30,7 +32,8 @@ export function normCues(arr) {
     let lines = Array.isArray(c.lines) ? c.lines : typeof c.t === 'string' ? c.t.split('\n') : typeof c.he === 'string' ? c.he.split('||') : [];
     lines = lines.map((x) => str(x, LINE_MAX).trim()).filter(Boolean).slice(0, 4);
     if (!(s >= 0) || !(e > s) || !lines.length) continue;
-    out.push({ i: Number.isInteger(c.id) ? c.id : out.length + 1, s, e, lines, en: str(c.en, 600), spk: str(c.spk, 20) });
+    const lg = LG_RE.test(String(c.lg || '')) ? c.lg : '';
+    out.push({ i: Number.isInteger(c.id) ? c.id : out.length + 1, s, e, lines, en: str(c.en, 600), spk: str(c.spk, 20), lg, src: lg ? str(c.src, 600) : '' });
   }
   return out.sort((a, b) => a.s - b.s);
 }
@@ -119,6 +122,7 @@ export function langDir(l) {
   return !b ? '' : RTL_LANGS.includes(b) ? 'rtl' : 'ltr';
 }
 const RTL_CH = /^[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufeff]/;
+const langOf = (l) => String(l || '').toLowerCase().split(/[-_]/)[0].replace(/^(iw|heb)$/, 'he');
 export function lineDir(s, base) {
   const ws = String(s || '').match(/\p{L}[\p{L}\p{M}]*/gu) || [];
   let r = 0, l = 0;
@@ -543,7 +547,11 @@ export function createPlayer(opts) {
   // דף הניתוח: התמליל בשפת המקור — דולקות מההתחלה, דולק/כבוי בלבד, וההעדפה של נגן התרגום (pt) לא נוגעת ולא נשמרת
   const orig = !!opts.orig && !opts.burned, oBase = orig ? langDir(opts.subLang) : '';
   let ccTouched = false;
-  const hasEn = () => cues.some((c) => c.en);
+  const hasEn = () => cues.some((c) => c.en || c.src);
+  const mixed = () => cues.some((c) => c.lg);   // 10/11/2026: יש קטעים בשפה אחרת — "המקור", לא "אנגלית"
+  // 10/11/2026: שורת המקור = המקור בשפה המדוברת באותו רגע (src), אחרת האנגלית; כיוון לפי השפה. קטע שכבר בשפת הכתוביות — בלי כפילות
+  const srcOf = (c) => c.src || c.en;
+  const srcDir = (c) => (c.src ? langDir(c.lg) || lineDir(c.src) : 'ltr');
   const curLang = () => { const i = audNow(), L = audList(); return i >= 0 && L[i] ? L[i].l || '' : ''; };
   const ccAuto = () => (orig ? (cues.length ? 'he' : 'off') : autoCc(curLang(), cues.length > 0, !!opts.burned, opts.subLang));
   const savePref = (p) => { pref = normTrackPref(Object.assign({}, pref, p)); if (opts.onPref) opts.onPref(pref); };
@@ -795,7 +803,7 @@ export function createPlayer(opts) {
     const b = String(opts.subLang || '').toLowerCase().split(/[-_]/)[0];
     return b === 'he' || b === 'iw' || b === 'heb' ? T('studioPlCcHe') : b === 'en' || b === 'eng' ? T('studioPlCcEn') : b.slice(0, 3).toUpperCase();
   }
-  function ccName(m) { return m === 'off' ? T('studioPlCcOff') : m === 'en' ? T('studioPlCcEnL') : m === 'both' ? T('studioPlCcBothL') : orig ? T('studioPlCcSrcL') : T('studioPlCcHeL'); }
+  function ccName(m) { return m === 'off' ? T('studioPlCcOff') : m === 'en' ? T(mixed() ? 'studioPlCcSrcMixL' : 'studioPlCcEnL') : m === 'both' ? T(mixed() ? 'studioPlCcBothMixL' : 'studioPlCcBothL') : orig ? T('studioPlCcSrcL') : T('studioPlCcHeL'); }
   function setCc(m) { cc = m; paintCc(); paintSub(); }
   function setAudio(i) {
     if (fileAud()) { setFileAudio(i); return; }
@@ -850,7 +858,7 @@ export function createPlayer(opts) {
 
   function paintCc() {
     ccB.classList.toggle('on', cc !== 'off');
-    ccL.textContent = cc === 'en' ? T('studioPlCcEn') : cc === 'he' ? (orig ? srcTag() : T('studioPlCcHe')) : cc === 'both' ? T('studioPlCcBoth') : '';
+    ccL.textContent = cc === 'en' ? (mixed() ? T('studioSrcTag') : T('studioPlCcEn')) : cc === 'he' ? (orig ? srcTag() : T('studioPlCcHe')) : cc === 'both' ? T('studioPlCcBoth') : '';
     ccB.setAttribute('aria-pressed', cc !== 'off' ? 'true' : 'false');
   }
   let shown = -2;
@@ -862,11 +870,11 @@ export function createPlayer(opts) {
     sub.replaceChildren();
     if (i < 0) return;
     const c = cues[i];
-    const lines = cc === 'en' ? (c.en ? [c.en] : []) : c.lines;
-    sub.dir = cc === 'en' ? 'ltr' : 'rtl';
+    const lines = cc === 'en' ? (srcOf(c) ? [srcOf(c)] : []) : c.lines;
+    sub.dir = cc === 'en' ? srcDir(c) : 'rtl';
     const enCls = cc === 'en' && opts.burned ? 'st-pl-sub2' : null;   // 26/10/2026: מעל עברית צרובה = שתי השפות — האנגלית בצהוב
     for (const x of lines) { const d = el('div', enCls); if (orig) d.dir = lineDir(x, oBase); d.append(el('span', null, x)); sub.append(d); }   // הניתוח: כל שורה בכיוון שלה   // span — הרקע של "עם רקע" לפי אורך השורה
-    if (cc === 'both' && c.en) { const d = el('div', 'st-pl-sub2'); d.dir = 'ltr'; d.append(el('span', null, c.en)); sub.append(d); }   // 23/10/2026: שתי השפות — המקור מתחת
+    if (cc === 'both' && srcOf(c) && !(c.lg && c.lg === langOf(opts.subLang || 'he'))) { const d = el('div', 'st-pl-sub2'); d.dir = srcDir(c); d.append(el('span', null, srcOf(c))); sub.append(d); }   // 23/10/2026: שתי השפות — המקור מתחת
   }
   function paintBar() {
     const d = v.duration || 0, t = v.currentTime || 0, f = d > 0 ? Math.min(1, t / d) : 0;

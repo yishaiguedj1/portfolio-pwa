@@ -271,7 +271,8 @@ def bounds(ev: list[dict], slides: list[dict]) -> list[dict]:
 
 
 def cues(words: list[dict]) -> list[dict]:
-    """התמליל בשפת המקור ככתוביות לנגן (normCues בטלפון): עד CUE_MAX_S שנ׳ ו־CUE_MAX_CH תווים, בשתי שורות לכל היותר."""
+    """התמליל בשפת המקור ככתוביות לנגן (normCues בטלפון): עד CUE_MAX_S שנ׳ ו־CUE_MAX_CH תווים, בשתי שורות לכל היותר.
+    10/11/2026: כתובית לא חוצה החלפת שפה — מילים בשפה אחרת (lg, ‏vt/vi.py:lang_mix) הן כתובית משלהן, עם lg."""
     out, cur = [], []
 
     def close():
@@ -288,6 +289,8 @@ def cues(words: list[dict]) -> list[dict]:
              'lines': [x for x in lines if x]}
         if cur[0].get('spk') and cur[0]['spk'] != 'S?':
             c['spk'] = str(cur[0]['spk'])[:8]
+        if cur[0].get('lg'):
+            c['lg'] = str(cur[0]['lg'])[:5]
         out.append(c)
         cur.clear()
 
@@ -295,7 +298,8 @@ def cues(words: list[dict]) -> list[dict]:
         if cur:
             text = ' '.join(str(x['w']) for x in cur + [w])
             if (float(w['e']) - float(cur[0]['s']) > CUE_MAX_S or len(text) > CUE_MAX_CH
-                    or float(w['s']) - float(cur[-1]['e']) >= PAUSE_S or SENT_END.search(str(cur[-1]['w']))):
+                    or float(w['s']) - float(cur[-1]['e']) >= PAUSE_S or SENT_END.search(str(cur[-1]['w']))
+                    or (w.get('lg') or '') != (cur[-1].get('lg') or '')):
                 close()
         cur.append(w)
     close()

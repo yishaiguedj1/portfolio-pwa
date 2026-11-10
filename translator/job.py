@@ -2831,6 +2831,11 @@ def shift_words(pdir, off):
                 for k in ('s', 'e'):
                     if isinstance(g.get(k), (int, float)):
                         g[k] = round(max(0.0, g[k] + off), 3)
+                for x in g.get('wd') or []:          # 10/11/2026: גם זמני המילים של הקטע (המקור בשפה שלו)
+                    if isinstance(x, list) and len(x) >= 3:
+                        for k in (1, 2):
+                            if isinstance(x[k], (int, float)):
+                                x[k] = round(max(0.0, x[k] + off), 3)
             p.write_text(json.dumps(d, ensure_ascii=False), encoding='utf-8')
         except (OSError, ValueError, AttributeError):
             pass

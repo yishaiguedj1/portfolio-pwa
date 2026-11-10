@@ -164,6 +164,37 @@ def words_from_segments(segs: list[dict]) -> list[dict]:
     return out
 
 
+def lang_mix(wav: str, words: list[dict], segs: list[dict] | None, primary: str, model=None, en_run=None) -> tuple[list[dict], dict]:
+    """10/11/2026 — השפה המדוברת בכל רגע (בקשת המשתמש): קטע בשפה אחרת מתומלל במנוע של השפה שלו, והמילים שלו עם lg.
+    עברית (segs = הקטעים של ivrit): זיהוי שפה בכל קטע; אנגלית: המועמדים בביטחון נמוך של Parakeet (A12).
+    בלי מודל הזיהוי / ‏SNB_LID=off / תקלה — המילים כמו שהן."""
+    from . import lang as L
+    st: dict = {"lid_n": 0}
+    if not words or os.environ.get("SNB_LID") == "off" or (model is None and not L.ready()):
+        return words, st
+    t0 = time.time()
+    try:
+        if primary == "he":
+            import soundfile as sf
+            audio, sr = sf.read(wav, dtype="float32")
+            if getattr(audio, "ndim", 1) > 1:
+                audio = audio.mean(axis=1)
+            if sr != L.SR:
+                raise ValueError("sr")
+            m = model or L._model()
+            found = L.detect_spans(audio, [(g.get("s") or 0, g.get("e") or 0) for g in segs or []], "he", model=m)
+            seg = L.transcribe_spans(audio, found, model=m, en_run=en_run) if found else []
+        else:
+            seg = L.detect(wav, [{"s": w["s"], "e": w["e"], "conf": w.get("p")} for w in words], model=model)
+        words = L.merge_words(words, seg)
+        st = {"lid_n": len(seg), "lid_s": round(time.time() - t0, 1)}
+        if seg:
+            log(f"שפות: {len(seg)} קטעים בשפה אחרת ({', '.join(sorted({g['lg'] for g in seg}))}) — כל אחד במנוע של השפה שלו")
+    except Exception as e:  # noqa: BLE001 — שלב משני; התמלול הראשי נשאר
+        log(f"שפות: הזיהוי נכשל ({type(e).__name__}) — ממשיכים בלעדיו")
+    return words, st
+
+
 def asr(wav: str, lang: str) -> dict:
     """שמע 16kHz → מילים עם זמן. עברית — vt/asr_he.py (‏VAD → ivrit → zipformer); אנגלית — Parakeet, כמו בתרגום."""
     t0 = time.time()
@@ -171,17 +202,18 @@ def asr(wav: str, lang: str) -> dict:
         from . import asr_he
         r = asr_he.run(wav, log=log)
         segs = [g for g in r.get("segments") or [] if str(g.get("text") or "").strip()]
-        words = words_from_segments(segs)
+        words, lid = lang_mix(wav, words_from_segments(segs), segs, "he")
         st = {k: v for k, v in (r.get("stats") or {}).items() if isinstance(v, (int, float)) and not isinstance(v, bool)}
         return {"v": V, "lang": "he", "engine": r.get("engine"), "quality": r.get("quality") or "ok", "words": words,
-                "stats": dict(st, n=len(words), s=round(time.time() - t0, 1)), "timing": r.get("timing") or {}}
+                "stats": dict(st, **lid, n=len(words), s=round(time.time() - t0, 1)), "timing": r.get("timing") or {}}
     from . import asr_parakeet
     r = asr_parakeet.transcribe(wav, quantization="int8")
     words = [dict({"w": str(w["w"]), "s": round(float(w["s"]), 3), "e": round(float(w["e"]), 3)},
                   **({"p": w["conf"]} if isinstance(w.get("conf"), (int, float)) else {}))
              for w in r.get("words") or [] if w.get("w") and w.get("e") is not None and w.get("s") is not None]
+    words, lid = lang_mix(wav, words, None, "en")
     return {"v": V, "lang": "en", "engine": "parakeet", "quality": "ok" if words else "low", "words": words,
-            "stats": {"n": len(words), "s": round(time.time() - t0, 1)}}
+            "stats": dict(lid, n=len(words), s=round(time.time() - t0, 1))}
 
 
 def align(tr: dict, wav: str) -> dict:
@@ -193,13 +225,17 @@ def align(tr: dict, wav: str) -> dict:
     if words and lang == "en":
         try:
             from .align import align_words
-            words, s = align_words(words, wav, device="cpu")
+            idx = [k for k, w in enumerate(words) if not w.get("lg")]   # 10/11/2026: מילה בשפה אחרת — הזמן מהמנוע שלה
+            sub, s = align_words([words[k] for k in idx], wav, device="cpu")
+            for k, w in zip(idx, sub):
+                words[k] = w
             st.update({k: v for k, v in s.items() if isinstance(v, (int, float)) and not isinstance(v, bool)})
             aligner = "qwen3"
         except Exception as e:  # noqa: BLE001
             log(f"יישור נכשל — נשארים עם זמני התמלול: {type(e).__name__}")
             for w in words:
-                w["c"] = 1
+                if not w.get("lg"):
+                    w["c"] = 1
             aligner = "asr"
         _release_memory()
     elif words:
@@ -207,8 +243,9 @@ def align(tr: dict, wav: str) -> dict:
             from . import align_he
             model, d = align_he.load_ctc()
             audio = align_he.load_audio(wav)
-            got = align_he.ctc_align(model, d, audio, words)
-            for w, g in zip(words, got):
+            idx = [k for k, w in enumerate(words) if "li" in w]   # 10/11/2026: מילים בשפה אחרת (lg) — בלי li, הזמן מהמנוע שלהן
+            got = align_he.ctc_align(model, d, audio, [words[k] for k in idx])
+            for w, g in zip([words[k] for k in idx], got):
                 if g:
                     w["s"], w["e"] = g["s"], g["e"]
                     w.pop("c", None)
