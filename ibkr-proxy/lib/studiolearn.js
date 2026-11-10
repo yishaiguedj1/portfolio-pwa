@@ -13,7 +13,7 @@ const crypto = require('crypto');
 const LR_V = 1;
 const rateRec = (o) => require('./studio').normRate(o);   // 25/10/2026: המשוב שלך — אותה בדיקה של השרתון (בלי מעגל ייבוא בטעינה)
 const STAGES = ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'];
-const ROLES = ['main', 'tl', 'rv', 'jg', 'sub'];
+const ROLES = ['main', 'tl', 'rv', 'jg', 'sub', 'vm', 'vs', 'vv', 'vl', 'vx', 'vc'];   // 10/11/2026: תפקידי הניתוח (= USE_KINDS)
 const Q_KEYS = ['cps', 'len', 'lines', 'dur', 'en', 'chk'];
 const JG_CODES = ['mean', 'omit', 'add', 'gram', 'flu', 'term'];
 // 27/10/2026: סוג התוכן — **הסדר = הקוד, זהה ל־CT_KINDS ב־translator/job.py** (tests/learn-extra2.test.js)
@@ -119,13 +119,31 @@ function normLx(o) {
    ai = גיליון ה־AI (q בקשות, a שינויים שהוחלו, r שנדחו) · gl = מונחים שנוספו למילון מתוך העבודה (a)
    הטלפון שולח תוספת (delta); המיזוג מחבר, חוץ מ־cov (המקסימום) ו־wa/ca (האחרון). **UX_SHAPE זהה ל־UX_SHAPE ב־studio.js** */
 const ED_KINDS = ['txt', 'tm', 'sp', 'mg', 'add', 'del', 'mx'];
-const UX_SHAPE = { e: ['s', 'ws', 'n', 'cd', 'wd', 'm', 'wa', 'ca', 'sb', 'sr'].concat(ED_KINDS), pl: ['n', 'sec', 'cov'], o: ['dl', 'sh', 'dx'], sg: ['a', 'r'], ai: ['q', 'a', 'r'], gl: ['a'], pv: ['h', 'f', 'st', 'er'] };   // pv — 25/10/2026: איך הנגן ניגן
-const UX_LAST = ['wa', 'ca', 'sr'], UX_HI = 1e7;
+const UX_SHAPE = { e: ['s', 'ws', 'n', 'cd', 'wd', 'm', 'wa', 'ca', 'sb', 'sr'].concat(ED_KINDS), pl: ['n', 'sec', 'cov'], o: ['dl', 'sh', 'dx'], sg: ['a', 'r'], ai: ['q', 'a', 'r'], gl: ['a'], pv: ['h', 'f', 'st', 'er'], vi: ['o', 'rd', 'cov', 'ch', 'sh', 'pl', 'ex', 'cp', 'xp', 'up', 'dn', 'ms', 'ed', 'rr', 'lv', 'md'], vf: ['id', 'why', 'at'] };   // pv — 25/10/2026: איך הנגן ניגן
+/* 10/11/2026 (ניתוח סרטונים, PR 1.3; התוכנית 7.4): vi = מונים בעמוד הניתוח — o פתיחות, rd שניות קריאה, cov חלק הפרקים
+   שנצפו, ch לחיצות על שבב, sh חלונית הראיה, pl "נגן מכאן", ex הרחבת פרק, cp העתקה, xp ייצוא, up/dn 👍/👎, ms "חסר כאן
+   משהו", ed עריכות, rr הרצה חוזרת, lv הפרק שבו עזבו (האחרון), md מעברי קריאה/לימוד.
+   vf = שורות משוב (לא מונים): {id מזהה הפריט, why מ־VF_WHY, at דקה} — עד VF_MAX לעבודה, בלי טקסט חופשי */
+const VF_WHY = ['wrong', 'ts', 'missing', 'attrib', 'overgen', 'shallow', 'unclear', 'long', 'other'];
+const VF_MAX = 50, VF_ID = /^[a-z]\d{1,6}(\.\d{1,4})?$/;
+const UX_LAST = ['wa', 'ca', 'sr', 'lv'], UX_HI = 1e7;
+function normVf(a) {
+  const out = [], seen = new Set();
+  for (const x of Array.isArray(a) ? a.slice(-VF_MAX * 2) : []) {
+    if (!x || typeof x !== 'object' || !VF_ID.test(String(x.id || '')) || !VF_WHY.includes(x.why)) continue;
+    const k = x.id + '|' + x.why;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ id: x.id, why: x.why, at: isNum(x.at) && x.at >= 0 && x.at <= 1e5 ? Math.round(x.at) : 0 });
+  }
+  return out.slice(-VF_MAX);
+}
 function normUx(o) {
   if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
   const out = {};
   for (const [g, keys] of Object.entries(UX_SHAPE)) {
     const x = o[g];
+    if (g === 'vf') { const f = normVf(x); if (f.length) out.vf = f; continue; }
     if (!x || typeof x !== 'object' || Array.isArray(x)) continue;
     const y = {};
     for (const k of keys) {
@@ -142,6 +160,7 @@ function mergeUx(cur, add) {
   if (!a) return normUx(cur);
   const out = normUx(cur) || {};
   for (const [g, x] of Object.entries(a)) {
+    if (g === 'vf') { out.vf = normVf((out.vf || []).concat(x)); continue; }   // שורות: מצטרפות, אותה שורה פעם אחת, האחרונות
     const y = out[g] || (out[g] = {});
     for (const [k, v] of Object.entries(x)) y[k] = k === 'cov' ? Math.max(y[k] || 0, v) : UX_LAST.includes(k) ? v : Math.min(UX_HI, (y[k] || 0) + v);
   }
@@ -215,6 +234,7 @@ function errHist(eh) {
 function learnRec(job, now, effState) {
   if (!job || !/^j[A-Za-z0-9_-]{20}$/.test(String(job.id || '')) || !['tr', 'rr', 'ai'].includes(job.kind)) return null;
   const sp = job.spec || {};
+  if (sp.vi === 1) return job.kind === 'tr' ? learnViRec(job, now, effState) : null;   // 10/11/2026: ניתוח — רשומה משלו
   const e = effBasic(job, now, effState);
   const use = useRows(Array.isArray(job.use) && job.use.length ? job.use : job.use0);
   const dur = isNum(sp.dur) ? Math.round(sp.dur) : 0;
@@ -292,6 +312,102 @@ function phoneInfo(job) {
     if (isNum(pb.ms) && pb.ms > 0) o.bs = Math.round(pb.ms / 1000);   // זמן הצריבה בטלפון, בשניות
   }
   return o;
+}
+/* ---------------- 2ב. עבודת ניתוח (10/11/2026, PR 1.3; docs/studio-video-analysis-plan.md 7.2) ----------------
+   רשומה משלה (k:'vi'), לא בחישובי התרגום. המזהה = viLid (HMAC בכספת — lib/vicorpus.js), לא sha256 גלוי: את מרחב מזהי
+   העבודות אפשר לנחש. בלי כספת — אין רשומה. הזמן ביום (לא בשעה) והחודש. מספרים ו־enum בלבד — בלי טקסט.
+   normViLx = העובדות מהעובד (vi_facts ב־analyze.py; translator/tests/fixtures/vi_facts.json — tests/learn-vi.test.js) */
+const VI_ROLES = ['vm', 'vs', 'vv', 'vl', 'vx', 'vc'];
+const VI_T = ['up', 'tr', 'al', 'rv', 'bn', 'sv'];
+const VI_EFF = ['low', 'medium', 'high', 'xhigh', 'max'];
+const VI_ROLE_N = [['in', 1e9], ['out', 1e9], ['cr', 1e9], ['cw', 1e9], ['th', 1e9], ['ms', 1e9], ['n', 1e5], ['retry', 1e4]];
+const VI_CNT = ['claims', 'sup', 'part', 'uns', 'unk', 'ts_off', 'rej', 'kf_total', 'kf_used'];
+const VER_RE = /^[0-9a-z][0-9a-z.]{0,15}$/, XF_RE = /^-?[a-z][a-z0-9]{0,11}$/;
+const viC = () => require('./studiovi');
+const inR = (v, lo, hi) => isNum(v) && v >= lo && v <= hi;
+function pickNums(o, spec) {   // spec = [[מפתח, מינימום, מקסימום, שלם?]]
+  const x = {};
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return x;
+  for (const [k, lo, hi, int] of spec) if (inR(o[k], lo, hi)) x[k] = int ? Math.round(o[k]) : r4(o[k]);
+  return x;
+}
+const some = (o) => (Object.keys(o).length ? o : undefined);
+function normViLx(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  const V = viC(), out = { v: 1 };
+  if (MODES.includes(o.mode)) out.mode = o.mode;
+  if (o.roles && typeof o.roles === 'object' && !Array.isArray(o.roles)) {
+    const rl = {};
+    for (const r of VI_ROLES) {
+      const x = o.roles[r];
+      if (!x || typeof x !== 'object' || Array.isArray(x)) continue;
+      const y = pickNums(x, VI_ROLE_N.map(([k, hi]) => [k, 0, hi, 1]));
+      if (MODEL_RE.test(String(x.model || ''))) y.model = x.model;
+      if (VI_EFF.includes(x.eff)) y.eff = x.eff;
+      if (inR(x.usd, 0, 1e4)) y.usd = r4(x.usd);
+      if (Object.keys(y).length) rl[r] = y;
+    }
+    out.roles = some(rl);
+  }
+  if (o.lang && typeof o.lang === 'object') {
+    const l = {};
+    if (V.VI_LANGS.includes(o.lang.src)) l.src = o.lang.src;
+    if (o.lang.out === 'he') l.out = 'he';
+    out.lang = some(l);
+  }
+  if (V.VI_GENRES.includes(o.genre)) out.genre = o.genre;
+  if (inR(o.dur_s, 0, 86400)) out.dur_s = Math.round(o.dur_s);
+  if (inR(o.n_spk, 0, 99)) out.n_spk = Math.round(o.n_spk);
+  if (o.asr && typeof o.asr === 'object') {
+    const a = pickNums(o.asr, [['conf', 0, 1], ['low', 0, 1], ['wpm', 0, 1000]]);
+    if (/^[a-z][a-z0-9_-]{0,15}$/.test(String(o.asr.eng || ''))) a.eng = o.asr.eng;
+    out.asr = some(a);
+  }
+  out.scr = some(pickNums(o.scr, [['n_slides', 0, 1e4, 1], ['n_states', 0, 1e5, 1], ['ocr_conf', 0, 1], ['so_share', 0, 1], ['n_cuts', 0, 1e5, 1], ['pip', 0, 1, 1]]));
+  if (o.counts && typeof o.counts === 'object') {
+    const c = pickNums(o.counts, VI_CNT.map((k) => [k, 0, 1e6, 1]));
+    const c3 = numArr(o.counts.cov3, 3);
+    if (c3 && c3.length === 3 && c3.every((v) => v >= 0 && v <= 1)) c.cov3 = c3;
+    out.counts = some(c);
+  }
+  out.t = some(pickNums(o.t, VI_T.map((k) => [k, 0, 1e5])));   // דקות
+  if (o.mem && typeof o.mem === 'object' && !Array.isArray(o.mem)) {
+    const m = {};
+    for (const [k, v] of Object.entries(o.mem).slice(0, 12)) if (/^[a-z]{2,8}$/.test(k) && inR(v, 0, 1e6)) m[k] = Math.round(v);   // שיא MB לשלב
+    out.mem = some(m);
+  }
+  if (inR(o.usd, 0, 1e4)) out.usd = r4(o.usd);
+  if (o.out && typeof o.out === 'object' && STATES.includes(o.out.st)) out.out = Object.assign({ st: o.out.st }, CODE_RE.test(String(o.out.err || '')) ? { err: o.out.err } : {});
+  if (Array.isArray(o.warn)) { const w = [...new Set(o.warn.filter((c) => V.VI_WARN.includes(c)))].slice(0, 16); if (w.length) out.warn = w; }
+  if (o.build && typeof o.build === 'object') {
+    const b = {};
+    if (/^v\d{1,5}$/.test(String(o.build.app || ''))) b.app = o.build.app;
+    if (/^[0-9a-f]{7,12}$/.test(String(o.build.worker || ''))) b.worker = o.build.worker;
+    out.build = some(b);
+  }
+  if (o.pv && typeof o.pv === 'object') { const p = {}; for (const k of VI_VDIMS) if (VER_RE.test(String(o.pv[k] || ''))) p[k] = o.pv[k]; out.pv = some(p); }
+  if (o.gs != null) out.gs = o.gs ? 1 : 0;
+  if (Array.isArray(o.xf)) { const x = o.xf.filter((f) => XF_RE.test(String(f))).slice(0, 8); if (x.length) out.xf = x; }
+  for (const k of Object.keys(out)) if (out[k] === undefined) delete out[k];
+  return Object.keys(out).length > 1 ? out : null;
+}
+const dayOf = (t) => (isNum(t) && t > 0 ? Math.floor(t / DAY) * DAY : 0);
+const monthOf = (t) => (isNum(t) && t > 0 ? new Date(t).toISOString().slice(0, 7) : '');
+/* הרשומה: מה שהשרתון יודע (מצב, מצב התרגום, העלות לפי השורות שהוא תמחר) גובר על מה שהעובד דיווח */
+function learnViRec(job, now, effState) {
+  const id = require('./vicorpus').viLid(job.id);
+  if (!id) return null;
+  const sp = job.spec || {}, e = effBasic(job, now, effState);
+  const use = useRows(Array.isArray(job.use) && job.use.length ? job.use : job.use0).filter((r) => VI_ROLES.includes(r.k));
+  const lx = normViLx(job.lx) || {};
+  const roles = Object.assign({}, lx.roles);
+  for (const r of use) roles[r.k] = Object.assign({}, roles[r.k], { model: r.m }, isNum(r.i) ? { in: r.i } : {}, isNum(r.o) ? { out: r.o } : {}, isNum(r.cr) ? { cr: r.cr } : {},
+    isNum(r.c5) || isNum(r.c1) ? { cw: (r.c5 || 0) + (r.c1 || 0) } : {}, isNum(r.usd) ? { usd: r.usd } : {}, isNum(r.n) ? { n: r.n } : {});
+  const f = normViLx(Object.assign({}, lx, { mode: MODES.includes(sp.mode) ? sp.mode : lx.mode, roles, gs: job.gs ? 1 : 0, xf: sp.xf,
+    dur_s: isNum(lx.dur_s) ? lx.dur_s : sp.dur, lang: lx.lang || { src: sp.from, out: 'he' }, usd: use.length ? usdSum(use) : lx.usd })) || {};
+  delete f.v;
+  return Object.assign({ v: LR_V, k: 'vi', id, at: dayOf(job.created), m: monthOf(job.created), st: e.st, err: e.err, eng: 'api',
+    dur: isNum(f.dur_s) ? f.dur_s : 0, pr: priced(use) ? 1 : 0 }, f, { ux: normUx(job.ux) });
 }
 /* טביעה — כתיבה רק כשמשהו השתנה */
 const recHash = (rec) => crypto.createHash('sha1').update(JSON.stringify(rec)).digest('hex').slice(0, 16);
@@ -468,11 +584,20 @@ function modeTable(rs) {
    כל עבודה נושאת את גרסת הקוד של העובד (env) ואת גרסת ההנחיות של כל סוכן (pv). לכל ממד: הגרסה החדשה (זו שהופיעה אחרונה)
    מול הקודמת — הממוצע לעבודה, ההפרש ורווח סמך של 90% ב־bootstrap (זרע קבוע לפי הגרסאות — אותה תשובה בכל טעינה).
    פסק: up = טוב יותר בוודאות, dn = גרוע יותר בוודאות, eq = כל הרווח בתוך הסף (אותו דבר בפועל), ? = עוד לא ברור, few = פחות מ־VER_MIN */
-const VER_DIMS = ['env', 'tl', 'rv', 'rb', 'jg'];   // env = הקוד, השאר = ההנחיות של המתרגם / המבקר / המתזמר / השופט
+const VI_VDIMS = ['vp', 'vo', 'vh'];   // 10/11/2026 (ניתוח, 7.8): vp הפרומפטים (PV ב־visheet.py), vo הגלאי וה־OCR, vh שרשרת התמלול העברי
+const VER_DIMS = ['env', 'tl', 'rv', 'rb', 'jg'].concat(VI_VDIMS);   // env = הקוד, השאר = ההנחיות של המתרגם / המבקר / המתזמר / השופט
 const VER_MIN = 3, VER_LAST = 20, VER_B = 2000;
 // [מפתח, כיוון (1 = גבוה עדיף), סף שוויון (מוחלט, או r = יחסי לממוצע הישן), ליבה]
-const VER_MET = [['q', 1, 2, 1], ['jd', 1, 2, 1], ['ok', 1, 0.05, 1], ['cpm', -1, 'r', 1], ['spm', -1, 'r', 0], ['ht', -1, 0.02, 0], ['num', -1, 0.02, 0]];
+// ניתוח: vsup חלק הטענות הנתמכות, vcph דולר לשעת סרטון, vmph דקות עבודה לשעת סרטון, vkf כיסוי השקפים
+const VER_MET = [['q', 1, 2, 1], ['jd', 1, 2, 1], ['ok', 1, 0.05, 1], ['cpm', -1, 'r', 1], ['spm', -1, 'r', 0], ['ht', -1, 0.02, 0], ['num', -1, 0.02, 0],
+  ['vsup', 1, 0.03, 1], ['vcph', -1, 'r', 1], ['vmph', -1, 'r', 0], ['vkf', 1, 0.05, 0]];
+function viVals(r) {
+  const done = r.st === 'done', c = r.counts || {}, h = r.dur > 0 ? r.dur / 3600 : 0, tm = r.t ? sum(VI_T.map((k) => r.t[k])) : 0;
+  return { vsup: done && c.claims > 0 ? c.sup / c.claims : null, vcph: done && r.pr && h > 0 ? r.usd / h : null,
+    vmph: done && tm > 0 && h > 0 ? tm / h : null, vkf: done && c.kf_total > 0 ? c.kf_used / c.kf_total : null };
+}
 function verVals(r) {
+  if (r.k === 'vi') return viVals(r);
   const done = r.st === 'done', m = mins(r), ox = r.lx && r.lx.mx && r.lx.mx.om, e = r.ux && r.ux.e, rs = runSec(r);
   return {
     q: done && r.q ? r.q.s : null, jd: done && r.jd ? r.jd.s : null,
@@ -520,10 +645,11 @@ function verStratum(la, lb) {
 }
 function versionsView(all) {
   const tr = all.filter((r) => r.k === 'tr' && !r.gold && (r.st === 'done' || r.st === 'failed'));
+  const vi = all.filter((r) => r.k === 'vi' && !r.gs && (r.st === 'done' || r.st === 'failed'));   // ניתוח: הממדים שלו, בלי עבודות זהב
   const out = [];
   for (const dim of VER_DIMS) {
     const by = {};
-    for (const r of tr) { const g = dim === 'env' ? r.env : r.pv && r.pv[dim]; if (g) (by[g] = by[g] || []).push(r); }
+    for (const r of VI_VDIMS.includes(dim) ? vi : tr) { const g = dim === 'env' ? r.env : r.pv && r.pv[dim]; if (g) (by[g] = by[g] || []).push(r); }
     const vs = Object.entries(by).map(([g, l]) => ({ g, l: l.sort((x, y) => x.at - y.at), at: Math.min(...l.map((r) => r.at || 0)) })).sort((x, y) => y.at - x.at);
     if (vs.length < 2) continue;
     const [A, B] = vs, seed = dim + '|' + A.g + '|' + B.g;
@@ -658,9 +784,69 @@ function insights(rs, k30, roles, stages, fails, jc, qf, modes, now, mx, ver) {
   if (!done.some((r) => r.lx)) out.push({ k: 'need_data', sev: 3, imp: 0, v: { n: done.length } });
   return out.sort((a, b) => a.sev - b.sev || (b.imp || 0) - (a.imp || 0)).slice(0, 14);
 }
+/* ---------------- 3ב. ניתוח סרטונים במעבדה (10/11/2026, PR 1.3; התוכנית 7.7) ----------------
+   הרשומות k:'vi' — בלי עבודות זהב (gs) במדדים ובמסקנות (7.13); הזהב בנפרד. המסך (labVi) — PR 1.6 */
+function viKpis(rs) {
+  const done = rs.filter((r) => r.st === 'done'), fin = rs.filter((r) => r.st === 'done' || r.st === 'failed');
+  const tot = (k) => sum(done.map((r) => (r.counts || {})[k]));
+  const h = sum(done.map((r) => (r.dur > 0 ? r.dur / 3600 : 0))), ph = done.filter((r) => r.pr && r.dur > 0);
+  const ux = done.map((r) => (r.ux && r.ux.vi) || {}), seen = ux.filter((x) => x.o > 0);
+  const cl = tot('claims'), kf = tot('kf_total');
+  const c3 = done.map((r) => r.counts && r.counts.cov3).filter(Boolean);
+  const midOf = (c) => { const side = (c[0] + c[2]) / 2; return side > 0 ? c[1] / side : null; };
+  return {
+    n: rs.length, done: done.length, fail: fin.length ? rnd(1 - done.length / fin.length, 3) : null, hrs: rnd(h, 2),
+    sup: cl ? rnd(tot('sup') / cl, 3) : null, uns: cl ? rnd(tot('uns') / cl, 3) : null, unk: cl ? rnd(tot('unk') / cl, 3) : null, ts: cl ? rnd(tot('ts_off') / cl, 3) : null,
+    kf: kf ? rnd(tot('kf_used') / kf, 3) : null, mid: rnd(median(c3.map(midOf)), 3),
+    cph: ph.length ? rnd(sum(ph.map((r) => r.usd)) / sum(ph.map((r) => r.dur / 3600)), 3) : null,
+    mph: rnd(median(done.map((r) => viVals(r).vmph)), 2),
+    ocr: rnd(mean(done.filter((r) => r.lang && r.lang.src === 'he').map((r) => r.scr && r.scr.ocr_conf)), 3),
+    nhe: done.filter((r) => r.lang && r.lang.src === 'he' && r.scr && isNum(r.scr.ocr_conf)).length,
+    seen: seen.length, up: seen.length ? rnd(seen.filter((x) => x.up > 0).length / seen.length, 3) : null,
+    dn: seen.length ? rnd(seen.filter((x) => x.dn > 0).length / seen.length, 3) : null, rr: seen.length ? rnd(seen.filter((x) => x.rr > 0).length / seen.length, 3) : null,
+  };
+}
+function viInsights(k, kp) {
+  const out = [];
+  if (k.done >= 3 && k.uns >= 0.05) out.push({ k: 'vi_unsup', sev: k.uns >= 0.1 ? 1 : 2, imp: 0, v: { p: k.uns, n: k.done } });
+  if (k.done >= 3 && k.ts >= 0.05) out.push({ k: 'vi_ts', sev: 2, imp: 0, v: { p: k.ts, n: k.done } });
+  if (k.done >= 3 && isNum(k.mid) && k.mid < 0.7) out.push({ k: 'vi_mid', sev: 2, imp: 0, v: { r: k.mid, n: k.done } });
+  if (k.nhe >= 3 && isNum(k.ocr) && k.ocr < 0.7) out.push({ k: 'vi_ocr_he', sev: 2, imp: 0, v: { c: k.ocr, n: k.nhe } });
+  if (k.done >= 3 && kp.done >= 3 && isNum(k.cph) && kp.cph > 0 && k.cph >= kp.cph * 1.2) out.push({ k: 'vi_cost', sev: 2, imp: 0, v: { a: k.cph, b: kp.cph } });
+  if (k.done >= 3 && kp.done >= 3 && isNum(k.mph) && kp.mph > 0 && k.mph >= kp.mph * 1.2) out.push({ k: 'vi_slow', sev: 2, imp: 0, v: { a: k.mph, b: kp.mph } });
+  if (k.seen >= 5 && (k.dn >= 0.2 || (isNum(kp.dn) && k.dn >= kp.dn + 0.1))) out.push({ k: 'vi_dn', sev: k.dn >= 0.3 ? 1 : 2, imp: 0, v: { p: k.dn, b: kp.dn, n: k.seen } });
+  return out;
+}
+function viView(records, now) {
+  const all = records.filter((r) => r && r.v === LR_V && r.k === 'vi');
+  if (!all.length) return null;
+  const real = all.filter((r) => !r.gs), gold = all.filter((r) => r.gs);
+  const cur = real.filter((r) => r.at >= now - WIN), prev = real.filter((r) => r.at >= now - 2 * WIN && r.at < now - WIN), rs = real.filter((r) => r.at >= now - 90 * DAY);
+  const k = viKpis(cur), kp = viKpis(prev);
+  const grp = (f) => { const by = {}; for (const r of rs) { const g = f(r); (by[g] = by[g] || []).push(r); } return Object.entries(by).map(([g, l]) => Object.assign({ g }, viKpis(l))).sort((a, b) => b.n - a.n).slice(0, 24); };
+  const roles = {};
+  for (const r of rs) for (const [rl, x] of Object.entries(r.roles || {})) { const y = roles[rl] || (roles[rl] = { n: 0, usd: 0, in: 0, out: 0, cr: 0 }); y.n++; for (const f of ['usd', 'in', 'out', 'cr']) y[f] += isNum(x[f]) ? x[f] : 0; }
+  for (const y of Object.values(roles)) y.usd = rnd(y.usd, 4);
+  const fb = {};
+  for (const r of rs) for (const x of (r.ux && r.ux.vf) || []) fb[x.why] = (fb[x.why] || 0) + 1;
+  const errs = {};
+  for (const r of rs.filter((x) => x.st === 'failed')) errs[r.err || '?'] = (errs[r.err || '?'] || 0) + 1;
+  const warn = {};
+  for (const r of rs) for (const w of r.warn || []) warn[w] = (warn[w] || 0) + 1;
+  return {
+    n: all.length, n90: rs.length, k, kp, ins: viInsights(k, kp),
+    by: grp((r) => (r.mode || '?') + '|' + ((r.lang && r.lang.src) || '?') + '|' + (r.genre || '?')),   // מצב × שפה × ז'אנר
+    roles, fb: Object.entries(fb).sort((a, b) => b[1] - a[1]), errs: Object.entries(errs).sort((a, b) => b[1] - a[1]), warn: Object.entries(warn).sort((a, b) => b[1] - a[1]),
+    weak: rs.filter((r) => r.st === 'done' && isNum(viVals(r).vsup)).sort((a, b) => viVals(a).vsup - viVals(b).vsup).slice(0, 5)
+      .map((r) => ({ id: r.id.slice(0, 8), at: r.at, sup: rnd(viVals(r).vsup, 3), genre: r.genre || '', dur: r.dur, mode: r.mode || '' })),
+    gold: gold.length ? Object.assign({ n: gold.length }, viKpis(gold.filter((r) => r.at >= now - 90 * DAY))) : null,
+  };
+}
 /* records = כל הרשומות (מכל המשתמשים, אנונימיות). now = עכשיו */
 function learnView(records, now) {
-  const all = (Array.isArray(records) ? records : []).filter((r) => r && r.v === LR_V && r.use && r.t);
+  const recs = Array.isArray(records) ? records : [];
+  const all = recs.filter((r) => r && r.v === LR_V && r.k !== 'vi' && r.use && r.t);   // 10/11/2026: הניתוח — בסעיף vi, לא בחישובי התרגום
+  const vi = viView(recs, now);
   const rs = all.filter((r) => r.at >= now - 90 * DAY);
   const cur = all.filter((r) => r.at >= now - WIN), prev = all.filter((r) => r.at >= now - 2 * WIN && r.at < now - WIN);
   const k30 = kpis(cur), kp = kpis(prev);
@@ -668,7 +854,7 @@ function learnView(records, now) {
   // 8 שעות לתשובה רשמה את כל ההמתנה על "תמלול", והמסקנה slow_stage הצביעה על השלב הלא נכון
   const clean = (r) => (r.fires || 0) <= 1 && !(r.t && r.t.run > 0 && (r.t.pz || 0) / r.t.run > 0.2);
   const roles = costRoles(rs), stages = stageTime(rs.filter((r) => r.k === 'tr' && r.st === 'done' && clean(r)));
-  const fails = failures(rs), jc = judgeCodes(rs), qf = qualityFails(rs), modes = modeTable(rs), mx = mxView(rs), ver = versionsView(all);
+  const fails = failures(rs), jc = judgeCodes(rs), qf = qualityFails(rs), modes = modeTable(rs), mx = mxView(rs), ver = versionsView(all.concat(recs.filter((r) => r && r.v === LR_V && r.k === 'vi')));
   const tk = rs.map(tokOf);
   return {
     v: LR_V, n: all.length, n90: rs.length, first: all.length ? Math.min(...all.map((r) => r.at || now)) : 0,
@@ -678,7 +864,8 @@ function learnView(records, now) {
     eng: ['api', 'sub'].map((e) => ({ e, ...kpis(rs.filter((r) => r.eng === e)) })).filter((x) => x.n),
     follow: { rr: rs.filter((r) => r.k === 'rr').length, ai: rs.filter((r) => r.k === 'ai').length, ed: rs.filter((r) => r.k === 'tr' && (r.ed > 0)).length, gold: rs.filter((r) => r.gold).length, ux: uxSum(rs.filter((r) => r.k === 'tr')),
       ur: { up: rs.filter((r) => r.urt && r.urt.r === 1).length, dn: rs.filter((r) => r.urt && r.urt.r === -1).length, fl: rs.reduce((a, r) => a + ((r.urt && r.urt.c) || []).length, 0) } },   // 25/10/2026: המשוב שלך
-    ins: insights(rs, k30, roles, stages, fails, jc, qf, modes, now, mx, ver),
+    ins: insights(rs, k30, roles, stages, fails, jc, qf, modes, now, mx, ver).concat(vi ? vi.ins : []).sort((a, b) => a.sev - b.sev || (b.imp || 0) - (a.imp || 0)).slice(0, 18),
+    vi,
     im: impactView(all, now),            // 21/10/2026: השפעת המאגר לאורך זמן (lib/learnimpact.js) — הבסיס מול עכשיו, לכל שיפור
     recent: all.filter((r) => r.k === 'tr').sort((a, b) => b.at - a.at).slice(0, 12).map((r) => ({ id: r.id.slice(0, 8), at: r.at, st: r.st, err: r.err, mode: r.mode, eng: r.eng,
       dur: r.dur, usd: r.usd, pr: r.pr, q: r.q ? r.q.s : null, jd: r.jd ? r.jd.s : null, run: runSec(r), fires: r.fires, ch: (() => { const t = tokOf(r); return inTok(t) ? rnd(t.cr / inTok(t), 3) : null; })() })),
@@ -700,6 +887,8 @@ const INS_HE = {
   num_drop: 'מספרים שנעלמו בתרגום', omit_cues: 'כתוביות שנראות מושמטות', tm_late: 'כתוביות שעולות מאוחר / יורדות מוקדם',
   shot_near: 'גבולות קרובים לחילוף שוט', name_var: 'שם אחד בכמה איותים', gl_miss: 'מונחים מהמילון שלא נשמרו',
   ver_worse: 'גרסה חדשה גרועה יותר', ver_better: 'גרסה חדשה טובה יותר', inject_seen: 'שורות שנראות כמו הוראה בתמלול', gold: 'ציון סט הזהב', need_data: 'חסרים נתונים מפורטים',
+  vi_unsup: 'ניתוח: טענות לא נתמכות', vi_ts: 'ניתוח: סטיית זמן בראיות', vi_mid: 'ניתוח: השליש האמצעי דל', vi_ocr_he: 'ניתוח: OCR עברי חלש',
+  vi_cost: 'ניתוח: העלות לשעה עלתה', vi_slow: 'ניתוח: הזמן לשעה עלה', vi_dn: 'ניתוח: 👎 עלו',
 };
 const FIELDS = [
   ['k', 'סוג: tr תרגום, rr הפקה מחדש, ai גיליון AI'], ['st/err', 'מצב סופי וקוד השגיאה'], ['eng', 'api = השרת שלנו, sub = Routine של המשתמש'],
@@ -712,6 +901,7 @@ const FIELDS = [
   ['lx', 'עובדות מפורטות מהעובד: שלבי vt, תמלול, יישור, סנכרון, מנוע (קטיעות, ניסיונות חוזרים, חשיבה), זיכרון'],
   ['lx.mx', 'מ׳5 — מדדים בקוד: st מה כל שלב שינה (df טיוטה←תיקוני המתרגם, fr ←ביקורת, rz ←תיקון אחרון, dz טיוטה←סופי; ch כתוביות ששונו, t TER, c chrF++), tm תזמון מול הדיבור (in/out שניות מהמילה הראשונה/האחרונה, late/cut, nw בלי דיבור, sh.near/sh.bad גבולות 0–11 / 1–11 פריימים מחילוף שוט), cs עקביות (nm שמות שנבדקו, nm.var עם יותר מאיות אחד, gl מונחים מהמילון: n/miss/mix), om השמטות (om.e ריקות, om.s קצרות מאוד, om.r50 יחס אורך, num מספרים n/miss), ck קודי הבודק בין הנקודות f0 טיוטה · f1 אחרי תיקוני המתרגם · z0 אחרי הביקורת · z1 אחרי התיקון האחרון · q1 אחרי הבקרה (<א><ב>.fx תוקנו, .kp נשארו, .nw נוצרו; n0/n1 בהתחלה ובסוף; nw.<קוד> מה נוצר הכי הרבה), rj תשובות שנזרקו <שלב>.<סיבה> (ok החמיר, back שבר כתובית, keep ביטל את הביקורת, qs לא קיצר, qb שבר את הבודק, p_* תיקון הגהה שלא הוחל), rf מול כתוביות אנושיות שכבר קיימות למקור (he.c chrF++ של הסופי מול המתרגם האנושי, he.cs בחלונות, he.lr יחס מילים, he.cov כיסוי, he.d/f/r/z כל שלב מול האדם; en.w WER של התמליל שלנו מול הכתוביות האנגליות, en.s/d/i פירוק)'],
   ['ux.e.sb/sr', 'מ׳5 — SubER אחרי עריכה בעורך: עריכות / אסימוני הייחוס (מילים + שבירות)'],
+  ['k:vi', 'ניתוח סרטונים (רשומה משלו): roles לכל תפקיד vm מיפוי / vs סינתזה / vv אימות / vl פרקים / vx ייצוא / vc צ׳אט — model, eff, in, out, cr, cw, th, usd, ms, n, retry; lang, genre, dur_s, n_spk; asr{eng,conf,low,wpm}; scr{n_slides,n_states,ocr_conf,so_share,n_cuts,pip}; counts{claims,sup,part,uns,unk,ts_off,rej,kf_total,kf_used,cov3}; t דקות לשלב; mem שיא MB; warn; pv{vp,vo,vh}; gs זהב; ux.vi מונים בעמוד; ux.vf שורות משוב {id,why,at}'],
 ];
 const fmtv = (v) => (v == null ? '—' : typeof v === 'number' ? String(v) : JSON.stringify(v));
 function learnBrief(view, now) {
@@ -755,6 +945,7 @@ function learnBrief(view, now) {
   sec('השבוע מול השבוע שעבר', v.ws);
   sec('לפי מנוע', v.eng);
   sec('מה קרה אחרי העבודה', v.follow);
+  sec('ניתוח סרטונים (k:vi) — k עכשיו / kp קודם: sup נתמכות, uns לא נתמכות, unk לא ידוע, ts סטיית זמן, kf כיסוי שקפים, mid השליש האמצעי מול הצדדים, cph דולר לשעה, mph דקות לשעה, ocr OCR עברי, dn/up/rr מהטלפון; by מצב|שפה|ז׳אנר; fb סיבות המשוב', v.vi);
   sec('מגמה שבועית (8 שבועות)', v.wk);
   // 21/10/2026: השפעת המאגר — לכל שיפור שנפרס: לפני/אחרי (שכבות מצב·מנוע, רווח סמך 90%), והבסיס מול "הכל מאז"
   if (v.im) sec('השפעת המאגר — start = השיפור הראשון שנפרס; imps: לכל שיפור c = מדדים (a לפני, b אחרי, d, lo–hi, v פסק, tg = המדד שכוונו אליו); all = הבסיס מול כל מה שמאז', {
@@ -769,4 +960,5 @@ function learnBrief(view, now) {
   return L.join('\n');
 }
 
-module.exports = { CT_KINDS, ctView, versionsView, weekSum, VER_DIMS, VER_MET, normUx, mergeUx, UX_SHAPE, ED_KINDS, learnBrief, INS_HE, LR_V, lid, normLx, learnRec, recHash, learnView, kpis, insights, cacheSavable, MODES, STAGES };
+module.exports = { CT_KINDS, ctView, versionsView, weekSum, VER_DIMS, VER_MET, normUx, mergeUx, UX_SHAPE, ED_KINDS, learnBrief, INS_HE, LR_V, lid, normLx, learnRec, recHash, learnView, kpis, insights, cacheSavable, MODES, STAGES,
+  VI_ROLES, VI_VDIMS, VF_WHY, VF_MAX, normViLx, learnViRec, viView, viKpis, viInsights };

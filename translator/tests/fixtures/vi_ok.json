@@ -1,0 +1,263 @@
+{
+ "v": "snb.video-analysis/1",
+ "pv": 1,
+ "lang": {
+  "src": "en",
+  "out": "he"
+ },
+ "genre": "academic_lecture",
+ "video": {
+  "dur": 1800,
+  "src": "file",
+  "title": "Sleep and memory (demo)"
+ },
+ "evidence": [
+  {
+   "id": "e1",
+   "t0": 12.5,
+   "t1": 20.25,
+   "spk": "S1",
+   "text": "Memory forms in two stages.",
+   "conf": 0.93,
+   "w0": 0,
+   "w1": 5
+  },
+  {
+   "id": "e2",
+   "t0": 610,
+   "t1": 622.4,
+   "spk": "S1",
+   "text": "Most of the consolidation happens in deep sleep.",
+   "conf": 0.91,
+   "w0": 900,
+   "w1": 908
+  },
+  {
+   "id": "e3",
+   "t0": 1100,
+   "t1": 1112,
+   "spk": "S2",
+   "text": "The rested group recalled about forty percent more.",
+   "conf": 0.88,
+   "w0": 1500,
+   "w1": 1508
+  }
+ ],
+ "slides": [
+  {
+   "id": "s1",
+   "t0": 600,
+   "t1": 900,
+   "kind": "slide",
+   "states": [
+    {
+     "k": 0,
+     "t0": 600
+    },
+    {
+     "k": 1,
+     "t0": 640
+    }
+   ],
+   "img": {
+    "o": 0,
+    "l": 48213,
+    "w": 1280,
+    "h": 720
+   },
+   "ocr": [
+    "o1.1",
+    "o1.2"
+   ],
+   "so": [
+    "o1.2"
+   ]
+  },
+  {
+   "id": "s2",
+   "t0": 1090,
+   "t1": 1400,
+   "kind": "chart",
+   "img": {
+    "o": 48213,
+    "l": 30000,
+    "w": 1280,
+    "h": 720
+   },
+   "ocr": [
+    "o2.1"
+   ]
+  },
+  {
+   "id": "s3",
+   "t0": 1500,
+   "t1": 1700,
+   "kind": "slide"
+  }
+ ],
+ "ocr": [
+  {
+   "id": "o1.1",
+   "text": "Consolidation happens in deep sleep",
+   "conf": 91,
+   "lang": "en",
+   "dir": "ltr"
+  },
+  {
+   "id": "o1.2",
+   "text": "n = 48",
+   "conf": 88,
+   "lang": "en",
+   "dir": "ltr"
+  },
+  {
+   "id": "o2.1",
+   "text": "Recall after 12h",
+   "conf": 90,
+   "lang": "en"
+  }
+ ],
+ "segments": [
+  {
+   "t0": 0,
+   "t1": 60,
+   "type": "intro"
+  },
+  {
+   "t0": 60,
+   "t1": 1700,
+   "type": "content"
+  },
+  {
+   "t0": 1700,
+   "t1": 1800,
+   "type": "qa"
+  }
+ ],
+ "chapters": [
+  {
+   "id": "c1",
+   "t0": 0,
+   "t1": 600,
+   "lvl": 1,
+   "title": "שני שלבים",
+   "sum": "קידוד מהיר וייצוב איטי.",
+   "items": [
+    "n1"
+   ]
+  },
+  {
+   "id": "c2",
+   "t0": 600,
+   "t1": 1090,
+   "lvl": 1,
+   "title": "שינה עמוקה",
+   "items": [
+    "n2",
+    "n4"
+   ]
+  },
+  {
+   "id": "c3",
+   "t0": 1090,
+   "t1": 1800,
+   "lvl": 1,
+   "title": "הניסוי",
+   "adds": "השקף מציג את גודל המדגם.",
+   "items": [
+    "n3"
+   ]
+  }
+ ],
+ "items": [
+  {
+   "id": "n1",
+   "kind": "note",
+   "ch": "c1",
+   "text": "הזיכרון נבנה בשני שלבים.",
+   "ev": [
+    "e1"
+   ],
+   "q": "Memory forms in two stages.",
+   "src": "speech",
+   "basis": "speaker",
+   "conf": "high",
+   "ver": "sup"
+  },
+  {
+   "id": "n2",
+   "kind": "note",
+   "ch": "c2",
+   "text": "הקיבוע קורה בעיקר בשינה עמוקה.",
+   "ev": [
+    "e2",
+    "s1"
+   ],
+   "src": "both",
+   "basis": "speaker",
+   "conf": "high",
+   "ver": "sup"
+  },
+  {
+   "id": "n3",
+   "kind": "note",
+   "ch": "c3",
+   "text": "מי שישנו זכרו כ־40% יותר.",
+   "ev": [
+    "e3",
+    "o2.1"
+   ],
+   "src": "both",
+   "basis": "speaker",
+   "conf": "med",
+   "ver": "part"
+  },
+  {
+   "id": "n4",
+   "kind": "note",
+   "ch": "c2",
+   "text": "גודל המדגם היה 48.",
+   "ev": [
+    "o1.2"
+   ],
+   "src": "screen_only",
+   "basis": "speaker",
+   "conf": "med",
+   "ver": "unk"
+  }
+ ],
+ "briefing": {
+  "one": "n2",
+  "bluf": "n2",
+  "take": [
+   "n1",
+   "n2",
+   "n3"
+  ]
+ },
+ "thesis": "n2",
+ "big": "n3",
+ "ledger": [
+  {
+   "ref": "s1",
+   "used": "n2"
+  },
+  {
+   "ref": "s3",
+   "drop": "decorative"
+  },
+  {
+   "ref": "o1.1",
+   "used": "n2"
+  }
+ ],
+ "quality": {
+  "items": 4,
+  "sup": 2,
+  "cov": 0.9,
+  "asr": "high",
+  "warn": [
+   "vi_ocr"
+  ]
+ }
+}

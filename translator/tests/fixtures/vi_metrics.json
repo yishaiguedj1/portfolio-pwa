@@ -1,0 +1,35 @@
+{
+ "in": "vi_ok.json",
+ "ref": {
+  "chapters": [
+   {
+    "t0": 0
+   },
+   {
+    "t0": 605
+   },
+   {
+    "t0": 1200
+   }
+  ]
+ },
+ "out": {
+  "n": 4,
+  "support_rate": 0.5,
+  "part_rate": 0.25,
+  "unknown_rate": 0.25,
+  "unsupported_per_1k": 0,
+  "so_share": 0.25,
+  "inf_share": 0,
+  "kf_total": 3,
+  "kf_used": 2,
+  "kf_cov": 0.6667,
+  "mid_ratio": 2.25,
+  "density": 1.3333,
+  "len_ratio": 1.3333,
+  "out_words": 28,
+  "n_ch": 3,
+  "ch_f1_5": 0.5,
+  "ch_f1_10": 0.5
+ }
+}

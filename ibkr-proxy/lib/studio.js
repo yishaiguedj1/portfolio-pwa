@@ -380,7 +380,7 @@ function normHla(x) {
 
 /* v359: הטוקנים והעלות של העבודה (מהעובד, בדיווח האחרון — finish/fail). עד 6 שורות: סוג (תיאום/תרגום/ביקורת/סוכן־משנה),
    מזהה מודל רק בתבנית claude-…, וכל השאר מספרים. משהו לא תקין → null (וכל הנתון נזרק — לא חלקי) */
-const USE_KINDS = ['main', 'tl', 'rv', 'jg', 'sub'];   // v375: jg = שופט האיכות (Haiku)
+const USE_KINDS = ['main', 'tl', 'rv', 'jg', 'sub', 'vm', 'vs', 'vv', 'vl', 'vx', 'vc'];   // v375: jg = שופט האיכות (Haiku)   // 10/11/2026: תפקידי הניתוח (VI_ROLES ב־translator/llm.py; = studio.js ו־job.py)
 const USE_MODEL_RE = /^claude-[a-z0-9-]{1,50}$/;
 const USE_INTS = ['n', 'i', 'o', 'cr', 'c5', 'c1', 'op', 'bn'];
 const USE_USD = ['usd', 'oc', 'bu'];

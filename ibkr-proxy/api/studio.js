@@ -50,6 +50,7 @@ const AN = require('../lib/studioanom');   // v385: ציון חריגה 0–10
 const LR = require('../lib/studiolearn');
 const LI = require('../lib/learnimpact');   // 21/10/2026: השפעת המאגר לאורך זמן
 const LC = require('../lib/learncorpus');
+const VC = require('../lib/vicorpus');   // 10/11/2026: הקורפוס של הניתוח (DEK לרשומה)
 const DL = require('../lib/devlog');   // 15/10/2026: האיסוף המלא בתקופת הפיתוח (הדגל learn_full) — לוגים, יומן הקריאות, מדדים, שגיאות מהטלפון
 const DMLOG = require('../lib/dmlog');
 const FNL = require('../lib/studiofnl');   // 26/10/2026: המסלול שלפני העבודה + "למה ויתרת?" (מונים בלבד)
@@ -362,6 +363,11 @@ async function learnPull(req, res, body, deps) {
     const t = await readDoc(deps, 'sysTokens', atId(tok));
     if (!t || !(t.exp > now)) return res.status(401).json({ ok: false, error: 'bad_token' });
     const pg = LC.pageArgs(body);
+    if (body.vi === 1) {   // 10/11/2026 (ניתוח): הקורפוס של הניתוח — ספירות, ופריטים רק כשביקשו (ci/cl), כל פתיחה ביומן הפענוח
+      await patchDoc(deps, 'sysTokens', t.id, { last: now, uses: (t.uses || 0) + 1 }).catch(() => {});
+      const vi = await viCorpusPull(deps, pg, 'at:' + String(t.id).slice(0, 8), now).catch(() => ({ on: false, error: 'r2' }));
+      return res.status(200).json({ ok: true, v: LR.LR_V, at: now, vi });
+    }
     if (body.co === true) {   // 02/11/2026 (PR1 1.3): עמוד המשך — רק הקורפוס: בלי learnLoad/records/view/checks (רק קריאה וכתיבה של הטוקן)
       await patchDoc(deps, 'sysTokens', t.id, { last: now, uses: (t.uses || 0) + 1 }).catch(() => {});
       const corpus = await learnCorpusView(deps, pg).catch(() => ({ on: false, error: 'r2' }));
@@ -406,8 +412,9 @@ async function learnMediaPull(deps, ids, withVideo) {
    המשתמש לא נכנסות למאגר מעכשיו. 15/10 (מ׳1): "מחק את התרומות שלי" (studioStats.lf = מתי) — עבודה שנוצרה עד אז לא נכנסת שוב.
    תקלה בקריאה = לא שומרים (זהירות) */
 async function learnSkip(deps, job, cache) {
-  if (job && job.spec && job.spec.vi === 1) return true;   // 9/11/2026: ניתוח — מאגר משלו בגל 1 (PR 1.3), לא במאגר של התרגום
   if (!(await flagOn(deps, 'learn'))) return true;   // 15/10/2026: הדגל "איסוף למאגר הלמידה" כבוי — לכולם
+  // 10/11/2026 (ניתוח, PR 1.3): מאגר משלו (רשומה k:'vi', הקורפוס viq/vic) — ועד ה7 רק העבודות של המנהל, לא של אף אחד אחר
+  if (job && job.spec && job.spec.vi === 1 && (!job.uid || job.uid !== (await adminUid(deps, deps.now || Date.now())))) return true;
   const uid = job.uid;
   let p = cache && cache.get(uid);
   if (!p) {
@@ -418,11 +425,11 @@ async function learnSkip(deps, job, cache) {
 }
 /* הרשומות של עבודות שנמחקו — כדי ש"מחק את התרומות שלי" ימחק גם אותן. רק המזהים המגובבים, במסמך הפרטי של המשתמש (studioStats.lgn) */
 const LGN_MAX = 400;
-async function learnGone(deps, uid, ids, now) {
+async function learnGone(deps, uid, lids, now) {   // lids = המזהים במאגר (learnId), לא מזהי העבודות
   try {
     const st = (await readDoc(deps, 'studioStats', uid)) || {};
     const have = String(st.lgn || '').split(',').filter((x) => /^[0-9a-f]{20}$/.test(x));
-    const all = [...new Set([...have, ...ids.map(LR.lid)])].slice(-LGN_MAX);
+    const all = [...new Set([...have, ...lids.filter((x) => /^[0-9a-f]{20}$/.test(String(x)))])].slice(-LGN_MAX);
     await patchDoc(deps, 'studioStats', uid, { lgn: all.join(','), updated: now });
   } catch (e) {}
 }
@@ -516,7 +523,7 @@ const LRN_TV = 2;   // **זהה ל־LRN_TV ב־studio.js** — הנוסח של �
 async function learnEditPut(deps, job, sess, now) {
   try {
     const c = learnCfg();
-    if (!c.ok || job.kind !== 'tr' || !sess || typeof sess !== 'object') return false;
+    if (!c.ok || job.kind !== 'tr' || (job.spec && job.spec.vi === 1) || !sess || typeof sess !== 'object') return false;
     if (JSON.stringify(sess).length > LE_MAX) return false;
     if (await learnSkip(deps, job)) return false;
     const st = (await readDoc(deps, 'studioStats', job.uid)) || {};
@@ -539,7 +546,7 @@ const LRN_MV = 3;   // **זהה ל־LRN_TV ב־studio.js** — הנוסח שאו
 async function learnMedia(deps, job, k, now) {
   try {
     const c = learnCfg();
-    if (!c.ok || job.kind !== 'tr' || !LC.MEDIA_KINDS.includes(k) || String(job.lm || '').includes(k)) return null;
+    if (!c.ok || job.kind !== 'tr' || (job.spec && job.spec.vi === 1) || !LC.MEDIA_KINDS.includes(k) || String(job.lm || '').includes(k)) return null;   // ניתוח — השקפים הממוזערים (lam) עם העובד (גל 1, PR 1.2ב)
     if (job.spec && job.spec.ph === 1) return null;   // 25/10/2026: תרגום בטלפון — הסרטון והקול לא עוזבים את הטלפון
     if (await learnSkip(deps, job)) return null;
     const st = (await readDoc(deps, 'studioStats', job.uid)) || {};
@@ -600,6 +607,8 @@ async function learnBatch(deps, now) {
       if (p && (p.kind === 'c' || p.kind === 'e' || p.kind === 'm') && LC.expired(p.month, now)) { await R2.del(c, rd, it.key); gone++; }
     }
   }
+  const vb = await learnViBatch(c, rd, now).catch(() => ({ moved: 0, gone: 0 }));   // 10/11/2026: הקורפוס של הניתוח — viq → vic, תפוגה + ה־DEK
+  moved += vb.moved; gone += vb.gone;
   gone += await devGc(deps, now).catch(() => 0);   // האיסוף המלא: לוגים ומדדים מעל 30 יום
   gone += await dmGc(deps, now).catch(() => 0);    // יומני Studio DM מעל 24 חודשים
   await patchDoc(deps, 'sysLearn', 'batch', { day, at: now, mv: moved, gn: gone });
@@ -618,9 +627,122 @@ async function learnCorpusForget(deps, ids) {
         if (p && ids.has(p.lid)) { await R2.del(c, rd, it.key); n++; }
       }
     }
+    n += await viCorpusForget(c, rd, ids);   // 10/11/2026: הניתוח — התור, החודשים וה־DEK
   } catch (e) {}
   return n;
 }
+/* ---------- 10/11/2026 (ניתוח סרטונים, PR 1.3; התוכנית 7.3, ‏7.11, ‏14.5): הקורפוס של הניתוח — "מערכת משלנו", ברף הגבוה ----------
+   באותו דלי (snb-learn), בנתיבים משלו: viq/<lid>.bin (התור) → האצווה היומית → vic/<חודש>/<lid>.bin; ‏vik/<lid> = ה־DEK
+   העטוף. lid = HMAC בכספת (לא sha256 גלוי). DEK חדש לכל עבודה (AES-256-GCM), עטוף ב־KEK מהכספת: מחיקה = השמדת ה־DEK,
+   כך שגם עותק שנשאר במקום אחר לא נפתח (מחיקה קריפטוגרפית). רק כשהדגל learn דולק, המתג לא כבוי, העבודה של המנהל (עד ה7)
+   וההסכמה לתוכן הניתוח (lat — נוסח LRN_VV) נשמרה. כל פתיחה של פריט מחוץ לאצווה (משיכה לניתוח) נרשמת ביומן הפענוח */
+const LRN_VV = 5;   // **זהה ל־LRN_VV ב־studio.js** (נפרד מ־LRN_TV/LRN_FV — הסכמה לניתוח לא רושמת את ההסכמות של התרגום) — הנוסח שמכסה את הניתוח: התמליל, טקסט השקפים והתוצאה נשמרים (lat), שקפים ממוזערים (lam), אירועי השימוש (lau)
+const VI_PULL_MAX = 10, VI_LOG_MAX = 200;
+async function learnViPut(deps, job, b64, now) {
+  try {
+    const c = learnCfg();
+    if (!c.ok || job.kind !== 'tr' || !(job.spec && job.spec.vi === 1) || job.lc || typeof b64 !== 'string' || b64.length > LC_MAX_BODY) return false;
+    if (await learnSkip(deps, job)) return false;   // הדגל, המתג, "מחק את התרומות שלי", ורק המנהל
+    const st = (await readDoc(deps, 'studioStats', job.uid)) || {};
+    if (!(+st.lat > 0)) return false;
+    const lid = VC.viLid(job.id);
+    if (!lid) return false;
+    const raw = require('zlib').gunzipSync(Buffer.from(b64, 'base64'), { maxOutputLength: 16 * 1024 * 1024 });
+    const item = VC.normViCorpus(JSON.parse(raw.toString('utf8')), LC.monthOf(now), await learnFull(deps, job, st));
+    if (!item) return false;
+    Object.assign(item, LC.expMark(job));
+    const dek = VC.dekNew(), wrapped = VC.dekWrap(dek, lid);
+    if (!wrapped) return false;
+    const rd = r2deps(deps);
+    await R2.putText(c, rd, VC.vikKey(lid), wrapped, 'application/octet-stream');
+    await R2.putText(c, rd, VC.viqKey(lid), VC.vcSeal(item, dek, lid), 'application/octet-stream');
+    dek.fill(0);
+    await patchJob(deps, job.id, { lc: now });
+    return true;
+  } catch (e) { return false; }
+}
+/* הפתיחה: ה־DEK מהכספת ואז התוכן. null = נמחק / שובש / הועבר ל־lid אחר / מפתח אחר */
+async function viOpen(c, rd, key, lid) {
+  const dek = VC.dekUnwrap(await R2.getText(c, rd, VC.vikKey(lid), 4096), lid);
+  if (!dek) return null;
+  try { return VC.vcOpen(await R2.getText(c, rd, key, LC_MAX_BODY * 2), dek, lid); } finally { dek.fill(0); }
+}
+/* האצווה: viq → vic/<החודש שבפריט> (רק פריט שנפתח ועבר אימות — אחרת נמחק, גם ה־DEK), ותפוגה אחרי 24 חודשים: התוכן
+   וה־DEK. DEK בלי תוכן (נשאר מתקלה) — נמחק */
+async function learnViBatch(c, rd, now) {
+  let moved = 0, gone = 0;
+  for (const it of (await R2.list(c, rd, 'viq/', LC_BATCH_MAX)).slice(0, LC_BATCH_MAX)) {
+    const p = VC.parseViKey(it.key);
+    if (!p || p.kind !== 'viq') continue;
+    const item = await viOpen(c, rd, it.key, p.lid);
+    if (item && /^\d{4}-\d{2}$/.test(String(item.m || ''))) { await R2.copy(c, rd, it.key, VC.vicKey(item.m, p.lid), 'application/octet-stream'); moved++; }
+    else await R2.del(c, rd, VC.vikKey(p.lid)).catch(() => {});
+    await R2.del(c, rd, it.key);
+  }
+  const keys = [...await R2.list(c, rd, 'vic/', 50000), ...await R2.list(c, rd, 'viq/', 5000)];
+  const live = new Set();
+  for (const it of keys) {
+    const p = VC.parseViKey(it.key);
+    if (!p) continue;
+    if (p.kind === 'vic' && LC.expired(p.month, now)) { await R2.del(c, rd, it.key); await R2.del(c, rd, VC.vikKey(p.lid)).catch(() => {}); gone++; }
+    else live.add(p.lid);
+  }
+  for (const it of await R2.list(c, rd, 'vik/', 50000)) {
+    const p = VC.parseViKey(it.key);
+    if (p && p.kind === 'vik' && !live.has(p.lid)) { await R2.del(c, rd, it.key); gone++; }
+  }
+  return { moved, gone };
+}
+/* יומן הפענוח (14.5): מי, מתי, מה — כתיבה אחת לכל משיכה, האחרונים VI_LOG_MAX. רק תחילית של המזהה */
+async function viLog(deps, by, what, lids, now) {
+  if (!lids.length) return;
+  const d = (await readDoc(deps, 'sysLearn', 'vilog').catch(() => null)) || {};
+  let l = [];
+  try { l = JSON.parse(d.vl || '[]'); } catch (e) {}
+  l = (Array.isArray(l) ? l : []).concat([{ at: now, by: String(by).slice(0, 24), op: what, n: lids.length, ids: lids.map((x) => x.slice(0, 8)).join(',') }]).slice(-VI_LOG_MAX);
+  await patchDoc(deps, 'sysLearn', 'vilog', { vl: JSON.stringify(l), updated: now });   // מחרוזת JSON (toFields לא שומר רשימת אובייקטים)
+}
+/* המשיכה לניתוח בסשן (טוקן הניתוח, vi: 1): המספרים מרשימת המפתחות; פריטים (עד VI_PULL_MAX) רק כשביקשו, וכל אחד ביומן */
+async function viCorpusPull(deps, pg, by, now) {
+  const c = learnCfg();
+  if (!c.ok) return { on: false };
+  const rd = r2deps(deps);
+  const keys = [...await R2.list(c, rd, 'viq/', 5000), ...await R2.list(c, rd, 'vic/', 50000)];
+  const out = Object.assign({ on: true }, VC.viStats(keys));
+  const rank = (k) => (k.lastModified ? Date.parse(k.lastModified) || 0 : 0);
+  const order = keys.map((it) => ({ it, p: VC.parseViKey(it.key) })).filter((x) => x.p && x.p.kind !== 'vik')
+    .sort((a, b) => (a.p.kind === b.p.kind ? 0 : a.p.kind === 'viq' ? -1 : 1) || (rank(b.it) - rank(a.it)) || (a.it.key < b.it.key ? -1 : 1));
+  out.tot = order.length;
+  if (pg.list) out.ids = order.map((x) => ({ id: x.p.lid, q: x.p.kind === 'viq' ? 1 : 0, m: x.p.month }));
+  const want = pg.ids ? order.filter((x) => pg.ids.includes(x.p.lid)) : order.slice(pg.skip);
+  const items = [], opened = [];
+  let used = 0;
+  for (const x of want) {
+    if (items.length >= Math.min(pg.items, VI_PULL_MAX)) break;
+    used++;
+    const o = await viOpen(c, rd, x.it.key, x.p.lid);
+    if (!o) continue;
+    items.push(Object.assign({ id: x.p.lid, q: x.p.kind === 'viq' ? 1 : 0 }, o));
+    opened.push(x.p.lid);
+  }
+  await viLog(deps, by, 'pull', opened, now);
+  if (!pg.ids) out.next = pg.items > 0 && pg.skip + used < out.tot ? pg.skip + used : null;
+  out.items = items;
+  return out;
+}
+/* "מחק את התרומות שלי": התור, החודשים וה־DEK — מחיקה ישירה (בלי לחכות לאצווה) */
+async function viCorpusForget(c, rd, ids) {
+  let n = 0;
+  for (const pre of ['viq/', 'vic/', 'vik/']) {
+    for (const it of await R2.list(c, rd, pre, 50000)) {
+      const p = VC.parseViKey(it.key);
+      if (p && ids.has(p.lid)) { await R2.del(c, rd, it.key); if (p.kind !== 'vik') n++; }
+    }
+  }
+  return n;
+}
+/* המזהה של עבודה במאגר: ניתוח — viLid (HMAC), כל השאר — LR.lid */
+const learnId = (j) => (j && j.spec && j.spec.vi === 1 ? VC.viLid(j.id) : LR.lid(j.id));
 /* למנהל ולסשן הניתוח: כמה פריטים, כמה בתור, כמה MB — מרשימת המפתחות בלבד. items = עד n פריטים פתוחים, מהחודש החדש */
 async function learnCorpusView(deps, pga) {
   const c = learnCfg();
@@ -629,6 +751,7 @@ async function learnCorpusView(deps, pga) {
   const rd = r2deps(deps);
   const keys = [...await R2.list(c, rd, 'q/', 5000), ...await R2.list(c, rd, 'c/', 50000), ...await R2.list(c, rd, 'qe/', 5000), ...await R2.list(c, rd, 'e/', 50000), ...await R2.list(c, rd, 'm/', 50000)];
   const out = Object.assign({ on: true }, LC.corpusStats(keys));
+  out.vi = VC.viStats([...await R2.list(c, rd, 'viq/', 5000), ...await R2.list(c, rd, 'vic/', 50000), ...await R2.list(c, rd, 'vik/', 50000)]);   // 10/11/2026: הניתוח — ספירות בלבד
   if (pg.list || pg.items > 0) {
     const list = [];
     // 24/10/2026 (בקשת המשתמש): גם עבודות שעוד בתור (q/) — עד האצווה היומית עבודה שהסתיימה עכשיו לא נראתה בניתוח.
@@ -2160,11 +2283,19 @@ async function driveFileInFolder(deps, uid, folder, fid) {
    הטלפון מעלה ומוריד בתיקייה של העבודה שלו; העובד — בתיקייה של העבודה שהמפתח שלו פותח. */
 const r2deps = (deps) => ({ fetch: deps.fetch, now: () => deps.now || Date.now() });
 async function upRec(deps, id) { return SR.isId(id) ? readDoc(deps, 'studioUp', id).catch(() => null) : null; }
+const R2URL_KS = 6;
 async function r2Files(deps, op, body, uid, folder, by) {
   if (!SR.isFolder(folder)) return [400, { ok: false, error: 'not_r2' }];
   const c = R2.config();
   if (!c.ok) return [503, { ok: false, error: 'r2_off' }];
   const id = String(body.id || ''), rd = r2deps(deps);
+  if (op === 'url' && Array.isArray(body.ks)) {   // 10/11/2026 (ניתוח, 10.3): כמה קבצים בבקשה אחת (vi + vis) — כל אחד בתיקייה של העבודה
+    const ks = [...new Set(body.ks.map(String))].slice(0, R2URL_KS);
+    if (!ks.length || ks.length !== body.ks.length || !ks.every((k) => SR.inFolder(k, folder))) return [400, { ok: false, error: 'bad_id' }];
+    const items = [];
+    for (const k of ks) items.push(Object.assign({ id: k }, await SR.getUrl(c, rd, { uid, folder, id: k, by, name: '' })));
+    return [200, { ok: true, items }];
+  }
   if ((id || (op !== 'up' && op !== 'bg')) && !SR.inFolder(id, folder)) return [400, { ok: false, error: 'bad_id' }];
   const rec = id ? await upRec(deps, id) : null;
   let out;
@@ -2428,10 +2559,10 @@ async function removeJobRec(deps, uid, job, now) {
   await learnSave(deps, job, now);   // 14/10/2026: הרשומה במאגר הלמידה נשארת אחרי המחיקה
   await delDoc(deps, 'studioJobs', job.id);
   await r2Purge(deps, uid, job);   // ת4
-  const gone = [job.id];
+  const gone = [learnId(job)];   // 10/11/2026: המזהה במאגר — לניתוח viLid
   if (job.kind === 'tr' && Array.isArray(job.fo) && job.fo.length) {   // מ2 · מ7: ההפקות מחדש, גיליונות ה־AI והשמירות ל־Drive (dx) של העבודה הולכים איתה
     const sub = job.fo.some((o) => o && o.k === 'cues') ? ['rr', 'ai', 'dx'] : ['dx'];
-    for (const r of (await listJobs(deps, uid)).filter((j) => sub.includes(j.kind) && j.rp === job.id)) { await delDoc(deps, 'studioJobs', r.id); gone.push(r.id); }
+    for (const r of (await listJobs(deps, uid)).filter((j) => sub.includes(j.kind) && j.rp === job.id)) { await delDoc(deps, 'studioJobs', r.id); gone.push(LR.lid(r.id)); }
   }
   await learnGone(deps, uid, gone, now);   // 15/10 (מ׳1): כדי ש"מחק את התרומות שלי" ימצא גם אותן
   await closeJobOps(deps, uid, job.id, now);
@@ -2578,7 +2709,7 @@ async function worker(req, res, body, deps) {
     if (body.op === 'smPut') return res.status(200).json({ ok: true, saved: await smPut(deps, job, body.sm, now), now });   // 28/10/2026: זיכרון הסדרה
     // 5/11/2026: שרת בלי הדלי של מאגר הלמידה (SNB_LEARN_REMOTE) — 421 לפני כל שינוי, והעובד שולח את אותה בקשה לגיבוי (job.http)
     if (/^learn(Put|Media|MediaDone)$/.test(body.op) && learnRemote()) return res.status(421).json({ ok: false, error: 'learn_remote' });
-    if (body.op === 'learnPut') return res.status(200).json({ ok: true, saved: await learnPut(deps, job, body.lc, now), now });   // מ׳2
+    if (body.op === 'learnPut') return res.status(200).json({ ok: true, saved: job.spec && job.spec.vi === 1 ? await learnViPut(deps, job, body.lc, now) : await learnPut(deps, job, body.lc, now), now });   // מ׳2 · 10/11/2026: ניתוח — learnViPut
     if (body.op === 'learnMedia') return res.status(200).json(Object.assign({ ok: true, now }, (await learnMedia(deps, job, String(body.k || ''), now)) || { skip: true }));   // מ׳4
     if (body.op === 'learnMediaDone') return res.status(200).json({ ok: true, saved: await learnMediaDone(deps, job, String(body.k || '')), now });
     if (body.op === 'srcFile') {
@@ -2686,7 +2817,7 @@ async function worker(req, res, body, deps) {
     if (body.gl != null) { const gl = S.normGl(body.gl); if (gl) up.gl = gl; }            // v380: זיכרון המונחים
     if (body.rvf != null) { const v = S.normRvf(body.rvf); if (v) up.rvf = v; }          // סבב 4: סימונים מהביקורת
     if (body.fil != null) { const v = S.normFil(body.fil); if (v) up.fil = v; }          // סבב 4: מילות מילוי
-    if (body.lx != null) { const lx = LR.normLx(body.lx); if (lx) up.lx = lx; }   // 14/10/2026: עובדות למאגר הלמידה (מספרים וקודים בלבד)
+    if (body.lx != null) { const lx = job.spec && job.spec.vi === 1 ? LR.normViLx(body.lx) : LR.normLx(body.lx); if (lx) up.lx = lx; }   // 14/10/2026: עובדות למאגר הלמידה (מספרים וקודים בלבד) · 10/11: ניתוח — normViLx
     if (body.trace != null) {
       // v373: עקיבה (מהיומנים, בסוף העבודה) — לא תקין נזרק בשקט
       const tr = S.normTrace(body.trace);
@@ -3397,6 +3528,15 @@ async function handler(req, res, deps = {}) {
     if (op === 'learnPref') {
       // 14/10/2026: המתג בהגדרות — לכל משתמש (לא רק למנהל). 15/10 (מ׳1): ack = ההודעה בכניסה הראשונה נקראה (lra)
       // 15/10/2026: tv = גרסת הנוסח שנקרא. LRN_TV ומעלה (הנוסח שאומר שגם טקסט הכתוביות ושמות הדוברים נשמרים) = גם lrt — ההסכמה לטקסט
+      // 10/11/2026 (ניתוח, 7.11): הסכמה לכל מטרה — lat תוכן הניתוח והתמליל, lam מדיה, lau אירועי שימוש. רק עם הנוסח LRN_VV; false = ביטול.
+      // בקשה עם vi נוגעת **רק** בשלוש האלה — לא ב־lra/lrt/lrm/lrf ולא במתג (הסכמה לניתוח איננה קריאה של נוסח התרגום או האיסוף המלא)
+      if (body.vi !== undefined) {
+        const vx = {};
+        if (body.ack === true && (body.tv | 0) === LRN_VV && body.vi && typeof body.vi === 'object') for (const k of ['lat', 'lam', 'lau']) if (typeof body.vi[k] === 'boolean') vx[k] = body.vi[k] ? now : 0;
+        if (!Object.keys(vx).length) return res.status(400).json({ ok: false, error: 'bad_request' });
+        await patchDoc(deps, 'studioStats', uid, Object.assign({ updated: now }, vx));
+        return res.status(200).json(Object.assign({ ok: true }, vx));
+      }
       const tx = body.ack === true && (body.tv | 0) >= LRN_TV ? Object.assign({ lrt: now }, (body.tv | 0) >= LRN_MV ? { lrm: now } : {}, (body.tv | 0) >= LRN_FV ? { lrf: now } : {}) : {};   // 4 = האיסוף המלא   // מ׳4: 3 = גם הקול ו־240p
       if (body.ack === true && body.on === undefined) { await patchDoc(deps, 'studioStats', uid, Object.assign({ lra: now, updated: now }, tx)); return res.status(200).json(Object.assign({ ok: true, lra: now }, tx)); }
       const on = body.on === true;
@@ -3409,7 +3549,7 @@ async function handler(req, res, deps = {}) {
       // שנוצרה עד עכשיו לא נכנסת שוב (lf). המתג לא משתנה: עבודות חדשות נכנסות רק אם הוא דולק
       if (limited('lf|' + uid, 3)) return res.status(429).json({ ok: false, error: 'rate_limited' });
       const st = await readStats(deps, uid);
-      const ids = new Set([...(await listJobs(deps, uid)).map((j) => LR.lid(j.id)), ...String(st.lgn || '').split(',').filter((x) => /^[0-9a-f]{20}$/.test(x))]);
+      const ids = new Set([...(await listJobs(deps, uid)).map(learnId).filter(Boolean), ...String(st.lgn || '').split(',').filter((x) => /^[0-9a-f]{20}$/.test(x))]);   // 10/11: ניתוח — viLid
       await patchDoc(deps, 'studioStats', uid, { lf: now, lgn: '', updated: now });
       let n = 0;
       for (const id of ids) { try { if (await readDoc(deps, 'studioLearn', id)) { await delDoc(deps, 'studioLearn', id); n++; } } catch (e) {} }
@@ -3426,7 +3566,7 @@ async function handler(req, res, deps = {}) {
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
         norm: S.normsView(st.ns, 'r'), normA: S.normsView(st.ns, 'a') /* 11/10: הרגיל לפי המנוע */, sh: S.thView(st.thr) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now, gEta.et, gEta.ka) /* 31/10: k — קריוקי */,
-        pk: S.pickerCfg(process.env, gdrive.cfg().id), gb: gbrowse.configured() || (gbRemote() ? 'r' : false) /* 26/10: רשימת הקבצים ב־Drive — 'r' = אולי ב־Vercel (gbConfig) */, lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lrm: +st.lrm || 0 /* מ׳4 */, mf: await fullModes() /* 15/10: כל מצבי התרגום (המנהל / הרשימה) */, url: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok /* 22/10: הורדה מקישור */, yc: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok && YT.ytCloud(await ytDoc(deps, now)) /* 25/10: יוטיוב לענן דרך החשבון הייעודי */, lrf: +st.lrf || 0 /* האיסוף המלא — הנוסח נקרא */, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, kt: { s: SC.SRC_TTL, j: SC.jobTtl(PROJECT()) } /* 26/10: כמה זמן נשמר — באומדן שלפני ההתחלה */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
+        pk: S.pickerCfg(process.env, gdrive.cfg().id), gb: gbrowse.configured() || (gbRemote() ? 'r' : false) /* 26/10: רשימת הקבצים ב־Drive — 'r' = אולי ב־Vercel (gbConfig) */, lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lrm: +st.lrm || 0 /* מ׳4 */, mf: await fullModes() /* 15/10: כל מצבי התרגום (המנהל / הרשימה) */, url: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok /* 22/10: הורדה מקישור */, yc: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok && YT.ytCloud(await ytDoc(deps, now)) /* 25/10: יוטיוב לענן דרך החשבון הייעודי */, lrf: +st.lrf || 0 /* האיסוף המלא — הנוסח נקרא */, lat: +st.lat || 0, lam: +st.lam || 0, lau: +st.lau || 0 /* 10/11: ההסכמות של הניתוח */, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, kt: { s: SC.SRC_TTL, j: SC.jobTtl(PROJECT()) } /* 26/10: כמה זמן נשמר — באומדן שלפני ההתחלה */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
     }
     if (op === 'push') {
       // שלב 4: התראות — key (המפתח הציבורי, ל־subscribe בטלפון) / on (מנוי של המכשיר) / off / test
@@ -3938,8 +4078,12 @@ async function handler(req, res, deps = {}) {
     if (op === 'learnUx') {
       // מ׳3: מה קרה אחרי העבודה — צפייה, הורדות ושיתוף, הצעות, גיליון ה־AI, מונחים (תוספת מספרים; LR.normUx)
       if (job.kind !== 'tr') return res.status(409).json({ ok: false, error: 'state' });
-      const ux = LR.mergeUx(job.ux, body.ux);
-      if (!LR.normUx(body.ux)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      // 10/11/2026 (ניתוח, 7.4): בעבודת ניתוח רק הקבוצות vi/vf, ורק בהסכמה לאירועי השימוש (lau); בתרגום — בלי vi/vf
+      const isVi = !!(job.spec && job.spec.vi === 1), VIG = ['vi', 'vf'];
+      const bux = body.ux && typeof body.ux === 'object' && !Array.isArray(body.ux) ? Object.fromEntries(Object.entries(body.ux).filter(([g]) => VIG.includes(g) === isVi)) : null;
+      if (!LR.normUx(bux)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      if (isVi && !(+(await readStats(deps, uid)).lau > 0)) return res.status(200).json({ ok: true, saved: false });
+      const ux = LR.mergeUx(job.ux, bux);
       await patchJob(deps, job.id, { ux });
       job.ux = ux;
       await learnSave(deps, job, now);

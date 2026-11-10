@@ -1,0 +1,57 @@
+{
+  "_": "vi_facts (analyze.py) → normViLx (lib/studiolearn.js): in = מה שהעובד שולח, כולל שדות זבל; out = מה שנשאר. tests/learn-vi.test.js · translator/tests/test_vi_learn.py (PR 1.2ב)",
+  "in": {
+    "mode": "sonnet-medium",
+    "roles": {
+      "vm": { "model": "claude-sonnet-5-5", "eff": "medium", "in": 41000, "out": 6200, "cr": 30000, "cw": 9000, "th": 1200, "usd": 0.2143, "ms": 52000, "n": 3, "retry": 0, "prompt": "SECRET" },
+      "vs": { "model": "claude-opus-5-5", "eff": "high", "in": 22000, "out": 4100, "usd": 0.4, "ms": 61000, "n": 1 },
+      "vv": { "model": "gpt-x", "eff": "turbo", "in": -5, "out": 1e12, "usd": 0.05 },
+      "tl": { "model": "claude-sonnet-5-5", "in": 1 },
+      "vc": "nope"
+    },
+    "lang": { "src": "en", "out": "he", "name": "English" },
+    "genre": "academic_lecture",
+    "dur_s": 3600.4,
+    "n_spk": 2,
+    "asr": { "eng": "whisper-l3", "conf": 0.91234, "low": 0.04, "wpm": 148.6, "text": "hello" },
+    "scr": { "n_slides": 41, "n_states": 57, "ocr_conf": 0.88, "so_share": 0.12, "n_cuts": 9, "pip": 1, "ocr": "slide text" },
+    "counts": { "claims": 120, "sup": 96, "part": 12, "uns": 4, "unk": 8, "ts_off": 3, "rej": 2, "kf_total": 41, "kf_used": 33, "cov3": [0.9, 0.62, 0.85], "names": ["Dana"] },
+    "t": { "up": 1.2, "tr": 6.5, "al": 1.1, "rv": 4.2, "bn": 0.3, "sv": 0.2, "xx": 9 },
+    "mem": { "tr": 2900.4, "rv": 1800, "BAD": 5, "../x": 1 },
+    "usd": 0.6643,
+    "out": { "st": "done", "err": "" },
+    "warn": ["vi_ocr", "vi_ocr", "nope", "ts_coarse"],
+    "build": { "app": "v732", "worker": "ab12cd3", "host": "srv1" },
+    "pv": { "vp": "3", "vo": "2.1", "vh": "1", "tl": "x" },
+    "gs": 0,
+    "xf": ["-vv", "Bad Flag", "dual"],
+    "uid": "ownerUid0001",
+    "name": "my-private-lecture.mp4",
+    "title": "Private title"
+  },
+  "out": {
+    "v": 1,
+    "mode": "sonnet-medium",
+    "roles": {
+      "vm": { "in": 41000, "out": 6200, "cr": 30000, "cw": 9000, "th": 1200, "ms": 52000, "n": 3, "retry": 0, "model": "claude-sonnet-5-5", "eff": "medium", "usd": 0.2143 },
+      "vs": { "in": 22000, "out": 4100, "ms": 61000, "n": 1, "model": "claude-opus-5-5", "eff": "high", "usd": 0.4 },
+      "vv": { "usd": 0.05 }
+    },
+    "lang": { "src": "en", "out": "he" },
+    "genre": "academic_lecture",
+    "dur_s": 3600,
+    "n_spk": 2,
+    "asr": { "conf": 0.9123, "low": 0.04, "wpm": 148.6, "eng": "whisper-l3" },
+    "scr": { "n_slides": 41, "n_states": 57, "ocr_conf": 0.88, "so_share": 0.12, "n_cuts": 9, "pip": 1 },
+    "counts": { "claims": 120, "sup": 96, "part": 12, "uns": 4, "unk": 8, "ts_off": 3, "rej": 2, "kf_total": 41, "kf_used": 33, "cov3": [0.9, 0.62, 0.85] },
+    "t": { "up": 1.2, "tr": 6.5, "al": 1.1, "rv": 4.2, "bn": 0.3, "sv": 0.2 },
+    "mem": { "tr": 2900, "rv": 1800 },
+    "usd": 0.6643,
+    "out": { "st": "done" },
+    "warn": ["vi_ocr", "ts_coarse"],
+    "build": { "app": "v732", "worker": "ab12cd3" },
+    "pv": { "vp": "3", "vo": "2.1", "vh": "1" },
+    "gs": 0,
+    "xf": ["-vv", "dual"]
+  }
+}
