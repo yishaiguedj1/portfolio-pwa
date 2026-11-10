@@ -719,7 +719,7 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-pl-tsep { opacity: .7; white-space: pre; }
 .st-pl-time .st-pl-b.fs { width: 40px; height: 40px; flex: none; }
 .st-pl-bar { position: relative; height: 22px; display: flex; align-items: center; cursor: pointer; touch-action: none; }
-.st-pl-track { position: relative; width: 100%; height: 4px; --cmt-c: var(--primary); }   /* ת־פס (סוף styles.css): מנגן — ראש לבן וזוהר; בהשהיה — אחיד; בגרירה — מתעבה, בלי זוהר */
+.st-pl-track { position: relative; width: 100%; height: 4px; --cmt-c: #C8C8CC; }   /* ת־פס (סוף styles.css), בגרסה הלבנה (בקשת המשתמש 10/11/2026 — הווידאו הוא הצבע): מנגן — ראש לבן וזוהר; בהשהיה — אחיד; בגרירה — מתעבה, בלי זוהר */
 .st-pl-bar:not(.cmt-on) .st-pl-track { --cmt-h: var(--cmt-c); --cmt-g: 0; }
 .st-pl-bar.cmt-drag .st-pl-track { --cmt-h: #fff; --cmt-g: 0; height: 8px; }
 .st-pl-bar:focus-visible .st-pl-track { outline: 2px solid #fff; outline-offset: 3px; }

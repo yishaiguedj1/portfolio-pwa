@@ -45,6 +45,7 @@ const studio = strip(read('studio.css'));
 ok(/\.st-pl-bar:not\(\.cmt-on\) \.st-pl-track\s*\{[^}]*--cmt-g:\s*0/.test(studio), 'נגן בהשהיה — בלי זוהר');
 ok(/\.st-pl-bar\.cmt-drag \.st-pl-track\s*\{[^}]*height:\s*8px/.test(studio), 'נגן בגרירה — המסילה מתעבה');
 ok(/\.st-pl-knob\s*\{\s*display:\s*none/.test(studio), 'נגן — בלי ידית');
+ok(/\.st-pl-track\s*\{[^}]*--cmt-c:\s*#C8C8CC/.test(studio), 'נגן — בגרסה הלבנה (אפור־לבן)');
 ok(/\.st-pl-track i\s*\{[^}]*padding:\s*0/.test(studio), 'מילוי הנגן בלי ריפוד (.pl של הספרייה לא מנפח אותו)');
 ok(/\.st-pbar\.ind\s*\{[^}]*clip-path/.test(studio), 'פס בלי אחוז — הפס הנע לא יוצא מהמסילה');
 const play = read('studioplay.js');
