@@ -37,6 +37,7 @@
   --glass: rgba(22,22,24,.78); --shadow-sm: 0 1px 2px rgba(0,0,0,.4); --shadow: 0 1px 3px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.4);
   --sheet-sh: 0 -8px 30px rgba(0,0,0,.6); color-scheme: dark }
 
+html { direction: rtl }   /* גם בלי dir בעטיפה של הפרסום */
 * { box-sizing: border-box }
 [hidden] { display: none !important }
 body { background: var(--bg); color: var(--on); font: 16px/1.5 var(--font); margin: 0;
@@ -98,9 +99,46 @@ bdi.t { font-variant-numeric: tabular-nums; unicode-bidi: isolate }
 .cta { margin-top: var(--space-5); display: grid }
 
 /* בית */
-.chips { display: flex; gap: var(--space-2); overflow-x: auto; padding-block: var(--space-1); scrollbar-width: none }
-.chip { border: 0; background: var(--surface-2); padding: 8px 16px; border-radius: var(--pill); white-space: nowrap; cursor: pointer; font-size: 15px }
-.chip[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); font-weight: 600 }
+/* העבודה (הלשונית "פעילה / אחרונה") — ניתוח שרץ */
+.stg { padding: var(--space-4); margin-top: var(--space-3) }
+.stg .eta { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3) }
+.stg .eta b { font-size: 17px }
+.steps { list-style: none; margin: var(--space-4) 0 0; padding: 0; display: grid; gap: var(--space-2) }
+.steps li { display: flex; align-items: center; gap: var(--space-3); font-size: 15px; color: var(--on-var) }
+.steps li::before { content: ''; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--sep); flex: none; box-sizing: border-box }
+.steps li.ok { color: var(--on) }
+.steps li.ok::before { border: 0; background: var(--ok-fg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center / 14px no-repeat }
+.steps li.now { color: var(--on); font-weight: 600 }
+.steps li.now::before { border-color: var(--primary); border-inline-end-color: transparent; animation: spin 1s linear infinite }
+.steps li small { margin-inline-start: auto; color: var(--on-var); font-weight: 400; font-size: 13px }
+@keyframes spin { to { transform: rotate(360deg) } }
+.note { font-size: 14px; margin: var(--space-3) var(--space-2) 0 }
+
+/* החוגה — הבר התחתון של הסטודיו (core: dialFrame — אותה גאומטריה: הפעיל במרכז, הקשת, השכנים מוקטנים) */
+.dock { position: fixed; inset: auto 0 0 0; height: calc(120px + env(safe-area-inset-bottom, 0px)); z-index: 50; pointer-events: none }
+.dock::before { content: ''; position: absolute; inset: -26px 0 0; z-index: -1;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--bg) 70%, transparent) 40px, var(--bg) 96px) }
+.dock .in { position: relative; height: 120px; max-width: 462px; margin: 0 auto; overflow: hidden; pointer-events: auto }
+.dock .in::after { content: ''; position: absolute; inset: -10px 0 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(ellipse 150px 74px at 50% 67px, color-mix(in srgb, var(--primary) 22%, transparent), transparent 72%) }
+.tab { position: absolute; top: 0; left: calc(50% - 46px); width: 92px; height: 120px; padding: 0; border: 0; background: none; cursor: pointer;
+  transform-origin: 46px 55px; transition: transform .42s var(--ease), opacity .3s; -webkit-tap-highlight-color: transparent }
+.tab .disc { position: absolute; top: 16px; left: 7px; width: 78px; height: 78px; border-radius: 50%; display: grid; place-items: center;
+  transform: scale(.72); transition: transform .42s var(--ease); background: rgba(255,255,255,.6);
+  box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 6px 16px rgba(0,0,0,.08), inset 0 0 0 .5px rgba(0,0,0,.06) }
+:root[data-theme="dark"] .tab .disc { background: rgba(255,255,255,.09); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.14), 0 6px 16px rgba(0,0,0,.4) }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tab .disc { background: rgba(255,255,255,.09); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.14), 0 6px 16px rgba(0,0,0,.4) } }
+.tab .glow { position: absolute; inset: 0; border-radius: 50%; opacity: 0; transition: opacity .3s;
+  background: radial-gradient(90% 55% at 50% 0%, rgba(255,255,255,.5), rgba(255,255,255,0) 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--primary) 80%, #fff), var(--primary) 55%, color-mix(in srgb, var(--primary) 88%, #000));
+  box-shadow: inset 1px 1px 0 rgba(255,255,255,.55), 0 0 0 6px color-mix(in srgb, var(--primary) 14%, transparent), 0 8px 26px color-mix(in srgb, var(--primary) 46%, transparent) }
+.tab svg { position: relative; width: 38px; height: 38px; stroke: var(--primary); transition: stroke .3s }
+.tab.on .glow { opacity: 1 }
+.tab.on .disc { transform: none }
+.tab.on svg { stroke: #fff; width: 44px; height: 44px }
+.tab .l { position: absolute; top: 90px; left: -6px; right: -6px; text-align: center; white-space: nowrap; font-size: 14.5px; font-weight: 600; line-height: 20px;
+  color: var(--on-var); transition: opacity .3s }
+.tab:focus-visible { outline-offset: -4px }
 .jobs { display: grid; gap: var(--space-3); margin-top: var(--space-4) }
 .job { display: flex; gap: var(--space-3); padding: var(--space-4); cursor: pointer; text-align: start; width: 100%; align-items: flex-start }
 .job .ico { width: 44px; height: 44px; border-radius: var(--radius-xs); display: grid; place-items: center; flex: none }
@@ -196,7 +234,7 @@ bdi.t { font-variant-numeric: tabular-nums; unicode-bidi: isolate }
 .mini .seek .tr b { position: absolute; top: -3px; width: 2px; height: 10px; background: var(--on-var); opacity: .5 }
 
 /* חלונית הראיה — גיליון תחתון לא מודאלי */
-.sheet { position: fixed; inset: auto 0 0 0; z-index: 30; display: flex; justify-content: center; pointer-events: none;
+.sheet { position: fixed; inset: auto 0 0 0; z-index: 60; display: flex; justify-content: center; pointer-events: none;
   padding: 0 max(8px, env(safe-area-inset-right, 0px)) 0 max(8px, env(safe-area-inset-left, 0px)) }
 .sheet .in { pointer-events: auto; width: 100%; max-width: 446px; background: var(--surface); border: 1px solid var(--card-border); border-bottom: 0;
   border-radius: var(--radius-xl) var(--radius-xl) 0 0; box-shadow: var(--sheet-sh); padding: var(--space-2) var(--space-5) calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
@@ -218,7 +256,7 @@ bdi.t { font-variant-numeric: tabular-nums; unicode-bidi: isolate }
 .why { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3) }
 .why button { border: 1px solid var(--sep); background: none; border-radius: var(--pill); padding: 6px 12px; font-size: 14px; cursor: pointer }
 .why button[aria-pressed="true"] { background: var(--pc); color: var(--on-pc); border-color: transparent }
-.toast { position: fixed; inset: auto 0 calc(var(--space-6) + env(safe-area-inset-bottom, 0px)); margin: 0 auto; width: fit-content; z-index: 40;
+.toast { position: fixed; inset: auto 0 calc(132px + env(safe-area-inset-bottom, 0px)); margin: 0 auto; width: fit-content; z-index: 70;
   background: var(--on); color: var(--bg); padding: 10px 18px; border-radius: var(--pill); font-size: 15px; opacity: 0; transform: translateY(10px);
   transition: opacity .25s, transform .25s; pointer-events: none }
 .toast.on { opacity: 1; transform: none }
@@ -230,7 +268,8 @@ bdi.t { font-variant-numeric: tabular-nums; unicode-bidi: isolate }
     <b>תצוגה מקדימה · נתוני דמו</b>
     <div class="seg" id="scr">
       <button type="button" data-s="form" aria-pressed="false">טופס</button>
-      <button type="button" data-s="home" aria-pressed="false">בית</button>
+      <button type="button" data-s="list" aria-pressed="false">לשונית הניתוח</button>
+      <button type="button" data-s="job" aria-pressed="false">העבודה</button>
       <button type="button" data-s="vi" aria-pressed="true">דף הניתוח</button>
     </div>
     <button type="button" class="tg" id="tDraft" aria-pressed="false">טיוטה שלא אומתה</button>
@@ -276,32 +315,47 @@ bdi.t { font-variant-numeric: tabular-nums; unicode-bidi: isolate }
     <div class="cta"><button class="btn pri" type="button" id="go" disabled>נתח</button></div>
   </section>
 
-  <!-- ===== הבית ===== -->
-  <section id="s-home" hidden>
+  <!-- ===== לשונית הניתוח (כמו לשונית הקריוקי: רשימה משלה) ===== -->
+  <section id="s-list" hidden>
     <div class="top">
-      <h1>Studio</h1>
-      <button class="ib" type="button" aria-label="עבודה חדשה"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
-    </div>
-    <div class="chips" role="group" aria-label="סוג" id="kinds">
-      <button class="chip" type="button" aria-pressed="true" data-k="">הכל</button>
-      <button class="chip" type="button" aria-pressed="false" data-k="tr">תרגום</button>
-      <button class="chip" type="button" aria-pressed="false" data-k="ka">קריוקי</button>
-      <button class="chip" type="button" aria-pressed="false" data-k="vi">ניתוח</button>
+      <h1>ניתוח סרטונים</h1>
+      <button class="ib" type="button" aria-label="ניתוח חדש" id="newVi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
     </div>
     <div class="jobs" id="jobs">
-      <button class="card job" type="button" data-k="vi">
+      <button class="card job" type="button" data-go="job">
         <span class="ico vi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 6h14M5 11h9M5 16h11"/><circle cx="18" cy="16" r="2.4"/></svg></span>
-        <span class="k"><span class="n">Deep work for researchers</span><span class="s">ניתוח · ממפה את הפרקים · עוד כ־9 דק׳</span><span class="prog"><i style="width:58%"></i></span></span>
+        <span class="k"><span class="n">Deep work for researchers</span><span class="s">ממפה את הפרקים · עוד כ־9 דק׳</span><span class="prog"><i style="width:58%"></i></span></span>
       </button>
-      <button class="card job" type="button" data-k="vi" data-open="1">
+      <button class="card job" type="button" data-go="vi">
         <span class="ico vi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 6h14M5 11h9M5 16h11"/><circle cx="18" cy="16" r="2.4"/></svg></span>
-        <span class="k"><span class="n">שינה וזיכרון: למה ללמוד בערב</span><span class="s">ניתוח · <bdi class="t" dir="ltr">52:14</bdi> · 7 פרקים · היום</span><span class="tag ok"><bdi class="t" dir="ltr">42/45</bdi> אומתו</span></span>
+        <span class="k"><span class="n">שינה וזיכרון: למה ללמוד בערב</span><span class="s"><bdi class="t" dir="ltr">52:14</bdi> · 7 פרקים · היום</span><span class="tag ok"><bdi class="t" dir="ltr">42/45</bdi> אומתו</span></span>
       </button>
-      <button class="card job" type="button" data-k="tr">
-        <span class="ico tr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M7 14h4M13 14h4M7 11h10"/></svg></span>
-        <span class="k"><span class="n">Panel: the future of cities</span><span class="s">תרגום · עברית · אתמול</span></span>
+      <button class="card job" type="button" data-go="vi">
+        <span class="ico vi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 6h14M5 11h9M5 16h11"/><circle cx="18" cy="16" r="2.4"/></svg></span>
+        <span class="k"><span class="n">תמחור מוצר SaaS — וובינר</span><span class="s"><bdi class="t" dir="ltr">1:04:30</bdi> · 9 פרקים · אתמול</span><span class="tag ok"><bdi class="t" dir="ltr">51/53</bdi> אומתו</span></span>
       </button>
     </div>
+  </section>
+
+  <!-- ===== העבודה — הלשונית "פעילה" כשהעבודה הפעילה היא ניתוח (כמו בתרגום); בסיום — "אחרונה", ונפתח דף הניתוח ===== -->
+  <section id="s-job" hidden>
+    <div class="top"><h1 style="font-size:26px">Deep work for researchers</h1></div>
+    <div class="card src">
+      <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 6h14M5 11h9M5 16h11"/><circle cx="18" cy="16" r="2.4"/></svg></div>
+      <div style="flex:1;min-width:0"><div class="n">ניתוח · אנגלית</div><div class="muted" style="font-size:14px"><bdi class="t" dir="ltr">41:08</bdi> · רגיל</div></div>
+    </div>
+    <div class="card stg">
+      <div class="eta"><b>ממפה את הפרקים</b><span class="muted">עוד כ־9 דק׳</span></div>
+      <div class="prog"><i style="width:58%"></i></div>
+      <ol class="steps">
+        <li class="ok">הורדה</li>
+        <li class="ok">תמלול<small>אנגלית · איכות גבוהה</small></li>
+        <li class="ok">שקפים<small>23 שקפים</small></li>
+        <li class="now">מיפוי הפרקים</li>
+        <li>כתיבה ואימות</li>
+      </ol>
+    </div>
+    <p class="muted note">הניתוח ייפתח כאן כשיסתיים.</p>
   </section>
 
   <!-- ===== דף הניתוח ===== -->
@@ -361,6 +415,8 @@ bdi.t { font-variant-numeric: tabular-nums; unicode-bidi: isolate }
     <div class="card tx" id="tx" lang="en"></div>
   </section>
 </div>
+
+<nav class="dock" id="dock" role="tablist" aria-label="ניווט בסטודיו"><div class="in" id="dockIn"><button class="tab" type="button" role="tab" data-tab="vi" aria-label="ניתוח"><span class="disc"><span class="glow"></span><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12.5" rx="2.5"/><path d="M12 16.5V20M8.5 20h7M7 8.5h5M7 12h3"/><circle cx="15.6" cy="10" r="2.2"/><path d="M17.2 11.6l1.5 1.5"/></svg></span><span class="l">ניתוח</span></button><button class="tab" type="button" role="tab" data-tab="ka" aria-label="קריוקי"><span class="disc"><span class="glow"></span><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8.5" cy="17.5" r="3"/><path d="M11.5 17.5V3.5c0 2.6 4.8 3.4 4.8 7.2"/></svg></span><span class="l">קריוקי</span></button><button class="tab" type="button" role="tab" data-tab="home" aria-label="תרגום סרטונים"><span class="disc"><span class="glow"></span><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M10.2 7.6v4.8l4-2.4z"/><path d="M7 16h5.5M14.5 16H17"/></svg></span><span class="l">תרגום סרטונים</span></button><button class="tab" type="button" role="tab" data-tab="job" aria-label="פעילה"><span class="disc"><span class="glow"></span><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h3.8l2.4-6.5 5.6 13 2.4-6.5H21"/></svg></span><span class="l">פעילה</span></button><button class="tab" type="button" role="tab" data-tab="tower" aria-label="מגדל"><span class="disc"><span class="glow"></span><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.2 21l.9-8.5h3.8l.9 8.5M7 21h10M6.5 8.5h11l-1.6 4h-7.8zM12 8.5V4.5M9.8 4.5h4.4"/></svg></span><span class="l">מגדל</span></button></div></nav>
 
 <div class="sheet" id="sheet" aria-hidden="true">
   <div class="in" role="dialog" aria-modal="false" aria-labelledby="shT">
@@ -457,14 +513,35 @@ bdi.t { font-variant-numeric: tabular-nums; unicode-bidi: isolate }
   $('tx').innerHTML = TX.map(function (r) { return '<p data-t="' + r[0] + '"><bdi class="t" dir="ltr">' + fmt(r[0]) + '</bdi><span class="en">' + esc(r[1]) + '</span></p>'; }).join('');
 
   /* מסכים */
+  /* החוגה — dialFrame מ־core: מרווח לפי רוחב, קשת (2.7·d²), השכנים מוקטנים, הרחוקים נמוגים; כיתוב עד מרחק 1.5 */
+  var KEYS = ['vi', 'ka', 'home', 'job', 'tower'], dialAt = 'vi';
+  function dial(k, jobLbl) {
+    if (k) dialAt = k;
+    var tabs = $('dockIn').children, W = $('dockIn').clientWidth || 390, S = Math.max(66, Math.min(96, W / 4.8)), pos = KEYS.indexOf(dialAt);
+    var c01 = function (x) { return Math.max(0, Math.min(1, x)); };
+    Array.prototype.forEach.call(tabs, function (b, i) {
+      var d = i - pos, ad = Math.abs(d), on = d === 0;
+      b.style.transform = 'translate3d(' + (-d * S) + 'px,' + (2.7 * d * d - (on ? 4 : 0)) + 'px,0) scale(' + (1 - 0.045 * Math.min(ad, 3)) + ')';
+      b.style.opacity = c01((3.6 - ad) / 0.6);
+      b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on));
+      b.querySelector('.l').style.opacity = c01((2 - ad) / 0.5);
+    });
+    if (jobLbl) { var jb = tabs[3]; jb.querySelector('.l').textContent = jobLbl; jb.setAttribute('aria-label', jobLbl); }
+  }
+  var viFrom = 'job';
   function show(s) {
-    ['form', 'home', 'vi'].forEach(function (k) { $('s-' + k).hidden = k !== s; });
+    ['form', 'list', 'job', 'vi'].forEach(function (k) { $('s-' + k).hidden = k !== s; });
+    $('dock').hidden = s === 'form';   /* בטופס — בלי חוגה (כמו בכל טופס בסטודיו) */
+    if (s === 'list') dial('vi', 'פעילה');
+    if (s === 'job') dial('job', 'פעילה');
+    if (s === 'vi') dial(viFrom, 'אחרונה');
     Array.prototype.forEach.call($('scr').children, function (b) { b.setAttribute('aria-pressed', String(b.dataset.s === s)); });
     closeSheet(); window.scrollTo(0, 0);
     try { localStorage.setItem('vi-pv-s', s); } catch (e) {}
   }
-  $('scr').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) show(b.dataset.s); });
+  $('scr').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; if (b.dataset.s === 'vi') viFrom = 'job'; show(b.dataset.s); });
   try { var s0 = localStorage.getItem('vi-pv-s'); if (s0 && $('s-' + s0)) show(s0); } catch (e) {}
+  if (!$('dockIn').querySelector('.tab.on')) show('vi');
 
   $('tTheme').addEventListener('click', function () {
     var dark = this.getAttribute('aria-pressed') !== 'true';
@@ -489,16 +566,20 @@ bdi.t { font-variant-numeric: tabular-nums; unicode-bidi: isolate }
     Array.prototype.forEach.call(this.children, function (x) { x.setAttribute('aria-pressed', String(x === b)); });
   });
   $('rights').addEventListener('change', function () { $('go').disabled = !this.checked; });
-  $('go').addEventListener('click', function () { show('home'); toast('הניתוח התחיל'); });
+  $('go').addEventListener('click', function () { show('job'); toast('הניתוח התחיל'); });
 
-  /* בית */
-  $('kinds').addEventListener('click', function (e) {
-    var b = e.target.closest('.chip'); if (!b) return;
-    Array.prototype.forEach.call(this.children, function (x) { x.setAttribute('aria-pressed', String(x === b)); });
-    Array.prototype.forEach.call($('jobs').children, function (j) { j.hidden = !!b.dataset.k && j.dataset.k !== b.dataset.k; });
+  /* לשונית הניתוח והחוגה */
+  $('newVi').addEventListener('click', function () { show('form'); });
+  $('jobs').addEventListener('click', function (e) { var j = e.target.closest('[data-go]'); if (!j) return; if (j.dataset.go === 'vi') viFrom = 'vi'; show(j.dataset.go); });
+  $('viBack').addEventListener('click', function () { show('list'); });
+  $('dockIn').addEventListener('click', function (e) {
+    var b = e.target.closest('.tab'); if (!b) return;
+    var k = b.dataset.tab;
+    if (k === 'vi') show('list');
+    else if (k === 'job') { viFrom = 'job'; show('job'); }
+    else { dial(k); toast('בתצוגה הזאת — רק הניתוח והעבודה'); }
   });
-  $('jobs').addEventListener('click', function (e) { var j = e.target.closest('[data-open]'); if (j) show('vi'); });
-  $('viBack').addEventListener('click', function () { show('home'); });
+  window.addEventListener('resize', function () { dial(); });
 
   /* חלונית הראיה — לא מודאלית; Escape / "חזור" סוגרים אותה לפני הדף */
   var cur = null;
