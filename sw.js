@@ -4,13 +4,13 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v743';
+const CACHE_NAME = 'portfolio-pwa-v744';
 const HASHES = {
   "./": "1c1b1c7b94b6a27765e902349c5a98a6",
   "./index.html": "1c1b1c7b94b6a27765e902349c5a98a6",
   "./styles.css": "35957b4b46b58dc0c491a486311488a5",
   "./glass-btn.css": "fc3022cd33dcb1241881566faf561f0c",
-  "./app.js": "f19e91d49ecd843d882937d5477c924e",
+  "./app.js": "5e8040a0afe7a50bae1f68735b2749f2",
   "./returns.js": "3590562b0282025a8a79650ad6b3a49b",
   "./cloud.js": "d403f6c76884375dc9999b80660f1ddf",
   "./firebase-config.js": "8507173a957371e15933229f5fd4dd3f",
@@ -75,8 +75,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "5f56f60e654738ec753d8039eeedc8cf",
   "./academy-app.js": "130b15379b74427d8f0071032894b5f0",
-  "./strings-academy.js": "ba489a0f83cad1001f206db0a5c82a96",
-  "./core.js": "3ce17fa758e9c76bd72801cb01ccb8d6",
+  "./strings-academy.js": "90b24596d3cd3a68df8f2ad69af0a714",
+  "./core.js": "50286f6ce7fa748875d4b92110a5ad3b",
   "./auth.js": "465d3bc983806d8a2f462e567725df21",
   "./shell.js": "ff3e914427ef1382c23bfb3960212dc8",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -98,7 +98,7 @@ const HASHES = {
   "./studiobg.js": "9013d96cee956642e0735806ea1e60c3",
   "./studio.html": "6748141d96e70a259c8b7fa585d9bba1",
   "./studio-app.js": "994518b872f1741343cb1ef9e0e66b71",
-  "./strings-studio.js": "43e502c02ec4b946290f5644f4d87c45",
+  "./strings-studio.js": "07ee7806ddfe81a0a75fe8551cebd07f",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
@@ -109,7 +109,7 @@ const HASHES = {
   "./cashflow-app.js": "11ba648ca3c2057c9b2401d057b797fe",
   "./cashflow.js": "1de770e2690738351b4172a47b3e55e4",
   "./cashflow.css": "6d697a67077c9631f7a849a55b9283cd",
-  "./strings-cashflow.js": "ae35c459ff4e4f25e3a19cabf45ec40f",
+  "./strings-cashflow.js": "8fe5f4004b0f7aef294fa1afc84c5243",
   "./logo-cashflow.webp": "fdd001e0dc9d0a80c30961d58864ad96",
   "./logo-cashflow-lg.webp": "4988d060c48fbdf3f6de792f1237c710",
   "./icon-cashflow-192.png": "cf3bed681a924e2fbecc04893a92f5bf",

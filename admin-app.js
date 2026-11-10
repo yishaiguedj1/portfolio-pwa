@@ -1462,9 +1462,10 @@ function vrLines(r) {
 }
 /* PR 1.6 (ה5): טיוטת ייחוס מהמודל — Sonnet, או Haiku הזול; ⛔ בתשלום — רק אחרי אישור המחיר. "טען" ממלא את העורך, והשמירה היא האישור */
 function vrDraftUi(p, job, e) {
-  const dr = D.vrDr || { usd: {} }, dm = D.vrDm === 'h' ? 'h' : 's', mn = dm === 's' ? 'Sonnet' : 'Haiku', usd = (dr.usd || {})[dm];
+  // PR 1.8: ‏Opus (ברירת המחדל — הייחוס הוא הסרגל של כל הגלים) → Sonnet → Haiku
+  const dr = D.vrDr || { usd: {} }, dm = VR_DM.includes(D.vrDm) ? D.vrDm : 'o', mn = VR_DMN[dm], usd = (dr.usd || {})[dm];
   const busy = ['new', 'queued', 'running'].includes(dr.st);
-  const rows = [row({ c: 'blue', ic: '⇄', t: t('admViDrModel'), v: mn, s: fmt(t(dm === 's' ? 'admViDrS' : 'admViDrH'), { usd }), on: () => { D.vrDm = dm === 's' ? 'h' : 's'; paint(); } })];
+  const rows = [row({ c: 'blue', ic: '⇄', t: t('admViDrModel'), v: mn, s: fmt(t(dm === 'o' ? 'admViDrO' : dm === 's' ? 'admViDrS' : 'admViDrH'), { usd }), on: () => { D.vrDm = VR_DM[(VR_DM.indexOf(dm) + 1) % VR_DM.length]; paint(); } })];
   if (busy) rows.push(row({ c: 'gray', ic: '…', t: t('admViDrBusy') }));
   else if (dr.d) rows.push(row({ c: 'green', ic: '✓', t: t('admViDrReady'), s: fmt(t('admViDrN'), { b: dr.d.bounds.length, u: dr.d.units.length, q: dr.d.qa.length }),
     on: () => { D.vrEd = Object.assign(vrLines(dr.d), { he: e.he, lic: e.lic, tier: e.tier }); flash(t('admViDrLoaded')); paint(); } }));
@@ -1480,6 +1481,7 @@ function vrDraftUi(p, job, e) {
   }, { ok: t('admViDrRun') }));
   const br = h('div', 'btn-row'); br.append(b); p.append(br);
 }
+const VR_DM = ['o', 's', 'h'], VR_DMN = { o: 'Opus', s: 'Sonnet', h: 'Haiku' };   // = VP_MODES בשרתון
 const VR_GENRES = ['academic_lecture', 'course_module', 'business_webinar', 'conference_talk', 'panel', 'interview_podcast', 'software_tutorial', 'product_demo', 'workshop', 'investor_presentation', 'other'];   // = VI_GENRES בשרתון
 page('viRef', { tab: 'imp', parent: 'viGold', title: () => t('admViRefT'), render(p) {
   const job = D.gj && !D.gj.err && D.gj.jobs.find((j) => j.id === D.vrJob);
