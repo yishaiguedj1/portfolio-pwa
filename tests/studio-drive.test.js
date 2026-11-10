@@ -13,7 +13,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const st = read('studio.js');
   const body = st.replace(/^export (const|function) /gm, '$1 ').replace(/^import \{([^}]+)\} from '[^']+';$/gm, 'const {$1} = __stubs;');
   const STUBS = { createNet: () => ({}), probeVideo: async () => ({}), extractAudio: async () => ({}), uploadBoth: async () => {}, stageEstimates: N.stageEstimates, progressModel: N.progressModel,
-    createBackup: () => ({}), waitOAuthCode: () => {}, normEdl: ED.normEdl, edlPre: ED.edlPre, outDur: ED.outDur, edlDur: ED.edlDur, normTrackPref: (x) => ({ a: '', cc: '', ...(x || {}) }), normPq: (v) => v || 'src', normLadder: () => null, normChapters: () => [], normSty: () => null, normPlaces: () => ({}), STY_COLORS: {}, STY_Y: 40 };
+    createBackup: () => ({}), waitOAuthCode: () => {}, normEdl: ED.normEdl, edlPre: ED.edlPre, outDur: ED.outDur, edlDur: ED.edlDur, normTrackPref: (x) => ({ a: '', cc: '', ...(x || {}) }), normPq: (v) => v || 'src', normLadder: () => null, normChapters: () => [], normSty: () => null, normPlaces: () => ({}), normVw: () => ({ a: '', x: 0, c: 0 }), STY_COLORS: {}, STY_Y: 40 };
   const S = new Function('t', '__stubs', body + '\nreturn { normDraft, newDraft, normJob };')(undefined, STUBS);
 
   /* ---------- טיוטה ועבודה ---------- */

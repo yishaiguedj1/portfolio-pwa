@@ -230,7 +230,8 @@ function mkDoc() {
   ok(same(P.defsOf(vd2, { a: 'st', x: 1 }).map((g) => g.k), ['formula']) && same(P.defsOf(vd2, { a: 'biz', x: 0 }).map((g) => g.k), ['definition', 'example']), 'defsOf — מומחה ועסקים מסננים');
   ok(same(P.tplOf(v, ix).map((g) => g.k + ':' + ids(g.its)), ['learn:n1,n2', 'exam:n4', 'step:n3']) && same(P.tplOf(v, ix, ['price']), []), 'tplOf — בסדר VI_TPL, רק מה שיש');
   const vws = [];
-  const pt = P.renderVi(ctx(v, { vw: { a: '', x: 0, c: 0 }, onVw: (x) => vws.push(x) }));
+  const vT = P.normVi(Object.assign({}, good, { thesis: 'n4' }));   // big (n3) כבר בתמצית — לא חוזר
+  const pt = P.renderVi(ctx(vT, { vw: { a: '', x: 0, c: 0 }, onVw: (x) => vws.push(x) }));
   await new Promise((r) => setTimeout(r, 0));
   const et = pt.el, vwr = et.byCls('st-vi-vw')[0];
   ok(vwr && vwr.tagName === 'DETAILS' && et.byCls('st-vi-vwv')[0].textContent === 'studioViAudSt · studioViLvBeg · studioViLenFull', 'שורת התצוגה — מקופלת, ומציגה את הבחירה (סטודנט לפי הז׳אנר)');
@@ -244,7 +245,9 @@ function mkDoc() {
   et.byK('vwa:res').click();
   ok(same(vws[vws.length - 1], { a: 'res', x: 0, c: 0 }) && kinds(et) === 'gist,deep,steps,toc' && et.byCls('st-vi-vwv')[0].textContent.startsWith('studioViAudRes'), 'חוקר — התזה והתמונה הרחבה במקום ההרצאה; ההעדפה נשמרת (onVw)');
   ok(et.byK('vwa:res').getAttribute('aria-checked') === 'true' && et.byK('vwa:st').getAttribute('aria-checked') === 'false', 'aria-checked מתעדכן');
-  ok(et.byCls('st-vi-deep')[0].byCls('st-vi-gt').map((x) => x.textContent).join() === 'studioViThesis,studioViBig', 'התזה והתמונה הרחבה');
+  ok(et.byCls('st-vi-deep')[0].byCls('st-vi-gt').map((x) => x.textContent).join() === 'studioViThesis', 'כרטיס החוקר — בלי מה שכבר בתמצית (התמונה הרחבה = נקודה)');
+  const pg2 = P.renderVi(ctx(v, { vw: { a: 'res' } }));
+  ok(!pg2.el.byCls('st-vi-deep').length, 'התזה = השורה האחת, התמונה הרחבה = נקודה — אין כרטיס חוקר'); pg2.destroy();
   const n0 = vws.length; et.byK('vwa:res').click();
   ok(vws.length === n0, 'לחיצה על הבחירה הנוכחית — כלום');
   et.byK('vwa:biz').click();

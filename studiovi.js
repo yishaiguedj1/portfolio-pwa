@@ -410,18 +410,19 @@ export function renderVi(ctx) {
   const TPL_T = { learn: T('studioViTpLearn'), board: T('studioViTpBoard'), stress: T('studioViTpStress'), exam: T('studioViTpExam'), offer: T('studioViTpOffer'), price: T('studioViTpPrice'), check: T('studioViTpCheck'), free: T('studioViTpFree') };
   const DEF_T = { definition: T('studioViDfDef'), formula: T('studioViDfFor'), derivation: T('studioViDfDer'), example: T('studioViDfEx') };
   const groups = (c, gs, names) => { for (const g of gs) c.append(h('h3', 'st-vi-gt', names[g.k]), list(vw.c ? g.its.slice(0, VI_CONCISE_N) : g.its, 'st-vi-notes')); return c; };
-  const chEls = [];
+  const chEls = [], gistIds = new Set();   // מה שכבר בתמצית — לא חוזר בכרטיס החוקר
   const BLK = {
     gist() {   // השורה האחת והנקודות; עסקים — השורה התחתונה (bluf) קודם
       const top = vw.a === 'biz' ? ix.it.get(v.briefing.bluf) || br.one : br.one, pts = br.pts.filter((x) => x !== top).slice(0, vw.c ? VI_CONCISE_N : 5);
       if (!top && !pts.length) return null;
+      for (const x of [top, ...pts]) if (x) gistIds.add(x.id);
       const g = h('div', 'st-vi-card st-vi-gist');   // כמו .st-jhero (זכוכית, --gl-card-sh)
       if (top) { const one = h('p', 'st-vi-one', top.text); const c = chipOf(top); if (c) one.append(c); g.append(one); }
       if (pts.length) { const ul = h('ul', 'st-vi-pts'); for (const it of pts) ul.append(point(it, 'st-vi-pt')); g.append(ul); }
       return g;
     },
     deep() {   // חוקר: התזה והתמונה הרחבה
-      const gs = [[T('studioViThesis'), ix.it.get(v.thesis)], [T('studioViBig'), ix.it.get(v.big)]].filter((x) => x[1]);
+      const gs = [[T('studioViThesis'), ix.it.get(v.thesis)], [T('studioViBig'), ix.it.get(v.big)]].filter((x) => x[1] && !gistIds.has(x[1].id));
       if (!gs.length) return null;
       const c = h('div', 'st-vi-card st-vi-deep');
       for (const [t, it] of gs) c.append(h('h3', 'st-vi-gt', t), list([it], 'st-vi-notes'));
@@ -444,7 +445,7 @@ export function renderVi(ctx) {
   };
   function build() {
     body.textContent = '';
-    anchors.clear(); ptEls.clear(); chEls.length = 0; curItem = null;
+    anchors.clear(); ptEls.clear(); gistIds.clear(); chEls.length = 0; curItem = null;
     for (const k of viBlocks(vw)) { const x = BLK[k](); if (x) body.append(...[].concat(x)); }
     if (ctl) paint();
   }
