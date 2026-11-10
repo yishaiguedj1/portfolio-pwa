@@ -300,9 +300,13 @@ ENV PATH=/opt/vt/bin:/opt/ffmpeg:/opt/deno:/usr/local/bin:/usr/bin:/bin \
     HF_HOME=/cache/hf TORCH_HOME=/cache/torch XDG_CACHE_HOME=/cache/xdg \
     HF_HUB_DISABLE_TELEMETRY=1 DO_NOT_TRACK=1 \
     MALLOC_ARENA_MAX=2 \
+    SNB_VI_LIVE=1 \
     SNB_VERSION=${SNB_VERSION}
 # MALLOC_ARENA_MAX=2: בלי זה glibc פותח arena לכל ליבה×8 — ב־torch מרובה־תהליכונים זה מאות MB של
 # זיכרון "רפאים", והיישור כבר רץ צמוד לתקרת ה־6GB של הקונטיינר (המלצת מחקר ה־Arm, 09/10/2026).
+# SNB_VI_LIVE=1 (10/11/2026, באישור המשתמש עם המחיר): ניתוח הסרטונים עם Claude פתוח (analyze.live_ok). בקוד ובבדיקות
+# הוא סגור כברירת מחדל; כאן — בתמונה, כך שהוא נפתח עם אישור worker-image ובלי התקנה בשרת. סגירה: תמונה בלי השורה (או
+# SNB_VI_LIVE=0 ב־environment של compose.yaml + hostfix apply). למשתמשים שאינם המנהל — גם הדגל st_vi במרכז הניהול.
 
 USER 10001:10001
 WORKDIR /app
