@@ -200,7 +200,7 @@ class TestOutputs(unittest.TestCase):
         self.assertTrue(set(A.VI_WARN) >= {"vi_noscreen", "vi_lowres", "vi_ocr", "vi_asr_low", "ts_coarse"})
 
     def test_files_and_constants(self):
-        self.assertEqual([k for k, *_ in A.VI_FILES], ["vi", "vis", "cues", "small", "thumb"])
+        self.assertEqual([k for k, *_ in A.VI_FILES], ["vi", "vis", "cues", "same", "thumb"])
         self.assertLessEqual(len(A.VI_FILES), 12, "OUT_MAX")
         self.assertEqual(len(set(A.VI_ERR)), len(A.VI_ERR))
         self.assertEqual(A.mem_need(0), round(4600 * 1.1))
@@ -310,9 +310,20 @@ class TestScreenStage(unittest.TestCase):
             self.assertEqual(r["units"], [])
 
 
+class Client:
+    """ctx.c מדומה: learnPut נרשם (השרתון מחליט אם לשמור — כאן "נשמר")"""
+    def __init__(self):
+        self.put = []
+
+    def raw(self, op, **kw):
+        self.put.append((op, kw))
+        return {"ok": True, "saved": True}
+
+
 class Ctx:
     def __init__(self, st, pdir):
         self.st, self._pdir, self.name, self.reports = st, pdir, "jtestvi", []
+        self.c = Client()
 
     @property
     def pdir(self):
@@ -374,7 +385,7 @@ class FakeJ:
             (out / "thumb.jpg").write_bytes(b"\xff\xd8\xff" + b"\0" * 20)
             VI.write(out / "screen.json", dict(SCREEN, w=1280, h=720, noscreen=False, lowres=False, img="webp",
                                                stats={"ocr_err": 1, "ocr_n": 2, "procs": 4}))
-        elif args[0] == "vi-small":
+        elif args[0] == "vi-same":
             out.write_bytes(b"\0" * 64)
         self.note_timing(ctx, args[0], t0, time.time() + 0.01, 1234, 2.0)
 
@@ -417,8 +428,8 @@ class TestViRun(unittest.TestCase):
         last = ctx.reports[-1]
         self.assertTrue(last.get("done"))
         self.assertEqual(last["vsm"]["d"], 6)
-        self.assertEqual([o["k"] for o in last["out"]], ["vi", "vis", "cues", "small", "thumb"])
-        self.assertEqual(J.calls, ["url_fetch", "vi-asr", "vi-screen", "vi-align", "vi-small"])
+        self.assertEqual([o["k"] for o in last["out"]], ["vi", "vis", "cues", "same", "thumb"])
+        self.assertEqual(J.calls, ["url_fetch", "vi-asr", "vi-screen", "vi-align", "vi-same"])
         vi = json.loads((ctx.pdir / "vi.json").read_text())
         self.assertEqual(vi["v"], A.VI_V)
         self.assertEqual([u["text"] for u in vi["evidence"]], ["Gradient descent works.", "Next"])
@@ -465,7 +476,14 @@ class TestViRun(unittest.TestCase):
         seen = []
 
         def ask(k, text):
-            seen.append(text)
+            seen.append((k, text))
+            if k == "vs":
+                return "<json>" + json.dumps({"one": {"text": "ירידת גרדיאנט עובדת", "from": ["n1"]},
+                                              "bluf": {"text": "השיטה עובדת.", "from": ["n1"]},
+                                              "take": [{"text": "ירידת גרדיאנט עובדת היטב", "from": ["n1"]}],
+                                              "thesis": None, "big": None, "adds": []}, ensure_ascii=False) + "</json>"
+            if k == "vv":
+                return "\n".join("%s|sup" % i for i in re.findall(r"Claim (n\d+):", text))
             e = re.findall(r"^\[(e\d+)", text, re.M)
             d = {"genre": "academic_lecture", "segments": [{"from": e[0], "type": "content"}],
                  "chapters": [{"from": e[0], "lvl": 1, "cont": False, "title": "ירידת גרדיאנט", "sum": "השיטה עובדת."}],
@@ -475,14 +493,35 @@ class TestViRun(unittest.TestCase):
             return "<json>" + json.dumps(d, ensure_ascii=False) + "</json>"
         rc, ctx, J, out = self.run_vi(engine=llm.ManualEngine(ask), dry=0)
         self.assertEqual(rc, 0)
-        self.assertEqual(len(seen), 1)
-        self.assertNotIn("1.6", seen[0].split("## Window")[1], "בלי זמנים בחלון")
+        self.assertEqual([k for k, _ in seen], ["vm", "vs", "vv"], "מיפוי, סינתזה, אימות")
+        self.assertNotIn("1.6", seen[0][1].split("## Window")[1], "בלי זמנים בחלון")
         vi = json.loads((ctx.pdir / "vi.json").read_text())
         self.assertEqual(vi["chapters"][0]["title"], "ירידת גרדיאנט")
         it = vi["items"][0]
         self.assertEqual((it["id"], it["ch"], it["t"], it["src"]), ("n1", "c1", 1.6, "speech"), "זמן המילה descent")
-        self.assertIn("vi_unver", vi["quality"]["warn"])
+        self.assertNotIn("vi_unver", vi["quality"]["warn"], "האימות הושלם")
+        self.assertNotIn("vi_partial", vi["quality"]["warn"])
+        self.assertEqual(it["ver"], "sup")
+        self.assertEqual(vi["quality"]["sup"], len(vi["items"]), "כל הפריטים אומתו")
+        bf = vi["briefing"]
+        self.assertEqual(len(bf["take"]), 1)
+        self.assertTrue(bf["one"] and bf["bluf"])
         self.assertNotIn("tok", vi, "vi.json חי עובר norm_vi — העלות רק בדיווח ובעובדות")
+        # מאגר הלמידה: הרשומה המספרית בדיווח האחרון, הקורפוס לפניו (learnPut)
+        lx = ctx.reports[-1]["lx"]
+        self.assertEqual(lx["out"], {"st": "done"})
+        self.assertEqual(lx["counts"]["claims"], len(vi["items"]))
+        self.assertEqual(lx["counts"]["sup"], len(vi["items"]))
+        self.assertEqual(sorted(lx["t"]), ["al", "bn", "rv", "sv", "tr", "up"])
+        self.assertEqual(lx["pv"]["vp"], "1")
+        [(op, kw)] = ctx.c.put
+        self.assertEqual(op, "learnPut")
+        import base64
+        import gzip
+        lc = json.loads(gzip.decompress(base64.b64decode(kw["lc"])))
+        self.assertEqual(lc["v"], A.VC_V)
+        self.assertEqual(sorted(lc["dr"]), ["m0", "m1", "s0", "v0"], "כל הטיוטות")
+        self.assertNotIn("הרצאה", json.dumps(lc, ensure_ascii=False), "בלי שם הקובץ")
         self.assertTrue(callable(J.LIVE_USAGE), "העלות בזמן ריצה — כמו בתרגום")
         self.assertEqual(ctx.reports[-1]["msg"], "הניתוח מוכן")
         facts = json.loads([x for x in out.splitlines() if x.startswith("VI_RUN ")][0][7:])
@@ -496,7 +535,11 @@ class TestViRun(unittest.TestCase):
             self.run_vi(engine=llm.ManualEngine(lambda k, t: "not json"), dry=0)
         r = self.ctx.reports[-1]
         self.assertEqual((r["err"], r["fail"]), ("vi_schema", True))
-        self.assertNotIn("vi-small", self.J.calls, "בלי תוצרים")
+        self.assertNotIn("vi-same", self.J.calls, "בלי תוצרים")
+        lx = r["lx"]
+        self.assertEqual(lx["out"], {"st": "failed", "err": "vi_schema"}, "הרשומה המספרית גם בכישלון")
+        self.assertNotIn("counts", lx)
+        self.assertEqual(self.ctx.c.put, [], "בלי קורפוס כשאין ניתוח")
 
     def test_live_gate_env(self):
         os.environ["SNB_VI_LIVE"] = "1"

@@ -444,13 +444,13 @@ def cmd_vi_screen(a):
     vi.write(out / "screen.json", r)
 
 
-def cmd_vi_small(a):
-    """ניתוח סרטונים, שלב bn: עותק צפייה 480p בלי צריבה. PR 0.2."""
+def cmd_vi_same(a):
+    """ניתוח סרטונים, שלב bn: הסרטון באיכות המקור, בלי צריבה (4.4, ה4; ‏PR 1.2ב — במקום עותק 480p)."""
     from . import vi, media
     info = media.probe(Path(a.src))
     if not info.get("video"):
         die("אין וידאו בקובץ")
-    vi.small(a.src, Path(a.out), float(info.get("duration") or 0) or 1.0)
+    print("same: " + vi.same(a.src, Path(a.out), info), flush=True)
 
 
 def cmd_plan(a):
@@ -985,7 +985,7 @@ def main(argv=None):
     p.add_argument("--procs", type=int, help="תהליכי OCR (ברירת מחדל VI_OCR_PROCS, ‏4)")
     p.add_argument("--mem-mb", type=float, help="ההזמנה של העבודה (MB) — לשומר הזיכרון")
     p.add_argument("--max-s", type=float, help="רק השניות הראשונות")
-    p = add("vi-small", cmd_vi_small, help="ניתוח סרטונים: עותק צפייה 480p")
+    p = add("vi-same", cmd_vi_same, help="ניתוח סרטונים: הסרטון לנגן באיכות המקור")
     p.add_argument("src")
     p.add_argument("--out", required=True)
     add("plan", cmd_plan, "name", help="תכנון כתוביות")

@@ -538,19 +538,58 @@ def ref_pick(names):
     return out
 
 
-def get_subs(url, out_dir, run=subprocess.run, timeout=REF_TIMEOUT, ref=''):
-    """הכתוביות האנושיות (של היוצר) בעברית ובאנגלית → {he: נתיב, en: נתיב} (מה שיש). כל כשל → {} — זה מידע משני."""
+REF_DESC_MAX = 20000
+REF_CH_MAX = 400
+
+
+def ref_meta(info):
+    """10/11/2026 (ניתוח, 7.5): התיאור והפרקים של היוצר — ייחוס חלש למאגר הלמידה. רק הטקסט, בלי קישורים לקבצים."""
+    if not isinstance(info, dict):
+        return None
+    desc = re.sub(r'[\x00-\x08\x0b-\x1f\x7f‪-‮⁦-⁩]', ' ', str(info.get('description') or '')).strip()[:REF_DESC_MAX]
+    ch = []
+    for c in (info.get('chapters') or [])[:REF_CH_MAX]:
+        try:
+            st = max(0.0, round(float(c.get('start_time') or 0), 2))
+        except (TypeError, ValueError, AttributeError):
+            continue
+        t = _clean(c.get('title'), 300)
+        if t:
+            ch.append([st, t])
+    return {'desc': desc, 'ch': ch} if desc or ch else None
+
+
+def get_subs(url, out_dir, run=subprocess.run, timeout=REF_TIMEOUT, ref='', meta=False):
+    """הכתוביות האנושיות (של היוצר) בעברית ובאנגלית → {he: נתיב, en: נתיב} (מה שיש). כל כשל → {} — זה מידע משני.
+    meta (ניתוח) — באותה בקשה גם התיאור והפרקים (‏--write-info-json) → ‏<out_dir>/desc.json (ref_meta); ה־info.json נמחק."""
     os.makedirs(out_dir, exist_ok=True)
     yc = YtCookies(url)
     cmd = (ytdlp_base() + yc.args[:2] + pot_args(url) + ref_args(ref)
            + ['--skip-download', '--write-subs', '--no-write-auto-subs', '--sub-langs', 'he.*,iw.*,en.*,-live_chat',
-              '--sub-format', 'srt/vtt/best', '--convert-subs', 'srt', '-o', os.path.join(out_dir, 'ref.%(ext)s'), '--', url])
+              '--sub-format', 'srt/vtt/best', '--convert-subs', 'srt']
+           + (['--write-info-json', '--no-write-playlist-metafiles'] if meta else [])
+           + ['-o', os.path.join(out_dir, 'ref.%(ext)s'), '--', url])
     try:
         r = run(cmd, capture_output=True, text=True, timeout=timeout)
     except (subprocess.TimeoutExpired, OSError):
         yc.done(False)
         return {}
     yc.done(r.returncode == 0, r.stderr or '')
+    if meta:
+        ij = os.path.join(out_dir, 'ref.info.json')
+        try:
+            if os.path.getsize(ij) <= 64 * 1024 * 1024:
+                with open(ij, encoding='utf-8') as f:
+                    md = ref_meta(json.load(f))
+                if md:
+                    with open(os.path.join(out_dir, 'desc.json'), 'w', encoding='utf-8') as f:
+                        json.dump(md, f, ensure_ascii=False)
+        except (OSError, ValueError):
+            pass
+        try:
+            os.remove(ij)
+        except OSError:
+            pass
     try:
         names = os.listdir(out_dir)
     except OSError:
