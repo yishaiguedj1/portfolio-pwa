@@ -1049,6 +1049,7 @@ function deskKey(e) {
     if (p && !deskBusy()) { e.preventDefault(); if (_desk.pal) deskPalClose(); deskGo(p); }
     return;
   }
+  if (deskGridKey(e)) return;
   if (e.ctrlKey || e.metaKey || e.altKey || deskTyping(e.target) || deskBusy() || !deskK1()) return;
   if (c === 'Slash' ? e.shiftKey : e.key === '?') { e.preventDefault(); return deskHelp(); }
   if (c === 'Slash' && !e.shiftKey) {
@@ -1200,8 +1201,9 @@ function deskHelpClose(fromBack) {
 /* הקיצורים של כל אפליקציה שכבר קיימים בה (מתועדים כאן כדי שיופיעו ב־?) */
 const DESK_HELP = {
   // המפתחות מילוליים בתוך פונקציה (i18n-coverage אוסר t() דינמי)
-  academy: [['← →', () => t('dkKeyPageTurn')], ['Space', () => t('dkKeyPageNext')], ['shift+Space', () => t('dkKeyPagePrev')]],
-  studio: [['Space', () => t('dkKeyPlay')], ['← →', () => t('dkKeySeek')], ['F', () => t('dkKeyFull')]],
+  academy: [['← →', () => t('dkKeyPageTurn')], ['Space', () => t('dkKeyPageNext')], ['shift+Space', () => t('dkKeyPagePrev')], ['mod+F', () => t('dkKeyBookFind')], ['mod+=', () => t('dkKeyFontUp')], ['mod+−', () => t('dkKeyFontDown')]],
+  studio: [['Space', () => t('dkKeyPlay')], ['← →', () => t('dkKeySeek')], ['F', () => t('dkKeyFull')], ['mod+↩', () => t('dkKeyCueNext')]],
+  invest: [['← →', () => t('dkKeyChartPt')], ['shift+← →', () => t('dkKeyChartMeasure')], ['1–9', () => t('dkKeyChartRange')]],
 };
 
 /* 11/11/2026: גלגלת העכבר בשורות שנגללות רק לרוחב (שבבים, מחברים, טווחים) — עם עכבר אין החלקה והפס מוסתר, אז הגלגלת גוללת
@@ -1229,6 +1231,37 @@ function deskWheelOver(e) {
   if (!_desk.on || document.documentElement.dataset.input !== 'mouse') return;
   const r = deskHRow(e.target);
   if (r && !r.__dkWheel) { r.__dkWheel = 1; r.addEventListener('wheel', deskWheel, { passive: false }); }
+}
+/* ---------- 5א. רשימות־טבלה במקלדת (גל 4, 11/11/2026) ----------
+   [data-dk-grid] (העסקאות, ההפקדות): Tab מגיע לרשימה, ↑ ↓ שורה, Home/End ראשונה/אחרונה, Enter — הכפתור הראשון בשורה (עריכה).
+   שורה מקבלת tabindex=-1 רק כשמגיעים אליה (בלי לגעת בבנייה של הרשימות) */
+function deskGridIdx(cur, n, k) {
+  if (!n) return null;
+  if (k === 'Home') return 0;
+  if (k === 'End') return n - 1;
+  if (k === 'ArrowDown') return cur < 0 ? 0 : Math.min(n - 1, cur + 1);
+  if (k === 'ArrowUp') return cur < 0 ? 0 : Math.max(0, cur - 1);
+  return null;
+}
+function deskGridRows(g) { return [...g.querySelectorAll('li')].filter((r) => !r.parentElement.closest('li') && r.offsetParent !== null && !r.classList.contains('dep-sub')); }
+function deskGridKey(e) {
+  const k = e.key;
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || !/^(ArrowUp|ArrowDown|Home|End|Enter)$/.test(k)) return false;
+  const a = document.activeElement, g = a && a.closest ? a.closest('[data-dk-grid]') : null;
+  if (!g || deskTyping(a)) return false;
+  const rows = deskGridRows(g), cur = a === g ? -1 : rows.findIndex((r) => r === a || r.contains(a));
+  if (k === 'Enter') {
+    const b = cur >= 0 && rows[cur] === a ? a.querySelector('button, a[href], [role="button"]') : null;
+    if (!b) return false;
+    e.preventDefault(); b.click(); return true;
+  }
+  if (cur >= 0 && rows[cur] !== a) return false;   // הפוקוס על כפתור בתוך שורה — החצים שלו
+  const j = deskGridIdx(cur, rows.length, k);
+  if (j == null) return false;
+  e.preventDefault();
+  const r = rows[j]; if (!r.hasAttribute('tabindex')) r.tabIndex = -1;
+  r.focus({ preventScroll: true }); try { r.scrollIntoView({ block: 'nearest' }); } catch (er) {}
+  return true;
 }
 /* ---------- 6. בועית עם השם והקיצור (גל 2, 11/11/2026) ----------
    עכבר שעומד חצי שנייה על כפתור־אייקון (‎.icon-btn עם aria-label) או על [data-dk-tip] — בועית קטנה עם השם, ו־data-dk-key

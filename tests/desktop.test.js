@@ -92,7 +92,7 @@ function keyCtx(over) {
     deskIsMac: () => false, deskModKey: (e, mac) => (mac ? !!e.metaKey && !e.ctrlKey : !!e.ctrlKey && !e.metaKey),
     deskPalette: () => log.push('pal'), deskPalClose: () => log.push('close'), deskSettings: () => log.push('set'), deskHelp: () => log.push('help'),
     deskPages: () => [{ k: 'a' }, { k: 'b' }], deskGo: (p) => log.push('go:' + p.k), deskBusy: () => false, deskTyping: (el) => !!(el && el.typing),
-    deskK1: () => true, deskStandalone: () => false, deskSearchField: () => ({ focus: () => log.push('focus'), select() {} }), deskOS: () => 'win',
+    deskK1: () => true, deskStandalone: () => false, deskSearchField: () => ({ focus: () => log.push('focus'), select() {} }), deskOS: () => 'win', deskGridKey: () => false,
   }, over || {});
   vm.createContext(c);
   vm.runInContext(fn(app, 'deskPageMod') + fn(app, 'deskPageHit') + fn(app, 'deskKey') + '\nthis.deskKey = deskKey;', c);
@@ -252,5 +252,30 @@ ok(/LS_DKSIDE/.test(fn(app, 'deskSideToggle')) && /if \(deskSideHidden\(\)\) doc
 ok(/html\.dk\.dk-hide \{ --dk-off: 0px; \}/.test(css) && /html\.dk\.dk-hide \.dk-showbtn \{ display: grid/.test(css), 'סרגל מוסתר: התוכן מתרחב וכפתור בפינה מחזיר');
 ok(/\['mod\+\\\\', t\('dkSideHide'\)\]/.test(fn(app, 'deskHelp')) && /dkSideShow/.test(fn(app, 'deskCmdList')), 'סרגל: בחלון הקיצורים ובלוח הפקודות');
 ok(/deskKbd\(pm \+ '\+' \+ \(i \+ 1\), mac\)/.test(fn(app, 'deskCmdList')), 'לוח הפקודות: מקש העמודים לפי המערכת (Ctrl+Alt בלינוקס/Googlebook)');
+
+/* ---------- 10. גל 4 — מקלדת עמוקה (11/11/2026) ---------- */
+const g4 = { Math, String };
+vm.createContext(g4);
+vm.runInContext([fn(app, 'scKeyStep'), fn(app, 'scRangeKey'), fn(app, 'deskGridIdx'), 'const defaults = { size: 19 };', fn(lib, 'readerSize')].join('\n')
+  + '\nthis.api = { scKeyStep, scRangeKey, deskGridIdx, readerSize };', g4);
+const K4 = g4.api, J = (x) => JSON.stringify(x);
+ok(J(K4.scKeyStep(null, 50, 'ArrowLeft', false)) === J({ mode: 'tip', i: 49, pinned: true }), 'גרף: חץ ראשון — הנקודה האחרונה (היום)');
+ok(K4.scKeyStep({ mode: 'tip', i: 10 }, 50, 'ArrowLeft', false).i === 9 && K4.scKeyStep({ mode: 'tip', i: 49 }, 50, 'ArrowRight', false).i === 49, 'גרף: ← אחורה בזמן, → קדימה, לא מעבר לקצה');
+ok(K4.scKeyStep({ mode: 'tip', i: 5 }, 50, 'Home', false).i === 0 && K4.scKeyStep(null, 50, 'End', false).i === 49, 'גרף: Home/End');
+const m1 = K4.scKeyStep({ mode: 'tip', i: 20 }, 50, 'ArrowLeft', true), m2 = K4.scKeyStep(m1, 50, 'ArrowLeft', true);
+ok(m1.mode === 'm' && m1.a === 20 && m1.b === 19 && m2.a === 20 && m2.b === 18, 'גרף: Shift+חץ — מדידה, העוגן נשאר והקצה זז');
+ok(K4.scKeyStep({ mode: 'tip', i: 7, pick: true }, 50, 'ArrowRight', true).pick === true, 'גרף: בבחירת תאריך — הסמן נשאר סמן הבחירה (בלי מדידה)');
+ok(K4.scKeyStep(null, 50, 'a', false) === null && K4.scKeyStep(null, 1, 'ArrowLeft', false) === null, 'גרף: מקש אחר / גרף בלי נתונים — לא נוגעים');
+ok(K4.scRangeKey('1', 6, 3) === 0 && K4.scRangeKey('9', 6, 3) === -1 && K4.scRangeKey('4', 6, 3) === -1, 'טווח: 1–9 לפי הסדר (לא קיים / כבר נבחר — כלום)');
+ok(K4.scRangeKey('+', 6, 3) === 2 && K4.scRangeKey('-', 6, 3) === 4 && K4.scRangeKey('+', 6, 0) === -1 && K4.scRangeKey('−', 6, 5) === -1, 'טווח: + קצר יותר, − ארוך יותר, עד הקצוות');
+ok(K4.deskGridIdx(-1, 5, 'ArrowDown') === 0 && K4.deskGridIdx(2, 5, 'ArrowDown') === 3 && K4.deskGridIdx(4, 5, 'ArrowDown') === 4 && K4.deskGridIdx(0, 5, 'ArrowUp') === 0 && K4.deskGridIdx(2, 5, 'End') === 4 && K4.deskGridIdx(0, 0, 'Home') === null, 'טבלה: ↑ ↓ Home End');
+ok(K4.readerSize(19, 'Equal') === 20 && K4.readerSize(30, 'Equal') === 30 && K4.readerSize(14, 'Minus') === 14 && K4.readerSize(25, 'Digit0') === 19 && K4.readerSize(19, 'KeyA') === null, 'קורא: ⌘= ⌘− בטווח 14–30, ⌘0 — ברירת המחדל');
+ok(/canvas\.tabIndex = 0;/.test(fn(app, 'scAttach')) && /addEventListener\('keydown', \(e\) => scKey\(canvas, sym, e\)\)/.test(fn(app, 'scAttach')), 'גרף: מגיעים אליו ב־Tab ועונה למקלדת');
+ok(/if \(canvas\._sc && !canvas\._sc\.pick\) \{ e\.preventDefault\(\); e\.stopPropagation\(\); scSet\(canvas, null\); \}/.test(fn(app, 'scKey')), 'גרף: Esc מנקה סמן — ורק אז נבלע');
+ok(/if \(deskGridKey\(e\)\) return;/.test(fn(app, 'deskKey')) && (R('index.html').match(/class="rows" data-dk-grid tabindex="0"/g) || []).length === 2, 'טבלאות: העסקאות וההפקדות במקלדת');
+ok(/e\.code === 'KeyF' && !e\.shiftKey\) \{ e\.preventDefault\(\); openToc\('find'\)/.test(fn(lib, 'readerModKey')) && /if \(readerModKey\(e\)\) return;/.test(fn(lib, 'readerKey')), 'קורא: ⌘F — החיפוש בספר');
+ok(/if \(start === 'find'\) setTimeout/.test(lib), 'קורא: החיפוש נפתח ישר בלשונית שלו');
+ok(/e\.key !== 'Enter' \|\| !\(e\.metaKey \|\| e\.ctrlKey\)[\s\S]{0,200}cueStep\(k, hist\.cur\.length, e\.shiftKey\)/.test(R('studiosubs.js')), 'עורך הכתוביות: ⌘↩ לשורה הבאה, ⇧ לקודמת');
+ok(/invest: \[\['← →'/.test(app) && /\['mod\+↩', \(\) => t\('dkKeyCueNext'\)\]/.test(app) && /\['mod\+F', \(\) => t\('dkKeyBookFind'\)\]/.test(app), 'חלון הקיצורים: הקיצורים החדשים בכל אפליקציה');
 
 console.log('\n' + n + ' בדיקות עברו');

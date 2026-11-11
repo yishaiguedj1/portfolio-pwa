@@ -3587,8 +3587,27 @@ async function ribbon3dSetup(box, btn) {
 /* תצוגת מחשב (11/11/2026, docs/desktop-plan.md): מקלדת בקורא — ← → לפי כיוון הספר (כמו דף נייר: בספר בעברית ← = הבא),
    רווח / PageDown — הבא, Shift+רווח / PageUp — הקודם, Home/End — תחילת/סוף הפרק. גם מתוך הספר (wireDoc) וגם מהמסמך.
    לא כשמקלידים, ולא כשגיליון או חלון פתוח מעל הקורא */
+/* 11/11/2026 (תצוגת מחשב, גל 4): ⌘F / Ctrl+F — החיפוש בספר (לא חיפוש הדפדפן, שלא רואה את הספר שבתוך ה־iframe),
+   ⌘= / ⌘− — גודל האות של הקורא (לא הגדלת הדף), ⌘0 — חזרה לגודל ברירת המחדל. לפי המקש הפיזי (גם במקלדת עברית) */
+function readerSize(cur, code) {
+  const d = code === 'Equal' || code === 'NumpadAdd' ? 1 : code === 'Minus' || code === 'NumpadSubtract' ? -1 : 0;
+  if (code === 'Digit0' || code === 'Numpad0') return defaults.size;
+  return d ? Math.max(14, Math.min(30, cur + d)) : null;
+}
+function readerModKey(e) {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || (e.ctrlKey && e.metaKey)) return false;
+  if (document.querySelector('.lib-veil, .dlg-veil, .dk-veil')) return false;
+  if (e.code === 'KeyF' && !e.shiftKey) { e.preventDefault(); openToc('find'); return true; }
+  const n = readerSize(S.size, e.code);
+  if (n == null) return false;
+  e.preventDefault();
+  if (n !== S.size) { S.size = n; pushSettings(); applyReaderStyle(); }
+  return true;
+}
 function readerKey(e) {
-  if (!rd || !rd.view || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+  if (!rd || !rd.view || e.defaultPrevented || e.isComposing) return;
+  if (readerModKey(e)) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
   const tg = e.target;
   if (tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT' || tg.isContentEditable)) return;
   if (document.querySelector('.lib-veil, .dlg-veil, .dk-veil')) return;
@@ -4778,7 +4797,7 @@ function wireTrDrag(c) {
 }
 
 /* ---------------- תוכן עניינים + גיליון Aa ---------------- */
-async function openToc() {
+async function openToc(start) {   // start: 'find' — ישר ללשונית החיפוש (⌘F במחשב)
   if (!rd || !rd.book) return;
   const P = PRK || await proKit().catch(() => null);   // בדרך כלל כבר נטען (2.5 שניות אחרי פתיחת הספר)
   if (!rd || !rd.book) return;
@@ -4818,6 +4837,7 @@ async function openToc() {
         secLabel: chapterLabel, go: (f) => { close(); if (rd) findInView(rd.view, f); } });
       sh.append(panes.find);
       tabs.lastChild.addEventListener('click', () => panes.find._focus());
+      if (start === 'find') setTimeout(() => tabs.lastChild.click(), 0);
     }
     const pc = h('button', 'lib-admin-link rd-printch', T('pxPrintCh')); pc.type = 'button';   // E14: הדפסת הפרק הנוכחי (ל־PDF או למדפסת)
     pc.addEventListener('click', () => { const cs = rd && rd.view.renderer && rd.view.renderer.getContents ? rd.view.renderer.getContents() : []; const doc = cs && cs[0] && cs[0].doc; const ti = rd.rec.title + (rd.loc && rd.loc.tocItem ? ' — ' + langText(rd.loc.tocItem.label) : ''), lang = rd.rec.lang; close(); pro((P) => P.printChapter(doc, ti, lang)); });

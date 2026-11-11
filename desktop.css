@@ -102,6 +102,9 @@ html.dk.dk-hide .dk-showbtn { display: grid; place-items: center; position: fixe
   box-shadow: 0 4px 14px rgba(0, 0, 0, .18); opacity: 0; transform: translateY(-2px); transition: opacity .12s ease, transform .12s ease;
 }
 .dk-tip.on { opacity: 1; transform: none; }
+/* גל 4: גרף ורשימות־טבלה במקלדת — טבעת פוקוס ברורה (core: deskGridKey, app: scKey) */
+html.dk :is([data-dk-grid], [data-dk-grid] li, .chart-wrap canvas):focus-visible { outline: 2px solid var(--dk-ring); outline-offset: 2px; border-radius: var(--dk-r-row); }
+html.dk [data-dk-grid] li:focus-visible { outline-offset: -2px; }
 .dk-drop {   /* גל 2: קובץ שנגרר מעל החלון (core: deskDropShow) — מסגרת מקווקוות ובועה עם הכיתוב של מי שיקבל */
   position: fixed; inset: 10px; z-index: 2300; pointer-events: none; display: grid; place-items: center;
   border: 2px dashed var(--dk-ring, var(--primary)); border-radius: 22px; background: color-mix(in srgb, var(--primary) 10%, transparent);

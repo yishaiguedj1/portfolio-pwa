@@ -991,6 +991,7 @@ export function createSubsEditor(opts) {
     rows.set(k, nr);
   }
   /* מ9 (ביצועים): בחירה / סיום — רק שתי השורות שהשתנו, לא 1,500 (נמדד: 4 שנ׳ בטלפון חלש) */
+  function cueStep(k, n, back) { const j = k + (back ? -1 : 1); return j >= 0 && j < n ? j : -1; }
   function choose(k) {
     const prev = sel;
     sel = k;
@@ -1092,6 +1093,14 @@ export function createSubsEditor(opts) {
         r.classList.toggle('bad', issOf(cc).length > 0);
         paintBar();
         if (opts.onChange) opts.onChange(hist.cur, hist.ver);
+      });
+      // 11/11/2026 (תצוגת מחשב, גל 4): ⌘↩ / Ctrl+Enter — השורה כבר שמורה (input) ועוברים לבאה וממשיכים להקליד; עם Shift — לקודמת
+      ta.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' || !(e.metaKey || e.ctrlKey) || e.altKey || e.isComposing) return;
+        const nk = cueStep(k, hist.cur.length, e.shiftKey);
+        e.preventDefault();
+        if (nk < 0) return;
+        choose(nk); if (opts.seek && hist.cur[nk]) opts.seek(hist.cur[nk].s);
       });
       if (colors.has(c.spk)) body.append(spkPick(k, c));   // C3: הדובר של הכתובית
       body.append(ta);

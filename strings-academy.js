@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של academy (1284 מפתחות מתוך 6833) */
+/* המחרוזות של academy (1291 מפתחות מתוך 6843) */
 const STRINGS = {
 he: {
   "acAiNote": "הניתוח נכתב בעזרת AI מתוך הטקסט של המכתב.",
@@ -598,6 +598,13 @@ he: {
   "dkFind": "חיפוש ופעולות",
   "dkKeyArrows": "מעבר בין פריטים",
   "dkKeyBack": "סגירה וחזרה",
+  "dkKeyBookFind": "חיפוש בספר",
+  "dkKeyChartMeasure": "בגרף: מדידה",
+  "dkKeyChartPt": "בגרף: מחיר בתאריך",
+  "dkKeyChartRange": "בגרף: טווח (וגם + ו־−)",
+  "dkKeyCueNext": "בעורך: השורה הבאה (Shift — הקודמת)",
+  "dkKeyFontDown": "הקטנת האות",
+  "dkKeyFontUp": "הגדלת האות",
   "dkKeyFull": "מסך מלא",
   "dkKeyOpen": "פתיחה",
   "dkKeyPageNext": "הדף הבא",
@@ -1884,6 +1891,13 @@ en: {
   "dkFind": "Search and actions",
   "dkKeyArrows": "Move between items",
   "dkKeyBack": "Close and go back",
+  "dkKeyBookFind": "Find in book",
+  "dkKeyChartMeasure": "Chart: measure",
+  "dkKeyChartPt": "Chart: price on a date",
+  "dkKeyChartRange": "Chart: range (also + and −)",
+  "dkKeyCueNext": "Editor: next line (Shift — previous)",
+  "dkKeyFontDown": "Smaller text",
+  "dkKeyFontUp": "Larger text",
   "dkKeyFull": "Full screen",
   "dkKeyOpen": "Open",
   "dkKeyPageNext": "Next page",
