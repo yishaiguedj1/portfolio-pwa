@@ -265,9 +265,10 @@ async function monCfg(deps, now) {
   monCfgC = { at: now, v: { monKh: d.monKh || '', monAt: d.monAt || 0 } };
   return monCfgC.v;
 }
+/* כל קריאה ל־GitHub (API ו־raw) עם GITHUB_TOKEN כשמוגדר — חובה כשהריפו פרטי (docs/private-repo-plan.md, גל 2) */
+const ghHdr = (h) => (process.env.GITHUB_TOKEN ? { ...h, Authorization: 'Bearer ' + process.env.GITHUB_TOKEN } : h);
 async function aoJson(deps, url) {
-  const h = { Accept: 'application/vnd.github+json', 'User-Agent': 'snb-admin' };
-  if (process.env.GITHUB_TOKEN) h.Authorization = 'Bearer ' + process.env.GITHUB_TOKEN;
+  const h = ghHdr({ Accept: 'application/vnd.github+json', 'User-Agent': 'snb-admin' });
   const r = await (deps.fetch || fetch)(url, { headers: h, signal: AbortSignal.timeout(6000) });
   return r.status === 200 ? r.json() : null;
 }
@@ -1392,8 +1393,10 @@ async function learnWeekly(deps, now) {
 async function fundAuditGet(deps, now) {
   return aoGet(deps, 'fund', async () => {
     const f = deps.fetch || fetch, get = async (n) => {
-      const r = await f(FAU.REL + n, { signal: AbortSignal.timeout(8000) });
-      return r.ok ? r.json() : null;
+      for (const b of FAU.SRCS) {   // R2 קודם, Releases גיבוי (docs/private-repo-plan.md)
+        try { const r = await f(b + n, { signal: AbortSignal.timeout(8000) }); if (r.ok) return r.json(); } catch (e) {}
+      }
+      return null;
     };
     const [s, h] = await Promise.all([get('summary.json'), get('history.json').catch(() => [])]);
     const cur = FAU.normAudit(s);
@@ -1816,7 +1819,7 @@ async function latestWorker(deps, now) {
   _upd = { at: now, sha: _upd.sha, t: _upd.t };
   try {
     const r = await (deps.fetch || fetch)('https://api.github.com/repos/yishaiguedj1/portfolio-pwa/actions/workflows/worker-image.yml/runs?branch=main&status=success&per_page=1',
-      { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'snb-studio' }, signal: AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined });
+      { headers: ghHdr({ Accept: 'application/vnd.github+json', 'User-Agent': 'snb-studio' }), signal: AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined });
     const run = r.status === 200 ? ((await r.json()).workflow_runs || [])[0] : null;
     if (run && /^[0-9a-f]{40}$/.test(String(run.head_sha)) && Date.parse(run.updated_at) > 0) _upd = { at: now, sha: run.head_sha, t: Date.parse(run.updated_at) };
   } catch (e) {}
@@ -3224,7 +3227,7 @@ async function handler(req, res, deps = {}) {
       // 15/10/2026: מרכז הניהול ← סשנים ומשימות. משימות-פתוחות.md מהריפו (ציבורי) + ה־PR הפתוחים של הסשנים. מנהל בלבד
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
       const md = await aoGet(deps, 'tasks', async () => {
-        const r = await (deps.fetch || fetch)('https://raw.githubusercontent.com/' + AO_REPO + '/main/' + encodeURIComponent('משימות-פתוחות.md'), { signal: AbortSignal.timeout(6000) });
+        const r = await (deps.fetch || fetch)('https://raw.githubusercontent.com/' + AO_REPO + '/main/' + encodeURIComponent('משימות-פתוחות.md'), { headers: ghHdr({}), signal: AbortSignal.timeout(6000) });
         return r.status === 200 ? (await r.text()).slice(0, 200000) : null;
       }, now);
       const ext = await aoFacts(deps, now);

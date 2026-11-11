@@ -47,3 +47,16 @@ jobs:
           fi
           gh release upload lab-models manifest.json audio-conv.onnx audio-encoder.onnx text-decoder.onnx embed.npy pos.npy --clobber
           gh release edit lab-models --notes "מתמונת העובד (prod), $(jq -r .revision manifest.json | cut -c1-12) · $(date -u +%F)"
+      # 11/11/2026: גם ב־https://dl.thesnowball.app/lab-models/ — PhModels מוריד משם קודם (docs/private-repo-plan.md).
+      # בלי checkout: הסקריפט נשלף מה־API באותו קומיט (עובד גם בריפו פרטי)
+      - name: Mirror (dl.thesnowball.app)
+        working-directory: aligner
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DL_R2_ACCESS_KEY_ID: ${{ secrets.DL_R2_ACCESS_KEY_ID }}
+          DL_R2_SECRET_ACCESS_KEY: ${{ secrets.DL_R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          DL_R2_JURISDICTION: ${{ vars.DL_R2_JURISDICTION }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/contents/tools/dl-put.sh?ref=$GITHUB_SHA" -H 'Accept: application/vnd.github.raw' > "$RUNNER_TEMP/dl-put.sh"
+          bash "$RUNNER_TEMP/dl-put.sh" lab-models manifest.json audio-conv.onnx audio-encoder.onnx text-decoder.onnx embed.npy pos.npy

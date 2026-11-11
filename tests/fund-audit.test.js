@@ -91,7 +91,9 @@ const root = path.join(__dirname, '..');
   /* ---------- 5. ה־workflow ---------- */
   const wf = fs.readFileSync(path.join(root, '.github/workflows/fund-audit.yml'), 'utf8');
   ok(/cron: '\d+ \d+ \* \* \*'/.test(wf) && /workflow_dispatch/.test(wf), 'workflow: לילי + ידני');
-  ok(/permissions:\s*\n\s*contents: write/.test(wf) && !/secrets\./.test(wf), 'workflow: כותב רק לריפו (Release), בלי סודות');
+  // 11/11/2026: הסודות (R2) רק ב־job ההעתקה הנפרד; הבדיקה הלילית עצמה — בלי סודות
+  const auditJob = wf.slice(wf.indexOf('  audit:'), wf.indexOf('\n  mirror:'));
+  ok(/permissions:\s*\n\s*contents: write/.test(wf) && wf.indexOf('\n  mirror:') > 0 && !/secrets\./.test(auditJob) && /mirror:\n    needs: audit/.test(wf), 'workflow: הבדיקה כותבת רק לריפו (Release), בלי סודות; ההעתקה ל־R2 ב־job נפרד');
   ok((wf.match(/uses: [^\n]+/g) || []).every((u) => /@[0-9a-f]{40} #/.test(u)), 'workflow: actions מקובעים ל־SHA');
   ok(/gh release upload fund-audit summary\.json history\.json report\.md/.test(wf) && /--top 500 --out out --hist out\/history\.json/.test(wf), 'workflow: 500 חברות, היסטוריה, ומפרסם את שלושת הקבצים');
   ok(FA.REL === 'https://github.com/yishaiguedj1/portfolio-pwa/releases/download/fund-audit/', 'השרתון קורא מאותו Release');

@@ -17,11 +17,11 @@ if git cat-file -e "$P^{commit}" 2>/dev/null; then
   git diff --quiet "$P" "$C" -- . 2>/dev/null && exit 0
   exit 1
 fi
-# גיבוי: רשימת הקבצים שהשתנו מ־GitHub (ריפו ציבורי, בלי מפתח)
+# גיבוי: רשימת הקבצים שהשתנו מ־GitHub (עם GITHUB_TOKEN ממשתני Vercel כשמוגדר — חובה כשהריפו פרטי; בלעדיו ובכשל — פורסים)
 node -e '
 const [p, c, o, r] = process.argv.slice(1);
 if (!o || !r) process.exit(1);
-fetch(`https://api.github.com/repos/${o}/${r}/compare/${p}...${c}`, { headers: { "User-Agent": "ibkr-proxy-ignore" } })
+fetch(`https://api.github.com/repos/${o}/${r}/compare/${p}...${c}`, { headers: Object.assign({ "User-Agent": "ibkr-proxy-ignore" }, process.env.GITHUB_TOKEN ? { Authorization: "Bearer " + process.env.GITHUB_TOKEN } : {}) })
   .then((x) => (x.ok ? x.json() : Promise.reject(x.status)))
   .then((j) => { const f = j.files || []; if (f.length >= 300) process.exit(1); process.exit(f.some((x) => x.filename.startsWith("ibkr-proxy/")) ? 1 : 0); })
   .catch(() => process.exit(1));

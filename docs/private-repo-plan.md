@@ -39,6 +39,11 @@
 7. **אבטחת קוד**: gitleaks + eslint-security; הסרת `codeql.yml` (רק בגל 8, כדי לא לאבד כיסוי לפני).
 8. **ההיפוך**: צ'קליסט — כל ה־APK עודכנו בטלפון; הורדות מ־`dl.` עובדות; 3 ימים CI ירוק על השרת; פריסה מלאה אחת דרך הכפתור; אז Change visibility → מיד: בנייה ב־Vercel, פריסה ל־Cloudflare, עדכון עצמי של APK, Routine של הסטודיו, סשן Claude חדש, ריצת `fund-audit`, ודקות hosted בחודש הראשון.
 
+## מצב (11/11/2026)
+- **גלים 1–2 — נבנו** (ענף `ccr-be65b3de-1isos1`): `tools/dl-put.sh` (R2 דרך S3, בלי מפתחות = אזהרה ויציאה 0; `DL_REQUIRED=1` אחרי ההיפוך); `android.yml`/`lab-models.yml` מעתיקים ל־`dl.thesnowball.app`, `fund-audit.yml` ב־job נפרד (הבדיקה הלילית נשארת בלי סודות); `Upd.kt` (`BASES`: R2 ← GitHub, ההורדה מאותו מקור של `latest.json`), `PhModels.kt` (לסירוגין, הטביעה מאמתת), `fundaudit.js` (`SRCS`); השרתון — `ghHdr` לכל קריאה ל־GitHub, `ignore-build.sh` עם הטוקן. בדיקה: `tests/private-repo.test.js`.
+- **מה שהמשתמש מגדיר פעם אחת** (גל 0): דלי R2 `snb-dl` + דומיין `dl.thesnowball.app` + טוקן R2 לדלי בלבד → הסודות `DL_R2_ACCESS_KEY_ID`/`DL_R2_SECRET_ACCESS_KEY`; ‏`GITHUB_TOKEN` (fine-grained, קריאה) ב־Vercel ובשרת (`PROD_APP_EXTRA`).
+- **עוד לא**: הקישורים הגלויים (`index.html`, `app.js`/core, `shell.js`, `studio.js`, `admin-app.js`, `DmBridge.BROWSER_APK`, `BrChrome.EXT_ZIP`) עוברים ל־`dl.` רק אחרי שהדלי מאומת חי (PR קטן); `translator/setup.sh` — בגל 3; גלים 3–8.
+
 ## 3א. ⛔ אין נעילה בחוץ (דרישת המשתמש 11/11/2026, "מאוד חשוב")
 שני כללים, נאכפים בבדיקה (`tests/no-lockout.test.js`, נבנית בגל 5):
 1. **לכל פעולת ייצור (פריסה, אישור, תיקון שרת, החזרה לאחור) — לפחות שני מסלולים בלתי תלויים, ואחד מהם לא נשען על שום מערכת שלנו** (רק GitHub או הקונסולה של הספק).
