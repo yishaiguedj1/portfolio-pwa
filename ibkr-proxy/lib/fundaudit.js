@@ -6,6 +6,9 @@
 const XC = require('./fundxcheck');
 
 const REL = 'https://github.com/yishaiguedj1/portfolio-pwa/releases/download/fund-audit/';
+/* 11/11/2026: אותם קבצים ב־R2 (fund-audit.yml → tools/dl-put.sh) — נקרא קודם; REL = גיבוי כל עוד הריפו ציבורי (docs/private-repo-plan.md) */
+const DL = 'https://dl.thesnowball.app/fund-audit/';
+const SRCS = [DL, REL];
 const HIST_MAX = 60;
 const ITEMS_MAX = 400;
 const XITEMS_MAX = 400;   // שכבה 8: ערכים לבדוק שנשמרים בסיכום (הספירה — כולם)
@@ -211,4 +214,4 @@ function auditView(cur, hist, now) {
   };
 }
 
-module.exports = { REL, growthAudit, goldCheck, summarize, xSummary, histEntry, pushHist, normAudit, normHist, auditAlert, auditView, HIST_MAX, ITEMS_MAX, XITEMS_MAX };
+module.exports = { REL, DL, SRCS, growthAudit, goldCheck, summarize, xSummary, histEntry, pushHist, normAudit, normHist, auditAlert, auditView, HIST_MAX, ITEMS_MAX, XITEMS_MAX };

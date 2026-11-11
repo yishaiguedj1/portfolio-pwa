@@ -30,7 +30,12 @@ import java.net.URL
    4. אחרי ההחלפה המערכת מפעילה את הגרסה החדשה ב־MY_PACKAGE_REPLACED (UpdDone) → התראה אחת: "עודכנה לגרסה X".
    אבטחה: רק קובץ שה־sha256 שלו פורסם ב־latest.json, ואנדרואיד דוחה חתימה שונה מהמותקנת. אין כאן נתוני משתמש. */
 object Upd {
-    const val BASE = "https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/"
+    /** 11/11/2026: המקור הראשי — R2 (tools/dl-put.sh); Releases של GitHub — גיבוי שעובד רק כל עוד הריפו ציבורי
+        (docs/private-repo-plan.md). ההורדה הולכת לאותו מקור שממנו נקרא latest.json; ה־sha256 שבו מאמת בכל מקרה. */
+    const val BASE = "https://dl.thesnowball.app/android-latest/"
+    const val BASE_GH = "https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/"
+    val BASES = listOf(BASE, BASE_GH)
+    private fun base(c: Context) = sp(c).getString("base", null)?.takeIf { it in BASES } ?: BASE
     const val JOB_CHECK = 7351
     const val JOB_DL = 7353
     private const val CH = "snb_upd"
@@ -93,16 +98,20 @@ object Upd {
 
     /** בדיקה ברשת (לא על ה־main thread). מחזיר true אם הבדיקה הצליחה */
     fun check(c: Context): Boolean {
-        val txt = try {
-            val u = URL(BASE + "latest.json?t=" + System.currentTimeMillis() / 60000)
-            (u.openConnection() as HttpURLConnection).run {
-                connectTimeout = 15000; readTimeout = 20000; instanceFollowRedirects = true
-                setRequestProperty("Cache-Control", "no-cache")
-                try { if (responseCode != 200) null else inputStream.bufferedReader().use { it.readText().take(64 * 1024) } } finally { disconnect() }
-            }
-        } catch (e: Exception) { null } ?: return false
+        var from = BASE
+        val txt = BASES.firstNotNullOfOrNull { b ->
+            from = b
+            try {
+                val u = URL(b + "latest.json?t=" + System.currentTimeMillis() / 60000)
+                (u.openConnection() as HttpURLConnection).run {
+                    connectTimeout = 15000; readTimeout = 20000; instanceFollowRedirects = true
+                    setRequestProperty("Cache-Control", "no-cache")
+                    try { if (responseCode != 200) null else inputStream.bufferedReader().use { it.readText().take(64 * 1024) } } finally { disconnect() }
+                }
+            } catch (e: Exception) { null }
+        } ?: return false
         val r = UpdCore.parse(txt, c.packageName) ?: return false
-        sp(c).edit().putLong("code", r.code).putString("name", r.name).putString("file", r.file)
+        sp(c).edit().putString("base", from).putLong("code", r.code).putString("name", r.name).putString("file", r.file)
             .putLong("size", r.size).putString("sha", r.sha).putLong("checked", System.currentTimeMillis()).apply()
         return true
     }
@@ -147,7 +156,7 @@ object Upd {
         fun save() { sp(c).edit().putLong("got", have).apply() }
         try {
             if (r.size <= 0 || have < r.size) {
-                val conn = URL(BASE + r.file).openConnection() as HttpURLConnection
+                val conn = URL(base(c) + r.file).openConnection() as HttpURLConnection
                 try {
                     conn.connectTimeout = 20000; conn.readTimeout = 30000; conn.instanceFollowRedirects = true
                     if (have > 0) conn.setRequestProperty("Range", "bytes=$have-")

@@ -99,3 +99,13 @@ jobs:
           node tools/apk-latest.js ${{ github.run_number }} . > latest.json
           gh release upload android-latest latest.json --clobber
           gh release edit android-latest --notes "הגרסה האחרונה: 1.0.${{ github.run_number }} (${GITHUB_SHA::7})"
+      # 11/11/2026: אותם קבצים גם ב־https://dl.thesnowball.app/android-latest/ (R2) — המקור הראשי של העדכון העצמי;
+      # Releases נשאר גיבוי עד שהריפו פרטי (docs/private-repo-plan.md). latest.json אחרון — רק אחרי שה־APKים עלו.
+      - name: Mirror (dl.thesnowball.app)
+        if: github.event_name != 'pull_request' && steps.ks.outputs.signed == 'true'
+        env:
+          DL_R2_ACCESS_KEY_ID: ${{ secrets.DL_R2_ACCESS_KEY_ID }}
+          DL_R2_SECRET_ACCESS_KEY: ${{ secrets.DL_R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          DL_R2_JURISDICTION: ${{ vars.DL_R2_JURISDICTION }}
+        run: bash tools/dl-put.sh android-latest the-snowball*.apk studio-browser-chrome.zip latest.json
