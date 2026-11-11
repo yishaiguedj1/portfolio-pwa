@@ -380,7 +380,8 @@ def count_tokens(wins: list[str], mode: str = '', counter=None) -> dict:
 # 3.4, ‏5.2–5.3, ‏5.5, ‏5.8: קריאת `vm` לכל חלון, בטור. אותו בלוק קבוע (system + השלד) לכל החלונות — מטמון של 5 דק׳.
 # כל פריט עובר את vicheck.check_item לפני שהוא נכנס; הזמנים — מהקוד בלבד.
 
-VM_MAX_OUT = 16000              # תשובת מיפוי לחלון (JSON קומפקטי; ‏Engine מנסה פעם אחת עם MAX_OUT אם נקטעה)
+VM_MAX_OUT = 64000              # תשובת מיפוי לחלון (JSON קומפקטי; ‏Engine מנסה פעם אחת עם MAX_OUT אם נקטעה)
+                                # 11/11/2026: כולל החשיבה — בעבודה אמיתית 27–39K חשיבה ו־39–54K פלט לחלון; ב־16000 כל חלון נקטע ונשלח שוב
 BAD_MAX = 0.3                   # 5.8: יותר מ־30% פריטים בלי ראיה — מיפוי חוזר אחד של החלון, עם המשוב
 BOUND_SNAP = 15.0               # פרק שהמודל פתח קרוב למועמד גבול — נצמד אליו (V34)
 ESCALATE = {'haiku-medium': 'haiku-high'}   # 5.8: רק את החלון הזה, ורק בתוך Haiku. אף פעם לא ל־Sonnet/Opus
@@ -642,7 +643,7 @@ def vi_map(eng, mode: str, lang: str, ev: list[dict], slides: list[dict], ocr: l
 VS_MAX_OUT = 6000               # תשובת הסינתזה
 VV_BATCH = 30                   # טענות בקריאת אימות אחת
 VV_EV = 6                       # ראיות לטענה באימות (הראשונות — הכי ישירות)
-VV_MAX_OUT = 8000              # 10/11/2026: כולל החשיבה (~2.8K ב־haiku-high) — ב־2000 כל קריאה נקטעה ונשלחה שוב
+VV_MAX_OUT = 16000             # כולל החשיבה: 10/11 — ~2.8K (ב־2000 כל קריאה נקטעה); 11/11 — עם הציטוט ~7–8K (ב־8000 שתיים מתוך שש)
 VV_EV_CHARS = 1200              # טקסט ראיה באימות — עד כאן
 TAKE_MAX = 5                    # V54: ‏3–5 תובנות
 RAW_MAX = 200000                # טיוטה גולמית לקורפוס (dr) — עד כאן
@@ -1192,6 +1193,21 @@ def probe(src: Path) -> dict:
             'h': int(vs[0].get('height') or 0) if vs else 0}
 
 
+def report_dur(ctx, spec: dict, dur: float) -> None:
+    """11/11/2026: עבודה שנוצרה בלי משך (קישור שהבדיקה לא החזירה לו משך) — המשך האמיתי לשרתון, פעם אחת (du — אותו שדה
+    כמו report_px בתרגום, ‏PR ‏#607). ממנו השרתון קובע את הצפי לכל שלב ואת יעדי הזמן והתקציב (planTargets; בלעדיו: אין כרטיס
+    "יעדים", והשלבים "כ־1 דק׳"). הניתוח לא עובר ב־report_px — לכן כאן. תקלה כאן לא נוגעת בעבודה."""
+    try:
+        if (spec or {}).get('dur') or ctx.st.get('dms') or not (1 <= dur <= 86400):
+            return
+        ctx.report(du=int(round(dur)), force=True)
+        ctx.st['dms'] = 1
+    except SystemExit:
+        raise
+    except Exception:                               # noqa: BLE001
+        pass
+
+
 def live_ok() -> bool:
     """1.2א: המיפוי עם Claude קיים, אבל נפתח רק עם SNB_VI_LIVE=1 בסביבת העובד — עד האימות (1.2ב) ואישור המשתמש.
     בלעדיו עבודה לא יבשה נדחית מיד (vi_off), לפני התמלול ובלי הוצאה."""
@@ -1448,17 +1464,30 @@ def vi_run(J, args, engine=None) -> int:
     S = Stages(J, ctx)
     pd = ctx.pdir
     pd.mkdir(parents=True, exist_ok=True)
-    # 1. קליטה
+    # 1. קליטה. 11/11/2026 (המשתמש: "שההעלאה לא תעכב אותנו עד שהיא לא הכרחית"): כמו בתרגום (job.prepare) —
+    # הקול (מהטלפון, או מהקישור) כבר כאן והסרטון עוד עולה / יורד → מתמללים מהקול, ומחכים לסרטון רק לפני קריאת המסך
     S.go('up', 'מורידים את הסרטון')
     J.url_fetch(ctx)
     files = ctx.st.get('files') or {}
     f = files.get('v') if (files.get('v') or {}).get('id') else None
-    f = f or J.wait_video(ctx, 'up', 'מחכה שהסרטון יסיים לעלות')
-    src = J.in_path(ctx, f, 'v')
-    J.fetch_input(ctx, f['id'], src, int(f.get('size') or 0), lambda x: ctx.report('up', x))
-    J.ensure_env(ctx, 'tr')
-    info = probe(src)
+    fa = files.get('a') if (files.get('a') or {}).get('id') else None
+    src = None
+    if f is None and fa is not None:
+        asrc = J.in_path(ctx, fa, 'a')
+        J.fetch_input(ctx, fa['id'], asrc, int(fa.get('size') or 0), lambda x: ctx.report('up', x))
+        J.ensure_env(ctx, 'tr')
+        info = probe(asrc)
+        info['video'] = True                      # לא ידוע עד שהסרטון יגיע — נבדק שוב לפני המסך
+        print('· מתחילים מהקול — הסרטון ממשיך לעלות במקביל, ומצטרף לפני קריאת המסך')
+    else:
+        f = f or J.wait_video(ctx, 'up', 'מחכה שהסרטון יסיים לעלות')
+        src = J.in_path(ctx, f, 'v')
+        J.fetch_input(ctx, f['id'], src, int(f.get('size') or 0), lambda x: ctx.report('up', x))
+        J.ensure_env(ctx, 'tr')
+        info = probe(src)
+        asrc = src
     dur = info['dur']
+    report_dur(ctx, spec, dur)
     if dur > VI_MAX_S:
         ctx.report(fail=True, err='vi_long', msg='עד %d דקות' % (VI_MAX_S // 60), force=True)
         raise SystemExit('✗ ניתוח: הסרטון ארוך מ־%d דק׳.' % (VI_MAX_S // 60))
@@ -1471,7 +1500,7 @@ def vi_run(J, args, engine=None) -> int:
     tr_p, wd_p, scr = pd / 'vi.tr.json', pd / 'vi.wd.json', pd / 'screen'
     if info['audio']:
         t0 = time.time()
-        subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(src), '-vn', '-ac', '1', '-ar', '16000', str(wav)],
+        subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(asrc), '-vn', '-ac', '1', '-ar', '16000', str(wav)],
                        check=True, timeout=3600)
         J.note_timing(ctx, 'vi-wav', t0, time.time())
         J.vt(ctx, ['vi-asr', str(wav), '--lang', lang, '--out', str(tr_p)], 'tr')
@@ -1483,6 +1512,11 @@ def vi_run(J, args, engine=None) -> int:
             raise SystemExit('✗ ניתוח: השפה שזוהתה (%s) לא נתמכת.' % str(lang)[:8])
     # 3. מסך ויישור
     S.go('al', 'מזהים שקפים ומיישרים')
+    if src is None:                                   # התחלנו מהקול — עכשיו (ורק עכשיו) צריך את הסרטון
+        f = J.wait_video(ctx, 'al', 'מחכה שהסרטון יסיים לעלות')
+        src = J.in_path(ctx, f, 'v')
+        J.fetch_input(ctx, f['id'], src, int(f.get('size') or 0))
+        info['video'] = probe(src)['video']
     if info['video']:
         J.vt(ctx, ['vi-screen', str(src), '--out', str(scr), '--mem-mb', str(mem_need(dur))], 'al', 0.0, 0.5)
     screen = _read_json(scr / 'screen.json') or {'units': [], 'noscreen': True}
@@ -1575,7 +1609,7 @@ def vi_run(J, args, engine=None) -> int:
     # vsm (לא vs: בדיווח של התרגום vs = גודל הגרסה הארוזה של איכויות הצפייה) — מספרים שלמים בלבד; השרתון שומר ב־job.vsm
     ctx.report(done=True, out=up, vsm=vs, msg='הניתוח היבש מוכן' if dry else 'הניתוח מוכן', force=True,
                usage=(eng.ledger.list() or None) if eng else None, lx=lx, **({'vq': vq} if vq else {}))
-    for p in (src, wav):
+    for p in {src, asrc, wav}:                     # 11/11/2026: גם הקול שעלה ראשון (כשהתחלנו ממנו)
         try:
             p.unlink()
         except OSError:
