@@ -19,7 +19,9 @@ export function T(key, vars) {
 }
 /* הטוקן מה־# — אותה צורה כמו בשרתון (‎<עבודה>.<סוד>) */
 export const TOKEN_RE = /^j[A-Za-z0-9_-]{20}\.[A-Za-z0-9_-]{43}$/;   // הסוד = 32 בתים (16 אקראיים + תג HMAC) ב־base64url
-export const tokenFrom = (hash) => { let t = ''; try { t = decodeURIComponent(String(hash || '').replace(/^#/, '')); } catch (e) {} return TOKEN_RE.test(t) ? t : ''; };
+/* 11/11/2026: קישור שנפתח באפליקציה (Studio באנדרואיד) מגיע עם ‎&app=…&n=… שהמעטפת מוסיפה ל־hash (MainActivity.urlFor) —
+   הטוקן = מה שלפני ה־& הראשון; בלי זה "הקישור לא פעיל" בטלפון ותקין בדפדפן */
+export const tokenFrom = (hash) => { let t = ''; try { t = decodeURIComponent(String(hash || '').replace(/^#/, '').split('&')[0]); } catch (e) {} return TOKEN_RE.test(t) ? t : ''; };
 
 /* שמות התוצרים — אותם מפתחות של outName/outShort ב־studio.js */
 export const OUT_LABEL = { same: 'studioOutSameShort', compact: 'studioOutCompact', mkv: 'studioOutMkv', small: 'studioOutSmall', en: 'studioOutEnShort',
