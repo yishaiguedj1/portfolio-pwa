@@ -218,7 +218,7 @@ function mkDoc() {
   ok(/const viPageOk = \(rec\) => !!\(rec && rec\.spec && rec\.spec\.vi && !rec\.spec\.dry && rec\.srv && rec\.srv\.state === 'done' && outOf\(rec, 'vi'\)\)/.test(sj), 'הרצה יבשה — נשארת בדף העבודה');
   ok(/if \(ui\.view === 'job' && va && va\.id === ui\.param\) return 'vi\|'/.test(sj) && /if \(ui\.view === 'job'\) vaClose\(\)/.test(sj), 'הדף לא נבנה מחדש בכל עדכון, ונסגר ביציאה');
   ok(/if \(va && va\.view && va\.view\.closeSheet\(\)\) \{ if \(root\) watch\(\); return; \}[\s\S]{0,200}if \(rsClose\(\)\)/.test(sj), '"חזור" סוגר קודם את חלונית הראיה');
-  ok(/normVi\(await net\.driveJson\(outOf\(rec, 'vi'\)\.id\)\)/.test(sj), 'vi.json עובר normVi');
+  ok(/const p = net\.driveJson\(fid\)\.then\(normVi\);/.test(sj) && /await viFetch\(outOf\(rec, 'vi'\)\.id\)/.test(sj), 'vi.json עובר normVi (viFetch)');
   ok(/b\.length !== s\.img\.l/.test(sj) && /'image\/webp'/.test(sj), 'תמונת שקף: בדיוק האורך מהטווח, והסוג לפי החתימה');
   ok(/createPlayer\(\{ src: src \|\| fb[^\n]*subLang: me\.v\.lang\.src/.test(sj), 'המיני־נגן = createPlayer של התרגום (ה4), הכתוביות כבויות כשהקול באותה שפה');
   ok(/onVf: \(id, why, sec\) => vfAdd\(rec, id, why, sec\)/.test(sj) && /m\.vf = \(m\.vf \|\| \[\]\)\.concat\(\{ id, why, at:/.test(sj), '"דווח על טעות" → ux.vf');
@@ -272,6 +272,36 @@ function mkDoc() {
   ok(/if \(orig\) d\.dir = lineDir\(x, oBase\)/.test(ps) && /if \(!orig\) \{ cc = 'off'; paintCc\(\); paintSub\(\); ccB\.disabled = true; \}/.test(ps), 'orig — כל שורה בכיוון שלה, והתמליל נשאר גם בקובץ החלופי');
   ok(/orig \? T\('studioPlCcSrcL'\)/.test(ps) && /orig \? srcTag\(\)/.test(ps), 'orig — התפריט "שפת המקור (התמליל)", והתווית = שפת הסרטון');
   ok(/x\.dir = s \? lineDir\(s, dir\) : dir/.test(src) && /sp\.dir = lineDir\(e\.text, dir\)/.test(src) && /bq\.dir = lineDir\(a\.e\.text, dir\)/.test(src) && /dir = langDir\(v\.lang\.src\) \|\| 'ltr'/.test(src), 'הדף — ציטוטים ושורות התמליל בכיוון שלהם (שפות משולבות)');
+
+  // 2.141.2 (הקלטת המשתמש מהדפדפן: מלבן שחור "טוען את הסרטון והכתוביות…" בכל כניסה ל"אחרונה"): הניתוח נשאר בזיכרון
+  {
+    const vm = require('vm');
+    const a = sj.indexOf('const vaKeep = new Map();'), b = sj.indexOf('function pageVi(');
+    ok(a > 0 && b > a, 'vaKeep / viFetch / viWarm / vaClose לפני pageVi');
+    const freed = [], calls = [];
+    const ctx = { URL: { revokeObjectURL: (u) => freed.push(u) }, document: { hidden: false }, Map, Set, Promise,
+      net: { driveJson: (id) => { calls.push(id); return Promise.resolve({ id }); } }, normVi: (j) => ({ n: j.id }),
+      outOf: (r, k) => r.out[k], viPageOk: (r) => !!r.ok, stDialJob: () => ctx.__j, __j: null };
+    vm.runInNewContext('let va = null;' + sj.slice(a, b) + ';this.t = { vaKeep, vaPut, vaClose, viFetch, viWarm, setVa: (x) => { va = x; } };', ctx);
+    const t = ctx.t, urls = (...x) => new Map(x.map((u, i) => [i, u]));
+    t.setVa({ id: 'j1', fid: 'f1', st: 'ok', v: { n: 1 }, cues: [1], urls: urls('u1'), view: { destroy() {} } });
+    t.vaClose();
+    ok(t.vaKeep.get('j1') && t.vaKeep.get('j1').v.n === 1 && t.vaKeep.get('j1').cues[0] === 1 && !freed.length, 'יציאה מהדף — הניתוח, התמליל והשקפים נשמרים (לא משוחררים)');
+    t.setVa({ id: 'j2', fid: 'f2', st: 'load', v: null, urls: urls('u2'), view: null });
+    t.vaClose();
+    ok(!t.vaKeep.has('j2') && freed.join() === 'u2', 'דף שלא נטען — משוחרר כמו קודם');
+    for (const k of ['j3', 'j4', 'j5']) t.vaPut(k, { fid: k, v: {}, cues: null, urls: urls('u-' + k) });
+    ok(t.vaKeep.size === 3 && !t.vaKeep.has('j1') && freed.includes('u1'), 'עד שלושה בזיכרון — הישן יוצא והשקפים שלו משוחררים');
+    const p1 = t.viFetch('f9'), p2 = t.viFetch('f9');
+    ok(p1 === p2 && calls.length === 1, 'בקשה אחת לקובץ — החימום והדף חולקים אותה');
+    ctx.__j = { rec: { id: 'j8', ok: true, out: { vi: { id: 'f8' } } } };
+    t.viWarm(); t.viWarm();
+    await new Promise((r) => setTimeout(r, 0));
+    ok(calls.filter((c) => c === 'f8').length === 1 && t.vaKeep.get('j8') && t.vaKeep.get('j8').v.n === 'f8', '"אחרונה" היא ניתוח — נטען ברקע פעם אחת ונשמר');
+    ok(/if \(k && k\.fid === fid\) \{ vaKeep\.delete\(rec\.id\); Object\.assign\(va, \{ st: 'ok', v: k\.v, cues: k\.cues, urls: k\.urls \}\); \}/.test(sj)
+      && /const v = await viFetch\(outOf\(rec, 'vi'\)\.id\);/.test(sj) && /^\s*viWarm\(\);/m.test(sj.slice(sj.indexOf('function render('), sj.indexOf('function render(') + 400)), 'pageVi מצייר מהזיכרון כשהקובץ זהה; render מחמם');
+    ok(/if \(va\.st === 'load'\) \{ p\.append\(h\('div', 'st-empty st-empty-sm', T\('studioPlLoading'\)\)\)/.test(sj), 'טעינה ראשונה — שורה בהירה, לא מלבן נגן שחור');
+  }
 
   console.log(`\n${n} בדיקות עברו`);
 })().catch((e) => { console.error(e); process.exit(1); });

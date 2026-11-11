@@ -15,21 +15,25 @@ ok(/function cubeVTPre\(/.test(core) && /function cubeVTFace\(/.test(core) && /f
 ok(/if \(cubeVTOk\(root\)\) \{ const v = cubeVTPre\(root, go\); if \(v\) return v; \}/.test(fn(app, 'cubePre')), 'cubePre: מעבר ממוקד כשנתמך, ואחרת ההעתק הישן');
 const okSrc = fn(app, 'cubeVTOk');
 ok(/st-root/.test(okSrc) && /lib-root/.test(okSrc) && /startViewTransition/.test(okSrc) && /window\.__cubeVT === false/.test(okSrc) && /cubeReduce\(\)/.test(okSrc), 'רק לשכבות של Studio ו־Academy, רק עם תמיכה, ומתג לנתיב הישן (__cubeVT)');
-// 11/11/2026 (הקלטות המשתמש): בדפדפן בטלפון (סרגל כתובת נשלף) הפסאודו־אלמנטים מוזזים בגובה הסרגל — כל הדף קפץ בנחיתה
-ok(/if \(cubeVTBar\(\) && !\(typeof window !== 'undefined' && window\.__cubeVT === true\)\) return false;/.test(okSrc)
-  && /\(display-mode: browser\)/.test(fn(app, 'cubeVTBar')) && /\(pointer: coarse\)/.test(fn(app, 'cubeVTBar')), 'דפדפן עם מגע — בלי מעבר ממוקד (ההעתק, כמו Invest); __cubeVT = true מחזיר אותו');
+// 11/11/2026 (שלוש הקלטות): בדפדפן בטלפון ה־transform של הקבוצה כולל את גובה סרגל הכתובת (crbug 387030974) — כל הדף קפץ.
+// 2.138.2 עבר להעתק, וההעתק החזיר דפים ריקים בחוגה. 2.141.2: המעבר הממוקד גם בדפדפן, והקבוצה מקובעת (cube-vt-pin)
+ok(!/cubeVTBar\(\)/.test(okSrc), 'הדפדפן לא נדחה מהמעבר הממוקד (לא חוזרים להעתק — דפים ריקים בחוגה)');
+ok(/\(display-mode: browser\)/.test(fn(app, 'cubeVTBar')) && /\(pointer: coarse\)/.test(fn(app, 'cubeVTBar'))
+  && /if \(cubeVTBar\(\)\) root\.classList\.add\('cube-vt-pin'\)/.test(fn(app, 'cubeVTPre'))
+  && /root\.classList\.remove\('cube-vt', 'cube-vt-pin'\)/.test(fn(app, 'cubeVTPre')), 'לשונית בדפדפן עם מגע — cube-vt-pin על השכבה בזמן המעבר, ויורד בסופו');
+ok(/\.cube-vt-pin::view-transition-group\(root\) \{ transform: none !important; \}/.test(css), 'styles.css: הקבוצה במקומה (מטריצת יחידה — הערך הנכון לשכבה עצמה)');
 {
   const mk = (mm, flag) => {
     const ctx = { window: { __cubeVT: flag }, document: { hidden: false }, matchMedia: (q) => ({ matches: !!mm[q] }) };
-    vm.runInNewContext('const cubeReduce = () => false; const cubeDesk = () => false;' + fn(app, 'cubeVTBar') + fn(app, 'cubeVTOk') + 'this.f = cubeVTOk;', ctx);
-    return ctx.f({ classList: { contains: (c) => c === 'st-root' }, startViewTransition() {} });
+    vm.runInNewContext('const cubeReduce = () => false; const cubeDesk = () => false;' + fn(app, 'cubeVTBar') + fn(app, 'cubeVTOk') + 'this.f = cubeVTOk; this.b = cubeVTBar;', ctx);
+    return [ctx.f({ classList: { contains: (c) => c === 'st-root' }, startViewTransition() {} }), ctx.b()];
   };
   const tab = { '(display-mode: browser)': true, '(pointer: coarse)': true };
-  ok(mk(tab) === false, 'Chrome בטלפון, לשונית בדפדפן — ההעתק');
-  ok(mk({ '(display-mode: standalone)': true, '(pointer: coarse)': true }) === true, 'האפליקציה (standalone) — המעבר הממוקד נשאר');
-  ok(mk({ '(display-mode: browser)': true, '(pointer: fine)': true }) === true, 'מחשב עם עכבר (בלי סרגל נשלף) — המעבר הממוקד נשאר');
-  ok(mk(tab, true) === true && mk({ '(display-mode: standalone)': true }, false) === false, 'המתגים לגלאים: __cubeVT = true / false');
-  ok(/function cubeVTBar\(/.test(core), 'cubeVTBar ב־core.js');
+  ok(mk(tab)[0] === true && mk(tab)[1] === true, 'Chrome בטלפון, לשונית בדפדפן — מעבר ממוקד עם הקיבוע');
+  ok(mk({ '(display-mode: standalone)': true, '(pointer: coarse)': true }).join() === 'true,false', 'האפליקציה (standalone) — מעבר ממוקד, בלי קיבוע (ללא שינוי)');
+  ok(mk({ '(display-mode: browser)': true, '(pointer: fine)': true }).join() === 'true,false', 'מחשב עם עכבר — מעבר ממוקד, בלי קיבוע');
+  ok(mk(tab, false)[0] === false, 'המתג לגלאים: __cubeVT = false — ההעתק');
+  ok(/function cubeVTBar\(/.test(core) && /cube-vt-pin/.test(core), 'cubeVTBar והקיבוע ב־core.js');
 }
 ok(/::view-transition-new\(root\)/.test(fn(app, 'cubeVTFace')) && /::view-transition-old\(root\)/.test(fn(app, 'cubeVTFace')), 'הפאות = הצילום של היוצא (old) והדף החי (new)');
 ok(/pseudoElement: f\.pe/.test(fn(app, 'faceSet')) && /if \(f\.pe\) opt\.pseudoElement = f\.pe;/.test(fn(app, 'cubeRun')), 'cubeSet ו־cubeRun מזיזים את הפסאודו־אלמנטים');
