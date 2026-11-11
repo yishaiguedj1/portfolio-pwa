@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של academy (1279 מפתחות מתוך 6826) */
+/* המחרוזות של academy (1282 מפתחות מתוך 6831) */
 const STRINGS = {
 he: {
   "acAiNote": "הניתוח נכתב בעזרת AI מתוך הטקסט של המכתב.",
@@ -594,6 +594,7 @@ he: {
   "dkCmdLang": "English",
   "dkCmdLight": "מצב בהיר",
   "dkCmdPage": "עמוד",
+  "dkDropT": "שחרר כאן",
   "dkFind": "חיפוש ופעולות",
   "dkKeyArrows": "מעבר בין פריטים",
   "dkKeyBack": "סגירה וחזרה",
@@ -718,6 +719,8 @@ he: {
   "libDlErr": "ההורדה נכשלה — נסו שוב",
   "libDlReady": "הספר ירד — נגיעה בו פותחת אותו",
   "libDrm": "הספר מוגן ב־DRM ולא ייפתח: {t}",
+  "libDropNone": "אפשר להוסיף רק ספרים (EPUB, MOBI, AZW3, FB2)",
+  "libDropT": "שחרר כדי להוסיף לספרייה",
   "libEmptySnb": "ספריית המכתבים עוד ריקה.",
   "libHidden": "מוסתרים ({n})",
   "libHiddenT": "ספרים מוסתרים",
@@ -1875,6 +1878,7 @@ en: {
   "dkCmdLang": "עברית",
   "dkCmdLight": "Light mode",
   "dkCmdPage": "Page",
+  "dkDropT": "Drop here",
   "dkFind": "Search and actions",
   "dkKeyArrows": "Move between items",
   "dkKeyBack": "Close and go back",
@@ -1999,6 +2003,8 @@ en: {
   "libDlErr": "Download failed — try again",
   "libDlReady": "Downloaded — tap the book to open it",
   "libDrm": "This book is DRM-protected and won’t open: {t}",
+  "libDropNone": "Only books can be added (EPUB, MOBI, AZW3, FB2)",
+  "libDropT": "Drop to add to your library",
   "libEmptySnb": "The letters library is empty for now.",
   "libHidden": "Hidden ({n})",
   "libHiddenT": "Hidden books",

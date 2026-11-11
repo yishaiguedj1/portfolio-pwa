@@ -90,6 +90,18 @@ html:not(.dk) .dk-side { display: none; }
   padding: 3px 6px; border-radius: 6px; background: var(--dk-hover); border: 1px solid var(--separator); white-space: nowrap;
 }
 .dk-item .dk-kbd { opacity: 0; transition: opacity .15s ease; }
+.dk-tip {   /* גל 2: בועית שם + קיצור לכפתור־אייקון (core: deskTipShow) — צבעים הפוכים, קטנה, לא חוסמת עכבר */
+  position: fixed; z-index: 2400; pointer-events: none; display: flex; align-items: center; gap: 8px; max-inline-size: 280px;
+  padding: 5px 9px; border-radius: 8px; font: 500 13px/1.3 var(--font); background: var(--on-surface); color: var(--surface);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .18); opacity: 0; transform: translateY(-2px); transition: opacity .12s ease, transform .12s ease;
+}
+.dk-tip.on { opacity: 1; transform: none; }
+.dk-drop {   /* גל 2: קובץ שנגרר מעל החלון (core: deskDropShow) — מסגרת מקווקוות ובועה עם הכיתוב של מי שיקבל */
+  position: fixed; inset: 10px; z-index: 2300; pointer-events: none; display: grid; place-items: center;
+  border: 2px dashed var(--dk-ring, var(--primary)); border-radius: 22px; background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+.dk-drop-box { padding: 14px 22px; border-radius: 16px; font: 600 17px/1.3 var(--font); background: var(--surface); color: var(--on-surface); box-shadow: 0 10px 30px rgba(0, 0, 0, .2); }
+.dk-tip .dk-kbd { color: inherit; background: color-mix(in srgb, var(--surface) 16%, transparent); border-color: transparent; }
 .dk-find .dk-kbd, .dk-item:focus-visible .dk-kbd { opacity: 1; }
 .dk-find { margin-block-end: 10px; background: var(--dk-hover); color: var(--on-surface-var); }
 .dk-find .dk-ico { color: inherit; }
@@ -272,7 +284,7 @@ html.dk .dk-pal-in:focus-visible { outline: none; }   /* השדה הוא הלו�
   .dk-item[aria-current="page"], .dk-pal-row[aria-selected="true"] { outline: 2px solid Highlight; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .dk-veil, .dk-pal, .dk-help, .dk-item { transition: none; }
+  .dk-veil, .dk-pal, .dk-help, .dk-item, .dk-tip { transition: none; }
 }
 
 /* מרכז הניהול: לוגו 64 (admin.css) — הבועות בגובה הכפתור, לא לפי לוגו של 100 */

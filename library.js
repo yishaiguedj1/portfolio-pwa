@@ -1408,6 +1408,13 @@ function importInput(after, folder) {     // C14: כמה ספרים יחד, או
   });
   return inp;
 }
+/* 11/11/2026 (תצוגת מחשב, גל 2): ספרים שנגררים לחלון — כמו "הוספה" (רק קבצי ספרים; השאר — הודעה). לא בזמן קריאה */
+async function dropBooks(files) {
+  const ok = files.filter((f) => BOOK_EXT.test(f.name || ''));
+  if (!ok.length) { if (typeof flash === 'function') flash(T('libDropNone')); return; }
+  const n = await importFiles(ok);
+  if (n && root) { if (ui.shelf !== 'mine') setShelf('mine'); else renderHome(); indexAll(); BK.schedule(); }
+}
 function mineEmpty() {                     // ספרייה פרטית ריקה: הוספה, ואם יש גיבוי — שחזור בלחיצה אחת
   const box = h('div', 'lib-mine-empty');
   const card = h('div', 'lib-bkcard');
@@ -3143,6 +3150,11 @@ function wireHold(el, onHold) {
     else cancel();
   });
   el.addEventListener('pointercancel', () => { held = false; cancel(); el.classList.remove('pressing'); });
+  // 11/11/2026 (תצוגת מחשב, גל 2): לחיצה ימנית בעכבר = לחיצה ארוכה. מגע ארוך — כמו קודם (רק מבטל את תפריט המכשיר)
+  el.addEventListener('contextmenu', (e) => {
+    if (typeof deskCtxMouse !== 'function' || !deskCtxMouse(e)) return;
+    e.preventDefault(); e.stopPropagation(); held = false; cancel(); onHold();
+  });
   el.addEventListener('click', (e) => { if (swallow) { swallow = false; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
 }
 function bookActions(host, b) {
@@ -5112,6 +5124,7 @@ export async function openLibrary(opt) {
   if (SA) { SA.inSettings = () => !!(root && ui.view && libInSet(ui.view)); SA.settings = openAcademySettings; SA.notes = () => goView({ notes: 1 }); SA.backup = () => goView({ backup: 1 }); SA.addBook = openAddSheet; SA.home = SA.home || './'; }
   const restore = opt && opt.restore && opt.restore.lib ? opt.restore : null;   // רענון בזמן שהספרייה הייתה פתוחה
   root = h('div', 'lib-root no-swipe');
+  if (typeof deskDropOn === 'function') deskDropOn({ ok: () => !!root && !rd, label: () => T('libDropT'), take: dropBooks });
   root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', T('libTitle'));
   root.tabIndex = -1;
   if (!window._libKey) {                 // על document: אחרי מעבר דף האלמנט שבפוקוס נמחק והפוקוס נופל ל־body

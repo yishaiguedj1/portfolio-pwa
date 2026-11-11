@@ -3505,6 +3505,34 @@ function moreRows(f) {
   if (more.length) box.append(note(T('studioMoreTotal', { n: 1 + more.length, t: fmtDur(tot) })));
   return box;
 }
+function formTake(f, file, handle) {   // הסרטון של הטופס — מהבורר או מגרירה לחלון
+  f.fileObj = file; f.handle = handle || null; f.drive = null; f.pv = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
+  fnlAdd('pick');   // 26/10/2026: המסלול שלפני העבודה
+  f.edl = null; f.dur = 0; inspectFor(f, file);   // סבב 2: קובץ חדש — חיתוך ישן לא שייך לו; בדיקה ברקע (חינם)
+  if (!f.ka && !f.vi) tracksFor(f, file);   // שלב 4: רצועות כתוביות בתוך הסרטון (30/10/2026: לא בשיר — שם מילים, לא כתוביות)
+}
+/* 11/11/2026 (תצוגת מחשב, גל 2): סרטונים שנגררים לחלון. בטופס פתוח בלי סרטון — הוא מקבל אותו; אחרת טופס חדש.
+   עוד סרטונים — לרשימת העבודה (כמו "עוד סרטון", עד LIST_MAX; בשיר ובניתוח — רק הראשון) */
+const DROP_MEDIA = /\.(mp4|m4v|mkv|mov|webm|avi|mp3|m4a|flac|wav|ogg|opus)$/i, DROP_VIDEO = /\.(mp4|m4v|mkv|mov|webm|avi)$/i;
+function dropMedia(files) {
+  const vids = files.filter((x) => /^video\//.test(x.type || '') || DROP_VIDEO.test(x.name || ''));
+  const media = files.filter((x) => /^(video|audio)\//.test(x.type || '') || DROP_MEDIA.test(x.name || ''));
+  const inForm = ui.view === 'new' && form && !form.file;
+  if (!inForm) form = freshForm(null);
+  const f = form, pick = f.ka || f.vi ? media : vids;
+  if (!pick.length) { flashSafe(T('studioDropNone')); return; }
+  formTake(f, pick[0], null);
+  if (!f.ka && !f.vi) {
+    const more = f.more || (f.more = []);
+    for (const file of pick.slice(1)) {
+      if (1 + more.length >= LIST_MAX) { flashSafe(T('studioListMax', { n: LIST_MAX })); break; }
+      const m = { fileObj: file, file: { name: file.name, size: file.size, type: file.type || '' }, dur: 0 };
+      more.push(m);
+      inspectSource(file).then((x) => { if (x && x.dur) { m.dur = x.dur; if (form === f) render('none'); } }, () => {});
+    }
+  }
+  if (ui.view !== 'new') go('new', f.ka ? 'ka' : f.vi ? 'vi' : null, 'none'); else render('none');
+}
 function pageForm(p, editing) {
   if (!form) {
     const d = editing ? store.drafts.find((x) => x.id === ui.param) : null;
@@ -3523,13 +3551,7 @@ function pageForm(p, editing) {
   // הסרטון — מהטלפון. הקובץ נשאר בזיכרון רק עד ההתחלה; בטיוטה נשמרים רק השם, הגודל והסוג
   const inp = h('input', 'st-file'); inp.type = 'file'; inp.hidden = true;
   inp.accept = f.ka || f.vi ? 'audio/*,video/*,.mp3,.m4a,.flac,.wav,.ogg,.opus,.mkv,.mp4,.webm' : 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';
-  const took = (file, handle) => {
-    f.fileObj = file; f.handle = handle || null; f.drive = null; f.pv = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
-    fnlAdd('pick');   // 26/10/2026: המסלול שלפני העבודה
-    f.edl = null; f.dur = 0; inspectFor(f, file);   // סבב 2: קובץ חדש — חיתוך ישן לא שייך לו; בדיקה ברקע (חינם)
-    if (!f.ka && !f.vi) tracksFor(f, file);   // שלב 4: רצועות כתוביות בתוך הסרטון (30/10/2026: לא בשיר — שם מילים, לא כתוביות)
-    render('none');
-  };
+  const took = (file, handle) => { formTake(f, file, handle); render('none'); };
   inp.addEventListener('change', () => { const file = inp.files && inp.files[0]; if (file) took(file, null); });
   const pick = () => {
     if (nuPickOk(f)) { nuPick(); return; }   // 1/11/2026: בתוך Studio לאנדרואיד — דרך האפליקציה (תרגום רגיל בשרת)
@@ -10746,6 +10768,7 @@ export function openStudio(opt) {
   if (store.st) { if (!ui.api) ui.api = store.st.api; ui.mf = store.st.mf; if (store.st.r2) ui.r2 = true; }   // 29/10/2026 (S1): עד שהסטטוס חוזר — המצב האחרון
   rootFresh = !restore && stRoot() === 'home';   // 10/11/2026: פתיחה ראשונה (בלי מטמון) — הסטטוס הראשון יעביר לניתוח
   root = h('div', 'st-root no-swipe');
+  if (typeof deskDropOn === 'function') deskDropOn({ ok: () => !!root, label: () => T('studioDropT'), take: dropMedia });
   root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', T('studioTitle'));
   root.tabIndex = -1;
   root.addEventListener('pointerup', () => { if (CW_OK && root && !cw) watch(); }, true);   // נגיעה = הפעלת משתמש → מאזין חדש אם חסר

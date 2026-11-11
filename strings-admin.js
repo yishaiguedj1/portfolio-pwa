@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1663 מפתחות מתוך 6826) */
+/* המחרוזות של admin (1664 מפתחות מתוך 6831) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1557,6 +1557,7 @@ he: {
   "dkCmdLang": "English",
   "dkCmdLight": "מצב בהיר",
   "dkCmdPage": "עמוד",
+  "dkDropT": "שחרר כאן",
   "dkFind": "חיפוש ופעולות",
   "dkKeyArrows": "מעבר בין פריטים",
   "dkKeyBack": "סגירה וחזרה",
@@ -3222,6 +3223,7 @@ en: {
   "dkCmdLang": "עברית",
   "dkCmdLight": "Light mode",
   "dkCmdPage": "Page",
+  "dkDropT": "Drop here",
   "dkFind": "Search and actions",
   "dkKeyArrows": "Move between items",
   "dkKeyBack": "Close and go back",

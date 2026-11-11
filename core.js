@@ -775,7 +775,7 @@ const DESK_APPS = [
   { k: 'studio', name: 'Studio', icon: 'icon-studio-192.png', sub: () => t('menuStudioSub') },
   { k: 'cashflow', name: 'Cashflow', icon: 'icon-cashflow-192.png', sub: null, only: true },
 ];
-const _desk = { on: false, side: null, nav: null, sig: '', cur: '', set: null, inSet: null, cmds: [], pal: null, help: null, wired: false, raf: 0 };
+const _desk = { on: false, side: null, nav: null, sig: '', cur: '', set: null, inSet: null, cmds: [], pal: null, help: null, wired: false, raf: 0, tip: null, tipEl: null, tipT: 0, drops: [], drop: null, dropWired: false };
 
 /* טהורות (tests/desktop.test.js) */
 function deskApp() { try { return (document.documentElement.dataset.app || 'invest'); } catch (e) { return 'invest'; } }
@@ -854,6 +854,12 @@ function deskInputInit() {
   window.addEventListener('pointerdown', (e) => { moves = 0; deskInput(e.pointerType === 'mouse' ? 'mouse' : e.pointerType === 'pen' ? 'pen' : 'touch'); }, { capture: true, passive: true });
   // תזוזת עכבר אמיתית (לא אירועי תאימות של מגע — אלה מסומנים touch) מחזירה למצב עכבר; שלוש תזוזות — לא רעד בודד
   window.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' && document.documentElement.dataset.input !== 'mouse' && ++moves > 2) deskInput('mouse'); }, { capture: true, passive: true });
+}
+/* 11/11/2026 (גל 2): לחיצה ימנית בעכבר = הלחיצה הארוכה (עריכה/מחיקה/אוסף). מגע ארוך שולח גם הוא contextmenu,
+   ולכן רק כשהלחיצה באה מעכבר (pointerType; בדפדפן שבו האירוע בלי pointerType — לפי הקלט האחרון) */
+function deskCtxMouse(e) {
+  if (e && e.pointerType) return e.pointerType === 'mouse';
+  try { return document.documentElement.dataset.input === 'mouse'; } catch (er) { return false; }
 }
 
 /* ---------- 2. מסגרת מחשב ---------- */
@@ -1190,6 +1196,70 @@ function deskWheelOver(e) {
   const r = deskHRow(e.target);
   if (r && !r.__dkWheel) { r.__dkWheel = 1; r.addEventListener('wheel', deskWheel, { passive: false }); }
 }
+/* ---------- 6. בועית עם השם והקיצור (גל 2, 11/11/2026) ----------
+   עכבר שעומד חצי שנייה על כפתור־אייקון (‎.icon-btn עם aria-label) או על [data-dk-tip] — בועית קטנה עם השם, ו־data-dk-key
+   מוסיף את הקיצור (‎'mod+,' → ⌘, / Ctrl+,). נסגרת ביציאה, בלחיצה, בגלילה וב־Esc (בלי לבלוע את ה־Esc של החלון). רק במחשב ובעכבר */
+const DESK_TIP_SEL = '.icon-btn[aria-label], [data-dk-tip]', DESK_TIP_MS = 500;
+function deskTipText(el) { return String((el.dataset && el.dataset.dkTip) || el.getAttribute('aria-label') || '').trim(); }
+function deskTipPos(r, w, h, vw, vh) {   // מתחת לאלמנט, ואם אין מקום — מעליו; תמיד בתוך החלון
+  const top = r.bottom + 8 + h <= vh - 4 ? r.bottom + 8 : Math.max(4, r.top - 8 - h);
+  const left = Math.max(4, Math.min(vw - w - 4, r.left + r.width / 2 - w / 2));
+  return { top: Math.round(top), left: Math.round(left) };
+}
+function deskTipHide() {
+  clearTimeout(_desk.tipT); _desk.tipT = 0; _desk.tipEl = null;
+  if (_desk.tip) { _desk.tip.remove(); _desk.tip = null; }
+}
+function deskTipShow(el) {
+  _desk.tipT = 0;
+  const txt = deskTipText(el);
+  if (!txt || !el.isConnected || !_desk.on) return;
+  const tip = deskEl('div', 'dk-tip'); tip.setAttribute('role', 'tooltip');
+  tip.append(deskEl('span', 'dk-tip-t')); tip.firstChild.textContent = txt;
+  const k = el.dataset && el.dataset.dkKey; if (k) tip.append(deskKbdEl(k));
+  document.body.append(tip); _desk.tip = tip;
+  const p = deskTipPos(el.getBoundingClientRect(), tip.offsetWidth, tip.offsetHeight, window.innerWidth, window.innerHeight);
+  tip.style.top = p.top + 'px'; tip.style.left = p.left + 'px';
+  tip.classList.add('on');
+}
+function deskTipOver(e) {
+  if (!_desk.on || document.documentElement.dataset.input !== 'mouse') return;
+  const el = e.target && e.target.closest ? e.target.closest(DESK_TIP_SEL) : null;
+  if (el === _desk.tipEl) return;
+  deskTipHide();
+  if (!el || el.title || el.disabled || el.getAttribute('aria-expanded') === 'true') return;   // לכפתור עם title יש בועית של המערכת
+  _desk.tipEl = el; _desk.tipT = setTimeout(() => deskTipShow(el), DESK_TIP_MS);
+}
+function deskTipOut(e) { if (_desk.tipEl && !(e.relatedTarget && _desk.tipEl.contains(e.relatedTarget))) deskTipHide(); }
+/* ---------- 7. גרירת קבצים לכל החלון (גל 2, 11/11/2026) ----------
+   אפליקציה רושמת { ok, label, take } (Academy — ספרים, Studio — סרטון). קובץ שנגרר מעל החלון: שכבה עם הכיתוב של מי שמקבל
+   (האחרון שנרשם ו־ok() אמת); שחרור → take(files). גרירה שאינה קבצים (טקסט, קישור, תמונה מהדף) — לא נוגעים */
+function deskDropOn(h) { if (h && typeof h.take === 'function' && !_desk.drops.includes(h)) _desk.drops.push(h); deskDropWire(); }
+function deskDropFiles(dt) { try { return !!dt && Array.from(dt.types || []).includes('Files'); } catch (e) { return false; } }
+function deskDropWho() { for (let i = _desk.drops.length - 1; i >= 0; i--) { const h = _desk.drops[i]; try { if (!h.ok || h.ok()) return h; } catch (e) {} } return null; }
+function deskDropShow(h) {
+  if (!h) { if (_desk.drop) { _desk.drop.remove(); _desk.drop = null; } return; }
+  if (_desk.drop) return;
+  const v = deskEl('div', 'dk-drop'); v.setAttribute('aria-hidden', 'true');
+  const b = deskEl('div', 'dk-drop-box'); b.textContent = (h.label && h.label()) || t('dkDropT');
+  v.append(b); document.body.append(v); _desk.drop = v;
+}
+function deskDropWire() {
+  if (_desk.dropWired || typeof document === 'undefined' || typeof document.addEventListener !== 'function') return;
+  _desk.dropWired = true;
+  let depth = 0;
+  document.addEventListener('dragenter', (e) => { if (!deskDropFiles(e.dataTransfer)) return; depth++; deskDropShow(deskDropWho()); });
+  document.addEventListener('dragover', (e) => { if (!deskDropFiles(e.dataTransfer) || !deskDropWho()) return; e.preventDefault(); try { e.dataTransfer.dropEffect = 'copy'; } catch (er) {} });
+  document.addEventListener('dragleave', (e) => { if (!deskDropFiles(e.dataTransfer)) return; if (--depth <= 0) { depth = 0; deskDropShow(null); } });
+  document.addEventListener('drop', (e) => {
+    depth = 0; deskDropShow(null);
+    const h = deskDropFiles(e.dataTransfer) ? deskDropWho() : null;
+    if (!h) return;
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length) { try { h.take(files); } catch (er) {} }
+  });
+}
 function deskInit() {
   if (typeof window === 'undefined' || typeof document === 'undefined' || _desk.wired || !document.documentElement) return;
   // חלון/מסמך מדומים בבדיקות (vm) — בלי מאזינים
@@ -1198,6 +1268,11 @@ function deskInit() {
   try { deskInputInit(); } catch (e) {}
   document.addEventListener('keydown', deskKey);
   document.addEventListener('mouseover', deskWheelOver, { passive: true });
+  document.addEventListener('mouseover', deskTipOver, { passive: true });
+  document.addEventListener('mouseout', deskTipOut, { passive: true });
+  for (const ev of ['pointerdown', 'scroll', 'wheel']) document.addEventListener(ev, () => { if (_desk.tipEl) deskTipHide(); }, { capture: true, passive: true });
+  document.addEventListener('keydown', (e) => { if (_desk.tipEl && e.key === 'Escape') deskTipHide(); }, true);
+  window.addEventListener('blur', () => { if (_desk.tipEl) deskTipHide(); });
   let rt = 0;
   window.addEventListener('resize', () => { cancelAnimationFrame(rt); rt = requestAnimationFrame(deskMode); }, { passive: true });
   // אחרי כל לחיצה / "חזור" — ההדגשה בסרגל מתעדכנת (המעברים של האפליקציות לא עוברים תמיד דרך החוגה)

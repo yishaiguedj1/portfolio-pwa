@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2437 מפתחות מתוך 6826) */
+/* המחרוזות של studio (2440 מפתחות מתוך 6831) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -92,6 +92,7 @@ he: {
   "dkCmdLang": "English",
   "dkCmdLight": "מצב בהיר",
   "dkCmdPage": "עמוד",
+  "dkDropT": "שחרר כאן",
   "dkFind": "חיפוש ופעולות",
   "dkKeyArrows": "מעבר בין פריטים",
   "dkKeyBack": "סגירה וחזרה",
@@ -521,6 +522,8 @@ he: {
   "studioDriveNote": "בתיקייה \"THE SNOWBALL — סטודיו\" ב־Google Drive שלך. לסטודיו יש גישה רק לקבצים שהוא יצר — לא לגיבוי הספרייה.",
   "studioDriveOk": "Google Drive מחובר",
   "studioDrivePopup": "הדפדפן חסם את החלון. אפשרו חלונות קופצים ונסו שוב",
+  "studioDropNone": "אפשר לגרור רק סרטון או קובץ שמע",
+  "studioDropT": "שחרר כדי לתרגם",
   "studioDur": "אורך",
   "studioDxBusy": "שומר ב־Drive…",
   "studioDxDone": "נשמר ב־{n}",
@@ -2531,6 +2534,7 @@ en: {
   "dkCmdLang": "עברית",
   "dkCmdLight": "Light mode",
   "dkCmdPage": "Page",
+  "dkDropT": "Drop here",
   "dkFind": "Search and actions",
   "dkKeyArrows": "Move between items",
   "dkKeyBack": "Close and go back",
@@ -2960,6 +2964,8 @@ en: {
   "studioDriveNote": "In a THE SNOWBALL studio folder in your Google Drive. The studio can only access files it created — not the library backup.",
   "studioDriveOk": "Google Drive connected",
   "studioDrivePopup": "The browser blocked the window. Allow pop-ups and try again",
+  "studioDropNone": "Only a video or audio file can be dropped here",
+  "studioDropT": "Drop to translate",
   "studioDur": "Length",
   "studioDxBusy": "Saving to Drive…",
   "studioDxDone": "Saved to {n}",

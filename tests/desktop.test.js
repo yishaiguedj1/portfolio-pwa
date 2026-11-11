@@ -217,4 +217,30 @@ ok(/c === 'KeyK'/.test(play) && /c === 'KeyF'/.test(play) && /removeEventListene
 ok(/!deskK1\(\)/.test(play), 'נגן: K/F נכבים עם שאר הקיצורים של מקש אחד');
 ok(/p\.dataset\.v = ui\.view;/.test(studio) && /\.st-page\[data-v\]/.test(css), 'Studio: רוחב הדף לפי סוגו (טפסים ופרטים בעמודת קריאה)');
 
+/* ---------- 8. גל 2 — עכבר (11/11/2026) ---------- */
+const g2 = { Math, String, Array, document: { documentElement: { dataset: { input: 'touch' } } } };
+vm.createContext(g2);
+vm.runInContext([fn(app, 'deskCtxMouse'), fn(app, 'deskTipPos'), fn(app, 'deskDropFiles'), fn(app, 'deskDropWho'), 'const _desk = { drops: [] };'].join('\n')
+  + '\nthis.api = { deskCtxMouse, deskTipPos, deskDropFiles, deskDropWho, _desk };', g2);
+const G = g2.api;
+ok(G.deskCtxMouse({ pointerType: 'mouse' }) && !G.deskCtxMouse({ pointerType: 'touch' }) && !G.deskCtxMouse({ pointerType: 'pen' }), 'לחיצה ימנית: רק מעכבר (pointerType) — מגע ארוך לא פותח פעמיים');
+ok(!G.deskCtxMouse({}), 'לחיצה ימנית בלי pointerType — לפי הקלט האחרון (מגע → לא)');
+g2.document.documentElement.dataset.input = 'mouse';
+ok(G.deskCtxMouse({}), 'לחיצה ימנית בלי pointerType — הקלט האחרון עכבר → כן');
+const tp = G.deskTipPos({ top: 100, bottom: 140, left: 500, width: 40 }, 80, 26, 1440, 900);
+ok(tp.top === 148 && tp.left === 480, 'בועית: מתחת לכפתור, ממורכזת');
+ok(G.deskTipPos({ top: 860, bottom: 896, left: 10, width: 36 }, 120, 26, 1440, 900).top === 826, 'בועית: בתחתית החלון — מעל הכפתור');
+ok(G.deskTipPos({ top: 10, bottom: 50, left: 1420, width: 20 }, 120, 26, 1440, 900).left === 1316, 'בועית: לא חורגת מקצה החלון');
+ok(G.deskDropFiles({ types: ['Files'] }) && !G.deskDropFiles({ types: ['text/plain', 'text/uri-list'] }) && !G.deskDropFiles(null), 'גרירה: רק קבצים (לא טקסט/קישור מהדף)');
+const hA = { ok: () => true, take() {} }, hB = { ok: () => false, take() {} };
+G._desk.drops.push(hA, hB);
+ok(G.deskDropWho() === hA, 'גרירה: מי שמקבל — האחרון שנרשם ופתוח');
+ok(/contextmenu[\s\S]{0,200}deskCtxMouse\(e\)[\s\S]{0,120}onHold\(\)/.test(fn(lib, 'wireHold')), 'Academy: לחיצה ימנית על ספר/אוסף = לחיצה ארוכה');
+ok((app.match(/contextmenu', \(e\) => \{\n\s+const (c|tb) = !drag && [^\n]*deskCtxMouse\(e\)/g) || []).length === 2, 'Invest: לחיצה ימנית על כרטיס מניה ועל טאב מעקב = לחיצה ארוכה');
+ok(/function tabActs\(tab\)/.test(app) && /tabActs\(bar\.querySelector/.test(app), 'Invest: הפעולות של טאב — פונקציה אחת ללחיצה ארוכה ולימנית');
+ok(/deskDropOn\(\{ ok: \(\) => !!root && !rd, label: \(\) => T\('libDropT'\), take: dropBooks \}\)/.test(lib) && /BOOK_EXT\.test/.test(fn(lib, 'dropBooks')), 'Academy: ספרים שנגררים לחלון — רק קבצי ספרים, לא בזמן קריאה');
+ok(/deskDropOn\(\{ ok: \(\) => !!root, label: \(\) => T\('studioDropT'\), take: dropMedia \}\)/.test(studio) && /LIST_MAX/.test(fn(studio, 'dropMedia')) && /formTake\(f, file, handle\)/.test(studio), 'Studio: סרטון שנגרר — לטופס (עוד סרטונים — לרשימה עד LIST_MAX)');
+ok(/\.dk-tip \{[^}]*pointer-events: none/.test(css) && /\.dk-drop \{[^}]*pointer-events: none/.test(css), 'הבועית ושכבת הגרירה לא חוסמות את העכבר');
+ok(/'mouseover', deskTipOver/.test(app) && /e\.key === 'Escape'\) deskTipHide\(\)/.test(app), 'בועית: נפתחת בריחוף ונסגרת ב־Esc');
+
 console.log('\n' + n + ' בדיקות עברו');

@@ -31,7 +31,11 @@ for (const c of ['icon-btn', 'fx-pill', 'btn', 'dlg-ok', 'chip-btn', 'range-btn'
 
 ok(/@layer glassbtn\s*\{/.test(body), 'glass-btn.css ב־@layer glassbtn');
 const layer = body.slice(body.indexOf('@layer glassbtn'));
-ok(/--gb-on:\s*1;\s*background:\s*var\(--gb-body\)\s*!important/.test(layer), 'החומר: גוף הזכוכית, !important, מסומן --gb-on');
+ok(/--gb-on:\s*1;\s*background:\s*var\(--gb-body-cur,\s*var\(--gb-body\)\)\s*!important/.test(layer), 'החומר: גוף הזכוכית, !important, מסומן --gb-on');
+// 11/11/2026 (תצוגת מחשב, גל 2): ריחוף בעכבר — רק דרך --gb-*-cur, רק עם data-input="mouse", לא בלחיצה ולא בכפתור כבוי
+ok(/box-shadow:\s*var\(--gb-sh-cur,\s*var\(--gb-sh\)\)\s*!important/.test(layer), 'ריחוף: הצל דרך --gb-sh-cur');
+ok(/@media \(hover: hover\)\s*\{\s*html\[data-input="mouse"\][^{]*:hover:not\(:active, :disabled[^{]*\{\s*--gb-body-cur:\s*var\(--gb-body-hover\);\s*--gb-sh-cur:\s*var\(--gb-sh-hover\);/.test(body), 'ריחוף: רק בעכבר, לא בלחיצה ולא בכבוי');
+ok(/\[data-theme="dark"\][^{]*\{[^}]*--gb-sh-hover:/.test(body), 'ריחוף: גם בכהה');
 ok(/backdrop-filter:\s*var\(--gb-fx\)\s*!important/.test(layer) && /cube-face[^{]*\{[^}]*--gb-fx:\s*none/.test(body), "שקוף עם טשטוש, כבוי בסיבוב הקובייה");
 ok(!/::(before|after)/.test(layer), 'בלי ::before/::after');
 ok(!/snow|url\(/i.test(body), 'בלי שלג ובלי תמונות (בקשת המשתמש: רק הזכוכית)');
