@@ -82,6 +82,16 @@ ok(/html\.dk \.appbar-row \{ max-width: calc\(var\(--dk-max\) - 48px\)/.test(css
   ok(!/"orientation"/.test(R('manifest.webmanifest')), 'המניפסט בלי נעילת כיוון — טאבלט, מתקפל ומחשב אנדרואיד (Googlebook) בחלון חופשי');
   ok(/SIZES="280 653 m\n/.test(R('tools/qa-sizes.sh')) && /\n5120 1440 -/.test(R('tools/qa-sizes.sh')) && /\n1080 1920 -/.test(R('tools/qa-sizes.sh')), 'סריקת הגדלים: מ־280 ועד 5120, כולל מסך לאורך');
 }
+{ // 11/11/2026: "אתר למחשב" באנדרואיד — דף ברוחב 980 על מסך של 412 = מסגרת מחשב; טלפון רגיל וטאבלט — לא
+  const f = new Function('DESK_MIN_SITE', 'return ' + fn(app, 'deskSiteMode'))(900);
+  ok(f(980, 412) && !f(412, 412) && !f(800, 412) && !f(1280, 800) && !f(980, 0), 'deskSiteMode: "אתר למחשב" בטלפון בלבד');
+  ok(/deskSiteMode\(window\.innerWidth, sw\)/.test(fn(app, 'deskWide')), 'deskWide משתמש ב־deskSiteMode');
+}
+{ // 11/11/2026: Studio — חיבור איטי (מעל 8 שנ׳): הסטטוס נשלח שוב כשהחשבון מתחבר (אחרת אין קריוקי/ניתוח/"אחרונה")
+  const st = R('studio.js');
+  ok(/SA\.auth\.onChange\(\(st\) => \{ if \(st === 'in' && root && ui\.access && ui\.access !== 'ok'\) \{ statusAt = 0; refreshStatus\(true\); refreshJobs\(true\); \} \}\)/.test(st), 'סטטוס ועבודות שוב אחרי החיבור');
+  ok(/if \(ui\.access === 'offline' \|\| ui\.access === 'signin'\) await refreshStatus\(true\)/.test(st), 'הבדיקה התקופתית — גם אחרי "בלי חשבון"');
+}
 ok(/DESK_MIN_FINE = 900/.test(app) && /fine \? DESK_MIN_FINE : DESK_MIN/.test(fn(app, 'deskWide')), 'עם עכבר — מסגרת המחשב כבר מ־900 (חלון בחצי מסך)');
 
 /* ---------- 2. ניתוב המקלדת (deskKey) — עם תחליפים ---------- */
@@ -249,7 +259,11 @@ ok(/> \.stock\.open \{\s*grid-column: 2; grid-row: 1 \/ span 999; position: stic
 ok(/--dk-top/.test(fn(app, 'deskTop')) && /deskTop\(\);/.test(fn(app, 'deskSync')), 'מפקח: גובה ההדר נמדד (deskTop) ב־deskSync');
 ok(/c === 'Backslash' && _desk\.side\) \{ e\.preventDefault\(\); return deskSideToggle\(\); \}/.test(fn(app, 'deskKey')), 'סרגל: ⌘\\ / Ctrl+\\ מסתיר ומציג');
 ok(/LS_DKSIDE/.test(fn(app, 'deskSideToggle')) && /if \(deskSideHidden\(\)\) document\.documentElement\.classList\.add\('dk-hide'\)/.test(app), 'סרגל: ההעדפה נשמרת במכשיר ומוחלת לפני הציור הראשון');
-ok(/html\.dk\.dk-hide \{ --dk-off: 0px; \}/.test(css) && /html\.dk\.dk-hide \.dk-showbtn \{ display: grid/.test(css), 'סרגל מוסתר: התוכן מתרחב וכפתור בפינה מחזיר');
+{ // 11/11/2026 (המשתמש: "הסרגל נעלם ואין דרך להחזיר אותו"): הכפתור שמחזיר — מעל שכבות Studio/Academy (900), מתחת לחלונות (960+)
+  const zm = /html\.dk\.dk-hide \.dk-showbtn \{[^}]*z-index: (\d+)/.exec(css), z = zm ? +zm[1] : 0;
+  ok(z > 900 && z < 960, 'כפתור החזרת הסרגל מעל .st-root/.lib-root ומתחת לחלונות');
+}
+ok(/html\.dk\.dk-hide \{ --dk-off: calc\(var\(--dk-ib\) \+ 28px\); \}/.test(css) && /html\.dk\.dk-hide \.dk-showbtn \{[^}]*inset-block-start:/.test(css) && /html\.dk\.dk-hide \.dk-showbtn \{ display: grid/.test(css), 'סרגל מוסתר: התוכן מתרחב (פס צר לכפתור) וכפתור בפינה העליונה מחזיר');
 ok(/\['mod\+\\\\', t\('dkSideHide'\)\]/.test(fn(app, 'deskHelp')) && /dkSideShow/.test(fn(app, 'deskCmdList')), 'סרגל: בחלון הקיצורים ובלוח הפקודות');
 ok(/deskKbd\(pm \+ '\+' \+ \(i \+ 1\), mac\)/.test(fn(app, 'deskCmdList')), 'לוח הפקודות: מקש העמודים לפי המערכת (Ctrl+Alt בלינוקס/Googlebook)');
 

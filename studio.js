@@ -10730,7 +10730,7 @@ async function pollNow() {
   if (polling || !root) return;
   polling = true;
   try {
-    if (ui.access === 'offline') await refreshStatus(true);
+    if (ui.access === 'offline' || ui.access === 'signin') await refreshStatus(true);   // 11/11/2026: גם בלי חשבון (חיבור איטי)
     if (ui.view === 'job' && JOB_RE.test(String(ui.param || ''))) {
       const id = ui.param, j = await net.api('job', { job: id });
       const r = jobRec(id);
@@ -10807,6 +10807,13 @@ export function openStudio(opt) {
   if (store.st) { if (!ui.api) ui.api = store.st.api; ui.mf = store.st.mf; if (store.st.r2) ui.r2 = true; }   // 29/10/2026 (S1): עד שהסטטוס חוזר — המצב האחרון
   rootFresh = !restore && stRoot() === 'home';   // 10/11/2026: פתיחה ראשונה (בלי מטמון) — הסטטוס הראשון יעביר לניתוח
   root = h('div', 'st-root no-swipe');
+  // 11/11/2026 (המשתמש, Studio במחשב בלי קריוקי, ניתוח ו"אחרונה"): כשהחיבור לחשבון איטי (מעל 8 שנ׳ — SA.ready נפתר 'boot'),
+  // הסטטוס והעבודות הראשונים יוצאים בלי חשבון, ובדף הבית בלי עבודה רצה אין בדיקה חוזרת — אין שרת/R2 ולכן גם לא הלשוניות.
+  // כשהחשבון מתחבר — שוב, פעם אחת
+  if (SA && SA.auth && typeof SA.auth.onChange === 'function' && !window._stAuthRe) {
+    window._stAuthRe = true;
+    SA.auth.onChange((st) => { if (st === 'in' && root && ui.access && ui.access !== 'ok') { statusAt = 0; refreshStatus(true); refreshJobs(true); } });
+  }
   if (typeof deskDropOn === 'function') deskDropOn({ ok: () => !!root, label: () => T('studioDropT'), take: dropMedia });
   // 11/11/2026 (תצוגת מחשב, גל 5): Studio מותקן במחשב — "פתיחה באמצעות" של סרטון (file_handlers במניפסט) → טופס חדש עם הקובץ
   if (window.launchQueue && !window._stLQ) {
