@@ -72,6 +72,41 @@ const VERCEL = 'https://ibkr-proxy-wine.vercel.app', API = 'https://api.thesnowb
     ok(calls[0] === API + '/api/quotes', 'אחרי 421 — הבקשה הבאה שוב לשרת שלנו');
   }
 
+  // ---------- 11/11/2026: גיבוי מת (Vercel חסום, 402) — לא ננעלים עליו 5 דקות ("אין חיבור לרשת" כמה פעמים ביום)
+  {
+    const ss = { m: {}, getItem(k) { return this.m[k] || null; }, setItem(k, v) { this.m[k] = String(v); }, removeItem(k) { delete this.m[k]; } };
+    let apiDown = true, bk = 'cors';   // cors = 402 בלי CORS בדפדפן (TypeError) · 402 = התשובה עצמה · ok
+    const calls = [];
+    const f = (url) => {
+      calls.push(url);
+      if (url.startsWith(API)) return apiDown ? Promise.reject(new TypeError('Failed to fetch')) : Promise.resolve({ status: 200, url });
+      return bk === 'cors' ? Promise.reject(new TypeError('Failed to fetch')) : Promise.resolve({ status: bk === '402' ? 402 : 200, url });
+    };
+    const w = envAt('studio.thesnowball.app', f, ss);
+    const err = await w.fetch(API + '/api/studio', { method: 'POST', body: '{}' }).then(() => null, (e) => e);
+    ok(err instanceof TypeError && calls.length === 2 && !ss.m.snb_api_down, 'שניהם לא עונים — השגיאה המקורית, והשרת שלנו לא מסומן כנופל');
+    bk = '402'; calls.length = 0;
+    const err2 = await w.fetch(API + '/api/studio', { method: 'POST', body: '{}' }).then(() => null, (e) => e);
+    ok(err2 instanceof TypeError && !ss.m.snb_api_down, '402 מהגיבוי (מושבת) = לא ענה — לא עוברים אליו');
+    apiDown = false; calls.length = 0;
+    const r = await w.fetch(API + '/api/studio', { method: 'POST', body: '{}' });
+    ok(r.status === 200 && calls.join() === API + '/api/studio', 'הבקשה הבאה — ישר לשרת שלנו, בלי 5 דקות על הגיבוי');
+    // לשונית שכבר מסומנת "נפילה" (מלפני העדכון, או שהגיבוי מת בינתיים) → חוזרים לשרת שלנו מיד
+    for (const mode of ['cors', '402']) {
+      bk = mode; calls.length = 0; ss.m.snb_api_down = String(Date.now() + 60e3);
+      const r2 = await w.fetch(API + '/api/history', {});
+      ok(r2.status === 200 && calls.join() === [VERCEL + '/api/history', API + '/api/history'].join() && !ss.m.snb_api_down,
+        'בזמן "נפילה" הגיבוי לא ענה (' + mode + ') — הסימון נמחק והבקשה הולכת לשרת שלנו');
+    }
+    // הגיבוי חי — ההתנהגות הקודמת נשמרת
+    apiDown = true; bk = 'ok'; calls.length = 0;
+    const r3 = await w.fetch(API + '/api/quotes', {});
+    ok(r3.url === VERCEL + '/api/quotes' && +ss.m.snb_api_down > Date.now(), 'הגיבוי ענה — עוברים אליו ומסמנים 5 דקות (כמו קודם)');
+    const ac = { aborted: true }; calls.length = 0; bk = 'cors';
+    await w.fetch(API + '/api/quotes', { signal: ac }).then(() => ok(false, 'abort'), () => {});
+    ok(calls.join() === VERCEL + '/api/quotes', 'בזמן "נפילה" — בקשה שבוטלה לא חוזרת לשרת שלנו');
+  }
+
   // ---------- CSP, רשימת המקורות בשרתון, assetlinks
   for (const p of ['index.html', 'academy.html', 'studio.html']) {
     const cs = /connect-src ([^;]+)/.exec(read(p))[1].split(/\s+/);

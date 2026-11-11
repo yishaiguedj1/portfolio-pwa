@@ -1364,11 +1364,12 @@ async function idTok() {
   } catch (e) { return ''; }
 }
 const proxyBase = () => (typeof IBKR_PROXY_DEFAULT !== 'undefined' && IBKR_PROXY_DEFAULT) || '';
+const netUp = () => typeof navigator === 'undefined' || navigator.onLine !== false;
 const net = createNet({
   base: proxyBase,
   headers: () => (typeof ibkrProxyHeaders === 'function' ? ibkrProxyHeaders() : {}),
   idToken: idTok,
-  online: () => typeof navigator === 'undefined' || navigator.onLine !== false,
+  online: netUp,
 });
 /* חיבור Google Drive — אותו מנגנון של גיבוי הספרייה (libbackup.js), אבל לקוח OAuth נפרד בשרתון (v357); החלון נפתח בתוך הלחיצה */
 let gdc = null;
@@ -1406,7 +1407,9 @@ let statusAt = 0;
 async function refreshStatus(force) {
   if (!force && Date.now() - statusAt < 20000) return;
   statusAt = Date.now();
-  const j = await net.api('status');
+  let j = await net.api('status');
+  // 11/11/2026: תקלת רשת של רגע (מעבר בין Wi‑Fi לסלולר, השרת מתחלף) — עוד ניסיון אחד לפני הפס
+  if (!j.ok && j.error === 'net' && netUp()) { await sleep(2500); j = await net.api('status'); }
   if (j.ok) {
     ui.access = 'ok'; ui.kinds = Array.isArray(j.kinds) ? j.kinds : [];
     store.conn = j.conn ? { hint: String(j.conn.hint || ''), ok: num(j.conn.ok), since: num(j.conn.since) } : null;
@@ -2979,7 +2982,7 @@ function accessBanner() {
   }
   if (ui.access === 'signin') return banner('warn', T('studioErrSignin'));
   if (ui.access === 'denied') return banner('warn', T('studioErrDenied'));
-  if (ui.access === 'offline') return banner('info', T('studioOffline'));
+  if (ui.access === 'offline') return banner('info', netUp() ? T('studioApiDown') : T('studioOffline'));   // 11/11/2026: יש רשת — השרת הוא שלא ענה
   if (ui.access === 'quota') return banner('info', T('studioErrQuota', { t: quotaReset() }));   // 28/10/2026: מכסת Firestore — לא "השרתון לא ענה"
   if (ui.access === 'error') return banner('info', T('studioErrServer'));
   return null;
@@ -10568,6 +10571,7 @@ function schedulePoll() {
   else if (ui.view === 'home' || ui.view === 'vi') ms = store.jobs.some((r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running' || r.srv.bg)) ? 30000 : recMs(store.jobs);   // 26/10/2026: 30 שנ׳ (op:'jobs' = כל העבודות שלך — קריאה מ־Firestore לכל אחת)
   else if (ui.view === 'rr') { ms = rrRunning(rrJobs.get(ui.param)) || rrRunning(rrPv.get(ui.param)) ? 4000 : 0; }   // מ2; סבב 10: גם הבדיקה
   else if (ui.view === 'server' && ui.api && ui.api.admin) ms = 15000;   // מסך השרת: הדופק מתעדכן כל 15 שנ׳
+  if (ui.access === 'offline') ms = Math.min(ms || 30000, 30000);   // 11/11/2026: הפס "השרת לא עונה" — בודקים שוב עד שהוא חוזר (לא רק במעבר דף)
   if (ms) pollT = setTimeout(pollNow, ms);
 }
 let polling = false;
@@ -10575,6 +10579,7 @@ async function pollNow() {
   if (polling || !root) return;
   polling = true;
   try {
+    if (ui.access === 'offline') await refreshStatus(true);
     if (ui.view === 'job' && JOB_RE.test(String(ui.param || ''))) {
       const id = ui.param, j = await net.api('job', { job: id });
       const r = jobRec(id);
