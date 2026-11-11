@@ -16443,7 +16443,9 @@ function wireCardDrag(list, cfg) {
   }, { passive: false });
   list.addEventListener('touchend', end);
   list.addEventListener('touchcancel', end);
-  list.addEventListener('mousedown', (e) => { if (e.button === 0) arm(e.target, e.clientX, e.clientY); });
+  // 11/11/2026 (תצוגת מחשב, גל 5): pointerdown ולא mousedown — במחשב מגע שבו האצבע נראית לדף כעכבר, mousedown מגיע רק אחרי
+  // שהאצבע עזבה, ולחיצה ארוכה לא נקלטה. מגע אמיתי — במסלול ה־touch שלמעלה (ולא פעמיים מאירועי התאימות)
+  list.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'touch' && e.button === 0) arm(e.target, e.clientX, e.clientY); });
   document.addEventListener('mousemove', (e) => {
     if (drag) { cy = e.clientY; return; }
     if (timer && (Math.abs(e.clientX - sx) > SLOP || Math.abs(e.clientY - sy) > SLOP)) cancelTimer();
@@ -16633,7 +16635,7 @@ function wireTabDrag(bar) {
   }, { passive: false });
   bar.addEventListener('touchend', end);
   bar.addEventListener('touchcancel', end);
-  bar.addEventListener('mousedown', (e) => { if (e.button === 0) arm(e.target, e.clientX, e.clientY); });
+  bar.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'touch' && e.button === 0) arm(e.target, e.clientX, e.clientY); });   // גל 5 — כמו בכרטיסים
   document.addEventListener('mousemove', (e) => {
     if (drag) { cx = e.clientX; return; }
     if (timer && (Math.abs(e.clientX - sx) > SLOP || Math.abs(e.clientY - sy) > SLOP)) cancelTimer();
@@ -19066,6 +19068,12 @@ function init() {
       if (fromApp && dropAppNavEntry()) afterBack(() => { try { appLinkUnwind(); } catch (e) {} });
     });
     setTimeout(() => { try { openStockFromHash(); } catch (e) {} }, 0);
+    // 11/11/2026 (תצוגת מחשב, גל 5): מותקנת במחשב עם launch_handler focus-existing — קיצור דרך מהאייקון (‎#tab=…) מגיע
+    // לחלון הפתוח בלי ניווט; מעבירים את ה־hash, וה־hashchange שלמעלה פותח את הלשונית
+    if (window.launchQueue) window.launchQueue.setConsumer((p) => {
+      let hh = ''; try { hh = new URL(p && p.targetURL).hash; } catch (e) {}
+      if (hh && /(?:^#|&)(?:tab|stock|chart|watch)=/.test(hh) && hh !== location.hash) location.hash = hh;
+    });
     // v353: רשת ביטחון — קישור שהגיע כשהדף היה מוקפא ברקע (ה־hashchange לא תמיד מגיע) מטופל כשהדף חוזר למסך
     const linkPending = () => /(?:^#|&)(?:tab|stock|studio|chart|watch)=/.test(location.hash || '');
     const onShow = () => { if (!document.hidden && linkPending()) { try { openStockFromHash(); } catch (e) {} } };

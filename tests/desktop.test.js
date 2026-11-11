@@ -278,4 +278,17 @@ ok(/if \(start === 'find'\) setTimeout/.test(lib), 'קורא: החיפוש נפ�
 ok(/e\.key !== 'Enter' \|\| !\(e\.metaKey \|\| e\.ctrlKey\)[\s\S]{0,200}cueStep\(k, hist\.cur\.length, e\.shiftKey\)/.test(R('studiosubs.js')), 'עורך הכתוביות: ⌘↩ לשורה הבאה, ⇧ לקודמת');
 ok(/invest: \[\['← →'/.test(app) && /\['mod\+↩', \(\) => t\('dkKeyCueNext'\)\]/.test(app) && /\['mod\+F', \(\) => t\('dkKeyBookFind'\)\]/.test(app), 'חלון הקיצורים: הקיצורים החדשים בכל אפליקציה');
 
+/* ---------- 11. גל 5 — התקנה במחשב ומחשב מגע (11/11/2026) ---------- */
+const MI = JSON.parse(R('manifest.webmanifest')), MA = JSON.parse(R('manifest-academy.webmanifest')), MS = JSON.parse(R('manifest-studio.webmanifest'));
+ok([MI, MA, MS].every((m) => m.launch_handler && m.launch_handler.client_mode === 'focus-existing'), 'מניפסט: חלון פתוח מקבל את הפתיחה (focus-existing) בשלוש האפליקציות');
+ok(MI.shortcuts.length >= 3 && MI.shortcuts.every((x) => /^\.\/index\.html#tab=(stocks|wishlist|trades)$/.test(x.url)), 'Invest: קיצורי דרך מהאייקון ללשוניות (#tab=, כמו הווידג׳ט)');
+ok(MI.screenshots.some((x) => x.form_factor === 'wide') && MI.screenshots.some((x) => x.form_factor === 'narrow') && MI.screenshots.every((x) => fs.existsSync(path.join(__dirname, '..', x.src))), 'Invest: צילומי התקנה רחב וצר (מתיק הדמו)');
+ok(!('orientation' in MA) && !('orientation' in MS) && MA.dir === 'rtl' && MS.lang === 'he', 'Academy/Studio: בלי נעילת כיוון, עברית מימין');
+ok([MA, MS].every((m) => m.icons.some((i) => i.sizes === '512x512') && m.icons.every((i) => fs.existsSync(path.join(__dirname, '..', i.src)))), 'Academy/Studio: אייקונים 192 ו־512 קיימים');
+ok(MA.file_handlers[0].accept['application/epub+zip'].includes('.epub') && MS.file_handlers[0].accept['video/*'].includes('.mkv'), 'פתיחה באמצעות: ספרים ב־Academy, סרטונים ב־Studio');
+ok(/<link rel="manifest" href="manifest-academy\.webmanifest">/.test(R('academy.html')) && /<link rel="manifest" href="manifest-studio\.webmanifest">/.test(R('studio.html')), 'Academy/Studio: המניפסט מחובר לדף');
+ok(/launchQueue\.setConsumer\(take\)/.test(fn(lib, 'libLaunchFiles')) && /dropBooks\(fs\)/.test(fn(lib, 'libLaunchFiles')) && /launchQueue\.setConsumer\([\s\S]{0,300}dropMedia\(fs\)/.test(studio), 'פתיחה באמצעות: הקבצים נכנסים כמו בגרירה');
+ok(/launchQueue\.setConsumer\(\(p\) => \{[\s\S]{0,200}\(\?:tab\|stock\|chart\|watch\)=[\s\S]{0,80}location\.hash = hh/.test(app), 'Invest: קיצור דרך לחלון פתוח — דרך ה־hash');
+ok((app.match(/addEventListener\('pointerdown', \(e\) => \{ if \(e\.pointerType !== 'touch' && e\.button === 0\) arm\(/g) || []).length === 2 && !/addEventListener\('mousedown', \(e\) => \{ if \(e\.button === 0\) arm\(/.test(app), 'מחשב מגע: לחיצה ארוכה בכרטיס ובטאב מ־pointerdown (לא mousedown שמגיע רק בשחרור)');
+
 console.log('\n' + n + ' בדיקות עברו');

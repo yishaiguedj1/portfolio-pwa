@@ -1415,6 +1415,13 @@ async function dropBooks(files) {
   const n = await importFiles(ok);
   if (n && root) { if (ui.shelf !== 'mine') setShelf('mine'); else renderHome(); indexAll(); BK.schedule(); }
 }
+/* 11/11/2026 (תצוגת מחשב, גל 5): Academy מותקנת במחשב — "פתיחה באמצעות" של ספר (file_handlers במניפסט) מגיעה לכאן */
+function libLaunchFiles() {
+  if (typeof window === 'undefined' || !window.launchQueue || window._libLQ) return;
+  window._libLQ = true;
+  const take = (p) => Promise.all(((p && p.files) || []).map((x) => x.getFile().catch(() => null))).then((fs) => { fs = fs.filter(Boolean); if (fs.length) dropBooks(fs); });
+  try { window.launchQueue.setConsumer(take); } catch (e) {}
+}
 function mineEmpty() {                     // ספרייה פרטית ריקה: הוספה, ואם יש גיבוי — שחזור בלחיצה אחת
   const box = h('div', 'lib-mine-empty');
   const card = h('div', 'lib-bkcard');
@@ -5145,6 +5152,7 @@ export async function openLibrary(opt) {
   const restore = opt && opt.restore && opt.restore.lib ? opt.restore : null;   // רענון בזמן שהספרייה הייתה פתוחה
   root = h('div', 'lib-root no-swipe');
   if (typeof deskDropOn === 'function') deskDropOn({ ok: () => !!root && !rd, label: () => T('libDropT'), take: dropBooks });
+  if (SA) libLaunchFiles();
   root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', T('libTitle'));
   root.tabIndex = -1;
   if (!window._libKey) {                 // על document: אחרי מעבר דף האלמנט שבפוקוס נמחק והפוקוס נופל ל־body

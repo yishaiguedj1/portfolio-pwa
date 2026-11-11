@@ -10769,6 +10769,11 @@ export function openStudio(opt) {
   rootFresh = !restore && stRoot() === 'home';   // 10/11/2026: פתיחה ראשונה (בלי מטמון) — הסטטוס הראשון יעביר לניתוח
   root = h('div', 'st-root no-swipe');
   if (typeof deskDropOn === 'function') deskDropOn({ ok: () => !!root, label: () => T('studioDropT'), take: dropMedia });
+  // 11/11/2026 (תצוגת מחשב, גל 5): Studio מותקן במחשב — "פתיחה באמצעות" של סרטון (file_handlers במניפסט) → טופס חדש עם הקובץ
+  if (window.launchQueue && !window._stLQ) {
+    window._stLQ = true;
+    try { window.launchQueue.setConsumer(async (p) => { const hs = (p && p.files) || []; if (!hs.length) return; const fs = (await Promise.all(hs.map((x) => x.getFile().catch(() => null)))).filter(Boolean); if (fs.length && root) dropMedia(fs); }); } catch (e) {}
+  }
   root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', T('studioTitle'));
   root.tabIndex = -1;
   root.addEventListener('pointerup', () => { if (CW_OK && root && !cw) watch(); }, true);   // נגיעה = הפעלת משתמש → מאזין חדש אם חסר
