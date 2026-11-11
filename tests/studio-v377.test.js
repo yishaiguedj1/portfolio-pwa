@@ -33,7 +33,8 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/sla: SLA\.slaView\(job, now\)/.test(read('ibkr-proxy/lib/studio.js')) && /'tg'(, '[a-z]+')*\]/.test(read('ibkr-proxy/lib/studio.js')), 'publicJob מחזיר את היעדים');
 
   /* ---------- 2. העובד ---------- */
-  ok(/ctx\.report\(stage, None, msg, force=True, wv=True\)/.test(read('translator/job.py')), 'העובד: מחכים לסרטון — wv (השעון עוצר)');
+  // 11/11/2026: wv רק כשמחכים לטלפון — הורדה מקישור ברקע (bg) היא עבודה של השרת (translator/tests/test_url_fetch.py)
+  ok(/ctx\.report\(stage, None, [^\n]*\bmsg, force=True, wv=None if bg else True\)/.test(read('translator/job.py')), 'העובד: מחכים לסרטון — wv (השעון עוצר)');
 
   /* ---------- 3. הטלפון ---------- */
   const s1 = st.normSla({ t: { tg: 4000, el: 900, pz: 120, f: 0.23, lv: 'ok', paused: true }, pf: 0.3, u: { tg: 9.2, sp: 1.1, f: 0.12, lv: 'ok' } });

@@ -765,9 +765,13 @@ class TestApplyVerdict(unittest.TestCase):
         self.assertEqual(V.parse_vv("**n7** | sup | x")["n7"][0], "sup", "הפורמט עם הציטוט עדיין נקרא")
 
     def test_prompt_asks_quote(self):
-        self.assertIn("<claim id>|<verdict>|<quote>", V.VV_SYS, "הציטוט בכל שורה — בלעדיו אין Citations")
+        self.assertIn("<claim id>|<verdict>|<support>", V.VV_SYS, "קטע מהראיה בכל שורה — בלעדיו אין Citations")
+        self.assertIn("cite the evidence for each line", V.VV_SYS, "11/11: בקשה מפורשת לצטט (תיעוד ה־Citations)")
+        self.assertNotIn("No other text", V.VV_SYS, "פרומפט 'פורמט בלבד' → מעט או אפס ציטוטים")
         self.assertNotIn("<verdict>\nCite", V.VV_SYS)
-        self.assertGreaterEqual(V.PV, 2, "שינוי בפרומפט — PV עולה")
+        blocks, _ = V.vv_blocks([{"id": "n1", "text": "x", "ev": [{"id": "s1", "text": "y"}]}])
+        self.assertIn("cite the evidence for each line", blocks[-1]["text"], "גם השורה האחרונה בבקשה — לא סותרת את ההנחיה")
+        self.assertGreaterEqual(V.PV, 3, "שינוי בפרומפט — PV עולה")
         self.assertGreaterEqual(A.VV_MAX_OUT, 6000, "החשיבה של haiku-high (~2.8K) + 30 שורות עם ציטוט — בלי קטיעה ושליחה כפולה")
 
     def test_codes(self):

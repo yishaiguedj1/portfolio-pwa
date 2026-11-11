@@ -17,7 +17,10 @@ import hashlib
 import json
 import re
 
-PV = 2                     # 10/11/2026: 2 — האימות מצטט מהראיה בכל שורה (בלי ציטוט כל "sup" ירד ל־part)
+PV = 3                     # 10/11/2026: 2 — האימות מצטט מהראיה בכל שורה (בלי ציטוט כל "sup" ירד ל־part)
+                           # 11/11/2026: 3 — "cite the evidence for each line", בלי "No other text" ובלי "quote": ב־PV 2 המודל
+                           # כתב ציטוט בכל 170 השורות, וה־API לא החזיר אף citation (cite 0/6). לפי תיעוד ה־Citations: פרומפט
+                           # שמבקש פורמט בלבד → "few or no citations"; הדפוס המומלץ — שורה לכל שדה + "cite … for each line"
 
 GENRES = ('academic_lecture', 'course_module', 'business_webinar', 'conference_talk', 'panel', 'interview_podcast',
           'software_tutorial', 'product_demo', 'workshop', 'investor_presentation', 'other')
@@ -303,9 +306,8 @@ For every claim decide, using ONLY its own evidence passages:
 - con: the evidence contradicts it.
 A number, name or hedge that differs from the evidence is at most "part". Translation between Hebrew and English is not a difference.
 
-Answer with exactly one line per claim, in the given order: <claim id>|<verdict>|<quote>
-<quote> = a short exact quote (up to 12 words) from the evidence passage that decides the verdict, copied in its original language. If no passage is relevant, write — instead of a quote.
-No other text.
+Answer with exactly one line per claim, in the given order, in the form <claim id>|<verdict>|<support>, and cite the evidence for each line.
+After the second |, write only the few words of the evidence that decide the verdict (up to 12 words, in their original language), with no explanation and no quotation marks. If no passage is relevant, write — there instead.
 """
 
 
@@ -318,7 +320,8 @@ def vv_blocks(claims: list[dict]) -> tuple[list[dict], list[str]]:
             blocks.append({'type': 'search_result', 'source': e['id'], 'title': '%s (evidence for %s)' % (e['id'], c['id']),
                            'content': [{'type': 'text', 'text': e['text'] or '—'}], 'citations': {'enabled': True}})
             refs.append(e['id'])
-    blocks.append({'type': 'text', 'text': 'Verify every claim above. One line per claim: <claim id>|<verdict> (sup, part, uns, con).'})
+    blocks.append({'type': 'text', 'text': 'Verify every claim above. One line per claim: <claim id>|<verdict>|<support> '
+                   '(verdict: sup, part, uns, con), and cite the evidence for each line.'})
     return blocks, refs
 
 
