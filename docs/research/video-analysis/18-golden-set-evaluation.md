@@ -154,7 +154,9 @@
 | 61 | [פודקאסט בעברית (רענן כהן)](https://www.youtube.com/watch?v=s5M3NjQSkmg) | — | HE | לא אומת | — | — | שיחה | חיפוש בלבד |
 | 62 | [פודקאסט בעברית (אייזנברג)](https://www.youtube.com/watch?v=ILDxkx1yWDA) | — | HE | לא אומת | — | — | שיחה | חיפוש בלבד |
 | 63 | [פודקאסט "לומדים AI"](https://www.youtube.com/watch?v=GeyHdZF3iFc) | — | HE | לא אומת | — | — | מונחי AI באנגלית בתוך עברית | חיפוש בלבד |
-| 64 | [Commons: מומחים מאוניברסיטת תל אביב עונים לשאלות הציבור על הקורונה](https://commons.wikimedia.org/wiki/File:Coronavirus_-_Experts_from_Tel_Aviv_University_answer_questions_from_the_public.webm) | 7:53 | HE | CC BY 3.0 | נמוכה | כמה מומחים | שאלות ותשובות בעברית עם מונחים רפואיים. 15/3/2020. המקור ב־YouTube: ‎_9niPdd7DIQ | אומת |
+| 64 | [Commons: מומחים מאוניברסיטת תל אביב עונים לשאלות הציבור על הקורונה](https://commons.wikimedia.org/wiki/File:Coronavirus_-_Experts_from_Tel_Aviv_University_answer_questions_from_the_public.webm) | 7:53 | HE | CC BY 3.0 | נמוכה | כמה מומחים | שאלות ותשובות בעברית עם מונחים רפואיים. 15/3/2020. המקור ב־YouTube: ‎_9niPdd7DIQ | ⛔ **קטוע — הוצא (11/11/2026)**: הדף מצהיר 7:53, אבל הקובץ 6.32MB ב־1080p ‏(112kbps) — יש בו רק 51 השניות הראשונות (הועלה חלקי ב־2020). העבודה בסטודיו קיבלה 51 שנ׳ |
+| 64ב | [Commons: מסיבת עיתונאים, 2012 (עברית)](https://commons.wikimedia.org/wiki/File:Tamir_in_a_press_conference_2012.webm) | 8:57 | HE | CC BY-SA 3.0 | נמוכה (שולחן מסיבת עיתונאים) | 2 או יותר | מחליף את 64: הצהרה ושאלות בעברית, 29/8/2012. ‏99MB ב־480p ‏(1.55Mbps) — הגודל מתאים לאורך | אומת (Commons, גודל מול אורך) |
+| 64ג | [Commons: ראיון עם פרופ׳ שמואל סקולניקוב](https://commons.wikimedia.org/wiki/File:Scolnicov.ogv) | 5:09 | HE | CC BY-SA 4.0 | נמוכה | 2 | רזרבה ל־64: ראיון בעברית על פילוסופיה. ‏34MB ב־576p ‏(934kbps) | אומת (Commons, גודל מול אורך) |
 
 **ח. הדגמת מוצר (product demo)**
 

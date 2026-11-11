@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2450 מפתחות מתוך 6844) */
+/* המחרוזות של studio (2451 מפתחות מתוך 6845) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -2362,6 +2362,7 @@ he: {
   "studioViSupL": "אומתו",
   "studioViT": "ניתוח יבש",
   "studioViThanks": "תודה — נרשם",
+  "studioViTrunc": "המקור קטוע: בקובץ יש רק {a} מתוך {b} — הניתוח רק על החלק הזה.",
   "studioViTx": "תמליל מלא",
   "studioViVv": "אמת שוב",
   "studioViVvBusy": "מאמתים מול התמליל…",
@@ -4814,6 +4815,7 @@ en: {
   "studioViSupL": "verified",
   "studioViT": "Dry analysis",
   "studioViThanks": "Thanks — noted",
+  "studioViTrunc": "The source is cut off: the file holds only {a} of {b} — the analysis covers just that part.",
   "studioViTx": "Full transcript",
   "studioViVv": "Verify again",
   "studioViVvBusy": "Checking against the transcript…",

@@ -191,6 +191,19 @@ function mkDoc() {
   ok(seeks[0] === 300, '"המשך מ־" מנגן מהמקום');
   pd.destroy();
 
+  /* 11/11/2026 — מקור קטוע (vi_trunc + video.decl): באנר עם "X מתוך Y"; decl נשמר רק כשהוא ארוך מ־dur; טלפון = שרתון */
+  const gt = Object.assign({}, good, { video: Object.assign({}, good.video, { dur: 51, decl: 473.1 }), quality: Object.assign({}, good.quality, { warn: ['vi_trunc'] }) });
+  const vt = P.normVi(gt);
+  ok(vt.video.decl === 473.1 && same(vt, VI.normVi(gt)), 'decl נשמר, כמו בשרתון');
+  ok(!('decl' in P.normVi(Object.assign({}, gt, { video: { dur: 51, decl: 40 } })).video) && !('decl' in P.normVi(Object.assign({}, gt, { video: { dur: 51, decl: 'x' } })).video), 'decl קצר / לא מספר — נזרק');
+  const ptr = P.renderVi(ctx(vt));
+  const tb = ptr.el.byCls('st-vi-trunc');
+  ok(tb.length === 1 && tb[0].textContent.includes('51') && tb[0].textContent.includes('473'), 'vi_trunc — באנר "המקור קטוע" עם שני האורכים');
+  ptr.destroy();
+  const pnt = P.renderVi(ctx(P.normVi(good)));
+  ok(!pnt.el.byCls('st-vi-trunc').length, 'מקור שלם — בלי באנר');
+  pnt.destroy();
+
   /* PR 1.2ג — "אמת שוב": הכפתור מ־studio.js (ctx.draftAct) בפס הטיוטה בלבד; עבודת־הבת לא ברשימה; כשהיא מסתיימת — הקובץ החדש נטען */
   const act = h('span', 'st-vi-vv');
   const pa = P.renderVi(ctx(vd, { draftAct: act }));

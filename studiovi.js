@@ -13,7 +13,7 @@ import { lineDir, langDir } from './studioplay.js';   // כיוון לכל שו�
 /* ---------- 1. vi.json — אותה הסכמה כמו בשרתון (נספח 19.1) ---------- */
 export const VI_V = 'snb.video-analysis/1';
 export const VI_LANGS = ['he', 'en'];
-export const VI_WARN = ['vi_noscreen', 'vi_lowres', 'vi_ocr', 'vi_asr_low', 'vi_partial', 'vi_unver', 'vi_ledger', 'ts_coarse'];
+export const VI_WARN = ['vi_noscreen', 'vi_lowres', 'vi_ocr', 'vi_asr_low', 'vi_partial', 'vi_unver', 'vi_ledger', 'ts_coarse', 'vi_trunc'];
 export const VI_SEG = ['content', 'intro', 'qa', 'pitch', 'sponsor', 'self_promo', 'interaction_reminder', 'preview_recap', 'filler', 'logistics', 'demo', 'exercise'];
 export const VI_SRC = ['speech', 'screen_only', 'both'];
 export const VI_BASIS = ['speaker', 'analyst_inference', 'external_knowledge'];
@@ -47,6 +47,7 @@ export function normVi(o) {
   out.video = { dur: fin(vd.dur, 0, 86400) ? r3(vd.dur) : 0 };
   if (VSRC_RE.test(String(vd.src || ''))) out.video.src = vd.src;
   if (txt(vd.title, VI_TXT.vtitle)) out.video.title = txt(vd.title, VI_TXT.vtitle);
+  if (fin(vd.decl, 0, 86400) && vd.decl > out.video.dur) out.video.decl = r3(vd.decl);   // 11/11/2026: מקור קטוע (vi_trunc) — האורך שהקובץ מצהיר
   out.evidence = [];
   for (const e of lst(o.evidence, VI_CAP.evidence)) {
     const sp = isObj(e) && ID.e.test(String(e.id || '')) && span(e), t = isObj(e) && txt(e.text, VI_TXT.text);
@@ -336,6 +337,9 @@ export function renderVi(ctx) {
     const db = h('div', 'st-banner warn st-vi-draft', T('studioViDraft'));
     if (ctx.draftAct) db.append(ctx.draftAct);
     el.append(db);
+  }
+  if (v.quality.warn.includes('vi_trunc') && v.video.decl > v.video.dur) {   // 11/11/2026: מקור קטוע (קובץ שהועלה חלקי) — לא "הסרטון כולו"
+    el.append(h('div', 'st-banner warn st-vi-trunc', T('studioViTrunc', { a: fmtT(v.video.dur), b: fmtT(v.video.decl) })));
   }
   el.append(hd);
   const mode = placeMode(ctx.place, ctx.now());
