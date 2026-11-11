@@ -233,7 +233,7 @@ export function normPlaces(o) {
 export const placeMode = (pl, now) => (!pl ? '' : now - pl.at > VI_QUIET_MS && pl.t >= 5 ? 'ask' : 'quiet');
 
 /* ---------- 4. הדף ----------
-   ctx: { T, h, btn, ico, fmtT, title, v (מנורמל), src: שפת המקור, place, now(), scroller(), flash(m),
+   ctx: { T, h, btn, ico, fmtT, title, v (מנורמל), src: שפת המקור, place, now(), scroller(), flash(m), ro (קריאה בלבד — share.js),
           mkPlayer() → createPlayer (או null), slideUrl(slide) → Promise<כתובת blob|''>, onUx(k, v), onVf(id, why), onPlace(pl), t0 }
    מחזיר { el, closeSheet() → true אם הייתה פתוחה, destroy() }. הדף נבנה פעם אחת לפתיחה; studio.js מצרף את אותו el בכל ציור */
 const WHY = ['wrong', 'ts', 'missing', 'attrib', 'overgen', 'shallow', 'unclear', 'long', 'other'];
@@ -407,7 +407,7 @@ export function renderVi(ctx) {
           }
           body.append(th);
         }
-        body.append(btn('st-linkb st-vi-miss', T('studioViMiss'), (e) => { ctx.onUx('ms'); ctx.flash(T('studioViThanks')); e.currentTarget.disabled = true; }, 'miss:' + c.id));
+        if (!ctx.ro) body.append(btn('st-linkb st-vi-miss', T('studioViMiss'), (e) => { ctx.onUx('ms'); ctx.flash(T('studioViThanks')); e.currentTarget.disabled = true; }, 'miss:' + c.id));
         d.append(body);
         if (ctl) paint();
       });
@@ -517,7 +517,7 @@ export function renderVi(ctx) {
     }
     const acts = h('div', 'st-vi-acts');
     acts.append(btn('st-btn wide st-vi-play', T('studioViPlayHere'), () => { const t = a.w != null ? Math.max(0, a.w - CHIP_LEAD) : a.e ? a.e.t0 : a.t; closeSheet(); playAt(t); }, 'sh-play'));
-    if (it) {
+    if (it && !ctx.ro) {   // ro — דף הצפייה ששותף בקישור (share.js): בלי "דווח על טעות"
       const why = h('div', 'st-rs-chips st-vi-why');
       why.hidden = true; why.setAttribute('role', 'group'); why.setAttribute('aria-label', T('studioViWhyT'));
       for (const k of WHY) {
