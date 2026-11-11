@@ -52,6 +52,10 @@ html[data-app="studio"] .st-root:not(.leaving) { animation: none; }   /* 14/10/2
 .st-back-l { overflow: hidden; text-overflow: ellipsis; }
 .st-txt { font-weight: 500; }
 .st-txt.bold { font-weight: 700; }
+/* 11/11/2026: שיתוף בקישור — כפתור בסרגל של דף התוצאה, והקישור עצמו בדף השיתוף */
+.st-navi { min-width: 40px; justify-content: center; }
+.st-navi svg { width: 22px; height: 22px; stroke-width: 2.2; }
+.st-shr-url { margin: 4px 16px 12px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--st-card); font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; }
 .st-txt:disabled { color: var(--st-ter); }
 .st-back:active, .st-txt:not(:disabled):active { opacity: .55; }
 .st-large { margin: 2px 0 10px; padding-inline: 16px; font-size: 32px; font-weight: 800; letter-spacing: -.5px; line-height: 1.15; }
@@ -1316,3 +1320,18 @@ html.st-dock .toast { bottom: calc(var(--dock-h, 120px) + 12px + env(safe-area-i
 .st-vi-shsl p { margin: 0; padding: 4px 12px; font-size: 14px; }
 .st-vi-shsl:not(.st-vi-sl) { padding-block: 8px; border-radius: var(--radius-xs); background: var(--st-fill); }
 @media (prefers-reduced-motion: reduce) { .st-vi-mini, .st-vi-pt, .st-vi-note { transition: none; } }
+
+/* 11/11/2026: דף הצפייה ששותף בקישור (share.html / share.js) — אותו עיצוב של דף התוצאה, בלי פעולות */
+.st-sv { animation: none; }
+.st-sv-brand { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; font-size: 15px; font-weight: 700; letter-spacing: .2px; }
+.st-sv-brand img { width: 28px; height: 28px; border-radius: var(--radius-xs); }
+.st-sv-meta { margin-top: -4px; margin-bottom: 12px; }
+.st-sv-pl { margin-bottom: 4px; }
+.st-sv-out { color: inherit; }
+.st-sv-out:disabled { opacity: .55; }
+.st-sv-dl { display: grid; place-items: center; color: var(--primary); }
+.st-sv-dl svg { width: 22px; height: 22px; }
+.st-sv-foot { margin: 14px 0 0; }
+.st-sv-flash { position: fixed; inset-inline: 16px; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 950; padding: 12px 16px; border-radius: var(--radius-sm);
+  background: var(--on-surface); color: var(--bg); font-size: 14.5px; line-height: 1.4; text-align: center; box-shadow: 0 6px 24px rgba(0, 0, 0, .25); }
+.st-sv-flash[hidden] { display: none; }

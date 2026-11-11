@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl" data-app="share" class="studio-open">
+<head>
+<meta charset="UTF-8">
+<!-- 11/11/2026: דף הצפייה ששותף בקישור (share.js) — בלי התחברות, בלי Firebase ובלי סקריפט מוטבע. רק השרתון ו־R2 (קישורים חתומים לשעה).
+     no-referrer + noindex: הקישור לא דולף לאתרים אחרים ולא נכנס למנועי חיפוש. tests/studio-share.test.js בודק. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: https://*.r2.cloudflarestorage.com; font-src 'self' data:; connect-src 'self' https://*.r2.cloudflarestorage.com https://*.vercel.app https://api.thesnowball.app https://api-staging.thesnowball.app; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>THE SNOWBALL Studio</title>
+<link rel="icon" type="image/png" sizes="48x48" href="favicon-studio-48.png">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="studio.css">
+<script src="firebase-config.js" defer></script>
+<script src="strings-share.js" defer></script>
+<script type="module" src="share.js"></script>
+</head>
+<body>
+<div id="sv" class="st-root st-sv"></div>
+</body>
+</html>
