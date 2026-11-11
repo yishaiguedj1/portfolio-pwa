@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2440 מפתחות מתוך 6831) */
+/* המחרוזות של studio (2442 מפתחות מתוך 6833) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -115,6 +115,8 @@ he: {
   "dkPalNone": "לא נמצא",
   "dkPalPh": "חיפוש עמוד, מניה או פעולה",
   "dkSideAria": "ניווט ראשי",
+  "dkSideHide": "הסתרת סרגל הצד",
+  "dkSideShow": "הצגת סרגל הצד",
   "emailSignIn": "כניסה עם מייל",
   "envStaging": "סביבת ניסוי",
   "fbErr": "השליחה נכשלה — נסה שוב",
@@ -2557,6 +2559,8 @@ en: {
   "dkPalNone": "Nothing found",
   "dkPalPh": "Search a page, stock or action",
   "dkSideAria": "Main navigation",
+  "dkSideHide": "Hide sidebar",
+  "dkSideShow": "Show sidebar",
   "emailSignIn": "Continue with email",
   "envStaging": "Staging",
   "fbErr": "Sending failed — try again",

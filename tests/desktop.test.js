@@ -243,4 +243,14 @@ ok(/deskDropOn\(\{ ok: \(\) => !!root, label: \(\) => T\('studioDropT'\), take: 
 ok(/\.dk-tip \{[^}]*pointer-events: none/.test(css) && /\.dk-drop \{[^}]*pointer-events: none/.test(css), 'הבועית ושכבת הגרירה לא חוסמות את העכבר');
 ok(/'mouseover', deskTipOver/.test(app) && /e\.key === 'Escape'\) deskTipHide\(\)/.test(app), 'בועית: נפתחת בריחוף ונסגרת ב־Esc');
 
+/* ---------- 9. גל 3 — חלוניות (11/11/2026) ---------- */
+ok(/@media \(min-width: 1280px\) \{\s*html\.dk :is\(#stockList, #wishlistList\):has\(> \.stock\.open\) \{ grid-template-columns: minmax\(320px, 380px\) minmax\(0, 1fr\)/.test(css), 'מפקח: מ־1280 הרשימה צרה והכרטיס הפתוח לצידה');
+ok(/> \.stock\.open \{\s*grid-column: 2; grid-row: 1 \/ span 999; position: sticky; top: calc\(var\(--dk-top/.test(css), 'מפקח: הכרטיס הפתוח נצמד מתחת להדר');
+ok(/--dk-top/.test(fn(app, 'deskTop')) && /deskTop\(\);/.test(fn(app, 'deskSync')), 'מפקח: גובה ההדר נמדד (deskTop) ב־deskSync');
+ok(/c === 'Backslash' && _desk\.side\) \{ e\.preventDefault\(\); return deskSideToggle\(\); \}/.test(fn(app, 'deskKey')), 'סרגל: ⌘\\ / Ctrl+\\ מסתיר ומציג');
+ok(/LS_DKSIDE/.test(fn(app, 'deskSideToggle')) && /if \(deskSideHidden\(\)\) document\.documentElement\.classList\.add\('dk-hide'\)/.test(app), 'סרגל: ההעדפה נשמרת במכשיר ומוחלת לפני הציור הראשון');
+ok(/html\.dk\.dk-hide \{ --dk-off: 0px; \}/.test(css) && /html\.dk\.dk-hide \.dk-showbtn \{ display: grid/.test(css), 'סרגל מוסתר: התוכן מתרחב וכפתור בפינה מחזיר');
+ok(/\['mod\+\\\\', t\('dkSideHide'\)\]/.test(fn(app, 'deskHelp')) && /dkSideShow/.test(fn(app, 'deskCmdList')), 'סרגל: בחלון הקיצורים ובלוח הפקודות');
+ok(/deskKbd\(pm \+ '\+' \+ \(i \+ 1\), mac\)/.test(fn(app, 'deskCmdList')), 'לוח הפקודות: מקש העמודים לפי המערכת (Ctrl+Alt בלינוקס/Googlebook)');
+
 console.log('\n' + n + ' בדיקות עברו');

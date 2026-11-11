@@ -1863,7 +1863,7 @@ he: {
   dkCmdLight: "מצב בהיר",
   dkPalPh: "חיפוש עמוד, מניה או פעולה",
   dkPalNone: "לא נמצא",
-  dkKeysTitle: "קיצורי מקלדת", dkDropT: "שחרר כאן", libDropT: "שחרר כדי להוסיף לספרייה", libDropNone: "אפשר להוסיף רק ספרים (EPUB, MOBI, AZW3, FB2)", studioDropT: "שחרר כדי לתרגם", studioDropNone: "אפשר לגרור רק סרטון או קובץ שמע",
+  dkKeysTitle: "קיצורי מקלדת", dkSideHide: "הסתרת סרגל הצד", dkSideShow: "הצגת סרגל הצד", dkDropT: "שחרר כאן", libDropT: "שחרר כדי להוסיף לספרייה", libDropNone: "אפשר להוסיף רק ספרים (EPUB, MOBI, AZW3, FB2)", studioDropT: "שחרר כדי לתרגם", studioDropNone: "אפשר לגרור רק סרטון או קובץ שמע",
   dkKeysGen: "כללי",
   dkKeysNav: "ניווט",
   dkKeysApp: "באפליקציה הזו",
@@ -3703,7 +3703,7 @@ en: {
   dkCmdLight: "Light mode",
   dkPalPh: "Search a page, stock or action",
   dkPalNone: "Nothing found",
-  dkKeysTitle: "Keyboard shortcuts", dkDropT: "Drop here", libDropT: "Drop to add to your library", libDropNone: "Only books can be added (EPUB, MOBI, AZW3, FB2)", studioDropT: "Drop to translate", studioDropNone: "Only a video or audio file can be dropped here",
+  dkKeysTitle: "Keyboard shortcuts", dkSideHide: "Hide sidebar", dkSideShow: "Show sidebar", dkDropT: "Drop here", libDropT: "Drop to add to your library", libDropNone: "Only books can be added (EPUB, MOBI, AZW3, FB2)", studioDropT: "Drop to translate", studioDropNone: "Only a video or audio file can be dropped here",
   dkKeysGen: "General",
   dkKeysNav: "Navigation",
   dkKeysApp: "In this app",
@@ -10591,7 +10591,7 @@ const DESK_APPS = [
   { k: 'studio', name: 'Studio', icon: 'icon-studio-192.png', sub: () => t('menuStudioSub') },
   { k: 'cashflow', name: 'Cashflow', icon: 'icon-cashflow-192.png', sub: null, only: true },
 ];
-const _desk = { on: false, side: null, nav: null, sig: '', cur: '', set: null, inSet: null, cmds: [], pal: null, help: null, wired: false, raf: 0, tip: null, tipEl: null, tipT: 0, drops: [], drop: null, dropWired: false };
+const _desk = { on: false, side: null, nav: null, sig: '', cur: '', set: null, inSet: null, cmds: [], pal: null, help: null, wired: false, raf: 0, tip: null, tipEl: null, tipT: 0, drops: [], drop: null, dropWired: false, top: 0, show: null };
 
 /* טהורות (tests/desktop.test.js) */
 function deskApp() { try { return (document.documentElement.dataset.app || 'invest'); } catch (e) { return 'invest'; } }
@@ -10692,7 +10692,7 @@ function deskMode() {
   _desk.on = on;
   document.documentElement.classList.toggle('dk', on);
   if (on) { deskBuild(); deskSync(true); }
-  else if (_desk.side) { _desk.side.remove(); _desk.side = null; _desk.nav = null; _desk.sig = ''; }
+  else if (_desk.side) { _desk.side.remove(); _desk.side = null; _desk.nav = null; _desk.sig = ''; if (_desk.show) { _desk.show.remove(); _desk.show = null; } }
   try { if (typeof dialSync === 'function') dialSync(true); } catch (e) {}
 }
 /* ההגדרות של האפליקציה: open — פתיחה, isOn — האם פתוחות (להדגשה בסרגל). shell.js (Academy/Studio/Cashflow) ו־Invest רושמים */
@@ -10741,6 +10741,15 @@ function deskBuild() {
   const logo = deskEl('img', 'dk-logo'); logo.src = me.icon; logo.alt = ''; logo.width = 32; logo.height = 32; logo.decoding = 'async';
   const nm = deskEl('div', 'dk-name'); const b = deskEl('b'); b.textContent = me.name; const s = deskEl('small'); s.textContent = 'THE SNOWBALL';
   nm.append(b, s); head.append(logo, nm);
+  // גל 3: הסתרת הסרגל (⌘\) — הכפתור בראש הסרגל, ובזמן ההסתרה כפתור קטן בפינה מחזיר אותו
+  const hide = deskEl('button', 'icon-btn dk-hidebtn', DESK_SVG + DESK_IC.side + '</svg>'); hide.type = 'button';
+  hide.setAttribute('aria-label', t('dkSideHide')); hide.dataset.dkKey = 'mod+\\';
+  hide.addEventListener('click', () => deskSideToggle(false));
+  head.append(hide);
+  const show = deskEl('button', 'icon-btn dk-showbtn', DESK_SVG + DESK_IC.side + '</svg>'); show.type = 'button';
+  show.setAttribute('aria-label', t('dkSideShow')); show.dataset.dkKey = 'mod+\\';
+  show.addEventListener('click', () => deskSideToggle(true));
+  document.body.append(show); _desk.show = show;
   const find = deskRow('dk-find', deskSvg(DESK_IC.find), t('dkFind'), deskKbdEl('mod+K'));
   find.addEventListener('click', () => deskPalette());
   const nav = deskEl('nav', 'dk-nav'); nav.setAttribute('aria-label', t('dkPagesAria'));
@@ -10763,6 +10772,21 @@ function deskBuild() {
   document.body.append(side);
   _desk.side = side; _desk.nav = nav; _desk.sig = '';
 }
+/* גל 3 (11/11/2026): הסתרת סרגל הצד — העדפה של המכשיר (כמו LS_DKKEYS). התוכן מתרחב (--dk-off: 0), והחוגה לא חוזרת:
+   הניווט במקלדת (⌘K, Alt+1–9) ובכפתור בפינה. show: true/false, בלי — החלפה */
+const LS_DKSIDE = 'pwa_dkside_v1';
+function deskSideHidden() { try { return localStorage.getItem(LS_DKSIDE) === '0'; } catch (e) { return false; } }
+function deskSideToggle(show) {
+  const de = document.documentElement;
+  if (!_desk.side) return;
+  const hide = show == null ? !de.classList.contains('dk-hide') : !show;
+  try { if (hide) localStorage.setItem(LS_DKSIDE, '0'); else localStorage.removeItem(LS_DKSIDE); } catch (e) {}
+  const had = _desk.side.contains(document.activeElement) || (_desk.show && _desk.show === document.activeElement);
+  de.classList.toggle('dk-hide', hide);
+  deskTipHide();
+  if (had) { try { (hide ? _desk.show : _desk.side.querySelector('.dk-hidebtn')).focus({ preventScroll: true }); } catch (e) {} }
+  try { window.dispatchEvent(new Event('resize')); } catch (e) {}   // גרפים ורשתות — לרוחב החדש
+}
 function deskSettings() { if (_desk.set) { try { _desk.set(); } catch (e) {} } deskSoon(); }
 function deskGo(p) {
   const h = _dial.host;
@@ -10771,8 +10795,15 @@ function deskGo(p) {
   deskSoon();
 }
 /* הסנכרון — הפריטים (כשהמארח או המפתחות השתנו) וההדגשה של העמוד הנוכחי. זול: נקרא מ־dialPaint ואחרי כל לחיצה */
+/* גל 3: גובה ההדר הצף → --dk-top (המפקח נצמד מתחתיו). נמדד רק כשהשתנה */
+function deskTop() {
+  const ab = document.querySelector('.appbar');   // הלוגו והבועות יוצאים מגובה ההדר עצמו — הנמוך מכולם קובע
+  const hgt = ab ? Math.round(Math.max(...[ab, ...ab.querySelectorAll('.brand-logo, .appbar-sub, .fx-pill')].map((x) => x.getBoundingClientRect().bottom))) : 0;
+  if (hgt > 0 && hgt !== _desk.top) { _desk.top = hgt; document.documentElement.style.setProperty('--dk-top', hgt + 'px'); }
+}
 function deskSync(force) {
   if (!_desk.side) return;
+  deskTop();
   const pages = deskPages(), sig = (_dial.host ? 'h' : '') + pages.map((p) => p.k + ':' + p.label).join('|');
   if (force || sig !== _desk.sig) {
     _desk.sig = sig;
@@ -10828,6 +10859,7 @@ function deskKey(e) {
   const mac = deskIsMac(), mod = deskModKey(e, mac), c = e.code || '';   // לפי המקש הפיזי: במקלדת עברית e.key של K הוא "ל"
   if (mod && !e.altKey && !e.shiftKey && c === 'KeyK') { e.preventDefault(); return _desk.pal ? deskPalClose() : deskPalette(); }
   if (mod && !e.altKey && !e.shiftKey && c === 'Comma') { e.preventDefault(); if (_desk.pal) deskPalClose(); return deskSettings(); }
+  if (mod && !e.altKey && !e.shiftKey && c === 'Backslash' && _desk.side) { e.preventDefault(); return deskSideToggle(); }
   if (!e.shiftKey && /^Digit[1-9]$/.test(c) && deskPageHit(e, deskOS(), deskStandalone())) {
     const p = deskPages()[+c.slice(5) - 1];
     if (p && !deskBusy()) { e.preventDefault(); if (_desk.pal) deskPalClose(); deskGo(p); }
@@ -10851,7 +10883,8 @@ function deskSearchField() {
 /* לוח הפקודות (⌘K): חלון זכוכית בראש המסך — חיפוש, חצים, Enter; עכבר מסמן ולחיצה מפעילה */
 function deskCmdList() {
   const out = [], mac = deskIsMac(), app = deskApp();
-  deskPages().forEach((p, i) => out.push({ label: p.label, sub: t('dkCmdPage'), ico: p.ico ? p.ico.cloneNode(true) : null, kbd: i < 9 ? deskKbd('alt+' + (i + 1), mac) : '', run: () => deskGo(p) }));
+  const pm = deskPageMod(deskOS(), deskStandalone());
+  deskPages().forEach((p, i) => out.push({ label: p.label, sub: t('dkCmdPage'), ico: p.ico ? p.ico.cloneNode(true) : null, kbd: i < 9 ? deskKbd(pm + '+' + (i + 1), mac) : '', run: () => deskGo(p) }));
   if (_desk.set) out.push({ label: t('menuSettings'), sub: t('dkCmdPage'), ico: deskSvg(DESK_IC.gear), kbd: deskKbd('mod+,', mac), kw: 'settings preferences הגדרות', run: deskSettings });
   for (const a of DESK_APPS) {
     if (a.k === app || (a.only && a.k !== app)) continue;
@@ -10863,6 +10896,7 @@ function deskCmdList() {
   const he = getLang() === 'he';
   out.push({ label: t('dkCmdLang'), sub: t('dkCmdAct'), ico: deskSvg(DESK_IC.lang), kw: 'language שפה english hebrew עברית', run: () => { try { localStorage.setItem(LS_LANG, he ? 'en' : 'he'); } catch (e) {} location.reload(); } });
   out.push({ label: t('dkKeysTitle'), sub: t('dkCmdAct'), ico: deskSvg(DESK_IC.keys), kbd: '?', kw: 'shortcuts keyboard מקלדת קיצורים', run: deskHelp });
+  if (_desk.side) { const hid = document.documentElement.classList.contains('dk-hide'); out.push({ label: hid ? t('dkSideShow') : t('dkSideHide'), sub: t('dkCmdAct'), ico: deskSvg(DESK_IC.side), kbd: deskKbd('mod+\\', mac), kw: 'sidebar סרגל צד', run: () => deskSideToggle(hid) }); }
   return out;
 }
 function deskPalette() {
@@ -10942,7 +10976,7 @@ function deskHelp() {
   const x = deskEl('button', 'dk-help-x', DESK_SVG + '<path d="M6 6l12 12M18 6 6 18"/></svg>'); x.type = 'button'; x.setAttribute('aria-label', t('menuCloseAria'));
   x.addEventListener('click', () => deskHelpClose());
   const groups = [
-    [t('dkKeysGen'), [['mod+K', t('dkFind')], ['mod+,', t('menuSettings')], ['/', t('dkKeySearch')], ['?', t('dkKeysTitle')], ['Esc', t('dkKeyBack')]]],
+    [t('dkKeysGen'), [['mod+K', t('dkFind')], ['mod+,', t('menuSettings')], ['mod+\\', t('dkSideHide')], ['/', t('dkKeySearch')], ['?', t('dkKeysTitle')], ['Esc', t('dkKeyBack')]]],
     [t('dkKeysNav'), [[deskPageMod(deskOS(), deskStandalone()) + '+1–9', t('dkKeyPages')], ['↑ ↓', t('dkKeyArrows')], ['Tab', t('dkKeyTab')], ['Enter', t('dkKeyOpen')]]],
   ];
   const extra = DESK_HELP[deskApp()];
@@ -11099,7 +11133,7 @@ function deskInit() {
 }
 if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.documentElement) {
   // לפני הציור הראשון: מסגרת המחשב (בלי קפיצה מהחוגה לסרגל) ומצב הקלט
-  try { if (deskWide()) document.documentElement.classList.add('dk'); } catch (e) {}
+  try { if (deskWide()) document.documentElement.classList.add('dk'); if (deskSideHidden()) document.documentElement.classList.add('dk-hide'); } catch (e) {}
   try { deskInit(); } catch (e) {}
 }
 /* </core> */

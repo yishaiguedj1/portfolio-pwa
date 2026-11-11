@@ -64,6 +64,12 @@ html.dk :is(.lib-root, .st-root) { inset-inline-start: var(--dk-off); }
   -webkit-user-select: none; user-select: none;
 }
 html:not(.dk) .dk-side { display: none; }
+/* גל 3: סרגל מוסתר (⌘\, core: deskSideToggle) — התוכן מתרחב, וכפתור קטן בפינה התחתונה מחזיר אותו */
+html.dk.dk-hide { --dk-off: 0px; }
+html.dk.dk-hide .dk-side, .dk-showbtn { display: none; }
+html.dk.dk-hide .dk-showbtn { display: grid; place-items: center; position: fixed; z-index: 899; inset-block-end: 16px; inset-inline-start: 16px; inline-size: var(--dk-ib); block-size: var(--dk-ib); }
+.dk-head .dk-hidebtn { margin-inline-start: auto; inline-size: 30px; block-size: 30px; flex: none; }
+:is(.dk-hidebtn, .dk-showbtn) .dk-svg, :is(.dk-hidebtn, .dk-showbtn) svg { inline-size: 18px; block-size: 18px; }
 .dk-head { display: flex; align-items: center; gap: 10px; padding: 0 6px 12px; }
 .dk-logo { inline-size: 32px; block-size: 32px; border-radius: 8px; flex: none; }
 .dk-name { display: flex; flex-direction: column; min-inline-size: 0; line-height: 1.15; }
@@ -168,6 +174,17 @@ html.dk .bk { max-width: var(--dk-read); margin-inline: auto; }
 }
 @media (min-width: 1680px) {
   html.dk :is(#stockList, #wishlistList) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+/* ---------- 4ב. מפקח (גל 3, 11/11/2026): מ־1280 כרטיס מניה פתוח עומד לצד הרשימה, לא דוחף אותה ----------
+   כרטיס אחד פתוח בכל רגע (closeStockCards). הרשימה בעמודה צרה (ברוחב טלפון — הכרטיס הסגור בנוי לזה), הפתוח בעמודה הרחבה,
+   נצמד מתחת להדר (--dk-top, core: deskTop) וגולל בתוכו כשהוא ארוך מהחלון. רק CSS — אותו DOM, אותו קוד פתיחה/סגירה */
+@media (min-width: 1280px) {
+  html.dk :is(#stockList, #wishlistList):has(> .stock.open) { grid-template-columns: minmax(320px, 380px) minmax(0, 1fr); grid-auto-flow: row dense; }
+  html.dk :is(#stockList, #wishlistList):has(> .stock.open) > :not(.open) { grid-column: 1; }
+  html.dk :is(#stockList, #wishlistList) > .stock.open {
+    grid-column: 2; grid-row: 1 / span 999; position: sticky; top: calc(var(--dk-top, 124px) + 8px); align-self: start;
+    max-height: calc(100dvh - var(--dk-top, 124px) - 20px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+  }
 }
 /* ---------- 4א. מסכים גדולים מאוד (11/11/2026, "גם מסכים מאוד גדולים") ----------
    מ־2200 (מסך 27"–32" בהגדלה 100%, רחב 21:9 ו־32:9): התוכן מתרחב והרשתות מוסיפות עמודה. הטקסט לא גדל — את גודלו הפיזי

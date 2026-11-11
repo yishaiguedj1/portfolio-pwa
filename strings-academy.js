@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של academy (1282 מפתחות מתוך 6831) */
+/* המחרוזות של academy (1284 מפתחות מתוך 6833) */
 const STRINGS = {
 he: {
   "acAiNote": "הניתוח נכתב בעזרת AI מתוך הטקסט של המכתב.",
@@ -617,6 +617,8 @@ he: {
   "dkPalNone": "לא נמצא",
   "dkPalPh": "חיפוש עמוד, מניה או פעולה",
   "dkSideAria": "ניווט ראשי",
+  "dkSideHide": "הסתרת סרגל הצד",
+  "dkSideShow": "הצגת סרגל הצד",
   "edAuthor": "כותב",
   "edAuthorSort": "שם הכותב למיון",
   "edCoverErr": "לא הצלחתי לטעון את התמונה",
@@ -1901,6 +1903,8 @@ en: {
   "dkPalNone": "Nothing found",
   "dkPalPh": "Search a page, stock or action",
   "dkSideAria": "Main navigation",
+  "dkSideHide": "Hide sidebar",
+  "dkSideShow": "Show sidebar",
   "edAuthor": "Author(s)",
   "edAuthorSort": "Author sort",
   "edCoverErr": "Couldn't load the image",
