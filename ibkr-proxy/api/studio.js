@@ -2286,45 +2286,100 @@ const r2deps = (deps) => ({ fetch: deps.fetch, now: () => deps.now || Date.now()
 async function upRec(deps, id) { return SR.isId(id) ? readDoc(deps, 'studioUp', id).catch(() => null) : null; }
 const R2URL_KS = 6;
 /* 11/11/2026 (בקשת המשתמש): הקישור ששיתפת — מי שמקבל אותו רק צופה ומוריד (share.html). בלי התחברות: רק הטוקן
-   (‎<עבודה>.<סוד>, lib/studioshare.js). shareView = מה שבדף התוצאה + קישורים חתומים לשעה לנגן ולניתוח; shareGet = קישור
-   הורדה לתוצר אחד עם השם. כל קישור — רק לקובץ בתיקייה של העבודה. העבודה בזיכרון SH_MEM_MS: רענון של הדף לא קורא שוב */
+   (‎<עבודה>.<סוד>, lib/studioshare.js). shareView = מה שבדף התוצאה + קישורים חתומים ל־15 דקות לנגן ולניתוח; shareGet = קישור
+   הורדה לתוצר אחד עם השם. כל קישור — רק לקובץ בתיקייה של העבודה. העבודה בזיכרון SH_MEM_MS: רענון של הדף לא קורא שוב.
+   ההגנות לפי הסדר (הזול קודם): Origin וגודל (guard) → קצב לכל IP → חסימה אחרי ניסיונות כושלים → צורת הטוקן → תג ה־HMAC
+   (בלי מסד) → קריאה אחת של העבודה → hash הסוד (זמן קבוע), תוקף ומצב. כל כישלון = אותה תשובה (404 gone) */
 const shMem = new Map();
-const SH_MEM_MS = 30e3;
+const SH_MEM_MS = 15e3;
+const shBad = new Map();           // IP → { n, at }: טוקנים לא תקינים. SH_BAD_MAX בחלון SH_BAD_MS = חסימה עד סוף החלון
+const SH_BAD_MAX = 20, SH_BAD_MS = 10 * 60e3;
+const shHits = new Map();          // מגביל הקצב של השיתוף — מפה משלו: הצפה בכתובות לא מאפסת את המגבילים של שאר השרתון
+const SH_RATE = 40;                // בקשות בדקה לכל IP (IPv6 — לכל ‎/64)
+const SH_READS = 120;              // תקרה לקריאות Firestore של השיתוף בדקה, לכל המופע (הגנה נוספת על המכסה)
+let shReads = [];
+/* מפתח לכתובת: IPv4 כמו שהיא; IPv6 — 64 הביטים הראשונים (ספק נותן ‎/64 שלם — אחרת כל כתובת היא "משתמש חדש") */
+function ipKey(ip) {
+  const s = String(ip || '').trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/%.*$/, '');
+  const v4 = /^(?:::ffff:)?(\d{1,3}(?:\.\d{1,3}){3})$/.exec(s);
+  if (v4) return v4[1];
+  if (!/^[0-9a-f:]+$/.test(s) || !s.includes(':')) return s.slice(0, 64);
+  const [a, b] = s.split('::');
+  const head = a ? a.split(':') : [], tail = b !== undefined && b ? b.split(':') : [];
+  const g = b !== undefined ? head.concat(Array(Math.max(0, 8 - head.length - tail.length)).fill('0'), tail) : head;
+  return g.slice(0, 4).map((x) => (parseInt(x || '0', 16) || 0).toString(16)).join(':') + '::/64';
+}
+/* חלון דקה לכל מפתח; כשהמפה גדלה — מפנים את הישנים (סדר ההכנסה), לא מאפסים הכל */
+function shLimited(map, key, max, now, win) {
+  const arr = (map.get(key) || []).filter((t) => now - t < win);
+  arr.push(now);
+  map.delete(key); map.set(key, arr);
+  if (map.size > 5000) { let k = 0; for (const x of map.keys()) { if (k++ >= 1000) break; map.delete(x); } }
+  return arr.length > max;
+}
+function shEvict(map) { if (map.size > 5000) { let k = 0; for (const x of map.keys()) { if (k++ >= 1000) break; map.delete(x); } } }
+let shKeyC = null;
+/* המפתח של תגי הקישורים — נגזר מהכספת (זהה ב־Vercel ובשרת שלנו). null = הכספת לא מוגדרת → אין שיתוף */
+function shareKey() {
+  if (!shKeyC) { const d = vault.derive('studio-share/v1'); shKeyC = d ? d.key : null; }
+  return shKeyC;
+}
+function shBadHit(ip, now) {
+  const b = shBad.get(ip);
+  const n = b && now - b.at < SH_BAD_MS ? b.n + 1 : 1;
+  shBad.delete(ip); shBad.set(ip, { n, at: n === 1 ? now : b.at });
+  shEvict(shBad);
+}
+const shBlocked = (ip, now) => { const b = shBad.get(ip); return !!(b && now - b.at < SH_BAD_MS && b.n >= SH_BAD_MAX); };
 async function shareJob(deps, id, now) {
   const m = shMem.get(id);
   if (m && now - m.at < SH_MEM_MS) return m.job;
+  shReads = shReads.filter((t) => now - t < 60e3);
+  if (shReads.length >= SH_READS) throw new Error('busy');
+  shReads.push(now);
   const job = await readJob(deps, id);
   if (shMem.size > 500) shMem.clear();
   shMem.set(id, { job, at: now });
   return job;
 }
 async function shareOp(req, res, body, deps) {
-  const ip = String((req.headers || {})['x-forwarded-for'] || '').split(',')[0].trim() || String((req.socket || {}).remoteAddress || '');
-  if (limited('shv|' + ip, 40)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  const ip = ipKey(String((req.headers || {})['x-forwarded-for'] || '').split(',')[0].trim() || String((req.socket || {}).remoteAddress || ''));
+  res.setHeader('Referrer-Policy', 'no-referrer');
   const now = deps.now || Date.now();
+  if (shLimited(shHits, ip, SH_RATE, now, 60e3)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  if (shBlocked(ip, now)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  const gone = () => { shBadHit(ip, now); return res.status(404).json({ ok: false, error: 'gone' }); };
   const tk = SH.parseToken(body.t);
-  if (!tk) return res.status(404).json({ ok: false, error: 'gone' });
+  // טוקן שלא נוצר אצלנו לעבודה הזו (מזויף, מנוחש, של עבודה אחרת) — נדחה בלי לגעת במסד
+  if (!tk || !SH.secSigned(tk.id, tk.sec, shareKey())) return gone();
   let job;
-  try { job = await shareJob(deps, tk.id, now); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
-  // קישור שבוטל / פג / עבודה שנמחקה — אותה תשובה (לא מגלים אם העבודה קיימת)
-  if (!job || !SH.shareOk(job, tk.sec, now) || SH.shareErr(job, S.effState(job, now).state, SR.isFolder)) return res.status(404).json({ ok: false, error: 'gone' });
+  try { job = await shareJob(deps, tk.id, now); } catch (e) { return res.status(503).json({ ok: false, error: e && e.message === 'busy' ? 'busy' : 'store' }); }
+  // קישור שבוטל / פג / הוחלף / עבודה שנמחקה — אותה תשובה (לא מגלים אם העבודה קיימת)
+  if (!job || !SH.shareOk(job, tk.sec, now) || SH.shareErr(job, S.effState(job, now).state, SR.isFolder)) return gone();
   const c = R2.config();
   if (!c.ok) return res.status(503).json({ ok: false, error: 'r2_off' });
   const rd = r2deps(deps);
-  const sign = async (id, name) => (id && SR.inFolder(id, job.folder) ? R2.presign(c, rd, { method: 'GET', key: SR.keyOf(job.uid, id), expires: SH.SH_URL_TTL,
-    query: name ? { 'response-content-disposition': "attachment; filename*=UTF-8''" + encodeURIComponent(name) } : {} }) : '');
+  /* כל קישור חתום קובע את סוג התוכן (response-content-type) — גם אם בתיקייה יש קובץ עם סוג אחר (העלאה מחדש של הבעלים),
+     R2 לא יגיש אותו כ־HTML/סקריפט. הורדה: attachment + סוג גנרי (הדפדפן שומר, לא מציג או מריץ), השם בשני הקידודים (RFC 6266) */
+  const sign = async (id, type, name) => (id && SR.inFolder(id, job.folder) ? R2.presign(c, rd, { method: 'GET', key: SR.keyOf(job.uid, id), expires: SH.SH_URL_TTL,
+    query: name ? { 'response-content-disposition': 'attachment; filename="' + (name.replace(/[^\x20-\x7e]|["\\%]/g, '_')) + "\"; filename*=UTF-8''" + encodeURIComponent(name),
+      'response-content-type': 'application/octet-stream' } : { 'response-content-type': type } }) : '');
   const outs = SH.outsOf(job, SR.inFolder);
-  if (body.op === 'shareGet') {
-    const o = outs.find((x) => x.id === String(body.id || ''));
-    if (!o) return res.status(400).json({ ok: false, error: 'bad_id' });
-    return res.status(200).json({ ok: true, url: await sign(o.id, SH.dlName(body.name) || o.k) });
-  }
-  const one = (k) => (outs.find((o) => o.k === k) || {}).id || '';
-  const burned = SH.BURNED.map(one).find(Boolean) || '';
-  const aux = (k) => SH.auxOf(job, k, SR.inFolder);
-  return res.status(200).json({ ok: true, now, ux: now + SH.SH_URL_TTL * 1000, v: SH.shareMeta(job, now), outs,
-    play: { src: await sign(SH.srcOf(job, SR.inFolder)), fb: await sign(burned) },
-    cues: await sign(aux('cues')), srt: await sign(one('srt')), vi: await sign(one('vi')), vis: await sign(aux('vis')), thumb: await sign(aux('thumb')) });
+  try {
+    if (body.op === 'shareGet') {
+      // רק תוצר מהרשימה של העבודה הזו (לא מזהה שרירותי, לא קובץ עזר); השם מהדף מנוקה, והסיומת — של הקובץ האמיתי
+      const o = outs.find((x) => x.id === String(body.id || ''));
+      if (!o) return res.status(400).json({ ok: false, error: 'bad_id' });
+      return res.status(200).json({ ok: true, url: await sign(o.id, '', SH.dlFile(body.name, o)) });
+    }
+    const one = (k) => (outs.find((o) => o.k === k) || {}).id || '';
+    const burned = SH.BURNED.map(one).find(Boolean) || '';
+    const aux = (k) => SH.auxOf(job, k, SR.inFolder);
+    return res.status(200).json({ ok: true, now, ux: now + SH.SH_URL_TTL * 1000, v: SH.shareMeta(job, now), outs,
+      play: { src: await sign(SH.srcOf(job, SR.inFolder), SH.srcType(job)), fb: await sign(burned, 'video/mp4') },
+      cues: await sign(aux('cues'), 'application/json'), srt: await sign(one('srt'), 'text/plain; charset=utf-8'), vi: await sign(one('vi'), 'application/json'),
+      vis: await sign(aux('vis'), 'application/octet-stream'), thumb: await sign(aux('thumb'), 'image/jpeg') });
+  } catch (e) { return res.status(503).json({ ok: false, error: 'r2_off' }); }
 }
 async function r2Files(deps, op, body, uid, folder, by) {
   if (!SR.isFolder(folder)) return [400, { ok: false, error: 'not_r2' }];
@@ -4213,23 +4268,37 @@ async function handler(req, res, deps = {}) {
       // (הסוד מוצפן בכספת — lne); ביטול = מחיקת השדות, והקישור מפסיק לעבוד מיד (גם במטמון של המופע)
       shMem.delete(job.id);
       if (op === 'shareOff') {
-        const off = { lnh: '', lnx: 0, lne: '', lna: 0 };
+        const off = { lnh: '', lnx: 0, lne: '', lna: 0, lnd: 0 };
         await patchJob(deps, job.id, off);
         Object.assign(job, off);
         return res.status(200).json({ ok: true, job: view(job) });
       }
       const se = SH.shareErr(job, st, SR.isFolder);
       if (se) return res.status(409).json({ ok: false, error: se });
+      const key = shareKey();
+      if (!key || !vault.configured()) return res.status(503).json({ ok: false, error: 'no_vault' });
       const aad = 'lnk|' + job.id;
+      // d = כמה ימים (1 / 7 / 30). בלי d — הקישור הקיים כמו שהוא, או חדש לברירת המחדל. d אחר מהקיים — אותו קישור, תוקף חדש
+      const hasD = body.d !== undefined;
+      if (hasD && !SH.SH_DAYS.includes(body.d)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      const rt = SC.retention(job, process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e');
       if (SH.shareActive(job, now)) {
         const old = vault.open(job.lne, aad);
-        if (old && SH.shareOk(job, old.s, now)) return res.status(200).json({ ok: true, t: SH.tokenOf(job.id, old.s), exp: job.lnx, job: view(job) });
+        if (old && SH.shareOk(job, old.s, now) && SH.secSigned(job.id, old.s, key)) {
+          if (hasD && body.d !== SH.shareDays(job.lnd)) {
+            const up = { lnx: SH.shareExp(rt, now, body.d), lnd: body.d };
+            await patchJob(deps, job.id, up);
+            Object.assign(job, up);
+          }
+          return res.status(200).json({ ok: true, t: SH.tokenOf(job.id, old.s), exp: job.lnx, d: SH.shareDays(job.lnd), job: view(job) });
+        }
       }
-      const sec = SH.newSecret();
-      const lp = { lnh: SH.secHash(sec), lnx: SH.shareExp(SC.retention(job, process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e'), now), lna: now, lne: vault.seal({ s: sec }, aad) };
+      const d = SH.shareDays(hasD ? body.d : SH.SH_DEF_DAYS);
+      const sec = SH.newSecret(job.id, key);
+      const lp = { lnh: SH.secHash(sec), lnx: SH.shareExp(rt, now, d), lnd: d, lna: now, lne: vault.seal({ s: sec }, aad) };
       await patchJob(deps, job.id, lp);
       Object.assign(job, lp);
-      return res.status(200).json({ ok: true, t: SH.tokenOf(job.id, sec), exp: lp.lnx, job: view(job) });
+      return res.status(200).json({ ok: true, t: SH.tokenOf(job.id, sec), exp: lp.lnx, d, job: view(job) });
     }
     if (op === 'rate') {
       // 25/10/2026: המשוב שלך על התרגום — 👍/👎, מה לא היה טוב (קודים) והכתוביות שסימנת בנגן. שדה שלא נשלח — נשאר כמו שהיה
@@ -4466,9 +4535,11 @@ async function handler(req, res, deps = {}) {
 
 module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
-module.exports._reset = () => { hits.clear(); shMem.clear(); jobMem = { users: new Map(), sync: 0, dirty: false }; cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; srcSoon = new Map(); _upd = { at: 0, sha: '', t: 0 }; updWaitAt = 0; srvAuthMem.clear(); orphanAt.clear(); monCfgC = { at: 0, v: null };
+module.exports._reset = () => { hits.clear(); shMem.clear(); shBad.clear(); shHits.clear(); shReads = []; shKeyC = null; jobMem = { users: new Map(), sync: 0, dirty: false }; cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; srcSoon = new Map(); _upd = { at: 0, sha: '', t: 0 }; updWaitAt = 0; srvAuthMem.clear(); orphanAt.clear(); monCfgC = { at: 0, v: null };
   incSeen.clear(); learnMem = null; provC = { at: 0, v: null }; aoCache.clear(); };   // 26/10/2026: המטמונים של מכסת Firestore
 module.exports._hitsClear = () => hits.clear();   // לבדיקות בלבד: מאפס רק את מגביל הקצב
+module.exports._shBadClear = () => { shBad.clear(); shHits.clear(); };   // לבדיקות בלבד: מאפס את החסימה ואת מגביל הקצב של השיתוף
+module.exports._ipKey = ipKey;
 module.exports._updatePending = updatePending;
 module.exports._updWaiting = (job, now, at) => { if (at != null) updWaitAt = at; return updWaiting(job, now); };
 module.exports._jobMem = { listJobs, patchJob, delDoc, JM_TTL_MS, JM_FULL_MS };

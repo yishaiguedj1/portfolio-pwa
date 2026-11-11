@@ -1,8 +1,10 @@
 /* שיתוף תוצאה בקישור (11/11/2026, בקשת המשתמש): "לשתף את התוצאה עם חבר בקישור — צפייה והורדה בלבד, בלי עריכה".
    הכללים הטהורים; הפעולות עצמן ב־api/studio.js (shareMake / shareOff של הבעלים, shareView / shareGet בלי התחברות).
 
-   הקישור: ‎<כתובת Studio>/share#<טוקן>, והטוקן = ‎<מזהה העבודה>.<סוד>. הסוד = 24 בתים אקראיים (192 ביט) — אי אפשר לנחש.
-   הוא אחרי ה־# — לא נשלח לשרת של הדפים, לא נרשם ביומנים שלו ולא יוצא ב־Referer.
+   הקישור: ‎<כתובת Studio>/share#<טוקן>, והטוקן = ‎<מזהה העבודה>.<סוד>. הסוד = 32 בתים: 16 אקראיים (128 ביט) + תג HMAC-SHA256
+   של 16 בתים על העבודה והחלק האקראי, במפתח שנגזר מהכספת (vault.derive('studio-share/v1')). כך השרתון דוחה טוקן מזויף או
+   מנוחש עוד לפני קריאה כלשהי מ־Firestore (בלי הגברת קריאות ממזהים אקראיים — המכסה 50 אלף ביום), וטוקן של עבודה אחת לא תקף
+   לשום עבודה אחרת. הוא אחרי ה־# — לא נשלח לשרת של הדפים, לא נרשם ביומנים שלו ולא יוצא ב־Referer.
    במסמך העבודה (בלי אוסף חדש — קריאה אחת לכל צפייה, ומחיקת העבודה מבטלת את הקישור לבד):
      lnh — SHA-256 של הסוד (ההשוואה בזמן קבוע); lnx — עד מתי; lna — מתי נוצר;
      lne — הסוד מוצפן בכספת (AAD לפי העבודה), כדי שהבעלים יראה שוב את אותו קישור. אף פעם לא גלוי במסמך.
@@ -11,21 +13,37 @@
 const crypto = require('crypto');
 
 const JOB_RE = /^j[A-Za-z0-9_-]{20}$/;
-const SEC_RE = /^[A-Za-z0-9_-]{32}$/;
+const SEC_RE = /^[A-Za-z0-9_-]{43}$/;   // 32 בתים ב־base64url
 const DAY = 24 * 3600e3;
+const SH_DAYS = [1, 7, 30];          // התוקף שהבעלים בוחר (ברירת המחדל — שבוע: הרשאה מינימלית בזמן)
+const SH_DEF_DAYS = 7;
 const SH_MAX = 30 * DAY;            // תקרה לקישור (בכל מקרה לא אחרי שהקבצים נמחקים — rt.j)
-const SH_URL_TTL = 3600;            // קישור חתום לקובץ — שעה (הדף מבקש חדשים כשפג)
+const SH_URL_TTL = 900;             // קישור חתום לקובץ — 15 דקות (הדף מבקש חדשים כשפג; אחרי ביטול — לכל היותר 15 דקות)
 /* התוצרים שמוצגים בדף התוצאה (OUT_MAIN בטלפון) — מה שהצופה רואה ויכול להוריד */
 const SH_KINDS = ['compact', 'same', 'mkv', 'small', 'srt', 'en', 'inst', 'lrc', 'elrc', 'lyr', 'vi'];
 /* קבצים שהנגן ודף הניתוח צריכים (צפייה בלבד, לא ברשימת ההורדות) */
 const SH_AUX = ['cues', 'vis', 'thumb'];
 const BURNED = ['compact', 'same', 'small'];   // הסרטון הצרוב — לנגן כשאין מקור (או כגיבוי)
 
-const newSecret = () => crypto.randomBytes(24).toString('base64url');
+const TAG_CTX = 'snb-studio-share/v1|';
+const tagOf = (key, id, n) => crypto.createHmac('sha256', key).update(TAG_CTX + id + '|').update(n).digest().subarray(0, 16);
+/* סוד חדש לעבודה: 16 בתים אקראיים + התג שלהם. key = המפתח הנגזר (Buffer); בלי מפתח — אין קישור */
+function newSecret(id, key) {
+  if (!key || !JOB_RE.test(String(id || ''))) throw new Error('share_key');
+  const n = crypto.randomBytes(16);
+  return Buffer.concat([n, tagOf(key, id, n)]).toString('base64url');
+}
+/* הטוקן נוצר אצלנו לעבודה הזו? בדיקה בלי מסד, בזמן קבוע. דוחה גם קידוד base64url לא קנוני */
+function secSigned(id, sec, key) {
+  if (!key || !JOB_RE.test(String(id || '')) || !SEC_RE.test(String(sec || ''))) return false;
+  const b = Buffer.from(sec, 'base64url');
+  if (b.length !== 32 || b.toString('base64url') !== sec) return false;
+  return crypto.timingSafeEqual(b.subarray(16), tagOf(key, id, b.subarray(0, 16)));
+}
 const secHash = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
 
 function parseToken(t) {
-  const m = /^(j[A-Za-z0-9_-]{20})\.([A-Za-z0-9_-]{32})$/.exec(String(t || ''));
+  const m = /^(j[A-Za-z0-9_-]{20})\.([A-Za-z0-9_-]{43})$/.exec(String(t || ''));
   return m ? { id: m[1], sec: m[2] } : null;
 }
 const tokenOf = (id, sec) => (JOB_RE.test(String(id || '')) && SEC_RE.test(String(sec || '')) ? id + '.' + sec : '');
@@ -61,9 +79,11 @@ const auxOf = (job, k, inFolder) => {
   return o && (!inFolder || inFolder(o.id, job.folder)) ? o.id : '';
 };
 
-/* עד מתי הקישור: התקרה, ולא אחרי שהקבצים נמחקים (rt.j מ־studioscan.retention) */
-function shareExp(rt, now) {
-  const cap = now + SH_MAX;
+/* כמה ימים: רק מהרשימה, אחרת ברירת המחדל */
+const shareDays = (d) => (SH_DAYS.includes(Number(d)) ? Number(d) : SH_DEF_DAYS);
+/* עד מתי הקישור: הימים שנבחרו (עד התקרה), ולא אחרי שהקבצים נמחקים (rt.j מ־studioscan.retention) */
+function shareExp(rt, now, days) {
+  const cap = now + Math.min(SH_MAX, shareDays(days) * DAY);
   return rt && rt.j > now ? Math.min(rt.j, cap) : cap;
 }
 
@@ -72,7 +92,7 @@ function shareMeta(job, now) {
   const sp = (job && job.spec) || {};
   const to = Array.isArray(sp.to) ? sp.to.filter((x) => /^[a-z]{2,3}$/.test(String(x))).slice(0, 4) : [];
   return {
-    n: String(sp.name || '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 200),
+    n: String(sp.name || '').replace(/[\u0000-\u001f\u007f-\u009f\u061c\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, ' ').slice(0, 200),   // בלי תווי בקרה וכיווניות (הסוואה)
     k: sp.vi === 1 ? 'vi' : sp.ka === 1 ? 'ka' : 'tr',
     from: /^[a-z]{2,3}$/.test(String(sp.from || '')) ? sp.from : '',
     to, dur: Math.max(0, Math.round(Number(sp.dur) || 0)),
@@ -87,8 +107,22 @@ function srcOf(job, inFolder) {
   return fv && typeof fv.id === 'string' && !fv.ext && !(job.sx > 0) && inFolder(fv.id, job.folder) ? fv.id : '';
 }
 
-/* שם הקובץ בהורדה (מהדף): בלי תווי בקרה ובלי תווים שמערכות קבצים לא מקבלות */
-const dlName = (s) => String(s || '').replace(/[\u0000-\u001f\u007f\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+/* סוג התוכן של סרטון המקור בקישור החתום: video/<סוג> מהרשומה, אחרת video/mp4 (הנגן מזהה את הקובץ לפי התוכן) */
+const srcType = (job) => { const m = String((job && job.fv && job.fv.mime) || '').toLowerCase(); return /^video\/[a-z0-9.+-]{1,40}$/.test(m) ? m : 'video/mp4'; };
 
-module.exports = { SH_KINDS, SH_AUX, BURNED, SH_MAX, SH_URL_TTL, newSecret, secHash, parseToken, tokenOf, shareOk, shareActive, shareErr,
-  outsOf, auxOf, shareExp, shareMeta, srcOf, dlName };
+/* שם הקובץ בהורדה (מהדף): בלי תווי בקרה, בלי תווי כיווניות/בלתי נראים (הסוואת סיומת — "‮gpj.exe") ובלי תווים שמערכות קבצים
+   לא מקבלות */
+const dlName = (s) => String(s || '').replace(/[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb\\/:*?"<>|]+/g, ' ')
+  .replace(/\s+/g, ' ').trim().slice(0, 120);
+/* הסיומת נקבעת בשרתון, לא בדף: מה שהעובד העלה (x), ואם אין — לפי הסוג */
+const VIDEO_K = ['compact', 'same', 'small'];
+const extFor = (o) => (/^[a-z0-9]{1,5}$/.test(String(o.x || '')) ? o.x : o.k === 'mkv' ? 'mkv' : VIDEO_K.includes(o.k) ? 'mp4' : o.k === 'vi' ? 'json' : o.k === 'srt' || o.k === 'en' ? 'srt' : 'txt');
+/* השם הסופי בהורדה: השם מהדף בלי הסיומת האחרונה שלו (‎".he" של שפת הכתוביות נשאר) + הסיומת האמיתית — הדף לא קובע סוג קובץ.
+   ריק/רק סיומת — הסוג */
+function dlFile(name, o) {
+  const base = dlName(name).replace(/\.[A-Za-z0-9]{1,5}$/, '').replace(/[. ]+$/, '').slice(0, 110) || o.k;
+  return base + '.' + extFor(o);
+}
+
+module.exports = { SH_KINDS, SH_AUX, BURNED, SH_MAX, SH_URL_TTL, SH_DAYS, SH_DEF_DAYS, newSecret, secSigned, secHash, parseToken, tokenOf,
+  shareOk, shareActive, shareErr, outsOf, auxOf, shareDays, shareExp, shareMeta, srcOf, srcType, dlName, dlFile, extFor };

@@ -17,14 +17,22 @@ const { fakeR2, ENV } = require('./_r2fake');
   /* ---------- 1. הכללים הטהורים ---------- */
   const SH = require(path.join(root, 'ibkr-proxy/lib/studioshare.js'));
   const NOW = Date.UTC(2026, 10, 11, 12);
-  const sec = SH.newSecret();
-  ok(/^[A-Za-z0-9_-]{32}$/.test(sec) && sec !== SH.newSecret(), 'סוד: 32 תווים (192 ביט), אקראי');
-  const JID = 'j' + 'A'.repeat(20);
+  const JID = 'j' + 'A'.repeat(20), JID2 = 'j' + 'B'.repeat(20);
+  const KEY = crypto.randomBytes(32), KEY2 = crypto.randomBytes(32);
+  const sec = SH.newSecret(JID, KEY);
+  ok(/^[A-Za-z0-9_-]{43}$/.test(sec) && sec !== SH.newSecret(JID, KEY), 'סוד: 43 תווים (32 בתים — 128 ביט אקראיים + תג), אקראי');
+  ok(SH.secSigned(JID, sec, KEY) && !SH.secSigned(JID2, sec, KEY) && !SH.secSigned(JID, sec, KEY2) && !SH.secSigned(JID, sec, null), 'תג HMAC: תקף רק לעבודה שלו ובמפתח שלנו');
+  const flip = (x, i) => x.slice(0, i) + (x[i] === 'A' ? 'B' : 'A') + x.slice(i + 1);
+  ok([0, 10, 21, 30, 42].every((i) => !SH.secSigned(JID, flip(sec, i), KEY)) && !SH.secSigned(JID, crypto.randomBytes(32).toString('base64url'), KEY), 'שינוי של תו אחד / סוד אקראי — נדחה בלי מסד');
+  const nc = sec.slice(0, 42) + 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'[('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'.indexOf(sec[42]) ^ 1)];
+  ok(!SH.secSigned(JID, nc, KEY), 'קידוד לא קנוני של אותם בתים — נדחה');
+  let thr = false; try { SH.newSecret(JID, null); } catch (e) { thr = true; }
+  ok(thr, 'בלי מפתח — אין סוד (אין קישור בלי הכספת)');
   const tk = SH.tokenOf(JID, sec);
   ok(tk === JID + '.' + sec && SH.parseToken(tk).id === JID && SH.parseToken(tk).sec === sec, 'טוקן = <עבודה>.<סוד>, ומתפרק בחזרה');
   ok(!SH.parseToken(JID) && !SH.parseToken(tk + 'x') && !SH.parseToken('../' + tk) && !SH.parseToken(null) && !SH.tokenOf('x', sec), 'טוקן פגום — נדחה');
   const job0 = { lnh: SH.secHash(sec), lnx: NOW + 1000 };
-  ok(SH.shareOk(job0, sec, NOW) && !SH.shareOk(job0, SH.newSecret(), NOW), 'הסוד נבדק מול ה־hash');
+  ok(SH.shareOk(job0, sec, NOW) && !SH.shareOk(job0, SH.newSecret(JID, KEY), NOW), 'הסוד נבדק מול ה־hash');
   ok(!SH.shareOk(job0, sec, NOW + 1000) && !SH.shareOk({ lnh: '', lnx: NOW + 1000 }, sec, NOW) && !SH.shareOk(null, sec, NOW), 'פג / בוטל — לא עובר');
   ok(SH.shareActive(job0, NOW) && !SH.shareActive({ lnh: job0.lnh, lnx: 0 }, NOW), 'shareActive');
   const r2f = (f) => /^R2_j/.test(String(f || ''));
@@ -39,11 +47,15 @@ const { fakeR2, ENV } = require('./_r2fake');
   const inF = (id, f) => String(id).startsWith(f + '_');
   const outs = SH.outsOf({ folder: FOLD, fo: [{ k: 'srt', id: FOLD + '_a', size: 9.7, name: 'a.he.srt' }, { k: 'cues', id: FOLD + '_b' }, { k: 'compact', id: 'R2_jOTHER_c', name: 'v.MP4' }, { k: 'vi', id: FOLD + '_d', name: 'vi.json' }] }, inF);
   ok(outs.length === 2 && outs[0].k === 'srt' && outs[0].size === 9 && outs[0].x === 'srt' && outs[1].x === 'json' && !('name' in outs[0]), 'התוצרים: רק מה שבדף התוצאה, רק בתיקייה של העבודה, בלי שם הקובץ — רק הסיומת');
-  ok(SH.shareExp({ j: NOW + 5 * 864e5 }, NOW) === NOW + 5 * 864e5 && SH.shareExp(null, NOW) === NOW + SH.SH_MAX && SH.shareExp({ j: NOW + 90 * 864e5 }, NOW) === NOW + SH.SH_MAX, 'תוקף: עד שהקבצים נמחקים, ולא יותר מ־30 יום');
+  ok(SH.shareExp({ j: NOW + 5 * 864e5 }, NOW, 30) === NOW + 5 * 864e5 && SH.shareExp(null, NOW, 30) === NOW + SH.SH_MAX && SH.shareExp({ j: NOW + 90 * 864e5 }, NOW, 30) === NOW + SH.SH_MAX, 'תוקף: עד שהקבצים נמחקים, ולא יותר מ־30 יום');
+  ok(SH.shareExp(null, NOW) === NOW + 7 * 864e5 && SH.shareExp(null, NOW, 1) === NOW + 864e5 && SH.shareExp(null, NOW, 365) === NOW + 7 * 864e5 && SH.shareExp({ j: NOW + 3 * 864e5 }, NOW, 7) === NOW + 3 * 864e5, 'תוקף לפי הבחירה (יום/שבוע/חודש), ברירת המחדל שבוע; ערך אחר — שבוע');
   const meta = SH.shareMeta({ uid: 'u1', spec: { name: 'a\u0007b.mp4', vi: 1, from: 'en', to: ['he', '<x>'], dur: 61.4, email: 'x@y' }, ended: NOW, lnx: NOW + 9, use: [{ c: 1 }] }, NOW);
   ok(meta.n === 'a b.mp4' && meta.k === 'vi' && meta.to.join() === 'he' && meta.dur === 61 && meta.exp === NOW + 9 && Object.keys(meta).sort().join() === 'at,dur,exp,from,k,n,to', 'מה הצופה מקבל: שם, סוג, שפות, אורך, תאריכים — בלי מזהה, מייל, עלות');
   ok(SH.srcOf({ folder: FOLD, fv: { id: FOLD + '_v' } }, inF) === FOLD + '_v' && !SH.srcOf({ folder: FOLD, fv: { id: FOLD + '_v' }, sx: 5 }, inF) && !SH.srcOf({ folder: FOLD, fv: { id: FOLD + '_v', ext: true } }, inF), 'סרטון המקור לנגן — רק כשהוא עוד ב־R2 של העבודה');
   ok(SH.dlName('a\r\nb/c:"d"') === 'a b c d' && SH.dlName('x'.repeat(300)).length === 120, 'שם ההורדה מנוקה');
+  ok(SH.dlName('a\u202egpj.exe') === 'a gpj.exe' && SH.dlName('a\u200f\u2066b') === 'a b' && !/[\u202a-\u202e]/.test(SH.shareMeta({ spec: { name: 'x\u202eyz' } }, NOW).n), 'בלי תווי כיווניות שמסווים סיומת');
+  ok(SH.dlFile('הרצאה ראשונה.he.srt', { k: 'srt', x: 'srt' }) === 'הרצאה ראשונה.he.srt' && SH.dlFile('invoice.exe', { k: 'srt', x: 'srt' }) === 'invoice.srt'
+    && SH.dlFile('a.html', { k: 'compact', x: 'mp4' }) === 'a.mp4' && SH.dlFile('', { k: 'vi', x: '' }) === 'vi.json' && SH.dlFile('...', { k: 'mkv' }) === 'mkv.mkv', 'הסיומת בהורדה — של הקובץ האמיתי, לא מהדף');
 
   /* ---------- 2. מסלול מלא מול השרתון ---------- */
   const sa = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -122,11 +134,16 @@ const { fakeR2, ENV } = require('./_r2fake');
 
   j = await api('shareMake', { job: JOB });
   const T1 = j.t;
-  ok(j.ok && /^j[A-Za-z0-9_-]{20}\.[A-Za-z0-9_-]{32}$/.test(T1) && T1.startsWith(JOB + '.') && j.exp > R.now, 'הבעלים יוצר קישור — טוקן ותוקף');
+  ok(j.ok && /^j[A-Za-z0-9_-]{20}\.[A-Za-z0-9_-]{43}$/.test(T1) && T1.startsWith(JOB + '.') && j.exp === R.now + 7 * 864e5 && j.d === 7 && j.job.ln.d === 7, 'הבעלים יוצר קישור — טוקן, ותוקף של שבוע כברירת מחדל');
   ok(j.job.ln && j.job.ln.x === j.exp && !JSON.stringify(j.job).includes(T1.split('.')[1]), 'בעבודה: רק שהקישור פעיל ועד מתי (הסוד לא בתצוגה)');
   const raw = JSON.stringify(db.get('studioJobs/' + JOB).fields);
   ok(!raw.includes(T1.split('.')[1]) && D().lnh.stringValue === crypto.createHash('sha256').update(T1.split('.')[1]).digest('hex') && D().lne.stringValue.length > 40, 'במסד: hash והסוד מוצפן בכספת — אף פעם לא גלוי');
   ok((await api('shareMake', { job: JOB })).t === T1, 'שוב — אותו קישור (לא מבטל קישור ששלחת)');
+  j = await api('shareMake', { job: JOB, d: 1 });
+  ok(j.t === T1 && j.d === 1 && j.exp === R.now + 864e5 && D().lnd.integerValue === '1', 'שינוי התוקף ליום — אותו קישור, תוקף חדש');
+  ok((await api('shareMake', { job: JOB, d: 365 })).error === 'bad_params' && (await api('shareMake', { job: JOB, d: '7' })).error === 'bad_params', 'תוקף שלא ברשימה — נדחה');
+  j = await api('shareMake', { job: JOB, d: 30 });
+  ok(j.t === T1 && j.d === 30 && j.exp > R.now + 7 * 864e5 && j.exp <= R.now + 30 * 864e5, 'וחזרה לחודש (לא אחרי שהקבצים נמחקים)');
   ok((await other('shareMake', { job: JOB })).error === 'no_job' && (await other('shareOff', { job: JOB })).error === 'no_job', 'משתמש אחר — לא יוצר ולא מבטל');
 
   let r = await view(T1);
@@ -134,14 +151,52 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(r.j.outs.map((o) => o.k).join() === 'srt,compact', 'רק התוצרים שבדף התוצאה (בלי קבצי עזר והערות)');
   const body = JSON.stringify(r.j);
   ok(!/owner@|"uid"|idToken|"use"|"spec"|"lnh"|"lne"/.test(body), 'בלי מייל, uid, עלות, spec או שדות הקישור בתשובה');
-  ok([r.j.play.src, r.j.play.fb, r.j.cues, r.j.srt, r.j.thumb].every((u) => u.includes('.r2.cloudflarestorage.com/') && u.includes('X-Amz-Expires=3600')) && r.j.vi === '' && r.j.vis === '', 'קישורים חתומים לשעה — המקור, הצרוב, הכתוביות, התמונה; בלי ניתוח');
+  ok(!body.replace(/https:\/\/[^"]+/g, '').includes('ownerUid0001') && body.includes('/st/ownerUid0001/'), 'ה־uid רק בתוך הנתיב של הקישורים החתומים ל־R2 (מזהה פנימי, לא הרשאה) — בשום שדה אחר');
+  ok([r.j.play.src, r.j.play.fb, r.j.cues, r.j.srt, r.j.thumb].every((u) => u.includes('.r2.cloudflarestorage.com/') && u.includes('X-Amz-Expires=900')) && r.j.vi === '' && r.j.vis === '', 'קישורים חתומים ל־15 דקות — המקור, הצרוב, הכתוביות, התמונה; בלי ניתוח');
+  const ctOf = (u) => new URL(u).searchParams.get('response-content-type');
+  ok(r.j.ux - r.j.now === 900e3 && ctOf(r.j.play.src) === 'video/mp4' && ctOf(r.j.play.fb) === 'video/mp4' && ctOf(r.j.cues) === 'application/json' && ctOf(r.j.srt) === 'text/plain; charset=utf-8'
+    && ctOf(r.j.thumb) === 'image/jpeg' && ![r.j.play.src, r.j.srt].some((u) => u.includes('response-content-disposition')), 'כל קישור חתום קובע סוג תוכן (R2 לא יגיש HTML גם אם הקובץ הוחלף); לצפייה — בלי attachment');
+  ok(SH.srcType({ fv: { mime: 'video/webm' } }) === 'video/webm' && SH.srcType({ fv: { mime: 'text/html' } }) === 'video/mp4' && SH.srcType({}) === 'video/mp4', 'סוג המקור — רק video/*');
   ok((await R.fetch(r.j.srt)).status === 200, 'הקישור החתום עובד מול R2');
   const g = await call({ op: 'shareGet', t: T1, id: F.srt, name: 'הרצאה ראשונה.he.srt' });
-  ok(g.code === 200 && g.j.url.includes('response-content-disposition=') && decodeURIComponent(decodeURIComponent(g.j.url)).includes("attachment; filename*=UTF-8''הרצאה ראשונה.he.srt") && (await R.fetch(g.j.url)).status === 200, 'הורדה — קישור טרי עם שם הקובץ');
+  const gq = new URL(g.j.url).searchParams;
+  ok(g.code === 200 && gq.get('response-content-disposition') === 'attachment; filename="_____ ______.he.srt"; filename*=UTF-8\'\'' + encodeURIComponent('הרצאה ראשונה.he.srt') && (await R.fetch(g.j.url)).status === 200, 'הורדה — קישור טרי עם שם הקובץ (RFC 6266: ASCII + UTF-8)');
+  ok(gq.get('response-content-type') === 'application/octet-stream', 'הורדה — סוג תוכן גנרי (הדפדפן שומר, לא מציג או מריץ)');
+  const g2 = await call({ op: 'shareGet', t: T1, id: F.comp, name: 'evil".html\r\nX: y' });
+  const cd2 = new URL(g2.j.url).searchParams.get('response-content-disposition');
+  ok(cd2 === 'attachment; filename="evil .html X y.mp4"; filename*=UTF-8\'\'evil%20.html%20X%20y.mp4', 'שם עם מרכאות/שורה חדשה/סיומת אחרת — מנוקה, והסיומת של הקובץ (' + cd2 + ')');
   ok((await call({ op: 'shareGet', t: T1, id: F.v })).j.error === 'bad_id' && (await call({ op: 'shareGet', t: T1, id: F.notes })).j.error === 'bad_id', 'הורדה רק של תוצר שבדף — לא המקור ולא קבצי עזר');
-  const wrong = JOB + '.' + SH.newSecret();
-  ok((await view(wrong)).code === 404 && (await view(wrong)).j.error === 'gone' && (await view('x')).j.error === 'gone' && (await view('j' + 'Z'.repeat(20) + '.' + SH.newSecret())).j.error === 'gone', 'סוד שגוי / טוקן פגום / עבודה שלא קיימת — אותה תשובה (gone)');
+  const vault = require(path.join(root, 'ibkr-proxy/lib/vault.js'));
+  const SKEY = vault.derive('studio-share/v1').key;
+  const wrong = JOB + '.' + crypto.randomBytes(32).toString('base64url');
+  const r0 = reads;
+  ok((await view(wrong)).code === 404 && (await view(wrong)).j.error === 'gone' && (await view('x')).j.error === 'gone' && (await view('j' + 'Z'.repeat(20) + '.' + crypto.randomBytes(32).toString('base64url'))).j.error === 'gone', 'סוד שגוי / טוקן פגום / עבודה שלא קיימת — אותה תשובה (gone)');
   ok((await call({ op: 'shareGet', t: wrong, id: F.srt })).j.error === 'gone', 'הורדה עם סוד שגוי — gone');
+  ok(reads === r0, 'טוקן מזויף — נדחה בלי אף קריאה מ־Firestore (בלי שריפת מכסה)');
+  const ZJ = 'j' + 'Z'.repeat(20);
+  ok((await view(ZJ + '.' + SH.newSecret(ZJ, SKEY))).j.error === 'gone' && reads === r0 + 1, 'טוקן חתום לעבודה שלא קיימת — קריאה אחת, ואותה תשובה');
+  ok((await view(JOB + '.' + SH.newSecret(JOB, SKEY))).j.error === 'gone', 'טוקן חתום אבל לא הסוד של הקישור הפעיל — gone');
+  ok((await view(T1.replace(JOB, 'j' + 'Y'.repeat(20)))).j.error === 'gone', 'הסוד של עבודה אחת לא פותח עבודה אחרת');
+  // חסימה אחרי ניסיונות כושלים
+  studio._shBadClear(); studio._hitsClear(); ip = 101;
+  for (let i = 0; i < 19; i++) await view(JOB + '.' + crypto.randomBytes(32).toString('base64url'));
+  ok((await view(T1)).code === 200, '19 טוקנים שגויים — עדיין לא חסום (משתמשים מאחורי אותה כתובת של ספק)');
+  await view(JOB + '.' + crypto.randomBytes(32).toString('base64url'));
+  r = await view(T1);
+  ok(r.code === 429 && r.j.error === 'rate_limited', '20 טוקנים שגויים מאותו IP — חסום (גם עם טוקן נכון) עד סוף החלון');
+  ip = 102;
+  ok((await view(T1)).code === 200, 'IP אחר — לא מושפע');
+  R.now += 10 * 60e3 + 1; ip = 101; studio._hitsClear();
+  ok((await view(T1)).code === 200, 'אחרי 10 דקות — החסימה נגמרת');
+  studio._shBadClear(); ip = 0;
+  // תקרה כללית לקריאות Firestore (טוקנים חתומים לעבודות שונות — כל אחד קריאה)
+  studio._reset();
+  const busy = [];
+  for (let i = 0; i < 121; i++) { ip = 130 + (i % 100); const zj = 'j' + String(i).padStart(3, '0') + 'Q'.repeat(17); busy.push((await view(zj + '.' + SH.newSecret(zj, SKEY))).j.error); }
+  ok(busy.slice(0, 120).every((e) => e === 'gone') && busy[120] === 'busy', 'יותר מ־120 קריאות מסד בדקה למופע — עוצר (503 busy), המכסה מוגנת');
+  studio._reset(); ip = 0;
+  ok(studio._ipKey('2001:db8:1:2:3:4:5:6') === studio._ipKey('2001:db8:1:2::9') && studio._ipKey('2001:db8:1:2::9') === '2001:db8:1:2::/64' && studio._ipKey('2001:db8:1:3::1') !== studio._ipKey('2001:db8:1:2::1')
+    && studio._ipKey('::ffff:10.1.2.3') === '10.1.2.3' && studio._ipKey('10.1.2.3') === '10.1.2.3' && studio._ipKey('::1') === '0:0:0:0::/64', 'IPv6 — לפי ‎/64 (אי אפשר לעקוף בהחלפת כתובת בתוך הרשת)');
   ok((await view(T1, {}).then(() => call({ op: 'shareView', t: T1 }, 'https://evil.example'))).code === 403, 'מקור זר — נחסם (CORS / guard)');
   const before = reads;
   for (let i = 0; i < 3; i++) await view(T1);
@@ -167,8 +222,12 @@ const { fakeR2, ENV } = require('./_r2fake');
   // מגביל קצב
   studio._hitsClear(); ip = 7;
   const codes = [];
+  studio._shBadClear();
   for (let i = 0; i < 42; i++) codes.push((await view(T3)).code);
   ok(codes.slice(0, 40).every((c) => c === 200) && codes[41] === 429, 'מגביל קצב לכל IP (40 בדקה)');
+  studio._hitsClear();
+  ok((await view(T3)).code === 429, 'איפוס המגבילים של שאר השרתון (הצפה במפה המשותפת) — לא משחרר את מגביל השיתוף');
+  studio._shBadClear();
   studio._hitsClear();
   // מחיקת העבודה = הקישור מת
   db.delete('studioJobs/' + JOB); studio._reset();
@@ -179,7 +238,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   const csp = (html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)">/) || [])[1] || '';
   const pol = {}; for (const p of csp.split(';')) { const [k, ...v] = p.trim().split(/\s+/); if (k) pol[k] = v; }
   ok(pol['default-src'].join() === "'none'" && pol['script-src'].join() === "'self'" && pol['object-src'].join() === "'none'" && pol['base-uri'].join() === "'none'", 'CSP: ברירת מחדל none, סקריפטים רק מהאתר (בלי inline/eval)');
-  ok(['https://api.thesnowball.app', 'https://api-staging.thesnowball.app', 'https://*.vercel.app', 'https://*.r2.cloudflarestorage.com'].every((x) => pol['connect-src'].includes(x)) && pol['media-src'].includes('https://*.r2.cloudflarestorage.com'), 'CSP: השרתון (ייצור, ניסוי, גיבוי) ו־R2 לנגן');
+  ok(pol['connect-src'].join(' ') === "'self' https://*.r2.cloudflarestorage.com https://ibkr-proxy-wine.vercel.app https://api.thesnowball.app https://api-staging.thesnowball.app" && pol['media-src'].includes('https://*.r2.cloudflarestorage.com'), 'CSP: השרתון (ייצור, ניסוי, גיבוי) ו־R2 לנגן');
   const fc = read('firebase-config.js');
   for (const u of [...fc.matchAll(/var (?:PROXY|PROD_API|STAGING_PROXY) = '([^']+)'/g)].map((m) => m[1])) ok(pol['connect-src'].some((s) => s === u || (s.startsWith('https://*.') && u.endsWith(s.slice(9)))), 'CSP מכסה את השרתון ' + u);
   ok(!/<script>/.test(html) && !/\son[a-z]+\s*=/.test(html), 'בלי סקריפט מוטבע ובלי on…= ב־HTML');
@@ -187,10 +246,17 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(/data-app="share"/.test(html) && /src="strings-share\.js"/.test(html) && /src="firebase-config\.js"/.test(html) && /type="module" src="share\.js"/.test(html) && !/auth\.js|core\.js|firebase-app/.test(html), 'טוען רק: ההגדרות, המחרוזות ו־share.js (בלי Firebase ובלי core.js)');
   const sj = read('share.js');
   ok([...sj.matchAll(/op: '([A-Za-z]+)'/g)].map((m) => m[1]).every((o) => o === 'shareView' || o === 'shareGet'), 'share.js קורא רק ל־shareView / shareGet (אין פעולה שמשנה משהו)');
-  ok([...sj.matchAll(/innerHTML\s*=\s*([^;]+);/g)].every((m) => m[1].startsWith('ICON[')) && /renderVi\(\{[^]*?ro: true/.test(sj), 'כל טקסט — textContent; הניתוח במצב קריאה בלבד (ro)');
+  ok([...sj.matchAll(/innerHTML\s*=\s*([^;]+);/g)].every((m) => m[1] === "TT ? TT.createHTML(ICON[k] || '') : (ICON[k] || '')") && /renderVi\(\{[^]*?ro: true/.test(sj), 'כל טקסט — textContent; הניתוח במצב קריאה בלבד (ro)');
+  ok(pol['style-src'].join() === "'self'" && pol['require-trusted-types-for'].join() === "'script'" && pol['trusted-types'].join() === 'snb-share'
+    && /createPolicy\('snb-share', \{ createHTML: \(x\) => \(ICON_SET\.has\(x\) \? x : ''\) \}\)/.test(sj), "CSP: בלי סגנון מוטבע, Trusted Types — רק האייקונים הקבועים נכנסים כ־HTML");
+  for (const f of ['share.js', 'studioplay.js', 'studiovi.js']) ok(!/insertAdjacentHTML|outerHTML|document\.write|createContextualFragment|DOMParser|new Function|\beval\(|setAttribute\('style'|setAttribute\('on/.test(read(f)), f + ': בלי הזרקת HTML/קוד/סגנון מוטבע');
+  for (const f of ['studioplay.js', 'studiovi.js']) ok(!/\.innerHTML\s*=/.test(read(f)), f + ': בלי innerHTML (הנגן והניתוח בונים DOM בלבד)');
   const vi = read('studiovi.js');
+  const vc = read('translator/vicheck.py');
+  const normVi = /def norm_vi\(o\):([^]*?)\ndef /.exec(vc)[1];
+  ok(normVi.includes("out = {'v': VI_V") && !/tok|usd|cost/.test(normVi) && /return vicheck\.norm_vi\(vi\)/.test(read('translator/analyze.py')), 'vi.json של ניתוח אמיתי עובר norm_vi (רשימה סגורה) — בלי עלות/טוקנים; ההרצה היבשה (עם tok) לא ניתנת לשיתוף');
   ok(/if \(!ctx\.ro\) body\.append\(btn\('st-linkb st-vi-miss'/.test(vi) && /if \(it && !ctx\.ro\) \{/.test(vi), 'studiovi: בלי "חסר משהו" ובלי "דווח על טעות" במצב קריאה בלבד');
-  ok(SH.parseToken(JOB + '.' + SH.newSecret()) && new RegExp(/TOKEN_RE = \/(.*)\/;/.exec(sj)[1]).test(JOB + '.' + SH.newSecret()), 'אותה צורת טוקן בדף ובשרתון');
+  ok(SH.parseToken(T3) && new RegExp(/TOKEN_RE = \/(.*)\/;/.exec(sj)[1]).test(T3) && !new RegExp(/TOKEN_RE = \/(.*)\/;/.exec(sj)[1]).test(T3 + 'A'), 'אותה צורת טוקן בדף ובשרתון');
   const shIcons = /const ICON = \{([^]*?)\n\};/.exec(sj)[1];
   for (const m of new Set([...vi.matchAll(/ctx\.ico\('([a-z]+)'/g)].map((x) => x[1]))) ok(new RegExp('\\b' + m + ": '<").test(shIcons), 'האייקון ' + m + ' של renderVi קיים בדף (אחרת svg בלי גודל שובר את הפריסה)');
   const P = await import(path.join(root, 'share.js'));
@@ -222,6 +288,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(shareUrl(T3, new URL('https://yishaiguedj1.github.io/portfolio-pwa/studio.html')) === 'https://yishaiguedj1.github.io/portfolio-pwa/share.html#' + T3, 'באתר המאוחד: share.html ליד האפליקציה');
   const pj = read('ibkr-proxy/lib/studio.js');
   ok(/ln: typeof job\.lnh === 'string' && job\.lnh\.length === 64 && Number\(job\.lnx\) > now \? \{ x: /.test(pj), 'publicJob: רק "פעיל עד" — לא ה־hash ולא הסוד');
+  ok(/const shrDayOpts = \(\) => \[\[1, T\('studioShrD1'\)\], \[7, T\('studioShrD7'\)\], \[30, T\('studioShrD30'\)\]\]/.test(st) && SH.SH_DAYS.join() === '1,7,30' && /seg\.setAttribute\('role', 'radiogroup'\)/.test(st), 'בורר התוקף בטלפון = SH_DAYS בשרתון');
   const app = read('app.js');
   for (const k of ['studioShrTitle', 'studioShrNote', 'studioShrOffQ', 'studioSvGone', 'studioSvBy']) ok((app.match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, k + ' בעברית ובאנגלית');
 

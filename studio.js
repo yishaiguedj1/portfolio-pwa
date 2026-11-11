@@ -314,7 +314,7 @@ export function normJob(j) {
     bg: s.bg === 1 ? 1 : 0,                   // 28/10/2026: התוצרים מוכנים והעובד משלים איכויות צפייה ברקע — ממשיכים לרענן
     sx: num(s.sx),                            // 26/10/2026: מתי סרטון המקור נמחק (0 = עוד שמור)
     rt: s.rt && typeof s.rt === 'object' ? { s: num(s.rt.s), j: num(s.rt.j) } : null,   // עד מתי המקור (s) ועד מתי הקבצים (j)
-    ln: s.ln && num(s.ln.x) > 0 ? { x: num(s.ln.x), at: num(s.ln.at) } : null,   // 11/11/2026: קישור שיתוף פעיל — עד מתי
+    ln: s.ln && num(s.ln.x) > 0 ? { x: num(s.ln.x), at: num(s.ln.at), d: num(s.ln.d) } : null,   // 11/11/2026: קישור שיתוף פעיל — עד מתי
     w: !!(s.files && s.files.w && s.files.w.id),   // 25/10/2026: המילים מהטלפון הגיעו (שלב 2)
     m: !!(s.files && s.files.m && s.files.m.id),   // 24/10/2026: המדידות מהטלפון הגיעו
   } : null;
@@ -8260,23 +8260,40 @@ function shrBtn(rec) {
   b.append(ico('share')); b.setAttribute('aria-label', T('studioShrTitle'));
   return b;
 }
-let shr = null;   // { id, st: 'load' | 'ok' | 'off' | 'err', t, exp, err, busy }
+let shr = null;   // { id, st: 'load' | 'ok' | 'off' | 'err', t, exp, d, err, busy }
+const shrDayOpts = () => [[1, T('studioShrD1')], [7, T('studioShrD7')], [30, T('studioShrD30')]];   // = SH_DAYS בשרתון
 /* כתובת דף הצפייה ליד האפליקציה — בכתובות של thesnowball.app בלי ‎.html (כמו ש־Pages מגיש) */
 export function shareUrl(t, loc) {
   const u = new URL(/\.thesnowball\.app$/.test(String(loc.hostname || '')) ? '/share' : 'share.html', loc.href);
   u.search = ''; u.hash = t;
   return u.toString();
 }
-async function shrMake(id) {
+/* d = כמה ימים (בלי — הקישור הקיים כמו שהוא). שינוי התוקף — אותו קישור, בלי מסך טעינה */
+async function shrMake(id, d) {
   const me = shr;
-  me.st = 'load'; plPaint();
-  const j = await net.api('shareMake', { job: id }).catch(() => ({ ok: false, error: 'net' }));
+  if (d) { if (me.busy) return; me.busy = true; } else me.st = 'load';
+  plPaint();
+  const j = await net.api('shareMake', d ? { job: id, d } : { job: id }).catch(() => ({ ok: false, error: 'net' }));
+  me.busy = false;
   if (shr !== me) return;
   const rec = jobRec(id);
   if (j.job && rec) { rec.srv = normJob({ id, srv: j.job }).srv; save(); }
-  if (j.ok && typeof j.t === 'string') Object.assign(me, { st: 'ok', t: j.t, exp: Number(j.exp) || 0 });
+  if (j.ok && typeof j.t === 'string') Object.assign(me, { st: 'ok', t: j.t, exp: Number(j.exp) || 0, d: Number(j.d) || 0 });
+  else if (d) flashSafe(errText(j.error || 'net'));
   else Object.assign(me, { st: 'err', err: j.error || 'net' });
   plPaint();
+}
+function shrDays(rec) {
+  const seg = h('div', 'st-seg');
+  seg.setAttribute('role', 'radiogroup'); seg.setAttribute('aria-label', T('studioShrFor'));
+  for (const [d, lbl] of shrDayOpts()) {
+    const on = shr.d === d;
+    const b = btn('st-seg-b' + (on ? ' on' : ''), lbl, () => { if (!on) shrMake(rec.id, d); }, 'shr-d:' + d);
+    b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', on ? 'true' : 'false');
+    if (shr.busy) b.disabled = true;
+    seg.append(b);
+  }
+  return seg;
 }
 function shrOff(id) {
   const go2 = async () => {
@@ -8303,7 +8320,7 @@ function pageShr(p) {
   const rec = jobRec(ui.param);
   if (!rec) { back(); return; }
   p.append(navBar({ back: T('studioShrBack') }), large(T('studioShrTitle')), note(T('studioShrNote')));
-  if (!shr || shr.id !== rec.id) { shr = { id: rec.id, st: 'load', t: '', exp: 0, err: '', busy: false }; shrMake(rec.id); }
+  if (!shr || shr.id !== rec.id) { shr = { id: rec.id, st: 'load', t: '', exp: 0, d: 0, err: '', busy: false }; shrMake(rec.id); }
   if (shr.st === 'load') { p.append(h('div', 'st-pl-ph', T('studioShrMaking'))); return; }
   if (shr.st === 'err') { p.append(note(errText(shr.err)), btn('st-btn wide', T('studioRetry'), () => shrMake(rec.id), 'shr-retry')); return; }
   if (shr.st === 'off') { p.append(btn('st-btn wide', T('studioShrNew'), () => shrMake(rec.id), 'shr-new')); return; }
@@ -8314,6 +8331,7 @@ function pageShr(p) {
   p.append(box,
     btn('st-btn wide', T('studioShrShare'), () => shrShare(rec, url), 'shr-share'),
     btn('st-btn ghost wide', T('studioShrCopy'), () => copyText(url, T('studioShrCopied')), 'shr-copy'));
+  p.append(secT(T('studioShrFor')), shrDays(rec));
   if (shr.exp > 0) p.append(note(T('studioShrUntil', { t: fmtDay(shr.exp) })));
   p.append(list(btn('st-row st-act danger', shr.busy ? T('studioShrOffing') : T('studioShrOff'), () => shrOff(rec.id), 'shr-off')));
 }

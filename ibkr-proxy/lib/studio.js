@@ -890,7 +890,7 @@ function publicJob(job, now) {
     sx: job.sx > 0 ? job.sx : 0,                    // 26/10/2026: מתי סרטון המקור נמחק (0 = עוד שמור)
     vsm: job.spec && job.spec.vi === 1 ? VI.viSummary(job.vsm) : null,   // 9/11/2026: סיכום הניתוח — פריטים, מאומתים, כיסוי, "רק על המסך", משך
     rt: SC.retention(job, process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e'),   // עד מתי המקור (s) ועד מתי העבודה (j)
-    ln: typeof job.lnh === 'string' && job.lnh.length === 64 && Number(job.lnx) > now ? { x: Math.floor(Number(job.lnx)), at: Math.floor(Number(job.lna) || 0) } : null,   // 11/11/2026: קישור שיתוף פעיל — עד מתי (הקישור עצמו רק ב־shareMake)
+    ln: typeof job.lnh === 'string' && job.lnh.length === 64 && Number(job.lnx) > now ? { x: Math.floor(Number(job.lnx)), at: Math.floor(Number(job.lna) || 0), d: [1, 7, 30].includes(Number(job.lnd)) ? Number(job.lnd) : 0 } : null,   // 11/11/2026: קישור שיתוף פעיל (d = הימים שנבחרו) — עד מתי (הקישור עצמו רק ב־shareMake)
   };
 }
 /* v387: סט הזהב (Agentic evaluation · golden dataset) — עבודה שהסתיימה + תרגום אנושי לייחוס (קובץ SRT בתיקיית העבודה ב־Drive).

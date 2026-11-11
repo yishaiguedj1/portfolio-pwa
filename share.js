@@ -18,7 +18,7 @@ export function T(key, vars) {
   return s;
 }
 /* הטוקן מה־# — אותה צורה כמו בשרתון (‎<עבודה>.<סוד>) */
-export const TOKEN_RE = /^j[A-Za-z0-9_-]{20}\.[A-Za-z0-9_-]{32}$/;
+export const TOKEN_RE = /^j[A-Za-z0-9_-]{20}\.[A-Za-z0-9_-]{43}$/;   // הסוד = 32 בתים (16 אקראיים + תג HMAC) ב־base64url
 export const tokenFrom = (hash) => { let t = ''; try { t = decodeURIComponent(String(hash || '').replace(/^#/, '')); } catch (e) {} return TOKEN_RE.test(t) ? t : ''; };
 
 /* שמות התוצרים — אותם מפתחות של outName/outShort ב־studio.js */
@@ -67,13 +67,19 @@ const ICON = {
   film: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.2v5.6l4.6-2.8z" fill="currentColor" stroke="none"/>',
   globe: '<circle cx="12" cy="12" r="8.6"/><path d="M3.4 12h17.2M12 3.4c2.4 2.6 3.5 5.5 3.5 8.6s-1.1 6-3.5 8.6c-2.4-2.6-3.5-5.5-3.5-8.6s1.1-6 3.5-8.6z"/>',
 };
+/* Trusted Types (ב־CSP: require-trusted-types-for 'script'; trusted-types snb-share): הדפדפן חוסם כל הכנסת HTML/סקריפט
+   ממחרוזת, חוץ מהמדיניות הזו — והיא מעבירה רק את האייקונים הקבועים שלמעלה. גם אם יום אחד ייכנס כאן באג, תוכן של עבודה
+   (שם, כתוביות, ניתוח) לא יכול להפוך לקוד בדף */
+const ICON_SET = new Set(Object.values(ICON));
+const TT = typeof trustedTypes !== 'undefined' && trustedTypes && trustedTypes.createPolicy
+  ? trustedTypes.createPolicy('snb-share', { createHTML: (x) => (ICON_SET.has(x) ? x : '') }) : null;
 function ico(k, cls) {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true');
   s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '2.2');
   s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round');
   if (cls) s.setAttribute('class', cls);
-  s.innerHTML = ICON[k] || '';   // קבועים מהקוד — לא קלט
+  s.innerHTML = TT ? TT.createHTML(ICON[k] || '') : (ICON[k] || '');   // קבועים מהקוד — לא קלט
   return s;
 }
 let root = null, tok = '', S = null, lastErr = '', flashT = 0;
