@@ -3228,7 +3228,7 @@ function nowLine(rec, run, ph) {
   if (ph === 'running') return (rec.srv && rec.srv.prog && rec.srv.prog.msg) || (rec.spec && rec.spec.vi ? T('studioNowRunningVi') : rec.spec && rec.spec.ka ? T('studioNowRunningKa') : T('studioNowRunning'));
   if (ph === 'done') return T('studioNowDone');
   // 21/10/2026: נפילה של השרת (לרוב זיכרון ביישור) הוצגה כ"הקשר עם האחסון או עם הרשת נקטע" — מטעה; לכשל כזה ההודעה שלו
-  if (ph === 'failed') return recovering(rec) ? (SRV_DIED.has(rec.srv && rec.srv.err) ? errText(rec.srv.err) : T('studioRecLine')) : cardMsg(rec, ph) || errText(rec.srv && rec.srv.err);
+  if (ph === 'failed') return recovering(rec) ? (SRV_DIED.has(rec.srv && rec.srv.err) ? errText(rec.srv.err) : rec.srv.err === 'url_blocked' ? T('studioRecBlk') : T('studioRecLine')) : cardMsg(rec, ph) || errText(rec.srv && rec.srv.err);
   if (ph === 'stuck') return T('studioNowStuck');
   return rec.srv && rec.srv.err === 'halted' ? T('studioErrHalted') : T('studioNowCancelled');
 }

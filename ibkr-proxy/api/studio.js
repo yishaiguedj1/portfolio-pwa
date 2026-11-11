@@ -2135,7 +2135,8 @@ async function doResume(deps, uid, job, now, body, auto, adm) {
   const rhNext = rh.concat([now]).slice(-S.LOOP_N - 2);   // v384: נרשם רק אחרי הפעלה שהצליחה (הפעלה שנכשלה לא פתחה סשן)
   // v377: הזמן שבין העצירה ל"המשך" לא נספר בשעון של יעד הזמן (מחכה לך)
   if (job.ended && (job.state === 'failed' || job.state === 'cancelled')) { patch.pz = (job.pz || 0) + Math.max(0, now - job.ended); patch.wv0 = 0; }
-  if (auto) patch.ar = (job.ar || 0) + 1;
+  if (auto && S.isBlock(job.err)) patch.br = (job.br || 0) + 1;   // 11/11/2026: חסימה זמנית — מונה משלה (לא "המשך" של תקלה חולפת)
+  else if (auto) patch.ar = (job.ar || 0) + 1;
   { const pg = S.resumeProg(job.prog, now); if (pg) patch.prog = pg; }   // 21/10/2026: השלב שנעצר בו — "עכשיו", לא ✓
   if (dm) patch.spec = Object.assign({}, job.spec, { mode: body.mode, dm });   // dm = המצב שממנו ירדנו (לספירת ספר ההפעלה)   // נרשם לפני ההפעלה — שתי צפיות במקביל לא יפעילו פעמיים
   if (job._ut) {
@@ -3024,6 +3025,8 @@ async function worker(req, res, body, deps) {
       try { kinds = O.opsView(((await readDoc(deps, 'studioOps', job.uid)) || {}).al, now).open.filter((a) => a.j === id).map((a) => a.c + ':' + a.k); } catch (e) {}
       if (S.isTransient(up.err, kinds.concat(O.normEvents(body.ev).filter((e) => !e.ok).map((e) => e.c + ':' + e.k)))) up.rw = now + S.recoverWait(job, now);
     }
+    // 11/11/2026: האתר חסם זמנית את השרת (url_blocked) — לא עוצרים: ממשיכים לבד אחרי 15 דק׳, 45 דק׳, שעתיים ו־4 שעות
+    if (job.kind === 'tr' && up.state === 'failed' && S.isBlock(up.err) && S.blockWait(job)) up.rw = now + S.blockWait(job);
     if (up.state === 'failed' && job.kind === 'tr') {
       // 14/10/2026: היסטוריית הכשלים של העבודה — גם עבודה שהצליחה אחרי "המשך" מלמדת על מה שנכשל בדרך (למאגר הלמידה)
       // 20/10/2026: קריסה — גם איפה בקוד (w, צורה קשיחה בלבד), כדי שאפשר יהיה לאבחן בלי מסוף

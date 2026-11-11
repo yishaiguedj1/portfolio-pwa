@@ -87,7 +87,17 @@ const TRANSIENT_ERRS = ['net', 'drive', 'drive_net', 'store_net', 'url_net', 'ur
 /* 11/10/2026 (ביקורת העמידות): כשל דטרמיניסטי — אותה בקשה תיכשל שוב. לא "חולף" גם כשבמקרה נשארה פתוחה התראת Drive
    ישנה מאותה עבודה (קודם: max_tokens אחרי התראת הורדה ישנה קיבל "המשך" אוטומטי ששילם שוב על אותו כשל) */
 const DET_ERRS = ['ph_meta', 'ph_words', 'relay_none', 'relay_hub', 'relay_bad', 'worker_oom', 'store_fail', 'max_tokens', 'check_errors', 'model_refusal', 'api_blocked', 'api_bad_request', 'no_api_key', 'sdk_missing', 'mode_unknown', 'cp_empty', 'cp_timeout',
-  'url_login', 'url_gone', 'url_geo', 'url_drm', 'url_live', 'url_unsupported', 'url_playlist', 'url_no_video', 'url_private', 'url_bad_url', 'url_dns', 'url_blocked'];   // 22/10/2026: הורדה מקישור — אותו ניסיון ייכשל שוב
+  'url_login', 'url_gone', 'url_geo', 'url_drm', 'url_live', 'url_unsupported', 'url_playlist', 'url_no_video', 'url_private', 'url_bad_url', 'url_dns', 'url_blocked'];
+/* 11/11/2026 (בקשת המשתמש — ניתוח נעצר ב־12%, "נסו שוב" ידני עבד): האתר (לרוב יוטיוב) חסם זמנית את השרת. אותו ניסיון מיד ייכשל שוב
+   (לכן ב־DET_ERRS), אבל אחרי זמן — עובר. במקום לעצור: ממשיכים לבד במרווחים שגדלים, עם מונה נפרד (br) שלא נוגע ב"המשך" האוטומטי
+   של התקלות החולפות (ar). אחרי הניסיון האחרון — "נכשלה" באמת, וההתראה נשלחת */
+const BLOCK_ERRS = ['url_blocked'];
+const BLOCK_WAIT = [15 * 60e3, 45 * 60e3, 2 * 3600e3, 4 * 3600e3];
+const isBlock = (err) => BLOCK_ERRS.includes(String(err || ''));
+function blockWait(job) {
+  const i = (job && job.br) || 0;
+  return i >= 0 && i < BLOCK_WAIT.length ? BLOCK_WAIT[i] : 0;
+}   // 22/10/2026: הורדה מקישור — אותו ניסיון ייכשל שוב
 const TRANSIENT_KINDS = ['drive:dl_retry', 'drive:up_retry', 'drive:dl_fail', 'drive:up_fail'];
 /* עצירה מכוונת — אף פעם לא "חולפת", גם כשבמקרה הייתה תקלת Drive פתוחה (המגדל / התקציב / מתג החירום / ההחלטה שלך) */
 const STOP_ERRS = ['tower_stop', 'budget_stop', 'halted', 'upload_timeout', 'lang_unsupported', 'worker_unknown_kind', 'budget_cap', 'api_auth', 'api_quota', 'api_model', 'no_api_key', 'sub_limit'];
@@ -463,7 +473,8 @@ function startDue(job, now, age) {
 }
 /* v368: מתי ממשיכים לבד (0 = לא): נכשלה בתקלה חולפת, עוד לא המשכנו לבד, ואפשר להמשיך */
 function recoverAt(job, now) {
-  if (!job || !job.rw || (job.ar || 0) >= AUTO_RESUME_MAX) return 0;
+  if (!job || !job.rw) return 0;
+  if (isBlock(job.err) ? (job.br || 0) >= BLOCK_WAIT.length : (job.ar || 0) >= AUTO_RESUME_MAX) return 0;
   if (effState(job, now).state !== 'failed' || canResume(job, now)) return 0;
   return job.rw;
 }
@@ -1866,7 +1877,7 @@ module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, 
   RULE_BUDGET_MAX, normRules, modeOver, usdOf, GATE_KINDS, GATE_MAX, GATE_WAIT, newGateId, normGate,
   NORM_MIN, NORM_DEF, NORM_FIXED, NORM_DEF_API, NORM_FIXED_API, normDef, normFixed, engKey, normSample, addSample, learnedNorm, normsView,
   FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide, fbRemove,
-  CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, EARLY_FAIL_MS, EARLY_WAIT, recoverWait, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
+  CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, BLOCK_ERRS, BLOCK_WAIT, isBlock, blockWait, EARLY_FAIL_MS, EARLY_WAIT, recoverWait, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, excludeWait, toFields, fromFields, normFit, peakNeed, perfBlock,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, BAD_AUTH_GAP, badAuthDue, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
   serverMatches, normHb, normEv, SRV_EV, parkable, bwParkable, BW_MAX, BT_ERRS, normBq, bqView, BQ_SILENT_MS, bwLost, BQ_LOST_MS, BL_MAX, WL_RE, PARK_MAX, serverView, viClosed, monthKey, monthUsed, addMonth, jobCap,
