@@ -1090,8 +1090,8 @@ html:has(.rd)[data-theme="dark"] .lib-sheet { background: #1C1C1E !important; }
 }
 .lib-dial[hidden] { display: none; }
 html:has(.lib-veil) .lib-dial { visibility: hidden; }   /* גיליון פתוח: lib-root (900) מתחת לחוגה (910) — בלי זה החוגה מכסה את כפתורי הגיליון */
-html.lib-dock .lib-root { padding-bottom: calc(var(--dock-h, 120px) + 14px + env(safe-area-inset-bottom)); }
-html.lib-dock #toast.toast { bottom: calc(var(--dock-h, 120px) + 12px + env(safe-area-inset-bottom, 0px)); }
+html.lib-dock .lib-root { padding-bottom: calc(var(--dock-pad, var(--dock-h, 120px)) + 14px + env(safe-area-inset-bottom)); }
+html.lib-dock #toast.toast { bottom: calc(var(--dock-pad, var(--dock-h, 120px)) + 12px + env(safe-area-inset-bottom, 0px)); }
 
 /* Academy Pro, גל 1 (01/11/2026): חלון הליטוש, בדיקת הספרייה ומשיכת פרטים — libpolish.js. לפי ת־עיצוב: שורות iOS, מתג lib-sw, גיליון מלמטה */
 .pl { display: flex; flex-direction: column; gap: 12px; padding: 0 16px 16px; }

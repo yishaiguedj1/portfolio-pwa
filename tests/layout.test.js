@@ -25,7 +25,7 @@ const tabs = block('.tabs');
 ok(/position:\s*fixed/.test(tabs) && /bottom:\s*0/.test(tabs), '.tabs קבועה בתחתית המסך');
 ok(/env\(safe-area-inset-bottom/.test(tabs), 'החוגה מעל אזור המחוות של המכשיר');
 ok(/overflow-x:\s*clip/.test(tabs), 'פריטים מחוץ למסך לא יוצרים גלילה אופקית');
-ok(/body\.has-dock \{[^}]*padding-bottom:\s*calc\(var\(--dock-h\)/.test(css) && html.includes('<body class="has-dock">'), 'התוכן לא מסתתר מתחת לחוגה');
+ok(/body\.has-dock \{[^}]*padding-bottom:\s*calc\(var\((?:--dock-pad, var\()?--dock-h\)/.test(css)  /* 11/11/2026: ‎--dock-pad‎ — טלפון לרוחב, החוגה מוקטנת */ && html.includes('<body class="has-dock">'), 'התוכן לא מסתתר מתחת לחוגה');
 const tab = block('.tab');
 ok(/position:\s*absolute/.test(tab) && /white-space:\s*nowrap/.test(block('.tab-lbl')), 'כל פריט ממוקם בנפרד; הכיתוב בשורה אחת');
 ok(/html,\s*body\s*\{[^}]*overflow-x:\s*(clip|hidden)/.test(css), 'אין גלילה אופקית ברמת העמוד');

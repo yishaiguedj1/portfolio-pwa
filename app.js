@@ -7628,8 +7628,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.139.0';
-const APP_VERSION = 'v748';
+const APP_RELEASE = '2.140.0';
+const APP_VERSION = 'v749';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -10572,6 +10572,7 @@ function dialLabel(b, t) { if (!b) return; const u = b.querySelector('.tab-bub')
    3. מקלדת — לפי e.code (עובד גם בפריסה עברית): ⌘K / Ctrl+K לוח פקודות, ⌘, / Ctrl+, הגדרות, ⌥1–9 / Alt+1–9 עמודים,
       / חיפוש בעמוד, ? רשימת הקיצורים, חצים בסרגל. לוח הפקודות והרשימה — חלונות רגילים (modalPush/modalDone, Esc). */
 const DESK_MIN = 1024;                   // מכאן — מסגרת מחשב (iPad לרוחב ומעלה). מתחת: הטלפון כמו שהוא
+const DESK_MIN_FINE = 900;               // 11/11/2026: עם עכבר — כבר מ־900 (חלון בחצי מסך של 1920, הגדלת תצוגה 200%), שם פריסת המגע לא נוחה
 const DESK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
 const DESK_IC = {
   find: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>',
@@ -10594,10 +10595,33 @@ const _desk = { on: false, side: null, nav: null, sig: '', cur: '', set: null, i
 
 /* טהורות (tests/desktop.test.js) */
 function deskApp() { try { return (document.documentElement.dataset.app || 'invest'); } catch (e) { return 'invest'; } }
-function deskIsMac() { try { return /Mac|iPhone|iPad|iPod/.test((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || ''); } catch (e) { return false; } }
+/* 11/11/2026 (מחקר 05): המערכת — mac (גם iPad עם מקלדת) · win · cros · gbook (אנדרואיד במחשב: userAgentData.platform
+   "Android" גם כשה־UA הוא של ChromeOS) · linux (גם אנדרואיד שמבקש אתר מחשב — אי אפשר להבדיל) · other */
+function deskOS(nav) {
+  try {
+    const n = nav || navigator, ud = n.userAgentData, up = String((ud && ud.platform) || ''), np = String(n.platform || ''), ua = String(n.userAgent || '');
+    if (/^android$/i.test(up)) return 'gbook';
+    if (/mac|iphone|ipad|ipod/i.test(up || np) || /iPhone|iPad|iPod/.test(ua)) return 'mac';
+    if (/win/i.test(up || np)) return 'win';
+    if (/chrome ?os/i.test(up) || /\bCrOS\b/.test(ua)) return 'cros';
+    if (/Android/.test(ua)) return 'gbook';
+    if (/linux|x11/i.test(up || np) || /Linux|X11/.test(ua)) return 'linux';
+  } catch (e) {}
+  return 'other';
+}
+function deskIsMac() { return deskOS() === 'mac'; }
+/* מעבר בין עמודים: בחלון מותקן Mod+1–9 בכל מערכת (הדפדפן לא שומר שם מקשים). בלשונית: Alt/⌥+1–9 ב־Mac וב־Windows;
+   ב־Linux, ‏ChromeOS ו־Googlebook ‏Alt+1–8 שייכים למדף/ללשוניות (ה־Ash תופס לפני הדף, Firefox בלינוקס) — שם Ctrl+Alt+1–9 */
+function deskPageMod(os, standalone) { return standalone ? 'mod' : (os === 'linux' || os === 'cros' || os === 'gbook') ? 'ctrl+alt' : 'alt'; }
+function deskPageHit(e, os, standalone) {
+  const mod = deskModKey(e, os === 'mac');
+  if (standalone && mod && !e.altKey) return true;
+  const m = deskPageMod(os, false);
+  return m === 'alt' ? (e.altKey && !e.ctrlKey && !e.metaKey) : (e.altKey && e.ctrlKey && !e.metaKey);
+}
 function deskModKey(e, mac) { return mac ? !!e.metaKey && !e.ctrlKey : !!e.ctrlKey && !e.metaKey; }   // ⌘ במק, Ctrl בשאר
-function deskKbd(k, mac) {               // התווית של קיצור: 'mod+K' → ⌘K / Ctrl+K · 'alt+1' → ⌥1 / Alt+1
-  return String(k).split('+').map((p) => (p === 'mod' ? (mac ? '⌘' : 'Ctrl+') : p === 'alt' ? (mac ? '⌥' : 'Alt+') : p === 'shift' ? (mac ? '⇧' : 'Shift+') : p)).join('');
+function deskKbd(k, mac) {               // התווית של קיצור: 'mod+K' → ⌘K / Ctrl+K · 'alt+1' → ⌥1 / Alt+1 · 'ctrl+alt+1' → ⌃⌥1 / Ctrl+Alt+1
+  return String(k).split('+').map((p) => (p === 'mod' ? (mac ? '⌘' : 'Ctrl+') : p === 'ctrl' ? (mac ? '⌃' : 'Ctrl+') : p === 'alt' ? (mac ? '⌥' : 'Alt+') : p === 'shift' ? (mac ? '⇧' : 'Shift+') : p)).join('');
 }
 function deskNorm(s) { return String(s || '').toLowerCase().replace(/[֑-ׇ]/g, '').replace(/[״"׳'`־\-_.]/g, '').replace(/[ךםןףץ]/g, (c) => DESK_FIN[c]).replace(/\s+/g, ' ').trim(); }
 const DESK_FIN = { 'ך': 'כ', 'ם': 'מ', 'ן': 'נ', 'ף': 'פ', 'ץ': 'צ' };
@@ -10649,7 +10673,12 @@ function deskInputInit() {
 }
 
 /* ---------- 2. מסגרת מחשב ---------- */
-function deskWide() { try { return window.innerWidth >= DESK_MIN; } catch (e) { return false; } }
+function deskWide() {
+  try {
+    let fine = false; try { fine = matchMedia('(hover: hover) and (pointer: fine)').matches; } catch (e) {}
+    return window.innerWidth >= (fine ? DESK_MIN_FINE : DESK_MIN);
+  } catch (e) { return false; }
+}
 function deskMode() {
   if (typeof document === 'undefined') return;
   const on = deskWide();
@@ -10743,7 +10772,7 @@ function deskSync(force) {
     _desk.sig = sig;
     _desk.nav.textContent = '';
     pages.forEach((p, i) => {
-      const r = deskRow('dk-page', p.ico, p.label, i < 9 ? deskKbdEl('alt+' + (i + 1)) : null);
+      const r = deskRow('dk-page', p.ico, p.label, i < 9 ? deskKbdEl(deskPageMod(deskOS(), deskStandalone()) + '+' + (i + 1)) : null);
       r.dataset.k = p.k;
       r.addEventListener('click', () => deskGo(deskPages().find((x) => x.k === p.k) || p));
       _desk.nav.append(r);
@@ -10793,8 +10822,7 @@ function deskKey(e) {
   const mac = deskIsMac(), mod = deskModKey(e, mac), c = e.code || '';   // לפי המקש הפיזי: במקלדת עברית e.key של K הוא "ל"
   if (mod && !e.altKey && !e.shiftKey && c === 'KeyK') { e.preventDefault(); return _desk.pal ? deskPalClose() : deskPalette(); }
   if (mod && !e.altKey && !e.shiftKey && c === 'Comma') { e.preventDefault(); if (_desk.pal) deskPalClose(); return deskSettings(); }
-  const pageMods = (e.altKey && !e.ctrlKey && !e.metaKey) || (mod && !e.altKey && deskStandalone());
-  if (pageMods && !e.shiftKey && /^Digit[1-9]$/.test(c)) {
+  if (!e.shiftKey && /^Digit[1-9]$/.test(c) && deskPageHit(e, deskOS(), deskStandalone())) {
     const p = deskPages()[+c.slice(5) - 1];
     if (p && !deskBusy()) { e.preventDefault(); if (_desk.pal) deskPalClose(); deskGo(p); }
     return;
@@ -10909,7 +10937,7 @@ function deskHelp() {
   x.addEventListener('click', () => deskHelpClose());
   const groups = [
     [t('dkKeysGen'), [['mod+K', t('dkFind')], ['mod+,', t('menuSettings')], ['/', t('dkKeySearch')], ['?', t('dkKeysTitle')], ['Esc', t('dkKeyBack')]]],
-    [t('dkKeysNav'), [[(deskStandalone() ? 'mod' : 'alt') + '+1–9', t('dkKeyPages')], ['↑ ↓', t('dkKeyArrows')], ['Tab', t('dkKeyTab')], ['Enter', t('dkKeyOpen')]]],
+    [t('dkKeysNav'), [[deskPageMod(deskOS(), deskStandalone()) + '+1–9', t('dkKeyPages')], ['↑ ↓', t('dkKeyArrows')], ['Tab', t('dkKeyTab')], ['Enter', t('dkKeyOpen')]]],
   ];
   const extra = DESK_HELP[deskApp()];
   if (extra) groups.push([t('dkKeysApp'), extra.map(([k, s]) => [k, s()])]);
@@ -10952,6 +10980,32 @@ const DESK_HELP = {
   studio: [['Space', () => t('dkKeyPlay')], ['← →', () => t('dkKeySeek')], ['F', () => t('dkKeyFull')]],
 };
 
+/* 11/11/2026: גלגלת העכבר בשורות שנגללות רק לרוחב (שבבים, מחברים, טווחים) — עם עכבר אין החלקה והפס מוסתר, אז הגלגלת גוללת
+   אותן לרוחב. המאזין (לא פסיבי — כדי לעצור את גלילת הדף) נרשם רק על השורה שהעכבר עובר מעליה, לא על כל המסמך */
+function deskHRow(el) {
+  for (let n = el, i = 0; n && n.nodeType === 1 && i < 6; n = n.parentElement, i++) {
+    if (n === document.body || n === document.documentElement) return null;
+    if (n.scrollWidth > n.clientWidth + 1 && n.scrollHeight <= n.clientHeight + 1 && /^(auto|scroll)$/.test(getComputedStyle(n).overflowX)) return n;
+  }
+  return null;
+}
+/* כמה לגלול (בפיקסלים, בכיוון הקריאה) — 0 = לא לגעת: משטח מגע שכבר אופקי, Ctrl (הגדלה), או שהשורה בקצה ואז הדף נגלל */
+function deskWheelDx(e, rtl, left, max) {
+  if (e.ctrlKey || e.metaKey || Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return 0;
+  const d = e.deltaY * (e.deltaMode === 1 ? 32 : e.deltaMode === 2 ? 320 : 1), x = Math.abs(left);
+  if ((d > 0 && x >= max - 1) || (d < 0 && x <= 1)) return 0;
+  return rtl ? -d : d;
+}
+function deskWheel(e) {
+  const el = e.currentTarget; if (e.defaultPrevented || !document.documentElement.classList.contains('dk')) return;
+  const dx = deskWheelDx(e, getComputedStyle(el).direction === 'rtl', el.scrollLeft, el.scrollWidth - el.clientWidth);
+  if (dx) { e.preventDefault(); el.scrollLeft += dx; }
+}
+function deskWheelOver(e) {
+  if (!_desk.on || document.documentElement.dataset.input !== 'mouse') return;
+  const r = deskHRow(e.target);
+  if (r && !r.__dkWheel) { r.__dkWheel = 1; r.addEventListener('wheel', deskWheel, { passive: false }); }
+}
 function deskInit() {
   if (typeof window === 'undefined' || typeof document === 'undefined' || _desk.wired || !document.documentElement) return;
   // חלון/מסמך מדומים בבדיקות (vm) — בלי מאזינים
@@ -10959,6 +11013,7 @@ function deskInit() {
   _desk.wired = true;
   try { deskInputInit(); } catch (e) {}
   document.addEventListener('keydown', deskKey);
+  document.addEventListener('mouseover', deskWheelOver, { passive: true });
   let rt = 0;
   window.addEventListener('resize', () => { cancelAnimationFrame(rt); rt = requestAnimationFrame(deskMode); }, { passive: true });
   // אחרי כל לחיצה / "חזור" — ההדגשה בסרגל מתעדכנת (המעברים של האפליקציות לא עוברים תמיד דרך החוגה)
