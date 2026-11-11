@@ -108,6 +108,8 @@ async function open(b, app) {
   if (SLOWIDB && app !== 'academy') await ctx.addInitScript(() => { try { localStorage.setItem('__qa_slowidb', '1'); } catch (e) {} });
   await ctx.addInitScript(PROBE);
   if (process.argv.includes('--oldvt')) await ctx.addInitScript(() => { window.__cubeVT = false; });   // הנתיב הישן (העתק) — לבדוק שהגלאים תופסים אותו
+  // 11/11/2026: טלפון מדומה = לשונית בדפדפן, ושם המנוע בוחר בהעתק (cubeVTBar). ‎--browser — כך; ברירת המחדל — הנתיב של האפליקציה
+  else if (!process.argv.includes('--browser')) await ctx.addInitScript(() => { window.__cubeVT = true; });
   // --slowidb 120: כל getAll של IndexedDB מתעכב (טלפון: עשרות ms) — חושף ציור שלא מחכה לנתונים
   if (SLOWIDB) await ctx.addInitScript((ms) => {
     const slow = (proto, ev, d) => { const on = Object.getOwnPropertyDescriptor(proto, ev);
