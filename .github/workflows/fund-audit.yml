@@ -58,3 +58,25 @@ jobs:
           name: fund-audit
           path: out/report.md
           retention-days: 14
+
+  # 11/11/2026: העתק ב־https://dl.thesnowball.app/fund-audit/ — השרתון קורא משם קודם (docs/private-repo-plan.md).
+  # job נפרד: הבדיקה הלילית (נתונים חיצוניים) נשארת בלי סודות; כאן רק הקבצים שכבר פורסמו ב־Release + tools/dl-put.sh
+  mirror:
+    needs: audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Mirror (dl.thesnowball.app)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DL_R2_ACCESS_KEY_ID: ${{ secrets.DL_R2_ACCESS_KEY_ID }}
+          DL_R2_SECRET_ACCESS_KEY: ${{ secrets.DL_R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          DL_R2_JURISDICTION: ${{ vars.DL_R2_JURISDICTION }}
+        run: |
+          gh release download fund-audit -p summary.json -p history.json -p report.md -D "$RUNNER_TEMP/fa"
+          bash tools/dl-put.sh fund-audit "$RUNNER_TEMP/fa/summary.json" "$RUNNER_TEMP/fa/history.json" "$RUNNER_TEMP/fa/report.md"
