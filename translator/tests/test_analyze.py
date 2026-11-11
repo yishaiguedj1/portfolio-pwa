@@ -349,13 +349,15 @@ class FakeJ:
         self.calls.append("url_fetch")
 
     def wait_video(self, ctx, st, msg):
+        self.calls.append(("wait", st, msg))
         return {"id": "r2:v", "size": 1}
 
     def in_path(self, ctx, f, kind):
-        return self.src
+        return self.src if kind == "v" else getattr(self, "asrc", self.src)
 
-    def fetch_input(self, ctx, fid, dest, size, cb):
-        cb(1.0)
+    def fetch_input(self, ctx, fid, dest, size, cb=None):
+        if cb:
+            cb(1.0)
 
     def ensure_env(self, ctx, st):
         pass
@@ -406,12 +408,14 @@ class TestViRun(unittest.TestCase):
     def tearDown(self):
         self.td.cleanup()
 
-    def run_vi(self, engine=None, lid="en", **spec):
+    def run_vi(self, engine=None, lid="en", files=None, asrc=None, **spec):
         st = {"job": "jtestvi", "spec": dict({"vi": 1, "dry": 1, "from": "en", "to": ["he"], "name": "הרצאה.mp4", "mode": ""}, **spec),
-              "files": {"v": {"id": "r2:v", "size": 1}}}
+              "files": files if files is not None else {"v": {"id": "r2:v", "size": 1}}}
         ctx = Ctx(st, self.dir / "proj")
         J = FakeJ(ctx, self.src)
         J.lid = lid
+        if asrc:
+            J.asrc = asrc
         self.ctx, self.J = ctx, J
         from contextlib import redirect_stdout
         buf = io.StringIO()
@@ -449,6 +453,36 @@ class TestViRun(unittest.TestCase):
         self.assertNotIn("הרצאה", line, "בלי שם הקובץ — רק מספרים")
         cues = json.loads((ctx.pdir / "cues.json").read_text())
         self.assertEqual(cues[0]["lines"], ["Gradient descent works."])
+
+    def test_audio_first(self):
+        """11/11/2026 (המשתמש: "שההעלאה לא תעכב אותנו עד שהיא לא הכרחית"): הקול כבר כאן והסרטון עוד עולה — מתמללים מהקול,
+        ומחכים לסרטון רק לפני קריאת המסך (שלב al), לא בקליטה."""
+        a = self.dir / "in.m4a"
+        subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(self.src), "-vn", "-c:a", "copy", "-y", str(a)], check=True)
+        rc, ctx, J, out = self.run_vi(files={"a": {"id": "r2:a", "size": 1}}, asrc=a)
+        self.assertEqual(rc, 0, out)
+        waits = [c for c in J.calls if isinstance(c, tuple)]
+        self.assertEqual([w[1] for w in waits], ["al"], "מחכים לסרטון רק לפני המסך")
+        order = [c if isinstance(c, str) else "wait" for c in J.calls]
+        self.assertLess(order.index("vi-asr"), order.index("wait"), "התמלול לא חיכה לסרטון")
+        self.assertLess(order.index("wait"), order.index("vi-screen"))
+        self.assertIn("vi-same", order, "הסרטון נבדק שוב אחרי שהגיע — יש בו תמונה")
+        self.assertIn("מתחילים מהקול", out)
+
+    def test_video_first_unchanged(self):
+        """בלי קובץ קול — כמו קודם: מחכים לסרטון בקליטה (up)."""
+        rc, ctx, J, out = self.run_vi(files={})
+        self.assertEqual(rc, 0, out)
+        self.assertEqual([c[1] for c in J.calls if isinstance(c, tuple)], ["up"])
+
+    def test_reports_duration(self):
+        """11/11/2026: עבודה בלי משך (קישור) — האורך לשרתון (du, פעם אחת), ממנו הצפי ויעדי הזמן והתקציב. עם משך — לא."""
+        rc, ctx, J, out = self.run_vi()
+        du = [r["du"] for r in ctx.reports if "du" in r]
+        self.assertEqual(du, [6], "פעם אחת, בשניות שלמות")
+        _video(self.src)                                  # הריצה הקודמת ניקתה את הקלט
+        rc, ctx, J, out = self.run_vi(dur=6)
+        self.assertFalse([r for r in ctx.reports if "du" in r], "המשך כבר ידוע — בלי דיווח")
 
     def test_refusals(self):
         os.environ.pop("SNB_VI_LIVE", None)

@@ -388,8 +388,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.138.1';
-const APP_VERSION = 'v745';
+const APP_RELEASE = '2.139.0';
+const APP_VERSION = 'v748';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -769,10 +769,10 @@ const DESK_IC = {
 };
 /* האפליקציות בסרגל — אותן שלוש של התפריט (Cashflow עוד לא מודלקת: מופיעה רק כשנמצאים בה) */
 const DESK_APPS = [
-  { k: 'invest', name: 'Invest', icon: 'icon-192.png', sub: 'appInvestSub' },
-  { k: 'academy', name: 'Academy', icon: 'icon-academy-192.png', sub: 'menuLibrarySub' },
-  { k: 'studio', name: 'Studio', icon: 'icon-studio-192.png', sub: 'menuStudioSub' },
-  { k: 'cashflow', name: 'Cashflow', icon: 'icon-cashflow-192.png', sub: '', only: true },
+  { k: 'invest', name: 'Invest', icon: 'icon-192.png', sub: () => t('appInvestSub') },
+  { k: 'academy', name: 'Academy', icon: 'icon-academy-192.png', sub: () => t('menuLibrarySub') },
+  { k: 'studio', name: 'Studio', icon: 'icon-studio-192.png', sub: () => t('menuStudioSub') },
+  { k: 'cashflow', name: 'Cashflow', icon: 'icon-cashflow-192.png', sub: null, only: true },
 ];
 const _desk = { on: false, side: null, nav: null, sig: '', cur: '', set: null, inSet: null, cmds: [], pal: null, help: null, wired: false, raf: 0 };
 
@@ -820,7 +820,7 @@ function deskFilter(q, items) {
 /* ---------- 1. מצב קלט ---------- */
 function deskInput(k) {
   const de = document.documentElement;
-  if (de.dataset.input !== k) de.dataset.input = k;
+  if (de && de.dataset && de.dataset.input !== k) de.dataset.input = k; // dataset חסר בסביבת הבדיקות (vm)
 }
 function deskInputInit() {
   let fine = false;
@@ -1006,10 +1006,10 @@ function deskCmdList() {
   for (const a of DESK_APPS) {
     if (a.k === app || (a.only && a.k !== app)) continue;
     const ic = deskEl('img', 'dk-appic'); ic.src = a.icon; ic.alt = '';
-    out.push({ label: a.name, sub: t('dkCmdApp'), ico: ic, kw: a.sub ? t(a.sub) : '', run: () => appGo(deskAppUrl(a.k)) });
+    out.push({ label: a.name, sub: t('dkCmdApp'), ico: ic, kw: a.sub ? a.sub() : '', run: () => appGo(deskAppUrl(a.k)) });
   }
   const dark = typeof resolveTheme === 'function' && resolveTheme() === 'dark';
-  out.push({ label: t(dark ? 'dkCmdLight' : 'dkCmdDark'), sub: t('dkCmdAct'), ico: deskSvg(dark ? DESK_IC.sun : DESK_IC.moon), kw: 'theme dark light ערכה כהה בהיר', run: () => setThemeMode(dark ? 'light' : 'dark') });
+  out.push({ label: dark ? t('dkCmdLight') : t('dkCmdDark'), sub: t('dkCmdAct'), ico: deskSvg(dark ? DESK_IC.sun : DESK_IC.moon), kw: 'theme dark light ערכה כהה בהיר', run: () => setThemeMode(dark ? 'light' : 'dark') });
   const he = getLang() === 'he';
   out.push({ label: t('dkCmdLang'), sub: t('dkCmdAct'), ico: deskSvg(DESK_IC.lang), kw: 'language שפה english hebrew עברית', run: () => { try { localStorage.setItem(LS_LANG, he ? 'en' : 'he'); } catch (e) {} location.reload(); } });
   out.push({ label: t('dkKeysTitle'), sub: t('dkCmdAct'), ico: deskSvg(DESK_IC.keys), kbd: '?', kw: 'shortcuts keyboard מקלדת קיצורים', run: deskHelp });
@@ -1096,7 +1096,7 @@ function deskHelp() {
     [t('dkKeysNav'), [[(deskStandalone() ? 'mod' : 'alt') + '+1–9', t('dkKeyPages')], ['↑ ↓', t('dkKeyArrows')], ['Tab', t('dkKeyTab')], ['Enter', t('dkKeyOpen')]]],
   ];
   const extra = DESK_HELP[deskApp()];
-  if (extra) groups.push([t('dkKeysApp'), extra.map(([k, s]) => [k, t(s)])]);
+  if (extra) groups.push([t('dkKeysApp'), extra.map(([k, s]) => [k, s()])]);
   const body = deskEl('div', 'dk-help-g');
   for (const [title, rows] of groups) {
     const sec = deskEl('section', 'dk-help-s'); const st = deskEl('h3'); st.textContent = title; sec.append(st);
@@ -1131,14 +1131,17 @@ function deskHelpClose(fromBack) {
 }
 /* הקיצורים של כל אפליקציה שכבר קיימים בה (מתועדים כאן כדי שיופיעו ב־?) */
 const DESK_HELP = {
-  academy: [['← →', 'dkKeyPageTurn'], ['Space', 'dkKeyPageNext'], ['shift+Space', 'dkKeyPagePrev']],
-  studio: [['Space', 'dkKeyPlay'], ['← →', 'dkKeySeek'], ['F', 'dkKeyFull']],
+  // המפתחות מילוליים בתוך פונקציה (i18n-coverage אוסר t() דינמי)
+  academy: [['← →', () => t('dkKeyPageTurn')], ['Space', () => t('dkKeyPageNext')], ['shift+Space', () => t('dkKeyPagePrev')]],
+  studio: [['Space', () => t('dkKeyPlay')], ['← →', () => t('dkKeySeek')], ['F', () => t('dkKeyFull')]],
 };
 
 function deskInit() {
   if (typeof window === 'undefined' || typeof document === 'undefined' || _desk.wired || !document.documentElement) return;
+  // חלון/מסמך מדומים בבדיקות (vm) — בלי מאזינים
+  if (typeof window.addEventListener !== 'function' || typeof document.addEventListener !== 'function') return;
   _desk.wired = true;
-  deskInputInit();
+  try { deskInputInit(); } catch (e) {}
   document.addEventListener('keydown', deskKey);
   let rt = 0;
   window.addEventListener('resize', () => { cancelAnimationFrame(rt); rt = requestAnimationFrame(deskMode); }, { passive: true });
@@ -1151,7 +1154,7 @@ function deskInit() {
 if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.documentElement) {
   // לפני הציור הראשון: מסגרת המחשב (בלי קפיצה מהחוגה לסרגל) ומצב הקלט
   try { if (deskWide()) document.documentElement.classList.add('dk'); } catch (e) {}
-  deskInit();
+  try { deskInit(); } catch (e) {}
 }
 
 let _navSkipPop = 0;
@@ -1625,7 +1628,17 @@ let _cubeVTOn = null;
 function cubeVTOk(root) {
   if (!root || !root.classList || !(root.classList.contains('st-root') || root.classList.contains('lib-root')) || typeof root.startViewTransition !== 'function') return false;
   if (typeof window !== 'undefined' && window.__cubeVT === false) return false;
+  if (cubeVTBar() && !(typeof window !== 'undefined' && window.__cubeVT === true)) return false;
   return !cubeReduce() && !cubeDesk() && !(typeof document !== 'undefined' && document.hidden);
+}
+/* 11/11/2026 (שתי הקלטות של המשתמש, Studio ו־Academy: "קפיצה של כל העמוד" בכל מעבר בין עמודים ולשוניות — רק בדפדפן,
+   לא באפליקציה, ולא ב־Invest). בדפדפן בטלפון, כשסרגל הכתובת גלוי, Chrome מצייר את הפסאודו־אלמנטים של המעבר הממוקד
+   (‎::view-transition) מוזזים למטה בערך בגובה הסרגל. בנחיתה הפאה במקומה (בלי סיבוב) עד שהמעבר יורד, ולכן כל הדף
+   ירד ~60px לכמה פריימים (עד 300ms, רצועה ריקה למעלה) וקפץ חזרה. כך גם בפריים שלפני הסיבוב. נמדד פריים־פריים בהקלטה.
+   באפליקציה (standalone) אין סרגל נשלף. Invest מסובב אלמנטים (tabCubeGo) ולא משתמש במעבר הממוקד. לכן בדפדפן עם מגע —
+   ההעתק (cubeClone), אותו מנוע אלמנטים כמו ב־Invest. window.__cubeVT = true — המעבר הממוקד גם כאן (לגלאים) */
+function cubeVTBar() {
+  try { return typeof matchMedia === 'function' && matchMedia('(display-mode: browser)').matches && matchMedia('(pointer: coarse)').matches; } catch (e) { return false; }
 }
 function cubeVTFace(g, isNew) {
   const f = { el: g.root, pe: isNew ? '::view-transition-new(root)' : '::view-transition-old(root)', vt: g };

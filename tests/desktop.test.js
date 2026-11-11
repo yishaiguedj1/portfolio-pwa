@@ -151,7 +151,7 @@ ok(['dk-item', 'dk-help-x', 'dk-sw'].every((c) => new RegExp('\\b' + c + '\\b').
 for (const k of ['dkSideAria', 'dkFind', 'dkPalPh', 'dkPalNone', 'dkKeysTitle', 'dkKeys1', 'dkCmdLang', 'dkKeyPagePrev', 'dkKeyFull']) {
   ok(new RegExp('\\n  ' + k + ': "').test(app.slice(0, app.indexOf('\nen: {'))) && new RegExp('\\n  ' + k + ': "').test(app.slice(app.indexOf('\nen: {'))), 'מחרוזת ' + k + ' בעברית ובאנגלית');
 }
-ok(/sub: 'appInvestSub'/.test(app) && !/menuInvestSub/.test(app), 'האפליקציות בסרגל — מפתחות שקיימים בטבלה');
+ok(/sub: \(\) => t\('appInvestSub'\)/.test(app) && !/menuInvestSub/.test(app), 'האפליקציות בסרגל — מפתחות שקיימים בטבלה');
 
 /* ---------- 6. הקובייה כבויה במחשב (אין גרירת עמודים בעכבר) ---------- */
 ok(/function cubeDesk\(\)/.test(app) && /cubeDesk\(\)/.test(fn(app, 'tabCubeOk')), 'Invest: מעבר עמוד במחשב — בלי קובייה');

@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2411 מפתחות מתוך 6791) */
+/* המחרוזות של studio (2418 מפתחות מתוך 6798) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -426,6 +426,7 @@ he: {
   "studioCopySetup": "העתקת סקריפט ההתקנה",
   "studioCostBt": "חצי מחיר",
   "studioCostBtPart": "חצי מחיר ב־{b} מתוך {n} קריאות",
+  "studioCostCalls": "{n} קריאות",
   "studioCostJg": "שופט האיכות",
   "studioCostMain": "תיאום",
   "studioCostNoPrice": "אין מחירון למודל",
@@ -440,6 +441,12 @@ he: {
   "studioCostTl": "תרגום",
   "studioCostTok": "{n} טוקנים",
   "studioCostTotal": "סה״כ",
+  "studioCostVc": "שיחה על הסרטון",
+  "studioCostVl": "לימוד",
+  "studioCostVm": "מיפוי ההרצאה",
+  "studioCostVs": "סיכום ומסקנות",
+  "studioCostVv": "אימות מול הראיות",
+  "studioCostVx": "קריאת השקפים",
   "studioCostWarnRv": "הביקורת רצה על {got} ולא על {want} שבחרת",
   "studioCostWarnTl": "התרגום רץ על {got} ולא על {want} שבחרת",
   "studioCpAnsName": "תשובה {n} מ־Claude",
@@ -2839,6 +2846,7 @@ en: {
   "studioCopySetup": "Copy the setup script",
   "studioCostBt": "Half price",
   "studioCostBtPart": "Half price on {b} of {n} calls",
+  "studioCostCalls": "{n} calls",
   "studioCostJg": "Quality judge",
   "studioCostMain": "Coordination",
   "studioCostNoPrice": "no price for this model",
@@ -2853,6 +2861,12 @@ en: {
   "studioCostTl": "Translation",
   "studioCostTok": "{n} tokens",
   "studioCostTotal": "Total",
+  "studioCostVc": "Video chat",
+  "studioCostVl": "Study",
+  "studioCostVm": "Lecture mapping",
+  "studioCostVs": "Summary and conclusions",
+  "studioCostVv": "Evidence check",
+  "studioCostVx": "Slide reading",
   "studioCostWarnRv": "Review ran on {got}, not {want} as selected",
   "studioCostWarnTl": "Translation ran on {got}, not {want} as selected",
   "studioCpAnsName": "Answer {n} from Claude",

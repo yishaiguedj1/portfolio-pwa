@@ -15,6 +15,22 @@ ok(/function cubeVTPre\(/.test(core) && /function cubeVTFace\(/.test(core) && /f
 ok(/if \(cubeVTOk\(root\)\) \{ const v = cubeVTPre\(root, go\); if \(v\) return v; \}/.test(fn(app, 'cubePre')), 'cubePre: מעבר ממוקד כשנתמך, ואחרת ההעתק הישן');
 const okSrc = fn(app, 'cubeVTOk');
 ok(/st-root/.test(okSrc) && /lib-root/.test(okSrc) && /startViewTransition/.test(okSrc) && /window\.__cubeVT === false/.test(okSrc) && /cubeReduce\(\)/.test(okSrc), 'רק לשכבות של Studio ו־Academy, רק עם תמיכה, ומתג לנתיב הישן (__cubeVT)');
+// 11/11/2026 (הקלטות המשתמש): בדפדפן בטלפון (סרגל כתובת נשלף) הפסאודו־אלמנטים מוזזים בגובה הסרגל — כל הדף קפץ בנחיתה
+ok(/if \(cubeVTBar\(\) && !\(typeof window !== 'undefined' && window\.__cubeVT === true\)\) return false;/.test(okSrc)
+  && /\(display-mode: browser\)/.test(fn(app, 'cubeVTBar')) && /\(pointer: coarse\)/.test(fn(app, 'cubeVTBar')), 'דפדפן עם מגע — בלי מעבר ממוקד (ההעתק, כמו Invest); __cubeVT = true מחזיר אותו');
+{
+  const mk = (mm, flag) => {
+    const ctx = { window: { __cubeVT: flag }, document: { hidden: false }, matchMedia: (q) => ({ matches: !!mm[q] }) };
+    vm.runInNewContext('const cubeReduce = () => false; const cubeDesk = () => false;' + fn(app, 'cubeVTBar') + fn(app, 'cubeVTOk') + 'this.f = cubeVTOk;', ctx);
+    return ctx.f({ classList: { contains: (c) => c === 'st-root' }, startViewTransition() {} });
+  };
+  const tab = { '(display-mode: browser)': true, '(pointer: coarse)': true };
+  ok(mk(tab) === false, 'Chrome בטלפון, לשונית בדפדפן — ההעתק');
+  ok(mk({ '(display-mode: standalone)': true, '(pointer: coarse)': true }) === true, 'האפליקציה (standalone) — המעבר הממוקד נשאר');
+  ok(mk({ '(display-mode: browser)': true, '(pointer: fine)': true }) === true, 'מחשב עם עכבר (בלי סרגל נשלף) — המעבר הממוקד נשאר');
+  ok(mk(tab, true) === true && mk({ '(display-mode: standalone)': true }, false) === false, 'המתגים לגלאים: __cubeVT = true / false');
+  ok(/function cubeVTBar\(/.test(core), 'cubeVTBar ב־core.js');
+}
 ok(/::view-transition-new\(root\)/.test(fn(app, 'cubeVTFace')) && /::view-transition-old\(root\)/.test(fn(app, 'cubeVTFace')), 'הפאות = הצילום של היוצא (old) והדף החי (new)');
 ok(/pseudoElement: f\.pe/.test(fn(app, 'faceSet')) && /if \(f\.pe\) opt\.pseudoElement = f\.pe;/.test(fn(app, 'cubeRun')), 'cubeSet ו־cubeRun מזיזים את הפסאודו־אלמנטים');
 ok(/if \(f && f\.pe\)/.test(fn(app, 'cubeFaceOff')) && /f\.pe\) return;/.test(fn(app, 'cubeClipTop')), 'שחרור פאה וחיתוך — גם לפאה של מעבר ממוקד');
@@ -27,9 +43,9 @@ ok(/root\._cubeVT \|\|/.test(fn(st, 'render')) && /root\._cubeVT \|\|/.test(lib)
 
 // ---- זרימה ב־vm: שכבה מדומה עם startViewTransition
 {
-  const names = ['cubeFace', 'cubeFaceOff', 'cubeWarm', 'cubeWarmEnd', 'cubeSet', 'faceSet', 'cubeTransform', 'cubeVisible', 'cubeVTOk', 'cubeVTFace', 'cubeVTPre', 'cubeVTWire', 'cubeVTTouch', 'cubePre', 'scrollFlat'];
+  const names = ['cubeFace', 'cubeFaceOff', 'cubeWarm', 'cubeWarmEnd', 'cubeSet', 'faceSet', 'cubeTransform', 'cubeVisible', 'cubeVTOk', 'cubeVTBar', 'cubeVTFace', 'cubeVTPre', 'cubeVTWire', 'cubeVTTouch', 'cubePre', 'scrollFlat'];
   const src = 'let _cubePre = null, _cubeVTOn = null, cubeNow = null; const _dial = { ride: null }; const CUBE_P = 2.4; const CUBE_RUB = 0.15; const CUBE_WARM_OP = "0.01"; const SCROLL_FLAT = ".st-jobs";'
-    + 'const cubeReduce = () => false; const cubeClone = () => { throw new Error("clone"); };'
+    + 'const cubeReduce = () => false; const cubeDesk = () => false; const cubeClone = () => { throw new Error("clone"); };'
     + names.map((n) => fn(app, n)).join('\n') + '; this.T = { cubePre, cubeFace, cubeSet, cubeWarm, get on() { return _cubeVTOn; } };';
   const anims = [];
   const mkEl = () => ({ animate(k, o) { const a = { k, o, paused: false, cancelled: false, pause() { this.paused = true; }, cancel() { this.cancelled = true; }, effect: { setKeyframes(x) { a.k = x; } } }; anims.push(a); return a; } });

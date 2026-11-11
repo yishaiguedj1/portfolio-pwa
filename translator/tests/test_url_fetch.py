@@ -20,16 +20,18 @@ import fetchurl as F  # noqa: E402
 
 
 class FakeClient:
+    """11/11/2026: srcFile נרשם רק "בשרתון" (srv) — כמו הלקוח האמיתי, שלא נוגע במצב המקומי. עד היום הוא כתב ישר ל־st,
+    והסתיר את הבאג: prepare / vi_run לא ראו את הקול שירד מהקישור ומחכו לסרטון."""
     def __init__(self, st):
-        self.st, self.calls = st, []
+        self.st, self.calls, self.srv = st, [], {}
 
     def call(self, op, **kw):
         self.calls.append((op, kw))
         if op == 'srcFile':
-            self.st.setdefault('files', {})[kw['which']] = {'id': kw['id'], 'name': 'x', 'size': 1}
+            self.srv[kw['which']] = {'id': kw['id'], 'name': 'x', 'size': 1}
             return {'ok': True}
         if op == 'claim':
-            return {'ok': True, 'job': {'files': dict(self.st.get('files') or {}), 'folder': 'R2_jAAAA'}}
+            return {'ok': True, 'job': {'files': dict(self.st.get('files') or {}, **self.srv), 'folder': 'R2_jAAAA'}}
         return {'ok': True}
 
 
@@ -45,7 +47,9 @@ class FakeCtx:
         self.reports.append((st, p, msg, extra))
 
     def refresh(self):
-        return {}
+        job = self.c.call('claim')['job']             # כמו Ctx.refresh — הקבצים מהשרתון
+        self.st['files'] = job['files']
+        return job
 
     def event(self, c, k, ok=False):
         pass
@@ -95,6 +99,9 @@ class UrlFetch(unittest.TestCase):
         a_local = J.VT_WORK / '_in' / 'jabc.audio.m4a'
         self.assertTrue(a_local.exists() and a_local.stat().st_size == 100, 'הקול במקום ש־fetch_input מחפש — בלי הורדה חוזרת')
         self.assertEqual(self.ups[0][0], 'Talk  one two.audio.m4a')                # שם בלי תווים אסורים
+        self.assertEqual(self.ctx.st['files']['a']['id'], 'R2_jAAAA_' + 'a' * 12,
+                         'הקול רשום גם במצב המקומי — prepare / vi_run מתמללים ממנו בלי לחכות לסרטון')
+        self.assertNotIn('v', self.ctx.st['files'])
         J._URL_BG['t'].join(2)
         self.assertEqual(self.dl[1][0], 'v')
         self.assertIn(('srcFile', {'which': 'v', 'id': 'R2_jAAAA_' + 'v' * 12}), self.ctx.c.calls)
@@ -118,6 +125,34 @@ class UrlFetch(unittest.TestCase):
             J.wait_video(self.ctx, 'rv', 'x')
         self.assertEqual(c.exception.err, 'url_gone')
         self.assertTrue(any(r[3].get('fail') and r[3].get('err') == 'url_gone' for r in self.ctx.reports))
+
+    def test_link_wait_is_server_work(self):
+        """11/11/2026: הסרטון יורד מהקישור ברקע — wait_video לא עוצר את שעון היעד (wv; זו עבודה של השרת, לא המתנה לטלפון),
+        וממשיך ברגע שההורדה הסתיימה (join), לא אחרי עוד SNB_POLL שניות של שינה."""
+        import threading
+        import time
+
+        def slow():
+            time.sleep(0.2)
+            self.ctx.c.srv['v'] = {'id': 'R2_jAAAA_' + 'v' * 12, 'name': 'x', 'size': 1}
+        J._URL_BG['err'] = None
+        J._URL_BG['t'] = threading.Thread(target=slow, daemon=True)
+        J._URL_BG['t'].start()
+        old = os.environ.get('SNB_POLL')               # בהרצה של כל הבדיקות יחד — בדיקה אחרת עשויה למחוק אותו
+        os.environ['SNB_POLL'] = '20'
+        try:
+            t0 = time.time()
+            v = J.wait_video(self.ctx, 'al', 'x')
+        finally:
+            if old is None:
+                os.environ.pop('SNB_POLL', None)
+            else:
+                os.environ['SNB_POLL'] = old
+        self.assertEqual(v['id'], 'R2_jAAAA_' + 'v' * 12)
+        self.assertLess(time.time() - t0, 5, 'ממשיכים כשההורדה נגמרה — לא אחרי 20 שנ׳')
+        self.assertTrue(self.ctx.reports, 'דיווח "מורידים" נשלח')
+        self.assertFalse(any(r[3].get('wv') for r in self.ctx.reports), 'הורדה מקישור — בלי wv')
+        self.assertEqual(self.ctx.reports[0][2], 'מורידים את הסרטון מהקישור', 'לא "מחכה שהסרטון יסיים לעלות"')
 
     def test_resume_skips_registered(self):
         self.ctx.st['files'] = {'a': {'id': 'R2_jAAAA_' + 'a' * 12}, 'v': {'id': 'R2_jAAAA_' + 'v' * 12}}

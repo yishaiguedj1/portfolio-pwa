@@ -3587,7 +3587,7 @@ function readerKey(e) {
   e.preventDefault();
   try { const r = f(); if (r && r.catch) r.catch(() => {}); } catch (err) {}
 }
-if (typeof document !== 'undefined') document.addEventListener('keydown', readerKey);
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('keydown', readerKey);
 function wireDoc(doc, setChrome, index) {
   doc.addEventListener('pointerup', readerRearm, true);
   doc.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); onEscape(); } else readerKey(e); });

@@ -951,7 +951,7 @@ export function costView(use, modeId, meas) {
     const off = (r.k === 'tl' || r.k === 'rv') && !new RegExp('^claude-' + fam + '-').test(r.m);
     // 4/11/2026 (המשתמש: "איך חצי מחיר עלה כמו רגיל?"): אילו שלבים באמת שולמו בתור החיסכון — ו"חסכת" (= מה ששולם שם)
     if (r.bn > 0 && r.bu > 0) saved += r.bu;
-    return { k: r.k, nth: seen[r.k], model: modelLabel(r.m), tok, usd: r.usd, open: sub && r.op ? { tok: r.op, usd: r.oc } : null, off, bt: r.bn > 0 ? { b: Math.min(r.bn, r.n), n: r.n } : null };
+    return { k: r.k, nth: seen[r.k], model: modelLabel(r.m), tok, n: r.n, usd: r.usd, open: sub && r.op ? { tok: r.op, usd: r.oc } : null, off, bt: r.bn > 0 ? { b: Math.min(r.bn, r.n), n: r.n } : null };
   });
   for (const r of out) if (seen[r.k] < 2) r.nth = 0;   // מספור רק כשיש כמה מאותו סוג
   // 1/11/2026 (המשתמש: "התקציב מתעדכן והעלות לא"): בזמן ריצה יעד התקציב לוקח גם את מה שהמגדל מדד (tw.usd, לפני הפירוט של העובד).
@@ -7574,6 +7574,13 @@ function costLabel(k) {
     case 'tl': return T('studioCostTl');
     case 'rv': return T('studioCostRv');
     case 'jg': return T('studioCostJg');
+    // 11/11/2026 (המשתמש: "רשום רק סוכנים ולא על איזה פעולה בדיוק שילמתי"): תפקידי הניתוח — כל אחד בשמו (= USE_KINDS)
+    case 'vm': return T('studioCostVm');
+    case 'vs': return T('studioCostVs');
+    case 'vv': return T('studioCostVv');
+    case 'vl': return T('studioCostVl');
+    case 'vx': return T('studioCostVx');
+    case 'vc': return T('studioCostVc');
     default: return T('studioCostSub');
   }
 }
@@ -8077,7 +8084,7 @@ function costBody(cv, tr) {
     const l = h('span', 'st-l');
     l.append(h('b', null, costLabel(r.k) + (r.nth ? ' ' + r.nth : '')));
     const sm = h('small');
-    sm.append(h('bdi', null, r.model), ' · ' + T('studioCostTok', { n: fmtTok(r.tok) }));
+    sm.append(h('bdi', null, r.model), ' · ' + T('studioCostTok', { n: fmtTok(r.tok) }) + (r.n > 1 ? ' · ' + T('studioCostCalls', { n: r.n }) : ''));   // 11/11/2026: כמה קריאות
     if (r.open) { sm.append(' · ' + T('studioCostOpen') + ' '); sm.append(r.open.usd == null ? T('studioCostTok', { n: fmtTok(r.open.tok) }) : usdEl(r.open.usd)); }
     if (r.usd == null) sm.append(' · ' + T('studioCostNoPrice'));
     if (r.bt) sm.append(' · ' + (r.bt.b >= r.bt.n ? T('studioCostBt') : T('studioCostBtPart', r.bt)));
