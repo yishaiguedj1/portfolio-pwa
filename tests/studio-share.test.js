@@ -261,6 +261,8 @@ const { fakeR2, ENV } = require('./_r2fake');
   for (const m of new Set([...vi.matchAll(/ctx\.ico\('([a-z]+)'/g)].map((x) => x[1]))) ok(new RegExp('\\b' + m + ": '<").test(shIcons), 'האייקון ' + m + ' של renderVi קיים בדף (אחרת svg בלי גודל שובר את הפריסה)');
   const P = await import(path.join(root, 'share.js'));
   ok(P.tokenFrom('#' + T3) === T3 && P.tokenFrom('#' + encodeURIComponent(T3)) === T3 && P.tokenFrom('#x') === '' && P.tokenFrom('') === '', 'tokenFrom מה־#');
+  ok(P.tokenFrom('#' + T3 + '&app=s1&upd=2&n=k3') === T3 && P.tokenFrom('#x&' + T3) === '', 'tokenFrom: פתיחה באפליקציה — המעטפת מוסיפה ‎&app=…&n=… ל־hash');
+  ok(/html:is\(\[data-app="studio"\], \[data-app="share"\]\) \{\s*--primary: #FF4656/.test(read('styles.css')), 'דף הצפייה בצבע של הסטודיו (אדום), לא בירוק של Invest');
   ok(P.shareLang(['he-IL']) === 'he' && P.shareLang(['iw']) === 'he' && P.shareLang(['en-US', 'fr']) === 'en', 'שפת הדף לפי הדפדפן של הצופה');
   const st = read('studio.js');
   const outNameSrc = /function outName\(k\) \{([^]*?)\n\}/.exec(st)[1];

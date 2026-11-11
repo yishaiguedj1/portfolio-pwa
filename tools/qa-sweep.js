@@ -108,7 +108,7 @@ async function open(b, app) {
   if (SLOWIDB && app !== 'academy') await ctx.addInitScript(() => { try { localStorage.setItem('__qa_slowidb', '1'); } catch (e) {} });
   await ctx.addInitScript(PROBE);
   if (process.argv.includes('--oldvt')) await ctx.addInitScript(() => { window.__cubeVT = false; });   // הנתיב הישן (העתק) — לבדוק שהגלאים תופסים אותו
-  // 2.141.2: גם בלשונית בדפדפן — המעבר הממוקד (עם cube-vt-pin); אין צורך במתג
+  // 2.142.1: גם בלשונית בדפדפן — המעבר הממוקד (עם cube-vt-pin); אין צורך במתג
   // --slowidb 120: כל getAll של IndexedDB מתעכב (טלפון: עשרות ms) — חושף ציור שלא מחכה לנתונים
   if (SLOWIDB) await ctx.addInitScript((ms) => {
     const slow = (proto, ev, d) => { const on = Object.getOwnPropertyDescriptor(proto, ev);

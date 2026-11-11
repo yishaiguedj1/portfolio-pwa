@@ -273,7 +273,7 @@ function mkDoc() {
   ok(/orig \? T\('studioPlCcSrcL'\)/.test(ps) && /orig \? srcTag\(\)/.test(ps), 'orig — התפריט "שפת המקור (התמליל)", והתווית = שפת הסרטון');
   ok(/x\.dir = s \? lineDir\(s, dir\) : dir/.test(src) && /sp\.dir = lineDir\(e\.text, dir\)/.test(src) && /bq\.dir = lineDir\(a\.e\.text, dir\)/.test(src) && /dir = langDir\(v\.lang\.src\) \|\| 'ltr'/.test(src), 'הדף — ציטוטים ושורות התמליל בכיוון שלהם (שפות משולבות)');
 
-  // 2.141.2 (הקלטת המשתמש מהדפדפן: מלבן שחור "טוען את הסרטון והכתוביות…" בכל כניסה ל"אחרונה"): הניתוח נשאר בזיכרון
+  // 2.142.1 (הקלטת המשתמש מהדפדפן: מלבן שחור "טוען את הסרטון והכתוביות…" בכל כניסה ל"אחרונה"): הניתוח נשאר בזיכרון
   {
     const vm = require('vm');
     const a = sj.indexOf('const vaKeep = new Map();'), b = sj.indexOf('function pageVi(');

@@ -243,7 +243,7 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
     <div id="tradeFormHost"></div>
     <p class="fine hidden" id="tradesHint"></p>
     <div class="card">
-      <ul id="tradeList" class="rows"></ul>
+      <ul id="tradeList" class="rows" data-dk-grid tabindex="0" data-i18n-aria="dkGridTrades" aria-label=""></ul>
     </div>
   </section>
 
@@ -288,7 +288,7 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
         </div>
       </div>
       <p class="fine hidden" id="editDepositsHint" style="padding:0" data-i18n="editHint">מצב עריכה פעיל — בסיום לחצו שוב על עריכה.</p>
-      <ul id="depositList" class="rows"></ul>
+      <ul id="depositList" class="rows" data-dk-grid tabindex="0" data-i18n-aria="dkGridDeposits" aria-label=""></ul>
     </div>
     <p class="fine" id="depNoteEl" data-i18n="depNote">סכומים שליליים = כסף שהופקד לתיק. הרשומה החיובית (+₪37,000 ב־19/02/2025) היא משיכה/תיקון כפי שמופיעה בגיליון.</p>
     <p class="fine hidden" id="depIbkrEmpty"></p>

@@ -16,7 +16,7 @@ ok(/if \(cubeVTOk\(root\)\) \{ const v = cubeVTPre\(root, go\); if \(v\) return 
 const okSrc = fn(app, 'cubeVTOk');
 ok(/st-root/.test(okSrc) && /lib-root/.test(okSrc) && /startViewTransition/.test(okSrc) && /window\.__cubeVT === false/.test(okSrc) && /cubeReduce\(\)/.test(okSrc), 'רק לשכבות של Studio ו־Academy, רק עם תמיכה, ומתג לנתיב הישן (__cubeVT)');
 // 11/11/2026 (שלוש הקלטות): בדפדפן בטלפון ה־transform של הקבוצה כולל את גובה סרגל הכתובת (crbug 387030974) — כל הדף קפץ.
-// 2.138.2 עבר להעתק, וההעתק החזיר דפים ריקים בחוגה. 2.141.2: המעבר הממוקד גם בדפדפן, והקבוצה מקובעת (cube-vt-pin)
+// 2.138.2 עבר להעתק, וההעתק החזיר דפים ריקים בחוגה. 2.142.1: המעבר הממוקד גם בדפדפן, והקבוצה מקובעת (cube-vt-pin)
 ok(!/cubeVTBar\(\)/.test(okSrc), 'הדפדפן לא נדחה מהמעבר הממוקד (לא חוזרים להעתק — דפים ריקים בחוגה)');
 ok(/\(display-mode: browser\)/.test(fn(app, 'cubeVTBar')) && /\(pointer: coarse\)/.test(fn(app, 'cubeVTBar'))
   && /if \(cubeVTBar\(\)\) root\.classList\.add\('cube-vt-pin'\)/.test(fn(app, 'cubeVTPre'))

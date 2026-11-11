@@ -142,9 +142,10 @@ ok(/\[#&\]studio=\(j\[A-Za-z0-9_-\]\{20\}\)/.test(read('studio-app.js')), 'studi
   { const css = read('styles.css');
     for (const [app, hex] of [['studio', '#FF4656'], ['academy', '#4699FF']]) {
       ok(read(app + '.html').includes('<html lang="he" dir="rtl" data-app="' + app + '" class="lib-curtain lib-restoring">'), app + ': data-app על <html>');
-      const m = new RegExp('html\\[data-app="' + app + '"\\] \\{([^}]*)\\}').exec(css);
+      const sel = '(?:\\[data-app="' + app + '"\\]|:is\\(\\[data-app="' + app + '"\\][^)]*\\))';   // 11/11/2026: גם :is(…) — דף השיתוף בצבע של הסטודיו
+      const m = new RegExp('html' + sel + ' \\{([^}]*)\\}').exec(css);
       ok(m && m[1].includes('--primary: ' + hex + ';') && m[1].includes('--primary-dark: ' + hex + ';') && /--primary-container: rgba\(/.test(m[1]) && /--on-primary: #/.test(m[1]), app + ': --primary = ' + hex);
-      ok(new RegExp('html\\[data-app="' + app + '"\\]\\[data-theme="dark"\\] \\{ --on-primary-container: #').test(css), app + ': גוון טקסט על מיכל — גם לכהה');
+      ok(new RegExp('html' + sel + '\\[data-theme="dark"\\] \\{ --on-primary-container: #').test(css), app + ': גוון טקסט על מיכל — גם לכהה');
     }
     ok(/\.studio-ic \{ background: #FF4656; \}/.test(css) && /\.academy-ic \{ background: #4699FF; \}/.test(css) && /\.invest-ic \{ background: #30D158; \}/.test(css), 'אייקון כל אפליקציה בתפריט — בצבע שלה');
     ok(/cls: 'invest-ic'/.test(sh) && /cls: 'academy-ic'/.test(sh) && /cls: 'studio-ic'/.test(sh) && idx.includes('row-link-ic academy-ic'), 'התפריט של Invest ושל ההדר המשותף משתמשים במחלקות האלה');

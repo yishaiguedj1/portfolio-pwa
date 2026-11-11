@@ -21,6 +21,10 @@
   --gb-fill-a: 84%;
   --gb-logo-bg: linear-gradient(180deg, rgba(255, 255, 255, .94), rgba(255, 255, 255, .8));
   --gb-ink: #1D2A3D;
+  /* ריחוף בעכבר (תצוגת מחשב, גל 2): החומר מתבהר והצל מתארך — "הרמה" עדינה בלי להזיז את הכפתור */
+  --gb-body-hover: linear-gradient(180deg, rgba(255, 255, 255, .74), rgba(255, 255, 255, .5));
+  --gb-sh-hover: inset 0 0 0 .5px rgba(255, 255, 255, .8), inset 0 1px 0 rgba(255, 255, 255, .95), inset 0 -1px 0 rgba(255, 255, 255, .3),
+    0 0 0 .5px rgba(0, 0, 0, .08), 0 8px 20px -8px rgba(0, 0, 0, .24);
 }
 /* כהה — ובמסכים שכהים תמיד (הנגן של Studio): לבן שקוף מעל הרקע הכהה */
 [data-theme="dark"], .st-dark {
@@ -30,6 +34,12 @@
   --gb-fill-a: 80%;
   --gb-logo-bg: linear-gradient(180deg, rgba(255, 255, 255, .9), rgba(255, 255, 255, .74));
   --gb-ink: #EEF3FA;
+  --gb-body-hover: linear-gradient(180deg, rgba(255, 255, 255, .23), rgba(255, 255, 255, .12));
+  --gb-sh-hover: inset 0 0 0 .5px rgba(255, 255, 255, .26), inset 0 1px 0 rgba(255, 255, 255, .32), 0 0 0 .5px rgba(0, 0, 0, .4), 0 8px 20px -8px rgba(0, 0, 0, .65);
+}
+/* הריחוף — רק כשהקלט האחרון עכבר (core: deskInputInit), לא בלחיצה ולא על כפתור כבוי. נכנס לחומר דרך --gb-*-cur */
+@media (hover: hover) {
+  html[data-input="mouse"] :where(button, [role="button"]):hover:not(:active, :disabled, [aria-disabled="true"]) { --gb-body-cur: var(--gb-body-hover); --gb-sh-cur: var(--gb-sh-hover); }
 }
 /* בזמן סיבוב הקובייה הטשטוש כבוי (ריצוד וצביעה מחדש — docs/ui.md "זכוכית בתוך פאה מסתובבת") */
 :is(.st-root, .lib-root):is(.cube-face, .cube-ghost), .cube-flat { --gb-fx: none; }
@@ -51,9 +61,9 @@
     .kc-btn, .kc-chip, .kc-mb, .kc-rg, .kc-sc, .kc-tb, .kc-tf, .kc-wid, .kc-ib, .kc-sb, .kc-pk, .kc-tcell,
     :where(.adm-seg-b, .mg-seg-b, .st-seg-b, .kc-seg-b, .lang-opt, .theme-opt, .an-seg:not(.an-seg-main) > button, .fb-seg .mini-btn, .adm-seg .mini-btn):where(.on, .active, [aria-pressed="true"])) {
   --gb-on: 1;
-  background: var(--gb-body) !important;
+  background: var(--gb-body-cur, var(--gb-body)) !important;
   background-blend-mode: normal !important;
-  box-shadow: var(--gb-sh) !important;
+  box-shadow: var(--gb-sh-cur, var(--gb-sh)) !important;
   border-color: transparent !important; border-style: solid !important;
   -webkit-backdrop-filter: var(--gb-fx) !important; backdrop-filter: var(--gb-fx) !important;
 }
