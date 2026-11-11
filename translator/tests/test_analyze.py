@@ -457,6 +457,20 @@ class TestViRun(unittest.TestCase):
         import vicheck
         self.assertEqual(vicheck.norm_vi(vi)["video"]["decl"], 600.0, "עובר את הבדיקה של הסכמה")
 
+    def test_truncated_by_declared_length(self):
+        # 12/11/2026: הקבצים עצמם עם כותרת נכונה (קידוד מחדש) — המשך מהבדיקה בטלפון מצהיר יותר → vi_trunc; בקטע שנבחר — לא
+        os.environ.pop("ANTHROPIC_API_KEY", None)
+        rc, ctx, J, out = self.run_vi(dur=473)
+        vi = json.loads((ctx.pdir / "vi.json").read_text())
+        self.assertIn("vi_trunc", vi["quality"]["warn"])
+        self.assertEqual(vi["video"]["decl"], 473.0)
+
+    def test_section_not_truncated(self):
+        os.environ.pop("ANTHROPIC_API_KEY", None)
+        rc, ctx, J, out = self.run_vi(dur=473, pick={"sec": [0, 6]})
+        vi = json.loads((ctx.pdir / "vi.json").read_text())
+        self.assertNotIn("vi_trunc", vi["quality"]["warn"])
+
     def test_dry_run_end_to_end(self):
         os.environ.pop("ANTHROPIC_API_KEY", None)
         rc, ctx, J, out = self.run_vi()

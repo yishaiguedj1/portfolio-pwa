@@ -2642,10 +2642,16 @@ def url_get(ctx, kind, on_progress=None):
     out_dir = VT_WORK / '_dl'
     out_dir.mkdir(parents=True, exist_ok=True)
     tmpl = str(out_dir / (ctx.name + ('.audio' if kind == 'a' else '') + '.%(ext)s'))
+    meta = {}
     try:
-        path = Path(F.download(sp['url'], pick, tmpl, kind, section=pick.get('sec'), on_progress=on_progress, ref=sp.get('ref') or ''))
+        path = Path(F.download(sp['url'], pick, tmpl, kind, section=pick.get('sec'), on_progress=on_progress, ref=sp.get('ref') or '',
+                               meta=meta))
     except ValueError as e:
         raise url_err(str(e))[0]
+    # 12/11/2026: האורך שהמקור מצהיר (כותרת הקובץ המקורי / האתר) — analyze.src_trunc משווה אותו לקול שפוענח (מקור קטוע)
+    decl = max(float(meta.get('decl') or 0), float(meta.get('dur') or 0))
+    if kind == 'a' and 0 < decl <= 86400:
+        ctx.st['src_decl'] = round(decl, 2)
     title = re.sub(r'[\\/:*?"<>|\x00-\x1f]', ' ', str(sp.get('name') or ctx.name)).strip()[:120] or ctx.name
     name = title + ('.audio' if kind == 'a' else '') + path.suffix
     mime = {'.m4a': 'audio/mp4', '.webm': 'video/webm', '.opus': 'audio/ogg', '.mp3': 'audio/mpeg', '.mkv': 'video/x-matroska',
