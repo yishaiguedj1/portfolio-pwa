@@ -6148,6 +6148,7 @@ function pfBackupMerge(db, snap, ibkrMode, localPrefs, withUi) {
     const items = []; out.watch += pfWlUnion(items, l.items);
     db.wlExtra.push({ id: String(l.id), name: String(l.name || ''), items });
   }
+  dbHarden(db);   // 11/11/2026 (פרויקט האבטחה): גיבוי הוא קלט חיצוני — טיפוסים כפויים
   if (!withUi || s.ui === false) return out;
   const same = (a, b) => JSON.stringify(a || []) === JSON.stringify(b || []);
   if (Array.isArray(s.wlOrder) && s.wlOrder.length && !same(db.wlOrder, s.wlOrder)) { db.wlOrder = s.wlOrder.map(String); out.ui = true; }
@@ -7555,8 +7556,13 @@ function fmtSignedMoney(v, cur) {
 }
 function fmtDateIL(iso) { // YYYY-MM-DD -> DD/MM/YYYY
   if (!iso) return '—';
-  const p = iso.split('-');
-  return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso;
+  // 11/11/2026 (פרויקט האבטחה): רק תאריך יוצא מכאן — הפלט נכנס ל־HTML בהרבה מקומות, והקלט מגיע גם מהמטמון ומהענן
+  const s = String(iso);
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s);
+  if (m) return m[3] + '/' + m[2] + '/' + m[1];
+  const c = /^(\d{4})(\d{2})(\d{2})$/.exec(s);   // YYYYMMDD (IBKR)
+  if (c) return c[3] + '/' + c[2] + '/' + c[1];
+  return s.replace(/[^0-9A-Za-z\/.: -]/g, '').slice(0, 20) || '—';
 }
 
 /* ימים מהיום עד תאריך ISO (שלילי = עבר) */
@@ -7676,6 +7682,35 @@ function lsPutCritical(k, str) {
 function saveDBto(db) {
   return lsPutCritical(LS_DB, JSON.stringify(db));
 }
+/* 11/11/2026 (פרויקט האבטחה): נתוני תיק שנכנסים מבחוץ — ענן, גיבוי, אחסון, העברה בין כתובות — עם טיפוסים כפויים.
+   בלי זה שדה מספרי שהגיע כמחרוזת נכנס למסך כמו שהוא, ו־null בכמות עוצר את ציור הלשונית בכל המכשירים של החשבון.
+   טהורה ובמקום (המערכים נשארים אותם מערכים — POSITIONS/WISHLIST מצביעים אליהם). לא מוחקת מידע תקין:
+   סימול — בלי תווי HTML/רווחים ועד 24 תווים; כמות וממוצע — מספר סופי; רשומה שאינה אובייקט או בלי סימול — יוצאת. */
+function dbSymClean(v) { return String(v == null ? '' : v).replace(/[<>"'&`\s\u0000-\u001f\u007f]/g, '').slice(0, 24); }
+function dbNumClean(v) { const n = typeof v === 'number' ? v : num(v); return typeof n === 'number' && isFinite(n) ? n : 0; }
+function dbHarden(db) {
+  if (!db || typeof db !== 'object') return db;
+  const isRow = (r) => !!r && typeof r === 'object' && !Array.isArray(r);
+  const syms = (arr, numeric) => {
+    if (!Array.isArray(arr)) return;
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const r = arr[i];
+      if (!isRow(r)) { arr.splice(i, 1); continue; }
+      r.sym = dbSymClean(r.sym);
+      if (!r.sym) { arr.splice(i, 1); continue; }
+      if (numeric || 'shares' in r) r.shares = dbNumClean(r.shares);
+      if (numeric || 'avg' in r) r.avg = dbNumClean(r.avg);
+    }
+  };
+  const rows = (arr) => { if (Array.isArray(arr)) for (let i = arr.length - 1; i >= 0; i--) if (!isRow(arr[i])) arr.splice(i, 1); };
+  syms(db.positions, true);
+  syms(db.wishlist, false);
+  rows(db.wlExtra);
+  for (const l of db.wlExtra || []) { if (Array.isArray(l.items)) syms(l.items, false); else l.items = []; }
+  rows(db.deposits); rows(db.pensionFunds); rows(db.pensionDeposits); rows(db.manualTrades);
+  if (isRow(db.ibkrSnapshot)) { syms(db.ibkrSnapshot.positions, true); rows(db.ibkrSnapshot.deposits); }
+  return db;
+}
 function loadDB() {
   try {
     const raw = localStorage.getItem(LS_DB);
@@ -7688,6 +7723,7 @@ function loadDB() {
         if (!Array.isArray(db.pensionFunds)) db.pensionFunds = [];
         if (!Array.isArray(db.manualTrades)) db.manualTrades = [];
         ensurePensionKinds(db);
+        dbHarden(db);
         if (stripLegacyDemo(db)) saveDBto(db);
         return db;
       }
@@ -7768,6 +7804,7 @@ function applyDbData(data) {
   const c = clean.cash || {};
   DB.cash = { usd: num(c.usd) || 0, ils: num(c.ils) || 0 };
   DB.manualTrades = Array.isArray(clean.manualTrades) ? clean.manualTrades : [];
+  dbHarden(DB);
   stripLegacyDemo(DB);
   saveDBto(DB);
 }
@@ -14468,7 +14505,7 @@ function showEditPositionForm(card, p) {
   card.classList.add('open');
   body.innerHTML =
     '<div class="stock-body-in"><div class="form-grid">' +
-    '<label>' + t('fldShares') + '<input id="ep-shares" type="number" min="0" step="any" inputmode="decimal" value="' + p.shares + '"></label>' +
+    '<label>' + t('fldShares') + '<input id="ep-shares" type="number" min="0" step="any" inputmode="decimal" value="' + dbNumClean(p.shares) + '"></label>' +
     '<label>' + t('fldAvgPrice', { c: esc(pxUnit(p.sym)) }) + '<input id="ep-avg" type="number" min="0" step="any" inputmode="decimal" value="' + pxToInput(p.sym, p.avg) + '"></label>' +
     '</div>' +
     '<div class="form-err hidden" id="ep-err"></div>' +
@@ -14682,7 +14719,7 @@ function buildManualTradeRow(x, onEdit) {
   li.classList.add('mt-row');
   const first = li.firstChild;
   if (first) {
-    if (mtShadowed(n.sym)) first.appendChild(el('div', 'fine', t('mtShadowed', { sym: n.sym })));
+    if (mtShadowed(n.sym)) first.appendChild(el('div', 'fine', t('mtShadowed', { sym: esc(n.sym) })));
   }
   const act = el('span', 'mt-actions');
   const eb = el('button', 'mini-btn', t('btnEditRow'));
@@ -15350,6 +15387,7 @@ function apkUpdInfo() {
 }
 /* הקובץ של כל אפליקציה בקישור הקבוע (= APKS ב־tools/apk-latest.js) — לאפליקציה ישנה בלי מסך העדכון: נגיעה מורידה
    את הגרסה החדשה (browser_fallback_url) במקום לא לעשות כלום */
+const APK_OURS_RE = /^(?:io\.github\.yishaiguedj1\.snowball|app\.thesnowball)(?:\.[a-z][a-z0-9_]{0,30}){0,3}$/;
 const APK_FILES = { 'io.github.yishaiguedj1.snowball': 'the-snowball.apk', 'app.thesnowball.academy': 'the-snowball-academy.apk',
   'app.thesnowball.studio': 'the-snowball-studio.apk', 'app.thesnowball.admin': 'the-snowball-admin.apk', 'app.thesnowball.bubble': 'the-snowball-bubble.apk' };
 /* מוסיף (או מרענן אחרי החלפת שפה) את השורה מתחת ל"גרסה" ברשימה של כרטיס "אפליקציה".
@@ -15361,7 +15399,8 @@ function apkUpdMount(list, pkg) {
   const old = list.querySelector('#apkUpd');
   if (old) old.remove();
   const info = apkUpdInfo() || (pkg ? { p: pkg, c: 0, u: false } : null);
-  if (!info || !/^[a-z][a-z0-9_.]{2,80}$/.test(info.p)) return;
+  // 11/11/2026 (פרויקט האבטחה): רק חבילה שלנו — קישור עם ‎upd= של חבילה זרה לא פותח אפליקציה אחרת שרשמה את הסכמה snbupd
+  if (!info || !APK_OURS_RE.test(info.p)) return;
   const row = document.createElement('button');
   row.type = 'button'; row.className = 'ios-row ios-row-btn'; row.id = 'apkUpd';
   const lbl = document.createElement('span'); lbl.className = 'ios-row-lbl'; lbl.textContent = t('apkUpdLbl');
@@ -16716,8 +16755,9 @@ function buildStockCard(p) {
 const KV_SUB_HOLD = '\u00a0';
 /* v219: אריח לפי ת־עיצוב — תווית בשורה אחת, ערך גדול, ושורה משנית קטנה (אחוז) בצבע משלה */
 function kvHTML(k, v, cls, sub, subCls) {
-  return '<div class="kv"><div class="k">' + k + '</div><div class="v' + (cls ? ' ' + cls : '') + '">' + v + '</div>' +
-    (sub ? '<div class="v2' + (subCls ? ' ' + subCls : '') + '">' + sub + '</div>' : '') + '</div>';
+  // 11/11/2026 (פרויקט האבטחה): הערך והשורה השנייה תמיד טקסט — מקודדים כאן, כדי שנתון מהענן/מהמטמון לא ייכנס כ־HTML
+  return '<div class="kv"><div class="k">' + k + '</div><div class="v' + (cls ? ' ' + esc(cls) : '') + '">' + esc(v) + '</div>' +
+    (sub ? '<div class="v2' + (subCls ? ' ' + esc(subCls) : '') + '">' + esc(sub) + '</div>' : '') + '</div>';
 }
 
 /* v193: אריחי הכרטיס הפתוח (כמות, ממוצע, שווי, רווח, משקל, ATH) — משותף לבנייה ולעדכון החי */
@@ -16778,7 +16818,7 @@ function kvGridHTML(p, m) {
   const sym = p.sym;
   const cur = state.currency;
   const toCur = (usd) => (usd === null ? null : (cur === 'ILS' && state.fx ? usd * state.fx : usd));
-  return kvHTML(t('kvShares'), p.shares.toLocaleString('en-US')) +
+  return kvHTML(t('kvShares'), dbNumClean(p.shares).toLocaleString('en-US')) +
     kvHTML(t('kvAvg'), fmtPx(p.avg, sym)) +
     kvHTML(t('kvValue'), m.value === null ? '—' : money(toCur(m.value), cur)) +
     kvHTML(t('kvGL'),

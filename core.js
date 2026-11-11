@@ -1327,6 +1327,7 @@ function apkUpdInfo() {
 }
 /* הקובץ של כל אפליקציה בקישור הקבוע (= APKS ב־tools/apk-latest.js) — לאפליקציה ישנה בלי מסך העדכון: נגיעה מורידה
    את הגרסה החדשה (browser_fallback_url) במקום לא לעשות כלום */
+const APK_OURS_RE = /^(?:io\.github\.yishaiguedj1\.snowball|app\.thesnowball)(?:\.[a-z][a-z0-9_]{0,30}){0,3}$/;
 const APK_FILES = { 'io.github.yishaiguedj1.snowball': 'the-snowball.apk', 'app.thesnowball.academy': 'the-snowball-academy.apk',
   'app.thesnowball.studio': 'the-snowball-studio.apk', 'app.thesnowball.admin': 'the-snowball-admin.apk', 'app.thesnowball.bubble': 'the-snowball-bubble.apk' };
 /* מוסיף (או מרענן אחרי החלפת שפה) את השורה מתחת ל"גרסה" ברשימה של כרטיס "אפליקציה".
@@ -1338,7 +1339,8 @@ function apkUpdMount(list, pkg) {
   const old = list.querySelector('#apkUpd');
   if (old) old.remove();
   const info = apkUpdInfo() || (pkg ? { p: pkg, c: 0, u: false } : null);
-  if (!info || !/^[a-z][a-z0-9_.]{2,80}$/.test(info.p)) return;
+  // 11/11/2026 (פרויקט האבטחה): רק חבילה שלנו — קישור עם ‎upd= של חבילה זרה לא פותח אפליקציה אחרת שרשמה את הסכמה snbupd
+  if (!info || !APK_OURS_RE.test(info.p)) return;
   const row = document.createElement('button');
   row.type = 'button'; row.className = 'ios-row ios-row-btn'; row.id = 'apkUpd';
   const lbl = document.createElement('span'); lbl.className = 'ios-row-lbl'; lbl.textContent = t('apkUpdLbl');

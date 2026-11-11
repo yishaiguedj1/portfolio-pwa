@@ -482,6 +482,7 @@
     if (clean.ibkrSnapshot && typeof clean.ibkrSnapshot === 'object') DB.ibkrSnapshot = clean.ibkrSnapshot;
     else delete DB.ibkrSnapshot;
     // v146: רשומות הדוגמה הישנות (עד v145) שנשמרו כנתונים — מנקים ומעדכנים את הענן
+    if (typeof dbHarden === 'function') dbHarden(DB);   // 11/11/2026 (פרויקט האבטחה): טיפוסים כפויים לנתוני הענן — מכשיר אחר שנפגע לא מזריק תוכן למסך
     const stripped = (typeof stripLegacyDemo === 'function') && stripLegacyDemo(DB);
     saveDBto(DB); // עדכון המטמון המקומי
     return !!stripped;

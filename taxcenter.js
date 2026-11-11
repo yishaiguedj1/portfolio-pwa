@@ -456,7 +456,10 @@ function paintActions(wrap, C) {
 /* ---------- הדוח לרו״ח (ד8): CSV שנוצר במכשיר — לא נשלח ולא נשמר בשום שרת ---------- */
 function csvCell(v) {
   if (v == null) return '';
-  const s = typeof v === 'number' ? (isFinite(v) ? String(Math.round(v * 100) / 100) : '') : String(v);
+  if (typeof v === 'number') return isFinite(v) ? String(Math.round(v * 100) / 100) : '';
+  // 11/11/2026 (פרויקט האבטחה): תא טקסט שמתחיל ב־= + - @ או טאב נפתח בגיליון כנוסחה — גרש בתחילתו מנטרל (מספרים לא עוברים כאן)
+  let s = String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
   return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 function buildCsv(C, year) {
