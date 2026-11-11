@@ -138,13 +138,16 @@ class UrlFetch(unittest.TestCase):
         J._URL_BG['err'] = None
         J._URL_BG['t'] = threading.Thread(target=slow, daemon=True)
         J._URL_BG['t'].start()
-        old = os.environ['SNB_POLL']
+        old = os.environ.get('SNB_POLL')               # בהרצה של כל הבדיקות יחד — בדיקה אחרת עשויה למחוק אותו
         os.environ['SNB_POLL'] = '20'
         try:
             t0 = time.time()
             v = J.wait_video(self.ctx, 'al', 'x')
         finally:
-            os.environ['SNB_POLL'] = old
+            if old is None:
+                os.environ.pop('SNB_POLL', None)
+            else:
+                os.environ['SNB_POLL'] = old
         self.assertEqual(v['id'], 'R2_jAAAA_' + 'v' * 12)
         self.assertLess(time.time() - t0, 5, 'ממשיכים כשההורדה נגמרה — לא אחרי 20 שנ׳')
         self.assertTrue(self.ctx.reports, 'דיווח "מורידים" נשלח')
