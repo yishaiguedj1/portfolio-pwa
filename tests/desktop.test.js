@@ -44,6 +44,45 @@ ok(A.deskKbd('mod+K', true) === '⌘K' && A.deskKbd('mod+K', false) === 'Ctrl+K'
 ok(A.deskKbd('alt+1', true) === '⌥1' && A.deskKbd('shift+Space', false) === 'Shift+Space', 'תווית: Alt/⌥ ו־Shift/⇧');
 ok(A.deskModKey({ metaKey: true, ctrlKey: false }, true) && !A.deskModKey({ metaKey: false, ctrlKey: true }, true), 'מק: ⌘ הוא מקש הפקודה, Ctrl לא');
 ok(A.deskModKey({ metaKey: false, ctrlKey: true }, false) && !A.deskModKey({ metaKey: true, ctrlKey: false }, false), 'Windows/לינוקס: Ctrl, לא מקש החלונות');
+ok(A.deskKbd('ctrl+alt+1', false) === 'Ctrl+Alt+1' && A.deskKbd('ctrl+alt+1', true) === '⌃⌥1', 'תווית: Ctrl+Alt / ⌃⌥');
+{
+  const c = {}; vm.createContext(c); vm.runInContext(fn(app, 'deskOS') + fn(app, 'deskPageMod') + '\nthis.deskOS = deskOS; this.deskPageMod = deskPageMod;', c);
+  const O = (ud, np, ua) => c.deskOS({ userAgentData: ud ? { platform: ud } : undefined, platform: np, userAgent: ua || '' });
+  ok(O('macOS', 'MacIntel') === 'mac' && O(null, 'MacIntel', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit Safari') === 'mac', 'מק (Chrome ו־Safari)');
+  ok(O(null, 'MacIntel', 'Mozilla/5.0 (iPad; CPU OS 18_0) AppleWebKit') === 'mac' && O(null, 'iPhone', 'iPhone') === 'mac', 'iPad עם מקלדת / אייפון — ⌘');
+  ok(O('Windows', 'Win32') === 'win' && O(null, 'Win32', 'Windows NT 10.0') === 'win', 'Windows (Chrome/Edge ו־Firefox)');
+  ok(O('Chrome OS', 'Linux x86_64', 'Mozilla/5.0 (X11; CrOS x86_64 14541.0.0)') === 'cros', 'ChromeOS');
+  ok(O('Android', 'Linux x86_64', 'Mozilla/5.0 (X11; CrOS x86_64 14541.0.0)') === 'gbook', 'Googlebook: ה־UA של ChromeOS, ‏platform "Android"');
+  ok(O(null, 'Linux x86_64', 'Mozilla/5.0 (X11; Linux x86_64) Firefox/140.0') === 'linux' && O('Linux', 'Linux x86_64', 'X11; Linux x86_64') === 'linux', 'Linux (וגם אנדרואיד שמבקש אתר מחשב)');
+  ok(c.deskPageMod('mac', false) === 'alt' && c.deskPageMod('win', false) === 'alt' && c.deskPageMod('cros', false) === 'ctrl+alt'
+    && c.deskPageMod('gbook', false) === 'ctrl+alt' && c.deskPageMod('linux', false) === 'ctrl+alt' && c.deskPageMod('cros', true) === 'mod', 'מקש העמודים לפי מערכת, ובחלון מותקן Mod');
+}
+{
+  const c = {}; vm.createContext(c); vm.runInContext(fn(app, 'deskWheelDx') + '\nthis.f = deskWheelDx;', c);
+  const W = (o) => Object.assign({ deltaX: 0, deltaY: 100, deltaMode: 0, ctrlKey: false, metaKey: false }, o);
+  ok(c.f(W({}), true, 0, 500) === -100 && c.f(W({}), false, 0, 500) === 100, 'גלגלת למטה = קדימה בכיוון הקריאה (RTL — scrollLeft שלילי)');
+  ok(c.f(W({}), true, -500, 500) === 0 && c.f(W({ deltaY: -100 }), true, 0, 500) === 0, 'בקצה השורה — 0, והדף ממשיך להיגלל');
+  ok(c.f(W({ deltaX: 120 }), true, 0, 500) === 0 && c.f(W({ ctrlKey: true }), true, 0, 500) === 0, 'משטח מגע שכבר אופקי / Ctrl (הגדלה) — לא נוגעים');
+  ok(c.f(W({ deltaMode: 1, deltaY: 3 }), false, 0, 500) === 96, 'גלילה בשורות (Firefox) — 32px לשורה');
+}
+ok(/addEventListener\('mouseover', deskWheelOver, \{ passive: true \}\)/.test(fn(app, 'deskInit')) && /addEventListener\('wheel', deskWheel, \{ passive: false \}\)/.test(fn(app, 'deskWheelOver')), 'הגלגלת: מאזין לא פסיבי רק על השורה שמתחת לעכבר');
+ok(/html\.dk :is\(\.chip-row, \.ranges\) \{ scrollbar-width: none; \}/.test(css), 'שורות אופקיות במחשב — בלי פס גלילה (Windows)');
+ok(/@media \(min-width: 2200px\)[\s\S]*?--dk-max: 1600px[\s\S]*?repeat\(4,/.test(css) && /@media \(min-width: 3000px\)[\s\S]*?--dk-max: 1920px/.test(css), 'מסכים גדולים מאוד — תוכן רחב יותר ועמודות נוספות');
+ok(/html\.dk \.appbar-row \{ max-width: calc\(var\(--dk-max\) - 48px\)/.test(css), 'ההדר ברוחב התוכן');
+// 11/11/2026 (כל גודל מסך ויחס תצוגה — tools/qa-sizes.sh): טלפון לרוחב, מסך צר במיוחד, בלי נעילת כיוון
+{
+  const R = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const st = R('styles.css');
+  const land = (st.match(/@media \(orientation: landscape\) and \(max-height: 500px\) \{[\s\S]*?\n\}/) || [''])[0];
+  ok(/html:not\(\.dk\) \.tabs \{ transform: scale\(/.test(land) && /--dock-pad:/.test(land) && /grid-template-rows: 56px/.test(land), 'טלפון לרוחב: הדר בשורה אחת וחוגה מוקטנת');
+  ok(land && !/^\s+\.(?!appbar)/m.test(land.replace(/^@media[^\n]*\n/, '')) && land.split('\n').slice(1, -1).filter((l) => /\{/.test(l)).every((l) => /^\s+html:not\(\.dk\)/.test(l)), 'טלפון לרוחב — כל כלל תחת html:not(.dk) (לא נוגע במחשב)');
+  ok(['library.css', 'studio.css'].every((f) => (R(f).match(/var\(--dock-pad, var\(--dock-h, 120px\)\)/g) || []).length === 2) && /padding-bottom: calc\(var\(--dock-pad, var\(--dock-h\)\)/.test(st), 'הריפוד מתחת לתוכן לפי --dock-pad בשלוש האפליקציות');
+  ok(/@media \(max-width: 319px\) \{\s*\.brand-logo \{ width: 84px/.test(st) && /@media \(max-width: 319px\) \{ \.sh-r1 \.stock-price \{ font-size: 20px/.test(st), 'מסך צר במיוחד (280): הדר ומחיר המניה נכנסים');
+  ok(st.indexOf('@media (max-width: 319px) { .sh-r1') > st.indexOf('@media (max-width: 374px) { .sh-r1'), 'כלל ה־280 של המחיר אחרי כלל ה־374 (אחרת הוא נדרס)');
+  ok(!/"orientation"/.test(R('manifest.webmanifest')), 'המניפסט בלי נעילת כיוון — טאבלט, מתקפל ומחשב אנדרואיד (Googlebook) בחלון חופשי');
+  ok(/SIZES="280 653 m\n/.test(R('tools/qa-sizes.sh')) && /\n5120 1440 -/.test(R('tools/qa-sizes.sh')) && /\n1080 1920 -/.test(R('tools/qa-sizes.sh')), 'סריקת הגדלים: מ־280 ועד 5120, כולל מסך לאורך');
+}
+ok(/DESK_MIN_FINE = 900/.test(app) && /fine \? DESK_MIN_FINE : DESK_MIN/.test(fn(app, 'deskWide')), 'עם עכבר — מסגרת המחשב כבר מ־900 (חלון בחצי מסך)');
 
 /* ---------- 2. ניתוב המקלדת (deskKey) — עם תחליפים ---------- */
 function keyCtx(over) {
@@ -53,10 +92,10 @@ function keyCtx(over) {
     deskIsMac: () => false, deskModKey: (e, mac) => (mac ? !!e.metaKey && !e.ctrlKey : !!e.ctrlKey && !e.metaKey),
     deskPalette: () => log.push('pal'), deskPalClose: () => log.push('close'), deskSettings: () => log.push('set'), deskHelp: () => log.push('help'),
     deskPages: () => [{ k: 'a' }, { k: 'b' }], deskGo: (p) => log.push('go:' + p.k), deskBusy: () => false, deskTyping: (el) => !!(el && el.typing),
-    deskK1: () => true, deskStandalone: () => false, deskSearchField: () => ({ focus: () => log.push('focus'), select() {} }),
+    deskK1: () => true, deskStandalone: () => false, deskSearchField: () => ({ focus: () => log.push('focus'), select() {} }), deskOS: () => 'win',
   }, over || {});
   vm.createContext(c);
-  vm.runInContext(fn(app, 'deskKey') + '\nthis.deskKey = deskKey;', c);
+  vm.runInContext(fn(app, 'deskPageMod') + fn(app, 'deskPageHit') + fn(app, 'deskKey') + '\nthis.deskKey = deskKey;', c);
   return c;
 }
 const ev = (o) => Object.assign({ defaultPrevented: false, isComposing: false, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, key: '', code: '', target: null, preventDefault() { this.defaultPrevented = true; } }, o);
@@ -85,6 +124,17 @@ K = keyCtx(); K.deskKey(ev({ code: 'Slash', key: '/', target: { typing: true } }
 ok(K.log.join() === '', 'בשדה טקסט — / נשאר תו רגיל');
 K = keyCtx({ deskBusy: () => true }); K.deskKey(ev({ altKey: true, code: 'Digit1' })); K.deskKey(ev({ code: 'Slash' }));
 ok(K.log.join() === '', 'קורא / נגן מלא / חלון פתוח — המקשים שלהם, לא שלנו');
+// 11/11/2026 (מחקר 05): לפי מערכת — ב־Linux, ‏ChromeOS ו־Googlebook ‏Alt+1–8 של המדף/הלשוניות; שם Ctrl+Alt
+K = keyCtx({ deskOS: () => 'cros' }); K.deskKey(ev({ altKey: true, code: 'Digit1' }));
+ok(K.log.join() === '', 'ChromeOS: Alt+1 נשאר של המדף');
+K = keyCtx({ deskOS: () => 'gbook' }); K.deskKey(ev({ altKey: true, ctrlKey: true, code: 'Digit2' }));
+ok(K.log.join() === 'go:b', 'Googlebook: Ctrl+Alt+2 — העמוד השני');
+K = keyCtx({ deskOS: () => 'linux' }); K.deskKey(ev({ altKey: true, code: 'Digit1' })); K.deskKey(ev({ altKey: true, ctrlKey: true, code: 'Digit1' }));
+ok(K.log.join() === 'go:a', 'Linux: Alt+1 של הדפדפן, Ctrl+Alt+1 שלנו');
+K = keyCtx({ deskOS: () => 'win' }); K.deskKey(ev({ altKey: true, ctrlKey: true, code: 'Digit1' }));
+ok(K.log.join() === '', 'Windows: ‏Ctrl+Alt = AltGr (מקלדות אירופיות) — לא מעבר עמוד');
+K = keyCtx({ deskOS: () => 'cros', deskStandalone: () => true }); K.deskKey(ev({ ctrlKey: true, code: 'Digit2' }));
+ok(K.log.join() === 'go:b', 'חלון מותקן — Ctrl+2 בכל מערכת');
 K = keyCtx(); K.deskKey(ev({ ctrlKey: true, code: 'KeyK', defaultPrevented: true }));
 ok(K.log.join() === '', 'אירוע שכבר טופל — לא נוגעים');
 

@@ -597,6 +597,13 @@ html[data-app="academy"] .appbar .brand, html[data-app="studio"] .appbar .brand 
   .icon-btn { width: 40px; height: 40px; font-size: 19px; }
   .appbar { --ib: 40px; --pill-h: 44px; }
 }
+/* 11/11/2026 (כל גודל מסך): מסך צר במיוחד — המסך החיצוני של מכשיר מתקפל (280). ארבעה כפתורים של 40 והלוגו של 100 דרשו 308px,
+   ו־☰ ובועת השער נחתכו בקצה. כאן הלוגו 84 והכפתורים 38 — הכל נכנס, והבועות ברוחב שני כפתורים כרגיל */
+@media (max-width: 319px) {
+  .brand-logo { width: 84px; height: 84px; }
+  .icon-btn { width: 38px; height: 38px; font-size: 18px; }
+  .appbar { --ib: 38px; --pill-h: 40px; padding-inline: 10px; }
+}
 
 /* ---- Status banner ---- */
 .banner {
@@ -611,7 +618,7 @@ html[data-app="academy"] .appbar .brand, html[data-app="studio"] .appbar .brand 
    הפריטים יושבים על קשת: הפעיל במרכז, גדל לבועה בצבע האפליקציה עם הסמל בלבן (בלי כיתוב), והשאר עיגולי זכוכית עם סמל וכיתוב מתחת. המיקום של כל פריט
    (translate/scale/opacity) נקבע ב־app.js (dialPaint, ובמעבר — dialAnimate באותו קפיץ ובאותו זמן של הקובייה). הסרגל מחוץ ל־main —
    לא חלק מהקובייה, ותמיד גלוי במעבר. שכבת הרקע: זכוכית שנמוגה למעלה (בלי קו חד מעל התוכן), וזוהר עדין מאחורי המרכז */
-body.has-dock { --dock-h: 120px; padding-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom, 0px) + 14px); }
+body.has-dock { --dock-h: 120px; padding-bottom: calc(var(--dock-pad, var(--dock-h)) + env(safe-area-inset-bottom, 0px) + 14px); }
 .tabs {
   position: fixed; inset-inline: 0; bottom: 0; z-index: 21;
   height: calc(var(--dock-h, 120px) + env(safe-area-inset-bottom, 0px));
@@ -622,6 +629,21 @@ body.has-dock { --dock-h: 120px; padding-bottom: calc(var(--dock-h) + env(safe-a
 .tabs { transition: opacity .18s ease, visibility 0s linear 0s; }
 body.dock-off .tabs { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .18s ease, visibility 0s linear .18s; }
 [data-theme="dark"] .tabs { --dock-bg: transparent; --dock-bg2: color-mix(in srgb, var(--bg) 3%, transparent); --dial-btn: var(--gl-btn); }
+/* 11/11/2026 (כל יחס תצוגה): טלפון לרוחב — המסך נמוך (320–430). ההדר (לוגו 128 ושתי שורות) והחוגה (120) תפסו כ־250px מתוך 390,
+   וב־568×320 כמעט לא נשאר תוכן. כאן ההדר בשורה אחת — לוגו 56 והבועות ליד הכפתורים — והחוגה מוקטנת מהתחתית (scale: אותו מנוע,
+   אותן נקודות לחיצה). ‎--dock-pad‎ = הריפוד מתחת לתוכן (החוגה עצמה נשארת בגובה 120 ומוקטנת) */
+@media (orientation: landscape) and (max-height: 500px) {
+  html:not(.dk) { --dock-pad: 82px; }
+  html:not(.dk) .tabs { transform: scale(.68); transform-origin: 50% 100%; }
+  html:not(.dk) .appbar .brand-logo { width: 56px; height: 56px; }
+  html:not(.dk) .appbar { --ib: 40px; --pill-h: 40px; padding-block: 4px 2px; }
+  html:not(.dk) .appbar .icon-btn { width: 40px; height: 40px; }
+  html:not(.dk) .appbar-row { grid-template-rows: 56px; align-items: center; }   /* שורה אחת בגובה הלוגו — הכפתורים והבועות במרכזה */
+  html:not(.dk) .appbar h1.brand { grid-row: 1; }
+  html:not(.dk) .appbar-left > .appbar-sub { grid-column: 4; grid-row: 1; justify-self: start; margin-inline-start: 8px; }
+  html:not(.dk) .appbar-left > .fx-pill { grid-column: 6 / 9; grid-row: 1; justify-self: end; margin-inline-end: 8px; }
+  html:not(.dk) .appbar-left > .appbar-sub, html:not(.dk) .appbar-left > .fx-pill { align-self: center; }
+}
 .tabs::before {
   content: ''; position: absolute; inset: -26px 0 0; z-index: -2; pointer-events: none;
   background: linear-gradient(to bottom, transparent, var(--dock-bg) 34px, var(--dock-bg2) 84px);
@@ -1904,6 +1926,8 @@ details.note[open] > :not(summary) { animation: demoIn .28s cubic-bezier(.2, .9,
 .sh-r1 .stock-price.px-lg { font-size: 23px; }
 .sh-r1 .stock-price.px-xl { font-size: 20px; }
 @media (max-width: 374px) { .sh-r1 .stock-price { font-size: 25px; } .sh-r1 .stock-price.px-lg { font-size: 21px; } .sh-r1 .stock-price.px-xl { font-size: 17px; letter-spacing: -.8px; } }
+/* 11/11/2026: מסך צר במיוחד (280) — גם 25px חרג משמאל לכרטיס; כאן המחיר קטן יותר ותג המקור ("ידני") מוסתר, והשורה נכנסת */
+@media (max-width: 319px) { .sh-r1 .stock-price { font-size: 20px; letter-spacing: -.4px; } .sh-r1 .stock-price.px-lg { font-size: 17px; } .sh-r1 .stock-price.px-xl { font-size: 14px; } .sh-r1 .src-tag { display: none; } }
 /* המחיר הוא LTR פנימית — margin-inline-start שלו הוא הצד הלא נכון ב־RTL; דוחפים מצד התגית/הסימבול (בכיוון השורה) */
 .sh-r1 .src-tag, .sh-r1 .stock-sym:has(+ .stock-price) { margin-inline-end: auto; }
 .sh-r2 .stock-name { flex: 0 1 auto; min-width: 0; max-width: none; contain: none; margin-top: 2px; } /* רוחב טבעי — מתכווץ (…) רק כשהבועה צריכה מקום; לא נמתח (שם באנגלית היה נדחף לקצה השני) */
@@ -2291,7 +2315,7 @@ html.booting *, html.booting *::before, html.booting *::after { transition: none
 .maint-strip.env-up { bottom: calc(env(safe-area-inset-bottom, 0px) + 38px); }
 [dir="ltr"] .maint-strip { transform: translateX(-50%); }
 /* 29/10/2026: ב־Invest החוגה בתחתית — ההודעה הקופצת והתוויות הקבועות מעליה */
-body.has-dock .toast { bottom: calc(var(--dock-h) + 12px + env(safe-area-inset-bottom, 0px)); }
+body.has-dock .toast { bottom: calc(var(--dock-pad, var(--dock-h)) + 12px + env(safe-area-inset-bottom, 0px)); }
 body.has-dock .env-strip, body.has-dock .maint-strip { bottom: calc(var(--dock-h) + 6px + env(safe-area-inset-bottom, 0px)); }
 body.has-dock .maint-strip.env-up { bottom: calc(var(--dock-h) + 34px + env(safe-area-inset-bottom, 0px)); }
 
