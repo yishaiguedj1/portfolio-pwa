@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2449 מפתחות מתוך 6843) */
+/* המחרוזות של studio (2450 מפתחות מתוך 6844) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1624,6 +1624,7 @@ he: {
   "studioReadyBig": "הקבצים מוכנים בענן",
   "studioReadyRange": "יהיה מוכן בין {a} ל־{b}",
   "studioRecBig": "ממשיכה לבד בעוד {t}",
+  "studioRecBlk": "האתר חסם זמנית את השרת שלנו — ננסה שוב לבד",
   "studioRecCmp": "{a}: לא השלים את החלק שלו ב־{n}% מהעבודות",
   "studioRecDrop": "{a}: הנחיות חדשות — הציון ירד מ־{from} ל־{to}",
   "studioRecGo": "להמשיך עכשיו",
@@ -4075,6 +4076,7 @@ en: {
   "studioReadyBig": "The files are ready in the cloud",
   "studioReadyRange": "Ready between {a} and {b}",
   "studioRecBig": "Resuming on its own in {t}",
+  "studioRecBlk": "The site temporarily blocked our server — we'll retry on our own",
   "studioRecCmp": "{a}: didn't finish its part in {n}% of jobs",
   "studioRecDrop": "{a}: new instructions — score fell from {from} to {to}",
   "studioRecGo": "Resume now",

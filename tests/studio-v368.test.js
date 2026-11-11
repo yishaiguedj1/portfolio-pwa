@@ -23,6 +23,15 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(O.MUTE_H.join() === '1,4,24' && O.muteSet({}, 'drive', 'up_retry', 48, t) === null, 'השתקה — רק שעה / 4 שעות / יום');
   ok(O.KINDS['claude:auto'] === 4, 'קטלוג: "המשכנו לבד" — מידע (P4), רק בסיכום');
   ok(S.RECOVER_WAIT === 3 * 60e3 && S.AUTO_RESUME_MAX === 1, 'המתנה לפני כישלון — 3 דקות, ו"המשך" אוטומטי אחד לעבודה');
+  { // 11/11/2026: האתר חסם זמנית את השרת — ממשיכים לבד במרווחים שגדלים, מונה נפרד (br), ואחרי הניסיון האחרון — עצירה
+    const now = 7e12, f = (o) => Object.assign({ kind: 'tr', state: 'failed', err: 'url_blocked', ended: now, updated: now, fa: 1, rw: now + 9e5 }, o);
+    ok(S.isBlock('url_blocked') && !S.isBlock('url_login') && !S.isTransient('url_blocked', []), 'חסימה זמנית — לא "תקלה חולפת" רגילה, מסלול משלה');
+    ok(S.BLOCK_WAIT.join() === [15 * 60e3, 45 * 60e3, 2 * 3600e3, 4 * 3600e3].join() && S.blockWait({}) === 15 * 60e3 && S.blockWait({ br: 3 }) === 4 * 3600e3 && S.blockWait({ br: 4 }) === 0, 'מרווחים: 15 דק׳, 45 דק׳, שעתיים, 4 שעות — ואז לא עוד');
+    ok(S.recoverAt(f({ ar: 1 }), now) === now + 9e5 && S.recoverAt(f({ br: 3 }), now) === now + 9e5 && S.recoverAt(f({ br: 4 }), now) === 0 && S.recoverAt(f({ err: 'net', ar: 1 }), now) === 0, 'recoverAt — חסימה לא תלויה ב"המשך" האוטומטי (ar), רק ב־br');
+    const api0 = read('ibkr-proxy/api/studio.js');
+    ok(/if \(auto && S\.isBlock\(job\.err\)\) patch\.br = /.test(api0) && /S\.isBlock\(up\.err\) && S\.blockWait\(job\)\) up\.rw = now \+ S\.blockWait\(job\)/.test(api0), 'השרתון: הכישלון קובע מתי ממשיכים, וההמשך סופר ב־br');
+    ok(/rec\.srv\.err === 'url_blocked' \? T\('studioRecBlk'\)/.test(read('studio.js')), 'הטלפון: "האתר חסם זמנית — ננסה שוב לבד" בזמן ההמתנה');
+  }
   ok(S.isTransient('net', []) && S.isTransient('worker', ['drive:dl_fail']) && !S.isTransient('tower_stop', ['drive:dl_fail']) && !S.isTransient('worker', []), 'תקלה חולפת — Drive / רשת בלבד, אף פעם לא עצירה מכוונת');
   const api = read('ibkr-proxy/api/studio.js');
   ok(/op === 'mute'/.test(api) && /async function autoRecover/.test(api) && /if \(auto\) patch\.ar = /.test(api), 'השרתון: השתקה, והמשך אוטומטי שנרשם לפני ההפעלה (בלי כפילות)');
