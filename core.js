@@ -388,8 +388,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.138.1';
-const APP_VERSION = 'v745';
+const APP_RELEASE = '2.138.2';
+const APP_VERSION = 'v746';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -1213,7 +1213,17 @@ let _cubeVTOn = null;
 function cubeVTOk(root) {
   if (!root || !root.classList || !(root.classList.contains('st-root') || root.classList.contains('lib-root')) || typeof root.startViewTransition !== 'function') return false;
   if (typeof window !== 'undefined' && window.__cubeVT === false) return false;
+  if (cubeVTBar() && !(typeof window !== 'undefined' && window.__cubeVT === true)) return false;
   return !cubeReduce() && !(typeof document !== 'undefined' && document.hidden);
+}
+/* 11/11/2026 (שתי הקלטות של המשתמש, Studio ו־Academy: "קפיצה של כל העמוד" בכל מעבר בין עמודים ולשוניות — רק בדפדפן,
+   לא באפליקציה, ולא ב־Invest). בדפדפן בטלפון, כשסרגל הכתובת גלוי, Chrome מצייר את הפסאודו־אלמנטים של המעבר הממוקד
+   (‎::view-transition) מוזזים למטה בערך בגובה הסרגל. בנחיתה הפאה במקומה (בלי סיבוב) עד שהמעבר יורד, ולכן כל הדף
+   ירד ~60px לכמה פריימים (עד 300ms, רצועה ריקה למעלה) וקפץ חזרה. כך גם בפריים שלפני הסיבוב. נמדד פריים־פריים בהקלטה.
+   באפליקציה (standalone) אין סרגל נשלף. Invest מסובב אלמנטים (tabCubeGo) ולא משתמש במעבר הממוקד. לכן בדפדפן עם מגע —
+   ההעתק (cubeClone), אותו מנוע אלמנטים כמו ב־Invest. window.__cubeVT = true — המעבר הממוקד גם כאן (לגלאים) */
+function cubeVTBar() {
+  try { return typeof matchMedia === 'function' && matchMedia('(display-mode: browser)').matches && matchMedia('(pointer: coarse)').matches; } catch (e) { return false; }
 }
 function cubeVTFace(g, isNew) {
   const f = { el: g.root, pe: isNew ? '::view-transition-new(root)' : '::view-transition-old(root)', vt: g };
