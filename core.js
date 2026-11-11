@@ -388,8 +388,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.141.1';
-const APP_VERSION = 'v752';
+const APP_RELEASE = '2.142.0';
+const APP_VERSION = 'v753';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -775,7 +775,7 @@ const DESK_APPS = [
   { k: 'studio', name: 'Studio', icon: 'icon-studio-192.png', sub: () => t('menuStudioSub') },
   { k: 'cashflow', name: 'Cashflow', icon: 'icon-cashflow-192.png', sub: null, only: true },
 ];
-const _desk = { on: false, side: null, nav: null, sig: '', cur: '', set: null, inSet: null, cmds: [], pal: null, help: null, wired: false, raf: 0 };
+const _desk = { on: false, side: null, nav: null, sig: '', cur: '', set: null, inSet: null, cmds: [], pal: null, help: null, wired: false, raf: 0, tip: null, tipEl: null, tipT: 0, drops: [], drop: null, dropWired: false, top: 0, show: null };
 
 /* טהורות (tests/desktop.test.js) */
 function deskApp() { try { return (document.documentElement.dataset.app || 'invest'); } catch (e) { return 'invest'; } }
@@ -855,6 +855,12 @@ function deskInputInit() {
   // תזוזת עכבר אמיתית (לא אירועי תאימות של מגע — אלה מסומנים touch) מחזירה למצב עכבר; שלוש תזוזות — לא רעד בודד
   window.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' && document.documentElement.dataset.input !== 'mouse' && ++moves > 2) deskInput('mouse'); }, { capture: true, passive: true });
 }
+/* 11/11/2026 (גל 2): לחיצה ימנית בעכבר = הלחיצה הארוכה (עריכה/מחיקה/אוסף). מגע ארוך שולח גם הוא contextmenu,
+   ולכן רק כשהלחיצה באה מעכבר (pointerType; בדפדפן שבו האירוע בלי pointerType — לפי הקלט האחרון) */
+function deskCtxMouse(e) {
+  if (e && e.pointerType) return e.pointerType === 'mouse';
+  try { return document.documentElement.dataset.input === 'mouse'; } catch (er) { return false; }
+}
 
 /* ---------- 2. מסגרת מחשב ---------- */
 function deskWide() {
@@ -870,7 +876,7 @@ function deskMode() {
   _desk.on = on;
   document.documentElement.classList.toggle('dk', on);
   if (on) { deskBuild(); deskSync(true); }
-  else if (_desk.side) { _desk.side.remove(); _desk.side = null; _desk.nav = null; _desk.sig = ''; }
+  else if (_desk.side) { _desk.side.remove(); _desk.side = null; _desk.nav = null; _desk.sig = ''; if (_desk.show) { _desk.show.remove(); _desk.show = null; } }
   try { if (typeof dialSync === 'function') dialSync(true); } catch (e) {}
 }
 /* ההגדרות של האפליקציה: open — פתיחה, isOn — האם פתוחות (להדגשה בסרגל). shell.js (Academy/Studio/Cashflow) ו־Invest רושמים */
@@ -919,6 +925,15 @@ function deskBuild() {
   const logo = deskEl('img', 'dk-logo'); logo.src = me.icon; logo.alt = ''; logo.width = 32; logo.height = 32; logo.decoding = 'async';
   const nm = deskEl('div', 'dk-name'); const b = deskEl('b'); b.textContent = me.name; const s = deskEl('small'); s.textContent = 'THE SNOWBALL';
   nm.append(b, s); head.append(logo, nm);
+  // גל 3: הסתרת הסרגל (⌘\) — הכפתור בראש הסרגל, ובזמן ההסתרה כפתור קטן בפינה מחזיר אותו
+  const hide = deskEl('button', 'icon-btn dk-hidebtn', DESK_SVG + DESK_IC.side + '</svg>'); hide.type = 'button';
+  hide.setAttribute('aria-label', t('dkSideHide')); hide.dataset.dkKey = 'mod+\\';
+  hide.addEventListener('click', () => deskSideToggle(false));
+  head.append(hide);
+  const show = deskEl('button', 'icon-btn dk-showbtn', DESK_SVG + DESK_IC.side + '</svg>'); show.type = 'button';
+  show.setAttribute('aria-label', t('dkSideShow')); show.dataset.dkKey = 'mod+\\';
+  show.addEventListener('click', () => deskSideToggle(true));
+  document.body.append(show); _desk.show = show;
   const find = deskRow('dk-find', deskSvg(DESK_IC.find), t('dkFind'), deskKbdEl('mod+K'));
   find.addEventListener('click', () => deskPalette());
   const nav = deskEl('nav', 'dk-nav'); nav.setAttribute('aria-label', t('dkPagesAria'));
@@ -941,6 +956,21 @@ function deskBuild() {
   document.body.append(side);
   _desk.side = side; _desk.nav = nav; _desk.sig = '';
 }
+/* גל 3 (11/11/2026): הסתרת סרגל הצד — העדפה של המכשיר (כמו LS_DKKEYS). התוכן מתרחב (--dk-off: 0), והחוגה לא חוזרת:
+   הניווט במקלדת (⌘K, Alt+1–9) ובכפתור בפינה. show: true/false, בלי — החלפה */
+const LS_DKSIDE = 'pwa_dkside_v1';
+function deskSideHidden() { try { return localStorage.getItem(LS_DKSIDE) === '0'; } catch (e) { return false; } }
+function deskSideToggle(show) {
+  const de = document.documentElement;
+  if (!_desk.side) return;
+  const hide = show == null ? !de.classList.contains('dk-hide') : !show;
+  try { if (hide) localStorage.setItem(LS_DKSIDE, '0'); else localStorage.removeItem(LS_DKSIDE); } catch (e) {}
+  const had = _desk.side.contains(document.activeElement) || (_desk.show && _desk.show === document.activeElement);
+  de.classList.toggle('dk-hide', hide);
+  deskTipHide();
+  if (had) { try { (hide ? _desk.show : _desk.side.querySelector('.dk-hidebtn')).focus({ preventScroll: true }); } catch (e) {} }
+  try { window.dispatchEvent(new Event('resize')); } catch (e) {}   // גרפים ורשתות — לרוחב החדש
+}
 function deskSettings() { if (_desk.set) { try { _desk.set(); } catch (e) {} } deskSoon(); }
 function deskGo(p) {
   const h = _dial.host;
@@ -949,8 +979,15 @@ function deskGo(p) {
   deskSoon();
 }
 /* הסנכרון — הפריטים (כשהמארח או המפתחות השתנו) וההדגשה של העמוד הנוכחי. זול: נקרא מ־dialPaint ואחרי כל לחיצה */
+/* גל 3: גובה ההדר הצף → --dk-top (המפקח נצמד מתחתיו). נמדד רק כשהשתנה */
+function deskTop() {
+  const ab = document.querySelector('.appbar');   // הלוגו והבועות יוצאים מגובה ההדר עצמו — הנמוך מכולם קובע
+  const hgt = ab ? Math.round(Math.max(...[ab, ...ab.querySelectorAll('.brand-logo, .appbar-sub, .fx-pill')].map((x) => x.getBoundingClientRect().bottom))) : 0;
+  if (hgt > 0 && hgt !== _desk.top) { _desk.top = hgt; document.documentElement.style.setProperty('--dk-top', hgt + 'px'); }
+}
 function deskSync(force) {
   if (!_desk.side) return;
+  deskTop();
   const pages = deskPages(), sig = (_dial.host ? 'h' : '') + pages.map((p) => p.k + ':' + p.label).join('|');
   if (force || sig !== _desk.sig) {
     _desk.sig = sig;
@@ -1006,11 +1043,13 @@ function deskKey(e) {
   const mac = deskIsMac(), mod = deskModKey(e, mac), c = e.code || '';   // לפי המקש הפיזי: במקלדת עברית e.key של K הוא "ל"
   if (mod && !e.altKey && !e.shiftKey && c === 'KeyK') { e.preventDefault(); return _desk.pal ? deskPalClose() : deskPalette(); }
   if (mod && !e.altKey && !e.shiftKey && c === 'Comma') { e.preventDefault(); if (_desk.pal) deskPalClose(); return deskSettings(); }
+  if (mod && !e.altKey && !e.shiftKey && c === 'Backslash' && _desk.side) { e.preventDefault(); return deskSideToggle(); }
   if (!e.shiftKey && /^Digit[1-9]$/.test(c) && deskPageHit(e, deskOS(), deskStandalone())) {
     const p = deskPages()[+c.slice(5) - 1];
     if (p && !deskBusy()) { e.preventDefault(); if (_desk.pal) deskPalClose(); deskGo(p); }
     return;
   }
+  if (deskGridKey(e)) return;
   if (e.ctrlKey || e.metaKey || e.altKey || deskTyping(e.target) || deskBusy() || !deskK1()) return;
   if (c === 'Slash' ? e.shiftKey : e.key === '?') { e.preventDefault(); return deskHelp(); }
   if (c === 'Slash' && !e.shiftKey) {
@@ -1029,7 +1068,8 @@ function deskSearchField() {
 /* לוח הפקודות (⌘K): חלון זכוכית בראש המסך — חיפוש, חצים, Enter; עכבר מסמן ולחיצה מפעילה */
 function deskCmdList() {
   const out = [], mac = deskIsMac(), app = deskApp();
-  deskPages().forEach((p, i) => out.push({ label: p.label, sub: t('dkCmdPage'), ico: p.ico ? p.ico.cloneNode(true) : null, kbd: i < 9 ? deskKbd('alt+' + (i + 1), mac) : '', run: () => deskGo(p) }));
+  const pm = deskPageMod(deskOS(), deskStandalone());
+  deskPages().forEach((p, i) => out.push({ label: p.label, sub: t('dkCmdPage'), ico: p.ico ? p.ico.cloneNode(true) : null, kbd: i < 9 ? deskKbd(pm + '+' + (i + 1), mac) : '', run: () => deskGo(p) }));
   if (_desk.set) out.push({ label: t('menuSettings'), sub: t('dkCmdPage'), ico: deskSvg(DESK_IC.gear), kbd: deskKbd('mod+,', mac), kw: 'settings preferences הגדרות', run: deskSettings });
   for (const a of DESK_APPS) {
     if (a.k === app || (a.only && a.k !== app)) continue;
@@ -1041,6 +1081,7 @@ function deskCmdList() {
   const he = getLang() === 'he';
   out.push({ label: t('dkCmdLang'), sub: t('dkCmdAct'), ico: deskSvg(DESK_IC.lang), kw: 'language שפה english hebrew עברית', run: () => { try { localStorage.setItem(LS_LANG, he ? 'en' : 'he'); } catch (e) {} location.reload(); } });
   out.push({ label: t('dkKeysTitle'), sub: t('dkCmdAct'), ico: deskSvg(DESK_IC.keys), kbd: '?', kw: 'shortcuts keyboard מקלדת קיצורים', run: deskHelp });
+  if (_desk.side) { const hid = document.documentElement.classList.contains('dk-hide'); out.push({ label: hid ? t('dkSideShow') : t('dkSideHide'), sub: t('dkCmdAct'), ico: deskSvg(DESK_IC.side), kbd: deskKbd('mod+\\', mac), kw: 'sidebar סרגל צד', run: () => deskSideToggle(hid) }); }
   return out;
 }
 function deskPalette() {
@@ -1120,7 +1161,7 @@ function deskHelp() {
   const x = deskEl('button', 'dk-help-x', DESK_SVG + '<path d="M6 6l12 12M18 6 6 18"/></svg>'); x.type = 'button'; x.setAttribute('aria-label', t('menuCloseAria'));
   x.addEventListener('click', () => deskHelpClose());
   const groups = [
-    [t('dkKeysGen'), [['mod+K', t('dkFind')], ['mod+,', t('menuSettings')], ['/', t('dkKeySearch')], ['?', t('dkKeysTitle')], ['Esc', t('dkKeyBack')]]],
+    [t('dkKeysGen'), [['mod+K', t('dkFind')], ['mod+,', t('menuSettings')], ['mod+\\', t('dkSideHide')], ['/', t('dkKeySearch')], ['?', t('dkKeysTitle')], ['Esc', t('dkKeyBack')]]],
     [t('dkKeysNav'), [[deskPageMod(deskOS(), deskStandalone()) + '+1–9', t('dkKeyPages')], ['↑ ↓', t('dkKeyArrows')], ['Tab', t('dkKeyTab')], ['Enter', t('dkKeyOpen')]]],
   ];
   const extra = DESK_HELP[deskApp()];
@@ -1160,8 +1201,9 @@ function deskHelpClose(fromBack) {
 /* הקיצורים של כל אפליקציה שכבר קיימים בה (מתועדים כאן כדי שיופיעו ב־?) */
 const DESK_HELP = {
   // המפתחות מילוליים בתוך פונקציה (i18n-coverage אוסר t() דינמי)
-  academy: [['← →', () => t('dkKeyPageTurn')], ['Space', () => t('dkKeyPageNext')], ['shift+Space', () => t('dkKeyPagePrev')]],
-  studio: [['Space', () => t('dkKeyPlay')], ['← →', () => t('dkKeySeek')], ['F', () => t('dkKeyFull')]],
+  academy: [['← →', () => t('dkKeyPageTurn')], ['Space', () => t('dkKeyPageNext')], ['shift+Space', () => t('dkKeyPagePrev')], ['mod+F', () => t('dkKeyBookFind')], ['mod+=', () => t('dkKeyFontUp')], ['mod+−', () => t('dkKeyFontDown')]],
+  studio: [['Space', () => t('dkKeyPlay')], ['← →', () => t('dkKeySeek')], ['F', () => t('dkKeyFull')], ['mod+↩', () => t('dkKeyCueNext')]],
+  invest: [['← →', () => t('dkKeyChartPt')], ['shift+← →', () => t('dkKeyChartMeasure')], ['1–9', () => t('dkKeyChartRange')]],
 };
 
 /* 11/11/2026: גלגלת העכבר בשורות שנגללות רק לרוחב (שבבים, מחברים, טווחים) — עם עכבר אין החלקה והפס מוסתר, אז הגלגלת גוללת
@@ -1190,6 +1232,101 @@ function deskWheelOver(e) {
   const r = deskHRow(e.target);
   if (r && !r.__dkWheel) { r.__dkWheel = 1; r.addEventListener('wheel', deskWheel, { passive: false }); }
 }
+/* ---------- 5א. רשימות־טבלה במקלדת (גל 4, 11/11/2026) ----------
+   [data-dk-grid] (העסקאות, ההפקדות): Tab מגיע לרשימה, ↑ ↓ שורה, Home/End ראשונה/אחרונה, Enter — הכפתור הראשון בשורה (עריכה).
+   שורה מקבלת tabindex=-1 רק כשמגיעים אליה (בלי לגעת בבנייה של הרשימות) */
+function deskGridIdx(cur, n, k) {
+  if (!n) return null;
+  if (k === 'Home') return 0;
+  if (k === 'End') return n - 1;
+  if (k === 'ArrowDown') return cur < 0 ? 0 : Math.min(n - 1, cur + 1);
+  if (k === 'ArrowUp') return cur < 0 ? 0 : Math.max(0, cur - 1);
+  return null;
+}
+function deskGridRows(g) { return [...g.querySelectorAll('li')].filter((r) => !r.parentElement.closest('li') && r.offsetParent !== null && !r.classList.contains('dep-sub')); }
+function deskGridKey(e) {
+  const k = e.key;
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || !/^(ArrowUp|ArrowDown|Home|End|Enter)$/.test(k)) return false;
+  const a = document.activeElement, g = a && a.closest ? a.closest('[data-dk-grid]') : null;
+  if (!g || deskTyping(a)) return false;
+  const rows = deskGridRows(g), cur = a === g ? -1 : rows.findIndex((r) => r === a || r.contains(a));
+  if (k === 'Enter') {
+    const b = cur >= 0 && rows[cur] === a ? a.querySelector('button, a[href], [role="button"]') : null;
+    if (!b) return false;
+    e.preventDefault(); b.click(); return true;
+  }
+  if (cur >= 0 && rows[cur] !== a) return false;   // הפוקוס על כפתור בתוך שורה — החצים שלו
+  const j = deskGridIdx(cur, rows.length, k);
+  if (j == null) return false;
+  e.preventDefault();
+  const r = rows[j]; if (!r.hasAttribute('tabindex')) r.tabIndex = -1;
+  r.focus({ preventScroll: true }); try { r.scrollIntoView({ block: 'nearest' }); } catch (er) {}
+  return true;
+}
+/* ---------- 6. בועית עם השם והקיצור (גל 2, 11/11/2026) ----------
+   עכבר שעומד חצי שנייה על כפתור־אייקון (‎.icon-btn עם aria-label) או על [data-dk-tip] — בועית קטנה עם השם, ו־data-dk-key
+   מוסיף את הקיצור (‎'mod+,' → ⌘, / Ctrl+,). נסגרת ביציאה, בלחיצה, בגלילה וב־Esc (בלי לבלוע את ה־Esc של החלון). רק במחשב ובעכבר */
+const DESK_TIP_SEL = '.icon-btn[aria-label], [data-dk-tip]', DESK_TIP_MS = 500;
+function deskTipText(el) { return String((el.dataset && el.dataset.dkTip) || el.getAttribute('aria-label') || '').trim(); }
+function deskTipPos(r, w, h, vw, vh) {   // מתחת לאלמנט, ואם אין מקום — מעליו; תמיד בתוך החלון
+  const top = r.bottom + 8 + h <= vh - 4 ? r.bottom + 8 : Math.max(4, r.top - 8 - h);
+  const left = Math.max(4, Math.min(vw - w - 4, r.left + r.width / 2 - w / 2));
+  return { top: Math.round(top), left: Math.round(left) };
+}
+function deskTipHide() {
+  clearTimeout(_desk.tipT); _desk.tipT = 0; _desk.tipEl = null;
+  if (_desk.tip) { _desk.tip.remove(); _desk.tip = null; }
+}
+function deskTipShow(el) {
+  _desk.tipT = 0;
+  const txt = deskTipText(el);
+  if (!txt || !el.isConnected || !_desk.on) return;
+  const tip = deskEl('div', 'dk-tip'); tip.setAttribute('role', 'tooltip');
+  tip.append(deskEl('span', 'dk-tip-t')); tip.firstChild.textContent = txt;
+  const k = el.dataset && el.dataset.dkKey; if (k) tip.append(deskKbdEl(k));
+  document.body.append(tip); _desk.tip = tip;
+  const p = deskTipPos(el.getBoundingClientRect(), tip.offsetWidth, tip.offsetHeight, window.innerWidth, window.innerHeight);
+  tip.style.top = p.top + 'px'; tip.style.left = p.left + 'px';
+  tip.classList.add('on');
+}
+function deskTipOver(e) {
+  if (!_desk.on || document.documentElement.dataset.input !== 'mouse') return;
+  const el = e.target && e.target.closest ? e.target.closest(DESK_TIP_SEL) : null;
+  if (el === _desk.tipEl) return;
+  deskTipHide();
+  if (!el || el.title || el.disabled || el.getAttribute('aria-expanded') === 'true') return;   // לכפתור עם title יש בועית של המערכת
+  _desk.tipEl = el; _desk.tipT = setTimeout(() => deskTipShow(el), DESK_TIP_MS);
+}
+function deskTipOut(e) { if (_desk.tipEl && !(e.relatedTarget && _desk.tipEl.contains(e.relatedTarget))) deskTipHide(); }
+/* ---------- 7. גרירת קבצים לכל החלון (גל 2, 11/11/2026) ----------
+   אפליקציה רושמת { ok, label, take } (Academy — ספרים, Studio — סרטון). קובץ שנגרר מעל החלון: שכבה עם הכיתוב של מי שמקבל
+   (האחרון שנרשם ו־ok() אמת); שחרור → take(files). גרירה שאינה קבצים (טקסט, קישור, תמונה מהדף) — לא נוגעים */
+function deskDropOn(h) { if (h && typeof h.take === 'function' && !_desk.drops.includes(h)) _desk.drops.push(h); deskDropWire(); }
+function deskDropFiles(dt) { try { return !!dt && Array.from(dt.types || []).includes('Files'); } catch (e) { return false; } }
+function deskDropWho() { for (let i = _desk.drops.length - 1; i >= 0; i--) { const h = _desk.drops[i]; try { if (!h.ok || h.ok()) return h; } catch (e) {} } return null; }
+function deskDropShow(h) {
+  if (!h) { if (_desk.drop) { _desk.drop.remove(); _desk.drop = null; } return; }
+  if (_desk.drop) return;
+  const v = deskEl('div', 'dk-drop'); v.setAttribute('aria-hidden', 'true');
+  const b = deskEl('div', 'dk-drop-box'); b.textContent = (h.label && h.label()) || t('dkDropT');
+  v.append(b); document.body.append(v); _desk.drop = v;
+}
+function deskDropWire() {
+  if (_desk.dropWired || typeof document === 'undefined' || typeof document.addEventListener !== 'function') return;
+  _desk.dropWired = true;
+  let depth = 0;
+  document.addEventListener('dragenter', (e) => { if (!deskDropFiles(e.dataTransfer)) return; depth++; deskDropShow(deskDropWho()); });
+  document.addEventListener('dragover', (e) => { if (!deskDropFiles(e.dataTransfer) || !deskDropWho()) return; e.preventDefault(); try { e.dataTransfer.dropEffect = 'copy'; } catch (er) {} });
+  document.addEventListener('dragleave', (e) => { if (!deskDropFiles(e.dataTransfer)) return; if (--depth <= 0) { depth = 0; deskDropShow(null); } });
+  document.addEventListener('drop', (e) => {
+    depth = 0; deskDropShow(null);
+    const h = deskDropFiles(e.dataTransfer) ? deskDropWho() : null;
+    if (!h) return;
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length) { try { h.take(files); } catch (er) {} }
+  });
+}
 function deskInit() {
   if (typeof window === 'undefined' || typeof document === 'undefined' || _desk.wired || !document.documentElement) return;
   // חלון/מסמך מדומים בבדיקות (vm) — בלי מאזינים
@@ -1198,6 +1335,11 @@ function deskInit() {
   try { deskInputInit(); } catch (e) {}
   document.addEventListener('keydown', deskKey);
   document.addEventListener('mouseover', deskWheelOver, { passive: true });
+  document.addEventListener('mouseover', deskTipOver, { passive: true });
+  document.addEventListener('mouseout', deskTipOut, { passive: true });
+  for (const ev of ['pointerdown', 'scroll', 'wheel']) document.addEventListener(ev, () => { if (_desk.tipEl) deskTipHide(); }, { capture: true, passive: true });
+  document.addEventListener('keydown', (e) => { if (_desk.tipEl && e.key === 'Escape') deskTipHide(); }, true);
+  window.addEventListener('blur', () => { if (_desk.tipEl) deskTipHide(); });
   let rt = 0;
   window.addEventListener('resize', () => { cancelAnimationFrame(rt); rt = requestAnimationFrame(deskMode); }, { passive: true });
   // אחרי כל לחיצה / "חזור" — ההדגשה בסרגל מתעדכנת (המעברים של האפליקציות לא עוברים תמיד דרך החוגה)
@@ -1208,7 +1350,7 @@ function deskInit() {
 }
 if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.documentElement) {
   // לפני הציור הראשון: מסגרת המחשב (בלי קפיצה מהחוגה לסרגל) ומצב הקלט
-  try { if (deskWide()) document.documentElement.classList.add('dk'); } catch (e) {}
+  try { if (deskWide()) document.documentElement.classList.add('dk'); if (deskSideHidden()) document.documentElement.classList.add('dk-hide'); } catch (e) {}
   try { deskInit(); } catch (e) {}
 }
 

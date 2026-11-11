@@ -92,7 +92,7 @@ function keyCtx(over) {
     deskIsMac: () => false, deskModKey: (e, mac) => (mac ? !!e.metaKey && !e.ctrlKey : !!e.ctrlKey && !e.metaKey),
     deskPalette: () => log.push('pal'), deskPalClose: () => log.push('close'), deskSettings: () => log.push('set'), deskHelp: () => log.push('help'),
     deskPages: () => [{ k: 'a' }, { k: 'b' }], deskGo: (p) => log.push('go:' + p.k), deskBusy: () => false, deskTyping: (el) => !!(el && el.typing),
-    deskK1: () => true, deskStandalone: () => false, deskSearchField: () => ({ focus: () => log.push('focus'), select() {} }), deskOS: () => 'win',
+    deskK1: () => true, deskStandalone: () => false, deskSearchField: () => ({ focus: () => log.push('focus'), select() {} }), deskOS: () => 'win', deskGridKey: () => false,
   }, over || {});
   vm.createContext(c);
   vm.runInContext(fn(app, 'deskPageMod') + fn(app, 'deskPageHit') + fn(app, 'deskKey') + '\nthis.deskKey = deskKey;', c);
@@ -216,5 +216,79 @@ ok(/else readerKey\(e\)/.test(fn(lib, 'wireDoc')), 'קורא: גם כשהפוק�
 ok(/c === 'KeyK'/.test(play) && /c === 'KeyF'/.test(play) && /removeEventListener\('keydown', deskKeys\)/.test(play), 'נגן: K/F לפי המקש הפיזי, והמאזין יורד ב־destroy');
 ok(/!deskK1\(\)/.test(play), 'נגן: K/F נכבים עם שאר הקיצורים של מקש אחד');
 ok(/p\.dataset\.v = ui\.view;/.test(studio) && /\.st-page\[data-v\]/.test(css), 'Studio: רוחב הדף לפי סוגו (טפסים ופרטים בעמודת קריאה)');
+
+/* ---------- 8. גל 2 — עכבר (11/11/2026) ---------- */
+const g2 = { Math, String, Array, document: { documentElement: { dataset: { input: 'touch' } } } };
+vm.createContext(g2);
+vm.runInContext([fn(app, 'deskCtxMouse'), fn(app, 'deskTipPos'), fn(app, 'deskDropFiles'), fn(app, 'deskDropWho'), 'const _desk = { drops: [] };'].join('\n')
+  + '\nthis.api = { deskCtxMouse, deskTipPos, deskDropFiles, deskDropWho, _desk };', g2);
+const G = g2.api;
+ok(G.deskCtxMouse({ pointerType: 'mouse' }) && !G.deskCtxMouse({ pointerType: 'touch' }) && !G.deskCtxMouse({ pointerType: 'pen' }), 'לחיצה ימנית: רק מעכבר (pointerType) — מגע ארוך לא פותח פעמיים');
+ok(!G.deskCtxMouse({}), 'לחיצה ימנית בלי pointerType — לפי הקלט האחרון (מגע → לא)');
+g2.document.documentElement.dataset.input = 'mouse';
+ok(G.deskCtxMouse({}), 'לחיצה ימנית בלי pointerType — הקלט האחרון עכבר → כן');
+const tp = G.deskTipPos({ top: 100, bottom: 140, left: 500, width: 40 }, 80, 26, 1440, 900);
+ok(tp.top === 148 && tp.left === 480, 'בועית: מתחת לכפתור, ממורכזת');
+ok(G.deskTipPos({ top: 860, bottom: 896, left: 10, width: 36 }, 120, 26, 1440, 900).top === 826, 'בועית: בתחתית החלון — מעל הכפתור');
+ok(G.deskTipPos({ top: 10, bottom: 50, left: 1420, width: 20 }, 120, 26, 1440, 900).left === 1316, 'בועית: לא חורגת מקצה החלון');
+ok(G.deskDropFiles({ types: ['Files'] }) && !G.deskDropFiles({ types: ['text/plain', 'text/uri-list'] }) && !G.deskDropFiles(null), 'גרירה: רק קבצים (לא טקסט/קישור מהדף)');
+const hA = { ok: () => true, take() {} }, hB = { ok: () => false, take() {} };
+G._desk.drops.push(hA, hB);
+ok(G.deskDropWho() === hA, 'גרירה: מי שמקבל — האחרון שנרשם ופתוח');
+ok(/contextmenu[\s\S]{0,200}deskCtxMouse\(e\)[\s\S]{0,120}onHold\(\)/.test(fn(lib, 'wireHold')), 'Academy: לחיצה ימנית על ספר/אוסף = לחיצה ארוכה');
+ok((app.match(/contextmenu', \(e\) => \{\n\s+const (c|tb) = !drag && [^\n]*deskCtxMouse\(e\)/g) || []).length === 2, 'Invest: לחיצה ימנית על כרטיס מניה ועל טאב מעקב = לחיצה ארוכה');
+ok(/function tabActs\(tab\)/.test(app) && /tabActs\(bar\.querySelector/.test(app), 'Invest: הפעולות של טאב — פונקציה אחת ללחיצה ארוכה ולימנית');
+ok(/deskDropOn\(\{ ok: \(\) => !!root && !rd, label: \(\) => T\('libDropT'\), take: dropBooks \}\)/.test(lib) && /BOOK_EXT\.test/.test(fn(lib, 'dropBooks')), 'Academy: ספרים שנגררים לחלון — רק קבצי ספרים, לא בזמן קריאה');
+ok(/deskDropOn\(\{ ok: \(\) => !!root, label: \(\) => T\('studioDropT'\), take: dropMedia \}\)/.test(studio) && /LIST_MAX/.test(fn(studio, 'dropMedia')) && /formTake\(f, file, handle\)/.test(studio), 'Studio: סרטון שנגרר — לטופס (עוד סרטונים — לרשימה עד LIST_MAX)');
+ok(/\.dk-tip \{[^}]*pointer-events: none/.test(css) && /\.dk-drop \{[^}]*pointer-events: none/.test(css), 'הבועית ושכבת הגרירה לא חוסמות את העכבר');
+ok(/'mouseover', deskTipOver/.test(app) && /e\.key === 'Escape'\) deskTipHide\(\)/.test(app), 'בועית: נפתחת בריחוף ונסגרת ב־Esc');
+
+/* ---------- 9. גל 3 — חלוניות (11/11/2026) ---------- */
+ok(/@media \(min-width: 1280px\) \{\s*html\.dk :is\(#stockList, #wishlistList\):has\(> \.stock\.open\) \{ grid-template-columns: minmax\(320px, 380px\) minmax\(0, 1fr\)/.test(css), 'מפקח: מ־1280 הרשימה צרה והכרטיס הפתוח לצידה');
+ok(/> \.stock\.open \{\s*grid-column: 2; grid-row: 1 \/ span 999; position: sticky; top: calc\(var\(--dk-top/.test(css), 'מפקח: הכרטיס הפתוח נצמד מתחת להדר');
+ok(/--dk-top/.test(fn(app, 'deskTop')) && /deskTop\(\);/.test(fn(app, 'deskSync')), 'מפקח: גובה ההדר נמדד (deskTop) ב־deskSync');
+ok(/c === 'Backslash' && _desk\.side\) \{ e\.preventDefault\(\); return deskSideToggle\(\); \}/.test(fn(app, 'deskKey')), 'סרגל: ⌘\\ / Ctrl+\\ מסתיר ומציג');
+ok(/LS_DKSIDE/.test(fn(app, 'deskSideToggle')) && /if \(deskSideHidden\(\)\) document\.documentElement\.classList\.add\('dk-hide'\)/.test(app), 'סרגל: ההעדפה נשמרת במכשיר ומוחלת לפני הציור הראשון');
+ok(/html\.dk\.dk-hide \{ --dk-off: 0px; \}/.test(css) && /html\.dk\.dk-hide \.dk-showbtn \{ display: grid/.test(css), 'סרגל מוסתר: התוכן מתרחב וכפתור בפינה מחזיר');
+ok(/\['mod\+\\\\', t\('dkSideHide'\)\]/.test(fn(app, 'deskHelp')) && /dkSideShow/.test(fn(app, 'deskCmdList')), 'סרגל: בחלון הקיצורים ובלוח הפקודות');
+ok(/deskKbd\(pm \+ '\+' \+ \(i \+ 1\), mac\)/.test(fn(app, 'deskCmdList')), 'לוח הפקודות: מקש העמודים לפי המערכת (Ctrl+Alt בלינוקס/Googlebook)');
+
+/* ---------- 10. גל 4 — מקלדת עמוקה (11/11/2026) ---------- */
+const g4 = { Math, String };
+vm.createContext(g4);
+vm.runInContext([fn(app, 'scKeyStep'), fn(app, 'scRangeKey'), fn(app, 'deskGridIdx'), 'const defaults = { size: 19 };', fn(lib, 'readerSize')].join('\n')
+  + '\nthis.api = { scKeyStep, scRangeKey, deskGridIdx, readerSize };', g4);
+const K4 = g4.api, J = (x) => JSON.stringify(x);
+ok(J(K4.scKeyStep(null, 50, 'ArrowLeft', false)) === J({ mode: 'tip', i: 49, pinned: true }), 'גרף: חץ ראשון — הנקודה האחרונה (היום)');
+ok(K4.scKeyStep({ mode: 'tip', i: 10 }, 50, 'ArrowLeft', false).i === 9 && K4.scKeyStep({ mode: 'tip', i: 49 }, 50, 'ArrowRight', false).i === 49, 'גרף: ← אחורה בזמן, → קדימה, לא מעבר לקצה');
+ok(K4.scKeyStep({ mode: 'tip', i: 5 }, 50, 'Home', false).i === 0 && K4.scKeyStep(null, 50, 'End', false).i === 49, 'גרף: Home/End');
+const m1 = K4.scKeyStep({ mode: 'tip', i: 20 }, 50, 'ArrowLeft', true), m2 = K4.scKeyStep(m1, 50, 'ArrowLeft', true);
+ok(m1.mode === 'm' && m1.a === 20 && m1.b === 19 && m2.a === 20 && m2.b === 18, 'גרף: Shift+חץ — מדידה, העוגן נשאר והקצה זז');
+ok(K4.scKeyStep({ mode: 'tip', i: 7, pick: true }, 50, 'ArrowRight', true).pick === true, 'גרף: בבחירת תאריך — הסמן נשאר סמן הבחירה (בלי מדידה)');
+ok(K4.scKeyStep(null, 50, 'a', false) === null && K4.scKeyStep(null, 1, 'ArrowLeft', false) === null, 'גרף: מקש אחר / גרף בלי נתונים — לא נוגעים');
+ok(K4.scRangeKey('1', 6, 3) === 0 && K4.scRangeKey('9', 6, 3) === -1 && K4.scRangeKey('4', 6, 3) === -1, 'טווח: 1–9 לפי הסדר (לא קיים / כבר נבחר — כלום)');
+ok(K4.scRangeKey('+', 6, 3) === 2 && K4.scRangeKey('-', 6, 3) === 4 && K4.scRangeKey('+', 6, 0) === -1 && K4.scRangeKey('−', 6, 5) === -1, 'טווח: + קצר יותר, − ארוך יותר, עד הקצוות');
+ok(K4.deskGridIdx(-1, 5, 'ArrowDown') === 0 && K4.deskGridIdx(2, 5, 'ArrowDown') === 3 && K4.deskGridIdx(4, 5, 'ArrowDown') === 4 && K4.deskGridIdx(0, 5, 'ArrowUp') === 0 && K4.deskGridIdx(2, 5, 'End') === 4 && K4.deskGridIdx(0, 0, 'Home') === null, 'טבלה: ↑ ↓ Home End');
+ok(K4.readerSize(19, 'Equal') === 20 && K4.readerSize(30, 'Equal') === 30 && K4.readerSize(14, 'Minus') === 14 && K4.readerSize(25, 'Digit0') === 19 && K4.readerSize(19, 'KeyA') === null, 'קורא: ⌘= ⌘− בטווח 14–30, ⌘0 — ברירת המחדל');
+ok(/canvas\.tabIndex = 0;/.test(fn(app, 'scAttach')) && /addEventListener\('keydown', \(e\) => scKey\(canvas, sym, e\)\)/.test(fn(app, 'scAttach')), 'גרף: מגיעים אליו ב־Tab ועונה למקלדת');
+ok(/if \(canvas\._sc && !canvas\._sc\.pick\) \{ e\.preventDefault\(\); e\.stopPropagation\(\); scSet\(canvas, null\); \}/.test(fn(app, 'scKey')), 'גרף: Esc מנקה סמן — ורק אז נבלע');
+ok(/if \(deskGridKey\(e\)\) return;/.test(fn(app, 'deskKey')) && (R('index.html').match(/class="rows" data-dk-grid tabindex="0"/g) || []).length === 2, 'טבלאות: העסקאות וההפקדות במקלדת');
+ok(/e\.code === 'KeyF' && !e\.shiftKey\) \{ e\.preventDefault\(\); openToc\('find'\)/.test(fn(lib, 'readerModKey')) && /if \(readerModKey\(e\)\) return;/.test(fn(lib, 'readerKey')), 'קורא: ⌘F — החיפוש בספר');
+ok(/if \(start === 'find'\) setTimeout/.test(lib), 'קורא: החיפוש נפתח ישר בלשונית שלו');
+ok(/e\.key !== 'Enter' \|\| !\(e\.metaKey \|\| e\.ctrlKey\)[\s\S]{0,200}cueStep\(k, hist\.cur\.length, e\.shiftKey\)/.test(R('studiosubs.js')), 'עורך הכתוביות: ⌘↩ לשורה הבאה, ⇧ לקודמת');
+ok(/invest: \[\['← →'/.test(app) && /\['mod\+↩', \(\) => t\('dkKeyCueNext'\)\]/.test(app) && /\['mod\+F', \(\) => t\('dkKeyBookFind'\)\]/.test(app), 'חלון הקיצורים: הקיצורים החדשים בכל אפליקציה');
+
+/* ---------- 11. גל 5 — התקנה במחשב ומחשב מגע (11/11/2026) ---------- */
+const MI = JSON.parse(R('manifest.webmanifest')), MA = JSON.parse(R('manifest-academy.webmanifest')), MS = JSON.parse(R('manifest-studio.webmanifest'));
+ok([MI, MA, MS].every((m) => m.launch_handler && m.launch_handler.client_mode === 'focus-existing'), 'מניפסט: חלון פתוח מקבל את הפתיחה (focus-existing) בשלוש האפליקציות');
+ok(MI.shortcuts.length >= 3 && MI.shortcuts.every((x) => /^\.\/index\.html#tab=(stocks|wishlist|trades)$/.test(x.url)), 'Invest: קיצורי דרך מהאייקון ללשוניות (#tab=, כמו הווידג׳ט)');
+ok(MI.screenshots.some((x) => x.form_factor === 'wide') && MI.screenshots.some((x) => x.form_factor === 'narrow') && MI.screenshots.every((x) => fs.existsSync(path.join(__dirname, '..', x.src))), 'Invest: צילומי התקנה רחב וצר (מתיק הדמו)');
+ok(!('orientation' in MA) && !('orientation' in MS) && MA.dir === 'rtl' && MS.lang === 'he', 'Academy/Studio: בלי נעילת כיוון, עברית מימין');
+ok([MA, MS].every((m) => m.icons.some((i) => i.sizes === '512x512') && m.icons.every((i) => fs.existsSync(path.join(__dirname, '..', i.src)))), 'Academy/Studio: אייקונים 192 ו־512 קיימים');
+ok(MA.file_handlers[0].accept['application/epub+zip'].includes('.epub') && MS.file_handlers[0].accept['video/*'].includes('.mkv'), 'פתיחה באמצעות: ספרים ב־Academy, סרטונים ב־Studio');
+ok(/<link rel="manifest" href="manifest-academy\.webmanifest">/.test(R('academy.html')) && /<link rel="manifest" href="manifest-studio\.webmanifest">/.test(R('studio.html')), 'Academy/Studio: המניפסט מחובר לדף');
+ok(/launchQueue\.setConsumer\(take\)/.test(fn(lib, 'libLaunchFiles')) && /dropBooks\(fs\)/.test(fn(lib, 'libLaunchFiles')) && /launchQueue\.setConsumer\([\s\S]{0,300}dropMedia\(fs\)/.test(studio), 'פתיחה באמצעות: הקבצים נכנסים כמו בגרירה');
+ok(/launchQueue\.setConsumer\(\(p\) => \{[\s\S]{0,200}\(\?:tab\|stock\|chart\|watch\)=[\s\S]{0,80}location\.hash = hh/.test(app), 'Invest: קיצור דרך לחלון פתוח — דרך ה־hash');
+ok((app.match(/addEventListener\('pointerdown', \(e\) => \{ if \(e\.pointerType !== 'touch' && e\.button === 0\) arm\(/g) || []).length === 2 && !/addEventListener\('mousedown', \(e\) => \{ if \(e\.button === 0\) arm\(/.test(app), 'מחשב מגע: לחיצה ארוכה בכרטיס ובטאב מ־pointerdown (לא mousedown שמגיע רק בשחרור)');
 
 console.log('\n' + n + ' בדיקות עברו');
