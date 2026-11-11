@@ -7628,8 +7628,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.142.0';
-const APP_VERSION = 'v753';
+const APP_RELEASE = '2.142.2';
+const APP_VERSION = 'v755';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -10572,6 +10572,7 @@ function dialLabel(b, t) { if (!b) return; const u = b.querySelector('.tab-bub')
    3. מקלדת — לפי e.code (עובד גם בפריסה עברית): ⌘K / Ctrl+K לוח פקודות, ⌘, / Ctrl+, הגדרות, ⌥1–9 / Alt+1–9 עמודים,
       / חיפוש בעמוד, ? רשימת הקיצורים, חצים בסרגל. לוח הפקודות והרשימה — חלונות רגילים (modalPush/modalDone, Esc). */
 const DESK_MIN = 1024;                   // מכאן — מסגרת מחשב (iPad לרוחב ומעלה). מתחת: הטלפון כמו שהוא
+const DESK_MIN_SITE = 900;              // 11/11/2026: "אתר למחשב" בטלפון (Chrome: דף ברוחב 980 על מסך צר) — deskSiteMode
 const DESK_MIN_FINE = 900;               // 11/11/2026: עם עכבר — כבר מ־900 (חלון בחצי מסך של 1920, הגדלת תצוגה 200%), שם פריסת המגע לא נוחה
 const DESK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
 const DESK_IC = {
@@ -10679,9 +10680,14 @@ function deskCtxMouse(e) {
 }
 
 /* ---------- 2. מסגרת מחשב ---------- */
+function deskSiteMode(w, sw) { return w >= DESK_MIN_SITE && sw > 0 && sw < 600 && w > sw * 1.5; }   // "אתר למחשב" בטלפון
 function deskWide() {
   try {
     let fine = false; try { fine = matchMedia('(hover: hover) and (pointer: fine)').matches; } catch (e) {}
+    // 11/11/2026 (המשתמש, Chrome באנדרואיד → "אתר למחשב"): הדפדפן מצייר דף ברוחב 980 על מסך של ~410 — בחירה מפורשת בתצוגת מחשב.
+    // הסימן: הדף רחב בהרבה מהמסך (בטלפון רגיל הם שווים; במחשב — רק בהקטנה חזקה, ושם הוא ממילא רחב)
+    const sw = (window.screen && Math.min(window.screen.width || 0, window.screen.height || 0)) || 0;
+    if (deskSiteMode(window.innerWidth, sw)) return true;
     return window.innerWidth >= (fine ? DESK_MIN_FINE : DESK_MIN);
   } catch (e) { return false; }
 }

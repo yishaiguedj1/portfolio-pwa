@@ -64,10 +64,10 @@ html.dk :is(.lib-root, .st-root) { inset-inline-start: var(--dk-off); }
   -webkit-user-select: none; user-select: none;
 }
 html:not(.dk) .dk-side { display: none; }
-/* גל 3: סרגל מוסתר (⌘\, core: deskSideToggle) — התוכן מתרחב, וכפתור קטן בפינה התחתונה מחזיר אותו */
-html.dk.dk-hide { --dk-off: 0px; }
+/* גל 3: סרגל מוסתר (⌘\, core: deskSideToggle) — התוכן מתרחב, וכפתור קטן בפינה העליונה (ימין בעברית, בקשת המשתמש 11/11) מחזיר אותו */
+html.dk.dk-hide { --dk-off: calc(var(--dk-ib) + 28px); }   /* פס צר בצד ההתחלה — הכפתור שמחזיר את הסרגל לא עולה על ההדר (ב־900–1100 התוכן מגיע לקצה) */
 html.dk.dk-hide .dk-side, .dk-showbtn { display: none; }
-html.dk.dk-hide .dk-showbtn { display: grid; place-items: center; position: fixed; z-index: 899; inset-block-end: 16px; inset-inline-start: 16px; inline-size: var(--dk-ib); block-size: var(--dk-ib); }
+html.dk.dk-hide .dk-showbtn { display: grid; place-items: center; position: fixed; z-index: 950; inset-block-start: calc(16px + env(titlebar-area-height, 0px)); inset-inline-start: 16px; inline-size: var(--dk-ib); block-size: var(--dk-ib); }
 .dk-head .dk-hidebtn { margin-inline-start: auto; inline-size: 30px; block-size: 30px; flex: none; }
 :is(.dk-hidebtn, .dk-showbtn) .dk-svg, :is(.dk-hidebtn, .dk-showbtn) svg { inline-size: 18px; block-size: 18px; }
 .dk-head { display: flex; align-items: center; gap: 10px; padding: 0 6px 12px; }
@@ -143,6 +143,11 @@ html.dk .brand-logo { inline-size: var(--dk-logo); block-size: var(--dk-logo); }
 html.dk .appbar .icon-btn { font-size: calc(var(--ib) * .5); }
 /* 11/11/2026: שורת ההדר ברוחב התוכן — במסך רחב (1920 ומעלה) הכפתורים והבועות נצמדו לקצות המסך, רחוק מהתוכן */
 html.dk .appbar-row { max-width: calc(var(--dk-max) - 48px); margin-inline: auto; }
+/* 11/11/2026 (בקשת המשתמש — "החלק העליון של הסטודיו רחב כמו ב־Invest"): ב־Studio וב־Academy ההדר יושב בתוך עמודת הדף
+   (.st-page / .lib-home), ולכן השלג והרקע נעצרו בגבולותיה והשורה הייתה צרה ב־48px. כמו ב־Invest — ההדר ברוחב השכבה כולה
+   (מסך פחות הסרגל), והשורה ממורכזת ברוחב התוכן. מה שגולש לפס הגלילה — נחתך (overflow-x) */
+html.dk :is(.st-page, .lib-home) > .appbar { margin-inline: calc(50% - 50vw + var(--dk-off) / 2); }
+html.dk .lib-root { overflow-x: hidden; }
 
 /* ---------- 3. רוחב התוכן ---------- */
 html.dk main { max-width: var(--dk-max); padding-inline: 24px; }
@@ -151,6 +156,8 @@ html.dk .lib-home { max-width: var(--dk-max); padding-inline: 24px; }
 html.dk .st-page { max-width: var(--dk-max); padding-inline: 24px; box-sizing: border-box; }
 /* Studio: הבית, הניתוח, המגדל והנגן — רחבים; עבודה, הגדרות, טפסים ושאר הפרטים — עמודת קריאה */
 html.dk .st-page[data-v]:not(:is([data-v="home"], [data-v="ka"], [data-v="vi"], [data-v="tower"], [data-v="towerx"], [data-v="play"])) { max-width: calc(var(--dk-read) + 48px); }
+/* 11/11/2026: בעמודים הרחבים — הכרטיסים (שוליים של 16px מהטלפון) ברוחב שורת ההדר, כמו ב־Invest */
+html.dk .st-page:is([data-v="home"], [data-v="ka"], [data-v="vi"], [data-v="tower"], [data-v="towerx"]) { padding-inline: 8px; }
 html.dk .cf-root { max-width: var(--dk-max); padding-inline: 24px; }
 
 /* עמודות קריאה — הגדרות וטפסים לא נמתחים */
