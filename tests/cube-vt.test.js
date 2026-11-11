@@ -21,7 +21,7 @@ ok(/if \(cubeVTBar\(\) && !\(typeof window !== 'undefined' && window\.__cubeVT =
 {
   const mk = (mm, flag) => {
     const ctx = { window: { __cubeVT: flag }, document: { hidden: false }, matchMedia: (q) => ({ matches: !!mm[q] }) };
-    vm.runInNewContext('const cubeReduce = () => false;' + fn(app, 'cubeVTBar') + fn(app, 'cubeVTOk') + 'this.f = cubeVTOk;', ctx);
+    vm.runInNewContext('const cubeReduce = () => false; const cubeDesk = () => false;' + fn(app, 'cubeVTBar') + fn(app, 'cubeVTOk') + 'this.f = cubeVTOk;', ctx);
     return ctx.f({ classList: { contains: (c) => c === 'st-root' }, startViewTransition() {} });
   };
   const tab = { '(display-mode: browser)': true, '(pointer: coarse)': true };
@@ -45,7 +45,7 @@ ok(/root\._cubeVT \|\|/.test(fn(st, 'render')) && /root\._cubeVT \|\|/.test(lib)
 {
   const names = ['cubeFace', 'cubeFaceOff', 'cubeWarm', 'cubeWarmEnd', 'cubeSet', 'faceSet', 'cubeTransform', 'cubeVisible', 'cubeVTOk', 'cubeVTBar', 'cubeVTFace', 'cubeVTPre', 'cubeVTWire', 'cubeVTTouch', 'cubePre', 'scrollFlat'];
   const src = 'let _cubePre = null, _cubeVTOn = null, cubeNow = null; const _dial = { ride: null }; const CUBE_P = 2.4; const CUBE_RUB = 0.15; const CUBE_WARM_OP = "0.01"; const SCROLL_FLAT = ".st-jobs";'
-    + 'const cubeReduce = () => false; const cubeClone = () => { throw new Error("clone"); };'
+    + 'const cubeReduce = () => false; const cubeDesk = () => false; const cubeClone = () => { throw new Error("clone"); };'
     + names.map((n) => fn(app, n)).join('\n') + '; this.T = { cubePre, cubeFace, cubeSet, cubeWarm, get on() { return _cubeVTOn; } };';
   const anims = [];
   const mkEl = () => ({ animate(k, o) { const a = { k, o, paused: false, cancelled: false, pause() { this.paused = true; }, cancel() { this.cancelled = true; }, effect: { setKeyframes(x) { a.k = x; } } }; anims.push(a); return a; } });

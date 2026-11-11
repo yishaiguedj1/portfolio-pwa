@@ -389,7 +389,7 @@ function askConfirmP(msg, opts) {
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
 const APP_RELEASE = '2.140.0';
-const APP_VERSION = 'v749';
+const APP_VERSION = 'v750';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -465,6 +465,7 @@ function dialHost(hst) {
   dialStop();
   if (_dial.ride && _dial.ride.finish) _dial.ride.finish();
   _dial.host = hst; _dial.els = null; _dial.ek = ''; _dial.st = null; _dial.ride = null; _dial.drag = null;
+  if (typeof deskSoon === 'function') deskSoon();   // תצוגת מחשב: הפריטים בסרגל הצד = של המארח החדש
 }
 function dialKeys() { return (_dial.host && _dial.host.keys()) || []; }
 function dialIndex(name) { return _dial.host ? _dial.host.index(name) : 0; }
@@ -516,6 +517,7 @@ function dialRtl() { return String((document.documentElement && document.documen
 function dialPaint(st) {
   const els = dialEls();
   _dial.st = st;
+  if (_desk.side) deskSync();                 // תצוגת מחשב: ההדגשה בסרגל הצד
   if (!els.length) return;
   const fr = dialFrame(st, els.length, window.innerWidth, dialRtl());
   els.forEach((e, i) => {
@@ -745,6 +747,416 @@ function dialNavBuild(cls, aria, items, onTap) {
 }
 function dialLabel(b, t) { if (!b) return; const u = b.querySelector('.tab-bub'); if (!u.firstElementChild) u.textContent = t; b.querySelector('.tab-lbl').textContent = t; b.setAttribute('aria-label', t); }
 
+/* ---- תצוגת מחשב (11/11/2026, בקשת המשתמש — docs/desktop-plan.md, התקן: ת־מחשב ב־docs/standards.md) ----
+   שכבה אחת לכל האפליקציות (Invest מ־app.js, השאר מ־core.js), והטלפון לא משתנה. העיצוב כולו ב־desktop.css.
+   1. מצב קלט — html[data-input] = mouse | touch | pen, לפי הקלט האחרון (Pointer Events), ובמחשב עם מסך מגע מתחלף
+      ברגע שנוגעים: עכבר = פקדים קומפקטיים ו־hover; מגע ועט = יעדי מגע מלאים, בלי hover.
+   2. מסגרת מחשב — html.dk מרוחב DESK_MIN: סרגל צד מזכוכית במקום החוגה. אותם פריטים ואותו מנוע — הלחיצה עוברת לכפתור
+      של החוגה (המארח של dialHost), כך שכל התנהגות של האפליקציה נשמרת. בלי קובייה (cubeReduce) — מעבר מיידי.
+   3. מקלדת — לפי e.code (עובד גם בפריסה עברית): ⌘K / Ctrl+K לוח פקודות, ⌘, / Ctrl+, הגדרות, ⌥1–9 / Alt+1–9 עמודים,
+      / חיפוש בעמוד, ? רשימת הקיצורים, חצים בסרגל. לוח הפקודות והרשימה — חלונות רגילים (modalPush/modalDone, Esc). */
+const DESK_MIN = 1024;                   // מכאן — מסגרת מחשב (iPad לרוחב ומעלה). מתחת: הטלפון כמו שהוא
+const DESK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+const DESK_IC = {
+  find: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  keys: '<rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M8 14h8"/>',
+  moon: '<path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
+  lang: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a13.5 13.5 0 0 1 0 18M12 3a13.5 13.5 0 0 0 0 18"/>',
+  side: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16"/>',
+  go: '<path d="M9 6l6 6-6 6"/>',
+};
+/* האפליקציות בסרגל — אותן שלוש של התפריט (Cashflow עוד לא מודלקת: מופיעה רק כשנמצאים בה) */
+const DESK_APPS = [
+  { k: 'invest', name: 'Invest', icon: 'icon-192.png', sub: () => t('appInvestSub') },
+  { k: 'academy', name: 'Academy', icon: 'icon-academy-192.png', sub: () => t('menuLibrarySub') },
+  { k: 'studio', name: 'Studio', icon: 'icon-studio-192.png', sub: () => t('menuStudioSub') },
+  { k: 'cashflow', name: 'Cashflow', icon: 'icon-cashflow-192.png', sub: null, only: true },
+];
+const _desk = { on: false, side: null, nav: null, sig: '', cur: '', set: null, inSet: null, cmds: [], pal: null, help: null, wired: false, raf: 0 };
+
+/* טהורות (tests/desktop.test.js) */
+function deskApp() { try { return (document.documentElement.dataset.app || 'invest'); } catch (e) { return 'invest'; } }
+function deskIsMac() { try { return /Mac|iPhone|iPad|iPod/.test((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || ''); } catch (e) { return false; } }
+function deskModKey(e, mac) { return mac ? !!e.metaKey && !e.ctrlKey : !!e.ctrlKey && !e.metaKey; }   // ⌘ במק, Ctrl בשאר
+function deskKbd(k, mac) {               // התווית של קיצור: 'mod+K' → ⌘K / Ctrl+K · 'alt+1' → ⌥1 / Alt+1
+  return String(k).split('+').map((p) => (p === 'mod' ? (mac ? '⌘' : 'Ctrl+') : p === 'alt' ? (mac ? '⌥' : 'Alt+') : p === 'shift' ? (mac ? '⇧' : 'Shift+') : p)).join('');
+}
+function deskNorm(s) { return String(s || '').toLowerCase().replace(/[֑-ׇ]/g, '').replace(/[״"׳'`־\-_.]/g, '').replace(/[ךםןףץ]/g, (c) => DESK_FIN[c]).replace(/\s+/g, ' ').trim(); }
+const DESK_FIN = { 'ך': 'כ', 'ם': 'מ', 'ן': 'נ', 'ף': 'פ', 'ץ': 'צ' };
+/* תיקון פריסה שגויה: "ehv" שהוקלד במקלדת אנגלית במקום "יקר" (ולהפך) — לפי מיקום המקש. מחקר 03, סעיף 7.8 */
+const DESK_EN = "qwertyuiopasdfghjkl;zxcvbnm,.", DESK_HE = "/'קראטוןםפשדגכעיחלךףזסבהנמצתץ";
+function deskSwap(q) {
+  const s = String(q || '').toLowerCase();
+  const he = /[א-ת]/.test(s), from = he ? DESK_HE : DESK_EN, to = he ? DESK_EN : DESK_HE;
+  let out = '';
+  for (const c of s) { const i = from.indexOf(c); out += i >= 0 ? to[i] : c; }
+  return out;
+}
+/* ציון התאמה של פקודה לחיפוש: 0 = לא מתאים. התחלה של מילה > בתוך המילה > אותיות לפי הסדר */
+function deskScore(q, label, kw) {
+  const n = deskNorm(q);
+  if (!n) return 1;
+  const hay = deskNorm(label) + ' ' + deskNorm(kw || '');
+  const sc = deskMatch(n, hay);
+  if (sc >= 60) return sc;
+  const w = deskNorm(deskSwap(q));   // אולי הוקלד בפריסה הלא נכונה — ציון מעט נמוך יותר מהתאמה ישירה
+  return Math.max(sc, w && w !== n ? deskMatch(w, hay) - 1 : 0);
+}
+function deskMatch(n, hay) {
+  if (hay.startsWith(n)) return 100;
+  if ((' ' + hay).includes(' ' + n)) return 80;
+  if (hay.includes(n)) return 60;
+  let i = 0;
+  for (const ch of hay) { if (ch === n[i]) i++; if (i === n.length) return 20; }
+  return 0;
+}
+function deskFilter(q, items) {
+  return items.map((it, i) => ({ it, s: deskScore(q, it.label, it.kw), i })).filter((x) => x.s > 0)
+    .sort((a, b) => b.s - a.s || a.i - b.i).map((x) => x.it);
+}
+
+/* ---------- 1. מצב קלט ---------- */
+function deskInput(k) {
+  const de = document.documentElement;
+  if (de && de.dataset && de.dataset.input !== k) de.dataset.input = k; // dataset חסר בסביבת הבדיקות (vm)
+}
+function deskInputInit() {
+  let fine = false;
+  try { fine = matchMedia('(hover: hover) and (pointer: fine)').matches; } catch (e) {}
+  deskInput(fine ? 'mouse' : 'touch');
+  let moves = 0;
+  window.addEventListener('pointerdown', (e) => { moves = 0; deskInput(e.pointerType === 'mouse' ? 'mouse' : e.pointerType === 'pen' ? 'pen' : 'touch'); }, { capture: true, passive: true });
+  // תזוזת עכבר אמיתית (לא אירועי תאימות של מגע — אלה מסומנים touch) מחזירה למצב עכבר; שלוש תזוזות — לא רעד בודד
+  window.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' && document.documentElement.dataset.input !== 'mouse' && ++moves > 2) deskInput('mouse'); }, { capture: true, passive: true });
+}
+
+/* ---------- 2. מסגרת מחשב ---------- */
+function deskWide() { try { return window.innerWidth >= DESK_MIN; } catch (e) { return false; } }
+function deskMode() {
+  if (typeof document === 'undefined') return;
+  const on = deskWide();
+  if (on === _desk.on && (!on || _desk.side || deskApp() === 'admin')) return deskSync();
+  _desk.on = on;
+  document.documentElement.classList.toggle('dk', on);
+  if (on) { deskBuild(); deskSync(true); }
+  else if (_desk.side) { _desk.side.remove(); _desk.side = null; _desk.nav = null; _desk.sig = ''; }
+  try { if (typeof dialSync === 'function') dialSync(true); } catch (e) {}
+}
+/* ההגדרות של האפליקציה: open — פתיחה, isOn — האם פתוחות (להדגשה בסרגל). shell.js (Academy/Studio/Cashflow) ו־Invest רושמים */
+function deskOnSettings(open, isOn) { _desk.set = open || null; _desk.inSet = isOn || null; deskSync(true); }
+/* פקודות נוספות של האפליקציה ללוח הפקודות (Invest: המניות והמעקב) — fn(q) → [{label, sub, ico, kw, run}] */
+function deskAddCmds(fn) { if (typeof fn === 'function' && !_desk.cmds.includes(fn)) _desk.cmds.push(fn); }
+function deskAppUrl(k) {
+  const env = (typeof window !== 'undefined' && window.SNB_ENV && window.SNB_ENV.apps) || {};
+  return env[k] || { invest: './', academy: 'academy.html', studio: 'studio.html', cashflow: 'cashflow.html' }[k];
+}
+function deskEl(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+function deskRow(cls, ico, label, extra) {
+  const b = deskEl('button', 'dk-item' + (cls ? ' ' + cls : ''));
+  b.type = 'button';
+  const i = deskEl('span', 'dk-ico'); if (ico) i.append(ico);
+  const l = deskEl('span', 'dk-lbl'); l.textContent = label;
+  b.append(i, l);
+  if (extra) b.append(extra);
+  return b;
+}
+function deskSvg(paths) { const s = deskEl('span', 'dk-svg', DESK_SVG + paths + '</svg>'); return s; }
+/* הפריטים של העמוד — מהחוגה של המארח: המפתח, הכיתוב והסמל (העתק של ה־SVG) */
+function deskPages() {
+  const h = typeof _dial !== 'undefined' && _dial.host;
+  if (!h) return [];
+  const nav = h.nav && h.nav(), keys = (h.keys && h.keys()) || [];
+  if (!nav) return [];
+  return keys.map((k) => {
+    const b = nav.querySelector('.tab[data-tab="' + k + '"]');
+    if (!b) return null;
+    // האייקון: של הפריט הרגיל, ובפריט המרכזי של החוגה (שמצויר כבועה) — של הבועה, בקו דק כמו השאר
+    let ico = b.querySelector('.tab-ico'), lbl = b.querySelector('.tab-lbl');
+    if (!ico || !ico.firstElementChild) ico = b.querySelector('.tab-bub-ico');
+    const c = ico ? ico.cloneNode(true) : null;
+    if (c) { c.removeAttribute('style'); c.setAttribute('class', ico.classList.contains('tab-fill') ? 'tab-ico tab-fill' : 'tab-ico'); c.setAttribute('stroke-width', '1.9'); c.setAttribute('aria-hidden', 'true'); }   // style: החוגה מעמעמת את האייקון של הפריט הפעיל (opacity 0) — לא להעתיק
+    return { k, b, label: (lbl && lbl.textContent) || b.getAttribute('aria-label') || k, ico: c };
+  }).filter(Boolean);
+}
+function deskKbdEl(k) { const e = deskEl('kbd', 'dk-kbd'); e.textContent = deskKbd(k, deskIsMac()); return e; }
+function deskBuild() {
+  if (_desk.side || deskApp() === 'admin') return;   // מרכז הניהול — יש לו סרגל משלו (admin.css, מעוצב לפי אותו תקן)
+  const app = deskApp(), side = deskEl('aside', 'dk-side');
+  side.setAttribute('aria-label', t('dkSideAria'));
+  const me = DESK_APPS.find((a) => a.k === app) || DESK_APPS[0];
+  const head = deskEl('div', 'dk-head');
+  const logo = deskEl('img', 'dk-logo'); logo.src = me.icon; logo.alt = ''; logo.width = 32; logo.height = 32; logo.decoding = 'async';
+  const nm = deskEl('div', 'dk-name'); const b = deskEl('b'); b.textContent = me.name; const s = deskEl('small'); s.textContent = 'THE SNOWBALL';
+  nm.append(b, s); head.append(logo, nm);
+  const find = deskRow('dk-find', deskSvg(DESK_IC.find), t('dkFind'), deskKbdEl('mod+K'));
+  find.addEventListener('click', () => deskPalette());
+  const nav = deskEl('nav', 'dk-nav'); nav.setAttribute('aria-label', t('dkPagesAria'));
+  const apps = deskEl('div', 'dk-sec'); const at = deskEl('h2', 'dk-sec-t'); at.textContent = t('dkApps'); apps.append(at);
+  for (const a of DESK_APPS) {
+    if (a.k === app || (a.only && a.k !== app)) continue;
+    const ic = deskEl('img', 'dk-appic'); ic.src = a.icon; ic.alt = ''; ic.width = 22; ic.height = 22; ic.decoding = 'async'; ic.loading = 'lazy';
+    const r = deskRow('dk-app', ic, a.name);
+    r.dataset.app = a.k;
+    r.addEventListener('click', () => appGo(deskAppUrl(a.k)));
+    r.addEventListener('pointerenter', () => { try { appPrerender([deskAppUrl(a.k)]); } catch (e) {} }, { passive: true });   // מעבר מיידי (core: appPrerender)
+    apps.append(r);
+  }
+  const foot = deskEl('div', 'dk-foot');
+  const set = deskRow('dk-set', deskSvg(DESK_IC.gear), t('menuSettings'), deskKbdEl('mod+,'));
+  set.addEventListener('click', () => deskSettings());
+  foot.append(set);
+  side.append(head, find, nav, apps, foot);
+  side.addEventListener('keydown', deskSideKeys);
+  document.body.append(side);
+  _desk.side = side; _desk.nav = nav; _desk.sig = '';
+}
+function deskSettings() { if (_desk.set) { try { _desk.set(); } catch (e) {} } deskSoon(); }
+function deskGo(p) {
+  const h = _dial.host;
+  if (!h) return;
+  if (p.b && p.b.isConnected) p.b.click(); else if (h.instant) h.instant(p.k);
+  deskSoon();
+}
+/* הסנכרון — הפריטים (כשהמארח או המפתחות השתנו) וההדגשה של העמוד הנוכחי. זול: נקרא מ־dialPaint ואחרי כל לחיצה */
+function deskSync(force) {
+  if (!_desk.side) return;
+  const pages = deskPages(), sig = (_dial.host ? 'h' : '') + pages.map((p) => p.k + ':' + p.label).join('|');
+  if (force || sig !== _desk.sig) {
+    _desk.sig = sig;
+    _desk.nav.textContent = '';
+    pages.forEach((p, i) => {
+      const r = deskRow('dk-page', p.ico, p.label, i < 9 ? deskKbdEl('alt+' + (i + 1)) : null);
+      r.dataset.k = p.k;
+      r.addEventListener('click', () => deskGo(deskPages().find((x) => x.k === p.k) || p));
+      _desk.nav.append(r);
+    });
+    _desk.cur = '';
+  }
+  let inSet = false;
+  try { inSet = !!(_desk.inSet && _desk.inSet()); } catch (e) {}
+  let cur = '';
+  try { cur = inSet ? '' : String((_dial.host && _dial.host.cur()) || ''); } catch (e) {}
+  const key = (inSet ? '§' : '') + cur;
+  if (key === _desk.cur && !force) return;
+  _desk.cur = key;
+  _desk.nav.querySelectorAll('.dk-page').forEach((r) => { if (r.dataset.k === cur) r.setAttribute('aria-current', 'page'); else r.removeAttribute('aria-current'); });
+  const s = _desk.side.querySelector('.dk-set');
+  if (s) { if (inSet) s.setAttribute('aria-current', 'page'); else s.removeAttribute('aria-current'); }
+}
+function deskSoon() { if (_desk.raf || typeof requestAnimationFrame !== 'function') return; _desk.raf = requestAnimationFrame(() => { _desk.raf = 0; deskSync(); }); }
+/* חצים בסרגל: מעבר בין הפריטים (מלמעלה למטה), Home/End — הראשון/האחרון */
+function deskSideKeys(e) {
+  if (!/^(ArrowDown|ArrowUp|Home|End)$/.test(e.key)) return;
+  const all = [..._desk.side.querySelectorAll('.dk-item')];
+  const i = all.indexOf(document.activeElement);
+  if (i < 0) return;
+  e.preventDefault();
+  const n = e.key === 'Home' ? 0 : e.key === 'End' ? all.length - 1 : Math.max(0, Math.min(all.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)));
+  all[n].focus();
+}
+
+/* ---------- 3. מקלדת ---------- */
+function deskTyping(el) {
+  if (!el || el === document.body) return false;
+  const tg = el.tagName;
+  return tg === 'INPUT' || tg === 'TEXTAREA' || tg === 'SELECT' || !!el.isContentEditable;
+}
+function deskBusy() {   // קורא פתוח, נגן במסך מלא או חלון אחר — המקשים הפשוטים שלהם (חצים, רווח, /) לא שלנו
+  try { return !!document.querySelector('.rd, .dlg-veil, .st-player.full, .st-pl-menu') || (typeof _modals !== 'undefined' && _modals.length > 0 && !_desk.pal && !_desk.help); } catch (e) { return false; }
+}
+/* קיצורים של מקש אחד (/ ?, ובנגן K F) — אפשר לכבות (WCAG 2.1.4), ברמת המכשיר בלבד */
+const LS_DKKEYS = 'pwa_dkkeys_v1';
+function deskK1() { try { return localStorage.getItem(LS_DKKEYS) !== '0'; } catch (e) { return true; } }
+function deskK1Set(on) { try { if (on) localStorage.removeItem(LS_DKKEYS); else localStorage.setItem(LS_DKKEYS, '0'); } catch (e) {} }
+/* בחלון מותקן הדפדפן לא שומר לעצמו ⌘1–9 (מחקר 03, 1.2) — שם גם הם עוברים בין העמודים; בלשונית רגילה — רק ⌥/Alt */
+function deskStandalone() { try { return matchMedia('(display-mode: standalone), (display-mode: window-controls-overlay)').matches; } catch (e) { return false; } }
+function deskKey(e) {
+  if (e.defaultPrevented || e.isComposing) return;
+  const mac = deskIsMac(), mod = deskModKey(e, mac), c = e.code || '';   // לפי המקש הפיזי: במקלדת עברית e.key של K הוא "ל"
+  if (mod && !e.altKey && !e.shiftKey && c === 'KeyK') { e.preventDefault(); return _desk.pal ? deskPalClose() : deskPalette(); }
+  if (mod && !e.altKey && !e.shiftKey && c === 'Comma') { e.preventDefault(); if (_desk.pal) deskPalClose(); return deskSettings(); }
+  const pageMods = (e.altKey && !e.ctrlKey && !e.metaKey) || (mod && !e.altKey && deskStandalone());
+  if (pageMods && !e.shiftKey && /^Digit[1-9]$/.test(c)) {
+    const p = deskPages()[+c.slice(5) - 1];
+    if (p && !deskBusy()) { e.preventDefault(); if (_desk.pal) deskPalClose(); deskGo(p); }
+    return;
+  }
+  if (e.ctrlKey || e.metaKey || e.altKey || deskTyping(e.target) || deskBusy() || !deskK1()) return;
+  if (c === 'Slash' ? e.shiftKey : e.key === '?') { e.preventDefault(); return deskHelp(); }
+  if (c === 'Slash' && !e.shiftKey) {
+    const f = deskSearchField();
+    e.preventDefault();
+    if (f) { f.focus(); try { f.select(); } catch (err) {} } else deskPalette();
+  }
+}
+/* שדה החיפוש הגלוי של העמוד (חיפוש מניה, חיפוש בספרים…) */
+function deskSearchField() {
+  const all = document.querySelectorAll('input[type="search"], .search-field input, .lib-search input');
+  for (const f of all) { const r = f.getBoundingClientRect(); if (r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight && !f.closest('[hidden], .cube-ghost')) return f; }
+  return null;
+}
+
+/* לוח הפקודות (⌘K): חלון זכוכית בראש המסך — חיפוש, חצים, Enter; עכבר מסמן ולחיצה מפעילה */
+function deskCmdList() {
+  const out = [], mac = deskIsMac(), app = deskApp();
+  deskPages().forEach((p, i) => out.push({ label: p.label, sub: t('dkCmdPage'), ico: p.ico ? p.ico.cloneNode(true) : null, kbd: i < 9 ? deskKbd('alt+' + (i + 1), mac) : '', run: () => deskGo(p) }));
+  if (_desk.set) out.push({ label: t('menuSettings'), sub: t('dkCmdPage'), ico: deskSvg(DESK_IC.gear), kbd: deskKbd('mod+,', mac), kw: 'settings preferences הגדרות', run: deskSettings });
+  for (const a of DESK_APPS) {
+    if (a.k === app || (a.only && a.k !== app)) continue;
+    const ic = deskEl('img', 'dk-appic'); ic.src = a.icon; ic.alt = '';
+    out.push({ label: a.name, sub: t('dkCmdApp'), ico: ic, kw: a.sub ? a.sub() : '', run: () => appGo(deskAppUrl(a.k)) });
+  }
+  const dark = typeof resolveTheme === 'function' && resolveTheme() === 'dark';
+  out.push({ label: dark ? t('dkCmdLight') : t('dkCmdDark'), sub: t('dkCmdAct'), ico: deskSvg(dark ? DESK_IC.sun : DESK_IC.moon), kw: 'theme dark light ערכה כהה בהיר', run: () => setThemeMode(dark ? 'light' : 'dark') });
+  const he = getLang() === 'he';
+  out.push({ label: t('dkCmdLang'), sub: t('dkCmdAct'), ico: deskSvg(DESK_IC.lang), kw: 'language שפה english hebrew עברית', run: () => { try { localStorage.setItem(LS_LANG, he ? 'en' : 'he'); } catch (e) {} location.reload(); } });
+  out.push({ label: t('dkKeysTitle'), sub: t('dkCmdAct'), ico: deskSvg(DESK_IC.keys), kbd: '?', kw: 'shortcuts keyboard מקלדת קיצורים', run: deskHelp });
+  return out;
+}
+function deskPalette() {
+  if (typeof document === 'undefined') return;
+  if (_desk.pal) { _desk.pal.input.focus(); _desk.pal.input.select(); return; }
+  if (_desk.help) deskHelpClose();
+  const veil = deskEl('div', 'dk-veil'), box = deskEl('div', 'dk-pal');
+  box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-label', t('dkFind'));
+  const bar = deskEl('div', 'dk-pal-bar');
+  const inp = deskEl('input', 'dk-pal-in');
+  inp.type = 'text'; inp.placeholder = t('dkPalPh'); inp.setAttribute('role', 'combobox'); inp.setAttribute('aria-expanded', 'true');
+  inp.setAttribute('aria-controls', 'dkPalList'); inp.setAttribute('aria-autocomplete', 'list'); inp.autocomplete = 'off'; inp.spellcheck = false;
+  bar.append(deskSvg(DESK_IC.find), inp, (() => { const k = deskEl('kbd', 'dk-kbd'); k.textContent = 'Esc'; return k; })());
+  const list = deskEl('div', 'dk-pal-list'); list.id = 'dkPalList'; list.setAttribute('role', 'listbox');
+  const empty = deskEl('p', 'dk-pal-empty'); empty.textContent = t('dkPalNone'); empty.hidden = true;
+  box.append(bar, list, empty); veil.append(box);
+  const base = deskCmdList();
+  const P = { veil, box, input: inp, list, rows: [], sel: 0, items: [], modal: null, prev: document.activeElement };
+  const paint = () => {
+    const q = inp.value;
+    let extra = [];
+    for (const fn of _desk.cmds) { try { extra = extra.concat(fn(q) || []); } catch (e) {} }
+    P.items = deskFilter(q, base.concat(extra)).slice(0, 40);
+    list.textContent = ''; P.rows = [];
+    P.items.forEach((it, i) => {
+      const r = deskEl('div', 'dk-pal-row'); r.id = 'dkPal' + i; r.setAttribute('role', 'option');
+      const ic = deskEl('span', 'dk-ico'); if (it.ico) ic.append(it.ico.cloneNode ? it.ico.cloneNode(true) : it.ico);
+      const tx = deskEl('span', 'dk-pal-tx'); const l = deskEl('b'); l.textContent = it.label; tx.append(l);
+      if (it.sub) { const s = deskEl('small'); s.textContent = it.sub; tx.append(s); }
+      r.append(ic, tx);
+      if (it.kbd) { const k = deskEl('kbd', 'dk-kbd'); k.textContent = it.kbd; r.append(k); }
+      r.addEventListener('pointermove', () => { if (P.sel !== i) pick(i, false); });
+      r.addEventListener('click', () => run(i));
+      list.append(r); P.rows.push(r);
+    });
+    empty.hidden = P.items.length > 0;
+    pick(0, true);
+  };
+  const pick = (i, scroll) => {
+    if (!P.rows.length) { inp.removeAttribute('aria-activedescendant'); return; }
+    P.sel = (i + P.rows.length) % P.rows.length;
+    P.rows.forEach((r, j) => r.setAttribute('aria-selected', j === P.sel ? 'true' : 'false'));
+    inp.setAttribute('aria-activedescendant', P.rows[P.sel].id);
+    if (scroll) P.rows[P.sel].scrollIntoView({ block: 'nearest' });
+  };
+  const run = (i) => { const it = P.items[i]; deskPalClose(); if (it) setTimeout(() => { try { it.run(); } catch (e) {} }, 0); };
+  inp.addEventListener('input', paint);
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); pick(P.sel + (e.key === 'ArrowDown' ? 1 : -1), true); }
+    else if (e.key === 'Enter') { e.preventDefault(); run(P.sel); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (inp.value) { inp.value = ''; paint(); } else deskPalClose(); }   // קודם מנקה, אחר כך סוגר
+    else if (e.key === 'Tab') e.preventDefault();   // החלון מחזיק את הפוקוס
+  });
+  veil.addEventListener('pointerdown', (e) => { if (e.target === veil) deskPalClose(); });
+  document.body.append(veil);
+  _desk.pal = P;
+  P.modal = modalPush(() => deskPalClose(true));
+  paint();
+  requestAnimationFrame(() => { veil.classList.add('on'); inp.focus(); });
+}
+function deskPalClose(fromBack) {
+  const P = _desk.pal;
+  if (!P) return;
+  _desk.pal = null;
+  if (!fromBack) modalDone(P.modal);
+  P.veil.classList.remove('on'); P.veil.classList.add('off');
+  setTimeout(() => P.veil.remove(), 180);
+  try { if (P.prev && P.prev.isConnected && P.prev.focus) P.prev.focus({ preventScroll: true }); } catch (e) {}
+}
+/* רשימת הקיצורים (?) — לפי האפליקציה; התוויות לפי המערכת (⌘ במק, Ctrl בשאר) */
+function deskHelp() {
+  if (typeof document === 'undefined' || _desk.help) return;
+  if (_desk.pal) deskPalClose();
+  const mac = deskIsMac(), veil = deskEl('div', 'dk-veil'), box = deskEl('div', 'dk-help');
+  box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-labelledby', 'dkHelpT'); box.tabIndex = -1;
+  const h = deskEl('h2', 'dk-help-t'); h.id = 'dkHelpT'; h.textContent = t('dkKeysTitle');
+  const x = deskEl('button', 'dk-help-x', DESK_SVG + '<path d="M6 6l12 12M18 6 6 18"/></svg>'); x.type = 'button'; x.setAttribute('aria-label', t('menuCloseAria'));
+  x.addEventListener('click', () => deskHelpClose());
+  const groups = [
+    [t('dkKeysGen'), [['mod+K', t('dkFind')], ['mod+,', t('menuSettings')], ['/', t('dkKeySearch')], ['?', t('dkKeysTitle')], ['Esc', t('dkKeyBack')]]],
+    [t('dkKeysNav'), [[(deskStandalone() ? 'mod' : 'alt') + '+1–9', t('dkKeyPages')], ['↑ ↓', t('dkKeyArrows')], ['Tab', t('dkKeyTab')], ['Enter', t('dkKeyOpen')]]],
+  ];
+  const extra = DESK_HELP[deskApp()];
+  if (extra) groups.push([t('dkKeysApp'), extra.map(([k, s]) => [k, s()])]);
+  const body = deskEl('div', 'dk-help-g');
+  for (const [title, rows] of groups) {
+    const sec = deskEl('section', 'dk-help-s'); const st = deskEl('h3'); st.textContent = title; sec.append(st);
+    for (const [k, l] of rows) {
+      const r = deskEl('div', 'dk-help-r'); const lb = deskEl('span'); lb.textContent = l;
+      const kb = deskEl('kbd', 'dk-kbd'); kb.textContent = deskKbd(k, mac);
+      r.append(lb, kb); sec.append(r);
+    }
+    body.append(sec);
+  }
+  const head = deskEl('div', 'dk-help-h'); head.append(h, x);
+  // מתג: קיצורים של מקש אחד (/ ? ובנגן K F) — WCAG 2.1.4
+  const swRow = deskEl('label', 'dk-help-sw'); const swT = deskEl('span'); swT.textContent = t('dkKeys1');
+  const sw = deskEl('button', 'dk-sw'); sw.type = 'button'; sw.setAttribute('role', 'switch'); sw.setAttribute('aria-checked', deskK1() ? 'true' : 'false');
+  sw.addEventListener('click', () => { const on = sw.getAttribute('aria-checked') !== 'true'; deskK1Set(on); sw.setAttribute('aria-checked', on ? 'true' : 'false'); });
+  swRow.append(swT, sw);
+  box.append(head, body, swRow); veil.append(box);
+  veil.addEventListener('pointerdown', (e) => { if (e.target === veil) deskHelpClose(); });
+  box.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); deskHelpClose(); } });
+  document.body.append(veil);
+  _desk.help = { veil, modal: modalPush(() => deskHelpClose(true)), prev: document.activeElement };
+  requestAnimationFrame(() => { veil.classList.add('on'); box.focus(); });
+}
+function deskHelpClose(fromBack) {
+  const H = _desk.help;
+  if (!H) return;
+  _desk.help = null;
+  if (!fromBack) modalDone(H.modal);
+  H.veil.classList.remove('on'); H.veil.classList.add('off');
+  setTimeout(() => H.veil.remove(), 180);
+  try { if (H.prev && H.prev.isConnected && H.prev.focus) H.prev.focus({ preventScroll: true }); } catch (e) {}
+}
+/* הקיצורים של כל אפליקציה שכבר קיימים בה (מתועדים כאן כדי שיופיעו ב־?) */
+const DESK_HELP = {
+  // המפתחות מילוליים בתוך פונקציה (i18n-coverage אוסר t() דינמי)
+  academy: [['← →', () => t('dkKeyPageTurn')], ['Space', () => t('dkKeyPageNext')], ['shift+Space', () => t('dkKeyPagePrev')]],
+  studio: [['Space', () => t('dkKeyPlay')], ['← →', () => t('dkKeySeek')], ['F', () => t('dkKeyFull')]],
+};
+
+function deskInit() {
+  if (typeof window === 'undefined' || typeof document === 'undefined' || _desk.wired || !document.documentElement) return;
+  // חלון/מסמך מדומים בבדיקות (vm) — בלי מאזינים
+  if (typeof window.addEventListener !== 'function' || typeof document.addEventListener !== 'function') return;
+  _desk.wired = true;
+  try { deskInputInit(); } catch (e) {}
+  document.addEventListener('keydown', deskKey);
+  let rt = 0;
+  window.addEventListener('resize', () => { cancelAnimationFrame(rt); rt = requestAnimationFrame(deskMode); }, { passive: true });
+  // אחרי כל לחיצה / "חזור" — ההדגשה בסרגל מתעדכנת (המעברים של האפליקציות לא עוברים תמיד דרך החוגה)
+  document.addEventListener('click', deskSoon, true);
+  window.addEventListener('popstate', () => setTimeout(deskSoon, 0));
+  const go = () => deskMode();
+  if (document.body) go(); else document.addEventListener('DOMContentLoaded', go, { once: true });
+}
+if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.documentElement) {
+  // לפני הציור הראשון: מסגרת המחשב (בלי קפיצה מהחוגה לסרגל) ומצב הקלט
+  try { if (deskWide()) document.documentElement.classList.add('dk'); } catch (e) {}
+  try { deskInit(); } catch (e) {}
+}
+
 let _navSkipPop = 0;
 
 const _modals = [];
@@ -820,6 +1232,9 @@ function pageSwipeDecide(d, w, v) {
 const CUBE_P = 1.8, CUBE_W = 17, CUBE_RUB = 0.07;
 let cubeNow = null;                      // המעבר שרץ עכשיו (נגיעה חדשה / מעבר חדש — מסיימים אותו מיד)
 function cubeReduce() { try { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
+/* תצוגת מחשב (html.dk, 11/11/2026): בלי קובייה בין עמודים — מעבר מיידי ורך, והחלקת עמודים כבויה (סרגל הצד במקום החוגה).
+   האנימציות הקטנות (growIn, כניסת תמונה) — לפי cubeReduce בלבד */
+function cubeDesk() { try { return typeof document !== 'undefined' && !!document.documentElement && document.documentElement.classList.contains('dk'); } catch (e) { return false; } }
 function cubeSideFwd(fwd) {              // +1 = העמוד החדש נכנס מימין (קדימה ב־LTR, אחורה ב־RTL)
   const rtl = typeof document !== 'undefined' && String((document.documentElement && document.documentElement.dir) || 'ltr') === 'rtl';
   return (!!fwd !== rtl) ? 1 : -1;
@@ -1214,7 +1629,7 @@ function cubeVTOk(root) {
   if (!root || !root.classList || !(root.classList.contains('st-root') || root.classList.contains('lib-root')) || typeof root.startViewTransition !== 'function') return false;
   if (typeof window !== 'undefined' && window.__cubeVT === false) return false;
   if (cubeVTBar() && !(typeof window !== 'undefined' && window.__cubeVT === true)) return false;
-  return !cubeReduce() && !(typeof document !== 'undefined' && document.hidden);
+  return !cubeReduce() && !cubeDesk() && !(typeof document !== 'undefined' && document.hidden);
 }
 /* 11/11/2026 (שתי הקלטות של המשתמש, Studio ו־Academy: "קפיצה של כל העמוד" בכל מעבר בין עמודים ולשוניות — רק בדפדפן,
    לא באפליקציה, ולא ב־Invest). בדפדפן בטלפון, כשסרגל הכתובת גלוי, Chrome מצייר את הפסאודו־אלמנטים של המעבר הממוקד
@@ -1433,7 +1848,7 @@ function snbSwipe(o) {
   const start = (e, real) => {          // real — האלמנט שמתחת לאצבע כשהנגיעה הגיעה ל־body (מעבר ממוקד, cubeVTTouch)
     if (g) cancel();
     if (cubeNow && cubeNow.finish) cubeNow.finish();
-    if (e.touches.length !== 1 || !root.isConnected || (o.ok && !o.ok())) return;
+    if (e.touches.length !== 1 || !root.isConnected || (o.ok && !o.ok()) || cubeDesk()) return;
     const t = e.touches[0], w = root.clientWidth || window.innerWidth || 400;
     if (t.clientX < PAGE_SWIPE_EDGE || t.clientX > w - PAGE_SWIPE_EDGE) return;
     const tg = real || e.target;

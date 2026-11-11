@@ -1366,11 +1366,12 @@ async function idTok() {
   } catch (e) { return ''; }
 }
 const proxyBase = () => (typeof IBKR_PROXY_DEFAULT !== 'undefined' && IBKR_PROXY_DEFAULT) || '';
+const netUp = () => typeof navigator === 'undefined' || navigator.onLine !== false;
 const net = createNet({
   base: proxyBase,
   headers: () => (typeof ibkrProxyHeaders === 'function' ? ibkrProxyHeaders() : {}),
   idToken: idTok,
-  online: () => typeof navigator === 'undefined' || navigator.onLine !== false,
+  online: netUp,
 });
 /* חיבור Google Drive — אותו מנגנון של גיבוי הספרייה (libbackup.js), אבל לקוח OAuth נפרד בשרתון (v357); החלון נפתח בתוך הלחיצה */
 let gdc = null;
@@ -1408,7 +1409,9 @@ let statusAt = 0;
 async function refreshStatus(force) {
   if (!force && Date.now() - statusAt < 20000) return;
   statusAt = Date.now();
-  const j = await net.api('status');
+  let j = await net.api('status');
+  // 11/11/2026: תקלת רשת של רגע (מעבר בין Wi‑Fi לסלולר, השרת מתחלף) — עוד ניסיון אחד לפני הפס
+  if (!j.ok && j.error === 'net' && netUp()) { await sleep(2500); j = await net.api('status'); }
   if (j.ok) {
     ui.access = 'ok'; ui.kinds = Array.isArray(j.kinds) ? j.kinds : [];
     store.conn = j.conn ? { hint: String(j.conn.hint || ''), ok: num(j.conn.ok), since: num(j.conn.since) } : null;
@@ -2524,7 +2527,7 @@ const STUDIO_DIAL = {
   nav: () => dialNav, keys: stDialKeys, index: (k) => Math.max(0, stDialKeys().indexOf(k)),
   cur: () => (stDialC ? stDialC.from : stKeyOf(ui.view, ui.param)),
   begin(cur, to, side) {          // כמו ההחלקה (snbSwipe): העתק של השכבה יוצא, האח נצבע בשכבה עצמה
-    if (!root || cubeReduce() || document.hidden) return null;
+    if (!root || cubeReduce() || (typeof cubeDesk === 'function' && cubeDesk()) || document.hidden) return null;
     const bd = !to && typeof cubeBackdropReal === 'function' ? cubeBackdropReal(root) : cubeBackdrop(root);   // הקפיץ — השכבה עצמה זזה
     if (!to) { stDialC = { side, p: 0, rub: true, out: cubeFace(root, { dead: true }), bd, from: cur }; return stDialC; }
     const pg = stSibPage(to);
@@ -2981,7 +2984,7 @@ function accessBanner() {
   }
   if (ui.access === 'signin') return banner('warn', T('studioErrSignin'));
   if (ui.access === 'denied') return banner('warn', T('studioErrDenied'));
-  if (ui.access === 'offline') return banner('info', T('studioOffline'));
+  if (ui.access === 'offline') return banner('info', netUp() ? T('studioApiDown') : T('studioOffline'));   // 11/11/2026: יש רשת — השרת הוא שלא ענה
   if (ui.access === 'quota') return banner('info', T('studioErrQuota', { t: quotaReset() }));   // 28/10/2026: מכסת Firestore — לא "השרתון לא ענה"
   if (ui.access === 'error') return banner('info', T('studioErrServer'));
   return null;
@@ -10474,7 +10477,8 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   if (!root) return;
   /* 29/10/2026 (סבב קפיצות 4): ההעתק נצבע שני פריימים לפני הציור החדש (core: cubePre) — אחרת בטלפון פריים ריק בתחילת
      כל מעבר. בזמן ההמתנה ציור במקום (רענון חי) מחכה: הציור של המעבר יבוא מיד */
-  const anim0 = (kind === 'push' || kind === 'dfwd' || kind === 'pop' || kind === 'dback') && !still && !reduceMotion() && !document.hidden;
+  const cubeOn = !(typeof cubeDesk === 'function' && cubeDesk());   // תצוגת מחשב: בלי קובייה — הכניסה הרכה (in-push / in-pop)
+  const anim0 = (kind === 'push' || kind === 'dfwd' || kind === 'pop' || kind === 'dback') && !still && !reduceMotion() && !document.hidden && cubeOn;
   if (!pre && anim0 && typeof cubePre === 'function' && root.firstChild) { cubePre(root, (g) => { if (root) render(kind, still, g); else g.remove(); }); return; }
   if (!pre && kind === 'none' && typeof cubePreBusy === 'function' && cubePreBusy()) return;
   const seq = ++renderSeq;
@@ -10484,6 +10488,7 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   const fk = ae && root.contains(ae) && ae.dataset ? ae.dataset.k : null;   // הפוקוס חוזר לאותו רכיב אחרי ציור מחדש
   if (ui.view === 'home' || ui.view === 'ka' || ui.view === 'vi') form = null;   // יציאה מהטופס בלי שמירה — הטיוטה לא נשמרת
   const p = h('div', 'st-page');
+  p.dataset.v = ui.view;   // תצוגת מחשב (11/11/2026): הרוחב לפי סוג הדף — לוחות רחבים, טפסים ופרטים בעמודת קריאה (desktop.css)
   /* 03/11/2026 (סבב קפיצות 10): ציור במקום — בכל הדפים, לא רק בבית. ראו pageKeep */
   const oldPg = kind === 'none' ? root.querySelector(':scope > .st-page') : null;
   const homeV = ui.view === 'home' || ui.view === 'ka' || ui.view === 'vi';
@@ -10553,7 +10558,7 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   const anim = (fwd || kind === 'pop' || kind === 'dback') && !still && !reduceMotion() && !document.hidden;
   // 29/10/2026: החוגה זזה יחד עם הקובייה (אותו קפיץ). באמצע החלקה / נסיעה של החוגה (sib, העתק על המסך) — המנוע מזיז אותה
   if (kind !== 'sib' && kind !== 'sibpop' && !(kind === 'none' && (root._cubeVT || (root.nextElementSibling && root.nextElementSibling.classList.contains('cube-ghost'))))) stDialSync(!anim);
-  const ghost = pre || (anim && typeof cubeClone === 'function' && root.firstChild ? cubeClone(root) : null);
+  const ghost = pre || (anim && cubeOn && typeof cubeClone === 'function' && root.firstChild ? cubeClone(root) : null);
   if (anim && !ghost) p.classList.add(fwd ? 'in-push' : 'in-pop');
   // 29/10/2026 (בטלפון: תפריט ההמבורגר ב־Studio שקוף, התוכן חד מאחוריו — שונה מ־Academy): שכבת הטשטוש של התפריט (shell.js)
   // יושבת בתוך השכבה; ציור דף מחדש (רענון הרשימה) מחק אותה. נשארת כל עוד התפריט פתוח
@@ -10656,6 +10661,7 @@ function schedulePoll() {
   else if (ui.view === 'home' || ui.view === 'vi') ms = store.jobs.some((r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running' || r.srv.bg)) ? 30000 : recMs(store.jobs);   // 26/10/2026: 30 שנ׳ (op:'jobs' = כל העבודות שלך — קריאה מ־Firestore לכל אחת)
   else if (ui.view === 'rr') { ms = rrRunning(rrJobs.get(ui.param)) || rrRunning(rrPv.get(ui.param)) ? 4000 : 0; }   // מ2; סבב 10: גם הבדיקה
   else if (ui.view === 'server' && ui.api && ui.api.admin) ms = 15000;   // מסך השרת: הדופק מתעדכן כל 15 שנ׳
+  if (ui.access === 'offline') ms = Math.min(ms || 30000, 30000);   // 11/11/2026: הפס "השרת לא עונה" — בודקים שוב עד שהוא חוזר (לא רק במעבר דף)
   if (ms) pollT = setTimeout(pollNow, ms);
 }
 let polling = false;
@@ -10663,6 +10669,7 @@ async function pollNow() {
   if (polling || !root) return;
   polling = true;
   try {
+    if (ui.access === 'offline') await refreshStatus(true);
     if (ui.view === 'job' && JOB_RE.test(String(ui.param || ''))) {
       const id = ui.param, j = await net.api('job', { job: id });
       const r = jobRec(id);
@@ -10729,7 +10736,7 @@ export function studioShare(text, ref, pr, to) {
 export function openStudio(opt) {
   ensureCss();
   if (!root) SA = opt && opt.standalone ? opt.standalone : null;
-  if (SA) { SA.settings = () => go('settings'); SA.tower = () => go('tower'); }
+  if (SA) { SA.settings = () => go('settings'); SA.tower = () => go('tower'); SA.inSettings = () => !!root && chainFor(ui.view, ui.param).some((x) => x.v === 'settings'); }
   const jobLink = opt && /^j[A-Za-z0-9_-]{20}$/.test(String(opt.job || '')) ? opt.job : '';   // שלב 4: מההתראה
   const linkView = opt && (opt.view === 'play' || opt.view === 'subs') ? opt.view : '';          // פעולה בהתראה: צפייה / עריכה
   if (jobLink && Number.isFinite(+opt.t) && +opt.t > 0) viLinkT = { id: jobLink, t: Math.min(86400, Math.floor(+opt.t)) };   // PR 1.5ב (V125): ‎#studio=<עבודה>&t=<שניות> — דף הניתוח מנגן משם

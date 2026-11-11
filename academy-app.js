@@ -52,6 +52,7 @@ sa.shell = createShell({
       title: t('shellBackup'), sub: 'Google Drive', on: () => sa.backup && sa.backup() },
   ],
   onSettings: () => sa.settings && sa.settings(),
+  inSettings: () => !!(sa.inSettings && sa.inSettings()),   // תצוגת מחשב: ההדגשה של "הגדרות" בסרגל הצד
   /* ליד הגלובוס — הוספת ספר (בקשת המשתמש 13/10/2026); כשהתפריט פתוח — בהיר/כהה, כמו ₪ ב־Invest */
   action: { label: t('cvAddT'), on: () => sa.addBook && sa.addBook(),
     icon: _IC_PRE + '<path d="M12 5v14M5 12h14"/></svg>' },

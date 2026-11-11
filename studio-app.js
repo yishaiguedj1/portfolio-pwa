@@ -70,6 +70,7 @@ sa.shell = createShell({
       title: t('studioTwT'), sub: t('shellTowerSub'), on: () => sa.tower && sa.tower() },
   ],
   onSettings: () => sa.settings && sa.settings(),
+  inSettings: () => !!(sa.inSettings && sa.inSettings()),   // תצוגת מחשב: ההדגשה של "הגדרות" בסרגל הצד
   /* ליד הגלובוס — מגדל הפיקוח; כשהתפריט פתוח — בהיר/כהה, כמו ב־Academy */
   action: { label: t('studioTwT'), on: () => sa.tower && sa.tower(), icon: TOWER_IC('var(--primary)') },
 });
