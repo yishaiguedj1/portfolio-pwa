@@ -388,8 +388,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.142.0';
-const APP_VERSION = 'v753';
+const APP_RELEASE = '2.142.1';
+const APP_VERSION = 'v754';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -1825,15 +1825,16 @@ let _cubeVTOn = null;
 function cubeVTOk(root) {
   if (!root || !root.classList || !(root.classList.contains('st-root') || root.classList.contains('lib-root')) || typeof root.startViewTransition !== 'function') return false;
   if (typeof window !== 'undefined' && window.__cubeVT === false) return false;
-  if (cubeVTBar() && !(typeof window !== 'undefined' && window.__cubeVT === true)) return false;
   return !cubeReduce() && !cubeDesk() && !(typeof document !== 'undefined' && document.hidden);
 }
-/* 11/11/2026 (שתי הקלטות של המשתמש, Studio ו־Academy: "קפיצה של כל העמוד" בכל מעבר בין עמודים ולשוניות — רק בדפדפן,
-   לא באפליקציה, ולא ב־Invest). בדפדפן בטלפון, כשסרגל הכתובת גלוי, Chrome מצייר את הפסאודו־אלמנטים של המעבר הממוקד
-   (‎::view-transition) מוזזים למטה בערך בגובה הסרגל. בנחיתה הפאה במקומה (בלי סיבוב) עד שהמעבר יורד, ולכן כל הדף
-   ירד ~60px לכמה פריימים (עד 300ms, רצועה ריקה למעלה) וקפץ חזרה. כך גם בפריים שלפני הסיבוב. נמדד פריים־פריים בהקלטה.
-   באפליקציה (standalone) אין סרגל נשלף. Invest מסובב אלמנטים (tabCubeGo) ולא משתמש במעבר הממוקד. לכן בדפדפן עם מגע —
-   ההעתק (cubeClone), אותו מנוע אלמנטים כמו ב־Invest. window.__cubeVT = true — המעבר הממוקד גם כאן (לגלאים) */
+/* 11/11/2026 (שתי הקלטות של המשתמש, Studio ו־Academy: "קפיצה של כל העמוד" בכל מעבר — רק בדפדפן, לא באפליקציה).
+   בדפדפן בטלפון, כשסרגל הכתובת גלוי, כל הדף ירד ~60px (גובה הסרגל) בנחיתה ובפריים שלפני הסיבוב, וקפץ חזרה.
+   2.138.2 העביר את הדפדפן להעתק (cubeClone) — והחזיר את כל הפגמים של ההעתק: שכבה חדשה שנחשפת לפני שנצבעה (דף ריק
+   2–3 פריימים בחוגה ובחזרה, הלוגו ריק לפני הסיבוב; הקלטה שלישית, 11/11 12:40). 2.142.1: חזרה למעבר הממוקד גם בדפדפן,
+   והשורש עצמו: באג ידוע של Chrome (crbug 387030974) — ה־transform שהדפדפן מחשב ל־‎::view-transition-group כולל את
+   ההפרש של סרגל הכתובת (ה־"snapshot containing block" מתחיל מתחת לסרגל). אצלנו הקבוצה היא השכבה עצמה, והערך הנכון
+   הוא תמיד מטריצת יחידה (נמדד ב־Chromium: גם בשכבה גלולה וגם כשהיא לא בראש המסך). לכן בדפדפן עם מגע — ‎.cube-vt-pin
+   (styles.css) מקבע transform: none לקבוצה. באפליקציה ובמחשב — ללא שינוי */
 function cubeVTBar() {
   try { return typeof matchMedia === 'function' && matchMedia('(display-mode: browser)').matches && matchMedia('(pointer: coarse)').matches; } catch (e) { return false; }
 }
@@ -1855,7 +1856,7 @@ function cubeVTPre(root, go) {
     done = true; g.dead = true; g.faced();
     for (const f of g.faces) { f.off = true; if (f.hold) { try { f.hold.cancel(); } catch (e) {} f.hold = null; } }
     unflat();
-    root.classList.remove('cube-vt');
+    root.classList.remove('cube-vt', 'cube-vt-pin');
     if (root._cubeVT === g) root._cubeVT = null;
     if (_cubeVTOn === g) _cubeVTOn = null;
     const w = g.wait; g.wait = [];
@@ -1883,6 +1884,7 @@ function cubeVTPre(root, go) {
   } catch (e) { clean(); return null; }
   root._cubeVT = g; _cubeVTOn = g; _cubePre = p;
   root.classList.add('cube-vt');
+  if (cubeVTBar()) root.classList.add('cube-vt-pin');   // 2.142.1: בדפדפן — הקבוצה במקומה, בלי ההפרש של סרגל הכתובת
   cubeVTWire();
   g.vt.ready.then(() => {
     if (g.dead) return;

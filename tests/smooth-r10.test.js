@@ -53,7 +53,7 @@ ok(/רענון שקט במגדל/.test(qa) && /הבועה בהדר נבנתה מ
 const app = R('app.js'), core = R('core.js'), css = R('studio.css');
 ok(/function scrollFlat\(root, from\)/.test(app) && /function scrollFlat\(root, from\)/.test(core), 'scrollFlat קיים (app.js ו־core.js שנוצר)');
 ok(/scrollFlat\(c, el\);/.test(app), 'cubeClone: ההעתק — הגלילות הפנימיות במקום של המקור');
-ok(/const unflat = scrollFlat\(root\);/.test(app) && /unflat\(\);\n    root\.classList\.remove\('cube-vt'\);/.test(app), 'cubeVTPre: מוקפא לפני הצילום, משוחזר ב־clean');
+ok(/const unflat = scrollFlat\(root\);/.test(app) && /unflat\(\);\n    root\.classList\.remove\('cube-vt', 'cube-vt-pin'\);/.test(app), 'cubeVTPre: מוקפא לפני הצילום, משוחזר ב־clean');
 ok(/el\.style\.overflow = 'clip';/.test(app) && /k\.style\.translate = \(-x\) \+ 'px ' \+ \(-y\) \+ 'px'/.test(app), 'חיתוך + הזזה דו־ממדית (בלי שכבה), גם ב־RTL (scrollLeft שלילי)');
 ok(/if \(l\._flat\) return; ui\.jobsY = l\.scrollTop;/.test(st), 'כרטיס העבודות לא שומר את ה־0 של ההקפאה');
 

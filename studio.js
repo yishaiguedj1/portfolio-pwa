@@ -8367,21 +8367,55 @@ function pageShr(p) {
 const viPageOk = (rec) => !!(rec && rec.spec && rec.spec.vi && !rec.spec.dry && rec.srv && rec.srv.state === 'done' && outOf(rec, 'vi'));
 let va = null;                    // { id, st: 'load'|'ok'|'err', v, view, urls: Map<מזהה שקף, blob:>, cues, t0 }
 let viLinkT = null;               // { id, t } — מהקישור העמוק (V125)
+/* 2.142.1 (הקלטת המשתמש מהדפדפן, 11/11: בכל מעבר ללשונית "אחרונה" — ניתוח — מלבן שחור "טוען את הסרטון והכתוביות…" ודף
+   ריק 0.25–0.5 שנ׳, גם על הפאה הנכנסת של הקובייה). ביציאה מהדף vaClose זרק את הכל, וכל כניסה הורידה שוב את vi.json.
+   vaKeep: הניתוח המנורמל, התמליל ותמונות השקפים של שלושת האחרונים נשארים בזיכרון (לפי מזהה הקובץ — "אמת שוב" = קובץ חדש).
+   הדף עצמו (המדדים, הנגן) נבנה מחדש כמו קודם. viWarm: כשהלשונית "אחרונה" היא ניתוח — vi.json נטען ברקע מראש (Drive, בלי
+   Firestore), כך שגם הכניסה הראשונה מצוירת מיד */
+const vaKeep = new Map();         // מזהה עבודה → { fid, v, cues, urls }
+const VA_KEEP = 3;
+const vaFree = (urls) => { for (const u of urls.values()) { try { URL.revokeObjectURL(u); } catch (e) {} } };
+function vaPut(id, k) {
+  const o = vaKeep.get(id);
+  if (o && o.urls !== k.urls) vaFree(o.urls);
+  vaKeep.delete(id); vaKeep.set(id, k);
+  while (vaKeep.size > VA_KEEP) { const [k0, o0] = vaKeep.entries().next().value; vaKeep.delete(k0); vaFree(o0.urls); }
+}
+let viFetchP = null;              // { fid, p } — בקשה אחת לקובץ (החימום והדף חולקים אותה)
+function viFetch(fid) {
+  if (viFetchP && viFetchP.fid === fid) return viFetchP.p;
+  const p = net.driveJson(fid).then(normVi);
+  viFetchP = { fid, p };
+  p.catch(() => { if (viFetchP && viFetchP.p === p) viFetchP = null; });
+  return p;
+}
+function viWarm() {
+  const j = stDialJob(), rec = j && j.rec;
+  if (!rec || !viPageOk(rec) || (va && va.id === rec.id) || document.hidden) return;
+  const fid = outOf(rec, 'vi').id, k = vaKeep.get(rec.id);
+  if (!fid || (k && k.fid === fid) || (viFetchP && viFetchP.fid === fid) || viWarmTried.has(fid)) return;
+  viWarmTried.add(fid);           // ניסיון אחד לקובץ — כישלון לא חוזר בכל ציור
+  viFetch(fid).then((v) => { if (v && !(va && va.id === rec.id)) { const o = vaKeep.get(rec.id); if (!o || o.fid !== fid) vaPut(rec.id, { fid, v, cues: null, urls: new Map() }); } }, () => {});
+}
+const viWarmTried = new Set();
 function vaClose() {
   if (!va) return;
   if (va.view) va.view.destroy();
-  for (const u of va.urls.values()) { try { URL.revokeObjectURL(u); } catch (e) {} }
+  if (va.st === 'ok' && va.v && va.fid) vaPut(va.id, { fid: va.fid, v: va.v, cues: va.cues, urls: va.urls });
+  else vaFree(va.urls);
   va = null;
 }
 function pageVi(p, rec) {
   p.append(navBar({ back: T('studioDialVi'), end: shrBtn(rec) }));   // 11/11/2026: שיתוף בקישור
   if (!va || va.id !== rec.id) {
     vaClose();
-    va = { id: rec.id, fid: (outOf(rec, 'vi') || {}).id || '', st: 'load', v: null, view: null, urls: new Map(), cues: null, t0: viLinkT && viLinkT.id === rec.id ? viLinkT.t : 0 };
+    const fid = (outOf(rec, 'vi') || {}).id || '', k = vaKeep.get(rec.id);
+    va = { id: rec.id, fid, st: 'load', v: null, view: null, urls: new Map(), cues: null, t0: viLinkT && viLinkT.id === rec.id ? viLinkT.t : 0 };
     viLinkT = null;
-    viLoad(rec);
+    if (k && k.fid === fid) { vaKeep.delete(rec.id); Object.assign(va, { st: 'ok', v: k.v, cues: k.cues, urls: k.urls }); }   // 2.142.1: מהזיכרון — בלי טעינה
+    else viLoad(rec);
   }
-  if (va.st === 'load') { p.append(h('div', 'st-pl-ph', T('studioPlLoading'))); return; }
+  if (va.st === 'load') { p.append(h('div', 'st-empty st-empty-sm', T('studioPlLoading'))); return; }   // 2.142.1: לא מלבן נגן שחור — זה לא נגן
   if (va.st === 'err') { p.append(h('div', 'st-empty st-empty-sm', T('studioViLoadErr'))); return; }
   if (!va.view) va.view = viView(rec, va);
   p.append(va.view.el);
@@ -8393,7 +8427,7 @@ function pageVi(p, rec) {
 async function viLoad(rec) {
   const me = va;
   try {
-    const v = normVi(await net.driveJson(outOf(rec, 'vi').id));
+    const v = await viFetch(outOf(rec, 'vi').id);
     if (va !== me) return;
     me.v = v; me.st = v ? 'ok' : 'err';
   } catch (e) { if (va !== me) return; me.st = 'err'; }
@@ -10501,6 +10535,7 @@ function livePaint() {
 const repaint = () => { if (root) livePaint(); };
 function render(kind, still, pre) {     // kind: none (ציור מחדש במקום) / push / pop; still = בלי אנימציה (Chrome כבר הנפיש); pre = העתק מוכן (cubePre)
   if (!root) return;
+  viWarm();                       // 2.142.1: הניתוח של "אחרונה" — מוכן מראש (פעם אחת לקובץ)
   /* 29/10/2026 (סבב קפיצות 4): ההעתק נצבע שני פריימים לפני הציור החדש (core: cubePre) — אחרת בטלפון פריים ריק בתחילת
      כל מעבר. בזמן ההמתנה ציור במקום (רענון חי) מחכה: הציור של המעבר יבוא מיד */
   const cubeOn = !(typeof cubeDesk === 'function' && cubeDesk());   // תצוגת מחשב: בלי קובייה — הכניסה הרכה (in-push / in-pop)
