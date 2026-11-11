@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2380 מפתחות מתוך 6760) */
+/* המחרוזות של studio (2382 מפתחות מתוך 6762) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -401,6 +401,7 @@ he: {
   "studioCostMain": "תיאום",
   "studioCostNoPrice": "אין מחירון למודל",
   "studioCostNote": "לפי מחירון ה־API — במנוי זה נספר במכסת השימוש ולא מחויב לפי טוקן",
+  "studioCostNoteApi": "חיוב בפועל לפי מחירון ה־API, מהתקציב החודשי של השרת",
   "studioCostOpen": "פתיחה",
   "studioCostRun": "עוד בריצה",
   "studioCostRunS": "נמדד עכשיו · הפירוט מתעדכן תוך כדי",
@@ -1970,6 +1971,7 @@ he: {
   "studioStgRv": "בודקים ומתקנים",
   "studioStgRvS": "קוראים הכל שוב, מתקנים טעויות ומוודאים שיש זמן לקרוא כל שורה",
   "studioStgRvVi": "מנתחים את התוכן",
+  "studioStgRvViCS": "Claude מוצא את הנושאים, הטענות והמבנה",
   "studioStgRvViS": "בהרצה יבשה — רק ספירת הטוקנים, בלי Claude",
   "studioStgSv": "שומרים ושולחים אליך",
   "studioStgSvS": "הסרטון המוכן נשמר בענן ומחכה לך",
@@ -2783,6 +2785,7 @@ en: {
   "studioCostMain": "Coordination",
   "studioCostNoPrice": "no price for this model",
   "studioCostNote": "At API prices — on a subscription this counts toward your usage limit and is not billed per token",
+  "studioCostNoteApi": "Actually billed at API prices, from the server's monthly budget",
   "studioCostOpen": "startup",
   "studioCostRun": "Still running",
   "studioCostRunS": "Measured now · breakdown updates as it goes",
@@ -4352,6 +4355,7 @@ en: {
   "studioStgRv": "Checking and fixing",
   "studioStgRvS": "Reading it all again, fixing mistakes and making sure every line can be read in time",
   "studioStgRvVi": "Analyzing the content",
+  "studioStgRvViCS": "Claude finds the topics, claims and structure",
   "studioStgRvViS": "Dry run — token count only, no Claude",
   "studioStgSv": "Saving and sending it to you",
   "studioStgSvS": "The finished video is saved in the cloud for you",

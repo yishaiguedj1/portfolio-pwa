@@ -139,10 +139,13 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
   /* ---------- 10. המחרוזות ---------- */
   const app = read('app.js');
-  const keys = ['studioStgUpVi', 'studioStgUpViS', 'studioStgAlVi', 'studioStgAlViS', 'studioStgRvVi', 'studioStgRvViS', 'studioStgBnVi', 'studioStgBnViS',
+  const keys = ['studioStgUpVi', 'studioStgUpViS', 'studioStgAlVi', 'studioStgAlViS', 'studioStgRvVi', 'studioStgRvViS', 'studioStgRvViCS', 'studioCostNoteApi', 'studioStgBnVi', 'studioStgBnViS',
     'studioOutVi', 'studioOutViS', 'studioNowRunningVi', 'studioViT', 'studioViS', 'studioViStart', 'studioViNote', 'studioViDry', 'studioViSo',
     'studioErrViOff', 'studioErrViLang', 'studioErrViLong', 'studioErrViCard', 'studioErrViSchema', 'admFlStVi', 'admFlStViS', 'admTyVi'];
   for (const k of keys) ok(app.split(' ' + k + ': "').length === 3, 'המחרוזת ' + k + ' בעברית ובאנגלית');
+  // 10/11/2026 (המשתמש: "למה מופיע הרצה יבשה אם לא סימנתי?"): הכיתוב של היבשה רק כשהעבודה יבשה (spec.dry)
+  const sjs = read('studio.js');
+  ok(sjs.includes("(dry ? T('studioStgRvViS') : T('studioStgRvViCS'))") && sjs.includes('stageSub(s.id, sk, rec.spec.dry === 1)'), 'כיתוב שלב הניתוח: "הרצה יבשה" רק ביבשה, אחרת Claude');
 
   /* ---------- 11. vi.json והמדדים (גל 1, PR 1.3) — fixtures משותפים עם vicheck.py ו־vimetrics.py (PR 1.2) ---------- */
   const fx = (f) => JSON.parse(read('translator/tests/fixtures/' + f));

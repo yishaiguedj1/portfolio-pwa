@@ -50,7 +50,7 @@ const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 
   // 4. השרתון: היעד = p90, דגימה בסיום, מודל ב־status, הקובץ בלי תלויות
   const api = read('ibkr-proxy/api/studio.js');
-  ok(/tg\.t = ETA\.etaTarget\(ep\)/.test(api) && /patch\.ep = ep/.test(api), 'הלקיחה: תוכנית לעבודה + יעד זמן = p90 + דקה');
+  ok(/tg\.t = ETA\.etaTarget\(ep\)/.test(api) && /out\.ep = ep/.test(api) && /Object\.assign\(patch, await planTargets\(/.test(api), 'הלקיחה: תוכנית לעבודה + יעד זמן = p90 + דקה');
   ok(/ETA\.etaSample\(Object\.assign\(\{\}, job, up\), now\)/.test(api) && /eta: ETA\.etaView\(st\.et, now, /.test(api), 'סוף העבודה מלמד; status מחזיר את המודל');
   // 20/10/2026: מאגר משותף לשרת — כל העבודות בשרת מלמדות את הצפי; ה־Routine נשאר לכל משתמש
   const E2 = require(path.join(__dirname, '..', 'ibkr-proxy/lib/studioeta.js'));
