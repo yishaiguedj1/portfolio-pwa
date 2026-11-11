@@ -17,7 +17,7 @@ import hashlib
 import json
 import re
 
-PV = 1
+PV = 2                     # 10/11/2026: 2 — האימות מצטט מהראיה בכל שורה (בלי ציטוט כל "sup" ירד ל־part)
 
 GENRES = ('academic_lecture', 'course_module', 'business_webinar', 'conference_talk', 'panel', 'interview_podcast',
           'software_tutorial', 'product_demo', 'workshop', 'investor_presentation', 'other')
@@ -303,8 +303,9 @@ For every claim decide, using ONLY its own evidence passages:
 - con: the evidence contradicts it.
 A number, name or hedge that differs from the evidence is at most "part". Translation between Hebrew and English is not a difference.
 
-Answer with exactly one line per claim, in the given order: <claim id>|<verdict>
-Cite the passage that decides the verdict. No other text.
+Answer with exactly one line per claim, in the given order: <claim id>|<verdict>|<quote>
+<quote> = a short exact quote (up to 12 words) from the evidence passage that decides the verdict, copied in its original language. If no passage is relevant, write — instead of a quote.
+No other text.
 """
 
 
@@ -321,12 +322,13 @@ def vv_blocks(claims: list[dict]) -> tuple[list[dict], list[str]]:
     return blocks, refs
 
 
-VV_LINE = re.compile(r'(?m)^\s*\**\s*(n\d{1,5})\s*\|\s*(sup|part|uns|con)\b')
+VV_LINE = re.compile(r'(?m)^\s*\**\s*(n\d{1,5})\s*\**\s*\|\s*\**\s*(sup|part|uns|con)\b')   # גם **n7** | **sup**
 
 
 def parse_vv(text: str, cites=None, refs: list[str] | None = None) -> dict:
     """→ {id: (verdict, set(מזהי הראיות שצוטטו))}. ציטוטים — לפי המקום בטקסט המאוחד (Result.cites ‏at): ציטוט שייך לשורה
-    שהתחילה לפניו. בלי Citations (claude -p, העתק־הדבק) — קבוצה ריקה."""
+    שהתחילה לפניו. בלי Citations (claude -p, העתק־הדבק) — קבוצה ריקה.
+    10/11/2026: תשובה שאין בה אף ציטוט (cites ריק) → None במקום קבוצה — "המצביע השני חסר", לא "המצביע השני לא מאשר"."""
     t = str(text or '')
     hits = [(m.start(), m.group(1), m.group(2)) for m in VV_LINE.finditer(t)]
     out = {}
@@ -340,7 +342,7 @@ def parse_vv(text: str, cites=None, refs: list[str] | None = None) -> dict:
                     if isinstance(k, int) and refs and 0 <= k < len(refs):
                         used.add(refs[k])
         if cid not in out:
-            out[cid] = (vd, used)
+            out[cid] = (vd, used if cites else None)
     return out
 
 

@@ -544,10 +544,12 @@ def synth_item(st: dict | None, kind: str, by_id: dict, ix: Index, inv_nums: set
 VV_DROP = ('con',)                    # סותרת את הראיה — נמחקת (V78)
 
 
-def apply_verdict(it: dict, verdict: str | None, cited: set, has_cites: bool) -> tuple[dict | None, list[str]]:
+def apply_verdict(it: dict, verdict: str | None, cited: set | None, has_cites: bool) -> tuple[dict | None, list[str]]:
     """פסק האימות על פריט → (הפריט, או None אם נמחק; קודים). לא משנה את הקלט.
     - con → נמחק. ‏uns → "הוסק" בביטחון נמוך (V78: לא מוצג כדברי הדובר).
     - sup בלי ציטוט מתוך ה־ev של הפריט (כשהמנוע מחזיר Citations) → part: המצביע השני לא מאשר (5.3 סעיף 3).
+    - cited = None — בתשובה כולה אין אף ציטוט (10/11/2026): הפסק נשאר, עם הקוד cite_none. עד היום התשובה הייתה
+      "n1|sup" בלי ציטוט, וכל sup ירד ל־part — 0% "נתמך" בכל עבודה.
     - בלי פסק (חסר בתשובה) → unk."""
     x = dict(it)
     iss: list[str] = []
@@ -556,9 +558,12 @@ def apply_verdict(it: dict, verdict: str | None, cited: set, has_cites: bool) ->
         return x, ['vv_none']
     if verdict in VV_DROP:
         return None, ['vv_con']
-    if verdict == 'sup' and has_cites and x.get('ev') and not (cited & set(x['ev'])):
-        verdict = 'part'
-        iss.append('cite_off')
+    if verdict == 'sup' and has_cites and x.get('ev'):
+        if cited is None:
+            iss.append('cite_none')
+        elif not (cited & set(x['ev'])):
+            verdict = 'part'
+            iss.append('cite_off')
     if verdict == 'uns':
         iss.append('vv_uns')
         if x.get('basis') == 'speaker':
