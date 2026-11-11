@@ -743,6 +743,32 @@ class TestApplyVerdict(unittest.TestCase):
         self.assertEqual((x["ver"], iss), ("sup", []))
         x, _ = C.apply_verdict(self.IT, "sup", set(), False)
         self.assertEqual(x["ver"], "sup", "מנוע בלי Citations — לא נענשים")
+        x, iss = C.apply_verdict(self.IT, "sup", set(), True)
+        self.assertEqual((x["ver"], iss), ("part", ["cite_off"]), "בתשובה יש ציטוטים, אבל לא לשורה הזו — part")
+
+    def test_cite_none(self):
+        """10/11/2026: בתשובה כולה אין אף ציטוט (cited=None) — הפסק נשאר, עם cite_none (עד היום: כל sup → part)"""
+        x, iss = C.apply_verdict(self.IT, "sup", None, True)
+        self.assertEqual((x["ver"], x["conf"], iss), ("sup", "high", ["cite_none"]))
+        x, iss = C.apply_verdict(self.IT, "part", None, True)
+        self.assertEqual((x["ver"], iss), ("part", []))
+
+    def test_parse_vv_cites(self):
+        text = "n1|sup|the market grew\nn2|sup|— \nn3|part|half of it\n"
+        refs = ["e1", "e2", "e3"]
+        i1, i3 = text.index("the market"), text.index("half")
+        cites = [{"at": i1, "n": 15, "refs": [{"r": 0}]}, {"at": i3, "n": 9, "refs": [{"r": 2}, {"r": 99}]}]
+        got = V.parse_vv(text, cites, refs)
+        self.assertEqual(got, {"n1": ("sup", {"e1"}), "n2": ("sup", set()), "n3": ("part", {"e3"})}, "ציטוט שייך לשורה שלו; מצביע מחוץ לטווח — מתעלמים")
+        self.assertEqual(V.parse_vv(text, None, refs)["n1"], ("sup", None), "בלי אף ציטוט — None")
+        self.assertEqual(V.parse_vv(text, [], refs)["n2"], ("sup", None))
+        self.assertEqual(V.parse_vv("**n7** | sup | x")["n7"][0], "sup", "הפורמט עם הציטוט עדיין נקרא")
+
+    def test_prompt_asks_quote(self):
+        self.assertIn("<claim id>|<verdict>|<quote>", V.VV_SYS, "הציטוט בכל שורה — בלעדיו אין Citations")
+        self.assertNotIn("<verdict>\nCite", V.VV_SYS)
+        self.assertGreaterEqual(V.PV, 2, "שינוי בפרומפט — PV עולה")
+        self.assertGreaterEqual(A.VV_MAX_OUT, 6000, "החשיבה של haiku-high (~2.8K) + 30 שורות עם ציטוט — בלי קטיעה ושליחה כפולה")
 
     def test_codes(self):
         self.assertEqual(C.apply_verdict(self.IT, "con", set(), True), (None, ["vv_con"]))
