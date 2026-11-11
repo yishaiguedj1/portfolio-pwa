@@ -1017,6 +1017,22 @@ export function createPlayer(opts) {
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); jump(e.key === 'ArrowRight' ? 5 : -5); }
     else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggle(); }
   });
+  // תצוגת מחשב (11/11/2026, docs/desktop-plan.md): מקשי הנגן בלי ללחוץ קודם על הפס — רווח/K נגינה והשהיה, ← → 5 שנ׳, F מסך מלא.
+  // רק לנגן הגלוי הראשון, לא כשמקלידים, לא על כפתור אחר בפוקוס (שם רווח לוחץ עליו) ולא כשחלון/תפריט פתוח מעליו
+  const deskKeys = (e) => {
+    if (destroyed || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.isComposing || !wrap.isConnected || !menu.hidden) return;
+    const k = e.key, c = e.code || '', tg = e.target, one = c === 'KeyK' || c === 'KeyF', sp = k === ' ' || c === 'KeyK';   // לפי המקש הפיזי (במקלדת עברית K = "ל")
+    if (!sp && k !== 'ArrowRight' && k !== 'ArrowLeft' && c !== 'KeyF') return;
+    if (one && (e.shiftKey || (typeof deskK1 === 'function' && !deskK1()))) return;   // מקש בודד — כבוי לפי הבחירה בחלון הקיצורים
+    if (tg === bar || (tg && tg.closest && tg.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]'))) return;
+    if (sp && tg && tg.closest && tg.closest('button, a[href], [role="button"], [role="option"], [role="tab"], [role="menuitem"], summary')) return;
+    if (document.querySelector('.dlg-veil, .dk-veil, .st-rs')) return;
+    const vis = Array.prototype.filter.call(document.querySelectorAll('.st-pl'), (x) => x.getClientRects().length);
+    if (vis[0] !== wrap) return;
+    e.preventDefault();
+    if (sp) toggle(); else if (c === 'KeyF') fsB.click(); else jump(k === 'ArrowRight' ? 5 : -5);
+  };
+  document.addEventListener('keydown', deskKeys);
   v.addEventListener('timeupdate', () => { paintBar(); paintSub(); paintChap(); paintFlagB(); if (opts.onTime) opts.onTime(v.currentTime); });
   v.addEventListener('progress', paintBar);
   v.addEventListener('loadedmetadata', () => { paintBar(); paintHeat(); paintMarks(); paintFlags(); });
@@ -1083,7 +1099,7 @@ export function createPlayer(opts) {
     audioBridge: () => (bridge ? bridge.state() : fBridge ? fBridge.state() : null),   // QA ובדיקות
     audio: () => ({ list: audList().map((a) => a.l || ''), now: audNow() }),             // QA ובדיקות
     destroy() {
-      if (destroyed) return; destroyed = true; clearTimeout(hideT); clearTimeout(tapT); clearTimeout(ftT); clearTimeout(holdT); clearTimeout(runT); clearTimeout(ripT);
+      if (destroyed) return; destroyed = true; document.removeEventListener('keydown', deskKeys); clearTimeout(hideT); clearTimeout(tapT); clearTimeout(ftT); clearTimeout(holdT); clearTimeout(runT); clearTimeout(ripT);
       if (bridge) { bridge.destroy(); bridge = null; }
       if (fBridge) { fBridge.destroy(); fBridge = null; }
       if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }

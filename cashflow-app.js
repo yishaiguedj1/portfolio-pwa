@@ -37,6 +37,7 @@ sa.shell = createShell({
   app: 'cashflow', title: 'THE SNOWBALL Cashflow', logo: 'logo-cashflow.webp', logoLg: 'logo-cashflow-lg.webp',
   items: [],
   onSettings: () => sa.settings && sa.settings(),
+  inSettings: () => !!(sa.inSettings && sa.inSettings()),   // תצוגת מחשב: ההדגשה של "הגדרות" בסרגל הצד
   action: { label: t('cfRefresh'), on: () => sa.refresh && sa.refresh(),
     icon: _IC_PRE + '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>' },
 });

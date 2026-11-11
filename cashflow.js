@@ -145,6 +145,7 @@ export function openCashflow(opt) {
   if (SA) {
     SA.refresh = refreshNow;
     SA.settings = () => go('settings');
+    SA.inSettings = () => cur === 'settings';   // תצוגת מחשב: ההדגשה בסרגל הצד
   }
   nav = dialNavBuild('cf-dial', T('cfDialAria'), KEYS.map((k) => ({ k, ico: ICO[k], lbl: T(LBL[k]) })), (k) => go(k));
   document.body.append(nav);
