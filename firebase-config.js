@@ -76,7 +76,11 @@
   /* גיבוי חם (שלב 5, ב2): השרת שלנו לא עונה (Tunnel/השרת נפלו — Cloudflare מחזיר דף שגיאה בלי CORS, כלומר
      TypeError) → אותה בקשה ל־Vercel, ו־5 דקות כל הבקשות ישר לשם (בלשונית הזו), ואז ניסיון חוזר. לא:
      /api/session (העוגייה רק על השרת שלנו — בלעדיו החיבור המשותף פשוט לא זמין), ביטול, אופליין, ו־Request עם
-     גוף (נצרך כבר). בקשה שהשרת כן ענה עליה (גם 5xx) — לא חוזרת: היא כבר הגיעה. */
+     גוף (נצרך כבר). בקשה שהשרת כן ענה עליה (גם 5xx) — לא חוזרת: היא כבר הגיעה.
+     11/11/2026: נשארים על הגיבוי רק אם הוא עצמו ענה. Vercel חסום מ־5/11 (402 ‏DEPLOYMENT_DISABLED, בלי CORS =
+     TypeError), ותקלה של רגע בשרת שלנו (או בטלפון, כשהוא עובר בין Wi‑Fi לסלולר) נעלה את הלשונית 5 דקות על גיבוי
+     מת. בכל האפליקציות הבקשות נכשלו, ובסטודיו הופיע "אין חיבור לרשת" כמה פעמים ביום. עכשיו: הגיבוי לא ענה (או 402)
+     → השגיאה המקורית, בלי סימון. ובזמן "נפילה" הגיבוי לא ענה → מוחקים את הסימון וחוזרים לשרת שלנו. */
   var DOWN_KEY = 'snb_api_down', DOWN_MS = 5 * 60e3;
   function installFailover(win, primary, backup) {
     if (!win || typeof win.fetch !== 'function' || !backup || primary === backup) return;
@@ -84,20 +88,30 @@
     var store = function () { try { return win.sessionStorage; } catch (e) { return null; } };
     var isDown = function () { var s = store(); return !!s && +(s.getItem(DOWN_KEY) || 0) > Date.now(); };
     var markDown = function () { var s = store(); try { if (s) s.setItem(DOWN_KEY, String(Date.now() + DOWN_MS)); } catch (e) {} };
+    var clearDown = function () { var s = store(); try { if (s) s.removeItem(DOWN_KEY); } catch (e) {} };
+    var dead = function (r) { return !r || r.status === 402; };   // 402 = הפרויקט ב־Vercel מושבת (בטלפון: TypeError)
     win.fetch = function (input, init) {
       var url = typeof input === 'string' ? input : '';
       if (url.indexOf(primary + '/') !== 0 || /\/api\/session(\b|$)/.test(url)) return orig.call(win, input, init);
       var alt = backup + url.slice(primary.length);
-      if (isDown()) return orig.call(win, alt, init);
+      var stop = function (e) {
+        var sig = init && init.signal;
+        return (e && e.name === 'AbortError') || (sig && sig.aborted) || (win.navigator && win.navigator.onLine === false);
+      };
+      if (isDown()) {
+        var back = function () { clearDown(); return orig.call(win, input, init); };
+        return orig.call(win, alt, init).then(function (r) { return dead(r) ? back() : r; }, function (e) { if (stop(e)) throw e; return back(); });
+      }
       /* 421 = "הבקשה הזו לא כאן" — שרת שהוקם בלי המפתחות של מאגר הלמידה (SNB_LEARN_REMOTE ב־api/studio.js). השרתון
          עונה לפני כל שינוי, ואותה בקשה הולכת ל־Vercel — רק היא, בלי לסמן את השרת כנופל */
       var redo = function (r) { return r && r.status === 421 ? orig.call(win, alt, init) : r; };
       return orig.call(win, input, init).then(redo, function (e) {
-        var sig = init && init.signal;
-        if ((e && e.name === 'AbortError') || (sig && sig.aborted)) throw e;
-        if (win.navigator && win.navigator.onLine === false) throw e;
-        markDown();
-        return orig.call(win, alt, init);
+        if (stop(e)) throw e;
+        return orig.call(win, alt, init).then(function (r) {
+          if (dead(r)) throw e;
+          markDown();
+          return r;
+        }, function () { throw e; });
       });
     };
   }
