@@ -30,6 +30,7 @@ import resource
 import subprocess
 import time
 import unicodedata
+import wave
 from pathlib import Path
 
 import xflags
@@ -42,7 +43,7 @@ VI_WIN_TOK = int(os.environ.get('VI_WIN_TOK') or 12000)              # גודל 
 VI_WIN_TOK_X = 18000                                                   # PR 1.6: דגל הניסוי vwin — חלון גדול יותר (פחות קריאות, יותר הקשר)
 # קודי השגיאה והאזהרה (נספח 19.3) — = VI_ERR ב־ibkr-proxy/lib/studiovi.js = STRINGS (tests/studio-vi.test.js)
 VI_FAIL = ('vi_off', 'vi_lang', 'vi_long', 'vi_card', 'vi_schema', 'cap')
-VI_WARN = ('vi_noscreen', 'vi_lowres', 'vi_ocr', 'vi_asr_low', 'vi_partial', 'vi_unver', 'vi_ledger', 'ts_coarse')
+VI_WARN = ('vi_noscreen', 'vi_lowres', 'vi_ocr', 'vi_asr_low', 'vi_partial', 'vi_unver', 'vi_ledger', 'ts_coarse', 'vi_trunc')
 VI_ERR = VI_FAIL + VI_WARN
 # השיא הצפוי [MB קבוע, MB לדקת סרטון] = MEM_PRIOR['vi'] ב־agent.py (tests/test_analyze.py) — לשומר הזיכרון של ה־OCR
 MEM_VI = (4600, 22)
@@ -1193,6 +1194,25 @@ def probe(src: Path) -> dict:
             'h': int(vs[0].get('height') or 0) if vs else 0}
 
 
+TRUNC_MIN_S = 30          # 11/11/2026: מקור קטוע — חסרות לפחות 30 שנ׳…
+TRUNC_RATIO = 0.8         # …ויש בפועל פחות מ־80% ממה שהקובץ מצהיר
+
+
+def wav_dur(p: Path) -> float:
+    """האורך האמיתי של הקול: מספר הדגימות ב־wav שפוענח (ffmpeg כותב אותו לפי מה שפוענח, לא לפי הכותרת). תקלה — 0."""
+    try:
+        with wave.open(str(p), 'rb') as w:
+            return w.getnframes() / float(w.getframerate() or 1)
+    except (OSError, EOFError, wave.Error):
+        return 0.0
+
+
+def src_trunc(decl: float, real: float) -> bool:
+    """11/11/2026 (מומחי ת״א ב־Commons: הכותרת 7:53, בקובץ 51 שנ׳ — הועלה חלקי ב־2020, ואף אחד לא שם לב): האם הקובץ
+    מצהיר על אורך ארוך בהרבה ממה שיש בו. הכותרת של webm/mkv נכתבת בסוף ההקלטה; בקובץ שנחתך היא נשארת המקורית."""
+    return decl > 0 and real > 0 and decl - real >= TRUNC_MIN_S and real < TRUNC_RATIO * decl
+
+
 def report_dur(ctx, spec: dict, dur: float) -> None:
     """11/11/2026: עבודה שנוצרה בלי משך (קישור שהבדיקה לא החזירה לו משך) — המשך האמיתי לשרתון, פעם אחת (du — אותו שדה
     כמו report_px בתרגום, ‏PR ‏#607). ממנו השרתון קובע את הצפי לכל שלב ואת יעדי הזמן והתקציב (planTargets; בלעדיו: אין כרטיס
@@ -1487,7 +1507,7 @@ def vi_run(J, args, engine=None) -> int:
         info = probe(src)
         asrc = src
     dur = info['dur']
-    report_dur(ctx, spec, dur)
+    decl = dur                                        # 11/11/2026: מה שהקבצים מצהירים (הגבוה מבין הקול והסרטון) — מול הקול שפוענח
     if dur > VI_MAX_S:
         ctx.report(fail=True, err='vi_long', msg='עד %d דקות' % (VI_MAX_S // 60), force=True)
         raise SystemExit('✗ ניתוח: הסרטון ארוך מ־%d דק׳.' % (VI_MAX_S // 60))
@@ -1503,6 +1523,11 @@ def vi_run(J, args, engine=None) -> int:
         subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(asrc), '-vn', '-ac', '1', '-ar', '16000', str(wav)],
                        check=True, timeout=3600)
         J.note_timing(ctx, 'vi-wav', t0, time.time())
+        real = wav_dur(wav)
+        if src_trunc(decl, real):
+            dur = real                                # כל השלבים (זיכרון, צפי, משך בדף) — לפי מה שיש באמת
+    report_dur(ctx, spec, dur)
+    if info['audio']:
         J.vt(ctx, ['vi-asr', str(wav), '--lang', lang, '--out', str(tr_p)], 'tr')
     tr = _read_json(tr_p) or {'lang': lang, 'words': [], 'quality': 'low'}
     if lang == 'auto':                                # 9.3 סעיף 2: מה שזוהה (בלי שמע — אין מה לזהות: אנגלית)
@@ -1516,7 +1541,9 @@ def vi_run(J, args, engine=None) -> int:
         f = J.wait_video(ctx, 'al', 'מחכה שהסרטון יסיים לעלות')
         src = J.in_path(ctx, f, 'v')
         J.fetch_input(ctx, f['id'], src, int(f.get('size') or 0))
-        info['video'] = probe(src)['video']
+        pv = probe(src)
+        info['video'] = pv['video']
+        decl = max(decl, pv['dur'])
     if info['video']:
         J.vt(ctx, ['vi-screen', str(src), '--out', str(scr), '--mem-mb', str(mem_need(dur))], 'al', 0.0, 0.5)
     screen = _read_json(scr / 'screen.json') or {'units': [], 'noscreen': True}
@@ -1564,12 +1591,19 @@ def vi_run(J, args, engine=None) -> int:
     # 5. בנייה
     S.go('bn', 'בונים את התוצרים')
     warn = warnings(screen, tr.get('quality') or 'ok', wd, info['video'])
+    real = wav_dur(wav) if info['audio'] else 0.0
+    trunc = src_trunc(decl, real)
+    if trunc:
+        warn.append('vi_trunc')
+        print('⚠ המקור קטוע: בקובץ יש רק %d שנ׳, אבל הוא מצהיר על %d שנ׳ — הניתוח רק על מה שיש.' % (round(real), round(decl)))
     title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
     src_kind = 'yt' if spec.get('src') == 'url' and 'youtu' in str(spec.get('url') or '') else 'url' if spec.get('src') == 'url' else 'file'
     if dry:
         vi = build_vi(lang, dur, src_kind, title, wd, screen, ev, slides, ocr, inv, bnd, n_so, tr.get('quality') or 'ok', tok, warn)
     else:
         vi = build_vi_live(lang, dur, src_kind, title, m, ev, slides, ocr, tr.get('quality') or 'ok', warn)
+    if trunc:
+        vi['video']['decl'] = round(decl, 2)
     (pd / 'vi.json').write_text(json.dumps(vi, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     (pd / 'cues.json').write_text(json.dumps(cues(words), ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     if info['video'] and spec.get('vg') != 1:        # PR 1.6: הרצת זהב (vg) — בלי הסרטון באיכות מלאה (רק ה־vi.json נמדד)

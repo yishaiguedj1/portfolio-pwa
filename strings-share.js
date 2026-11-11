@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של share (111 מפתחות מתוך 6844) */
+/* המחרוזות של share (112 מפתחות מתוך 6845) */
 const STRINGS = {
 he: {
   "studioMoreN": "ועוד {n}",
@@ -102,6 +102,7 @@ he: {
   "studioViSlide": "שקף {n}",
   "studioViSupL": "אומתו",
   "studioViThanks": "תודה — נרשם",
+  "studioViTrunc": "המקור קטוע: בקובץ יש רק {a} מתוך {b} — הניתוח רק על החלק הזה.",
   "studioViTx": "תמליל מלא",
   "studioViWhyAttrib": "ייחוס שגוי",
   "studioViWhyLong": "ארוך מדי",
@@ -215,6 +216,7 @@ en: {
   "studioViSlide": "Slide {n}",
   "studioViSupL": "verified",
   "studioViThanks": "Thanks — noted",
+  "studioViTrunc": "The source is cut off: the file holds only {a} of {b} — the analysis covers just that part.",
   "studioViTx": "Full transcript",
   "studioViWhyAttrib": "Wrong attribution",
   "studioViWhyLong": "Too long",

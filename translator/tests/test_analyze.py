@@ -199,6 +199,21 @@ class TestOutputs(unittest.TestCase):
         self.assertEqual(w, ["vi_lowres", "vi_ocr"])
         self.assertTrue(set(A.VI_WARN) >= {"vi_noscreen", "vi_lowres", "vi_ocr", "vi_asr_low", "ts_coarse"})
 
+    def test_src_trunc(self):
+        self.assertTrue(A.src_trunc(473, 51))          # Commons: 7:53 מוצהר, 51 שנ׳ בפועל
+        self.assertFalse(A.src_trunc(473, 470))        # עיגול / סוף שקט
+        self.assertFalse(A.src_trunc(40, 15))          # קליפ קצר — פחות מ־30 שנ׳ חסרות
+        self.assertFalse(A.src_trunc(3600, 3000))      # 83% — עדיין לא
+        self.assertFalse(A.src_trunc(0, 51))
+        self.assertFalse(A.src_trunc(473, 0))
+        self.assertEqual(A.wav_dur(Path("/nonexistent.wav")), 0.0)
+        import wave
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "a.wav"
+            with wave.open(str(p), "wb") as w:
+                w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000); w.writeframes(b"\0\0" * 16000 * 3)
+            self.assertAlmostEqual(A.wav_dur(p), 3.0)
+
     def test_files_and_constants(self):
         self.assertEqual([k for k, *_ in A.VI_FILES], ["vi", "vis", "cues", "same", "thumb"])
         self.assertLessEqual(len(A.VI_FILES), 12, "OUT_MAX")
@@ -422,6 +437,25 @@ class TestViRun(unittest.TestCase):
         with redirect_stdout(buf):
             rc = A.vi_run(J, None, engine=engine)
         return rc, ctx, J, buf.getvalue()
+
+    def test_truncated_source(self):
+        # 11/11/2026: מומחי ת״א ב־Commons — הכותרת מצהירה 7:53, בקובץ 51 שנ׳. כאן: הכותרת "600", בקובץ 6 → vi_trunc ו־decl
+        os.environ.pop("ANTHROPIC_API_KEY", None)
+        real_probe = A.probe
+        A.probe = lambda p: dict(real_probe(p), dur=600.0)
+        try:
+            rc, ctx, J, out = self.run_vi()
+        finally:
+            A.probe = real_probe
+        self.assertEqual(rc, 0)
+        vi = json.loads((ctx.pdir / "vi.json").read_text())
+        self.assertIn("vi_trunc", vi["quality"]["warn"])
+        self.assertEqual(vi["video"]["decl"], 600.0)
+        self.assertLess(vi["video"]["dur"], 10, "המשך בדף — מה שיש באמת")
+        self.assertIn("המקור קטוע", out)
+        self.assertEqual(ctx.reports[-1]["vsm"]["d"], 6)
+        import vicheck
+        self.assertEqual(vicheck.norm_vi(vi)["video"]["decl"], 600.0, "עובר את הבדיקה של הסכמה")
 
     def test_dry_run_end_to_end(self):
         os.environ.pop("ANTHROPIC_API_KEY", None)

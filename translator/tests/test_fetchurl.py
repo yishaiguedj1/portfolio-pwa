@@ -191,5 +191,49 @@ class Run(unittest.TestCase):
         self.assertEqual(F.probe('https://x.com/v', run=run)['t'], 'clip')
 
 
+class FakeProc:
+    """תהליך yt-dlp מדומה: rc + stderr, ובהצלחה — שורת הנתיב."""
+    def __init__(self, rc, err, path=''):
+        self.stdout = iter([path] if path else [])
+        self.stderr = __import__('io').StringIO(err)
+        self.rc = rc
+
+    def wait(self):
+        return self.rc
+
+
+class Retry429(unittest.TestCase):
+    # 11/11/2026: Wikimedia החזירה 429 להורדת הסרטון והעבודה נכשלה ב־blocked — באתר שאינו יוטיוב מחכים ומנסים שוב
+    def run_seq(self, url, rcs):
+        import tempfile
+        tmp = tempfile.NamedTemporaryFile(delete=False)
+        tmp.close()
+        calls, slept = [], []
+
+        def popen(cmd, **kw):
+            rc = rcs[len(calls)]
+            calls.append(cmd)
+            return FakeProc(rc, '' if rc == 0 else 'ERROR: unable to download video data: HTTP Error 429: Too Many Requests',
+                            tmp.name if rc == 0 else '')
+        try:
+            out = F.download(url, {}, '/tmp/x.%(ext)s', 'v', popen=popen, sleep=slept.append)
+        finally:
+            Path(tmp.name).unlink()
+        return out, calls, slept, tmp.name
+
+    def test_retries_then_succeeds(self):
+        out, calls, slept, path = self.run_seq('https://commons.wikimedia.org/wiki/File:A.webm', [1, 0])
+        self.assertEqual((out, len(calls), slept), (path, 2, [20]))
+
+    def test_gives_up_after_waits(self):
+        with self.assertRaises(ValueError) as c:
+            self.run_seq('https://commons.wikimedia.org/wiki/File:A.webm', [1, 1, 1, 0])
+        self.assertEqual(str(c.exception), 'blocked')
+
+    def test_youtube_not_retried(self):
+        with self.assertRaises(ValueError):
+            self.run_seq('https://www.youtube.com/watch?v=abcdefghijk', [1, 0])
+
+
 if __name__ == '__main__':
     unittest.main()

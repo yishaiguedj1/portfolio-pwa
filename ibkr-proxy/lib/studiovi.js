@@ -10,7 +10,7 @@ const VI_FROM = ['auto', 'he', 'en'];   // 10/11/2026 (PR 1.2א, 9.3 סעיף 2)
 const VI_MAX_S = 5400;           // 90 דק׳ ב־MVP (גל 2 — יותר)
 /* 19.3: כישלון עוצר את העבודה; אזהרה נכנסת ל־vi.json (quality.warn) והעבודה ממשיכה */
 const VI_FAIL = ['vi_off', 'vi_lang', 'vi_long', 'vi_card', 'vi_schema', 'cap'];
-const VI_WARN = ['vi_noscreen', 'vi_lowres', 'vi_ocr', 'vi_asr_low', 'vi_partial', 'vi_unver', 'vi_ledger', 'ts_coarse'];
+const VI_WARN = ['vi_noscreen', 'vi_lowres', 'vi_ocr', 'vi_asr_low', 'vi_partial', 'vi_unver', 'vi_ledger', 'ts_coarse', 'vi_trunc'];
 const VI_ERR = VI_FAIL.concat(VI_WARN);
 const VI_OUTS = ['vi', 'vis', 'cues', 'same', 'thumb'];   // התוצרים, בסדר ההעלאה (vtt ו־meta — לא בהרצה יבשה) · 1.2ב: same (איכות מלאה, 4.4) במקום small
 
@@ -75,6 +75,7 @@ function normVi(o) {
   out.video = { dur: fin(vd.dur, 0, 86400) ? r3(vd.dur) : 0 };
   if (VSRC_RE.test(String(vd.src || ''))) out.video.src = vd.src;
   if (txt(vd.title, VI_TXT.vtitle)) out.video.title = txt(vd.title, VI_TXT.vtitle);
+  if (fin(vd.decl, 0, 86400) && vd.decl > out.video.dur) out.video.decl = r3(vd.decl);   // 11/11/2026: מקור קטוע (vi_trunc) — האורך שהקובץ מצהיר
   // יחידות הראיה: דיבור, שקפים, שורות OCR
   out.evidence = [];
   for (const e of list(o.evidence, VI_CAP.evidence)) {

@@ -25,7 +25,7 @@ import unicodedata
 
 VI_V = 'snb.video-analysis/1'
 VI_LANGS = ('he', 'en')
-VI_WARN = ('vi_noscreen', 'vi_lowres', 'vi_ocr', 'vi_asr_low', 'vi_partial', 'vi_unver', 'vi_ledger', 'ts_coarse')
+VI_WARN = ('vi_noscreen', 'vi_lowres', 'vi_ocr', 'vi_asr_low', 'vi_partial', 'vi_unver', 'vi_ledger', 'ts_coarse', 'vi_trunc')
 VI_SEG = ('content', 'intro', 'qa', 'pitch', 'sponsor', 'self_promo', 'interaction_reminder', 'preview_recap', 'filler',
           'logistics', 'demo', 'exercise')
 VI_SRC = ('speech', 'screen_only', 'both')
@@ -123,6 +123,8 @@ def norm_vi(o):
         out['video']['src'] = vd['src']
     if _txt(vd.get('title'), VI_TXT['vtitle']):
         out['video']['title'] = _txt(vd['title'], VI_TXT['vtitle'])
+    if _fin(vd.get('decl'), 0, 86400) and vd['decl'] > out['video']['dur']:   # 11/11/2026: מקור קטוע (vi_trunc) — האורך שהקובץ מצהיר
+        out['video']['decl'] = _r3(vd['decl'])
     out['evidence'] = []
     for e in _list(o.get('evidence'), VI_CAP['evidence']):
         if not isinstance(e, dict) or not ID['e'].match(_s(e.get('id'))):

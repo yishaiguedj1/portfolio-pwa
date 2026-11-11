@@ -608,7 +608,25 @@ def get_subs(url, out_dir, run=subprocess.run, timeout=REF_TIMEOUT, ref='', meta
 PROG_RE = re.compile(r'^SNBP (\d+|NA) (\d+|NA) (\d+|NA)')
 
 
-def download(url, pick, out_tmpl, kind='v', section=None, on_progress=None, popen=subprocess.Popen, timeout=6 * 3600, ref=''):
+RETRY_429 = (20, 60)     # 11/11/2026: המתנות (שנ׳) לפני ניסיון חוזר אחרי הגבלת קצב באתר שאינו יוטיוב
+
+
+def download(url, pick, out_tmpl, kind='v', section=None, on_progress=None, popen=subprocess.Popen, timeout=6 * 3600, ref='',
+             sleep=time.sleep):
+    """11/11/2026 (מומחי ת״א מ־Commons: Wikimedia החזירה 429 להורדת הסרטון, והעבודה נכשלה ב־blocked): באתר שאינו יוטיוב
+    'blocked' הוא כמעט תמיד הגבלת קצב זמנית (429) — מחכים ומנסים שוב (‎--continue ממשיך מאיפה שנעצר). yt-dlp לא מנסה
+    שוב אחרי 429 בעצמו (רק 5xx). ביוטיוב — לא: שם זו חסימה של חוות שרתים, וניסיון חוזר רק מחמיר."""
+    waits = () if yt_host(url) else RETRY_429
+    for i in range(len(waits) + 1):
+        try:
+            return _download_once(url, pick, out_tmpl, kind, section, on_progress, popen, timeout, ref)
+        except ValueError as e:
+            if str(e) != 'blocked' or i >= len(waits):
+                raise
+            sleep(waits[i])
+
+
+def _download_once(url, pick, out_tmpl, kind, section, on_progress, popen, timeout, ref):
     """הורדה: kind 'a' = רק הקול, 'v' = וידאו + קול ממוזגים בלי קידוד מחדש (MKV — מקבל כל צירוף קודקים).
     section = (מ, עד) בשניות — רק החלק הזה (yt-dlp חותך על פריימי מפתח; sync.py מיישר את הקול). מחזיר את הנתיב."""
     yc = YtCookies(url)
