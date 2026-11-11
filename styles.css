@@ -748,6 +748,9 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 @keyframes cube-vt-keep { from { opacity: 1; } to { opacity: 1; } }
 .cube-vt::view-transition { background: var(--bg); }   /* מאחורי הפאות (במקום ‎.cube-bd) */
 .cube-vt::view-transition-group(root) { animation: cube-vt-keep 20s linear; }
+/* 2.142.1 (Chrome בטלפון, לשונית בדפדפן): ה־transform שהדפדפן מחשב לקבוצה כולל את גובה סרגל הכתובת — כל הדף ירד ~60px.
+   הקבוצה = השכבה עצמה, והערך הנכון הוא תמיד מטריצת יחידה (core: cubeVTBar) */
+.cube-vt-pin::view-transition-group(root) { transform: none !important; }
 .cube-vt::view-transition-image-pair(root) { isolation: auto; }
 .cube-vt::view-transition-old(root), .cube-vt::view-transition-new(root) { animation: none; mix-blend-mode: normal; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
 .cube-vt::view-transition-new(root) { opacity: 0; }
