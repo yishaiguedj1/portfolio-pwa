@@ -8385,6 +8385,10 @@ function pageVi(p, rec) {
   if (va.st === 'err') { p.append(h('div', 'st-empty st-empty-sm', T('studioViLoadErr'))); return; }
   if (!va.view) va.view = viView(rec, va);
   p.append(va.view.el);
+  // 11/11/2026 (המשתמש: "האופציה להוריד את הקבצים מופיעה רק בשיתוף"): דף הניתוח מחליף את דף העבודה — אז גם התוצרים כאן,
+  // כמו "הקבצים" בדף הצפייה ששותף (share.js) ו"התוצרים" בדף העבודה
+  const outs = ((rec.srv && rec.srv.out) || []).filter((o) => OUT_MAIN.includes(o.k));
+  if (outs.length) p.append(secT(T('studioSecResults')), list(...outs.map((o) => rowOut(rec, o))));
 }
 async function viLoad(rec) {
   const me = va;

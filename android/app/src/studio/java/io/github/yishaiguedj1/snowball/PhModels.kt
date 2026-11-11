@@ -21,6 +21,9 @@ object PhModels {
     private const val PK = "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx/resolve/main/"
     private const val QW = "https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B/resolve/c7cbfc2048c462b0d63a45797104fc9db3ad62b7/"
     private const val GH = "https://github.com/yishaiguedj1/portfolio-pwa/releases/download/lab-models/"
+    /** 11/11/2026: אותם קבצים ב־R2 (lab-models.yml → tools/dl-put.sh) — נבדק קודם; GH = גיבוי כל עוד הריפו ציבורי
+        (docs/private-repo-plan.md). הטביעה (sha) מאמתת בכל מקרה. */
+    private const val DL = "https://dl.thesnowball.app/lab-models/"
 
     val FILES = listOf(
         F("parakeet/config.json", PK + "config.json", "666903c76b9798caf2c210afd4f6cd60b08a8dbf9800ec8d7a3bc0d2148ac466", 97),
@@ -75,11 +78,13 @@ object PhModels {
     }
 
     private fun get(url: String, part: File, cancel: () -> Boolean, prog: (Long) -> Unit) {
+        val srcs = if (url.startsWith(GH)) listOf(DL + url.removePrefix(GH), url) else listOf(url)
         var tries = 0
         while (true) {
-            try { get1(url, part, cancel, prog); return }
+            // מקור אחד בכל ניסיון, לסירוגין; ההמשך (Range) תקף בין המקורות — אותו קובץ בדיוק
+            try { get1(srcs[tries % srcs.size], part, cancel, prog); return }
             catch (e: PhWork.Stop) { throw e }
-            catch (e: Exception) { if (cancel()) throw PhWork.Stop("stopped"); if (++tries >= 4) throw PhWork.Stop("models_net"); Thread.sleep(3000L * tries) }
+            catch (e: Exception) { if (cancel()) throw PhWork.Stop("stopped"); if (++tries >= 4 * srcs.size) throw PhWork.Stop("models_net"); Thread.sleep(3000L * ((tries + srcs.size - 1) / srcs.size)) }
         }
     }
 

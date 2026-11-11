@@ -158,14 +158,15 @@
 /* ---- צבע המערכת לכל אפליקציה (13/10/2026, בקשת המשתמש — הגוונים המדויקים שבחר) ----
    Studio = אדום, Academy = כחול, במקום הירוק של Invest בכל מקום שהוא מבטא (כפתורים, בוררים, מתגים, מיכלים).
    הירוק הסמנטי (רווח, "תקין", צבעי הדגשה בספר) נשאר. הטקסט על הצבע — כהה, כמו על הירוק ב־Invest. */
-html[data-app="studio"] {
+/* 11/11/2026: דף הצפייה ששותף בקישור (share.html, data-app="share") — בצבע של הסטודיו, לא בירוק של Invest */
+html:is([data-app="studio"], [data-app="share"]) {
   --primary: #FF4656; --primary-dark: #FF4656; --on-primary: #3D0008;
   --primary-container: rgba(255, 70, 86, .16); --on-primary-container: #B3121F;
 }
-html[data-app="studio"][data-theme="dark"] { --on-primary-container: #FF9AA3; }
+html:is([data-app="studio"], [data-app="share"])[data-theme="dark"] { --on-primary-container: #FF9AA3; }
 :root[data-app="admin"] { --gl-tint: #5E5CE6; --gl-tint2: var(--sys-blue); --gl-tint3: var(--sys-pink); }
 :root[data-app="academy"] { --gl-tint2: var(--sys-cyan); --gl-tint3: var(--sys-indigo); }
-:root[data-app="studio"] { --gl-tint2: var(--sys-orange); --gl-tint3: var(--sys-purple); }
+:root:is([data-app="studio"], [data-app="share"]) { --gl-tint2: var(--sys-orange); --gl-tint3: var(--sys-purple); }
 html[data-app="academy"] {
   --primary: #4699FF; --primary-dark: #4699FF; --on-primary: #00214D;
   --primary-container: rgba(70, 153, 255, .16); --on-primary-container: #0B57B5;
