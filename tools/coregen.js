@@ -19,7 +19,10 @@ const APPS = {
   studio: ['studio.js', 'studionet.js', 'studioplay.js', 'studiovi.js', 'studiosubs.js', 'studioedl.js', 'studioai.js', 'studiostore.js', 'libbackup.js', 'shell.js', 'studio-app.js', 'acclink.js'],
   admin: ['shell.js', 'admin-app.js', 'acclink.js'],   // מרכז הניהול (שלב 5א)
   cashflow: ['shell.js', 'cashflow-app.js', 'cashflow.js', 'acclink.js'],   // Cashflow, גל 2 (6/11/2026)
+  share: ['share.js', 'studioplay.js', 'studiovi.js'],   // 11/11/2026: דף הצפייה ששותף בקישור (share.html) — בלי core.js
 };
+/* אפליקציות שלא טוענות את core.js — בלי המחרוזות שלו */
+const NO_CORE = new Set(['share']);
 const HEAD = '/* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */\n';
 
 /* האזורים המסומנים בקובץ: tag = 'core' (app.js) או 'auth' (cloud.js, בתוך ה־IIFE — מוזחים, הסימון עם רווחים לפניו) */
@@ -80,7 +83,7 @@ function build() {
     tpl.replace('// @@cloud@@', regions(fs.readFileSync(path.join(ROOT, 'cloud.js'), 'utf8'), 'auth').join('\n').replace(/\n$/, ''));
   const problems = [];
   for (const [app, mods] of Object.entries(APPS)) {
-    const keys = new Set(coreKeys);
+    const keys = new Set(NO_CORE.has(app) ? [] : coreKeys);
     for (const f of mods) {
       const c = fs.readFileSync(path.join(ROOT, f), 'utf8');
       for (const k of keysIn(c, all)) keys.add(k);

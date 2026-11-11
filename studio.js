@@ -314,6 +314,7 @@ export function normJob(j) {
     bg: s.bg === 1 ? 1 : 0,                   // 28/10/2026: התוצרים מוכנים והעובד משלים איכויות צפייה ברקע — ממשיכים לרענן
     sx: num(s.sx),                            // 26/10/2026: מתי סרטון המקור נמחק (0 = עוד שמור)
     rt: s.rt && typeof s.rt === 'object' ? { s: num(s.rt.s), j: num(s.rt.j) } : null,   // עד מתי המקור (s) ועד מתי הקבצים (j)
+    ln: s.ln && num(s.ln.x) > 0 ? { x: num(s.ln.x), at: num(s.ln.at), d: num(s.ln.d) } : null,   // 11/11/2026: קישור שיתוף פעיל — עד מתי
     w: !!(s.files && s.files.w && s.files.w.id),   // 25/10/2026: המילים מהטלפון הגיעו (שלב 2)
     m: !!(s.files && s.files.m && s.files.m.id),   // 24/10/2026: המדידות מהטלפון הגיעו
   } : null;
@@ -1270,6 +1271,7 @@ function errText(code, extra) {
     case 'ph_words': return T('studioErrPhWords');   // 25/10/2026: שלב 2
     case 'cp_timeout': case 'cp_empty': return T('studioErrCp');   // סבב 10: העתק־הדבק — לא הודבקה תשובה
     case 'r2_needed': return T('studioLinkApiOnly');
+    case 'not_r2': return T('studioShrNoR2');   // 11/11/2026: שיתוף בקישור — רק קבצים בענן של Studio
     default:
       if (/^url_/.test(String(code || ''))) return urlErrText(code);   // 22/10/2026: הורדה מקישור
       return T('studioErrGeneric', { c: String(code || '?').slice(0, 30) });
@@ -8250,6 +8252,92 @@ async function playLoad(rec, phFile) {
   }
   plPaint();
 }
+/* ---------------- שיתוף בקישור (11/11/2026, בקשת המשתמש) ----------------
+   "לשתף את התוצאה עם חבר בקישור — רק צפייה והורדה, בלי עריכה". הקישור נוצר בשרתון (op:'shareMake', ‏ibkr-proxy/lib/studioshare.js)
+   ונפתח ב־share.html: דף בלי התחברות, רק הנגן, הניתוח והקבצים. הסוד אחרי ה־# — לא מגיע לשרת של הדפים. אותו קישור כל עוד הוא
+   פעיל; "ביטול הקישור" (op:'shareOff') — מי שקיבל אותו לא יכול לפתוח אותו יותר. הכפתור בסרגל של דף התוצאה ושל דף הניתוח */
+const shrOk = (rec) => !!(rec && rec.srv && rec.srv.state === 'done' && !rec.spec.dry && isR2Folder(jobFolder(rec)) && (rec.srv.out || []).some((o) => OUT_MAIN.includes(o.k)));
+function shrBtn(rec) {
+  if (!shrOk(rec)) return null;
+  const b = btn('st-txt st-navi', null, () => go('shr', rec.id), 'shr');
+  b.append(ico('share')); b.setAttribute('aria-label', T('studioShrTitle'));
+  return b;
+}
+let shr = null;   // { id, st: 'load' | 'ok' | 'off' | 'err', t, exp, d, err, busy }
+const shrDayOpts = () => [[1, T('studioShrD1')], [7, T('studioShrD7')], [30, T('studioShrD30')]];   // = SH_DAYS בשרתון
+/* כתובת דף הצפייה ליד האפליקציה — בכתובות של thesnowball.app בלי ‎.html (כמו ש־Pages מגיש) */
+export function shareUrl(t, loc) {
+  const u = new URL(/\.thesnowball\.app$/.test(String(loc.hostname || '')) ? '/share' : 'share.html', loc.href);
+  u.search = ''; u.hash = t;
+  return u.toString();
+}
+/* d = כמה ימים (בלי — הקישור הקיים כמו שהוא). שינוי התוקף — אותו קישור, בלי מסך טעינה */
+async function shrMake(id, d) {
+  const me = shr;
+  if (d) { if (me.busy) return; me.busy = true; } else me.st = 'load';
+  plPaint();
+  const j = await net.api('shareMake', d ? { job: id, d } : { job: id }).catch(() => ({ ok: false, error: 'net' }));
+  me.busy = false;
+  if (shr !== me) return;
+  const rec = jobRec(id);
+  if (j.job && rec) { rec.srv = normJob({ id, srv: j.job }).srv; save(); }
+  if (j.ok && typeof j.t === 'string') Object.assign(me, { st: 'ok', t: j.t, exp: Number(j.exp) || 0, d: Number(j.d) || 0 });
+  else if (d) flashSafe(errText(j.error || 'net'));
+  else Object.assign(me, { st: 'err', err: j.error || 'net' });
+  plPaint();
+}
+function shrDays(rec) {
+  const seg = h('div', 'st-seg');
+  seg.setAttribute('role', 'radiogroup'); seg.setAttribute('aria-label', T('studioShrFor'));
+  for (const [d, lbl] of shrDayOpts()) {
+    const on = shr.d === d;
+    const b = btn('st-seg-b' + (on ? ' on' : ''), lbl, () => { if (!on) shrMake(rec.id, d); }, 'shr-d:' + d);
+    b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', on ? 'true' : 'false');
+    if (shr.busy) b.disabled = true;
+    seg.append(b);
+  }
+  return seg;
+}
+function shrOff(id) {
+  const go2 = async () => {
+    const me = shr;
+    if (!me || me.busy) return;
+    me.busy = true; plPaint();
+    const j = await net.api('shareOff', { job: id }).catch(() => ({ ok: false, error: 'net' }));
+    me.busy = false;
+    const rec = jobRec(id);
+    if (j.job && rec) { rec.srv = normJob({ id, srv: j.job }).srv; save(); }
+    if (j.ok) { Object.assign(me, { st: 'off', t: '', exp: 0 }); flashSafe(T('studioShrOffDone')); } else flashSafe(errText(j.error));
+    plPaint();
+  };
+  if (typeof askConfirm === 'function') askConfirm(T('studioShrOffQ'), go2, { ok: T('studioShrOff'), danger: true }); else go2();
+}
+async function shrShare(rec, url) {
+  const title = fileTitle(rec.spec.name) || T('studioUntitled');
+  try {
+    if (navigator.share) { await navigator.share({ title, url }); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  copyText(url, T('studioShrCopied'));
+}
+function pageShr(p) {
+  const rec = jobRec(ui.param);
+  if (!rec) { back(); return; }
+  p.append(navBar({ back: T('studioShrBack') }), large(T('studioShrTitle')), note(T('studioShrNote')));
+  if (!shr || shr.id !== rec.id) { shr = { id: rec.id, st: 'load', t: '', exp: 0, d: 0, err: '', busy: false }; shrMake(rec.id); }
+  if (shr.st === 'load') { p.append(h('div', 'st-pl-ph', T('studioShrMaking'))); return; }
+  if (shr.st === 'err') { p.append(note(errText(shr.err)), btn('st-btn wide', T('studioRetry'), () => shrMake(rec.id), 'shr-retry')); return; }
+  if (shr.st === 'off') { p.append(btn('st-btn wide', T('studioShrNew'), () => shrMake(rec.id), 'shr-new')); return; }
+  const url = shareUrl(shr.t, location);
+  const box = h('div', 'st-shr-url');
+  const u = h('bdi', null, url); u.dir = 'ltr';
+  box.append(u);
+  p.append(box,
+    btn('st-btn wide', T('studioShrShare'), () => shrShare(rec, url), 'shr-share'),
+    btn('st-btn ghost wide', T('studioShrCopy'), () => copyText(url, T('studioShrCopied')), 'shr-copy'));
+  p.append(secT(T('studioShrFor')), shrDays(rec));
+  if (shr.exp > 0) p.append(note(T('studioShrUntil', { t: fmtDay(shr.exp) })));
+  p.append(list(btn('st-row st-act danger', shr.busy ? T('studioShrOffing') : T('studioShrOff'), () => shrOff(rec.id), 'shr-off')));
+}
 /* ---------------- דף הניתוח (10/11/2026, ניתוח סרטונים גל 1 — PR 1.5ב; התוכנית 9.4, ‏studiovi.js) ----------------
    עבודת ניתוח שהסתיימה (לא הרצה יבשה) נפתחת בדף הניתוח במקום דף העבודה. vi.json נטען פעם אחת ועובר normVi (מה שלא עבר —
    לא מוצג). הנגן = createPlayer של התרגום עם הסרטון באיכות מלאה (ה4), ונבנה רק ב"נגן מכאן". תמונות השקפים — טווח בתים
@@ -8264,7 +8352,7 @@ function vaClose() {
   va = null;
 }
 function pageVi(p, rec) {
-  p.append(navBar({ back: T('studioDialVi') }));
+  p.append(navBar({ back: T('studioDialVi'), end: shrBtn(rec) }));   // 11/11/2026: שיתוף בקישור
   if (!va || va.id !== rec.id) {
     vaClose();
     va = { id: rec.id, fid: (outOf(rec, 'vi') || {}).id || '', st: 'load', v: null, view: null, urls: new Map(), cues: null, t0: viLinkT && viLinkT.id === rec.id ? viLinkT.t : 0 };
@@ -9337,7 +9425,7 @@ function pageJob(p) {
   if (viPageOk(rec)) { pageVi(p, rec); return; }   // PR 1.5ב: ניתוח שהסתיים — דף הניתוח (9.4)
   const id = rec.id;
   amMaybe(rec);
-  p.append(navBar({ back: T('studioShort') }));
+  p.append(navBar({ back: T('studioShort'), end: shrBtn(rec) }));   // 11/11/2026: שיתוף בקישור
   const t1 = h('h1', 'st-large clamp'); t1.append(h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')));
   p.append(t1);
   const ab = accessBanner(); if (ab) p.append(ab);
@@ -10294,6 +10382,7 @@ function shapeKey() {
   if (ui.view === 'rules' || ui.view === 'rlb' || ui.view === 'rlm') return ui.view + '|' + ui.access + '|' + JSON.stringify(ui.rl) + ui.fm + gl.st + gl.rows.length + (rulesBusy ? 'b' : '');
   if (ui.view === 'subs') { const r = jobRec(ui.param); return 'subs|' + ui.param + '|' + (se ? se.st : '') + '|' + ui.access + '|' + (r && r.srv ? r.srv.ev + ':' + r.srv.vh.length : '') + (r && rrJobs.get(r.id) ? rrJobs.get(r.id).srv.state : ''); }   // מ2: לא נבנה מחדש בזמן הקלדה
   if (ui.view === 'rr') { const x = rrJobs.get(ui.param), v = rrPv.get(ui.param); return 'rr|' + ui.param + '|' + ui.access + '|' + (x ? x.srv.state + JSON.stringify(x.srv.prog) + x.srv.out.length : '') + '|' + (v ? v.srv.state + JSON.stringify(v.srv.prog) + v.srv.out.length : '') + (rrBusy ? 1 : 0) + JSON.stringify(rrOpt) + (seDirty() ? 'd' : ''); }
+  if (ui.view === 'shr') return 'shr|' + ui.param + '|' + ui.access + '|' + (shr ? shr.st + shr.t + (shr.busy ? 'b' : '') : '');   // 11/11/2026
   if (ui.view === 'ideas') return 'ideas|' + ui.param + '|' + ui.access + '|' + (idea ? idea.k + idea.mode + (idea.busy ? 'b' : '') + (idea.cues ? idea.cues.length : 'l') + (idea.text != null ? 't' + idea.text.length : '') : '');   // מ8
   if (ui.view === 'ai') return 'ai|' + ui.param + '|' + ui.access + '|' + (ai ? ai.k + ai.scope + ai.mode + ai.queue.length + (ai.busy ? 'b' : '') + (ai.items ? 'i' + ai.items.length + ':' + [...ai.acc].join('.') : '') : '');   // מ7
   if (ui.view === 'cut' || ui.view === 'cutsrc') return ui.view + '|' + ui.param + '|' + (ce ? ce.key + (ce.cues ? ce.cues.length : '') : '') + '|' + ui.access;   // מ4–מ5: לא נבנה מחדש בזמן עריכה
@@ -10412,6 +10501,7 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   else if (ui.view === 'play') pagePlay(p);   // מ1
   else if (ui.view === 'subs') pageSubs(p);   // מ2: עורך הכתוביות
   else if (ui.view === 'rr') pageRr(p);       // מ2: הפקה מחדש
+  else if (ui.view === 'shr') pageShr(p);     // 11/11/2026: שיתוף בקישור
   else if (ui.view === 'cut') pageCut(p, false);      // מ5: חיתוך אחרי התרגום
   else if (ui.view === 'sty') pageSty(p);            // סבב 5: עיצוב הכתוביות
   else if (ui.view === 'ov') pageOv(p);              // סבב 7: כותרת ולוגו

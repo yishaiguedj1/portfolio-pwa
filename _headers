@@ -12,3 +12,24 @@
   Content-Security-Policy: frame-ancestors 'self'
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=(), serial=(), hid=()
   Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+# 11/11/2026 — דף הצפייה ששותף בקישור (share.html, בלי התחברות): הכותרות הקשוחות ביותר. לא במסגרת בכלל (גם לא שלנו), בלי Referer,
+# בלי מטמון, בלי אינדוקס, חלון מבודד (COOP — הדף לא פותח חלונות ולא נפתח מחלון שמדבר איתו), ו־CSP מלא בכותרת (כמו ה־meta +
+# frame-ancestors, שב־meta אין לו תוקף). Cloudflare מצרף בפסיק כותרת שמופיעה גם ב־/* — שתי מדיניות CSP נאכפות יחד (החמורה גוברת),
+# ב־Referrer-Policy האחרונה גוברת. tests/headers-sec.test.js ו־tests/studio-share.test.js בודקים שזהה ל־meta.
+/share
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Cache-Control: no-store
+  X-Robots-Tag: noindex, nofollow
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: https://*.r2.cloudflarestorage.com; font-src 'self' data:; connect-src 'self' https://*.r2.cloudflarestorage.com https://ibkr-proxy-wine.vercel.app https://api.thesnowball.app https://api-staging.thesnowball.app; base-uri 'none'; form-action 'none'; object-src 'none'; require-trusted-types-for 'script'; trusted-types snb-share; frame-ancestors 'none'
+/share.html
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Cache-Control: no-store
+  X-Robots-Tag: noindex, nofollow
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: https://*.r2.cloudflarestorage.com; font-src 'self' data:; connect-src 'self' https://*.r2.cloudflarestorage.com https://ibkr-proxy-wine.vercel.app https://api.thesnowball.app https://api-staging.thesnowball.app; base-uri 'none'; form-action 'none'; object-src 'none'; require-trusted-types-for 'script'; trusted-types snb-share; frame-ancestors 'none'
