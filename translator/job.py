@@ -2524,11 +2524,16 @@ def wait_video(ctx, stage, msg):
             raise e
         if park and time.time() - t0 >= park_after():
             raise Park()
+        bg = _URL_BG['t'] if _URL_BG['t'] and _URL_BG['t'].is_alive() else None
         if n == 0:
-            print('מחכה שהסרטון יסיים לעלות מהטלפון…')
+            print('מוריד את הסרטון מהקישור…' if bg else 'מחכה שהסרטון יסיים לעלות מהטלפון…')
         if n % 10 == 0:
-            ctx.report(stage, None, msg, force=True, wv=True)   # v377: השעון של יעד הזמן עוצר — מחכים לטלפון
-        time.sleep(poll)
+            # v377: השעון של יעד הזמן עוצר — מחכים לטלפון. 11/11/2026: הורדה מקישור היא עבודה של השרת, לא המתנה לך
+            ctx.report(stage, None, 'מורידים את הסרטון מהקישור' if bg else msg, force=True, wv=None if bg else True)
+        if bg:
+            bg.join(timeout=poll)                  # 11/11/2026: ההורדה מהקישור הסתיימה — ממשיכים מיד, לא אחרי עוד 30 שנ׳
+        else:
+            time.sleep(poll)
         n += 1
         if n * poll > 12 * 3600:
             ctx.report(fail=True, err='upload_timeout', force=True)
@@ -2663,7 +2668,12 @@ def url_fetch(ctx):
     learn_refs_start(ctx)                        # 27/10/2026: כתוביות היוצר — ברקע מעכשיו, עזר להגהה (subs_hlp)
     if not (files.get('a') or {}).get('id'):
         ctx.report('tr', 0, 'מוריד את הקול מהקישור', force=True)
-        url_get(ctx, 'a', lambda f, got, tot: ctx.report('tr', 0.04 * f, 'מוריד את הקול מהקישור'))
+        fa = url_get(ctx, 'a', lambda f, got, tot: ctx.report('tr', 0.04 * f, 'מוריד את הקול מהקישור'))
+        # 11/11/2026 (המשתמש: "כל פעם מחכה להעלאה של הסרטון"): הקול נרשם בשרתון (srcFile), אבל לא במצב המקומי — ו־prepare /
+        # vi_run, שקוראים את ctx.st['files'] מיד אחרי, לא ראו אותו ומחכו לסרטון. עכשיו — גם כאן, והתמלול מתחיל מהקול
+        if isinstance(fa, dict) and fa.get('id'):
+            ctx.st['files'] = dict(ctx.st.get('files') or {}, a=fa)
+            save_state(ctx.st)
     if not (files.get('v') or {}).get('id') and not (_URL_BG['t'] and _URL_BG['t'].is_alive()):
         q = QuietCtx(dict(ctx.st))
 
