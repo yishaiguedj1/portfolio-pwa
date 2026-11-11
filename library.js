@@ -1032,7 +1032,7 @@ function navigateTo(kind, y) {           // ציור הדף הנוכחי (ui.vie
 }
 /* 14/10/2026 (בקשת המשתמש): מעבר בין דפים = קובייה, כמו בשלוש האפליקציות (המנוע ב־core: cubeClone/cubeGhostRun).
    הדף היוצא = העתק של השכבה, הדף החדש נצבע בשכבה עצמה מתחתיו — ואז שניהם מסתובבים. דחיפה = קדימה, חזרה = אחורה */
-const cubeOk = () => !!root && !rd && !VT.inside && typeof cubeClone === 'function' && !cubeReduce() && !document.hidden;
+const cubeOk = () => !!root && !rd && !VT.inside && typeof cubeClone === 'function' && !cubeReduce() && !(typeof cubeDesk === 'function' && cubeDesk()) && !document.hidden;   // תצוגת מחשב — בלי קובייה
 async function cubeNav(kind, y) {
   // 29/10/2026 (סבב קפיצות 4): ההעתק נצבע שני פריימים לפני הציור החדש (core: cubePre) — בלי פריים ריק בטלפון
   const ghost = typeof cubePre === 'function' ? await new Promise((res) => cubePre(root, res)) : cubeClone(root);
@@ -3572,9 +3572,25 @@ async function ribbon3dSetup(box, btn) {
 /* נגיעות בתוך הספר: דפדוף רק בהחלקה (המנוע — paginator — גורר ומצמיד לעמוד, לפי כיוון הספר).
    נגיעה בשוליים כבר לא מדפדפת (v303, בקשת המשתמש: נגיעה במילה ליד הקצה לתרגום העבירה עמוד בטעות) —
    נגיעה בכל מקום רק מציגה/מסתירה את הסרגלים. */
+/* תצוגת מחשב (11/11/2026, docs/desktop-plan.md): מקלדת בקורא — ← → לפי כיוון הספר (כמו דף נייר: בספר בעברית ← = הבא),
+   רווח / PageDown — הבא, Shift+רווח / PageUp — הקודם, Home/End — תחילת/סוף הפרק. גם מתוך הספר (wireDoc) וגם מהמסמך.
+   לא כשמקלידים, ולא כשגיליון או חלון פתוח מעל הקורא */
+function readerKey(e) {
+  if (!rd || !rd.view || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+  const tg = e.target;
+  if (tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT' || tg.isContentEditable)) return;
+  if (document.querySelector('.lib-veil, .dlg-veil, .dk-veil')) return;
+  const v = rd.view, k = e.key;
+  const f = k === 'ArrowLeft' ? () => v.goLeft() : k === 'ArrowRight' ? () => v.goRight()
+    : (k === 'PageDown' || (k === ' ' && !e.shiftKey)) ? () => v.next() : (k === 'PageUp' || (k === ' ' && e.shiftKey)) ? () => v.prev() : null;
+  if (!f) return;
+  e.preventDefault();
+  try { const r = f(); if (r && r.catch) r.catch(() => {}); } catch (err) {}
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('keydown', readerKey);
 function wireDoc(doc, setChrome, index) {
   doc.addEventListener('pointerup', readerRearm, true);
-  doc.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); onEscape(); } });
+  doc.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); onEscape(); } else readerKey(e); });
   // v336 (בקשת המשתמש — לפי ת־קורא): נגיעה קצרה = סרגלים בלבד (או סגירת הכרטיס); התרגום והסימון — רק בלחיצה ארוכה
   doc.addEventListener('click', (e) => {
     if (!(e.target && e.target.closest && e.target.closest('a[href]'))) blockTouchSearch(doc, e);
@@ -5002,7 +5018,7 @@ const LIB_DIAL = {
   nav: () => libNav, keys: () => LIB_SIB, index: (k) => Math.max(0, LIB_SIB.indexOf(k)),
   cur: () => (libDialC ? libDialC.from : libKeyOf(ui.view)),
   begin(cur, to, side) {          // כמו ההחלקה (snbSwipe): העתק של השכבה יוצא, האח נצבע בשכבה עצמה
-    if (!root || rd || VT.inside || cubeReduce() || document.hidden) return null;
+    if (!root || rd || VT.inside || cubeReduce() || (typeof cubeDesk === 'function' && cubeDesk()) || document.hidden) return null;
     const bd = !to && typeof cubeBackdropReal === 'function' ? cubeBackdropReal(root) : cubeBackdrop(root);   // הקפיץ — השכבה עצמה זזה
     if (!to) { libDialC = { side, p: 0, rub: true, out: cubeFace(root, { dead: true }), bd, from: cur }; return libDialC; }
     const pg = libSibPage(cur, to);
@@ -5093,7 +5109,7 @@ export async function openLibrary(opt) {
   ensureCss();
   if (root) return;
   SA = opt && opt.standalone ? opt.standalone : null;
-  if (SA) { SA.settings = openAcademySettings; SA.notes = () => goView({ notes: 1 }); SA.backup = () => goView({ backup: 1 }); SA.addBook = openAddSheet; SA.home = SA.home || './'; }
+  if (SA) { SA.inSettings = () => !!(root && ui.view && libInSet(ui.view)); SA.settings = openAcademySettings; SA.notes = () => goView({ notes: 1 }); SA.backup = () => goView({ backup: 1 }); SA.addBook = openAddSheet; SA.home = SA.home || './'; }
   const restore = opt && opt.restore && opt.restore.lib ? opt.restore : null;   // רענון בזמן שהספרייה הייתה פתוחה
   root = h('div', 'lib-root no-swipe');
   root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', T('libTitle'));

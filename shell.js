@@ -165,6 +165,8 @@ export function createShell(o) {
     if (open) langMenu.classList.add('hidden');
   }
   setOpen(false);
+  /* תצוגת מחשב (core: deskOnSettings) — "הגדרות" בסרגל הצד ו־⌘, פותחים את ההגדרות של האפליקציה */
+  if (typeof deskOnSettings === 'function' && o.onSettings) deskOnSettings(o.onSettings, o.inSettings || null);
   menu.addEventListener('click', (e) => { e.stopPropagation(); setOpen(!isOpen()); });
   theme.addEventListener('click', (e) => {
     e.stopPropagation();

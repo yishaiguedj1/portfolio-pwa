@@ -1,0 +1,276 @@
+/* ==========================================================================
+   desktop.css — תצוגת מחשב לכל האפליקציות (11/11/2026, בקשת המשתמש)
+   התוכנית: docs/desktop-plan.md · התקן: ת־מחשב ב־docs/standards.md · המחקר: docs/research/desktop/
+   - הכל תחת html.dk (רוחב ≥ 1024, נקבע ב־deskMode ב־core לפני הציור הראשון). בטלפון ובטאבלט לאורך — אף כלל לא חל.
+   - מחוץ ל־@layer בכוונה: ה־CSS של האפליקציות לא בשכבות, ושכבה הייתה מפסידה לו. כפתורי הזכוכית — בתוך @layer glassbtn (בסוף).
+   - אותו DOM, סידור אחר: החוגה (nav.tabs) מוסתרת, סרגל הצד (aside.dk-side, נבנה ב־core) מחליף אותה ולוחץ על כפתוריה.
+   - מידות לפי אמצעי הקלט, לא לפי הרוחב: עכבר (ברירת המחדל) · מחשב מגע (any-pointer: coarse) — אזורי לחיצה גדולים יותר
+     בלי לשנות צפיפות · טאבלט (pointer: coarse) — מידות מגע מלאות.
+   ========================================================================== */
+
+html.dk {
+  --dk-gap: 10px;                 /* המרחק של סרגל הצד מקצה החלון */
+  --dk-side-w: 248px;             /* רוחב סרגל הצד (עכבר) */
+  --dk-off: calc(var(--dk-side-w) + var(--dk-gap) * 2);   /* ההזזה של התוכן מצד ההתחלה */
+  --dk-row: 36px;                 /* שורה בסרגל הצד — 36 גם בעכבר: ב־Mac עם מסך מגע האצבע נראית לדף כמו עכבר (מחקר 02) */
+  --dk-ico: 24px;                 /* תיבת האייקון בשורה */
+  --dk-fs: 15px;                  /* טקסט השורה */
+  --dk-r-win: 22px;               /* רדיוס משטח (סרגל, לוח, חלון) */
+  --dk-r-row: 12px;               /* רדיוס שורה — קונצנטרי: 22 − ריפוד 10 */
+  --dk-pad: 10px;
+  --dk-max: 1120px;               /* תקרת רוחב התוכן */
+  --dk-read: 760px;               /* עמודת קריאה (הגדרות, טפסים) */
+  --dk-col-gap: 20px;
+  --dk-ring: color-mix(in srgb, var(--primary) 82%, var(--on-surface));
+  --dk-hover: color-mix(in srgb, var(--on-surface) 6%, transparent);
+  --dk-press: color-mix(in srgb, var(--on-surface) 11%, transparent);
+  --dk-sel: color-mix(in srgb, var(--primary) 20%, transparent);
+  --dk-sel-ink: var(--on-primary-container);
+  --dock-h: 0px;                  /* אין חוגה בתחתית — בלי הריפוד שהיה שמור לה */
+  /* הדר: כפתורים 36 (סרגל כלים של מחשב), לוגו 100 */
+  --dk-ib: 36px;
+  --dk-logo: 100px;
+}
+/* מחשב מגע: אותה צפיפות, שורות ואזורי לחיצה גדולים יותר (לפי הנחיית המגע במחשב) */
+@media (any-pointer: coarse) {
+  html.dk { --dk-row: 40px; --dk-side-w: 264px; --dk-ib: 40px; }
+}
+/* טאבלט לרוחב (מגע הוא הקלט הראשי): מידות מגע מלאות */
+@media (pointer: coarse) {
+  html.dk { --dk-row: 44px; --dk-ico: 28px; --dk-fs: 17px; --dk-side-w: 280px; --dk-ib: 44px; --dk-logo: 108px; }
+}
+@media (min-width: 1680px) { html.dk { --dk-max: 1280px; --dk-col-gap: 24px; } }
+
+/* ---------- 1. החוגה התחתונה → סרגל הצד ---------- */
+html.dk nav.tabs { display: none !important; }
+html.dk body.has-dock { --dock-h: 0px; padding-bottom: 40px; }
+html.dk.lib-dock .lib-root, html.dk.st-dock .st-root { padding-bottom: 40px; }
+html.dk .cf-root { padding-bottom: 48px; }
+
+/* התוכן זז מצד ההתחלה (ימין בעברית, שמאל באנגלית) — הסרגל צף מעליו בצד */
+html.dk body { padding-inline-start: var(--dk-off); }
+/* Academy ו־Studio: השכבה של האפליקציה (fixed, z 900) מתחילה אחרי הסרגל — לא מכסה אותו. כל מה שנפתח בתוכה
+   (הקורא, גיליון, נגן מלא — fixed, inset 0) מכסה את כל החלון כולל הסרגל, כי הסרגל (899) מתחת לשכבה */
+html.dk :is(.lib-root, .st-root) { inset-inline-start: var(--dk-off); }
+
+.dk-side {
+  position: fixed; z-index: 899; inset-block: var(--dk-gap); inset-inline-start: var(--dk-gap);
+  inline-size: var(--dk-side-w); box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 2px; padding: 14px var(--dk-pad) var(--dk-pad);
+  border-radius: var(--dk-r-win); color: var(--on-surface); font-family: var(--font);
+  /* זכוכית "שקטה": מילוי שקוף מעל הרקע הקבוע, בלי טשטוש חי (אין תוכן שזז מתחת לסרגל) */
+  background: var(--gl-panel); box-shadow: var(--gl-card-sh), 0 1px 2px rgba(0, 0, 0, .05), 0 12px 40px rgba(0, 0, 0, .08);
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+  -webkit-user-select: none; user-select: none;
+}
+html:not(.dk) .dk-side { display: none; }
+.dk-head { display: flex; align-items: center; gap: 10px; padding: 0 6px 12px; }
+.dk-logo { inline-size: 32px; block-size: 32px; border-radius: 8px; flex: none; }
+.dk-name { display: flex; flex-direction: column; min-inline-size: 0; line-height: 1.15; }
+.dk-name b { font-size: 17px; font-weight: 700; letter-spacing: -.2px; }
+.dk-name small { font-size: 11px; font-weight: 600; letter-spacing: .6px; color: var(--on-surface-var); direction: ltr; text-align: start; }
+
+.dk-item {
+  display: flex; align-items: center; gap: 10px; inline-size: 100%; min-block-size: var(--dk-row);
+  padding: 0 8px; box-sizing: border-box; border: 0; border-radius: var(--dk-r-row);
+  background: transparent; color: inherit; font: inherit; font-size: var(--dk-fs); font-weight: 500; line-height: 1.2;
+  text-align: start; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: background-color .15s ease, color .15s ease;
+}
+.dk-item:active { background: var(--dk-press); }
+.dk-ico { inline-size: var(--dk-ico); block-size: var(--dk-ico); flex: none; display: inline-flex; align-items: center; justify-content: center; color: var(--on-surface-var); }
+.dk-ico svg { inline-size: 20px; block-size: 20px; stroke: currentColor; fill: none; }
+.dk-ico .tab-ico { position: static; opacity: 1; transform: none; }
+.dk-ico .tab-fill { fill: currentColor; stroke: none; }   /* אייקון מלא (הסקירה) — באותו צבע של השאר, לא ירוק */
+.dk-lbl { flex: 1 1 auto; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dk-item[aria-current="page"] { background: var(--dk-sel); color: var(--dk-sel-ink); font-weight: 650; }
+.dk-item[aria-current="page"] .dk-ico { color: var(--dk-sel-ink); }
+.dk-kbd, .dk-help kbd, .dk-pal kbd {
+  font: 600 11.5px/1 var(--font); color: var(--on-surface-var); direction: ltr; unicode-bidi: isolate;
+  padding: 3px 6px; border-radius: 6px; background: var(--dk-hover); border: 1px solid var(--separator); white-space: nowrap;
+}
+.dk-item .dk-kbd { opacity: 0; transition: opacity .15s ease; }
+.dk-find .dk-kbd, .dk-item:focus-visible .dk-kbd { opacity: 1; }
+.dk-find { margin-block-end: 10px; background: var(--dk-hover); color: var(--on-surface-var); }
+.dk-find .dk-ico { color: inherit; }
+.dk-nav { display: flex; flex-direction: column; gap: 2px; }
+.dk-sec { margin-block-start: 18px; display: flex; flex-direction: column; gap: 2px; }
+.dk-sec-t { margin: 0 0 4px; padding: 0 8px; font-size: 12px; font-weight: 650; color: var(--on-surface-var); letter-spacing: .2px; }
+.dk-appic { inline-size: 22px; block-size: 22px; border-radius: 6px; }
+.dk-foot { margin-block-start: auto; padding-block-start: 10px; }
+
+/* מרכז הניהול: הסרגל שלו (.adm-side) — באותו תקן: צף לכל הגובה בצד ההתחלה, אותן שורות ואותה בחירה */
+html.dk .adm-side {
+  position: fixed; z-index: 899; inset-block: var(--dk-gap); inset-inline-start: var(--dk-gap); margin: 0;
+  inline-size: var(--dk-side-w); box-sizing: border-box; padding: 14px var(--dk-pad) var(--dk-pad); border-radius: var(--dk-r-win);
+  background: var(--gl-panel); box-shadow: var(--gl-card-sh), 0 1px 2px rgba(0, 0, 0, .05), 0 12px 40px rgba(0, 0, 0, .08);
+  display: flex; flex-direction: column; gap: 2px; overflow-y: auto; scrollbar-width: none;
+}
+html.dk .adm-sbrand { font-size: 17px; font-weight: 700; padding: 0 8px 12px; }
+html.dk .adm-sitem { min-block-size: var(--dk-row); padding: 0 8px; border-radius: var(--dk-r-row); font-size: var(--dk-fs); font-weight: 500; transition: background-color .15s ease; }
+html.dk .adm-sitem i { inline-size: var(--dk-ico); color: var(--on-surface-var); }
+html.dk .adm-sitem.on { background: var(--dk-sel); color: var(--dk-sel-ink); font-weight: 650; }
+html.dk .adm-sitem.on i { color: inherit; }
+html.dk .adm-sitem:active { background: var(--dk-press); }
+@media (hover: hover) {
+  html.dk[data-input="mouse"] .adm-sitem:not(.on):hover { background: var(--dk-hover); }
+}
+
+/* ---------- 2. ההדר ---------- */
+html.dk .appbar { --ib: var(--dk-ib); --pill-h: max(44px, calc(var(--dk-logo) - var(--ib) - 10px)); padding: 10px 24px 6px; }
+html.dk .brand-logo { inline-size: var(--dk-logo); block-size: var(--dk-logo); }
+html.dk .appbar .icon-btn { font-size: calc(var(--ib) * .5); }
+
+/* ---------- 3. רוחב התוכן ---------- */
+html.dk main { max-width: var(--dk-max); padding-inline: 24px; }
+html.dk .fine { max-width: var(--dk-max); }
+html.dk .lib-home { max-width: var(--dk-max); padding-inline: 24px; }
+html.dk .st-page { max-width: var(--dk-max); padding-inline: 24px; box-sizing: border-box; }
+/* Studio: הבית, הניתוח, המגדל והנגן — רחבים; עבודה, הגדרות, טפסים ושאר הפרטים — עמודת קריאה */
+html.dk .st-page[data-v]:not(:is([data-v="home"], [data-v="ka"], [data-v="vi"], [data-v="tower"], [data-v="towerx"], [data-v="play"])) { max-width: calc(var(--dk-read) + 48px); }
+html.dk .cf-root { max-width: var(--dk-max); padding-inline: 24px; }
+
+/* עמודות קריאה — הגדרות וטפסים לא נמתחים */
+html.dk :is(#tab-settings, #tab-advanced, #tab-backup) { max-width: var(--dk-read); margin-inline: auto; }
+
+/* Academy: דף הספר — עמודת קריאה (כפתור "קרא" לא נמתח לכל הרוחב) */
+html.dk .bk { max-width: var(--dk-read); margin-inline: auto; }
+
+/* ---------- 4. Invest — שתי עמודות ---------- */
+@media (min-width: 1180px) {
+  html.dk #tab-overview.active, html.dk #tab-overview.cube-in, html.dk #tab-overview.cube-out {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--dk-col-gap); align-items: start; grid-auto-flow: row dense;
+  }
+  html.dk #tab-overview > * { grid-column: 1 / -1; min-width: 0; }
+  html.dk #tab-overview > :is(#gainCard, #earnCard, #ibkrPerfCard), html.dk #tab-overview > .card:has(> .pie-wrap) { grid-column: auto; }
+  /* רשימות המניות והמעקב — רשת של כרטיסים; כרטיס פתוח תופס את כל השורה */
+  html.dk :is(#stockList, #wishlistList) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--dk-col-gap); align-items: start; }
+  html.dk :is(#stockList, #wishlistList) > * { min-width: 0; }
+  html.dk :is(#stockList, #wishlistList) > :not(.stock) { grid-column: 1 / -1; }
+  html.dk :is(#stockList, #wishlistList) > .stock.open { grid-column: 1 / -1; }
+  html.dk :is(#stockList, #wishlistList) > .stock { margin: 0 0 var(--dk-col-gap); }
+  html.dk #tab-overview > .card { margin: 0 0 var(--dk-col-gap); }
+  html.dk #tab-overview > .ov-stats { margin-block-start: 8px; }
+}
+@media (min-width: 1680px) {
+  html.dk :is(#stockList, #wishlistList) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* ---------- 5. מידות: כרטיסים וכפתורים (עכבר) ---------- */
+html.dk { --radius-xl: 24px; --radius: 20px; }
+html.dk .card { padding: 20px 22px; }
+
+/* ---------- 6. חלונות וגיליונות — במחשב במרכז החלון ובכל הפינות מעוגלים (גיליון תחתון שייך לטלפון) ---------- */
+/* מעל הסרגל (899): הדיאלוגים, ההתחברות והגיליון של Invest יושבים ב־body בשכבות נמוכות */
+html.dk .dlg-veil { z-index: 1003; }
+html.dk .login-overlay { z-index: 1002; }
+html.dk .pf-sheet-veil { z-index: 960; align-items: center; padding: 24px; }
+html.dk .pf-sheet { border-radius: var(--dk-r-win); padding-block-end: 20px; }
+html.dk .lib-veil { align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; }
+html.dk .lib-sheet { max-width: 560px; max-height: 84vh; border-radius: var(--dk-r-win); }
+html.dk .st-rs { align-items: center; padding: 24px; box-sizing: border-box; }
+html.dk .st-rs-box { border-radius: var(--dk-r-win); }
+html.dk :is(.lib-sheet, .st-rs-box, .pf-sheet) :is(.lib-grab, .st-rs-grab, .sheet-grab) { display: none; }
+
+/* ---------- 7. פוקוס, עכבר וגלילה ---------- */
+html.dk :focus-visible { outline: 2px solid var(--dk-ring); outline-offset: 2px; }
+html.dk .dk-item:focus-visible { outline-offset: -2px; }
+html.dk [tabindex="-1"]:focus-visible { outline: none; }   /* מכלים וכותרות שמקבלים פוקוס מהקוד (מעבר דף) — לא פקד, בלי טבעת */
+html.dk :is(.dk-help, .dk-pal):focus-visible { outline: none; }   /* החלון עצמו מקבל את הפוקוס בפתיחה — בלי טבעת סביב כולו */
+html.dk { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--on-surface) 28%, transparent) transparent; }
+html.dk :is(.lib-root, .st-root) { scrollbar-width: thin; scrollbar-gutter: stable; }
+@media (hover: hover) {
+  html[data-input="mouse"] .dk-item:hover { background: var(--dk-hover); }
+  html[data-input="mouse"] .dk-item[aria-current="page"]:hover { background: var(--dk-sel); }
+  html[data-input="mouse"] .dk-item:hover .dk-kbd { opacity: 1; }
+}
+
+/* ---------- 8. לוח הפקודות (⌘K) וקיצורי המקלדת (?) ---------- */
+.dk-veil {
+  position: fixed; inset: 0; z-index: 1000; display: flex; align-items: flex-start; justify-content: center;
+  padding: max(12vh, 64px) 16px 16px; box-sizing: border-box;
+  background: rgba(0, 0, 0, .18); opacity: 0; transition: opacity .16s ease;
+}
+[data-theme="dark"] .dk-veil { background: rgba(0, 0, 0, .42); }
+.dk-veil.on { opacity: 1; }
+.dk-pal, .dk-help {
+  inline-size: min(640px, 100%); max-block-size: min(560px, 76vh); display: flex; flex-direction: column;
+  border-radius: var(--dk-r-win, 22px); color: var(--on-surface); font-family: var(--font); overflow: hidden;
+  background: var(--gl-panel); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx);
+  box-shadow: var(--gl-card-sh), 0 24px 70px rgba(0, 0, 0, .22), 0 2px 8px rgba(0, 0, 0, .08);
+  transform: translateY(-6px) scale(.985); transition: transform .2s cubic-bezier(.2, .9, .25, 1);
+}
+.dk-veil.on :is(.dk-pal, .dk-help) { transform: none; }
+.dk-pal-bar { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--separator); }
+.dk-pal-bar .dk-svg { color: var(--on-surface-var); }
+.dk-svg { display: inline-flex; }
+.dk-svg svg { inline-size: 20px; block-size: 20px; }
+.dk-pal-in {
+  flex: 1 1 auto; min-inline-size: 0; border: 0; outline: 0; background: transparent; color: inherit;
+  font: 500 18px/1.3 var(--font); padding: 4px 0;
+}
+.dk-pal-in::placeholder { color: var(--on-surface-var); }
+html.dk .dk-pal-in:focus-visible { outline: none; }   /* השדה הוא הלוח עצמו — הסמן מספיק, בלי טבעת בתוך הלוח */
+.dk-pal-list { overflow-y: auto; overscroll-behavior: contain; padding: 6px; scrollbar-width: thin; }
+.dk-pal-row {
+  display: flex; align-items: center; gap: 12px; min-block-size: 44px; padding: 6px 10px; border-radius: 12px; cursor: pointer;
+}
+.dk-pal-row[aria-selected="true"] { background: var(--dk-sel, rgba(48, 209, 88, .2)); }
+.dk-pal-row .dk-ico { inline-size: 28px; block-size: 28px; border-radius: 8px; background: var(--dk-hover); }
+.dk-pal-row .dk-ico img { inline-size: 22px; block-size: 22px; border-radius: 6px; }
+.dk-pal-tx { flex: 1 1 auto; min-inline-size: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.dk-pal-tx b { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dk-pal-tx small { font-size: 12.5px; color: var(--on-surface-var); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dk-pal-empty { margin: 0; padding: 22px 16px; text-align: center; color: var(--on-surface-var); font-size: 15px; }
+.dk-help { padding: 18px 20px 20px; overflow-y: auto; inline-size: min(720px, 100%); }
+.dk-help-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-block-end: 10px; }
+.dk-help-t { margin: 0; font-size: 20px; font-weight: 700; }
+.dk-help-x {
+  inline-size: 32px; block-size: 32px; border-radius: 50%; border: 0; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--dk-hover); color: var(--on-surface); cursor: pointer;
+}
+.dk-help-x svg { inline-size: 16px; block-size: 16px; }
+.dk-help-g { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 6px 28px; }
+.dk-help-s h3 { margin: 12px 0 6px; font-size: 13px; font-weight: 650; color: var(--on-surface-var); }
+.dk-help-r { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-block-size: 32px; font-size: 14.5px; border-bottom: 1px solid var(--separator); }
+.dk-help-r:last-child { border-bottom: 0; }
+.dk-help-sw { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-block-start: 16px; padding-block-start: 12px; border-top: 1px solid var(--separator); font-size: 14.5px; }
+
+.dk-sw { position: relative; flex: none; inline-size: 44px; block-size: 26px; border: 0; padding: 0; border-radius: var(--pill, 999px); cursor: pointer;
+  background: color-mix(in srgb, var(--on-surface) 18%, transparent); transition: background-color .2s ease; }
+.dk-sw::after { content: ''; position: absolute; inset-block-start: 2px; inset-inline-start: 2px; inline-size: 22px; block-size: 22px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); transition: transform .2s cubic-bezier(.2, .9, .25, 1); }
+.dk-sw[aria-checked="true"] { background: var(--primary); }
+.dk-sw[aria-checked="true"]::after { transform: translateX(18px); }
+[dir="rtl"] .dk-sw[aria-checked="true"]::after, html[dir="rtl"] .dk-sw[aria-checked="true"]::after { transform: translateX(-18px); }
+
+/* ---------- 9. נגישות: ניגודיות גבוהה, צבעים כפויים, תנועה מופחתת ---------- */
+@media (prefers-contrast: more) {
+  .dk-side, .dk-pal, .dk-help { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; border: 1px solid var(--on-surface-var); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .dk-side, .dk-pal, .dk-help { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@media (forced-colors: active) {
+  .dk-side, .dk-pal, .dk-help { border: 1px solid CanvasText; }
+  .dk-item[aria-current="page"], .dk-pal-row[aria-selected="true"] { outline: 2px solid Highlight; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dk-veil, .dk-pal, .dk-help, .dk-item { transition: none; }
+}
+
+/* מרכז הניהול: לוגו 64 (admin.css) — הבועות בגובה הכפתור, לא לפי לוגו של 100 */
+html.dk[data-app="admin"] .appbar { --pill-h: 44px; }
+
+/* מטרת לחיצה ≥24 (WCAG 2.5.8) — כפתורי טקסט קטנים שנמדדו ב־qa-desktop */
+html.dk :is(.lib-sortbtn, .st-linkb) { min-block-size: 28px; }
+
+/* טאבלט לרוחב (מגע ראשי): פקדים שבטלפון 30–38 — לפחות 40 לאצבע במסך גדול (נמדד ב־qa-desktop --touch) */
+@media (pointer: coarse) {
+  html.dk :is(.chip-btn, .range-btn, .wl-tab, .lang-opt, .subpage-back, .lib-qbtn, .lib-back, .lib-sortbtn, .st-back, .st-jobs-more, .st-linkb, .dk-help-x) { min-block-size: 40px; }
+  html.dk .dk-help-x { inline-size: 40px; }
+  html.dk .dk-sw { inline-size: 51px; block-size: 31px; }
+  html.dk .dk-sw::after { inline-size: 27px; block-size: 27px; }
+  html.dk .dk-sw[aria-checked="true"]::after { transform: translateX(20px); }
+  html[dir="rtl"].dk .dk-sw[aria-checked="true"]::after { transform: translateX(-20px); }
+}

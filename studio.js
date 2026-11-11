@@ -2522,7 +2522,7 @@ const STUDIO_DIAL = {
   nav: () => dialNav, keys: stDialKeys, index: (k) => Math.max(0, stDialKeys().indexOf(k)),
   cur: () => (stDialC ? stDialC.from : stKeyOf(ui.view, ui.param)),
   begin(cur, to, side) {          // כמו ההחלקה (snbSwipe): העתק של השכבה יוצא, האח נצבע בשכבה עצמה
-    if (!root || cubeReduce() || document.hidden) return null;
+    if (!root || cubeReduce() || (typeof cubeDesk === 'function' && cubeDesk()) || document.hidden) return null;
     const bd = !to && typeof cubeBackdropReal === 'function' ? cubeBackdropReal(root) : cubeBackdrop(root);   // הקפיץ — השכבה עצמה זזה
     if (!to) { stDialC = { side, p: 0, rub: true, out: cubeFace(root, { dead: true }), bd, from: cur }; return stDialC; }
     const pg = stSibPage(to);
@@ -10385,7 +10385,8 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   if (!root) return;
   /* 29/10/2026 (סבב קפיצות 4): ההעתק נצבע שני פריימים לפני הציור החדש (core: cubePre) — אחרת בטלפון פריים ריק בתחילת
      כל מעבר. בזמן ההמתנה ציור במקום (רענון חי) מחכה: הציור של המעבר יבוא מיד */
-  const anim0 = (kind === 'push' || kind === 'dfwd' || kind === 'pop' || kind === 'dback') && !still && !reduceMotion() && !document.hidden;
+  const cubeOn = !(typeof cubeDesk === 'function' && cubeDesk());   // תצוגת מחשב: בלי קובייה — הכניסה הרכה (in-push / in-pop)
+  const anim0 = (kind === 'push' || kind === 'dfwd' || kind === 'pop' || kind === 'dback') && !still && !reduceMotion() && !document.hidden && cubeOn;
   if (!pre && anim0 && typeof cubePre === 'function' && root.firstChild) { cubePre(root, (g) => { if (root) render(kind, still, g); else g.remove(); }); return; }
   if (!pre && kind === 'none' && typeof cubePreBusy === 'function' && cubePreBusy()) return;
   const seq = ++renderSeq;
@@ -10395,6 +10396,7 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   const fk = ae && root.contains(ae) && ae.dataset ? ae.dataset.k : null;   // הפוקוס חוזר לאותו רכיב אחרי ציור מחדש
   if (ui.view === 'home' || ui.view === 'ka' || ui.view === 'vi') form = null;   // יציאה מהטופס בלי שמירה — הטיוטה לא נשמרת
   const p = h('div', 'st-page');
+  p.dataset.v = ui.view;   // תצוגת מחשב (11/11/2026): הרוחב לפי סוג הדף — לוחות רחבים, טפסים ופרטים בעמודת קריאה (desktop.css)
   /* 03/11/2026 (סבב קפיצות 10): ציור במקום — בכל הדפים, לא רק בבית. ראו pageKeep */
   const oldPg = kind === 'none' ? root.querySelector(':scope > .st-page') : null;
   const homeV = ui.view === 'home' || ui.view === 'ka' || ui.view === 'vi';
@@ -10463,7 +10465,7 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   const anim = (fwd || kind === 'pop' || kind === 'dback') && !still && !reduceMotion() && !document.hidden;
   // 29/10/2026: החוגה זזה יחד עם הקובייה (אותו קפיץ). באמצע החלקה / נסיעה של החוגה (sib, העתק על המסך) — המנוע מזיז אותה
   if (kind !== 'sib' && kind !== 'sibpop' && !(kind === 'none' && (root._cubeVT || (root.nextElementSibling && root.nextElementSibling.classList.contains('cube-ghost'))))) stDialSync(!anim);
-  const ghost = pre || (anim && typeof cubeClone === 'function' && root.firstChild ? cubeClone(root) : null);
+  const ghost = pre || (anim && cubeOn && typeof cubeClone === 'function' && root.firstChild ? cubeClone(root) : null);
   if (anim && !ghost) p.classList.add(fwd ? 'in-push' : 'in-pop');
   // 29/10/2026 (בטלפון: תפריט ההמבורגר ב־Studio שקוף, התוכן חד מאחוריו — שונה מ־Academy): שכבת הטשטוש של התפריט (shell.js)
   // יושבת בתוך השכבה; ציור דף מחדש (רענון הרשימה) מחק אותה. נשארת כל עוד התפריט פתוח
@@ -10639,7 +10641,7 @@ export function studioShare(text, ref, pr, to) {
 export function openStudio(opt) {
   ensureCss();
   if (!root) SA = opt && opt.standalone ? opt.standalone : null;
-  if (SA) { SA.settings = () => go('settings'); SA.tower = () => go('tower'); }
+  if (SA) { SA.settings = () => go('settings'); SA.tower = () => go('tower'); SA.inSettings = () => !!root && chainFor(ui.view, ui.param).some((x) => x.v === 'settings'); }
   const jobLink = opt && /^j[A-Za-z0-9_-]{20}$/.test(String(opt.job || '')) ? opt.job : '';   // שלב 4: מההתראה
   const linkView = opt && (opt.view === 'play' || opt.view === 'subs') ? opt.view : '';          // פעולה בהתראה: צפייה / עריכה
   if (jobLink && Number.isFinite(+opt.t) && +opt.t > 0) viLinkT = { id: jobLink, t: Math.min(86400, Math.floor(+opt.t)) };   // PR 1.5ב (V125): ‎#studio=<עבודה>&t=<שניות> — דף הניתוח מנגן משם

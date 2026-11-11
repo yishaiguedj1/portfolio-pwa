@@ -144,7 +144,8 @@ html[data-app="admin"] { --gb-force: #5E5CE6; --gb-ontx: #fff; }
    שורות/פריטי רשימה/כרטיסים: tx-item adm-r ac-lens ac-person ac-step ac-tile ac-track adm-live adm-top an-key an-rcard an-row an-fact bk-card card col-card ft-row gb-row
      ios-row ios-row-btn lib-cont lib-item lib-opt lib-row mg-opt mg-row rd-fontrow reset-cancel reset-open reset-opt row-link src-opt acx-opt st-alr st-al-row
      st-banner st-filecard st-fnd st-l st-lk-rec st-newcard st-proj st-row st-twcard st-tower stock-head kc-li kc-wr kc-tg kc-fly-i st-pl-mr st-qa-b mg-pc mg-sc
-   מתגי הפעלה (מתג iOS): adm-sw ib-sw lib-sw pfbk-sw
+   מתגי הפעלה (מתג iOS): adm-sw ib-sw lib-sw pfbk-sw dk-sw
+   סרגל הצד, לוח הפקודות וחלון הקיצורים במחשב (מעוצבים ב־desktop.css לפי ת־מחשב): dk-item dk-help-x
    קישורי טקסט ופעולות טקסט: link-btn adm-link an-link lib-admin-link lib-textbtn st-link st-linkb st-txt wk-more ft-more mg-clear st-rate-chg st-pl-fundo es-cancel
      mg-snack-b ac-retry st-dp-up st-nsb st-pl-chb kc-tfpick kc-symbtn mg-tb sf-clear tr-tog st-src-u bk-link bk-series
    סמלים בתוך שדה החיפוש: lib-qbtn
