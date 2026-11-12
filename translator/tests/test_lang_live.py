@@ -281,6 +281,26 @@ class Align(unittest.TestCase):
         self.assertNotIn("c", r["words"][0])
 
 
+    def test_he_times_rejects_escaped_ctc(self):
+        # 12/11/2026: קטע 0–4 שנ׳; ה־CTC "ברח" עם המילה השלישית ל־9 שנ׳ — נדחית ומוקמת בין השכנות
+        ws = V.words_from_segments([{"s": 0, "e": 4, "text": "אחת שתיים שלוש ארבע"}, {"s": 6, "e": 7, "text": "חמש"}])
+        idx = list(range(len(ws)))
+        got = [{"s": 0.1, "e": 0.5}, {"s": 0.6, "e": 1.0}, {"s": 9.0, "e": 9.4}, {"s": 2.4, "e": 3.0}, None]
+        st = V.he_times(ws, idx, got)
+        self.assertEqual(st, {"ctc_rej": 1, "ctc_ip": 1})
+        self.assertEqual((ws[2]["s"], ws[2]["e"]), (1.0, 2.4))
+        self.assertEqual(ws[2].get("ci"), 1)
+        self.assertNotIn("c", ws[3])
+        self.assertEqual(ws[4].get("c"), 1)                   # קטע בלי אף מילה מיושרת — נשאר משוער
+
+    def test_he_times_rejects_reversed_order(self):
+        ws = V.words_from_segments([{"s": 0, "e": 4, "text": "אחת שתיים שלוש"}])
+        got = [{"s": 0.1, "e": 1.5}, {"s": 0.2, "e": 0.6}, {"s": 2.0, "e": 3.0}]
+        st = V.he_times(ws, [0, 1, 2], got)
+        self.assertEqual(st["ctc_rej"], 1)
+        self.assertEqual((ws[1]["s"], ws[1]["e"]), (1.5, 2.0))
+
+
 class Cues(unittest.TestCase):
     def test_cue_breaks_on_language_switch(self):
         words = [{"w": "שלום", "s": 0.0, "e": 0.4}, {"w": "לכולם", "s": 0.5, "e": 0.9},

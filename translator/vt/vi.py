@@ -251,6 +251,68 @@ def _asr(wav: str, lang: str, t0: float) -> dict:
             "stats": dict(lid, n=len(words), s=round(time.time() - t0, 1))}
 
 
+HE_TOL = 0.5                   # זמן CTC עד חצי שנייה מחוץ לקטע של ivrit — עוד סביר (ריפוד ה־VAD)
+HE_OVL = 0.05                  # מילה שמתחילה לפני סוף הקודמת ביותר מזה — הסדר התהפך, ה־CTC "ברח"
+
+
+def he_times(words: list[dict], idx: list[int], got: list) -> dict:
+    """12/11/2026 (כתוביות בזמן לא מדויק): זמני ה־CTC העברי (got, לפי idx) נכנסים רק כשהם סבירים — בתוך הקטע של ivrit
+    (li, ‏±HE_TOL), אורך חיובי, ובסדר אחרי המילה הקודמת. עד היום כל זמן התקבל, ומילה שה־CTC "ברח" איתה (כמו בקריוקי)
+    משכה את הכתובית. מילה שנדחתה או שלא יושרה — ממוקמת לפי אורך בין השכנות המיושרות באותו קטע (לא על פני כל הקטע);
+    קטע בלי אף מילה מיושרת — נשאר משוער (c=1). מחזיר מדדים: ctc_rej (נדחו), ctc_ip (מוקמו בין שכנות)."""
+    seg: dict[int, list[float]] = {}
+    for k in idx:
+        w = words[k]
+        b = seg.setdefault(int(w["li"]), [float(w["s"]), float(w["e"])])
+        b[0], b[1] = min(b[0], float(w["s"])), max(b[1], float(w["e"]))
+    ok: dict[int, bool] = {}
+    rej, last = 0, -1e9
+    for k, g in zip(idx, got):
+        if not g:
+            ok[k] = False
+            continue
+        a, b = seg[int(words[k]["li"])]
+        s, e = float(g["s"]), float(g["e"])
+        if e > s and s >= a - HE_TOL and e <= b + HE_TOL and s >= last - HE_OVL:
+            words[k]["s"], words[k]["e"], ok[k] = s, e, True
+            words[k].pop("c", None)
+            last = e
+        else:
+            ok[k], rej = False, rej + 1
+    ip = 0
+    by_li: dict[int, list[int]] = {}
+    for k in idx:
+        by_li.setdefault(int(words[k]["li"]), []).append(k)
+    for li, ks in by_li.items():
+        if not any(ok.get(k) for k in ks):
+            continue
+        a, b = seg[li]
+        i = 0
+        while i < len(ks):
+            if ok.get(ks[i]):
+                i += 1
+                continue
+            j = i
+            while j < len(ks) and not ok.get(ks[j]):
+                j += 1
+            lo = float(words[ks[i - 1]]["e"]) if i > 0 else a
+            hi = float(words[ks[j]]["s"]) if j < len(ks) else b
+            if hi < lo:
+                hi = lo
+            run = ks[i:j]
+            n = sum(max(1, len(str(words[k]["w"]))) for k in run)
+            acc = 0
+            for k in run:
+                words[k]["s"] = round(lo + (hi - lo) * acc / n, 3)
+                acc += max(1, len(str(words[k]["w"])))
+                words[k]["e"] = round(lo + (hi - lo) * acc / n, 3)
+                words[k].pop("c", None)
+                words[k]["ci"] = 1
+                ip += 1
+            i = j
+    return {"ctc_rej": rej, "ctc_ip": ip}
+
+
 def align(tr: dict, wav: str) -> dict:
     """זמן לכל מילה (שלב 5 ב־3.2), ואחריו דוברים. תקלה = הזמנים מהתמלול נשארים (‏ts_coarse), לא כישלון."""
     words = [dict(w) for w in tr.get("words") or []]
@@ -280,10 +342,7 @@ def align(tr: dict, wav: str) -> dict:
             audio = align_he.load_audio(wav)
             idx = [k for k, w in enumerate(words) if "li" in w]   # 10/11/2026: מילים בשפה אחרת (lg) — בלי li, הזמן מהמנוע שלהן
             got = align_he.ctc_align(model, d, audio, [words[k] for k in idx])
-            for w, g in zip([words[k] for k in idx], got):
-                if g:
-                    w["s"], w["e"] = g["s"], g["e"]
-                    w.pop("c", None)
+            st.update(he_times(words, idx, got))
             del model, audio
             aligner = "ctc-he"
         except Exception as e:  # noqa: BLE001
