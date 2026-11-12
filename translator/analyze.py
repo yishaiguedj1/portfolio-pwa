@@ -66,8 +66,6 @@ SO_WIN = 30.0                   # "רק על המסך": מחפשים את המי
 SO_MIN_CONF, SO_MIN_WORDS = 60, 3
 SO_HIT = 0.3                    # פחות מ־30% מהמילים התוכניות נאמרו — השורה "רק על המסך"
 CUE_MAX_S, CUE_MAX_CH = 7.0, 84
-CUE_CPS, CUE_MIN_S = 17.0, 0.83  # זמן קריאה מינימלי לכתובית (כמו Q_CPS ו־Q_MIN_DUR ב־job.py)
-CUE_HOLD_S, CUE_GAP = 1.0, 0.08  # רווח קצר מזה עד הכתובית הבאה — נסגר; מרווח של כ־2 פריימים בין כתוביות
 IMG_TOK_DIV = 750               # טוקני תמונה ≈ רוחב × גובה ÷ 750 (התיעוד של Anthropic)
 CPU_FLAGS = ('sse4_2', 'avx', 'avx2', 'fma', 'f16c', 'avx_vnni', 'avx512f', 'avx512bw', 'avx512vl', 'avx512_vnni',
              'avx512_bf16', 'amx_tile', 'amx_int8', 'amx_bf16')
@@ -300,12 +298,16 @@ def _cue_parts(ws: list[dict]) -> list[list[dict]]:
     return [[w] for w in ws]
 
 
-def cues(words: list[dict]) -> list[dict]:
+def cues(words: list[dict], fps: float = 0.0) -> list[dict]:
     """התמליל בשפת המקור ככתוביות לנגן (normCues בטלפון): עד CUE_MAX_S שנ׳ ו־CUE_MAX_CH תווים, בשתי שורות לכל היותר.
     10/11/2026: כתובית לא חוצה החלפת שפה — מילים בשפה אחרת (lg, ‏vt/vi.py:lang_mix) הן כתובית משלהן, עם lg.
-    12/11/2026 (כתובית שהבהבה לשנייה ונעלמה באמצע המשפט): המשפט מתחלק לחלקים מאוזנים (_cue_parts), והסוף הוא לפחות
-    זמן הקריאה (CUE_CPS תווים לשנייה, לא פחות מ־CUE_MIN_S) — עד תחילת הכתובית הבאה; רווח קצר מ־CUE_HOLD_S נסגר
-    (הכתובית נשארת עד הבאה). מילים שהיישור דחס לשנייה אחת כבר לא מעלימות את הכתובית לפני שהדובר סיים."""
+    12/11/2026 (כתובית שהבהבה לשנייה ונעלמה באמצע המשפט — היא נקבעה רק לפי סוף המילה האחרונה): המשפט מתחלק לחלקים
+    מאוזנים (_cue_parts), והזמנים מחושבים במנוע התזמון של התרגום — vt/timing.py:time_cues, אותם כללים שנבדקו על
+    כ־100 סרטונים: כניסה פריים לפני הדיבור, השהיה של חצי שנייה אחריו, זמן קריאה (17 תווים לשנייה, לפחות 5/6 שנ׳),
+    רווח קצר מחצי שנייה נסגר (שרשור), עד 7 שנ׳, בלי חפיפות. fps = קצב הסרטון (0 — 25)."""
+    from vt.config import TimingRules
+    from vt.timing import time_cues
+    from vt.util import FrameGrid
     groups, cur = [], []
     for w in words:
         if cur and (float(w['s']) - float(cur[-1]['e']) >= PAUSE_S or SENT_END.search(str(cur[-1]['w']))
@@ -324,22 +326,19 @@ def cues(words: list[dict]) -> list[dict]:
                 continue
             mid = len(text) // 2
             sp = text.rfind(' ', 0, mid + 8) if len(text) > CUE_MAX_CH // 2 else -1
-            lines = [text[:sp].strip(), text[sp:].strip()] if sp > 0 else [text]
-            c = {'id': len(out) + 1, 'start': round(float(part[0]['s']), 3), 'end': float(part[-1]['e']),
-                 'lines': [x for x in lines if x], 'n': len(text.replace(' ', ''))}
+            lines = [x for x in ([text[:sp].strip(), text[sp:].strip()] if sp > 0 else [text]) if x]
+            c = {'id': len(out) + 1, 'speech_s': float(part[0]['s']), 'speech_e': max(float(part[-1]['e']), float(part[0]['s'])),
+                 'chars': sum(len(x) for x in lines) + len(lines) - 1, 'lines': lines}
             if part[0].get('spk') and part[0]['spk'] != 'S?':
                 c['spk'] = str(part[0]['spk'])[:8]
             if part[0].get('lg'):
                 c['lg'] = str(part[0]['lg'])[:5]
             out.append(c)
-    for i, c in enumerate(out):
-        nxt = out[i + 1]['start'] - CUE_GAP if i + 1 < len(out) else float('inf')
-        end = max(c['end'], c['start'] + max(CUE_MIN_S, c.pop('n') / CUE_CPS))
-        if nxt - end < CUE_HOLD_S:
-            end = nxt
-        end = min(end, nxt)
-        c['end'] = round(max(end, c['start'] + 0.3), 3)
-    return out
+    if not out:
+        return []
+    time_cues(out, FrameGrid(fps if 5 <= fps <= 240 else 25.0), [], TimingRules())
+    keep = ('id', 'start', 'end', 'lines', 'spk', 'lg')
+    return [dict({k: c[k] for k in keep if k in c}, start=round(c['start'], 3), end=round(c['end'], 3)) for c in out]
 
 
 # ---------------------------------------------------------------- מה המיפוי היה שולח (rv במצב dry)
@@ -1219,7 +1218,20 @@ def probe(src: Path) -> dict:
     vs = [x for x in ss if x.get('codec_type') == 'video' and not (x.get('disposition') or {}).get('attached_pic')]
     return {'dur': float((info.get('format') or {}).get('duration') or 0), 'video': bool(vs),
             'audio': any(x.get('codec_type') == 'audio' for x in ss),
-            'h': int(vs[0].get('height') or 0) if vs else 0}
+            'h': int(vs[0].get('height') or 0) if vs else 0, 'fps': _fps(vs[0]) if vs else 0.0}
+
+
+def _fps(v: dict) -> float:
+    """קצב הפריימים של הסרטון (avg_frame_rate, אחרת r_frame_rate) — לרשת הפריימים של תזמון הכתוביות; 0 = לא ידוע"""
+    for k in ('avg_frame_rate', 'r_frame_rate'):
+        try:
+            a, _, b = str(v.get(k) or '').partition('/')
+            f = float(a) / float(b or 1)
+        except (ValueError, ZeroDivisionError):
+            continue
+        if 5 <= f <= 240:
+            return f
+    return 0.0
 
 
 TRUNC_MIN_S = 30          # 11/11/2026: מקור קטוע — חסרות לפחות 30 שנ׳…
@@ -1574,6 +1586,7 @@ def vi_run(J, args, engine=None) -> int:
         J.fetch_input(ctx, f['id'], src, int(f.get('size') or 0))
         pv = probe(src)
         info['video'] = pv['video']
+        info['fps'] = pv.get('fps') or 0.0
         decl = max(decl, pv['dur'])
     if info['video']:
         J.vt(ctx, ['vi-screen', str(src), '--out', str(scr), '--mem-mb', str(mem_need(dur))], 'al', 0.0, 0.5)
@@ -1636,7 +1649,7 @@ def vi_run(J, args, engine=None) -> int:
     if trunc:
         vi['video']['decl'] = round(decl, 2)
     (pd / 'vi.json').write_text(json.dumps(vi, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
-    (pd / 'cues.json').write_text(json.dumps(cues(words), ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
+    (pd / 'cues.json').write_text(json.dumps(cues(words, info.get('fps') or 0.0), ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     if info['video'] and spec.get('vg') != 1:        # PR 1.6: הרצת זהב (vg) — בלי הסרטון באיכות מלאה (רק ה־vi.json נמדד)
         J.vt(ctx, ['vi-same', str(src), '--out', str(pd / 'same.mp4')], 'bn', 0.1, 1.0)
     # 6. שמירה
