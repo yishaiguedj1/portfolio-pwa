@@ -66,6 +66,7 @@ SO_WIN = 30.0                   # "רק על המסך": מחפשים את המי
 SO_MIN_CONF, SO_MIN_WORDS = 60, 3
 SO_HIT = 0.3                    # פחות מ־30% מהמילים התוכניות נאמרו — השורה "רק על המסך"
 CUE_MAX_S, CUE_MAX_CH = 7.0, 84
+CUE_LINE_CH = 42                # שורה אחת עד כאן (Q_LEN של התרגום)
 IMG_TOK_DIV = 750               # טוקני תמונה ≈ רוחב × גובה ÷ 750 (התיעוד של Anthropic)
 CPU_FLAGS = ('sse4_2', 'avx', 'avx2', 'fma', 'f16c', 'avx_vnni', 'avx512f', 'avx512bw', 'avx512vl', 'avx512_vnni',
              'avx512_bf16', 'amx_tile', 'amx_int8', 'amx_bf16')
@@ -298,6 +299,18 @@ def _cue_parts(ws: list[dict]) -> list[list[dict]]:
     return [[w] for w in ws]
 
 
+def _two_lines(text: str) -> list[str]:
+    """12/11/2026: עד CUE_LINE_CH תווים — שורה אחת; יותר — שתי שורות מאוזנות (הרווח שממזער את הארוכה מביניהן, כמו
+    Q_LEN ב־job.py — עד היום "סביב האמצע" נתן שורה ראשונה של עד ~50 תווים)"""
+    if len(text) <= CUE_LINE_CH:
+        return [text]
+    sps = [i for i, ch in enumerate(text) if ch == ' ']
+    if not sps:
+        return [text]
+    i = min(sps, key=lambda k: (max(k, len(text) - k - 1), abs(k - len(text) / 2)))
+    return [x for x in (text[:i].strip(), text[i + 1:].strip()) if x]
+
+
 def cues(words: list[dict], fps: float = 0.0) -> list[dict]:
     """התמליל בשפת המקור ככתוביות לנגן (normCues בטלפון): עד CUE_MAX_S שנ׳ ו־CUE_MAX_CH תווים, בשתי שורות לכל היותר.
     10/11/2026: כתובית לא חוצה החלפת שפה — מילים בשפה אחרת (lg, ‏vt/vi.py:lang_mix) הן כתובית משלהן, עם lg.
@@ -311,8 +324,7 @@ def cues(words: list[dict], fps: float = 0.0) -> list[dict]:
     groups, cur = [], []
     for w in words:
         if cur and (float(w['s']) - float(cur[-1]['e']) >= PAUSE_S or SENT_END.search(str(cur[-1]['w']))
-                    or (w.get('lg') or '') != (cur[-1].get('lg') or '')
-                    or (w.get('spk') or '') != (cur[-1].get('spk') or '')):
+                    or (w.get('lg') or '') != (cur[-1].get('lg') or '')):
             groups.append(cur)
             cur = []
         cur.append(w)
@@ -324,9 +336,7 @@ def cues(words: list[dict], fps: float = 0.0) -> list[dict]:
             text = norm(' '.join(str(w['w']) for w in part))
             if not text:
                 continue
-            mid = len(text) // 2
-            sp = text.rfind(' ', 0, mid + 8) if len(text) > CUE_MAX_CH // 2 else -1
-            lines = [x for x in ([text[:sp].strip(), text[sp:].strip()] if sp > 0 else [text]) if x]
+            lines = _two_lines(text)
             c = {'id': len(out) + 1, 'speech_s': float(part[0]['s']), 'speech_e': max(float(part[-1]['e']), float(part[0]['s'])),
                  'chars': sum(len(x) for x in lines) + len(lines) - 1, 'lines': lines}
             if part[0].get('spk') and part[0]['spk'] != 'S?':

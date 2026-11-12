@@ -183,6 +183,18 @@ class TestOutputs(unittest.TestCase):
         cs = A.cues([W("שלום.", 10, 10.4)], fps=30.0)
         self.assertEqual(cs[0]["start"], round(299 / 30, 3))   # פריים 300 של 30fps, פחות פריים הקדמה
 
+    def test_cues_lines_and_speakers(self):
+        """שורה עד 42 תווים, שתי שורות מאוזנות; "כן" של דובר אחר לא מפצל משפט לשלוש כתוביות (mark_backchannels בתרגום)"""
+        t = "הדבר הזה לכשעצמו מאפשר לנגיף הזה יכולת שינוי יותר גדולה מאשר קיימת לנגיף הקורונה."
+        ls = A._two_lines(t)
+        self.assertEqual(len(ls), 2)
+        self.assertTrue(all(len(x) <= 42 for x in ls), ls)
+        self.assertEqual(" ".join(ls), t)
+        self.assertEqual(A._two_lines("קצר"), ["קצר"])
+        ws = [W("אני", 1, 1.3, spk="S1"), W("חושב", 1.35, 1.6, spk="S1"), W("כן", 1.62, 1.8, spk="S2"),
+              W("שזה", 1.85, 2.1, spk="S1"), W("נכון.", 2.15, 2.5, spk="S1")]
+        self.assertEqual(len(A.cues(ws)), 1)
+
     def test_probe_fps(self):
         self.assertAlmostEqual(A._fps({"avg_frame_rate": "30000/1001"}), 29.97, places=2)
         self.assertEqual(A._fps({"avg_frame_rate": "0/0", "r_frame_rate": "25/1"}), 25.0)
