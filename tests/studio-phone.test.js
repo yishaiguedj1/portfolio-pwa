@@ -275,7 +275,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(/export const nuPickOk = \(f\) => phOk\(\) && !!f && !f\.ka && !f\.vi;/.test(src), 'nu: קריוקי — מהדפדפן');
   ok(/if \(r\.nu \|\| ask\) f\.ph\.nu = 1;/.test(src), 'nu: Studio ישן שלא החזיר nu — עדיין עבודה רגילה (לפי NU_ASK), לא תרגום בטלפון');
   ok(/out: OUTS\.filter\(\(k\) => f\.out\[k\]\), style: f\.style, \.\.\.\(f\.sty \? \{ sty: f\.sty \} : \{\}\), terms: f\.terms, nu: 1, eng: 'api'/.test(src), 'nu: עבודה רגילה (התוצרים מהטופס), לא spec.ph');
-  ok(/else if \(rec\.spec\.nu && [^\n]*p\.append\(nuCard\(rec\)\)/.test(src) && /rec\.spec\.ph \|\| rec\.spec\.nu\) && rec\.srv && rec\.srv\.fv/.test(src), 'nu: כרטיס ההעלאה בדף העבודה, והנגן מהסרטון שבענן');
+  ok(/else if \(rec\.spec\.nu && [^\n]*p\.append\(nuCard\(rec\)\)/.test(src) && /const srcVid = [^\n]*\|\| \(rec\.srv && rec\.srv\.fv\)/.test(src), 'nu: כרטיס ההעלאה בדף העבודה, והנגן מהסרטון שבענן');
   ok(/if \(sp\.nu === 1 && sp\.ph !== 1\) Object\.assign\(spec, \{ nu: 1, vc: 1 \}\)/.test(src), 'nu ו־vc נשמרים ברשומה בטלפון (גם אחרי רענון)');
   {
     const act = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhActivity.kt'), 'utf8');
