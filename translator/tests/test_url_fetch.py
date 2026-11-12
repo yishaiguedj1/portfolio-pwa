@@ -73,6 +73,8 @@ class UrlFetch(unittest.TestCase):
                     raise ValueError(self.fail_v)
             p = Path(tmpl.replace('%(ext)s', 'm4a' if kind == 'a' else 'mkv'))
             p.write_bytes(b'x' * (100 if kind == 'a' else 300))
+            if kw.get('meta') is not None and kind == 'a':
+                kw['meta'].update(getattr(self, 'meta_a', {}))
             if on_progress:
                 on_progress(1.0, 100, 100)
             return str(p)
@@ -91,6 +93,17 @@ class UrlFetch(unittest.TestCase):
         F.download, J.put_output, J.QuietCtx, J.save_state = self.saved
         if J._URL_BG['t']:
             J._URL_BG['t'].join(2)
+
+    def test_declared_length_kept(self):
+        # 12/11/2026: הכותרת של הקובץ המקורי (‎-k) / מה שהאתר מצהיר → ctx.st['src_decl'] — analyze.src_trunc משווה לקול
+        self.meta_a = {'decl': 473.1, 'dur': 0.0}
+        J.url_fetch(self.ctx)
+        self.assertEqual(self.ctx.st.get('src_decl'), 473.1)
+
+    def test_no_declared_length(self):
+        self.meta_a = {}
+        J.url_fetch(self.ctx)
+        self.assertNotIn('src_decl', self.ctx.st)
 
     def test_audio_first_then_video(self):
         J.url_fetch(self.ctx)

@@ -1507,7 +1507,10 @@ def vi_run(J, args, engine=None) -> int:
         info = probe(src)
         asrc = src
     dur = info['dur']
-    decl = dur                                        # 11/11/2026: מה שהקבצים מצהירים (הגבוה מבין הקול והסרטון) — מול הקול שפוענח
+    # 11/11/2026: מה שהקבצים מצהירים (הגבוה מבין הקול והסרטון) — מול הקול שפוענח. 12/11: גם הכותרת של הקובץ המקורי
+    # בקישור (src_decl — הקול חולץ ממנו, והסרטון שירד יכול להיות קידוד מחדש עם כותרת נכונה) והמשך מהבדיקה בטלפון
+    sp_dur = float(spec.get('dur') or 0) if not (spec.get('pick') or {}).get('sec') else 0.0
+    decl = max(dur, float(ctx.st.get('src_decl') or 0), sp_dur if sp_dur <= 86400 else 0.0)
     if dur > VI_MAX_S:
         ctx.report(fail=True, err='vi_long', msg='עד %d דקות' % (VI_MAX_S // 60), force=True)
         raise SystemExit('✗ ניתוח: הסרטון ארוך מ־%d דק׳.' % (VI_MAX_S // 60))

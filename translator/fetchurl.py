@@ -9,6 +9,7 @@
   choose      — הפורמט לכל איכות: "הכי קרוב למקור" = הזרם עם האיכות הכי גבוהה באותה רזולוציה, בלי קידוד מחדש.
   err_code    — שגיאה של yt-dlp → קוד קבוע (blocked/login/gone/geo/drm/live/unsupported/…), לא טקסט חופשי.
 """
+import glob
 import ipaddress
 import json
 import os
@@ -612,31 +613,63 @@ RETRY_429 = (20, 60)     # 11/11/2026: המתנות (שנ׳) לפני ניסיו
 
 
 def download(url, pick, out_tmpl, kind='v', section=None, on_progress=None, popen=subprocess.Popen, timeout=6 * 3600, ref='',
-             sleep=time.sleep):
+             sleep=time.sleep, meta=None):
     """11/11/2026 (מומחי ת״א מ־Commons: Wikimedia החזירה 429 להורדת הסרטון, והעבודה נכשלה ב־blocked): באתר שאינו יוטיוב
     'blocked' הוא כמעט תמיד הגבלת קצב זמנית (429) — מחכים ומנסים שוב (‎--continue ממשיך מאיפה שנעצר). yt-dlp לא מנסה
     שוב אחרי 429 בעצמו (רק 5xx). ביוטיוב — לא: שם זו חסימה של חוות שרתים, וניסיון חוזר רק מחמיר."""
     waits = () if yt_host(url) else RETRY_429
     for i in range(len(waits) + 1):
         try:
-            return _download_once(url, pick, out_tmpl, kind, section, on_progress, popen, timeout, ref)
+            return _download_once(url, pick, out_tmpl, kind, section, on_progress, popen, timeout, ref, meta)
         except ValueError as e:
             if str(e) != 'blocked' or i >= len(waits):
                 raise
             sleep(waits[i])
 
 
-def _download_once(url, pick, out_tmpl, kind, section, on_progress, popen, timeout, ref):
+def header_dur(path, run=subprocess.run):
+    """האורך שהקובץ מצהיר עליו בכותרת (format.duration של ffprobe). תקלה — 0."""
+    vb = os.environ.get('VT_BIN', '')
+    exe = os.path.join(vb, 'ffprobe') if vb and os.path.isfile(os.path.join(vb, 'ffprobe')) else 'ffprobe'
+    try:
+        r = run([exe, '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(path)],
+                capture_output=True, text=True, timeout=60)
+        return float((r.stdout or '').strip() or 0) if r.returncode == 0 else 0.0
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return 0.0
+
+
+def kept_decl(path, out_tmpl, hdr=None):
+    """12/11/2026 (מומחי ת״א, אחרי 2.142.4: הזיהוי לא תפס): הסרטון שירד הוא קידוד מחדש של Wikimedia — הכותרת שלו נכונה
+    (51 שנ׳), ורק בקובץ המקורי (שממנו חולץ הקול) הכותרת מצהירה 7:53. ‎-k משאיר את המקור ליד הקול: קוראים את הכותרת שלו
+    ומוחקים אותו. אין מקור נפרד (הקול כבר היה קובץ קול) — 0."""
+    hdr = hdr or header_dur
+    stem = out_tmpl.replace('.%(ext)s', '')
+    best = 0.0
+    for f in glob.glob(glob.escape(stem) + '.*'):
+        if f == path or f.endswith(('.part', '.ytdl')):
+            continue
+        best = max(best, hdr(f))
+        try:
+            os.unlink(f)
+        except OSError:
+            pass
+    return best
+
+
+def _download_once(url, pick, out_tmpl, kind, section, on_progress, popen, timeout, ref, meta=None):
     """הורדה: kind 'a' = רק הקול, 'v' = וידאו + קול ממוזגים בלי קידוד מחדש (MKV — מקבל כל צירוף קודקים).
     section = (מ, עד) בשניות — רק החלק הזה (yt-dlp חותך על פריימי מפתח; sync.py מיישר את הקול). מחזיר את הנתיב."""
     yc = YtCookies(url)
     cmd = ytdlp_base() + yc.args + pot_args(url) + ref_args(ref) + ['--newline', '--progress', '--progress-template',
                           'download:SNBP %(progress.downloaded_bytes)s %(progress.total_bytes)s %(progress.total_bytes_estimate)s',
                           '--no-mtime', '--continue','--concurrent-fragments', '4',
-                          '--max-filesize', '40G', '-o', out_tmpl, '--print', 'after_move:filepath']
+                          '--max-filesize', '40G', '-o', out_tmpl, '--print', 'after_move:filepath',
+                          '--print', 'after_move:SNBD %(duration)s']
     if kind == 'a':
-        # -x: כשאין זרם קול נפרד (קובץ משולב) — מחלצים את הקול בלי לקודד (העתקה; קודק אחר → הקרוב בלי איבוד)
-        cmd += ['-f', audio_selector(pick), '-x']
+        # -x: כשאין זרם קול נפרד (קובץ משולב) — מחלצים את הקול בלי לקודד (העתקה; קודק אחר → הקרוב בלי איבוד).
+        # ‎-k: המקור נשאר רגע — kept_decl קורא את הכותרת שלו (מקור קטוע) ומוחק אותו
+        cmd += ['-f', audio_selector(pick), '-x', '-k']
     else:
         cmd += ['-f', selector(pick), '--merge-output-format', 'mkv']
     if section and len(section) == 2:
@@ -645,12 +678,21 @@ def _download_once(url, pick, out_tmpl, kind, section, on_progress, popen, timeo
             cmd += ['--download-sections', '*%d-%d' % (a, b)]
     cmd += ['--', url]
     try:
-        return _download(cmd, on_progress, popen, timeout, yc)
+        info = {}
+        path = _download(cmd, on_progress, popen, timeout, yc, info)
+        if meta is not None:
+            meta['dur'] = info.get('dur') or 0.0                # מה שהאתר מצהיר (יוטיוב וכו׳; ב־Commons אין)
+            if kind == 'a' and not section:
+                meta['decl'] = kept_decl(path, out_tmpl)
+        return path
     finally:
         yc.done(False)                         # אחרי הצלחה / כישלון זה כבר לא עושה כלום (tmp נמחק)
 
 
-def _download(cmd, on_progress, popen, timeout, yc):
+SNBD_RE = re.compile(r'^SNBD ([0-9.]+)$')
+
+
+def _download(cmd, on_progress, popen, timeout, yc, info=None):
     t0 = time.time()
     p = popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
     path, last = '', 0.0
@@ -666,6 +708,11 @@ def _download(cmd, on_progress, popen, timeout, yc):
                 on_progress(min(1.0, got / tot), got, tot)
         elif line.startswith('/'):
             path = line
+        elif info is not None and SNBD_RE.match(line):
+            try:
+                info['dur'] = float(SNBD_RE.match(line).group(1))
+            except ValueError:
+                pass
         if time.time() - t0 > timeout:
             p.kill()
             raise ValueError('timeout')

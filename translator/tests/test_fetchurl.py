@@ -202,6 +202,58 @@ class FakeProc:
         return self.rc
 
 
+class Declared(unittest.TestCase):
+    # 12/11/2026: מומחי ת״א — הסרטון שירד קודד מחדש (כותרת נכונה), רק במקור (שממנו חולץ הקול) הכותרת מצהירה 7:53
+    def test_kept_decl_reads_and_deletes_original(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            tmpl = td + '/j.audio.%(ext)s'
+            Path(td, 'j.audio.ogg').write_bytes(b'a')
+            Path(td, 'j.audio.webm').write_bytes(b'v')
+            Path(td, 'j.audio.webm.part').write_bytes(b'p')
+            Path(td, 'j.webm').write_bytes(b'video download - not ours')
+            seen = []
+            d = F.kept_decl(td + '/j.audio.ogg', tmpl, hdr=lambda f: seen.append(Path(f).name) or 473.1)
+            self.assertEqual((d, seen), (473.1, ['j.audio.webm']))
+            self.assertEqual(sorted(p.name for p in Path(td).iterdir()), ['j.audio.ogg', 'j.audio.webm.part', 'j.webm'])
+            self.assertEqual(F.kept_decl(td + '/j.audio.ogg', tmpl, hdr=lambda f: 1 / 0), 0.0, 'אין מקור נפרד — 0')
+
+    def test_meta_from_download(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td, 'j.audio.ogg')
+            out.write_bytes(b'a')
+            Path(td, 'j.audio.webm').write_bytes(b'v')
+            cmds = []
+
+            def popen(cmd, **kw):
+                cmds.append(cmd)
+                p = FakeProc(0, '', str(out))
+                p.stdout = iter(['SNBD NA', str(out)])
+                return p
+            real = F.header_dur
+            F.header_dur = lambda f, run=None: 473.1
+            try:
+                meta = {}
+                F.download('https://commons.wikimedia.org/wiki/File:A.webm', {}, td + '/j.audio.%(ext)s', 'a', popen=popen, meta=meta)
+            finally:
+                F.header_dur = real
+            self.assertIn('-k', cmds[0])
+            self.assertEqual(meta['decl'], 473.1, 'הכותרת של המקור')
+            self.assertEqual(meta['dur'], 0.0, 'SNBD NA — האתר לא מצהיר')
+            self.assertFalse(Path(td, 'j.audio.webm').exists(), 'המקור נמחק אחרי קריאת הכותרת')
+
+    def test_site_duration_parsed(self):
+        info = {}
+        p = FakeProc(0, '', '')
+        p.stdout = iter(['SNBD 473.5', '/tmp/x.ogg'])
+        try:
+            F._download(['x'], None, lambda *a, **k: p, 60, F.YtCookies('https://x.com/v'), info)
+        except ValueError:
+            pass
+        self.assertEqual(info.get('dur'), 473.5)
+
+
 class Retry429(unittest.TestCase):
     # 11/11/2026: Wikimedia החזירה 429 להורדת הסרטון והעבודה נכשלה ב־blocked — באתר שאינו יוטיוב מחכים ומנסים שוב
     def run_seq(self, url, rcs):
