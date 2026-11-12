@@ -155,6 +155,112 @@ class TestOutputs(unittest.TestCase):
         self.assertEqual([c["id"] for c in cs], list(range(1, len(cs) + 1)))
         self.assertEqual(A.cues([]), [])
 
+    def test_cues_reading_time(self):
+        """12/11/2026: משפט שהיישור דחס לשנייתיים נשאר על המסך לפחות זמן הקריאה — ועד הכתובית הבאה כשהרווח קצר"""
+        s1 = "לעומתו , נגיף השפעת , הגנום שלו הוא מורכב מהרבה מקטעים ולא ממקטע אחד כמו נגיף הקורונה.".replace(" ,", ",").split()
+        s2 = "הדבר הזה לכשעצמו מאפשר לנגיף הזה יכולת שינוי יותר גדולה מאשר קיימת לנגיף הקורונה.".split()
+        s3 = "גם בשפעת אתה לא נדבק בדיוק באותו הסוג.".split()
+        ws = [W(x, 71 + i * 0.6, 71 + i * 0.6 + 0.5, spk="S1") for i, x in enumerate(s1)]
+        ws += [W(x, 80.5 + i * 0.15, 80.5 + i * 0.15 + 0.12, spk="S1") for i, x in enumerate(s2)]
+        ws += [W(x, 85 + i * 0.4, 85 + i * 0.4 + 0.3, spk="S1") for i, x in enumerate(s3)]
+        cs = A.cues(ws)
+        self.assertTrue(all(len(c["lines"][0].split()) + len(c["lines"][-1].split()) >= 4 for c in cs), cs)   # בלי "נגיף" לבד
+        self.assertEqual(len(cs), 4)
+        c2 = cs[2]
+        self.assertTrue(c2["lines"][0].startswith("הדבר"))
+        self.assertTrue(84.8 <= c2["end"] < cs[3]["start"] < 85, (c2, cs[3]))   # נשאר עד "גם בשפעת" (שרשור, 2 פריימים)
+        self.assertTrue(all(a["end"] < b["start"] for a, b in zip(cs, cs[1:])))
+        self.assertTrue(all(c["end"] - c["start"] >= 5 / 6 - 0.05 for c in cs))
+        self.assertEqual(set(cs[0]), {"id", "start", "end", "lines", "spk"})   # בלי שדות הפנימיים של המנוע
+
+    def test_cues_long_gap_not_held(self):
+        cs = A.cues([W("שלום.", 10, 10.4), W("עולם.", 30, 30.4)])
+        self.assertEqual(len(cs), 2)
+        self.assertTrue(10.8 <= cs[0]["end"] <= 11.0, cs[0])   # חצי שנייה אחרי הדיבור — לא מחזיקים 20 שנ׳ של שקט
+        self.assertTrue(9.9 <= cs[0]["start"] < 10, cs[0])     # פריים לפני הדיבור
+
+    def test_cues_fps_grid(self):
+        cs = A.cues([W("שלום.", 10, 10.4)], fps=30.0)
+        self.assertEqual(cs[0]["start"], round(299 / 30, 3))   # פריים 300 של 30fps, פחות פריים הקדמה
+
+    def test_cues_lines_and_speakers(self):
+        """שורה עד 42 תווים, שתי שורות מאוזנות; "כן" של דובר אחר לא מפצל משפט לשלוש כתוביות (mark_backchannels בתרגום)"""
+        t = "הדבר הזה לכשעצמו מאפשר לנגיף הזה יכולת שינוי יותר גדולה מאשר קיימת לנגיף הקורונה."
+        ls = A._two_lines(t)
+        self.assertEqual(len(ls), 2)
+        self.assertTrue(all(len(x) <= 42 for x in ls), ls)
+        self.assertEqual(" ".join(ls), t)
+        self.assertEqual(A._two_lines("קצר"), ["קצר"])
+        ws = [W("אני", 1, 1.3, spk="S1"), W("חושב", 1.35, 1.6, spk="S1"), W("כן", 1.62, 1.8, spk="S2"),
+              W("שזה", 1.85, 2.1, spk="S1"), W("נכון.", 2.15, 2.5, spk="S1")]
+        self.assertEqual(len(A.cues(ws)), 1)
+
+    def test_shift_and_cue_stats(self):
+        ws = [W("a", 1.0, 1.4), W("b", 1.5, 2.0)]
+        A.shift_words(ws, 0.25)
+        self.assertEqual((ws[0]["s"], ws[1]["e"]), (1.25, 2.25))
+        A.shift_words(ws, -5)
+        self.assertEqual(ws[0]["s"], 0.0, "לא לפני 0")
+        cs = [{"start": 0.0, "end": 0.5, "lines": ["x" * 20]}, {"start": 0.4, "end": 3.0, "lines": ["y" * 43]}]
+        st = A.cue_stats(cs, [W("a", 0.1, 0.2), W("b", 5, 5.2)])
+        self.assertEqual((st["n"], st["cps"], st["short"], st["len"], st["ovl"], st["nc"]), (2, 50.0, 50.0, 50.0, 1, 50.0))
+        self.assertEqual(A.cue_stats([], []), {"n": 0})
+
+    def test_ref_stats(self):
+        """12/11/2026: מול כתוביות היוצר — WER, חפיפת זמני התצוגה, ומה שהיוצר מציג ואנחנו לא (הבאג של הכתובית שנעלמה)"""
+        def ts(t):
+            return "%02d:%02d:%02d,%03d" % (t // 3600, t // 60 % 60, t % 60, round(t * 1000) % 1000)
+        texts = ["משפט מספר %d עם כמה מילים נוספות כאן" % i for i in range(30)]
+        srt = "\n\n".join("%d\n%s --> %s\n%s" % (i + 1, ts(i * 4), ts(i * 4 + 3.5), t) for i, t in enumerate(texts))
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "he.srt"
+            p.write_text(srt, encoding="utf-8")
+            words = [W(w, i * 4 + k * 0.4, i * 4 + k * 0.4 + 0.3) for i, t in enumerate(texts) for k, w in enumerate(t.split())]
+            good = [{"start": i * 4, "end": i * 4 + 3.5, "lines": [t]} for i, t in enumerate(texts)]
+            r = A.ref_stats(p, good, words)
+            self.assertEqual((r["wer"], r["iou"], r["miss"], r["d0"], r["dn"]), (0.0, 100.0, 0.0, 0.0, 30))
+            short = [dict(c, end=c["start"] + 1.0) for c in good]           # מהבהבת שנייה ונעלמת
+            r2 = A.ref_stats(p, short, words)
+            self.assertGreater(r2["miss"], 70)
+            self.assertLess(r2["iou"], 30)
+            self.assertIsNone(A.ref_stats(Path(d) / "none.srt", good, words), "בלי כתוביות של היוצר")
+            self.assertIsNone(A.ref_stats(p, good[:3], words[:20]), "קטע קצר — פחות מ־20 כתוביות שלהם בטווח")
+
+    def test_av_offset(self):
+        """12/11/2026: הקול שעלה ראשון מוזז ב־0.25 שנ׳ מול הקול שבסרטון — sync.py מוצא את ההיסט"""
+        import wave
+        import random
+        rnd = random.Random(7)
+        sr = 16000
+        x = [int(rnd.gauss(0, 3000)) for _ in range(sr * 6)]
+        def wr(p, xs):
+            with wave.open(str(p), "wb") as w:
+                w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
+                w.writeframes(b"".join(int(max(-32768, min(32767, v))).to_bytes(2, "little", signed=True) for v in xs))
+        with tempfile.TemporaryDirectory() as d:
+            a, v = Path(d) / "a.wav", Path(d) / "v.wav"
+            wr(a, x)
+            wr(v, [0] * int(0.25 * sr) + x)
+            real = subprocess.run
+            def fake(cmd, **k):                          # ffmpeg של הסרטון → הקובץ המוכן
+                if cmd[0] == "ffmpeg":
+                    Path(cmd[-1]).write_bytes(v.read_bytes())
+                    return subprocess.CompletedProcess(cmd, 0)
+                return real(cmd, **k)
+            A.subprocess.run = fake
+            try:
+                off, conf = A.av_offset(type("J", (), {"VT_PY": sys.executable}), a, Path(d) / "in.mp4")
+            finally:
+                A.subprocess.run = real
+            self.assertAlmostEqual(off, 0.25, places=2)
+            self.assertGreater(conf, 0.9)
+            self.assertFalse((Path(d) / "video16k.wav").exists(), "הקובץ הזמני נמחק")
+
+    def test_probe_fps(self):
+        self.assertAlmostEqual(A._fps({"avg_frame_rate": "30000/1001"}), 29.97, places=2)
+        self.assertEqual(A._fps({"avg_frame_rate": "0/0", "r_frame_rate": "25/1"}), 25.0)
+        self.assertEqual(A._fps({}), 0.0)
+
     def test_windows_ids_no_times(self):
         ev = [{"id": "e%d" % i, "t0": i * 10.5, "t1": i * 10.5 + 9, "text": "word " * 30, "spk": "S1"} for i in range(1, 9)]
         sl = [{"id": "s1", "t0": 31.0, "ocr": ["o1.1"]}]
@@ -516,6 +622,10 @@ class TestViRun(unittest.TestCase):
         self.assertLess(order.index("wait"), order.index("vi-screen"))
         self.assertIn("vi-same", order, "הסרטון נבדק שוב אחרי שהגיע — יש בו תמונה")
         self.assertIn("מתחילים מהקול", out)
+        facts = json.loads([x for x in out.splitlines() if x.startswith("VI_DRY ")][0][7:])
+        self.assertIn("sync", facts, "12/11/2026: ההיסט בין הקול לסרטון נמדד (av_offset)")
+        self.assertLess(abs(facts["sync"]["off"]), 0.05, "אותו קול — בלי היסט")
+        self.assertIn("cu", facts)
 
     def test_video_first_unchanged(self):
         """בלי קובץ קול — כמו קודם: מחכים לסרטון בקליטה (up)."""
