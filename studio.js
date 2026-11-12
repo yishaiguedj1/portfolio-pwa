@@ -8425,6 +8425,14 @@ function pageVi(p, rec) {
   // כמו "הקבצים" בדף הצפייה ששותף (share.js) ו"התוצרים" בדף העבודה
   const outs = ((rec.srv && rec.srv.out) || []).filter((o) => OUT_MAIN.includes(o.k));
   if (outs.length) p.append(secT(T('studioSecResults')), list(...outs.map((o) => rowOut(rec, o))));
+  // 12/11/2026 (המשתמש: "כמו בתרגום סרטונים — כמה טוקנים, כמה זמן, פרטים טכניים"): אותם חלקים כמו בדף העבודה,
+  // בשמות של הניתוח (שלבי vi, שורות העלות vm/vs/…) — בלי כרטיסי התרגום (איכות כתוביות, מילון, סט הזהב)
+  p.append(...stagesSec(rec, 'done'));
+  if (rec.srv.sla) p.append(...slaCard(rec));
+  p.append(...anJobRows(rec));
+  const cv = rec.srv.use ? costView(rec.srv.use, rec.spec.mode) : null;
+  if (cv) p.append(...costCard(cv, rec.srv.tr, rec.id, rec.srv.eng === 'api' || rec.spec.eng === 'api'));
+  p.append(...techSec(rec, 'done', outs));
 }
 async function viLoad(rec) {
   const me = va;
@@ -9481,6 +9489,75 @@ function rateFlagOpts(rec) {
     rateFlagT.set(rec.id, setTimeout(() => { rateFlagT.delete(rec.id); rateSend(rec, { c: ids }, true); }, 1500));
   } };
 }
+/* 12/11/2026 (המשתמש: "גם בתוצאה של הניתוח — כמה זמן, כמה טוקנים, פרטים טכניים"): השלבים, משותף לדף העבודה ולדף הניתוח */
+function stagesSec(rec, ph0) {
+  const id = rec.id, toTxt = langsSum(rec.spec.to);
+  const m0 = modelFor(rec);
+  const stl = h('div', 'st-stages');
+  for (const s of m0.stages) {
+    if (rec.spec.ka && (s.id === 'tl' || s.id === 'rv')) continue;   // 26/10/2026: קריוקי — בלי תרגום וביקורת
+    if (rec.spec.vi && s.id === 'tl') continue;   // 9/11/2026: ניתוח — בלי תרגום (rv = הניתוח)
+    const row = h('div', 'st-stg ' + s.state);
+    const dot = h('span', 'dot');
+    if (s.state === 'done') dot.append(ico('check'));
+    else if (s.state === 'now') dot.append(h('span', 'st-spin'));
+    const txt = h('span', 'st-l');
+    const sk = rec.spec.ka ? 'ka' : rec.spec.vi ? 'vi' : rec.spec.src === 'subs';
+    txt.append(h('b', null, stageName(s.id, toTxt, sk)), h('small', null, stageSub(s.id, sk, rec.spec.dry === 1)));
+    const tm = h('span', 'st-stg-t');
+    row.append(dot, txt, tm);
+    if (s.state === 'now') { const pb = h('span', 'st-pbar'); const pi = h('i'); pb.append(pi); txt.append(pb); live(pb, () => { const mm = modelFor(jobRec(id) || rec).stages.find((x) => x.id === s.id); pi.style.width = Math.round(100 * shownPct(jobRec(id) || rec, mm && (mm.pv != null ? mm.pv : mm.p), s.id)) + '%'; }); }
+    // 21/10: "לוקח יותר מהרגיל" — שורה מתחת לפס, לא ליד הזמן (טקסט ארוך שלא נשבר דחס את שם השלב לעמודה צרה)
+    const ov = s.state === 'now' ? h('small', 'st-stg-ov', T('studioStageLong')) : null;
+    if (ov) { ov.hidden = !s.over; txt.append(ov); }
+    live(tm, () => {
+      const mm = modelFor(jobRec(id) || rec).stages.find((x) => x.id === s.id) || s;
+      if (ov) ov.hidden = !(mm.state === 'now' && mm.over);
+      // 2/11/2026: בתור החיסכון — "בתור החיסכון" במקום "עוד דקה" שלא נגמרת
+      tm.textContent = mm.state === 'done' ? (mm.took ? '✓ ' + fmtShort(mm.took) : '✓') : mm.state === 'now' ? (mm.bw ? T('studioBwShort') : T('studioStageLeft', { t: fmtShort(mm.left) })) : approx(fmtShort(mm.est));
+    });
+    stl.append(row);
+  }
+  if (ph0 === 'done') {   // 25/10/2026: הסתיימה — השלבים מקופלים בשורה אחת (כמה לקח בסך הכל); בזמן עבודה — גלויים
+    const tot = m0.stages.reduce((a, x) => a + (x.took || 0), 0);
+    const sd = h('details', 'st-stdet'); sd.dataset.k = 'stages';
+    const sm = h('summary', 'st-row st-ric'); sm.append(tile('check', 'green'), rowTxt(T('studioSecStages'), tot ? T('studioStagesDone', { t: fmtShort(tot) }) : null), ico('chev', 'st-chev'));
+    sd.append(sm, stl);
+    return [h('div', 'st-gap'), list(sd)];
+  }
+  return [secT(T('studioSecStages')), stl];
+}
+/* 12/11/2026: "פרטים טכניים" — משותף לדף העבודה ולדף הניתוח (outs: התוצרים כבר מוצגים — בלי קישורים כפולים) */
+function techSec(rec, ph0, outs) {
+  const det = h('details', 'st-details');
+  if (ui.det) det.open = true;
+  det.addEventListener('toggle', () => { ui.det = det.open; });
+  const sum = h('summary', null, T('studioTech'));
+  const rows = [
+    kvRow(T('studioFile'), (() => { const s2 = h('span'); s2.append(fileNameEl(rec.spec.name || '—'), ' · ' + fmtSize(rec.spec.size)); return s2; })(), true),
+    rec.spec.dur ? kvRow(T('studioDur'), fmtDur(rec.spec.dur), true) : null,
+    rec.spec.ka ? null : kvRow(T('studioSecLangs'), langsText(rec.spec.from, rec.spec.to)),   // 30/10/2026: קריוקי — בלי Claude, בלי שפות ומודל
+    (rec.spec.vi && rec.spec.dry) || rec.spec.ka ? null : kvRow(T('studioSecMode'), modeName(modeById(rec.spec.mode))),   // 10/11: ניתוח עם Claude — גם המצב
+    kvRow(T('studioSecOut'), (rec.spec.vi ? ['vi'] : rec.spec.ka ? rec.spec.out : rec.spec.out.concat('srt')).map(outShort).join(' + ')),
+    rec.spec.vi || rec.spec.ka ? null : kvRow(T('studioSecStyle'), styleName(rec.spec.style)),
+    rec.spec.vi && rec.spec.dry ? kvRow(T('studioViT'), T('studioViDry') + (rec.srv && rec.srv.vsm ? ' · ' + T('studioViSo', { n: rec.srv.vsm.so }) : '')) : null,   // 9/11/2026: ניתוח יבש
+    rec.spec.bt ? kvRow(T('studioSecWhen'), T('studioBtTag')) : null,   // 01/11/2026 (סבב 3)
+    rec.srv && rec.srv.btx ? kvRow(T('studioBtLeft'), fmtDate(rec.srv.btx.t) + ' · ' + (rec.srv.btx.s === 'job' ? T('studioBtLeftJob') : T('studioBtLeftX'))) : null,   // 4/11/2026
+    rec.up.a.done ? kvRow(T('studioAudioK'), fmtSize(rec.up.a.size)) : rec.up.noAudio && rec.up.noAudio !== 'video_first' ? kvRow(T('studioAudioK'), T('studioNoAudio')) : null,
+    kvRow(T('studioCreated'), fmtDate(rec.created)),
+    kvRow(T('studioJobId'), rec.id, true),
+    rec.srv && rec.srv.ed ? kvRow(T('studioErrCodeL'), rec.srv.ed, true) : null,
+    kvRow(T('studioEtaK'), (() => { const n = planFor(rec).n || 0; return n ? T('studioEtaN', { n }) : T('studioEtaPrior'); })()),   // 10/10/2026: על מה הצפי מבוסס
+    workerMsgRow(rec, ph0),
+  ];
+  const links = h('div', 'st-wacts');
+  if (!outs.length) for (const o of (rec.srv && rec.srv.out) || []) links.append(isR2Id(o.id) ? btn('st-wbtn', outShort(o.k) + (o.size ? ' · ' + fmtSize(o.size) : ''), () => downloadOut(rec, o), 'out:' + o.k) : extLink('st-wbtn', 'https://drive.google.com/file/d/' + o.id + '/view', outShort(o.k) + (o.size ? ' · ' + fmtSize(o.size) : ''), 'out', 'out:' + o.k));
+  if (rec.up.folder && !isR2Folder(rec.up.folder) && !outs.length) links.append(extLink('st-wbtn', 'https://drive.google.com/drive/folders/' + rec.up.folder, T('studioOpenDrive'), 'out', 'drive-folder'));
+  if (rec.srv && rec.srv.sess) links.append(extLink('st-wbtn', rec.srv.sess.url, T('studioOpenSess'), 'out', 'session'));
+  if (ph0 === 'done' && rec.srv) links.append(btn('st-wbtn', T('studioBenchCopy'), () => copyText(JSON.stringify(benchData(rec)), T('studioBenchCopied')), 'bench-copy'));   // מאגר המדידות
+  det.append(sum, list(...rows), links);
+  return [h('div', 'st-gap sm'), det];
+}
 function pageJob(p) {
   const rec = jobRec(ui.param);
   if (!rec) { back(); return; }
@@ -9624,40 +9701,7 @@ function pageJob(p) {
   }
   if (acts.length) p.append(h('div', 'st-gap sm'), ...acts);
 
-  // השלבים
-  const m0 = modelFor(rec);
-  const stl = h('div', 'st-stages');
-  for (const s of m0.stages) {
-    if (rec.spec.ka && (s.id === 'tl' || s.id === 'rv')) continue;   // 26/10/2026: קריוקי — בלי תרגום וביקורת
-    if (rec.spec.vi && s.id === 'tl') continue;   // 9/11/2026: ניתוח — בלי תרגום (rv = הניתוח)
-    const row = h('div', 'st-stg ' + s.state);
-    const dot = h('span', 'dot');
-    if (s.state === 'done') dot.append(ico('check'));
-    else if (s.state === 'now') dot.append(h('span', 'st-spin'));
-    const txt = h('span', 'st-l');
-    const sk = rec.spec.ka ? 'ka' : rec.spec.vi ? 'vi' : rec.spec.src === 'subs';
-    txt.append(h('b', null, stageName(s.id, toTxt, sk)), h('small', null, stageSub(s.id, sk, rec.spec.dry === 1)));
-    const tm = h('span', 'st-stg-t');
-    row.append(dot, txt, tm);
-    if (s.state === 'now') { const pb = h('span', 'st-pbar'); const pi = h('i'); pb.append(pi); txt.append(pb); live(pb, () => { const mm = modelFor(jobRec(id) || rec).stages.find((x) => x.id === s.id); pi.style.width = Math.round(100 * shownPct(jobRec(id) || rec, mm && (mm.pv != null ? mm.pv : mm.p), s.id)) + '%'; }); }
-    // 21/10: "לוקח יותר מהרגיל" — שורה מתחת לפס, לא ליד הזמן (טקסט ארוך שלא נשבר דחס את שם השלב לעמודה צרה)
-    const ov = s.state === 'now' ? h('small', 'st-stg-ov', T('studioStageLong')) : null;
-    if (ov) { ov.hidden = !s.over; txt.append(ov); }
-    live(tm, () => {
-      const mm = modelFor(jobRec(id) || rec).stages.find((x) => x.id === s.id) || s;
-      if (ov) ov.hidden = !(mm.state === 'now' && mm.over);
-      // 2/11/2026: בתור החיסכון — "בתור החיסכון" במקום "עוד דקה" שלא נגמרת
-      tm.textContent = mm.state === 'done' ? (mm.took ? '✓ ' + fmtShort(mm.took) : '✓') : mm.state === 'now' ? (mm.bw ? T('studioBwShort') : T('studioStageLeft', { t: fmtShort(mm.left) })) : approx(fmtShort(mm.est));
-    });
-    stl.append(row);
-  }
-  if (ph0 === 'done') {   // 25/10/2026: הסתיימה — השלבים מקופלים בשורה אחת (כמה לקח בסך הכל); בזמן עבודה — גלויים
-    const tot = m0.stages.reduce((a, x) => a + (x.took || 0), 0);
-    const sd = h('details', 'st-stdet'); sd.dataset.k = 'stages';
-    const sm = h('summary', 'st-row st-ric'); sm.append(tile('check', 'green'), rowTxt(T('studioSecStages'), tot ? T('studioStagesDone', { t: fmtShort(tot) }) : null), ico('chev', 'st-chev'));
-    sd.append(sm, stl);
-    p.append(h('div', 'st-gap'), list(sd));
-  } else p.append(secT(T('studioSecStages')), stl);
+  p.append(...stagesSec(rec, ph0));
   if (rec.srv && rec.srv.sla) p.append(...slaCard(rec));   // v377: יעד זמן ותקציב
   p.append(...anJobRows(rec));   // v385: השלבים שחרגו מהרגיל שלך
 
@@ -9692,35 +9736,7 @@ function pageJob(p) {
     p.append(h('div', 'st-gap sm'), vc, note(ios ? (ui.gb ? T('studioKeepOpenIosD') : T('studioKeepOpenIos')) : T('studioKeepOpen')));
   }
 
-  // פרטים טכניים — מוסתרים, למי שסקרן
-  const det = h('details', 'st-details');
-  if (ui.det) det.open = true;
-  det.addEventListener('toggle', () => { ui.det = det.open; });
-  const sum = h('summary', null, T('studioTech'));
-  const rows = [
-    kvRow(T('studioFile'), (() => { const s2 = h('span'); s2.append(fileNameEl(rec.spec.name || '—'), ' · ' + fmtSize(rec.spec.size)); return s2; })(), true),
-    rec.spec.dur ? kvRow(T('studioDur'), fmtDur(rec.spec.dur), true) : null,
-    rec.spec.ka ? null : kvRow(T('studioSecLangs'), langsText(rec.spec.from, rec.spec.to)),   // 30/10/2026: קריוקי — בלי Claude, בלי שפות ומודל
-    (rec.spec.vi && rec.spec.dry) || rec.spec.ka ? null : kvRow(T('studioSecMode'), modeName(modeById(rec.spec.mode))),   // 10/11: ניתוח עם Claude — גם המצב
-    kvRow(T('studioSecOut'), (rec.spec.vi ? ['vi'] : rec.spec.ka ? rec.spec.out : rec.spec.out.concat('srt')).map(outShort).join(' + ')),
-    rec.spec.vi || rec.spec.ka ? null : kvRow(T('studioSecStyle'), styleName(rec.spec.style)),
-    rec.spec.vi && rec.spec.dry ? kvRow(T('studioViT'), T('studioViDry') + (rec.srv && rec.srv.vsm ? ' · ' + T('studioViSo', { n: rec.srv.vsm.so }) : '')) : null,   // 9/11/2026: ניתוח יבש
-    rec.spec.bt ? kvRow(T('studioSecWhen'), T('studioBtTag')) : null,   // 01/11/2026 (סבב 3)
-    rec.srv && rec.srv.btx ? kvRow(T('studioBtLeft'), fmtDate(rec.srv.btx.t) + ' · ' + (rec.srv.btx.s === 'job' ? T('studioBtLeftJob') : T('studioBtLeftX'))) : null,   // 4/11/2026
-    rec.up.a.done ? kvRow(T('studioAudioK'), fmtSize(rec.up.a.size)) : rec.up.noAudio && rec.up.noAudio !== 'video_first' ? kvRow(T('studioAudioK'), T('studioNoAudio')) : null,
-    kvRow(T('studioCreated'), fmtDate(rec.created)),
-    kvRow(T('studioJobId'), rec.id, true),
-    rec.srv && rec.srv.ed ? kvRow(T('studioErrCodeL'), rec.srv.ed, true) : null,
-    kvRow(T('studioEtaK'), (() => { const n = planFor(rec).n || 0; return n ? T('studioEtaN', { n }) : T('studioEtaPrior'); })()),   // 10/10/2026: על מה הצפי מבוסס
-    workerMsgRow(rec, ph0),
-  ];
-  const links = h('div', 'st-wacts');
-  if (!outs.length) for (const o of (rec.srv && rec.srv.out) || []) links.append(isR2Id(o.id) ? btn('st-wbtn', outShort(o.k) + (o.size ? ' · ' + fmtSize(o.size) : ''), () => downloadOut(rec, o), 'out:' + o.k) : extLink('st-wbtn', 'https://drive.google.com/file/d/' + o.id + '/view', outShort(o.k) + (o.size ? ' · ' + fmtSize(o.size) : ''), 'out', 'out:' + o.k));
-  if (rec.up.folder && !isR2Folder(rec.up.folder) && !outs.length) links.append(extLink('st-wbtn', 'https://drive.google.com/drive/folders/' + rec.up.folder, T('studioOpenDrive'), 'out', 'drive-folder'));
-  if (rec.srv && rec.srv.sess) links.append(extLink('st-wbtn', rec.srv.sess.url, T('studioOpenSess'), 'out', 'session'));
-  if (ph0 === 'done' && rec.srv) links.append(btn('st-wbtn', T('studioBenchCopy'), () => copyText(JSON.stringify(benchData(rec)), T('studioBenchCopied')), 'bench-copy'));   // מאגר המדידות
-  det.append(sum, list(...rows), links);
-  p.append(h('div', 'st-gap sm'), det);
+  p.append(...techSec(rec, ph0, outs));   // פרטים טכניים — מוסתרים, למי שסקרן
 
   // ביטול / מחיקה
   const fin = FINAL.includes(ph0);

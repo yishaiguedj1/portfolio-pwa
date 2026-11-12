@@ -228,6 +228,13 @@ function mkDoc() {
 
   /* ---------- 5. החיבורים ב־studio.js ---------- */
   ok(/if \(viPageOk\(rec\)\) \{ pageVi\(p, rec\); return; \}/.test(sj), 'עבודת ניתוח שהסתיימה → דף הניתוח');
+  {   // 12/11/2026: כמו בדף העבודה — השלבים (כמה זמן), יעדים, עלות (טוקנים לכל תפקיד) ופרטים טכניים
+    const pv = /function pageVi\(p, rec\) \{[\s\S]*?\n\}\n/.exec(sj)[0];
+    ok(/stagesSec\(rec, 'done'\)/.test(pv) && /slaCard\(rec\)/.test(pv) && /costCard\(cv, /.test(pv) && /techSec\(rec, 'done', outs\)/.test(pv), 'דף הניתוח: שלבים, יעדים, עלות ופרטים טכניים');
+    ok(!/qualityCard|goldCard|glossJobCard/.test(pv), 'דף הניתוח: בלי כרטיסי התרגום');
+    const pj = /function pageJob\(p\) \{[\s\S]*?\n\}\n/.exec(sj)[0];
+    ok(/p\.append\(\.\.\.stagesSec\(rec, ph0\)\)/.test(pj) && /p\.append\(\.\.\.techSec\(rec, ph0, outs\)\)/.test(pj), 'דף העבודה — אותן פונקציות (מקור אחד)');
+  }
   ok(/const viPageOk = \(rec\) => !!\(rec && rec\.spec && rec\.spec\.vi && !rec\.spec\.dry && rec\.srv && rec\.srv\.state === 'done' && outOf\(rec, 'vi'\)\)/.test(sj), 'הרצה יבשה — נשארת בדף העבודה');
   ok(/if \(ui\.view === 'job' && va && va\.id === ui\.param\) return 'vi\|'/.test(sj) && /if \(ui\.view === 'job'\) vaClose\(\)/.test(sj), 'הדף לא נבנה מחדש בכל עדכון, ונסגר ביציאה');
   ok(/if \(va && va\.view && va\.view\.closeSheet\(\)\) \{ if \(root\) watch\(\); return; \}[\s\S]{0,200}if \(rsClose\(\)\)/.test(sj), '"חזור" סוגר קודם את חלונית הראיה');
