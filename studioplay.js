@@ -633,10 +633,13 @@ export function createPlayer(opts) {
     if (t) { const go = () => { v.currentTime = t; v.removeEventListener('loadedmetadata', go); }; v.addEventListener('loadedmetadata', go); }
     paintHd();
   }
+  /* 12/11/2026 (דף השיתוף): הכתובות של הקבצים מתחלפות — קישור חתום ל־R2 פג אחרי 15 דקות. opts.mapUrl(כתובת קבועה) → הכתובת
+     התקפה עכשיו, ברגע הבקשה (גם בניסיון חוזר). בלי mapUrl — הכתובת כמו שהיא */
+  const mapU = (u) => (typeof opts.mapUrl === 'function' && opts.mapUrl(u)) || u;
   async function head(url) {
     let n = HEAD_BYTES;
     for (let k = 0; k < 3; k++) {
-      const r = await fetch(url, { headers: { Range: 'bytes=0-' + (n - 1) } });
+      const r = await fetch(mapU(url), { headers: { Range: 'bytes=0-' + (n - 1) } });
       if (!(r.status === 206 || r.status === 200)) throw new Error('head ' + r.status);
       const x = parseMp4Head(await r.arrayBuffer());
       if (!x) throw new Error('head');
@@ -675,13 +678,15 @@ export function createPlayer(opts) {
       texts.set(base + 'm.m3u8', masterPlaylist(lv, alts ? alts.map((a, i) => Object.assign({}, a, { uri: base + 'a' + i + '.m3u8' })) : null));
       const Base = Hls.DefaultConfig.loader;
       const strip = new Map();   // לכל קובץ (כתובת): מזהי רצועות הקול שהוסרו מהאתחול שלו
-      class FL extends Base {    // הקטעים של הווידאו — בלי רצועת הקול המקורית
+      class FL extends Base {    // הקטעים של הווידאו — בלי רצועת הקול המקורית; ועם mapUrl — הכתובת התקפה עכשיו
         load(ctx, cfg, cb) {
           const frag = ctx.frag, ok = cb.onSuccess;
+          const k0 = ctx.snbKey || String(ctx.url);
+          if (opts.mapUrl) { ctx.snbKey = k0; ctx.url = mapU(k0); }
           if (alt && frag && frag.type === 'main') {
             cb = Object.assign({}, cb, { onSuccess: (r, st, c, n) => {
               if (r && r.data instanceof ArrayBuffer) {
-                const key = String(ctx.url).split('#')[0];
+                const key = k0.split('#')[0];
                 if (frag.sn === 'initSegment') { const x = stripInitAudio(r.data); strip.set(key, x.ids); r.data = x.data.buffer; }
                 else r.data = stripFragAudio(r.data, strip.get(key) || []).buffer;
               }
@@ -700,9 +705,12 @@ export function createPlayer(opts) {
           setTimeout(() => cb.onSuccess({ url: ctx.url, data: t }, st, ctx, null), 0);
         }
       }
-      hls = new Hls({ pLoader: PL, ...(alt ? { fLoader: FL } : {}), enableWorker: false, capLevelToPlayerSize: false, startLevel: -1, abrEwmaDefaultEstimate: 4e6,
+      hls = new Hls({ pLoader: PL, ...(alt || opts.mapUrl ? { fLoader: FL } : {}), enableWorker: false, capLevelToPlayerSize: false, startLevel: -1, abrEwmaDefaultEstimate: 4e6,
         maxBufferLength: 30, backBufferLength: 30, fragLoadPolicy: { default: { maxTimeToFirstByteMs: 15000, maxLoadTimeMs: 120000,
-          timeoutRetry: { maxNumRetry: 2, retryDelayMs: 0, maxRetryDelayMs: 0 }, errorRetry: { maxNumRetry: 3, retryDelayMs: 1000, maxRetryDelayMs: 8000 } } } });
+          timeoutRetry: { maxNumRetry: 2, retryDelayMs: 0, maxRetryDelayMs: 0 }, errorRetry: { maxNumRetry: 3, retryDelayMs: 1000, maxRetryDelayMs: 8000,
+          // 12/11/2026: קישור חתום שפג = 403 בלי CORS (סטטוס 0) — hls.js לא מנסה שוב כאלה, ועובר לאיכות אחרת (קפיצה). עם mapUrl
+          // הניסיון החוזר כבר יוצא עם קישור חדש — לכן כן מנסים
+          ...(opts.mapUrl ? { shouldRetry: (c, n, isTo, resp, def) => def || n < c.maxNumRetry } : {}) } } } });
       let healed = false;
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         levels = hls.levels.slice();

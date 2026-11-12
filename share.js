@@ -101,13 +101,48 @@ async function api(body) {
   let j = null; try { j = await r.json(); } catch (e) {}
   return j && typeof j === 'object' ? j : { ok: false, error: 'http_' + r.status };
 }
-/* הקישורים החתומים לשעה — לפני שימוש, אם עומדים לפוג: מבקשים חדשים */
+/* הקישורים החתומים לשעה — לפני שימוש, אם עומדים לפוג: מבקשים חדשים (בקשה אחת גם כשכמה מבקשים בבת אחת) */
+let freshP = null;
 async function fresh() {
   if (S && Date.now() < S.ux - 5 * 60e3) return S;
-  const j = await api({ op: 'shareView', t: tok });
-  if (j.ok) S = Object.assign(j, { ux: Date.now() + Math.max(0, (j.ux || 0) - (j.now || 0)) });
-  else lastErr = String(j.error || '');
-  return S;
+  if (!freshP) {
+    freshP = api({ op: 'shareView', t: tok }).then((j) => {
+      if (j.ok) S = Object.assign(j, { ux: Date.now() + Math.max(0, (j.ux || 0) - (j.now || 0)) });
+      else lastErr = String(j.error || '');
+      return S;
+    }).finally(() => { freshP = null; });
+  }
+  return freshP;
+}
+/* 12/11/2026 (בקשת המשתמש: "בסרטון ששיתפתי אין אפשרות לבחור איכות"): איכויות הצפייה — כמו בנגן שלך. רק כשמנגנים את
+   המקור (לא את הצרוב). כל קובץ מקבל כתובת קבועה (<base>v<i> / <base>a<i>) שהנגן כותב ברשימות, ו־mapUrl מחליף אותה בקישור
+   החתום התקף ברגע הבקשה — הקישורים פגים אחרי 15 דקות, ו־S מתחדש. בלי איכויות — {} (הנגן מנגן את הקובץ כמו קודם) */
+export function qPlan(play, plan, base) {
+  const hl = (play && Array.isArray(play.hl)) ? play.hl : [];
+  if (!plan || plan.burned || !play.src || plan.src !== play.src || hl.length < 2 || !hl.every((l) => l && typeof l.url === 'string' && /^https:\/\//.test(l.url))) return {};
+  const hla = Array.isArray(play.hla) ? play.hla.filter((a) => a && typeof a.url === 'string' && /^https:\/\//.test(a.url)) : [];
+  const ladder = hl.map((l, i) => Object.assign({}, l, { url: base + 'v' + i }));
+  const alt = hla.length && hla.length === play.hla.length ? hla.map((a, i) => Object.assign({}, a, { url: base + 'a' + i })) : null;
+  return Object.assign({ ladder }, alt ? { alt } : {});
+}
+/* הכתובת הקבועה → הקישור החתום הנוכחי ('' = לא שלנו — הנגן משתמש בכתובת כמו שהיא) */
+export function qUrl(play, base, u) {
+  const m = String(u || '').startsWith(base) ? /^([va])(\d{1,2})$/.exec(String(u).slice(base.length)) : null;
+  if (!m || !play) return '';
+  const l = (m[1] === 'v' ? play.hl : play.hla) || [];
+  return (l[+m[2]] && l[+m[2]].url) || '';
+}
+const Q_BASE = typeof location !== 'undefined' ? new URL('./share-q/', location.href).href : '';
+let qWake = false;
+function qOpts(plan) {
+  const q = qPlan(S.play, plan, Q_BASE);
+  if (!q.ladder) return {};
+  // חזרה ללשונית אחרי הפסקה ארוכה (הטיימרים עצרו) — קישורים חדשים לפני הבקשה הבאה של הנגן
+  if (!qWake) { qWake = true; document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() > S.ux - 5 * 60e3) fresh(); }); }
+  return Object.assign(q, { pq: 'src', mapUrl: (u) => {
+    if (Date.now() > S.ux - 5 * 60e3) fresh();   // לפני שפג — ברקע (הקטע הבא כבר יקבל קישור חדש)
+    return qUrl(S.play, Q_BASE, u);
+  } });
 }
 async function getJson(url) {
   if (!url) return null;
@@ -166,7 +201,7 @@ async function mkTrPlayer() {
   const cues = normCues(await getJson(S.cues));
   const plan = playPlan(S.v.k, S.play, cues.length > 0);
   if (!plan) return null;
-  const ctl = createPlayer({ src: plan.src, fallback: plan.fallback, burned: plan.burned, cues: plan.burned && S.v.k === 'ka' ? [] : cues, issues: [], chapters: [], T });
+  const ctl = createPlayer(Object.assign({ src: plan.src, fallback: plan.fallback, burned: plan.burned, cues: plan.burned && S.v.k === 'ka' ? [] : cues, issues: [], chapters: [], T }, qOpts(plan)));
   plan.cues = cues.length > 0;
   healOnExpire(ctl, plan);
   poster(ctl);
@@ -221,7 +256,7 @@ async function pageVi(title) {
       const plan = playPlan('vi', S.play, false);
       if (!plan) return null;
       const chs = normChapters(v.chapters.map((c) => ({ t: c.t0, title: c.title })), v.video.dur);
-      const ctl = createPlayer({ src: plan.src, fallback: plan.fallback, burned: false, cues: cues || [], issues: [], chapters: chs, T, subLang: v.lang.src, orig: true });
+      const ctl = createPlayer(Object.assign({ src: plan.src, fallback: plan.fallback, burned: false, cues: cues || [], issues: [], chapters: chs, T, subLang: v.lang.src, orig: true }, qOpts(plan)));
       if (!cues) getJson(S.cues).then((j) => { cues = normCues(j); ctl.setCues(cues); });
       healOnExpire(ctl, plan);
       poster(ctl);

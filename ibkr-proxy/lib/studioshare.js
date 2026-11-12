@@ -107,6 +107,19 @@ function srcOf(job, inFolder) {
   return fv && typeof fv.id === 'string' && !fv.ext && !(job.sx > 0) && inFolder(fv.id, job.folder) ? fv.id : '';
 }
 
+/* 12/11/2026 (בקשת המשתמש: "בסרטון ששיתפתי אין אפשרות לבחור איכות"): איכויות הצפייה (translator/ladder.py) לנגן בדף
+   השיתוף — רק כשהמקור עצמו מוצג (srcId), הראשונה היא המקור, בלי חיתוך (edl, כמו ladderOf בטלפון), וכל קובץ בתיקייה של
+   העבודה. hl/hla כבר מנורמלים (normHl/normHla של lib/studio.js — מועברים מבחוץ, הקובץ הזה טהור). פריט אחד לא תקין — בלי
+   איכויות בכלל (הנגן מנגן את המקור כקובץ, כמו קודם). מה שיוצא: רק מה שהנגן צריך לרשימות — בלי מזהים */
+function hlOf(job, srcId, inFolder, normHl, normHla) {
+  if (!srcId || !job || (job.spec && job.spec.edl)) return null;
+  const hl = normHl(job.hl, srcId);
+  if (!hl || !hl.every((l) => inFolder(l.id, job.folder))) return null;
+  const hla0 = job.hla ? normHla(job.hla) : null;
+  const hla = hla0 && hla0.every((a) => inFolder(a.id, job.folder)) ? hla0 : null;
+  return { hl, hla };
+}
+
 /* סוג התוכן של סרטון המקור בקישור החתום: video/<סוג> מהרשומה, אחרת video/mp4 (הנגן מזהה את הקובץ לפי התוכן) */
 const srcType = (job) => { const m = String((job && job.fv && job.fv.mime) || '').toLowerCase(); return /^video\/[a-z0-9.+-]{1,40}$/.test(m) ? m : 'video/mp4'; };
 
@@ -125,4 +138,4 @@ function dlFile(name, o) {
 }
 
 module.exports = { SH_KINDS, SH_AUX, BURNED, SH_MAX, SH_URL_TTL, SH_DAYS, SH_DEF_DAYS, newSecret, secSigned, secHash, parseToken, tokenOf,
-  shareOk, shareActive, shareErr, outsOf, auxOf, shareDays, shareExp, shareMeta, srcOf, srcType, dlName, dlFile, extFor };
+  shareOk, shareActive, shareErr, outsOf, auxOf, shareDays, shareExp, shareMeta, srcOf, hlOf, srcType, dlName, dlFile, extFor };
