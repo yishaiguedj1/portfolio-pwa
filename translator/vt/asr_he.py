@@ -29,7 +29,7 @@ import time
 import unicodedata
 from pathlib import Path
 
-V = 1                                    # ‏vh — גרסת שרשרת התמלול העברי (ממדי הגרסה, נספח 19.6)
+V = 2                                    # ‏vh — גרסת שרשרת התמלול העברי (ממדי הגרסה, נספח 19.6)
 IVRIT_DIR = os.environ.get("SNB_VI_IVRIT") or os.environ.get("SNB_KA_IVRIT") or "/opt/karaoke-he/ivrit"
 ZF_DIR = os.environ.get("SNB_VI_ZF") or "/opt/vi/zf"
 VI_PY = os.environ.get("SNB_VI_PY") or "/opt/vi/py"            # sherpa-onnx (infra/worker/requirements-vi.lock)
@@ -52,6 +52,8 @@ GAP_WORDS = 3            # zipformer שמע לפחות כך מילים ברוו�
 GAP_MIN_S = 1.0
 GAP_PIECE = 60.0         # רווח ארוך (מוזיקה, הפסקה) — ל־zipformer בחלקים של עד דקה
 SPLIT_MIN_S = 2.0        # חלק בפענוח החוזר — לפחות 2 שנ׳
+CUT_WIN = 1.5            # 12/11/2026: חיתוך קטע ארוך — הנקודה השקטה ביותר עד 1.5 שנ׳ מהחיתוך השווה (לא באמצע מילה)
+CUT_HOP = 0.02           # מסגרת אנרגיה לחיפוש השקט (20ms, ממוצע נע של 3 — רווח בין מילים, לא סגירת עיצור)
 HOLE_MIN = 4             # "חור": רצף של לפחות 4 מילות zipformer שאין להן מקבילה אצל ivrit...
 HOLE_S = 1.5             # ...שנמשך לפחות 1.5 שנ׳ (השמטה בתוך קטע — ספירת מילים לא תופסת אותה)
 SOFT = 0.6               # מילה של zipformer "דומה" למילה של ivrit (איות שונה) — נחשבת מותאמת
@@ -113,10 +115,51 @@ def similarity(a: str, b: str) -> float:
 
 # ---------------------------------------------------------------- 1. חלוקה לקטעים
 
+def quiet_cut(audio, t: float, lo: float, hi: float) -> float:
+    """12/11/2026 (מילים שחסרה להן אות בניתוח): נקודת חיתוך בתוך [lo, hi] — המסגרת השקטה ביותר (RMS של 20ms בממוצע
+    נע של 3), באמצע רצף השקט; ובשוויון — הקרובה ל־t. חיתוך שווה נפל באמצע מילה, ו־ivrit כתב בכל צד חצי מילה. בלי קול — t."""
+    if audio is None or hi - lo < 2 * CUT_HOP:
+        return t
+    import numpy as np
+    hop = int(CUT_HOP * SR)
+    a, b = max(0, int(lo * SR)), min(len(audio), int(hi * SR))
+    n = (b - a) // hop
+    if n < 3:
+        return t
+    x = np.asarray(audio[a:a + n * hop], dtype=np.float32).reshape(n, hop)
+    en = np.sqrt((x * x).mean(axis=1))
+    en = np.convolve(np.pad(en, 1, mode="edge"), np.ones(3, np.float32) / 3, mode="valid")
+    ts = lo + (np.arange(n) + 0.5) * CUT_HOP
+    k = int(np.lexsort((np.abs(ts - t), np.round(en, 6)))[0])
+    th = en[k] * 1.1 + 1e-6                          # אמצע רצף השקט שבו המינימום — לא הקצה שלו (שם המילה מתחילה)
+    i, j = k, k
+    while i > 0 and en[i - 1] <= th:
+        i -= 1
+    while j < n - 1 and en[j + 1] <= th:
+        j += 1
+    if i == 0 and j == n - 1:                        # כל החלון שקט (או אחיד) — כמו בלי קול
+        return t
+    return round(float(ts[(i + j) // 2]), 3)
+
+
+def _cuts(s: float, e: float, n: int, seg_max: float, audio) -> list[float]:
+    """n חלקים של [s, e]: כל חיתוך ליד החלוקה השווה של מה שנשאר, מוזז לשקט (quiet_cut) — וכל חלק עד seg_max."""
+    out, cur = [], s
+    for k in range(1, n):
+        rem = n - k
+        ideal = cur + (e - cur) / (rem + 1)
+        lo = max(cur + 1.0, e - rem * seg_max, ideal - CUT_WIN)
+        hi = min(cur + seg_max, e - 1.0, ideal + CUT_WIN)
+        cur = quiet_cut(audio, ideal, lo, hi) if lo < hi else ideal
+        out.append(cur)
+    return out
+
+
 def plan_segments(spans: list[tuple[float, float]], total: float, seg_max: float | None = None,
-                  target: float | None = None, gap: float | None = None) -> list[tuple[float, float]]:
-    """קטעי VAD → קטעים לפענוח: שכנים עם שקט קצר מתאחדים עד target, וקטע ארוך מ־seg_max נחתך לחלקים שווים.
-    פונקציה טהורה; הזמנים בשניות, בתוך [0, total]. ברירות המחדל — הקבועים של המודול בזמן הקריאה (כיול)."""
+                  target: float | None = None, gap: float | None = None, audio=None) -> list[tuple[float, float]]:
+    """קטעי VAD → קטעים לפענוח: שכנים עם שקט קצר מתאחדים עד target, וקטע ארוך מ־seg_max נחתך לחלקים — בנקודה
+    השקטה ליד החלוקה השווה (audio; בלי — חלקים שווים). הזמנים בשניות, בתוך [0, total]. ברירות המחדל — הקבועים של
+    המודול בזמן הקריאה (כיול)."""
     seg_max = SEG_MAX if seg_max is None else seg_max
     target = SEG_TARGET if target is None else target
     gap = JOIN_GAP if gap is None else gap
@@ -132,9 +175,8 @@ def plan_segments(spans: list[tuple[float, float]], total: float, seg_max: float
     out = []
     for s, e in merged:
         n = max(1, int(-(-(e - s) // seg_max)))     # ceil
-        step = (e - s) / n
-        for k in range(n):
-            out.append((round(s + k * step, 3), round(s + (k + 1) * step if k < n - 1 else e, 3)))
+        b = [s] + _cuts(s, e, n, seg_max, audio) + [e]
+        out += [(round(b[k], 3), round(b[k + 1], 3)) for k in range(n)]
     return out
 
 
@@ -247,8 +289,9 @@ def phantom(seg: dict) -> bool:
 
 
 def split_span(s: float, e: float, zw: list[dict], parts: int | None = None,
-               min_s: float = SPLIT_MIN_S) -> list[tuple[float, float]]:
-    """קטע לפענוח חוזר → 2–3 חלקים, נחתך ברווחים הגדולים בין מילות zipformer (שם יש שקט); בלי מילים — חלקים שווים."""
+               min_s: float = SPLIT_MIN_S, audio=None) -> list[tuple[float, float]]:
+    """קטע לפענוח חוזר → 2–3 חלקים, נחתך ברווחים הגדולים בין מילות zipformer (שם יש שקט); בלי מילים — ליד החלוקה
+    השווה, בנקודה השקטה (quiet_cut)."""
     dur = e - s
     if parts is None:
         parts = 3 if dur >= 3 * 4.0 else 2
@@ -266,7 +309,10 @@ def split_span(s: float, e: float, zw: list[dict], parts: int | None = None,
             if len(cuts) == parts - 1:
                 break
     if len(cuts) < parts - 1:
-        cuts = [s + dur * k / parts for k in range(1, parts)]
+        cuts = []
+        for k in range(1, parts):
+            c = s + dur * k / parts
+            cuts.append(quiet_cut(audio, c, max(s + min_s, c - CUT_WIN), min(e - min_s, c + CUT_WIN)))
     cuts = sorted(cuts)
     b = [s] + cuts + [e]
     return [(round(b[i], 3), round(b[i + 1], 3)) for i in range(len(b) - 1)]
@@ -402,7 +448,7 @@ def transcribe(audio, ivrit=None, zf=None, vad_fn=None, log=None) -> dict:
     t0 = time.time()
     spans = (vad_fn or vad)(audio)
     tm["vad"] = round(time.time() - t0, 1)
-    segs = plan_segments(spans, total)
+    segs = plan_segments(spans, total, audio=audio)
     say(f"תמלול עברי: {len(spans)} קטעי VAD → {len(segs)} קטעים, {total / 60:.1f} דק׳")
 
     zw: list[dict] = []
@@ -423,7 +469,7 @@ def transcribe(audio, ivrit=None, zf=None, vad_fn=None, log=None) -> dict:
     for s, e, ws in gaps:
         if len(ws) >= GAP_WORDS and e - s >= GAP_MIN_S:
             a, b = max(s, ws[0]["s"] - 0.3), min(e, ws[-1]["e"] + 0.3)
-            extra += plan_segments([(a, b)], total, target=SEG_MAX)
+            extra += plan_segments([(a, b)], total, target=SEG_MAX, audio=audio)
     allsegs = sorted(segs + extra)
 
     out = [{"s": s, "e": e, "text": "", "src": "w", "gap": 1 if (s, e) in extra else 0} for s, e in allsegs]
@@ -479,7 +525,7 @@ def _repair(audio, out: list[dict], zw: list[dict], ivrit, say) -> None:
         for g in todo:
             hs = g.get("holes") or []
             ps = split_at(g["s"], g["e"], [x for h in hs for x in (h[0] - 0.3, h[1] + 0.3)]) if hs else []
-            parts.append(ps if len(ps) > 1 else split_span(g["s"], g["e"], zw))
+            parts.append(ps if len(ps) > 1 else split_span(g["s"], g["e"], zw, audio=audio))
         res = ivrit.many(audio, [p for ps in parts for p in ps])
         k = 0
         for g, ps in zip(todo, parts):

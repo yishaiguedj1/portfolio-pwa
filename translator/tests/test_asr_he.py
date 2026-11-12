@@ -94,6 +94,30 @@ class TestPlan(unittest.TestCase):
         self.assertTrue(all(e - s <= 14 for s, e in segs))
         self.assertEqual((segs[0][0], segs[-1][1]), (0.0, 30.0))
 
+    def test_split_long_cuts_in_silence(self):
+        # 12/11/2026: קטע של 30 שנ׳ — החיתוך השווה (10, 20) נופל באמצע מילה; יש שקט ב־9.0 וב־21.0
+        audio = np.random.RandomState(1).uniform(-0.3, 0.3, int(30 * A.SR)).astype(np.float32)
+        for q in (9.0, 21.0):
+            audio[int((q - 0.1) * A.SR):int((q + 0.1) * A.SR)] = 0
+        segs = A.plan_segments([(0, 30)], 30, seg_max=14, audio=audio)
+        self.assertEqual(len(segs), 3)
+        self.assertAlmostEqual(segs[0][1], 9.0, delta=0.06)
+        self.assertAlmostEqual(segs[1][1], 21.0, delta=0.06)
+        self.assertTrue(all(e - s <= 14 for s, e in segs))
+        self.assertEqual((segs[0][0], segs[-1][1]), (0.0, 30.0))
+
+    def test_quiet_cut_bounds_and_fallback(self):
+        self.assertEqual(A.quiet_cut(None, 5.0, 4.0, 6.0), 5.0)
+        audio = np.ones(int(10 * A.SR), dtype=np.float32)
+        audio[int(1.0 * A.SR):int(1.3 * A.SR)] = 0                # שקט מחוץ לחלון — לא נבחר
+        self.assertAlmostEqual(A.quiet_cut(audio, 5.0, 4.0, 6.0), 5.0, delta=0.02)
+
+    def test_split_span_no_words_cuts_in_silence(self):
+        audio = np.random.RandomState(2).uniform(-0.3, 0.3, int(10 * A.SR)).astype(np.float32)
+        audio[int(4.2 * A.SR):int(4.5 * A.SR)] = 0
+        ps = A.split_span(0, 10, [], parts=2, audio=audio)
+        self.assertAlmostEqual(ps[0][1], 4.35, delta=0.1)
+
     def test_overlap_and_clamp(self):
         segs = A.plan_segments([(-1, 2), (1.5, 3), (9, 12)], 10)
         self.assertEqual(segs, [(0.0, 3.0), (9.0, 10.0)])
