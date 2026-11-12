@@ -29,6 +29,16 @@ const rec = () => ({ id: 'jAAAAAAAAAAAAAAAAAAAA', spec: { size: 90e6 }, up: { v:
 { const r = rec(); mk(new Map(), [])(r, { state: 'running', files: { v: { id: '../x', size: 1 } } });
   ok(!r.up.v.done, 'מזהה לא תקין — לא נקלט'); }
 
+// 12/11/2026 (צילום מהטלפון): סרטון מקישור התנגן צרוב — בעבודה מקישור up.v.done בלי מזהה, והמקור רשום רק בשרתון (fv)
+{ const m = src.match(/const srcGone = [^\n]+\n/), v = src.match(/const srcVid = [^\n]+\n/);
+  ok(m && v, 'srcGone ו־srcVid קיימות');
+  const sv = new Function(m[0] + v[0] + 'return srcVid;')();
+  const link = (srv) => ({ spec: { src: 'url' }, up: { link: true, v: { done: true } }, srv });
+  ok(sv(link({ fv: FID })) === FID, 'מקישור — המקור שהעובד רשם (לא הצרוב)');
+  ok(sv(link({ fv: FID, sx: 1 })) === '', 'המקור נמחק (sx) — הצרוב');
+  ok(sv(link({ fv: '' })) === '', 'עוד לא נרשם מקור — הצרוב');
+  ok(sv({ spec: {}, up: { v: { id: 'up1' } }, srv: { fv: FID } }) === 'up1', 'העלאה מהטלפון — כמו קודם'); }
+
 ok(/if \(j\.ok && j\.job && r\) \{ adoptSrv\(r, j\.job\);/.test(src), 'המעקב בדף העבודה עובר דרך adoptSrv');
 ok(/if \(loc\) adoptSrv\(loc, sj\);/.test(src), 'הרשימה מהשרתון עוברת דרך adoptSrv');
 console.log('studio-bgadopt: ' + n + ' בדיקות עברו');

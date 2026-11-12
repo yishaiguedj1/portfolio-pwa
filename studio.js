@@ -8166,7 +8166,9 @@ const burnedOut = (rec) => outOf(rec, 'compact') || outOf(rec, 'same') || outOf(
 /* 26/10/2026: סרטון המקור נמחק (יום מפתיחת הפרויקט) — הנגן מנגן את הצרוב, ואין הפקה מחדש */
 const srcGone = (rec) => !!(rec && rec.srv && rec.srv.sx > 0);
 // 29/10/2026: בעבודת טלפון הסרטון עולה מ־Studio לאנדרואיד (spec.vc) — המזהה מהשרתון, לא מההעלאה של הדף
-const srcVid = (rec) => (!srcGone(rec) && ((rec.up.v && rec.up.v.id) || (rec.spec && (rec.spec.ph || rec.spec.nu) && rec.srv && rec.srv.fv))) || '';
+/* 12/11/2026 (צילום מהטלפון: סרטון מקישור מתנגן צרוב, בלי בחירת כתוביות): בעבודה מקישור הטלפון נוצר עם up.v.done בלי מזהה
+   (אין מה להעלות), ו־adoptSrv לא אימץ את המקור שהעובד רשם (srcFile → fv). עכשיו הסרטון הרשום בשרתון קובע בכל עבודה */
+const srcVid = (rec) => (!srcGone(rec) && ((rec.up.v && rec.up.v.id) || (rec.srv && rec.srv.fv))) || '';
 /* עד מתי אפשר לצרוב מחדש / עד מתי הקבצים נשמרים — שורה אחת מתחת לתוצרים */
 function keepNote(rec) {
   const rt = rec.srv && rec.srv.rt;
