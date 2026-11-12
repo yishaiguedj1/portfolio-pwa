@@ -155,6 +155,31 @@ class TestOutputs(unittest.TestCase):
         self.assertEqual([c["id"] for c in cs], list(range(1, len(cs) + 1)))
         self.assertEqual(A.cues([]), [])
 
+    def test_cues_reading_time(self):
+        """12/11/2026: משפט שהיישור דחס לשנייתיים נשאר על המסך לפחות זמן הקריאה — ועד הכתובית הבאה כשהרווח קצר"""
+        s1 = "לעומתו , נגיף השפעת , הגנום שלו הוא מורכב מהרבה מקטעים ולא ממקטע אחד כמו נגיף הקורונה.".replace(" ,", ",").split()
+        s2 = "הדבר הזה לכשעצמו מאפשר לנגיף הזה יכולת שינוי יותר גדולה מאשר קיימת לנגיף הקורונה.".split()
+        s3 = "גם בשפעת אתה לא נדבק בדיוק באותו הסוג.".split()
+        ws = [W(x, 71 + i * 0.6, 71 + i * 0.6 + 0.5, spk="S1") for i, x in enumerate(s1)]
+        ws += [W(x, 80.5 + i * 0.15, 80.5 + i * 0.15 + 0.12, spk="S1") for i, x in enumerate(s2)]
+        ws += [W(x, 85 + i * 0.4, 85 + i * 0.4 + 0.3, spk="S1") for i, x in enumerate(s3)]
+        cs = A.cues(ws)
+        self.assertTrue(all(len(c["lines"][0].split()) + len(c["lines"][-1].split()) >= 4 for c in cs), cs)   # בלי "נגיף" לבד
+        self.assertEqual(len(cs), 4)
+        c2 = cs[2]
+        self.assertTrue(c2["lines"][0].startswith("הדבר"))
+        self.assertAlmostEqual(c2["end"], 85 - A.CUE_GAP, places=3)   # נשאר עד "גם בשפעת"
+        self.assertGreaterEqual(c2["end"] - c2["start"], len("".join(c2["lines"]).replace(" ", "")) / A.CUE_CPS)
+        self.assertTrue(all(a["end"] <= b["start"] for a, b in zip(cs, cs[1:])))
+        last = cs[-1]
+        self.assertGreaterEqual(last["end"] - last["start"], A.CUE_MIN_S)
+
+    def test_cues_long_gap_not_held(self):
+        ws = [W("שלום.", 10, 10.4), W("עולם.", 30, 30.4)]
+        cs = A.cues(ws)
+        self.assertEqual(len(cs), 2)
+        self.assertAlmostEqual(cs[0]["end"], 10 + A.CUE_MIN_S, places=3)   # שקט ארוך — לא מחזיקים 20 שנ׳
+
     def test_windows_ids_no_times(self):
         ev = [{"id": "e%d" % i, "t0": i * 10.5, "t1": i * 10.5 + 9, "text": "word " * 30, "spk": "S1"} for i in range(1, 9)]
         sl = [{"id": "s1", "t0": 31.0, "ocr": ["o1.1"]}]

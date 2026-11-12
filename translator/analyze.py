@@ -66,6 +66,8 @@ SO_WIN = 30.0                   # "רק על המסך": מחפשים את המי
 SO_MIN_CONF, SO_MIN_WORDS = 60, 3
 SO_HIT = 0.3                    # פחות מ־30% מהמילים התוכניות נאמרו — השורה "רק על המסך"
 CUE_MAX_S, CUE_MAX_CH = 7.0, 84
+CUE_CPS, CUE_MIN_S = 17.0, 0.83  # זמן קריאה מינימלי לכתובית (כמו Q_CPS ו־Q_MIN_DUR ב־job.py)
+CUE_HOLD_S, CUE_GAP = 1.0, 0.08  # רווח קצר מזה עד הכתובית הבאה — נסגר; מרווח של כ־2 פריימים בין כתוביות
 IMG_TOK_DIV = 750               # טוקני תמונה ≈ רוחב × גובה ÷ 750 (התיעוד של Anthropic)
 CPU_FLAGS = ('sse4_2', 'avx', 'avx2', 'fma', 'f16c', 'avx_vnni', 'avx512f', 'avx512bw', 'avx512vl', 'avx512_vnni',
              'avx512_bf16', 'amx_tile', 'amx_int8', 'amx_bf16')
@@ -278,39 +280,65 @@ def bounds(ev: list[dict], slides: list[dict]) -> list[dict]:
     return out
 
 
+def _cue_parts(ws: list[dict]) -> list[list[dict]]:
+    """משפט אחד (בלי שקט ובלי החלפת שפה/דובר) → חלקים מאוזנים: הכי מעט חלקים שכל אחד עד CUE_MAX_CH תווים ו־CUE_MAX_S שנ׳,
+    בנקודות הקרובות ביותר לחלוקה שווה בתווים — בלי "שארית" של מילה אחת בכתובית משלה (12/11/2026)"""
+    lens = [len(str(w['w'])) + 1 for w in ws]
+    total = sum(lens)
+    n0 = max(1, -(-total // (CUE_MAX_CH + 1)), int(-(-(float(ws[-1]['e']) - float(ws[0]['s'])) // CUE_MAX_S)))
+    for n in range(n0, len(ws) + 1):
+        cuts, acc, k = [], 0, 1
+        for i, ln in enumerate(lens[:-1]):
+            acc += ln
+            if k < n and acc + ln / 2 >= k * total / n:
+                cuts.append(i + 1)
+                k += 1
+        parts = [ws[x:y] for x, y in zip([0] + cuts, cuts + [len(ws)]) if y > x]
+        if all(len(' '.join(str(w['w']) for w in p)) <= CUE_MAX_CH
+               and float(p[-1]['e']) - float(p[0]['s']) <= CUE_MAX_S for p in parts):
+            return parts
+    return [[w] for w in ws]
+
+
 def cues(words: list[dict]) -> list[dict]:
     """התמליל בשפת המקור ככתוביות לנגן (normCues בטלפון): עד CUE_MAX_S שנ׳ ו־CUE_MAX_CH תווים, בשתי שורות לכל היותר.
-    10/11/2026: כתובית לא חוצה החלפת שפה — מילים בשפה אחרת (lg, ‏vt/vi.py:lang_mix) הן כתובית משלהן, עם lg."""
-    out, cur = [], []
-
-    def close():
-        if not cur:
-            return
-        text = norm(' '.join(str(w['w']) for w in cur))
-        mid = len(text) // 2
-        if len(text) > CUE_MAX_CH // 2:
-            sp = text.rfind(' ', 0, mid + 8)
-            lines = [text[:sp].strip(), text[sp:].strip()] if sp > 0 else [text]
-        else:
-            lines = [text]
-        c = {'id': len(out) + 1, 'start': round(float(cur[0]['s']), 3), 'end': round(max(float(cur[-1]['e']), float(cur[0]['s']) + 0.3), 3),
-             'lines': [x for x in lines if x]}
-        if cur[0].get('spk') and cur[0]['spk'] != 'S?':
-            c['spk'] = str(cur[0]['spk'])[:8]
-        if cur[0].get('lg'):
-            c['lg'] = str(cur[0]['lg'])[:5]
-        out.append(c)
-        cur.clear()
-
+    10/11/2026: כתובית לא חוצה החלפת שפה — מילים בשפה אחרת (lg, ‏vt/vi.py:lang_mix) הן כתובית משלהן, עם lg.
+    12/11/2026 (כתובית שהבהבה לשנייה ונעלמה באמצע המשפט): המשפט מתחלק לחלקים מאוזנים (_cue_parts), והסוף הוא לפחות
+    זמן הקריאה (CUE_CPS תווים לשנייה, לא פחות מ־CUE_MIN_S) — עד תחילת הכתובית הבאה; רווח קצר מ־CUE_HOLD_S נסגר
+    (הכתובית נשארת עד הבאה). מילים שהיישור דחס לשנייה אחת כבר לא מעלימות את הכתובית לפני שהדובר סיים."""
+    groups, cur = [], []
     for w in words:
-        if cur:
-            text = ' '.join(str(x['w']) for x in cur + [w])
-            if (float(w['e']) - float(cur[0]['s']) > CUE_MAX_S or len(text) > CUE_MAX_CH
-                    or float(w['s']) - float(cur[-1]['e']) >= PAUSE_S or SENT_END.search(str(cur[-1]['w']))
-                    or (w.get('lg') or '') != (cur[-1].get('lg') or '')):
-                close()
+        if cur and (float(w['s']) - float(cur[-1]['e']) >= PAUSE_S or SENT_END.search(str(cur[-1]['w']))
+                    or (w.get('lg') or '') != (cur[-1].get('lg') or '')
+                    or (w.get('spk') or '') != (cur[-1].get('spk') or '')):
+            groups.append(cur)
+            cur = []
         cur.append(w)
-    close()
+    if cur:
+        groups.append(cur)
+    out = []
+    for g in groups:
+        for part in _cue_parts(g):
+            text = norm(' '.join(str(w['w']) for w in part))
+            if not text:
+                continue
+            mid = len(text) // 2
+            sp = text.rfind(' ', 0, mid + 8) if len(text) > CUE_MAX_CH // 2 else -1
+            lines = [text[:sp].strip(), text[sp:].strip()] if sp > 0 else [text]
+            c = {'id': len(out) + 1, 'start': round(float(part[0]['s']), 3), 'end': float(part[-1]['e']),
+                 'lines': [x for x in lines if x], 'n': len(text.replace(' ', ''))}
+            if part[0].get('spk') and part[0]['spk'] != 'S?':
+                c['spk'] = str(part[0]['spk'])[:8]
+            if part[0].get('lg'):
+                c['lg'] = str(part[0]['lg'])[:5]
+            out.append(c)
+    for i, c in enumerate(out):
+        nxt = out[i + 1]['start'] - CUE_GAP if i + 1 < len(out) else float('inf')
+        end = max(c['end'], c['start'] + max(CUE_MIN_S, c.pop('n') / CUE_CPS))
+        if nxt - end < CUE_HOLD_S:
+            end = nxt
+        end = min(end, nxt)
+        c['end'] = round(max(end, c['start'] + 0.3), 3)
     return out
 
 
