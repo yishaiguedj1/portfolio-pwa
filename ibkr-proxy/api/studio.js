@@ -2379,8 +2379,16 @@ async function shareOp(req, res, body, deps) {
     const one = (k) => (outs.find((o) => o.k === k) || {}).id || '';
     const burned = SH.BURNED.map(one).find(Boolean) || '';
     const aux = (k) => SH.auxOf(job, k, SR.inFolder);
+    const srcId = SH.srcOf(job, SR.inFolder);
+    // 12/11/2026: איכויות הצפייה — קישור חתום לכל קובץ (אותו תוקף), בלי המזהים; הנגן בונה מהם את הרשימות
+    const q = SH.hlOf(job, srcId, SR.inFolder, S.normHl, S.normHla);
+    const hl = [], hla = [];
+    if (q) {
+      for (const l of q.hl) hl.push({ w: l.w, h: l.h, bw: l.bw, abw: l.abw, c: l.c, size: l.size, url: await sign(l.id, 'video/mp4') });
+      for (const a of q.hla || []) hla.push(Object.assign({ c: a.c, bw: a.bw, abw: a.abw, ch: a.ch, size: a.size }, a.l ? { l: a.l } : {}, a.d ? { d: 1 } : {}, { url: await sign(a.id, 'audio/mp4') }));
+    }
     return res.status(200).json({ ok: true, now, ux: now + SH.SH_URL_TTL * 1000, v: SH.shareMeta(job, now), outs,
-      play: { src: await sign(SH.srcOf(job, SR.inFolder), SH.srcType(job)), fb: await sign(burned, 'video/mp4') },
+      play: { src: await sign(srcId, SH.srcType(job)), fb: await sign(burned, 'video/mp4'), hl: hl.every((l) => l.url) ? hl : [], hla: hla.every((a) => a.url) ? hla : [] },
       cues: await sign(aux('cues'), 'application/json'), srt: await sign(one('srt'), 'text/plain; charset=utf-8'), vi: await sign(one('vi'), 'application/json'),
       vis: await sign(aux('vis'), 'application/octet-stream'), thumb: await sign(aux('thumb'), 'image/jpeg') });
   } catch (e) { return res.status(503).json({ ok: false, error: 'r2_off' }); }

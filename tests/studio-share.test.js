@@ -52,6 +52,18 @@ const { fakeR2, ENV } = require('./_r2fake');
   const meta = SH.shareMeta({ uid: 'u1', spec: { name: 'a\u0007b.mp4', vi: 1, from: 'en', to: ['he', '<x>'], dur: 61.4, email: 'x@y' }, ended: NOW, lnx: NOW + 9, use: [{ c: 1 }] }, NOW);
   ok(meta.n === 'a b.mp4' && meta.k === 'vi' && meta.to.join() === 'he' && meta.dur === 61 && meta.exp === NOW + 9 && Object.keys(meta).sort().join() === 'at,dur,exp,from,k,n,to', 'מה הצופה מקבל: שם, סוג, שפות, אורך, תאריכים — בלי מזהה, מייל, עלות');
   ok(SH.srcOf({ folder: FOLD, fv: { id: FOLD + '_v' } }, inF) === FOLD + '_v' && !SH.srcOf({ folder: FOLD, fv: { id: FOLD + '_v' }, sx: 5 }, inF) && !SH.srcOf({ folder: FOLD, fv: { id: FOLD + '_v', ext: true } }, inF), 'סרטון המקור לנגן — רק כשהוא עוד ב־R2 של העבודה');
+  {
+    const S0 = require(path.join(root, 'ibkr-proxy/lib/studio.js'));
+    const L = (i, h) => ({ id: FOLD + '_' + i, w: h * 2, h, bw: h * 5000, abw: h * 4000, c: 'avc1.640028', size: 9 });
+    const jq = (o) => Object.assign({ folder: FOLD, spec: {}, hl: [L('vvvvvvvvvvvv', 1080), L('qqqqqqqqqqqq', 480)] }, o);
+    const q0 = SH.hlOf(jq(), FOLD + '_vvvvvvvvvvvv', inF, S0.normHl, S0.normHla);
+    ok(q0 && q0.hl.length === 2 && q0.hla === null, 'hlOf: איכויות כשהמקור מוצג');
+    ok(!SH.hlOf(jq(), '', inF, S0.normHl, S0.normHla) && !SH.hlOf(jq(), FOLD + '_qqqqqqqqqqqq', inF, S0.normHl, S0.normHla), 'hlOf: בלי מקור / הראשונה לא המקור — בלי');
+    ok(!SH.hlOf(jq({ spec: { edl: [[0, 5]] } }), FOLD + '_vvvvvvvvvvvv', inF, S0.normHl, S0.normHla), 'hlOf: מקור חתוך (edl) — בלי (כמו ladderOf בטלפון)');
+    ok(!SH.hlOf(jq({ hl: [L('vvvvvvvvvvvv', 1080), { ...L('x', 480), id: 'R2_jZZZZZZZZZZZZZZZZZZZZ_qqqqqqqqqqqq' }] }), FOLD + '_vvvvvvvvvvvv', inF, S0.normHl, S0.normHla), 'hlOf: קובץ בתיקייה אחרת — בלי');
+    const qa = SH.hlOf(jq({ hla: [{ id: 'R2_jZZZZZZZZZZZZZZZZZZZZ_aaaaaaaaaaaa', c: 'opus', bw: 9e4, abw: 9e4, ch: 2, size: 5 }] }), FOLD + '_vvvvvvvvvvvv', inF, S0.normHl, S0.normHla);
+    ok(qa && qa.hl.length === 2 && qa.hla === null, 'hlOf: עותק קול מחוץ לתיקייה — בלי העותק (האיכויות נשארות)');
+  }
   ok(SH.dlName('a\r\nb/c:"d"') === 'a b c d' && SH.dlName('x'.repeat(300)).length === 120, 'שם ההורדה מנוקה');
   ok(SH.dlName('a\u202egpj.exe') === 'a gpj.exe' && SH.dlName('a\u200f\u2066b') === 'a b' && !/[\u202a-\u202e]/.test(SH.shareMeta({ spec: { name: 'x\u202eyz' } }, NOW).n), 'בלי תווי כיווניות שמסווים סיומת');
   ok(SH.dlFile('הרצאה ראשונה.he.srt', { k: 'srt', x: 'srt' }) === 'הרצאה ראשונה.he.srt' && SH.dlFile('invoice.exe', { k: 'srt', x: 'srt' }) === 'invoice.srt'
@@ -219,6 +231,27 @@ const { fakeR2, ENV } = require('./_r2fake');
   studio._reset();
   r = await view(T3);
   ok(r.j.ok && r.j.v.k === 'vi' && r.j.vi.includes(id('vi')) && r.j.vis.includes(id('vis')) && r.j.outs.map((o) => o.k).join() === 'vi' && r.j.play.src && !r.j.play.fb, 'ניתוח: vi.json, השקפים והמקור לנגן; להורדה — קובץ הניתוח');
+  // 12/11/2026: איכויות הצפייה (ladder.py) גם בדף השיתוף — קישור חתום לכל קובץ, בלי המזהים
+  ok(Array.isArray(r.j.play.hl) && r.j.play.hl.length === 0 && r.j.play.hla.length === 0, 'בלי איכויות בעבודה — רשימות ריקות');
+  const L = (i, h, c) => ({ id: i, w: Math.round(h * 16 / 9), h, bw: h * 5000, abw: h * 4000, c: c || 'avc1.640028,mp4a.40.2', size: h * 1000 });
+  Object.assign(D(), { hl: sv([L(F.v, 1080), L(id('q720'), 720), L(id('q360'), 360)]), hla: sv([{ id: id('aud'), c: 'opus', bw: 130000, abw: 120000, ch: 2, size: 500, l: 'en', d: 1 }]) });
+  studio._reset();
+  r = await view(T3);
+  const hl = r.j.play.hl;
+  ok(hl.length === 3 && hl.map((l) => l.h).join() === '1080,720,360' && hl.every((l) => l.url.includes('.r2.cloudflarestorage.com/') && l.url.includes('X-Amz-Expires=900') && ctOf(l.url) === 'video/mp4' && !('id' in l))
+    && hl[0].url.includes(F.v) && hl[1].url.includes(id('q720')), 'איכויות: קישור חתום ל־15 דקות לכל קובץ (הראשונה = המקור), video/mp4, בלי מזהים');
+  ok(r.j.play.hla.length === 1 && r.j.play.hla[0].l === 'en' && r.j.play.hla[0].d === 1 && ctOf(r.j.play.hla[0].url) === 'audio/mp4' && !('id' in r.j.play.hla[0]), 'עותק הקול לנגן — audio/mp4, עם שפה וברירת מחדל');
+  ok((await R.fetch(hl[1].url)).status !== 403, 'הקישור החתום לאיכות תקף מול R2');
+  Object.assign(D(), { hl: sv([L(F.v, 1080), L('R2_jOTHERjobOTHERjobOT_q720xxxxxxxx', 720)]) });
+  studio._reset();
+  r = await view(T3);
+  ok(r.j.play.hl.length === 0 && r.j.play.src, 'קובץ איכות מחוץ לתיקייה של העבודה — בלי איכויות (המקור כמו קודם)');
+  Object.assign(D(), { hl: sv([L(F.v, 1080), L(id('q720'), 720)]), sx: { integerValue: String(R.now) } });
+  studio._reset();
+  r = await view(T3);
+  ok(r.j.play.hl.length === 0 && !r.j.play.src, 'המקור נמחק — בלי איכויות');
+  delete D().sx; delete D().hl; delete D().hla;
+  studio._reset();
   // מגביל קצב
   studio._hitsClear(); ip = 7;
   const codes = [];
@@ -273,6 +306,18 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(SH.SH_KINDS.join() === "compact,same,mkv,small,srt,en,inst,lrc,elrc,lyr,vi" && /export const OUT_MAIN = \['compact', 'same', 'mkv', 'small', 'srt', 'en', 'inst', 'lrc', 'elrc', 'lyr', 'vi'\]/.test(st), 'התוצרים בשיתוף = OUT_MAIN בטלפון');
   const v0 = { n: 'הרצאה_ראשונה.mp4', to: ['he'] };
   ok(P.dlName(v0, { k: 'srt' }) === 'הרצאה ראשונה.he.srt' && P.dlName(v0, { k: 'en' }) === 'הרצאה ראשונה.en.srt' && /\.mkv$/.test(P.dlName(v0, { k: 'mkv' })) && /\.json$/.test(P.dlName(v0, { k: 'vi', x: 'json' })) && /\.m4a$/.test(P.dlName(v0, { k: 'inst', x: 'm4a' })), 'שם ההורדה: כתוביות "שם.he.srt", השאר עם הסיומת האמיתית');
+  {
+    const B = 'https://studio.example/share-q/';
+    const play = { src: 'https://r2/S', fb: 'https://r2/B', hl: [{ h: 1080, url: 'https://r2/S' }, { h: 480, url: 'https://r2/Q' }], hla: [{ c: 'opus', url: 'https://r2/A' }] };
+    const q = P.qPlan(play, P.playPlan('tr', play, true), B);
+    ok(q.ladder.length === 2 && q.ladder[0].url === B + 'v0' && q.ladder[1].h === 480 && q.alt[0].url === B + 'a0', 'qPlan: איכויות לנגן עם כתובות קבועות (הקישור החתום מתחלף)');
+    ok(!P.qPlan(play, P.playPlan('tr', play, false), B).ladder && !P.qPlan(Object.assign({}, play, { hl: [play.hl[0]] }), P.playPlan('tr', play, true), B).ladder
+      && !P.qPlan(Object.assign({}, play, { hl: [] }), P.playPlan('tr', play, true), B).ladder, 'qPlan: מנגנים את הצרוב / איכות אחת / אין — בלי איכויות');
+    ok(P.qUrl(play, B, B + 'v1') === 'https://r2/Q' && P.qUrl(play, B, B + 'a0') === 'https://r2/A' && P.qUrl(play, B, B + 'v9') === '' && P.qUrl(play, B, 'https://evil/v0') === '' && P.qUrl(play, B, B + 'x0') === '', 'qUrl: הכתובת הקבועה → הקישור החתום הנוכחי, רק שלנו');
+    const sp = read('studioplay.js');
+    ok(/fetch\(mapU\(url\)/.test(sp) && /ctx\.url = mapU\(k0\)/.test(sp) && /alt \|\| opts\.mapUrl \? \{ fLoader: FL \}/.test(sp), 'הנגן: mapUrl ברגע כל בקשה (האינדקס והקטעים, גם בניסיון חוזר)');
+    ok(/opts\.mapUrl \? \{ shouldRetry: \(c, n, isTo, resp, def\) => def \|\| n < c\.maxNumRetry \}/.test(sp), 'הנגן: עם mapUrl — מנסים שוב גם אחרי 403 / סטטוס 0 (קישור שפג), עם קישור חדש — לא קופצים לאיכות אחרת');
+  }
   ok(P.playPlan('tr', { src: 'S', fb: 'B' }, true).src === 'S' && P.playPlan('tr', { src: 'S', fb: 'B' }, false).burned && P.playPlan('ka', { src: 'S', fb: 'B' }, true).src === 'B' && P.playPlan('vi', { src: 'S', fb: '' }).src === 'S' && P.playPlan('tr', { src: '', fb: '' }, true) === null, 'הנגן: תרגום — המקור עם הכתוביות (כמו אצלך), אחרת הצרוב; קריוקי — הצרוב; ניתוח — המקור');
   const cg = require(path.join(root, 'tools/coregen.js'));
   ok(cg.APPS.share && cg.APPS.share.join() === 'share.js,studioplay.js,studiovi.js' && fs.existsSync(path.join(root, 'strings-share.js')), 'coregen: strings-share.js (רק מה שהדף צריך)');
