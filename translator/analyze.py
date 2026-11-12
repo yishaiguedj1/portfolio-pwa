@@ -1244,6 +1244,147 @@ def _fps(v: dict) -> float:
     return 0.0
 
 
+# ---------------------------------------------------------------- היסט קול↔סרטון, מדדי הכתוביות, מול כתוביות היוצר (12/11/2026)
+
+SYNC_MIN_CONF = 0.6       # כמו job.SYNC_MIN_CONF: מתחת לזה ההיסט לא ודאי — לא מזיזים
+
+
+def av_offset(J, wav: Path, src: Path) -> tuple[float, float]:
+    """12/11/2026 (מהתרגום, job.attach_video + sync.py): כשהתחלנו מהקול, הזמנים הם על ציר הזמן של קובץ הקול — והסרטון
+    בנגן ובמסך על ציר משלו (חותמת החבילה הראשונה, priming של AAC). מודדים את ההיסט בקורלציה בין הקולות. תקלה — (0, 0)."""
+    vw = wav.with_name('video16k.wav')
+    try:
+        subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(src), '-vn', '-ac', '1', '-ar', '16000', str(vw)],
+                       check=True, timeout=3600)
+        r = subprocess.run([getattr(J, 'VT_PY', None) or 'python3', str(Path(__file__).resolve().parent / 'sync.py'), str(wav), str(vw)],
+                           capture_output=True, text=True, timeout=600)
+        off, conf = (float(x) for x in (r.stdout or '').split()[:2])
+        return off, conf
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return 0.0, 0.0
+    finally:
+        try:
+            vw.unlink()
+        except OSError:
+            pass
+
+
+def shift_words(words: list[dict], off: float) -> None:
+    """זמן_בסרטון = זמן_בקול + היסט (sync.py)"""
+    for w in words:
+        for k in ('s', 'e'):
+            if isinstance(w.get(k), (int, float)):
+                w[k] = round(max(0.0, float(w[k]) + off), 3)
+
+
+Q_CPS_CUE, Q_LINE_CH, Q_MIN_S = 17.0, 42, 5 / 6     # כמו Q_CPS / ‏Q_LEN / ‏Q_MIN_DUR בתרגום (job.py)
+
+
+def cue_stats(cs: list[dict], words: list[dict]) -> dict:
+    """12/11/2026 (qc.run_qc של התרגום, בקטן): מדדי הכתוביות לנתוני העבודה — הבאג של היום (כתובית שנעלמה באמצע
+    המשפט) לא נמדד בכלל. n · ‏cps = % מעל 17 תווים לשנייה · ‏short = % קצרות מ־5/6 שנ׳ · ‏len = % עם שורה מעל 42 ·
+    ‏ovl = חפיפות · ‏nc = % מהמילים שבזמן שלהן אין כתובית על המסך"""
+    if not cs:
+        return {'n': 0}
+    n = len(cs)
+    cps = sum(1 for c in cs if len(' '.join(c['lines'])) / max(c['end'] - c['start'], 1e-6) > Q_CPS_CUE + 0.05)
+    short = sum(1 for c in cs if c['end'] - c['start'] < Q_MIN_S - 0.02)
+    ln = sum(1 for c in cs if any(len(x) > Q_LINE_CH for x in c['lines']))
+    ovl = sum(1 for a, b in zip(cs, cs[1:]) if a['end'] > b['start'] + 1e-6)
+    import bisect
+    st = [c['start'] for c in cs]
+    nc = 0
+    for w in words:
+        mid = (float(w['s']) + float(w['e'])) / 2
+        i = bisect.bisect_right(st, mid) - 1
+        if i < 0 or cs[i]['end'] < mid:
+            nc += 1
+    pct = lambda k, d: round(100.0 * k / d, 1) if d else 0.0   # noqa: E731
+    return {'n': n, 'cps': pct(cps, n), 'short': pct(short, n), 'len': pct(ln, n), 'ovl': ovl, 'nc': pct(nc, len(words))}
+
+
+REF_MIN_CUES = 20         # כמו learnmetrics.REF_MIN — פחות כתוביות של היוצר, לא מודדים
+_REF_TOK = re.compile(r"[\w֐-׿'’]+", re.U)
+
+
+def _ref_words(t: str) -> list[str]:
+    return [x for x in _REF_TOK.findall(NIQQUD.sub('', str(t or '')).lower().replace('’', "'")) if x]
+
+
+def ref_stats(path: Path, cs: list[dict], words: list[dict]) -> dict | None:
+    """12/11/2026 (learnmetrics.ref_metrics של התרגום): כתוביות היוצר בשפת המקור (ref/<lang>.srt, ‏job.learn_refs_start)
+    כבר יורדות בכל עבודה מקישור — עכשיו הן גם המדד, בלי תמלול ידני:
+    wer = % שגיאות מילים בתמליל מולן · ‏iou = חפיפת זמני התצוגה (שלנו ∩ שלהן ÷ איחוד, ‏%) · ‏miss = % מהזמן שכתובית
+    של היוצר על המסך ושלנו לא · ‏d0 = חציון ההפרש בהתחלה (שלנו פחות שלהם, שנ׳) בזוגות עם אותן מילים · ‏dn = כמה זוגות"""
+    try:
+        import tedeval as TE
+        ref = TE.parse_srt(path.read_text(encoding='utf-8', errors='replace'))
+    except (OSError, ImportError, ValueError):
+        return None
+    if cs and ref:
+        lo, hi = cs[0]['start'] - 5, cs[-1]['end'] + 5         # קטע / מקור קטוע — רק מה שיש לשנינו
+        ref = [c for c in ref if lo <= c['s'] <= hi and c['e'] > c['s']]
+    if len(ref) < REF_MIN_CUES or not cs:
+        return None
+    from learnmetrics import wer_counts
+    rw = [w for c in ref for w in _ref_words(c['text'])]
+    hw = [w for x in words for w in _ref_words(x.get('w'))]
+    out: dict = {'n': len(ref), 'nw': len(rw)}
+    if len(rw) >= 50 and hw:
+        sb, dl, ins = wer_counts(hw, rw)
+        out['wer'] = round(100.0 * (sb + dl + ins) / len(rw), 1)
+
+    def union(iv):
+        iv = sorted(iv)
+        out_, cur = [], None
+        for a, b in iv:
+            if cur and a <= cur[1]:
+                cur[1] = max(cur[1], b)
+            else:
+                cur = [a, b]
+                out_.append(cur)
+        return out_
+
+    A = union([(c['start'], c['end']) for c in cs])
+    B = union([(c['s'], c['e']) for c in ref])
+
+    def inter(X, Y):
+        i = j = 0
+        t = 0.0
+        while i < len(X) and j < len(Y):
+            a, b = max(X[i][0], Y[j][0]), min(X[i][1], Y[j][1])
+            t += max(0.0, b - a)
+            if X[i][1] < Y[j][1]:
+                i += 1
+            else:
+                j += 1
+        return t
+    ia = inter(A, B)
+    la, lb = sum(b - a for a, b in A), sum(b - a for a, b in B)
+    out['iou'] = round(100.0 * ia / max(la + lb - ia, 1e-6), 1)
+    out['miss'] = round(100.0 * (lb - ia) / max(lb, 1e-6), 1)
+    ds = []
+    for c in cs:
+        mine = set(_ref_words(' '.join(c['lines'])))
+        if len(mine) < 3:
+            continue
+        best, bj = None, 0.0
+        for r in ref:
+            if abs(r['s'] - c['start']) > 10:
+                continue
+            th = set(_ref_words(r['text']))
+            j = len(mine & th) / max(1, len(mine | th))
+            if j > bj:
+                best, bj = r, j
+        if best is not None and bj >= 0.5:
+            ds.append(c['start'] - best['s'])
+    if ds:
+        ds.sort()
+        out['d0'] = round(ds[len(ds) // 2], 2)
+        out['dn'] = len(ds)
+    return out
+
+
 TRUNC_MIN_S = 30          # 11/11/2026: מקור קטוע — חסרות לפחות 30 שנ׳…
 TRUNC_RATIO = 0.8         # …ויש בפועל פחות מ־80% ממה שהקובץ מצהיר
 
@@ -1588,6 +1729,7 @@ def vi_run(J, args, engine=None) -> int:
         if lang not in VI_LANGS:
             ctx.report(fail=True, err='vi_lang', msg='כרגע עברית ואנגלית', force=True)
             raise SystemExit('✗ ניתוח: השפה שזוהתה (%s) לא נתמכת.' % str(lang)[:8])
+    sync = (0.0, 0.0)                                 # 12/11/2026: היסט הקול שעלה ראשון מול הסרטון (av_offset)
     # 3. מסך ויישור
     S.go('al', 'מזהים שקפים ומיישרים')
     if src is None:                                   # התחלנו מהקול — עכשיו (ורק עכשיו) צריך את הסרטון
@@ -1598,6 +1740,8 @@ def vi_run(J, args, engine=None) -> int:
         info['video'] = pv['video']
         info['fps'] = pv.get('fps') or 0.0
         decl = max(decl, pv['dur'])
+        if info['audio'] and pv.get('audio'):
+            sync = av_offset(J, wav, src)
     if info['video']:
         J.vt(ctx, ['vi-screen', str(src), '--out', str(scr), '--mem-mb', str(mem_need(dur))], 'al', 0.0, 0.5)
     screen = _read_json(scr / 'screen.json') or {'units': [], 'noscreen': True}
@@ -1605,6 +1749,11 @@ def vi_run(J, args, engine=None) -> int:
         J.vt(ctx, ['vi-align', str(tr_p), str(wav), '--out', str(wd_p)], 'al', 0.5, 0.95)
     wd = _read_json(wd_p) or {'words': tr.get('words') or [], 'ts': 'seg' if tr.get('words') else 'none'}
     words = wd.get('words') or []
+    if sync[1] >= SYNC_MIN_CONF and abs(sync[0]) >= 0.0005:
+        shift_words(words, sync[0])
+        print('✓ הסרטון צורף · היסט %+.3f שנ׳ (ודאות %.2f) — הזמנים על ציר הזמן של הסרטון' % sync)
+    elif sync[1] > 0:
+        print('· ההיסט בין הקול לסרטון לא ודאי (%.2f) — הזמנים נשארים של הקול' % sync[1])
     ev = evidence(words)
     slides, ocr = slides_doc(screen)
     n_so = screen_only(slides, ocr, words)
@@ -1659,7 +1808,8 @@ def vi_run(J, args, engine=None) -> int:
     if trunc:
         vi['video']['decl'] = round(decl, 2)
     (pd / 'vi.json').write_text(json.dumps(vi, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
-    (pd / 'cues.json').write_text(json.dumps(cues(words, info.get('fps') or 0.0), ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
+    cs = cues(words, info.get('fps') or 0.0)
+    (pd / 'cues.json').write_text(json.dumps(cs, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     if info['video'] and spec.get('vg') != 1:        # PR 1.6: הרצת זהב (vg) — בלי הסרטון באיכות מלאה (רק ה־vi.json נמדד)
         J.vt(ctx, ['vi-same', str(src), '--out', str(pd / 'same.mp4')], 'bn', 0.1, 1.0)
     # 6. שמירה
@@ -1677,7 +1827,16 @@ def vi_run(J, args, engine=None) -> int:
     vq = gold_score(vi, spec) if not dry else None
     facts = {'v': 1, 'lang': lang, 'dur': round(dur), 'stg': S.out, 'cpu': cpu_facts(), 'tok': tok, 'ev': len(ev), 'sl': len(slides),
              'ocr': len(ocr), 'so': n_so, 'w': len(words), 'ts': wd.get('ts'), 'asr': tr.get('quality'), 'warn': warn,
-             'scr': {k: v for k, v in (screen.get('stats') or {}).items() if isinstance(v, (int, float))}}
+             'scr': {k: v for k, v in (screen.get('stats') or {}).items() if isinstance(v, (int, float))}, 'cu': cue_stats(cs, words)}
+    if sync[1] > 0:
+        facts['sync'] = {'off': round(sync[0], 3), 'conf': round(sync[1], 2)}
+    th = (getattr(J, '_REF', None) or {}).get('t')           # כתוביות היוצר (job.learn_refs_start, מתחילת העבודה)
+    if th is not None and th.is_alive():
+        th.join(getattr(J, 'REF_JOIN_S', 30))
+    rs = ref_stats(pd / 'ref' / (lang + '.srt'), cs, words)
+    if rs:
+        facts['ref'] = rs
+        print('· מול כתוביות היוצר: ' + ' · '.join('%s %s' % kv for kv in rs.items()))
     lx = None
     if m:
         facts['map'] = m['st']

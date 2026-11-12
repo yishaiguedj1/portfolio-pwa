@@ -195,6 +195,67 @@ class TestOutputs(unittest.TestCase):
               W("שזה", 1.85, 2.1, spk="S1"), W("נכון.", 2.15, 2.5, spk="S1")]
         self.assertEqual(len(A.cues(ws)), 1)
 
+    def test_shift_and_cue_stats(self):
+        ws = [W("a", 1.0, 1.4), W("b", 1.5, 2.0)]
+        A.shift_words(ws, 0.25)
+        self.assertEqual((ws[0]["s"], ws[1]["e"]), (1.25, 2.25))
+        A.shift_words(ws, -5)
+        self.assertEqual(ws[0]["s"], 0.0, "לא לפני 0")
+        cs = [{"start": 0.0, "end": 0.5, "lines": ["x" * 20]}, {"start": 0.4, "end": 3.0, "lines": ["y" * 43]}]
+        st = A.cue_stats(cs, [W("a", 0.1, 0.2), W("b", 5, 5.2)])
+        self.assertEqual((st["n"], st["cps"], st["short"], st["len"], st["ovl"], st["nc"]), (2, 50.0, 50.0, 50.0, 1, 50.0))
+        self.assertEqual(A.cue_stats([], []), {"n": 0})
+
+    def test_ref_stats(self):
+        """12/11/2026: מול כתוביות היוצר — WER, חפיפת זמני התצוגה, ומה שהיוצר מציג ואנחנו לא (הבאג של הכתובית שנעלמה)"""
+        def ts(t):
+            return "%02d:%02d:%02d,%03d" % (t // 3600, t // 60 % 60, t % 60, round(t * 1000) % 1000)
+        texts = ["משפט מספר %d עם כמה מילים נוספות כאן" % i for i in range(30)]
+        srt = "\n\n".join("%d\n%s --> %s\n%s" % (i + 1, ts(i * 4), ts(i * 4 + 3.5), t) for i, t in enumerate(texts))
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "he.srt"
+            p.write_text(srt, encoding="utf-8")
+            words = [W(w, i * 4 + k * 0.4, i * 4 + k * 0.4 + 0.3) for i, t in enumerate(texts) for k, w in enumerate(t.split())]
+            good = [{"start": i * 4, "end": i * 4 + 3.5, "lines": [t]} for i, t in enumerate(texts)]
+            r = A.ref_stats(p, good, words)
+            self.assertEqual((r["wer"], r["iou"], r["miss"], r["d0"], r["dn"]), (0.0, 100.0, 0.0, 0.0, 30))
+            short = [dict(c, end=c["start"] + 1.0) for c in good]           # מהבהבת שנייה ונעלמת
+            r2 = A.ref_stats(p, short, words)
+            self.assertGreater(r2["miss"], 70)
+            self.assertLess(r2["iou"], 30)
+            self.assertIsNone(A.ref_stats(Path(d) / "none.srt", good, words), "בלי כתוביות של היוצר")
+            self.assertIsNone(A.ref_stats(p, good[:3], words[:20]), "קטע קצר — פחות מ־20 כתוביות שלהם בטווח")
+
+    def test_av_offset(self):
+        """12/11/2026: הקול שעלה ראשון מוזז ב־0.25 שנ׳ מול הקול שבסרטון — sync.py מוצא את ההיסט"""
+        import wave
+        import random
+        rnd = random.Random(7)
+        sr = 16000
+        x = [int(rnd.gauss(0, 3000)) for _ in range(sr * 6)]
+        def wr(p, xs):
+            with wave.open(str(p), "wb") as w:
+                w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
+                w.writeframes(b"".join(int(max(-32768, min(32767, v))).to_bytes(2, "little", signed=True) for v in xs))
+        with tempfile.TemporaryDirectory() as d:
+            a, v = Path(d) / "a.wav", Path(d) / "v.wav"
+            wr(a, x)
+            wr(v, [0] * int(0.25 * sr) + x)
+            real = subprocess.run
+            def fake(cmd, **k):                          # ffmpeg של הסרטון → הקובץ המוכן
+                if cmd[0] == "ffmpeg":
+                    Path(cmd[-1]).write_bytes(v.read_bytes())
+                    return subprocess.CompletedProcess(cmd, 0)
+                return real(cmd, **k)
+            A.subprocess.run = fake
+            try:
+                off, conf = A.av_offset(type("J", (), {"VT_PY": sys.executable}), a, Path(d) / "in.mp4")
+            finally:
+                A.subprocess.run = real
+            self.assertAlmostEqual(off, 0.25, places=2)
+            self.assertGreater(conf, 0.9)
+            self.assertFalse((Path(d) / "video16k.wav").exists(), "הקובץ הזמני נמחק")
+
     def test_probe_fps(self):
         self.assertAlmostEqual(A._fps({"avg_frame_rate": "30000/1001"}), 29.97, places=2)
         self.assertEqual(A._fps({"avg_frame_rate": "0/0", "r_frame_rate": "25/1"}), 25.0)
@@ -561,6 +622,10 @@ class TestViRun(unittest.TestCase):
         self.assertLess(order.index("wait"), order.index("vi-screen"))
         self.assertIn("vi-same", order, "הסרטון נבדק שוב אחרי שהגיע — יש בו תמונה")
         self.assertIn("מתחילים מהקול", out)
+        facts = json.loads([x for x in out.splitlines() if x.startswith("VI_DRY ")][0][7:])
+        self.assertIn("sync", facts, "12/11/2026: ההיסט בין הקול לסרטון נמדד (av_offset)")
+        self.assertLess(abs(facts["sync"]["off"]), 0.05, "אותו קול — בלי היסט")
+        self.assertIn("cu", facts)
 
     def test_video_first_unchanged(self):
         """בלי קובץ קול — כמו קודם: מחכים לסרטון בקליטה (up)."""
