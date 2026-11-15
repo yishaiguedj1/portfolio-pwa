@@ -155,15 +155,9 @@ ok(T.ibkrXirrFlows(estData, 0) === null, 'בלי NAV ובלי שווי סיום 
 ok(T.ibkrBaseCur(sample) === 'USD', 'מטבע בסיס מהדוח');
 ok(T.ibkrBaseCur(null) === 'USD', 'ברירת מחדל USD');
 
-/* ---------- עקביות HTML/CSS ---------- */
+/* ---------- הכרטיס "ביצועי IBKR" הוסר (2.146.0, בקשת המשתמש) ---------- */
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-for (const id of ['ibkrPerfCard', 'ibkrPerfList', 'ibkrPerfPeriod']) {
-  ok(html.includes('id="' + id + '"'), 'אלמנט ' + id + ' קיים ב־index.html');
-}
-const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
-for (const cls of ['.perf-list', '.perf-row', '.perf-lbl', '.perf-val', '.perf-note']) {
-  ok(css.includes(cls), 'סגנון ' + cls + ' קיים ב־styles.css');
-}
+ok(!html.includes('ibkrPerfCard'), 'כרטיס ביצועי IBKR לא חוזר ל־index.html');
 
 /* ---------- רווח/הפסד בתקופת הדוח (Change in NAV) ---------- */
 const depData = {

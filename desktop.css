@@ -172,7 +172,7 @@ html.dk .bk { max-width: var(--dk-read); margin-inline: auto; }
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--dk-col-gap); align-items: start; grid-auto-flow: row dense;
   }
   html.dk #tab-overview > * { grid-column: 1 / -1; min-width: 0; }
-  html.dk #tab-overview > :is(#gainCard, #earnCard, #ibkrPerfCard), html.dk #tab-overview > .card:has(> .pie-wrap) { grid-column: auto; }
+  html.dk #tab-overview > :is(#gainCard, #earnCard), html.dk #tab-overview > .card:has(> .pie-wrap) { grid-column: auto; }
   /* רשימות המניות והמעקב — רשת של כרטיסים; כרטיס פתוח תופס את כל השורה */
   html.dk :is(#stockList, #wishlistList) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--dk-col-gap); align-items: start; }
   html.dk :is(#stockList, #wishlistList) > * { min-width: 0; }

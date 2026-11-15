@@ -1154,6 +1154,9 @@ html[dir="ltr"] .stock-foot .kc-open-btn { order: -1; }   /* באנגלית (כ�
 .pf-sheet .sheet-row .btn { flex: 1; }
 /* כלי גרף הביצועים */
 .pf-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 2px 0 8px; }
+/* 2.146.0 (בקשת המשתמש): "תשואה מתאריך" בשורת הכותרת, בקצה */
+.section-head:has(#pfTools) { flex-wrap: wrap; row-gap: 8px; }
+.section-head .pf-tools { margin: 0; justify-content: flex-end; }
 .pf-from-lbl { display: flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--on-surface-var); }
 .pf-from-lbl input[type="date"] { font: inherit; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--outline); background: var(--surface); color: var(--on-surface); }
 .pf-tip { position: absolute; z-index: 5; background: var(--surface); border: 1px solid var(--outline); border-radius: var(--radius-xs); padding: 8px 10px; font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,.14); pointer-events: none; max-width: 220px; }
@@ -1549,12 +1552,6 @@ html[data-app="cashflow"] .login-overlay { background: linear-gradient(160deg, #
 .wl-earn { margin-top: 6px; font-size: 14px; color: var(--on-surface-var); }
 
 /* ---- ביצועי IBKR ---- */
-.perf-list { list-style: none; margin: 8px 0 0; padding: 0; }
-.perf-row { display: flex; align-items: baseline; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--separator); font-size: 15px; }
-.perf-row:last-child { border-bottom: 0; }
-.perf-lbl { flex: 1; }
-.perf-val { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.perf-note { font-size: 14px; color: var(--on-surface-var); font-weight: 400; white-space: normal; text-align: end; }
 
 /* ---- v87: חיפוש מניות להוספה ---- */
 /* v239: בסגנון שדה החיפוש של iOS — מילוי אפור (tertiarySystemFill) בלי מסגרת, זכוכית מגדלת בהתחלה,

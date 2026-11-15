@@ -1072,23 +1072,12 @@ he: {
   calIcsNote: 'ביומן אחר נוצרות גם תזכורות — יום לפני ושעה לפני.', calIcsDone: 'הקובץ ירד — פתח אותו כדי להוסיף ליומן', calLocal: '{t} שעון ישראל',
   calEventTitle: 'דוח רבעוני · {sym}{name}', calEventDesc: 'פרסום הדוח הרבעוני של {sym}', calEventEst: 'תאריך משוער (לפי Yahoo Finance)',
   earnDate: 'דוח: {date}',
-  ibkrPerfTitle: 'ביצועי IBKR',
-  perfPeriod: 'תקופת הדוח: {a}–{b}',
   twrOfficial: 'TWR רשמי של IBKR',
-  twrMissing: 'לא זמין — אין TWR רשמי בדוח',
   twrMissingShort: 'אין TWR רשמי',
   navWarn: 'הדוח חסר TWR רשמי — התשואה לא תוצג (לא מנחשים). כדי לקבל תשואות רשמיות: ודאו ששאילתת ה־Flex כוללת את המקטע "Change in NAV", ואז נתקו וסנכרנו מחדש.',
   ovValueReport: 'כולל מזומן · לפי דוח IBKR',
   ovStocksSub: 'כולל מזומן',
-  perfTwr: 'תשואה משוקללת־זמן (TWR)',
-  perfGain: 'רווח/הפסד בתקופה',
   pfDiagPeriods: '{n} תקופות רשמיות · {a}–{b} · TWR: {twr}',
-  perfXirr: 'תשואה משוקללת־כסף (XIRR)',
-  perfRealized: 'רווח ממומש',
-  perfUnrealized: 'רווח לא־ממומש',
-  perfDividends: 'דיבידנדים',
-  perfWithholding: 'מס שנוכה במקור',
-  perfFees: 'עמלות ועמלות נוספות',
   cantCalc: 'לא ניתן לחשב',
   ovInReportPeriod: 'בתקופת הדוח',
   pfNoteIbkr: 'TWR רשמי של IBKR מהדוח, משורשר בין תקופות, בדולרים.',
@@ -1109,7 +1098,7 @@ he: {
   ovVsNetDeposits: 'מול הפקדות נטו',
   ovYield: 'תשואה',
   ovUpdated: 'עודכן: {time}',
-  pfTitle: 'ביצועי התיק לאורך זמן',
+  pfTitle: 'ביצועי התיק',
   pfNote: 'שווי התיק בשקלים לאורך זמן, לפי האחזקות הנוכחיות (אין יומן קניות היסטורי).',
   pieTitle: 'חלוקת התיק',
 
@@ -1189,12 +1178,6 @@ he: {
   twrManual: 'TWR מהעסקאות הידניות',
   twrManualLoading: 'TWR נטען…',
   ovGLHoldings: 'ממומש + לא־ממומש',
-  perfTitleManual: 'ביצועי התיק',
-  perfPeriodManual: 'מהעסקה הראשונה ({a}) עד היום · בדולרים',
-  perfNoTrades: 'לפי מחיר ממוצע · בדולרים',
-  perfNeedTrades: 'נדרשות עסקאות עם תאריך',
-  perfGainManual: 'רווח/הפסד כולל',
-  perfFeesManual: 'עמלות',
 
   rangeDay: 'יום',
   sr1D: '1D', sr5D: '5D', sr1M: '1M', sr3M: '3M', sr1Y: '1Y', sr3Y: '3Y', sr5Y: '5Y',
@@ -2913,23 +2896,12 @@ en: {
   calIcsNote: 'Other calendars also get reminders — a day before and an hour before.', calIcsDone: 'Downloaded — open it to add to your calendar', calLocal: '{t} local time',
   calEventTitle: 'Earnings · {sym}{name}', calEventDesc: '{sym} quarterly earnings report', calEventEst: 'Estimated date (per Yahoo Finance)',
   earnDate: 'Earnings: {date}',
-  ibkrPerfTitle: 'IBKR Performance',
-  perfPeriod: 'Report period: {a}–{b}',
   twrOfficial: "IBKR's official TWR",
-  twrMissing: 'Unavailable — no official TWR in the report',
   twrMissingShort: 'No official TWR',
   navWarn: 'The report has no official TWR — the return will not be shown (never guessed). To get official returns: make sure your Flex query includes the "Change in NAV" section, then disconnect and sync again.',
   ovValueReport: 'Incl. cash · per IBKR report',
   ovStocksSub: 'Incl. cash',
-  perfTwr: 'Time-Weighted Return (TWR)',
-  perfGain: 'Period gain/loss',
   pfDiagPeriods: '{n} official periods · {a}–{b} · TWR: {twr}',
-  perfXirr: 'Money-Weighted Return (XIRR)',
-  perfRealized: 'Realized P&L',
-  perfUnrealized: 'Unrealized P&L',
-  perfDividends: 'Dividends',
-  perfWithholding: 'Withholding tax',
-  perfFees: 'Commissions & other fees',
   cantCalc: 'Cannot compute',
   ovInReportPeriod: 'in the report period',
   pfNoteIbkr: "IBKR's official TWR from the report, chained across periods, in USD.",
@@ -2950,7 +2922,7 @@ en: {
   ovVsNetDeposits: 'vs. net deposits',
   ovYield: 'Return',
   ovUpdated: 'Updated: {time}',
-  pfTitle: 'Portfolio performance over time',
+  pfTitle: 'Portfolio performance',
   pfNote: 'Portfolio value in ILS over time, based on current holdings (no historical trade log).',
   pieTitle: 'Portfolio allocation',
 
@@ -3030,12 +3002,6 @@ en: {
   twrManual: 'TWR from manual trades',
   twrManualLoading: 'TWR loading…',
   ovGLHoldings: 'Realized + unrealized',
-  perfTitleManual: 'Portfolio Performance',
-  perfPeriodManual: 'From the first trade ({a}) to today · in USD',
-  perfNoTrades: 'By average price · in USD',
-  perfNeedTrades: 'Needs dated trades',
-  perfGainManual: 'Total gain/loss',
-  perfFeesManual: 'Commissions',
 
   rangeDay: 'Day',
   sr1D: '1D', sr5D: '5D', sr1M: '1M', sr3M: '3M', sr1Y: '1Y', sr3Y: '3Y', sr5Y: '5Y',
@@ -7628,8 +7594,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.144.0';
-const APP_VERSION = 'v762';
+const APP_RELEASE = '2.146.0';
+const APP_VERSION = 'v764';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -11691,13 +11657,12 @@ function renderOverview(light) {
     t('ovUpdated', { time: state.quotesAt ? fmtTimeIL(state.quotesAt) : '—' }) + twrTxt;
   paintFxPill(false);
 
-  /* v109: כל ציור עטוף בנפרד — כשל באחד לא יחסום את הכרטיסים שאחריו (כולל "ביצועי IBKR") */
+  /* v109: כל ציור עטוף בנפרד — כשל באחד לא יחסום את הכרטיסים שאחריו */
   try { drawPie(); } catch (e) {}
   // v139: טיק חי — בלי גרף הביצועים/דוחות/IBKR (לא תלויים במחיר החי, ויאפסו מגע בגרף)
   if (!light) {
     try { drawPfChart(); } catch (e) {}
     try { renderEarningsCard(); } catch (e) {}
-    try { renderIbkrPerf(); } catch (e) {}
   }
   try { fitNumbers(); } catch (e) {}
 }
@@ -11719,46 +11684,7 @@ function paintManualHead() {
   yEl.textContent = y === null || !isFinite(y) ? '—' : fmtPct(y, true);
   yEl.className = 'stat-value ' + (y === null || !isFinite(y) ? '' : y >= 0 ? 'pos' : 'neg');
   if (meta) meta.textContent = t('ovUpdated', { time: state.quotesAt ? fmtTimeIL(state.quotesAt) : '—' }) + note;
-  try { renderManualPerf(mp); } catch (e) {}
   try { fitNumbers(); } catch (e) {}
-}
-
-/* v158: כרטיס "ביצועי התיק" במצב ידני — המקבילה של "ביצועי IBKR", מהעסקאות והאחזקות הידניות */
-function renderManualPerf(mp) {
-  const card = document.getElementById('ibkrPerfCard');
-  const list = document.getElementById('ibkrPerfList');
-  const period = document.getElementById('ibkrPerfPeriod');
-  const title = document.getElementById('ibkrPerfTitleEl');
-  if (!card || !list || isIbkrMode()) return;
-  const show = POSITIONS.length > 0 || mtList().length > 0;
-  card.classList.toggle('hidden', !show);
-  if (!show) return;
-  if (title) title.textContent = t('perfTitleManual');
-  if (period) period.textContent = mp.fromDate ? t('perfPeriodManual', { a: fmtDateIL(mp.fromDate) }) : t('perfNoTrades');
-  const mrow = (lbl, val) => {
-    const li = el('li', 'perf-row');
-    li.innerHTML = '<span class="perf-lbl">' + esc(lbl) + '</span>' +
-      '<span class="perf-val ' + val.cls + '">' + esc(val.txt) + '</span>';
-    list.appendChild(li);
-  };
-  const mval = (v, isMoney) => {
-    if (v === null || v === undefined || !isFinite(v)) return { txt: '—', cls: '' };
-    return { txt: isMoney ? ltrNum((v < 0 ? '−' : '') + money(Math.abs(v), 'USD')) : fmtPct(v, true), cls: v > 0 ? 'pos' : v < 0 ? 'neg' : '' };
-  };
-  list.innerHTML = '';
-  mrow(t('perfTwr'), mp.twr !== null ? mval(mp.twr, false)
-    : { txt: mp.fromDate ? (mp.loading ? t('loadingData') : t('cantCalc')) : t('perfNeedTrades'), cls: 'perf-note' });
-  mrow(t('perfGainManual'), mp.missing ? { txt: '—', cls: '' } : mval(mp.gain, true));
-  mrow(t('perfXirr'), mp.xirr !== null ? mval(mp.xirr, false)
-    : { txt: mp.fromDate ? t('cantCalc') : t('perfNeedTrades'), cls: 'perf-note' });
-  mrow(t('perfRealized'), mval(mp.realized, true));
-  mrow(t('perfUnrealized'), mp.missing ? { txt: '—', cls: '' } : mval(mp.unrealized, true));
-  mrow(t('perfFeesManual'), mval(Math.abs(mp.fees) < 0.005 ? 0 : -mp.fees, true));
-  if (mp.avgOnly && mp.fromDate) {
-    const li = el('li', 'perf-row');
-    li.innerHTML = '<span class="perf-lbl fine">' + esc(t('twrAvgNote', { n: mp.avgOnly })) + '</span>';
-    list.appendChild(li);
-  }
 }
 
 /* כרטיס "דוחות קרובים" — תיק + מעקב, ממוין לפי תאריך */
@@ -11939,59 +11865,6 @@ function openEarnCalSheet(r, name) {
   document.addEventListener('keydown', function onKey(e) { if (e.key === 'Escape') { closeEarnCalSheet(); document.removeEventListener('keydown', onKey); } });
   document.body.appendChild(veil);
   requestAnimationFrame(() => veil.classList.add('show'));
-}
-
-/* כרטיס "ביצועי IBKR" — TWR רשמי, XIRR, ממומש/לא־ממומש, דיבידנדים, ריבית, מסים, עמלות.
-   מוצג רק במצב IBKR ורק אם יש נתוני סנכרון. */
-function renderIbkrPerf() {
-  const card = document.getElementById('ibkrPerfCard');
-  const list = document.getElementById('ibkrPerfList');
-  const period = document.getElementById('ibkrPerfPeriod');
-  if (!card || !list) return;
-  if (!isIbkrMode()) return; // v158: במצב ידני — renderManualPerf
-  const tEl = document.getElementById('ibkrPerfTitleEl');
-  if (tEl) tEl.textContent = t('ibkrPerfTitle');
-  const show = !!(ibkrCfg().data);
-  card.classList.toggle('hidden', !show);
-  if (!show) return;
-  const data = ibkrCfg().data;
-  const meta = data.meta || {};
-  const base = ibkrBaseCur(data);
-  if (period) period.textContent = t('perfPeriod', { a: fmtDateIL(meta.fromDate), b: fmtDateIL(meta.toDate) });
-  // מנוע חדש (returns.js): TWR רשמי משורשר, רווח מהזהות החשבונאית, XIRR מתזרימים.
-  // בלי TWR רשמי — לא מנחשים: מציגים "לא זמין".
-  const sums = rSums(data);
-  const twr = rHeadlineTwr(data);
-  const gain = rGain(data);
-  const official = rSourceKind(data) === 'official';
-  const xr = rXirr(rXirrFlows(data));
-  const mrow = (lbl, val) => {
-    const li = el('li', 'perf-row');
-    li.innerHTML = '<span class="perf-lbl">' + esc(lbl) + '</span>' +
-      '<span class="perf-val ' + (typeof val === 'object' ? val.cls : '') + '">' +
-      esc(typeof val === 'object' ? val.txt : val) + '</span>';
-    list.appendChild(li);
-  };
-  const mval = (v, isMoney) => {
-    if (v === null || v === undefined || !isFinite(v)) return { txt: '—', cls: '' };
-    return { txt: isMoney ? ltrNum((v < 0 ? '−' : '') + money(Math.abs(v), base)) : fmtPct(v, true), cls: v > 0 ? 'pos' : v < 0 ? 'neg' : '' };
-  };
-  list.innerHTML = '';
-  mrow(t('perfTwr'), official
-    ? mval(twr, false)
-    : { txt: t('twrMissing'), cls: 'perf-note' });
-  mrow(t('perfGain'), gain === null
-    ? { txt: '—', cls: '' }
-    : mval(gain, true));
-  mrow(t('perfXirr'), xr === null
-    ? { txt: t('cantCalc'), cls: 'perf-note' }
-    : mval(xr, false));
-  mrow(t('perfRealized'), mval(sums.realized, true));
-  mrow(t('perfUnrealized'), mval(sums.unrealized, true));
-  mrow(t('perfDividends'), mval(sums.dividends, true));
-  mrow(t('perfWithholding'), mval(sums.withholding, true));
-  mrow(t('perfFees'), mval(Math.abs(sums.fees + sums.commissions) < 0.005 ? 0 : -(sums.fees + sums.commissions), true));
-  try { fitNumbers(); } catch (e) {}
 }
 
 function drawPie() {

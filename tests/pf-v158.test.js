@@ -113,6 +113,6 @@ ok(near(mp2.realized, 1200 - 5 - 1005) && near(mp2.fees, 10), 'ממומש ועמ
 ok(/srcKind === 'trades' \|\| srcKind === 'holdings'/.test(src), 'השוואת מדדים גם במצב ידני');
 ok(/const mr = tr\.length \? manualTwrRows\(tr, manualHistOf/.test(src), 'הגרף במצב ידני: TWR מהעסקאות');
 ok(/function paintManualHead\(\)/.test(src) && /paintManualHead\(\);\n  \}/.test(src), 'כותרת התשואה במצב ידני = TWR');
-ok(/id="ibkrPerfTitleEl"/.test(html) && /perfTitleManual: 'ביצועי התיק'/.test(src) && /perfTitleManual: 'Portfolio Performance'/.test(src), 'כרטיס ביצועים גם במצב ידני');
+ok(!/ibkrPerfTitleEl/.test(html) && !/renderManualPerf/.test(src), 'כרטיס הביצועים הוסר (2.146.0)');
 ok(/manualHistOf\(sym\) \{ return stockChartRows\(/.test(src), 'כולל את המחיר של היום');
 console.log('\n' + n + ' בדיקות עברו');
