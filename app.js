@@ -7990,7 +7990,7 @@ function stripLegacyDemo(db) {
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
 const APP_RELEASE = '2.150.0';
-const APP_VERSION = 'v770';
+const APP_VERSION = 'v771';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -12461,7 +12461,8 @@ function drawPie() {
   const FONT = '-apple-system, system-ui, "Segoe UI", Roboto, sans-serif';
   const tw = (txt) => { const m = ctx.measureText(txt); return (m && m.width) || txt.length * 6; };
   const HOLE = 0.38; // חור קטן יותר = טבעת עבה יותר, יותר תוויות נכנסות לפרוסה
-  const LS = 26, SYM_H = 12, BUB_H = 26, H = LS + 2 + SYM_H + 2 + BUB_H;
+  const LS = 30, SYM_H = 14, BUB_H = 31, // v770: תוויות גדולות וברורות יותר (בקשת המשתמש)
+    H = LS + 2 + SYM_H + 2 + BUB_H;
   let a0 = -Math.PI / 2;
   const segs = ordered.map((s) => {
     const a2 = a0 + (s.value / total) * Math.PI * 2;
@@ -12469,10 +12470,10 @@ function drawPie() {
     // v187: זווית התווית (`lab`) נקבעת בשרשרת ב־posAt — צמודה לצד שנגד כיוון השעון של הפרוסה
     const g = { s: s, a: a0, a2: a2, mid: (a0 + a2) / 2, lab: (a0 + a2) / 2, pctTxt: pct.toFixed(1) + '%',
       valTxt: fmtShortMoney(val(s.value), cur), symTxt: s.cash ? t('pieCash') : (normalizeSym(s.sym) || '?') };
-    ctx.font = '700 10.5px ' + FONT;
+    ctx.font = '700 12px ' + FONT;
     const symW = tw(g.symTxt), pW = tw(g.pctTxt);
-    ctx.font = '500 10px ' + FONT;
-    g.bubW = Math.max(pW, tw(g.valTxt)) + 14;
+    ctx.font = '500 11.5px ' + FONT;
+    g.bubW = Math.max(pW, tw(g.valTxt)) + 16;
     g.W = Math.max(LS, symW, g.bubW);
     a0 = a2;
     return g;
@@ -12612,6 +12613,27 @@ function drawPie() {
     g.sc = SC; g.out = OUTER || rho > (holeOf(R) + R) / 2 + 6; // תווית על השפה (לא במרכז הפרוסה) → קו מוביל
     g.skip = false;
   }
+  // v770: הפריסה מקטינה את כל התוויות יחד (עד 72%) בגלל הפרוסות הצפופות; כאן כל תווית שיש סביבה מקום — בעיקר בפרוסות הגדולות —
+  // חוזרת לגודל מלא (או קרוב), בלי לגעת בשכנות, בלי לגלוש מהקנבס ובלי להיכנס לחור שבמרכז (הסכום). מהפרוסה הגדולה לקטנה.
+  if (!OUTER && segs.length > 1) {
+    const hole0 = holeOf(R);
+    const hw = (g, s) => g.W * s / 2 + 1.5, hh = (g, s) => H * s / 2 + 1.5;
+    const inSlice = (g, x, y) => { let t = Math.atan2(y, x); while (t < g.a) t += Math.PI * 2; return t <= g.a2; };
+    const fits = (g, s) => { // מחזיר מיקום (אולי מוזז פנימה מקצה הקנבס) או null
+      const x = Math.max(-w / 2 + 2 + hw(g, s), Math.min(w / 2 - 2 - hw(g, s), g.x));
+      const y = Math.max(-h / 2 + 2 + hh(g, s), Math.min(h / 2 - 2 - hh(g, s), g.y));
+      if (!inSlice(g, x, y - (H / 2 - LS / 2) * s)) return null; // הלוגו נשאר על הפרוסה שלו
+      const x0 = x - hw(g, s), x1 = x + hw(g, s), y0 = y - hh(g, s), y1 = y + hh(g, s);
+      const nx = Math.max(x0, Math.min(0, x1)), ny = Math.max(y0, Math.min(0, y1));
+      if (Math.hypot(nx, ny) < hole0 - 2) return null;
+      return segs.every((o) => o === g || Math.abs(o.x - x) >= hw(o, o.sc) + hw(g, s) || Math.abs(o.y - y) >= hh(o, o.sc) + hh(g, s)) ? [x, y] : null;
+    };
+    let cap = 1; // גודל יורד עם גודל הפרוסה — פרוסה קטנה לא מקבלת תווית גדולה מפרוסה גדולה ממנה
+    for (const g of segs.slice().sort((x, y) => (y.a2 - y.a) - (x.a2 - x.a))) {
+      for (const s of [1, 0.93, 0.86, 0.8]) { if (s > cap) continue; if (s <= g.sc) break; const at = fits(g, s); if (at) { g.sc = s; g.x = at[0]; g.y = at[1]; break; } }
+      cap = Math.min(cap, g.sc);
+    }
+  }
   const r = holeOf(R);
   const gap = ordered.length > 1 ? 2.5 : 0;
   // v178: נגיעה בפרוסה "מרימה" אותה — יוצאת החוצה מהטבעת, גדלה מעט ומטילה צל רך (תחושת עומק מוחשית).
@@ -12653,6 +12675,55 @@ function drawPie() {
     } else ctx.fillStyle = g.s.color;
     ctx.fill();
   };
+  // v770: מראה זכוכית לכל פרוסה (בקשת המשתמש, לפי ת־עיצוב): אור אחד מלמעלה לכל העוגה — ברק בחצי העליון והצללה עדינה
+  // בתחתית, זוהר של שבירת אור לאורך השפה הפנימית, וקצה מבריק דק (חזק למעלה, חלש למטה). מצויר לפני קווי הרווח.
+  const glassOn = !!(ctx.createLinearGradient && ctx.createRadialGradient && ctx.clip);
+  const sliceGlass = (g, L, ox, oy) => {
+    if (!glassOn) return;
+    const X = cx + ox, Y = cy + oy, Ro = R + L * 4, k = dark ? 0.7 : 1;
+    const a = (v) => Math.max(0, Math.min(1, v)).toFixed(3);
+    const box = () => ctx.fillRect(X - Ro - 2, Y - Ro - 2, Ro * 2 + 4, Ro * 2 + 4);
+    ctx.save();
+    slicePath(g, L);
+    ctx.clip();
+    // 1) עובי הזכוכית: השוליים (ליד החור וליד השפה) כהים מעט — האור נשבר בעובי, האמצע צלול
+    const th = ctx.createRadialGradient(X, Y, r, X, Y, Ro);
+    if (th && th.addColorStop) {
+      th.addColorStop(0, 'rgba(0,0,0,' + a(dark ? 0.22 : 0.12) + ')');
+      th.addColorStop(0.2, 'rgba(0,0,0,0)');
+      th.addColorStop(0.78, 'rgba(0,0,0,0)');
+      th.addColorStop(1, 'rgba(0,0,0,' + a(dark ? 0.24 : 0.13) + ')');
+      ctx.fillStyle = th; box();
+    }
+    // 2) ברק: אור אחד מלמעלה לכל העוגה — חזק בחלק העליון, נעלם באמצע, הצללה בתחתית
+    const sh = ctx.createLinearGradient(X, Y - Ro, X, Y + Ro);
+    if (sh && sh.addColorStop) {
+      sh.addColorStop(0, 'rgba(255,255,255,' + a((dark ? 0.62 : 0.48) * k + 0.1 * L) + ')');
+      sh.addColorStop(0.3, 'rgba(255,255,255,' + a((dark ? 0.26 : 0.18) * k) + ')');
+      sh.addColorStop(0.5, 'rgba(255,255,255,0)');
+      sh.addColorStop(1, 'rgba(0,0,0,' + a(dark ? 0.22 : 0.1) + ')');
+      ctx.fillStyle = sh; box();
+    }
+    // 3) עדשה: זוהר של אור שנשבר לאורך השפה הפנימית
+    const lens = ctx.createRadialGradient(X, Y, r, X, Y, r + Math.min(18, (Ro - r) * 0.32));
+    if (lens && lens.addColorStop) {
+      lens.addColorStop(0, 'rgba(255,255,255,' + a(0.45 * k) + ')');
+      lens.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = lens; box();
+    }
+    // 4) קצה מבריק: קו לבן בתוך הפרוסה (החיתוך מסתיר את החצי החיצוני) — חזק למעלה, ואור חוזר בתחתית
+    const rim = ctx.createLinearGradient(X - Ro * 0.4, Y - Ro, X + Ro * 0.4, Y + Ro);
+    if (rim && rim.addColorStop) {
+      rim.addColorStop(0, 'rgba(255,255,255,' + a(1 * k) + ')');
+      rim.addColorStop(0.5, 'rgba(255,255,255,' + a(0.28 * k) + ')');
+      rim.addColorStop(1, 'rgba(255,255,255,' + a(0.75 * k) + ')');
+      slicePath(g, L);
+      ctx.strokeStyle = rim; ctx.lineWidth = 5; ctx.stroke();
+      // קו שיער דק נוסף פנימה — כפל השתקפות, כמו בזכוכית עבה
+      ctx.strokeStyle = 'rgba(255,255,255,' + a(0.35 * k) + ')'; ctx.lineWidth = 9; ctx.globalCompositeOperation = 'soft-light'; ctx.stroke();
+    }
+    ctx.restore();
+  };
   // v179: כשפרוסה מורמת — השאר נסוגות לרקע (שקיפות), כמו מיקוד באפל
   const focus = Math.max(0, Math.min(1, state.pieFocus || 0));
   const dimA = 1 - 0.5 * focus;
@@ -12660,9 +12731,11 @@ function drawPie() {
     if (lift(g) > 0.001) continue;
     const [ox, oy] = slicePath(g, 0);
     ctx.save();
-    ctx.globalAlpha = dimA;
+    ctx.globalAlpha = dimA * (dark ? 0.84 : 0.88); // v770: גוף זכוכית שקוף למחצה — הכרטיס נראה דרכו
     ctx.fillStyle = g.s.color; // (גם לבדיקות: הצבע הבסיסי)
     sliceFill(g, 0, ox, oy);
+    ctx.globalAlpha = dimA;
+    sliceGlass(g, 0, ox, oy);
     ctx.restore();
   }
   // רווחים בין הפרוסות — קווים רדיאליים בצבע הכרטיס
@@ -12685,19 +12758,7 @@ function drawPie() {
     const [ox, oy] = slicePath(g, L);
     sliceFill(g, L, ox, oy);
     ctx.restore();
-    // ברק עדין על הפרוסה המורמת — כמו אור מלמעלה על משטח אמיתי
-    if (ctx.createLinearGradient) {
-      ctx.save();
-      slicePath(g, L);
-      ctx.clip();
-      const sh = ctx.createLinearGradient(cx + ox, cy + oy - R, cx + ox, cy + oy + R);
-      if (sh && sh.addColorStop) {
-        sh.addColorStop(0, 'rgba(255,255,255,' + (0.28 * Math.min(1, L)).toFixed(3) + ')');
-        sh.addColorStop(0.55, 'rgba(255,255,255,0)');
-        ctx.fillStyle = sh; ctx.fillRect(0, 0, w, h);
-      }
-      ctx.restore();
-    }
+    sliceGlass(g, L, ox, oy); // v770: אותה זכוכית, עם ברק חזק מעט יותר כשהפרוסה מורמת
     slicePath(g, L);
     ctx.strokeStyle = surface; ctx.lineWidth = gap || 1.5; ctx.stroke();
     if (!g.chip) { g.x += ox; g.y += oy; } // v180: התווית זזה יחד עם הפרוסה; שבב בטור נשאר במקומו (הקו המוביל זז)
@@ -12737,7 +12798,7 @@ function drawPie() {
       let thL = Math.atan2(g.y, g.x);
       while (thL < g.a) thL += Math.PI * 2;
       while (thL > g.a + Math.PI * 2) thL -= Math.PI * 2;
-      const onSlice = thL <= g.a2 && rhoL <= R + 2 && (g.a2 - g.a) * Math.min(rhoL, R) >= g.W * SC * 0.6;
+      const onSlice = thL <= g.a2 && rhoL <= R + 2 && (g.a2 - g.a) * Math.min(rhoL, R) >= g.W * g.sc * 0.6;
       if (onSlice) continue;
       const L = lift(g);
       const off = L * 6, ox = Math.cos(g.mid) * off, oy = Math.sin(g.mid) * off;
@@ -12745,7 +12806,7 @@ function drawPie() {
       const dx = tx - g.x, dy = ty - g.y, dist = Math.hypot(dx, dy);
       if (dist < 1) continue;
       const ux = dx / dist, uy = dy / dist;
-      const hw = g.W * SC / 2 + 2, hh = H * SC / 2 + 2;
+      const hw = g.W * g.sc / 2 + 2, hh = H * g.sc / 2 + 2;
       const edge = Math.min(Math.abs(ux) > 1e-6 ? hw / Math.abs(ux) : Infinity, Math.abs(uy) > 1e-6 ? hh / Math.abs(uy) : Infinity);
       if (dist <= edge + 6) continue; // התווית כבר מכסה את אמצע הפרוסה — ברור בלי קו
       const len = Math.min(18, dist - edge - 3);
@@ -12798,7 +12859,7 @@ function drawPie() {
     top += LS + 2;
     if (!g.chip) { // סימבול — מחוץ לטבעת בצבע הטקסט של הכרטיס, בתוכה כהה על הפסטל
       ctx.fillStyle = g.out ? cssVar('--on-surface', ink) : 'rgba(28,28,30,.88)';
-      ctx.font = '700 10.5px ' + FONT;
+      ctx.font = '700 12px ' + FONT;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(g.symTxt, x, top + SYM_H / 2);
       top += SYM_H + 2;
@@ -12806,19 +12867,19 @@ function drawPie() {
     // בועה: אחוז מהתיק מעל השווי
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,.14)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 1;
-    pieRoundRect(ctx, x - g.bubW / 2, top, g.bubW, BUB_H, 9);
+    pieRoundRect(ctx, x - g.bubW / 2, top, g.bubW, BUB_H, 10);
     ctx.fillStyle = dark ? 'rgba(44,44,46,.96)' : 'rgba(255,255,255,.96)';
     ctx.fill();
     ctx.restore();
     if (g.out && !dark) { // על רקע הכרטיס הלבן — קו מתאר עדין במקום צל בלבד
-      pieRoundRect(ctx, x - g.bubW / 2 + 0.5, top + 0.5, g.bubW - 1, BUB_H - 1, 9);
+      pieRoundRect(ctx, x - g.bubW / 2 + 0.5, top + 0.5, g.bubW - 1, BUB_H - 1, 10);
       ctx.strokeStyle = 'rgba(0,0,0,.08)'; ctx.lineWidth = 1; ctx.stroke();
     }
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = ink; ctx.font = '700 10.5px ' + FONT;
-    ctx.fillText(g.pctTxt, x, top + 9);
-    ctx.fillStyle = sub; ctx.font = '500 10px ' + FONT;
-    ctx.fillText(g.valTxt, x, top + 19.5);
+    ctx.fillStyle = ink; ctx.font = '700 12px ' + FONT;
+    ctx.fillText(g.pctTxt, x, top + 10.5);
+    ctx.fillStyle = sub; ctx.font = '500 11.5px ' + FONT;
+    ctx.fillText(g.valTxt, x, top + 22.5);
     ctx.restore();
   }
   ctx.textBaseline = 'alphabetic';
@@ -12859,19 +12920,19 @@ function drawPie() {
   if (pieAnimRaf && legend.children && legend.children.length) { pieMarkLegend(legend); return; }
   legend.innerHTML = '';
   const sorted = slicesUnique.slice().sort(cashLast);
+  const maxV = sorted.reduce((m, s) => Math.max(m, s.value), 0) || 1; // הפס של כל שורה — יחסית לאחזקה הגדולה
   for (const s of sorted) {
     const src = s.cash ? null : logoSrc(s.sym);
     const e = src ? pieLogoImg(s.sym) : null;
-    const full = s.cash ? '' : companyName(s.sym, s.name);
     const li = el('li', '',
       '<span class="pie-leg-logo' + (s.cash ? ' cash' : e && e.ready && e.light ? ' inv' : '') + '">' +
       '<span class="pie-leg-fb">' + esc(s.cash ? (cur === 'ILS' ? '₪' : '$') : (normalizeSym(s.sym) || '?').charAt(0)) + '</span>' +
       (src && !(e && e.failed) ? '<img src="' + src + '" alt="" loading="lazy" decoding="async" data-err="hide-self">' : '') + '</span>' +
-      '<span class="dot" style="background:' + s.color + '"></span>' +
       '<span class="lg-name">' + (s.cash ? '<span class="lg-sym">' + esc(t('pieCash')) + '</span>' : '<bdi dir="ltr" class="lg-sym">' + esc(s.sym) + '</bdi>') +
-      (full && full.toUpperCase() !== String(s.sym).toUpperCase() ? '<span class="lg-full" dir="auto">' + esc(full) + '</span>' : '') + '</span>' +
-      '<span class="lg-val">' + money(val(s.value), cur) + '</span>' +
-      '<span class="lg-pct">' + (s.value / total * 100).toFixed(1) + '%</span>');
+      '</span>' +
+      '<span class="lg-bar" aria-hidden="true"><i style="width:' + Math.max(2, s.value / maxV * 100).toFixed(1) + '%;background:' + s.color + '"></i></span>' +
+      '<span class="lg-num"><span class="lg-pct">' + (s.value / total * 100).toFixed(1) + '%</span>' +
+      '<span class="lg-val">' + money(val(s.value), cur) + '</span></span>');
     if (li.dataset) li.dataset.sym = s.sym;
     li.addEventListener && li.addEventListener('click', () => { // נגיעה בשורה = נגיעה בפרוסה
       const next = state.pieActive === s.sym ? null : s.sym;
