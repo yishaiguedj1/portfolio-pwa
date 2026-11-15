@@ -1207,8 +1207,8 @@ he: {
   ovGLHoldings: 'ממומש + לא־ממומש',
 
   rangeDay: 'יום',
-  sr1D: '1D', sr5D: '5D', sr1M: '1M', sr3M: '3M', sr1Y: '1Y', sr3Y: '3Y', sr5Y: '5Y',
-  srYearMenu: 'טווח שנים',
+  sr1D: '1D', sr5D: '5D', sr1M: '1M', sr3M: '3M', sr6M: '6M', sr1Y: '1Y', sr3Y: '3Y', sr5Y: '5Y',
+  srYearMenu: 'טווח שנים', pfWhY1: 'שנה', pfWhY3: '3 שנים', pfWhY5: '5 שנים',
   srMax: 'MAX', srMaxName: 'מקסימום', srFrom: 'מתאריך…', srFromTag: 'מ־{date}',
   rangeWeek: 'שבוע',
   rangeMonth: 'חודש',
@@ -3087,8 +3087,8 @@ en: {
   ovGLHoldings: 'Realized + unrealized',
 
   rangeDay: 'Day',
-  sr1D: '1D', sr5D: '5D', sr1M: '1M', sr3M: '3M', sr1Y: '1Y', sr3Y: '3Y', sr5Y: '5Y',
-  srYearMenu: 'Years',
+  sr1D: '1D', sr5D: '5D', sr1M: '1M', sr3M: '3M', sr6M: '6M', sr1Y: '1Y', sr3Y: '3Y', sr5Y: '5Y',
+  srYearMenu: 'Years', pfWhY1: '1 year', pfWhY3: '3 years', pfWhY5: '5 years',
   srMax: 'MAX', srMaxName: 'Max', srFrom: 'From date…', srFromTag: 'From {date}',
   rangeWeek: 'Week',
   rangeMonth: 'Month',
@@ -8033,8 +8033,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.151.1';
-const APP_VERSION = 'v773';
+const APP_RELEASE = '2.151.2';
+const APP_VERSION = 'v774';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -13239,21 +13239,156 @@ function fmtRetHTML(r) {
   return '<b class="' + (r >= 0 ? 'pos' : 'neg') + '">' + fmtPct(r, true) + '</b>';
 }
 
-function renderPfChips() {  const box = document.getElementById('pfChips');
-  if (!box || box.children.length) return;
-  for (const [key, label] of PF_RANGES) {
-    const b = el('button', 'range-btn' + (state.pfRange === key ? ' active' : ''), t(label));
-    b.type = 'button';
-    b.addEventListener('click', () => {
-      state.pfRange = key;
-      state.pfCustomFrom = null;
-      state.pfMeasure.pts = [];
-      box.querySelectorAll('.range-btn').forEach((x) => x.classList.remove('active'));
-      b.classList.add('active');
-      drawPfChart();
-    });
-    box.appendChild(b);
+/* 15/11/2026 (בקשת המשתמש): הטווחים בעיצוב ובמבנה של כרטיס המניה — כפתורים מקוצרים ברוחב שווה בשורה אחת.
+   הטווחים עצמם של התיק נשמרו (PF_RANGES; השמות המלאים — לשורת התשואה).
+   כפתור השנה = גלגלת זכוכית לפי ת־גרף (כמו בורר "טווח תאריכים" בגרף המלא): 1Y / 3Y / 5Y / מקסימום על תוף עם עיקום,
+   נעילה לפריט, רטט קטן בכל מעבר והתווית בכפתור מתגלגלת. הקשה = פתיחה וגלילה בתוך הגלגלת; גרירה אנכית על הכפתור = גלגול ישיר.
+   הבחירה נקבעת כשהגלילה נעצרת (הגרף מתעדכן חי, הגלגלת נשארת פתוחה); הקשה על הפריט שבאמצע / בחוץ / "חזור" — סגירה. */
+const PF_SHORT = { '1m': 'sr1M', '3m': 'sr3M', '6m': 'sr6M', ytd: 'rangeYtd', year: 'sr1Y', '3y': 'sr3Y', '5y': 'sr5Y', max: 'srMax' };
+const PF_YEAR_RANGES = ['year', '3y', '5y', 'max'];
+const PF_WH_ROW = 36;   // גובה שורה בגלגלת; חמש שורות נראות, הפריט שבאמצע = הנבחר
+const ICON_UPDOWN = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"/></svg>';
+function pfShort(k) { const labelKey = PF_SHORT[k]; return t(labelKey); }
+function pfWhLong(k) { return k === 'max' ? t('srMaxName') : k === '5y' ? t('pfWhY5') : k === '3y' ? t('pfWhY3') : t('pfWhY1'); }
+function pfCurRange() { return state.pfCustomFrom ? 'custom' : state.pfRange; }
+function pfPickRange(key) {
+  if (pfCurRange() === key) return;
+  state.pfRange = key;
+  state.pfCustomFrom = null;
+  state.pfMeasure.pts = [];
+  drawPfChart();
+}
+/* נבנה פעם אחת; אחר כך רק מסנכרנים סימון ותווית — כדי שהגלגלת תישאר פתוחה בזמן שהגרף מתעדכן */
+function renderPfChips() {
+  const box = document.getElementById('pfChips');
+  if (!box) return;
+  if (!box.children.length) {
+    box.className = 'chip-row stock-chips';
+    for (const [key] of PF_RANGES) {
+      if (PF_YEAR_RANGES.includes(key) && key !== PF_YEAR_RANGES[0]) continue;
+      if (key === PF_YEAR_RANGES[0]) { box.appendChild(pfYearWheel()); continue; }
+      const b = el('button', 'range-btn', pfShort(key));
+      b.type = 'button';
+      b.dataset.range = key;
+      b.addEventListener('click', () => pfPickRange(key));
+      box.appendChild(b);
+    }
   }
+  const cur = pfCurRange();
+  box.querySelectorAll(':scope > .range-btn').forEach((b) => b.classList.toggle('active', b.dataset.range === cur));
+  const yw = box.querySelector('.pf-wheel');
+  if (yw && yw._sync) yw._sync(cur);
+}
+function pfYearWheel() {
+  const keys = PF_YEAR_RANGES, n = keys.length, ROW = PF_WH_ROW;
+  const yw = el('div', 'src-filter range-year pf-wheel');
+  yw.innerHTML = '<button class="range-btn" type="button" aria-haspopup="listbox" aria-expanded="false">' +
+      '<span class="range-lbl"></span><span class="range-ud">' + ICON_UPDOWN + '</span></button>' +
+    '<div class="src-pop range-pop wh-pop hidden">' +
+      '<div class="wh-band" aria-hidden="true"></div>' +
+      '<div class="wh-scroll" role="listbox" aria-label="' + esc(t('srYearMenu')) + '"><div class="wh-pad"></div>' +
+        keys.map((k, i) => '<div class="wh-it" role="option" aria-selected="false" data-i="' + i + '">' + esc(pfWhLong(k)) + '</div>').join('') +
+      '<div class="wh-pad"></div></div>' +
+    '</div>';
+  const btn = yw.querySelector('.range-btn'), lbl = yw.querySelector('.range-lbl'), pop = yw.querySelector('.wh-pop'), sc = yw.querySelector('.wh-scroll');
+  const items = [...sc.querySelectorAll('.wh-it')];
+  const flat = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let shown = -1, raf = 0, settleT = 0, drag = null;
+  const isOpen = () => yw.classList.contains('open');
+  const posNow = () => sc.scrollTop / ROW;
+  const idxNow = () => Math.max(0, Math.min(n - 1, Math.round(posNow())));
+  const selIdx = () => Math.max(0, keys.indexOf(pfCurRange()));
+  /* התווית בכפתור: מתגלגלת למעלה/למטה כשהפריט שבאמצע מתחלף */
+  const setLabel = (i, roll) => {
+    if (i === shown) return;
+    const dir = shown < 0 || !roll ? '' : i > shown ? 'up' : 'down';
+    shown = i;
+    lbl.textContent = pfShort(keys[i]);
+    btn.classList.toggle('long', keys[i] === 'max');
+    lbl.classList.remove('roll-up', 'roll-down');
+    if (dir) { void lbl.offsetWidth; lbl.classList.add('roll-' + dir); try { if (navigator.vibrate) navigator.vibrate(3); } catch (e) { /* בלי רטט */ } }
+  };
+  /* התוף: כל פריט מוטה ומתכווץ לפי המרחק מהאמצע (מיקום דרך CSSOM — לא מאפיין style, מדיניות CSP) */
+  const paint = () => {
+    raf = 0;
+    const pos = posNow();
+    items.forEach((it, j) => {
+      const d = j - pos, ad = Math.min(Math.abs(d), 2.6);
+      it.style.transform = flat ? '' : 'rotateX(' + (-d * 22).toFixed(1) + 'deg) scale(' + (1 - ad * 0.07).toFixed(3) + ')';
+      it.style.opacity = (1 - ad * 0.3).toFixed(2);
+      const on = Math.abs(d) < 0.5;
+      it.classList.toggle('cur', on);
+      it.setAttribute('aria-selected', String(on));
+    });
+    if (isOpen()) setLabel(idxNow(), true);
+  };
+  const place = (i) => { sc.scrollTop = i * ROW; paint(); };
+  const commit = () => {
+    if (!isOpen()) { yw._sync(pfCurRange()); return; }   // נסגרה באמצע גלילה — לא קובעים, התווית חוזרת לנבחר
+    const i = idxNow();
+    if (keys[i] !== pfCurRange()) pfPickRange(keys[i]);
+  };
+  const open = () => {
+    closeSrcPops(yw);
+    if (!yw._modal) yw._modal = modalPush(() => closeSrcPops());   // "חזור" סוגר את הגלגלת
+    yw.classList.add('open');
+    pop.classList.remove('hidden');
+    btn.setAttribute('aria-expanded', 'true');
+    place(selIdx());
+  };
+  sc.addEventListener('scroll', () => {
+    if (!raf) raf = requestAnimationFrame(paint);
+    if (drag) return;
+    clearTimeout(settleT);
+    settleT = setTimeout(commit, 140);   // הגלילה נעצרה (גם במנגנון הנעילה) — קובעים
+  }, { passive: true });
+  items.forEach((it, i) => it.addEventListener('click', () => {
+    if (i === idxNow()) { commit(); closeSrcPops(); return; }
+    sc.scrollTo({ top: i * ROW, behavior: flat ? 'auto' : 'smooth' });
+  }));
+  pop.addEventListener('click', (e) => e.stopPropagation());
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (btn.dataset.drag) return;
+    if (isOpen()) closeSrcPops(); else open();
+  });
+  /* גרירה אנכית על הכפתור עצמו = גלגול ישיר של התוף (כמו בגרף המלא); שחרור = נעילה לפריט הקרוב, קביעה וסגירה */
+  btn.style.touchAction = 'none';
+  btn.addEventListener('pointerdown', (e) => { drag = { y: e.clientY, on: false }; });
+  btn.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dy = e.clientY - drag.y;
+    if (!drag.on) {
+      if (Math.abs(dy) < 6) return;
+      if (!isOpen()) open();
+      drag.on = true; drag.y = e.clientY; drag.top = sc.scrollTop;
+      sc.classList.add('drag');
+      try { btn.setPointerCapture(e.pointerId); } catch (x) { /* בלי לכידה */ }
+      return;
+    }
+    e.preventDefault();
+    sc.scrollTop = Math.max(0, Math.min((n - 1) * ROW, drag.top - (e.clientY - drag.y)));
+  });
+  const end = () => {
+    const d = drag;
+    drag = null;
+    if (!d || !d.on) return;
+    btn.dataset.drag = '1';
+    setTimeout(() => { delete btn.dataset.drag; }, 60);
+    sc.classList.remove('drag');
+    const i = idxNow();
+    sc.scrollTo({ top: i * ROW, behavior: flat ? 'auto' : 'smooth' });
+    setTimeout(() => { if (!isOpen()) return; commit(); closeSrcPops(); }, flat ? 0 : 260);
+  };
+  btn.addEventListener('pointerup', end);
+  btn.addEventListener('pointercancel', end);
+  /* סנכרון מבחוץ (בחירה בכפתור אחר / "מתאריך"): כשהגלגלת סגורה — התווית והסימון לפי הטווח שנבחר */
+  yw._sync = (cur) => {
+    const on = keys.includes(cur);
+    btn.classList.toggle('active', on);
+    if (!isOpen()) setLabel(on ? keys.indexOf(cur) : 0, false);
+  };
+  return yw;
 }
 
 /* גרף שווי התיק בשקלים לאורך זמן (לפי האחזקות הנוכחיות — אין יומן קניות היסטורי) */
