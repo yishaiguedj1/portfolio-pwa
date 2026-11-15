@@ -1543,6 +1543,22 @@ html[data-app="cashflow"] .login-overlay { background: linear-gradient(160deg, #
 .es-meta { font-size: 13.5px; color: var(--on-surface-var); margin-top: 2px; }
 .es-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; border-radius: var(--pill); margin-bottom: 10px; }
 .es-btn .ic { width: 20px; height: 20px; }
+/* 15/11/2026: צפי לדוח — שורות קטנות בכרטיס, וטבלה בגיליון (אנליסטים / הנהלה) */
+.earn-x { grid-column: 1 / -1; font-size: 12.5px; color: var(--on-surface); line-height: 1.35; font-variant-numeric: tabular-nums; }
+.earn-x b { font-weight: 600; color: var(--on-surface-var); }
+.es-x { margin: -4px 0 16px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); }
+.esx-title { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+.esx-grid { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); column-gap: 12px; row-gap: 8px; align-items: baseline; }
+.esx-grid.one { grid-template-columns: auto minmax(0, 1fr); }
+.esx-grid + .esx-grid { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--separator); }
+.esx-t, .esx-h { font-size: 12.5px; font-weight: 700; color: var(--on-surface-var); }
+.esx-h { text-align: end; }
+.esx-k { font-size: 14px; color: var(--on-surface-var); }
+.esx-k small { font-size: 11px; }
+.esx-v { font-size: 15.5px; font-weight: 700; font-variant-numeric: tabular-nums; display: flex; flex-direction: column; align-items: flex-end; }
+.esx-v small { font-size: 11.5px; font-weight: 500; color: var(--on-surface-var); }
+.esx-meta { font-size: 12.5px; color: var(--on-surface-var); margin-top: 8px; }
+.esx-meta + .esx-meta { margin-top: 2px; }
 .es-note { font-size: 12.5px; color: var(--on-surface-var); text-align: center; margin: 0 0 8px; }
 .es-cancel { display: block; width: 100%; background: none; border: 0; padding: 12px; font: inherit; font-size: 16px; font-weight: 600; color: var(--on-surface-var); cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .earn-sheet, .earn-veil { transition: none; } }
