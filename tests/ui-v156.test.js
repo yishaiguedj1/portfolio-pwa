@@ -10,7 +10,10 @@ function ok(c, name) { n++; if (!c) { console.error('FAIL - ' + name); process.e
 
 // 15/11/2026: בעסקאות — סרגל הבורר (חברות | שנים), הפלוס, והסינון בקצה החיצוני
 ok(/<div class="tx-bar">[\s\S]{0,1400}<\/button>\s*<div class="src-filter" id="tradesSrcFilter"><\/div>\s*<\/div>/.test(html), 'trades: כפתור הסינון בסרגל, בקצה החיצוני (הבועה נפתחת לתוך המסך)');
-for (const tab of ['deposits', 'stocks']) {
+// 15/11/2026: בהפקדות הסינון בשורת הכלים ליד ה־+ (כמו העסקאות) — הבועה נפתחת מקצה ההתחלה
+ok(/<div class="dep-bar">\s*<button id="depAddBtn"[^\n]*<\/button>\s*<div class="src-filter" id="depositsSrcFilter"><\/div>/.test(html) &&
+  /\.dep-bar \.src-pop \{ inset-inline-end: auto; inset-inline-start: 0; \}/.test(css), 'deposits: הסינון בשורת הכלים, הבועה נפתחת לתוך המסך');
+for (const tab of ['stocks']) {
   ok(new RegExp('<div class="head-actions">(\\s*<button[^\\n]*</button>)?\\s*<div class="src-filter" id="' + tab + 'SrcFilter"></div>').test(html),
     tab + ': כפתור הסינון בכותרת, בקצה החיצוני (הבועה נפתחת לתוך המסך)');
 }

@@ -48,12 +48,12 @@
 
 /* ---------- 1. עגולים ---------- */
 :where(.icon-btn, .ann-more, .learn-exp, .lib-round, .mg-ib, .st-lk-x, .st-rate-b, .st-al-add, .tr-copy, .tr-gg, .tr-ib, .tr-say, .tr-sw, .wl-title-btn,
-    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .tx-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic, .tab-disc, .tab-glow, .adm-tab i, .ss-add) {
+    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .tx-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic, .tab-disc, .tab-glow, .adm-tab i, .ss-add, .dep-add) {
   border-radius: 50% !important;
 }
 /* ---------- 2. החומר — כל הכפתורים (פריטי סגמנט: רק הנבחר; השאר יושבים על המסילה) ---------- */
 :where(.icon-btn, .ann-more, .learn-exp, .lib-round, .mg-ib, .st-lk-x, .st-rate-b, .st-al-add, .tr-copy, .tr-gg, .tr-ib, .tr-say, .tr-sw, .wl-title-btn,
-    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .tx-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic, .tab-disc, .adm-tab i, .ss-add,
+    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .tx-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic, .tab-disc, .adm-tab i, .ss-add, .dep-add,
     .btn, .dlg-btn, .st-btn, .st-plus, .an-btn, .tx-btn, .adm-btn, .bk-cta, .lib-signin, .lib-btn, .google-btn, .sheet-btn, .ed-btn, .ed-fetch, .earn-more,
     .st-jobs-more, .st-lk-paste, .st-mini, .st-cpill, .st-ai-b, .st-se-b, .st-rs-chip, .st-wbtn, .st-chip, .st-lk-q, .st-pill, .col-pill, .lib-bkpill,
     .lib-chip, .pl-chip, .lib-sortbtn, .mg-pill, .mg-tok, .mg-ab, .mg-tb.p, .mg-ok56, .subpage-back, .lib-back, .st-back, .adm-back, .fx-pill,
@@ -79,7 +79,7 @@
 :where(.add-card, .measure-btn, .wl-tab.add) { border-style: dashed !important; border-color: color-mix(in srgb, var(--gb-ink) 22%, transparent) !important; }
 
 /* ---------- 3. צבעוני: ראשי / נבחר / הרסני — אותו חומר בצבע הכפתור ---------- */
-:where(.btn:not(.secondary-btn), .dlg-ok, .st-btn:not(.ghost):not(.tint), .st-plus, .an-btn, .tx-btn, .adm-btn, .bk-cta, .lib-signin, .mg-tb.p, .mg-ab.p, .mg-ok56,
+:where(.btn:not(.secondary-btn), .dlg-ok, .dep-add, .st-btn:not(.ghost):not(.tint), .st-plus, .an-btn, .tx-btn, .adm-btn, .bk-cta, .lib-signin, .mg-tb.p, .mg-ab.p, .mg-ok56,
     .ed-btn:not(.ghost), .ed-fetch, .st-mini.danger, .lib-btn.danger, .tab-glow, .an-seg-th,
     .range-btn.active, .chip-btn.on, .chip.on, .wl-tab.on, .lib-chip.on, .st-chip.on, .st-rs-chip.on, .st-cpill.on, .st-ai-b.on, .st-se-b.on, .st-lk-q.on,
     .an-chip[aria-pressed="true"], .measure-btn.on, .mini-btn[aria-pressed="true"],
@@ -151,13 +151,14 @@ html[data-app="admin"] { --gb-force: #5E5CE6; --gb-ontx: #fff; }
 }
 
 /* @glass-exempt — לא כפתורים במראה (נשארים כמו שהם):
-   שורות/פריטי רשימה/כרטיסים: tx-item adm-r ac-lens ac-person ac-step ac-tile ac-track adm-live adm-top an-key an-rcard an-row an-fact bk-card card col-card ft-row gb-row
+   שורות/פריטי רשימה/כרטיסים: tx-item adm-r ac-lens ac-person ac-step ac-tile ac-track adm-live adm-top an-key an-rcard an-row an-fact bk-card card col-card ft-row gb-row dep-yr-h
      ios-row ios-row-btn lib-cont lib-item lib-opt lib-row mg-opt mg-row rd-fontrow reset-cancel reset-open reset-opt row-link src-opt acx-opt st-alr st-al-row
      st-banner st-filecard st-fnd st-l st-lk-rec st-newcard st-proj st-row st-twcard st-tower stock-head kc-li kc-wr kc-tg kc-fly-i st-pl-mr st-qa-b mg-pc mg-sc
      pk-row (מקרא גרף הביצועים — שורת טקסט צפה בתוך הגרף)
      ib-add (כמה חשבונות IBKR — "הוספת חשבון" בעמוד IBKR, שורה מקווקוות)
    סמל הסרה קטן בשורה: ib-x
    העסקאות לפי חברות ושנים (15/11/2026 — שורות נפתחות, שבבי שנה, פעולות טקסט, ופלוס/הוספה בצבע האפליקציה): tx-co-h tx-yr-h tx-row tx-y tx-sort tx-add-co tx-add mt-del
+   עיפרון שקוף בשורת הפקדה (כמו בשורת העסקה): dep-ed
    מתגי הפעלה (מתג iOS): adm-sw ib-sw lib-sw pfbk-sw dk-sw
    סרגל הצד, לוח הפקודות וחלון הקיצורים במחשב (מעוצבים ב־desktop.css לפי ת־מחשב): dk-item dk-help-x
    קישורי טקסט ופעולות טקסט: link-btn adm-link an-link lib-admin-link lib-textbtn st-link st-linkb st-txt wk-more ft-more mg-clear st-rate-chg st-pl-fundo es-cancel

@@ -1327,6 +1327,7 @@ he: {
   depNote: 'סכומים שליליים = כסף שהופקד לתיק. הרשומה החיובית (+₪37,000 ב־19/02/2025) היא משיכה/תיקון כפי שמופיעה בגיליון.',
   records: '{n} רשומות',
   addDeposit: 'הוספת הפקדה',
+  depKindIn: 'הפקדה', depKindOut: 'משיכה', depTileIn: 'הפקדות · {n}', depTileOut: 'משיכות · {n}',
   btnEditRow: 'ערוך',
   btnDeleteRow: 'מחק',
   adjTitle: 'משיכה/תיקון',
@@ -3206,6 +3207,7 @@ en: {
   depNote: 'Negative amounts = money deposited into the portfolio. The positive entry (+₪37,000 on 19/02/2025) is a withdrawal/correction as shown in the sheet.',
   records: '{n} records',
   addDeposit: 'Add deposit',
+  depKindIn: 'Deposit', depKindOut: 'Withdrawal', depTileIn: 'Deposits · {n}', depTileOut: 'Withdrawals · {n}',
   btnEditRow: 'Edit',
   btnDeleteRow: 'Delete',
   adjTitle: 'Withdrawal/correction',
@@ -8032,7 +8034,7 @@ function stripLegacyDemo(db) {
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
 const APP_RELEASE = '2.151.0';
-const APP_VERSION = 'v771';
+const APP_VERSION = 'v772';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -10479,7 +10481,7 @@ function editAllowed(key) {
 /* נעילת ממשק במצב IBKR: מסתיר כפתורי עריכה ומכבה מצב עריכה פעיל */
 function renderIbkrLocks() {
   const ibkr = isIbkrMode();
-  for (const id of ['editDepositsBtn']) {
+  for (const id of ['depAddBtn']) {
     const b = document.getElementById(id);
     if (b) b.classList.toggle('hidden', ibkr);
   }
@@ -11498,7 +11500,12 @@ function deskGridIdx(cur, n, k) {
   if (k === 'ArrowUp') return cur < 0 ? 0 : Math.max(0, cur - 1);
   return null;
 }
-function deskGridRows(g) { return [...g.querySelectorAll('li')].filter((r) => !r.parentElement.closest('li') && r.offsetParent !== null && !r.classList.contains('dep-sub')); }
+function deskGridRows(g) {   // 15/11/2026: שורות בתוך כרטיס שנה פתוח (ההפקדות) נחשבות; בכרטיס סגור — לא
+  return [...g.querySelectorAll('li')].filter((r) => {
+    const p = r.parentElement.closest('li');
+    return (!p || p.matches('.dep-yr.open')) && r.offsetParent !== null && !r.classList.contains('dep-sub') && !r.classList.contains('dep-mo');
+  });
+}
 function deskGridKey(e) {
   const k = e.key;
   if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || !/^(ArrowUp|ArrowDown|Home|End|Enter)$/.test(k)) return false;
@@ -12498,7 +12505,8 @@ function drawPie() {
   const FONT = '-apple-system, system-ui, "Segoe UI", Roboto, sans-serif';
   const tw = (txt) => { const m = ctx.measureText(txt); return (m && m.width) || txt.length * 6; };
   const HOLE = 0.38; // חור קטן יותר = טבעת עבה יותר, יותר תוויות נכנסות לפרוסה
-  const LS = 26, SYM_H = 12, BUB_H = 26, H = LS + 2 + SYM_H + 2 + BUB_H;
+  const LS = 30, SYM_H = 14, BUB_H = 31, // v770: תוויות גדולות וברורות יותר (בקשת המשתמש)
+    H = LS + 2 + SYM_H + 2 + BUB_H;
   let a0 = -Math.PI / 2;
   const segs = ordered.map((s) => {
     const a2 = a0 + (s.value / total) * Math.PI * 2;
@@ -12506,10 +12514,10 @@ function drawPie() {
     // v187: זווית התווית (`lab`) נקבעת בשרשרת ב־posAt — צמודה לצד שנגד כיוון השעון של הפרוסה
     const g = { s: s, a: a0, a2: a2, mid: (a0 + a2) / 2, lab: (a0 + a2) / 2, pctTxt: pct.toFixed(1) + '%',
       valTxt: fmtShortMoney(val(s.value), cur), symTxt: s.cash ? t('pieCash') : (normalizeSym(s.sym) || '?') };
-    ctx.font = '700 10.5px ' + FONT;
+    ctx.font = '700 12px ' + FONT;
     const symW = tw(g.symTxt), pW = tw(g.pctTxt);
-    ctx.font = '500 10px ' + FONT;
-    g.bubW = Math.max(pW, tw(g.valTxt)) + 14;
+    ctx.font = '500 11.5px ' + FONT;
+    g.bubW = Math.max(pW, tw(g.valTxt)) + 16;
     g.W = Math.max(LS, symW, g.bubW);
     a0 = a2;
     return g;
@@ -12649,6 +12657,27 @@ function drawPie() {
     g.sc = SC; g.out = OUTER || rho > (holeOf(R) + R) / 2 + 6; // תווית על השפה (לא במרכז הפרוסה) → קו מוביל
     g.skip = false;
   }
+  // v770: הפריסה מקטינה את כל התוויות יחד (עד 72%) בגלל הפרוסות הצפופות; כאן כל תווית שיש סביבה מקום — בעיקר בפרוסות הגדולות —
+  // חוזרת לגודל מלא (או קרוב), בלי לגעת בשכנות, בלי לגלוש מהקנבס ובלי להיכנס לחור שבמרכז (הסכום). מהפרוסה הגדולה לקטנה.
+  if (!OUTER && segs.length > 1) {
+    const hole0 = holeOf(R);
+    const hw = (g, s) => g.W * s / 2 + 1.5, hh = (g, s) => H * s / 2 + 1.5;
+    const inSlice = (g, x, y) => { let t = Math.atan2(y, x); while (t < g.a) t += Math.PI * 2; return t <= g.a2; };
+    const fits = (g, s) => { // מחזיר מיקום (אולי מוזז פנימה מקצה הקנבס) או null
+      const x = Math.max(-w / 2 + 2 + hw(g, s), Math.min(w / 2 - 2 - hw(g, s), g.x));
+      const y = Math.max(-h / 2 + 2 + hh(g, s), Math.min(h / 2 - 2 - hh(g, s), g.y));
+      if (!inSlice(g, x, y - (H / 2 - LS / 2) * s)) return null; // הלוגו נשאר על הפרוסה שלו
+      const x0 = x - hw(g, s), x1 = x + hw(g, s), y0 = y - hh(g, s), y1 = y + hh(g, s);
+      const nx = Math.max(x0, Math.min(0, x1)), ny = Math.max(y0, Math.min(0, y1));
+      if (Math.hypot(nx, ny) < hole0 - 2) return null;
+      return segs.every((o) => o === g || Math.abs(o.x - x) >= hw(o, o.sc) + hw(g, s) || Math.abs(o.y - y) >= hh(o, o.sc) + hh(g, s)) ? [x, y] : null;
+    };
+    let cap = 1; // גודל יורד עם גודל הפרוסה — פרוסה קטנה לא מקבלת תווית גדולה מפרוסה גדולה ממנה
+    for (const g of segs.slice().sort((x, y) => (y.a2 - y.a) - (x.a2 - x.a))) {
+      for (const s of [1, 0.93, 0.86, 0.8]) { if (s > cap) continue; if (s <= g.sc) break; const at = fits(g, s); if (at) { g.sc = s; g.x = at[0]; g.y = at[1]; break; } }
+      cap = Math.min(cap, g.sc);
+    }
+  }
   const r = holeOf(R);
   const gap = ordered.length > 1 ? 2.5 : 0;
   // v178: נגיעה בפרוסה "מרימה" אותה — יוצאת החוצה מהטבעת, גדלה מעט ומטילה צל רך (תחושת עומק מוחשית).
@@ -12690,6 +12719,55 @@ function drawPie() {
     } else ctx.fillStyle = g.s.color;
     ctx.fill();
   };
+  // v770: מראה זכוכית לכל פרוסה (בקשת המשתמש, לפי ת־עיצוב): אור אחד מלמעלה לכל העוגה — ברק בחצי העליון והצללה עדינה
+  // בתחתית, זוהר של שבירת אור לאורך השפה הפנימית, וקצה מבריק דק (חזק למעלה, חלש למטה). מצויר לפני קווי הרווח.
+  const glassOn = !!(ctx.createLinearGradient && ctx.createRadialGradient && ctx.clip);
+  const sliceGlass = (g, L, ox, oy) => {
+    if (!glassOn) return;
+    const X = cx + ox, Y = cy + oy, Ro = R + L * 4, k = dark ? 0.7 : 1;
+    const a = (v) => Math.max(0, Math.min(1, v)).toFixed(3);
+    const box = () => ctx.fillRect(X - Ro - 2, Y - Ro - 2, Ro * 2 + 4, Ro * 2 + 4);
+    ctx.save();
+    slicePath(g, L);
+    ctx.clip();
+    // 1) עובי הזכוכית: השוליים (ליד החור וליד השפה) כהים מעט — האור נשבר בעובי, האמצע צלול
+    const th = ctx.createRadialGradient(X, Y, r, X, Y, Ro);
+    if (th && th.addColorStop) {
+      th.addColorStop(0, 'rgba(0,0,0,' + a(dark ? 0.22 : 0.12) + ')');
+      th.addColorStop(0.2, 'rgba(0,0,0,0)');
+      th.addColorStop(0.78, 'rgba(0,0,0,0)');
+      th.addColorStop(1, 'rgba(0,0,0,' + a(dark ? 0.24 : 0.13) + ')');
+      ctx.fillStyle = th; box();
+    }
+    // 2) ברק: אור אחד מלמעלה לכל העוגה — חזק בחלק העליון, נעלם באמצע, הצללה בתחתית
+    const sh = ctx.createLinearGradient(X, Y - Ro, X, Y + Ro);
+    if (sh && sh.addColorStop) {
+      sh.addColorStop(0, 'rgba(255,255,255,' + a((dark ? 0.62 : 0.48) * k + 0.1 * L) + ')');
+      sh.addColorStop(0.3, 'rgba(255,255,255,' + a((dark ? 0.26 : 0.18) * k) + ')');
+      sh.addColorStop(0.5, 'rgba(255,255,255,0)');
+      sh.addColorStop(1, 'rgba(0,0,0,' + a(dark ? 0.22 : 0.1) + ')');
+      ctx.fillStyle = sh; box();
+    }
+    // 3) עדשה: זוהר של אור שנשבר לאורך השפה הפנימית
+    const lens = ctx.createRadialGradient(X, Y, r, X, Y, r + Math.min(18, (Ro - r) * 0.32));
+    if (lens && lens.addColorStop) {
+      lens.addColorStop(0, 'rgba(255,255,255,' + a(0.45 * k) + ')');
+      lens.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = lens; box();
+    }
+    // 4) קצה מבריק: קו לבן בתוך הפרוסה (החיתוך מסתיר את החצי החיצוני) — חזק למעלה, ואור חוזר בתחתית
+    const rim = ctx.createLinearGradient(X - Ro * 0.4, Y - Ro, X + Ro * 0.4, Y + Ro);
+    if (rim && rim.addColorStop) {
+      rim.addColorStop(0, 'rgba(255,255,255,' + a(1 * k) + ')');
+      rim.addColorStop(0.5, 'rgba(255,255,255,' + a(0.28 * k) + ')');
+      rim.addColorStop(1, 'rgba(255,255,255,' + a(0.75 * k) + ')');
+      slicePath(g, L);
+      ctx.strokeStyle = rim; ctx.lineWidth = 5; ctx.stroke();
+      // קו שיער דק נוסף פנימה — כפל השתקפות, כמו בזכוכית עבה
+      ctx.strokeStyle = 'rgba(255,255,255,' + a(0.35 * k) + ')'; ctx.lineWidth = 9; ctx.globalCompositeOperation = 'soft-light'; ctx.stroke();
+    }
+    ctx.restore();
+  };
   // v179: כשפרוסה מורמת — השאר נסוגות לרקע (שקיפות), כמו מיקוד באפל
   const focus = Math.max(0, Math.min(1, state.pieFocus || 0));
   const dimA = 1 - 0.5 * focus;
@@ -12697,9 +12775,11 @@ function drawPie() {
     if (lift(g) > 0.001) continue;
     const [ox, oy] = slicePath(g, 0);
     ctx.save();
-    ctx.globalAlpha = dimA;
+    ctx.globalAlpha = dimA * (dark ? 0.84 : 0.88); // v770: גוף זכוכית שקוף למחצה — הכרטיס נראה דרכו
     ctx.fillStyle = g.s.color; // (גם לבדיקות: הצבע הבסיסי)
     sliceFill(g, 0, ox, oy);
+    ctx.globalAlpha = dimA;
+    sliceGlass(g, 0, ox, oy);
     ctx.restore();
   }
   // רווחים בין הפרוסות — קווים רדיאליים בצבע הכרטיס
@@ -12722,19 +12802,7 @@ function drawPie() {
     const [ox, oy] = slicePath(g, L);
     sliceFill(g, L, ox, oy);
     ctx.restore();
-    // ברק עדין על הפרוסה המורמת — כמו אור מלמעלה על משטח אמיתי
-    if (ctx.createLinearGradient) {
-      ctx.save();
-      slicePath(g, L);
-      ctx.clip();
-      const sh = ctx.createLinearGradient(cx + ox, cy + oy - R, cx + ox, cy + oy + R);
-      if (sh && sh.addColorStop) {
-        sh.addColorStop(0, 'rgba(255,255,255,' + (0.28 * Math.min(1, L)).toFixed(3) + ')');
-        sh.addColorStop(0.55, 'rgba(255,255,255,0)');
-        ctx.fillStyle = sh; ctx.fillRect(0, 0, w, h);
-      }
-      ctx.restore();
-    }
+    sliceGlass(g, L, ox, oy); // v770: אותה זכוכית, עם ברק חזק מעט יותר כשהפרוסה מורמת
     slicePath(g, L);
     ctx.strokeStyle = surface; ctx.lineWidth = gap || 1.5; ctx.stroke();
     if (!g.chip) { g.x += ox; g.y += oy; } // v180: התווית זזה יחד עם הפרוסה; שבב בטור נשאר במקומו (הקו המוביל זז)
@@ -12774,7 +12842,7 @@ function drawPie() {
       let thL = Math.atan2(g.y, g.x);
       while (thL < g.a) thL += Math.PI * 2;
       while (thL > g.a + Math.PI * 2) thL -= Math.PI * 2;
-      const onSlice = thL <= g.a2 && rhoL <= R + 2 && (g.a2 - g.a) * Math.min(rhoL, R) >= g.W * SC * 0.6;
+      const onSlice = thL <= g.a2 && rhoL <= R + 2 && (g.a2 - g.a) * Math.min(rhoL, R) >= g.W * g.sc * 0.6;
       if (onSlice) continue;
       const L = lift(g);
       const off = L * 6, ox = Math.cos(g.mid) * off, oy = Math.sin(g.mid) * off;
@@ -12782,7 +12850,7 @@ function drawPie() {
       const dx = tx - g.x, dy = ty - g.y, dist = Math.hypot(dx, dy);
       if (dist < 1) continue;
       const ux = dx / dist, uy = dy / dist;
-      const hw = g.W * SC / 2 + 2, hh = H * SC / 2 + 2;
+      const hw = g.W * g.sc / 2 + 2, hh = H * g.sc / 2 + 2;
       const edge = Math.min(Math.abs(ux) > 1e-6 ? hw / Math.abs(ux) : Infinity, Math.abs(uy) > 1e-6 ? hh / Math.abs(uy) : Infinity);
       if (dist <= edge + 6) continue; // התווית כבר מכסה את אמצע הפרוסה — ברור בלי קו
       const len = Math.min(18, dist - edge - 3);
@@ -12835,7 +12903,7 @@ function drawPie() {
     top += LS + 2;
     if (!g.chip) { // סימבול — מחוץ לטבעת בצבע הטקסט של הכרטיס, בתוכה כהה על הפסטל
       ctx.fillStyle = g.out ? cssVar('--on-surface', ink) : 'rgba(28,28,30,.88)';
-      ctx.font = '700 10.5px ' + FONT;
+      ctx.font = '700 12px ' + FONT;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(g.symTxt, x, top + SYM_H / 2);
       top += SYM_H + 2;
@@ -12843,19 +12911,19 @@ function drawPie() {
     // בועה: אחוז מהתיק מעל השווי
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,.14)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 1;
-    pieRoundRect(ctx, x - g.bubW / 2, top, g.bubW, BUB_H, 9);
+    pieRoundRect(ctx, x - g.bubW / 2, top, g.bubW, BUB_H, 10);
     ctx.fillStyle = dark ? 'rgba(44,44,46,.96)' : 'rgba(255,255,255,.96)';
     ctx.fill();
     ctx.restore();
     if (g.out && !dark) { // על רקע הכרטיס הלבן — קו מתאר עדין במקום צל בלבד
-      pieRoundRect(ctx, x - g.bubW / 2 + 0.5, top + 0.5, g.bubW - 1, BUB_H - 1, 9);
+      pieRoundRect(ctx, x - g.bubW / 2 + 0.5, top + 0.5, g.bubW - 1, BUB_H - 1, 10);
       ctx.strokeStyle = 'rgba(0,0,0,.08)'; ctx.lineWidth = 1; ctx.stroke();
     }
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = ink; ctx.font = '700 10.5px ' + FONT;
-    ctx.fillText(g.pctTxt, x, top + 9);
-    ctx.fillStyle = sub; ctx.font = '500 10px ' + FONT;
-    ctx.fillText(g.valTxt, x, top + 19.5);
+    ctx.fillStyle = ink; ctx.font = '700 12px ' + FONT;
+    ctx.fillText(g.pctTxt, x, top + 10.5);
+    ctx.fillStyle = sub; ctx.font = '500 11.5px ' + FONT;
+    ctx.fillText(g.valTxt, x, top + 22.5);
     ctx.restore();
   }
   ctx.textBaseline = 'alphabetic';
@@ -12896,19 +12964,19 @@ function drawPie() {
   if (pieAnimRaf && legend.children && legend.children.length) { pieMarkLegend(legend); return; }
   legend.innerHTML = '';
   const sorted = slicesUnique.slice().sort(cashLast);
+  const maxV = sorted.reduce((m, s) => Math.max(m, s.value), 0) || 1; // הפס של כל שורה — יחסית לאחזקה הגדולה
   for (const s of sorted) {
     const src = s.cash ? null : logoSrc(s.sym);
     const e = src ? pieLogoImg(s.sym) : null;
-    const full = s.cash ? '' : companyName(s.sym, s.name);
     const li = el('li', '',
       '<span class="pie-leg-logo' + (s.cash ? ' cash' : e && e.ready && e.light ? ' inv' : '') + '">' +
       '<span class="pie-leg-fb">' + esc(s.cash ? (cur === 'ILS' ? '₪' : '$') : (normalizeSym(s.sym) || '?').charAt(0)) + '</span>' +
       (src && !(e && e.failed) ? '<img src="' + src + '" alt="" loading="lazy" decoding="async" data-err="hide-self">' : '') + '</span>' +
-      '<span class="dot" style="background:' + s.color + '"></span>' +
       '<span class="lg-name">' + (s.cash ? '<span class="lg-sym">' + esc(t('pieCash')) + '</span>' : '<bdi dir="ltr" class="lg-sym">' + esc(s.sym) + '</bdi>') +
-      (full && full.toUpperCase() !== String(s.sym).toUpperCase() ? '<span class="lg-full" dir="auto">' + esc(full) + '</span>' : '') + '</span>' +
-      '<span class="lg-val">' + money(val(s.value), cur) + '</span>' +
-      '<span class="lg-pct">' + (s.value / total * 100).toFixed(1) + '%</span>');
+      '</span>' +
+      '<span class="lg-bar" aria-hidden="true"><i style="width:' + Math.max(2, s.value / maxV * 100).toFixed(1) + '%;background:' + s.color + '"></i></span>' +
+      '<span class="lg-num"><span class="lg-pct">' + (s.value / total * 100).toFixed(1) + '%</span>' +
+      '<span class="lg-val">' + money(val(s.value), cur) + '</span></span>');
     if (li.dataset) li.dataset.sym = s.sym;
     li.addEventListener && li.addEventListener('click', () => { // נגיעה בשורה = נגיעה בפרוסה
       const next = state.pieActive === s.sym ? null : s.sym;
@@ -19099,19 +19167,14 @@ function renderDeposits() {
   }
   const ul = document.getElementById('depositList');
   ul.innerHTML = '';
-  const ed = editAllowed('deposits');
-  if (ed) {
-    const addLi = el('li');
-    const addBtn = el('button', 'chip-btn', '＋ ' + t('addDeposit'));
-    addBtn.type = 'button';
-    addBtn.addEventListener('click', () => showAddDepositForm(ul));
-    addLi.appendChild(addBtn);
-    ul.appendChild(addLi);
-  }
+  // 15/11/2026: כמו העסקאות — "+" בשורת הכלים ועיפרון בכל שורה, בלי מצב עריכה. IBKR — לקריאה בלבד (הסנכרון דורס)
+  const ed = !isIbkrMode();
   renderSrcFilter('deposits');
   const sf = getSrcFilter('deposits');
   const shown = depositsNewestFirst(DEPOSITS).filter((x) => srcPass(sf, isIbkrDeposit(x.d) ? 'ibkr' : 'manual'));
-  shown.forEach((x) => ul.appendChild(buildDepositRow(x.d, x.i, ed)));
+  // 15/11/2026 (בקשת המשתמש): כרטיס זכוכית לכל שנה במקום רשימה אחת ארוכה — השנה האחרונה פתוחה
+  const yrOpen = state._depYrOpen || (state._depYrOpen = new Map());
+  depYearGroups(shown).forEach((g, k) => ul.appendChild(buildDepYear(g, yrOpen.has(g.y) ? yrOpen.get(g.y) : k === 0, ed, yrOpen)));
   if (!shown.length && DEPOSITS.length && !(hasMf && srcPass(sf, 'manual'))) ul.appendChild(el('p', 'fine', t('srcFilterEmpty')));
   if (hasMf && srcPass(sf, 'manual')) {
     const head = el('li', 'dep-sub');
@@ -19138,28 +19201,115 @@ function renderDeposits() {
   }
 }
 
+/* טהורה: הפקדות (כבר מהחדשה לישנה) בקבוצות לפי שנה, עם הנטו בשקלים (חיובי = נכנס לתיק) */
+function depYearGroups(shown) {
+  const out = [], by = new Map();
+  for (const x of shown) {
+    const y = depDateKey(x.d).slice(0, 4) || '—';
+    let g = by.get(y);
+    if (!g) { g = { y, items: [], net: 0, nIn: 0, nOut: 0, sumIn: 0, sumOut: 0 }; by.set(y, g); out.push(g); }
+    g.items.push(x);
+    const v = -depILS(x.d);   // חיובי = נכנס לתיק
+    g.net += v;
+    if (depIsOut(x.d)) { g.nOut++; g.sumOut -= v; } else { g.nIn++; g.sumIn += v; }
+    // בתוך השנה — קטלוג לפי חודש (בקשת המשתמש: שיהיה ברור באיזה חודש בוצעה כל הפקדה)
+    const m = depDateKey(x.d).slice(4, 6);
+    let mo = g.months && g.months[g.months.length - 1];
+    if (!mo || mo.m !== m) { mo = { m, items: [], net: 0 }; (g.months || (g.months = [])).push(mo); }
+    mo.items.push(x);
+    mo.net -= depILS(x.d);
+  }
+  for (const g of out) { for (const k of ['net', 'sumIn', 'sumOut']) g[k] = Math.round(g[k] * 100) / 100; for (const mo of g.months) mo.net = Math.round(mo.net * 100) / 100; }
+  return out;
+}
+/* משיכה (כסף יצא מהתיק): amount חיובי; בהפקדת IBKR במטבע זר בלי סכום בשקלים — לפי הסכום המקורי */
+function depIsOut(d) {
+  const a = Number(d && d.amount) || 0;
+  if (a) return a > 0;
+  return !!(d && d.cur && Number(d.amt) > 0);
+}
+function depMonthName(m) {
+  if (!m) return '';
+  try { return new Intl.DateTimeFormat(state.lang === 'en' ? 'en-US' : 'he-IL', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2000, Number(m) - 1, 1))); } catch (e) { return m; }
+}
+const depNetTxt = (v) => ltrNum((v < 0 ? '−' : '') + '₪' + Math.abs(v).toLocaleString('en-US', { maximumFractionDigits: 0 }));
+const ICON_DEP_CHEV = '<svg class="dep-yr-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+function buildDepYear(g, open, ed, yrOpen) {
+  const li = el('li', 'dep-yr' + (open ? ' open' : ''));
+  li.dataset.yr = g.y;
+  const id = 'depYr-' + g.y.replace(/\W/g, '_');
+  const h = el('button', 'dep-yr-h');
+  h.type = 'button';
+  h.setAttribute('aria-expanded', open ? 'true' : 'false');
+  h.setAttribute('aria-controls', id);
+  const net = depNetTxt(g.net);
+  h.innerHTML = '<span class="dep-yr-t"><b>' + esc(g.y) + '</b><span>' + esc(t('records', { n: g.items.length })) + '</span></span>' +
+    '<span class="dep-yr-net">' + net + '</span>' + ICON_DEP_CHEV;
+  h.addEventListener('click', () => {
+    const on = !li.classList.contains('open');
+    if (on && li.parentElement) {   // אקורדיון: שנה אחת פתוחה — הרשימה לא חוזרת להיות ארוכה
+      li.parentElement.querySelectorAll(':scope > .dep-yr.open').forEach((o) => {
+        o.classList.remove('open');
+        o.firstChild.setAttribute('aria-expanded', 'false');
+        yrOpen.set(o.dataset.yr, false);
+      });
+    }
+    li.classList.toggle('open', on);
+    h.setAttribute('aria-expanded', on ? 'true' : 'false');
+    yrOpen.set(g.y, on);
+    if (on) setTimeout(() => { try { h.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {} }, 360);
+  });
+  li.appendChild(h);
+  const body = el('div', 'dep-yr-body');
+  const inner = el('div', 'dep-yr-in');
+  if (g.nOut) {   // יש משיכות — שני אריחים (בלי משיכות הנטו בכותרת אומר הכל)
+    const tile = (cls, lbl, v) => '<div class="dep-tile"><span>' + esc(lbl) + '</span><b class="' + cls + '">' + depNetTxt(v) + '</b></div>';
+    const tiles = el('div', 'dep-tiles');
+    tiles.innerHTML = tile('in', t('depTileIn', { n: g.nIn }), g.sumIn) + tile('out', t('depTileOut', { n: g.nOut }), g.sumOut);
+    inner.appendChild(tiles);
+  }
+  const list = el('ul', 'rows dep-yr-list');
+  list.id = id;
+  for (const mo of g.months) {
+    if (mo.m) {
+      const mh = el('li', 'dep-mo');
+      mh.innerHTML = '<span>' + esc(depMonthName(mo.m)) + '</span>' +
+        (mo.items.length > 1 ? '<span class="dep-mo-net">' + depNetTxt(mo.net) + '</span>' : ''); // הפקדה אחת — הסכום כבר בשורה
+      list.appendChild(mh);
+    }
+    mo.items.forEach((x) => list.appendChild(buildDepositRow(x.d, x.i, ed)));
+  }
+  inner.appendChild(list);
+  body.appendChild(inner);
+  li.appendChild(body);
+  return li;
+}
+
+/* שורת הפקדה (15/11/2026, לפי שורת העסקה): עיגול +/−, "הפקדה"/"משיכה" + מקור, תאריך קצר והערה בשורה אחת, סכום, עיפרון */
+const DEP_IC_IN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg>';
+const DEP_IC_OUT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12"/></svg>';
+function depShortDate(d) {
+  const k = depDateKey(d);
+  return k ? k.slice(6, 8) + '/' + k.slice(4, 6) : String((d && d.date) || '');
+}
 function buildDepositRow(d, i, ed) {
-  const li = el('li');
+  const li = el('li', 'dep-row');
   li.dataset.depIdx = i;
-  const main = el('span');
-  const dTxt = /^\d{4}-\d{2}-\d{2}$/.test(String(d.date || '')) ? fmtDateIL(d.date) : String(d.date || '');
-  main.innerHTML = '<span class="r-date">' + esc(dTxt) + '</span> ' + srcTagHTML(isIbkrDeposit(d) ? 'ibkr' : 'manual', d.acct) +
-    (d.place ? '<br><span class="r-note">' + esc(d.place) + '</span>' : '');
-  li.appendChild(main);
-  const wrap = el('span');
-  wrap.innerHTML = depositAmountHTML(d.amount, depNative(d));
-  li.appendChild(wrap);
+  const out = depIsOut(d);
+  const note = String(d.place || '').replace(/ · [A-Z]{3} [\d,]+(?:\.\d+)?$/, '');   // המטבע המקורי כבר בסכום
+  li.innerHTML = '<span class="dep-ic ' + (out ? 'out' : 'in') + '">' + (out ? DEP_IC_OUT : DEP_IC_IN) + '</span>' +
+    '<span class="dep-main"><span class="dep-k"><b>' + esc(out ? t('depKindOut') : t('depKindIn')) + '</b> ' +
+    srcTagHTML(isIbkrDeposit(d) ? 'ibkr' : 'manual', d.acct) + '</span>' +
+    '<span class="dep-meta"><span class="r-date">' + esc(depShortDate(d)) + '</span>' +
+    (note ? '<span aria-hidden="true">·</span><span class="dep-note" dir="auto">' + esc(note) + '</span>' : '') + '</span></span>' +
+    '<span class="dep-amt">' + depositAmountHTML(d.amount, depNative(d)) + '</span>';
   if (ed) {
-    const actions = el('span', 'row-actions');
-    const eb = el('button', 'mini-btn', t('btnEditRow'));
+    const eb = el('button', 'dep-ed');
     eb.type = 'button';
+    eb.setAttribute('aria-label', t('btnEditRow'));
+    eb.innerHTML = ICON_EDIT;
     eb.addEventListener('click', () => showEditDepositForm(li, d, i));
-    const dbtn = el('button', 'mini-btn danger', t('btnDeleteRow'));
-    dbtn.type = 'button';
-    dbtn.addEventListener('click', () => deleteDeposit(i));
-    actions.appendChild(eb);
-    actions.appendChild(dbtn);
-    li.appendChild(actions);
+    li.appendChild(eb);
   }
   return li;
 }
@@ -19195,6 +19345,10 @@ function showEditDepositForm(li, d, i) {
   const idp = 'de' + i;
   li.classList.add('form-li');
   li.innerHTML = depositFormHTML(d, idp);
+  const del = el('button', 'mini-btn danger', t('btnDeleteRow'));
+  del.type = 'button';
+  del.addEventListener('click', () => deleteDeposit(i));
+  li.querySelector('.edit-actions').appendChild(del);
   li.querySelector('#' + idp + '-cancel').addEventListener('click', () => renderDeposits());
   li.querySelector('#' + idp + '-save').addEventListener('click', () => {
     const r = readDepositForm(li, idp);
@@ -19895,7 +20049,8 @@ function init() {
   if (ibkrSi) ibkrSi.addEventListener('click', () => { ibkrSyncAll(); });   // 15/11/2026: כל החשבונות
 
   // מצבי עריכה — כבויים כברירת מחדל כדי למנוע טעויות בלחיצות אקראיות
-  wireEditToggle('editDepositsBtn', 'editDepositsHint', 'deposits', renderDeposits);
+  const depAdd = document.getElementById('depAddBtn');
+  if (depAdd) depAdd.addEventListener('click', () => showAddDepositForm(document.getElementById('depositList')));
   wireEditToggle('editPensionBtn', 'editPensionHint', 'pension', renderPension);
   // v87: חיפוש מניות להוספה — זמין בשני המצבים
   try { initStockSearch(); } catch (e) {}

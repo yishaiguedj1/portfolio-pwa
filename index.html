@@ -267,22 +267,16 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
 
   <!-- הפקדות -->
   <section id="tab-deposits" class="tabpage" role="tabpanel">
-    <div class="card stat wide">
+    <div class="card stat wide dep-hero">
       <div class="stat-label" data-i18n="depTotalTitle">סך הפקדות נטו</div>
       <div class="stat-value" id="depTotal">—</div>
       <div class="stat-sub"><span id="depCount">—</span> · <span data-i18n="depCalcNote">מחושב מהרשומות למטה</span></div>
     </div>
-    <div class="card">
-      <div class="section-head">
-        <h2 data-i18n="allDeposits">כל ההפקדות</h2>
-        <div class="head-actions">
-          <button id="editDepositsBtn" class="chip-btn" type="button" data-i18n-html="editBtn">עריכה</button>
-          <div class="src-filter" id="depositsSrcFilter"></div>
-        </div>
-      </div>
-      <p class="fine hidden" id="editDepositsHint" style="padding:0" data-i18n="editHint">מצב עריכה פעיל — בסיום לחצו שוב על עריכה.</p>
-      <ul id="depositList" class="rows" data-dk-grid tabindex="0" data-i18n-aria="dkGridDeposits" aria-label=""></ul>
+    <div class="dep-bar">
+      <button id="depAddBtn" class="dep-add" type="button" data-i18n-aria="addDeposit" aria-label="הוספת הפקדה"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+      <div class="src-filter" id="depositsSrcFilter"></div>
     </div>
+    <ul id="depositList" class="rows" data-dk-grid tabindex="0" data-i18n-aria="dkGridDeposits" aria-label=""></ul>
     <p class="fine" id="depNoteEl" data-i18n="depNote">סכומים שליליים = כסף שהופקד לתיק. הרשומה החיובית (+₪37,000 ב־19/02/2025) היא משיכה/תיקון כפי שמופיעה בגיליון.</p>
     <p class="fine hidden" id="depIbkrEmpty"></p>
   </section>
