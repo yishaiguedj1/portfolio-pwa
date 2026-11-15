@@ -255,7 +255,7 @@ html[dir="ltr"] .appbar-row > * { --dir: ltr; }
 /* 20/10/2026 (בקשת המשתמש, 2.16.0): הקפסולה של המצב (השוק ב־Invest, הגיבוי ב־Academy, החיבור ב־Studio) — מתחת לגלובוס
    ולכפתור השני, בצד הימני; בועת השער (רק ב־Invest) — מתחת ל־☰ בצד השמאלי. שתיהן באותו גודל בדיוק: ברוחב של שני
    הכפתורים שמעליהן ובגובה של כפתור, וכל אחת מיושרת לקצה החיצוני שלהם */
-.appbar-left > .appbar-sub { grid-column: 1 / 5; grid-row: 2; justify-self: start; position: relative; z-index: 1; }
+.appbar-left > .appbar-sub { grid-column: 1 / 5; grid-row: 2; justify-self: start; position: relative; z-index: 5;   /* מעל שכבת השלג הקדמית (4) — הפתיתים עוברים מאחור, מעומעמים (15/11/2026) */ }
 .appbar .appbar-left > .appbar-sub[hidden] { display: none; }
 .appbar-left > .fx-pill { grid-column: 6 / 10; grid-row: 2; justify-self: end; }
 .appbar .fx-pill, .appbar .appbar-sub > * { box-sizing: border-box; width: calc(var(--ib) * 2 + 8px); min-width: 0; min-height: var(--pill-h); }   /* גובה הבועה = משלים את הלוגו (גם ב־320, שם הכפתורים 40) */
@@ -501,7 +501,7 @@ html[data-app="academy"] .appbar .brand, html[data-app="studio"] .appbar .brand 
 .appbar .icon-btn { width: var(--ib); height: var(--ib); font-size: calc(var(--ib) * .45); }
 .appbar .icon-btn, .appbar .fx-pill, .appbar .st-pill.open { background: linear-gradient(var(--surface-2), var(--surface-2)) var(--bg); }
 /* בועת השער כמו הכפתורים: ממוקמת (אחרת שכבת השלג — הקשר ערימה של הלוגו — מצוירת מעליה) ועם אותו מסגור */
-.appbar .fx-pill { position: relative; z-index: 1; border: 1px solid var(--card-border); }
+.appbar .fx-pill { position: relative; z-index: 5; border: 1px solid var(--card-border); }
 .appbar .st-pill.pre { background: color-mix(in srgb, #FF9F0A 18%, var(--bg)); }
 .appbar .st-pill.post { background: color-mix(in srgb, #5E5CE6 18%, var(--bg)); }
 .appbar .st-pill.night { background: color-mix(in srgb, #0A84FF 16%, var(--bg)); }
