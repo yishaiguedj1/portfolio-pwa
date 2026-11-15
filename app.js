@@ -13303,15 +13303,12 @@ function pfFitH(canvas) {
   if (canvas._pfH && canvas._pfHKey === key) return canvas._pfH;
   const card = canvas.closest && canvas.closest('.card');
   if (!card || !card.offsetHeight) return canvas._pfH || DEF;
-  const bar = document.querySelector('.appbar'), tabs = document.querySelector('nav.tabs');
-  const top = bar ? bar.offsetHeight : 0;
-  const bottom = tabs && tabs.offsetHeight && getComputedStyle(tabs).position === 'fixed' ? window.innerHeight - tabs.getBoundingClientRect().top : 0;
   let other = card.offsetHeight - canvas.offsetHeight;
   for (const id of ['pfNoteEl', 'pfPickBar', 'pfPickBubble']) { const e = document.getElementById(id); if (e && e.offsetHeight) other -= e.offsetHeight; }
   const sum = document.getElementById('pfRangeSummary');
   const ready = !!(sum && sum.offsetHeight); // בציור הראשון שורת התשואה עוד ריקה — אומדן, ונמדד שוב בציור הבא
   if (!ready) other += 46;
-  const avail = window.innerHeight - top - bottom - other - 16;
+  const avail = viewH() - topCover() - bottomCover() - other - 16; // אותה מדידה כמו בכרטיס המניה (fitCardToScreen)
   const hh = Math.round(Math.max(MIN, Math.min(MAX, avail)));
   canvas._pfH = hh; canvas._pfHKey = ready ? key : '';
   canvas.style.height = hh + 'px';
@@ -18365,11 +18362,11 @@ function scMeasure(pts, i, j) {
 function scRender(canvas) {
   const wrap = canvas.parentNode, map = canvas._chartMap, sc = canvas._sc;
   let ov = wrap && wrap.querySelector('.sc-ov');
-  if (!sc || !map || map.n < 2 || !wrap) { if (ov) ov.classList.add('hidden'); return; }
   const sym = canvas.id.replace(/^chart-/, '');
+  const sret = stockNode(sym, 'sret-');
+  if (!sc || !map || map.n < 2 || !wrap) { if (ov) ov.classList.add('hidden'); if (sret) sret.classList.remove('ro'); return; }
   if (!ov) {
     ov = el('div', 'sc-ov');
-    ov.setAttribute('aria-live', 'polite');
     ov.innerHTML = '<i class="sc-band"></i><i class="sc-line"></i><i class="sc-line sc-l2"></i><i class="sc-dot"></i><i class="sc-dot sc-d2"></i><div class="pf-tip sc-tip"></div>';
     wrap.appendChild(ov);
   }
@@ -18403,6 +18400,31 @@ function scRender(canvas) {
   }
   ov.classList.toggle('m', sc.mode === 'm');
   ov.classList.toggle('neg', tone === 'neg');
+  /* 2.147.0 (בקשת המשתמש: "שהבועה לא תסתיר את הגרפים בזמן הסימון — אף פעם"): הערכים מוצגים בשורת התשואה שמעל הגרף,
+     במקומה (תאריך · מחיר · שינוי; במדידה — הטווח · תשואה · שינוי במחיר), בלי בועה שמכסה את הגרף או את הנתונים.
+     שורה אחת בגובה השורה הרגילה — הכרטיס לא זז. בלי שורת התשואה (מקרה קצה) — הבועה הישנה. */
+  if (sret) {
+    let ro = sret.querySelector('.rs-ro');
+    if (!ro) { ro = el('span', 'rs-ro'); ro.setAttribute('aria-live', 'polite'); sret.appendChild(ro); }
+    const col = cssVar(map.up ? '--gain' : '--loss', map.up ? '#137333' : '#B3261E');
+    let r;
+    if (sc.mode === 'm') {
+      const m = scMeasure(map.pts, clamp(sc.a), clamp(sc.b));
+      r = '<span class="ro-d">' + ltrNum(esc(scDateTxt(map.pts[m.a], map.intraday)) + ' – ' + esc(scDateTxt(map.pts[m.b], map.intraday))) + '</span>' +
+        '<span class="ro-v ' + tone + '">' + fmtPct(m.pct, true) + '</span><span class="ro-c ' + tone + '">' + fmtSignedPx(m.chg, sym) + '</span>';
+    } else {
+      const i = clamp(sc.i);
+      const chg = map.base > 0 && !sc.pick ? (map.pts[i].close / map.base - 1) * 100 : null;
+      r = '<span class="ro-d">' + esc(scDateTxt(map.pts[i], map.intraday)) + '</span><span class="ro-v">' + scPxTxt(sym, map.pts[i].close) + '</span>' +
+        (chg !== null && isFinite(chg) ? '<span class="ro-c ' + (chg >= 0 ? 'pos' : 'neg') + '">' + fmtPct(chg, true) + '</span>' : '');
+    }
+    r = '<span class="dot" style="background:' + col + '"></span>' + r;
+    if (ro._html !== r) { ro.innerHTML = r; ro._html = r; }
+    sret.classList.add('ro');
+    tip.classList.add('hidden');
+    return;
+  }
+  tip.classList.remove('hidden');
   if (tip._html !== html) { tip.innerHTML = html; tip._html = html; }
   const dot = tip.querySelector('.dot');
   if (dot) dot.style.background = cssVar(map.up ? '--gain' : '--loss', map.up ? '#137333' : '#B3261E');

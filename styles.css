@@ -986,6 +986,16 @@ html.drag-active .tabpage { transform: none !important; }   /* v324: בלי anim
 .stock-body .stock-foot .pf-range-summary .rs-range { font-size: 12px; }
 .stock-foot .pf-range-summary.no-sym .rs-sym { font-size: 0; gap: 0; }
 .stock-foot .pf-range-summary.no-lbl > .rs-lbl, .stock-foot .pf-range-summary.no-rng > .rs-range { display: none; }
+/* 2.147.0: בזמן סימון בגרף המניה — שורת התשואה מציגה את הערכים בנקודה (במקום בועה שמכסה את הגרף) */
+.pf-range-summary:not(.ro) > .rs-ro, .pf-range-summary.ro > :not(.rs-ro) { display: none !important; }
+.stock-foot:has(> .pf-range-summary.ro) > .stock-edit { display: none !important; } /* בזמן הסימון — כל הרוחב לערכים */
+.pf-range-summary .rs-ro { display: inline-flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pf-range-summary .rs-ro .dot { width: 10px; height: 10px; border-radius: var(--pill); flex: none; }
+.pf-range-summary .rs-ro .ro-d { font-size: 13.5px; font-weight: 600; color: var(--on-surface-var); }
+.pf-range-summary .rs-ro .ro-v { font-size: 17px; font-weight: 800; color: var(--on-surface); }
+.pf-range-summary .rs-ro .ro-c { font-size: 14px; font-weight: 700; }
+.pf-range-summary .rs-ro .pos { color: var(--gain, #1B7A3D); }
+.pf-range-summary .rs-ro .neg { color: var(--loss, #C62828); }
 .stock-body .edit-actions.stock-edit { flex: none; margin: 0; margin-inline-start: auto; padding: 0; }
 .stock-body .edit-actions .chip-btn { padding-block: 6px; font-size: 13.5px; white-space: nowrap; }
 .stock-foot .stock-edit .chip-btn { padding: 5px 12px; font-size: 13px; gap: 5px; }
@@ -1110,8 +1120,9 @@ html[dir="ltr"] .stock-foot .kc-open-btn { order: -1; }   /* באנגלית (כ�
 /* 2.147.0: מקרא צף בפינה העליונה של גרף הביצועים (בקצה מול ציר האחוזים) — נקודה · שם · תשואה, בלי מסגרת.
    שורת מדד היא כפתור הדלקה/כיבוי: כבוי = טבעת ריקה ושם מעומעם. הגרף שומר מרווח עליון בגובה המקרא. */
 #pfWrap canvas { height: 280px; }
-.pf-key { position: absolute; top: 0; inset-inline-end: -8px; z-index: 2; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
-html[dir="ltr"] .pf-key { inset-inline-end: auto; inset-inline-start: -8px; }
+.pf-key { position: absolute; top: 0; inset-inline-end: -4px; z-index: 2; list-style: none; margin: 0; padding: 3px; display: flex; flex-direction: column; gap: 0;
+  border-radius: var(--radius-sm); background: var(--gb-body); -webkit-backdrop-filter: var(--gb-fx); backdrop-filter: var(--gb-fx); box-shadow: var(--gb-sh); } /* זכוכית — אותם משתנים כמו כפתורי הזכוכית */
+html[dir="ltr"] .pf-key { inset-inline-end: auto; inset-inline-start: -4px; }
 .chart-wrap.picking .pf-key { inset-inline-end: 4px; } /* בתוך המסגרת המקווקוות של "מתאריך" */
 html[dir="ltr"] .chart-wrap.picking .pf-key { inset-inline-end: auto; inset-inline-start: 4px; }
 .pf-key.hidden { display: none; }
