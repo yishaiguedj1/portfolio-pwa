@@ -1071,6 +1071,9 @@ he: {
   earnXAn: 'אנליסטים', earnXMg: 'הנהלה', earnXMgY: 'הנהלה · שנתי', earnXTitle: 'צפי לדוח', earnXEps: 'רווח למניה', earnXRev: 'הכנסות',
   earnXN: '{n} אנליסטים', earnXN1: 'אנליסט אחד', earnXYago: 'לפני שנה: {v}', earnXSrc: 'צפי ההנהלה מהודעת הדוחות הקודמת ({d})',
   earnXGaap: 'GAAP', earnXYear: 'שנה מלאה',
+  earnXFy: 'דוח שנתי', earnXAnY: 'אנליסטים · שנתי', earnXQtr: 'רבעון', earnXTonePos: 'מגמה חיובית', earnXToneNeg: 'מגמה שלילית', earnXToneNeu: 'מגמה ניטרלית',
+  earnXD90: 'הצפי לרווח למניה {v} ב־90 יום', earnXRevs: 'ב־30 יום: {up} העלו, {dn} הורידו', earnXBeat: 'עקפה את הצפי ב־{b} מ־{n} הרבעונים האחרונים',
+  earnXBeatAvg: ' (בממוצע {v})', earnXToneSrc: 'המגמה לפי שינויי הצפי של האנליסטים (Yahoo) — לא תחזית ולא המלצה.',
   calReport: 'דוח רבעוני', calAddAria: 'הוספת הדוח של {sym} ליומן', calGoogle: 'הוספה ל־Google Calendar', calOther: 'יומן אחר (אפל, סמסונג, Outlook)',
   calIcsNote: 'ביומן אחר נוצרות גם תזכורות — יום לפני ושעה לפני.', calIcsDone: 'הקובץ ירד — פתח אותו כדי להוסיף ליומן', calLocal: '{t} שעון ישראל',
   calEventTitle: 'דוח רבעוני · {sym}{name}', calEventDesc: 'פרסום הדוח הרבעוני של {sym}', calEventEst: 'תאריך משוער (לפי Yahoo Finance)',
@@ -2915,6 +2918,9 @@ en: {
   earnXAn: 'Analysts', earnXMg: 'Company', earnXMgY: 'Company · FY', earnXTitle: 'Expectations', earnXEps: 'EPS', earnXRev: 'Revenue',
   earnXN: '{n} analysts', earnXN1: '1 analyst', earnXYago: 'Year ago: {v}', earnXSrc: 'Company guidance from its previous earnings release ({d})',
   earnXGaap: 'GAAP', earnXYear: 'Full year',
+  earnXFy: 'Annual report', earnXAnY: 'Analysts · FY', earnXQtr: 'Quarter', earnXTonePos: 'Trending up', earnXToneNeg: 'Trending down', earnXToneNeu: 'Flat',
+  earnXD90: 'EPS estimate {v} over 90 days', earnXRevs: 'Last 30 days: {up} up, {dn} down', earnXBeat: 'Beat estimates in {b} of the last {n} quarters',
+  earnXBeatAvg: ' (avg {v})', earnXToneSrc: 'Trend from analyst estimate revisions (Yahoo) — not a forecast or advice.',
   calReport: 'Earnings', calAddAria: 'Add the {sym} earnings report to your calendar', calGoogle: 'Add to Google Calendar', calOther: 'Other calendar (Apple, Samsung, Outlook)',
   calIcsNote: 'Other calendars also get reminders — a day before and an hour before.', calIcsDone: 'Downloaded — open it to add to your calendar', calLocal: '{t} local time',
   calEventTitle: 'Earnings · {sym}{name}', calEventDesc: '{sym} quarterly earnings report', calEventEst: 'Estimated date (per Yahoo Finance)',
@@ -4184,14 +4190,16 @@ function earnBig(v) {
   const a = Math.abs(v);
   return a >= 1e9 ? [a / 1e9, a >= 1e11 ? 1 : 2, 'B'] : a >= 1e6 ? [a / 1e6, a >= 1e8 ? 0 : 1, 'M'] : [a / 1e3, 0, 'K'];
 }
-function earnRevTxt(v, cur) { if (v == null) return ''; const b = earnBig(v); return earnCurSym(cur) + b[0].toFixed(b[1]) + b[2]; }
+function earnRevTxt(v, cur) { if (v == null) return ''; const b = earnBig(v); return earnCurSym(cur) + b[0].toFixed(b[1]).replace(/\.0+$/, '') + b[2]; }
 function earnRangeTxt(lo, hi, kind, cur) {
   if (lo == null) return '';
   if (hi == null || Math.abs(hi - lo) < 1e-9 * Math.max(1, Math.abs(hi))) return kind === 'eps' ? earnEpsTxt(lo, cur) : earnRevTxt(lo, cur);
   if (kind === 'eps') return earnEpsTxt(lo, cur) + '–' + Math.abs(hi).toFixed(2);
   const b = earnBig(hi), d = b[1];
   const unit = b[2] === 'B' ? 1e9 : b[2] === 'M' ? 1e6 : 1e3;
-  return earnCurSym(cur) + (lo / unit).toFixed(d) + '–' + (hi / unit).toFixed(d) + b[2];
+  let x = (lo / unit).toFixed(d), y = (hi / unit).toFixed(d);
+  if (/\.0+$/.test(x) && /\.0+$/.test(y)) { x = x.replace(/\.0+$/, ''); y = y.replace(/\.0+$/, ''); }   // "$390–398B" ולא "$390.0–398.0B"
+  return earnCurSym(cur) + x + '–' + y + b[2];
 }
 
 /* סינון טווח מתוך היסטוריה יומית ממוינת (ישן -> חדש) */
@@ -11820,17 +11828,36 @@ function renderManualPerf(mp) {
   }
 }
 
-/* 15/11/2026: שורות הצפי בכרטיס — "אנליסטים $2.47 · $108.7B" ו"הנהלה $105.8–110.2B" (רבעון; בלי צפי רבעוני — השנתי
-   עם "שנתי"). רווח למניה קודם, הכנסות אחר כך; המשמעות המלאה בגיליון הדוח. טהורה (מחזירה HTML) */
+/* 15/11/2026: מגמת הצפי — מנתוני Yahoo בלבד (אין מקור חינמי עם דירוג מוכן; ה־ESP של Zacks בתשלום): כמה הקונצנזוס
+   לרווח למניה זז ב־90 יום (משקל כפול) וב־30 יום, וכמה אנליסטים העלו מול הורידו ב־30 יום. ≥1 חיובית, ≤−1 שלילית. טהורה */
+function earnXTone(a) {
+  const q = a && a.q;
+  const cur = q && (q.ec != null ? q.ec : q.eps);   // הנוכחי מאותה סדרה כמו של לפני 30/90 יום
+  if (cur == null) return null;
+  const pct = (x) => (x == null ? null : (cur - x) / Math.max(Math.abs(x), 0.05));
+  const d90 = pct(q.e90), d30 = pct(q.e30);
+  if (d90 == null && d30 == null && q.up == null && q.dn == null) return null;
+  const r = (q.up || 0) - (q.dn || 0);
+  const sc = (d90 == null ? 0 : d90 > 0.02 ? 2 : d90 < -0.02 ? -2 : 0) + (d30 == null ? 0 : d30 > 0.01 ? 1 : d30 < -0.01 ? -1 : 0) + (r > 0 ? 1 : r < 0 ? -1 : 0);
+  return { k: sc >= 1 ? 'pos' : sc <= -1 ? 'neg' : 'neu', d90: d90, d30: d30, up: q.up || 0, dn: q.dn || 0 };
+}
+function earnXToneHTML(tn) {
+  if (!tn) return '';
+  const txt = tn.k === 'pos' ? t('earnXTonePos') : tn.k === 'neg' ? t('earnXToneNeg') : t('earnXToneNeu');
+  return '<span class="earn-tone ' + tn.k + '"><span aria-hidden="true">' + (tn.k === 'pos' ? '▲' : tn.k === 'neg' ? '▼' : '●') + '</span> ' + esc(txt) + '</span>';
+}
+/* 15/11/2026: שורות הצפי בכרטיס — "אנליסטים $2.47 · $108.7B" + מגמת הצפי, "הנהלה $105.8–110.2B" (רבעון). דוח שנתי (הרבעון
+   סוגר את שנת הכספים) — גם שורות שנתיות; בלי צפי רבעוני של ההנהלה — השנתי שלה. רווח למניה קודם, הכנסות אחר כך. טהורה */
 function earnXRowHTML(ex) {
   if (!ex) return '';
-  const line = (lab, parts) => parts.length ? '<span class="earn-x"><b>' + esc(lab) + '</b> <span dir="ltr">' + esc(parts.join(' · ')) + '</span></span>' : '';
+  const line = (lab, parts, tail) => parts.length ? '<span class="earn-x"><b>' + esc(lab) + '</b> <span dir="ltr">' + esc(parts.join(' · ')) + '</span>' + (tail || '') + '</span>' : '';
+  const mg = (p) => [p.eps ? earnRangeTxt(p.eps[0], p.eps[1], 'eps', 'USD') : '', p.rev ? earnRangeTxt(p.rev[0], p.rev[1], 'rev', 'USD') : ''].filter(Boolean);
+  const a = ex.a, g = ex.g, fy = !!(a && a.fy);
   let h = '';
-  if (ex.a) { const q = ex.a.q, c = ex.a.cur; h += line(t('earnXAn'), [earnEpsTxt(q.eps, c), earnRevTxt(q.rev, c)].filter(Boolean)); }
-  if (ex.g) {
-    const p = ex.g.q ? ex.g.q : ex.g.y, lab = ex.g.q ? t('earnXMg') : t('earnXMgY');
-    if (p) h += line(lab, [p.eps ? earnRangeTxt(p.eps[0], p.eps[1], 'eps', 'USD') : '', p.rev ? earnRangeTxt(p.rev[0], p.rev[1], 'rev', 'USD') : ''].filter(Boolean));
-  }
+  if (a) { const q = a.q, c = a.cur; h += line(t('earnXAn'), [earnEpsTxt(q.eps, c), earnRevTxt(q.rev, c)].filter(Boolean), ' ' + earnXToneHTML(earnXTone(a))); }
+  if (g && g.q) h += line(t('earnXMg'), mg(g.q));
+  if (fy && a.y) h += line(t('earnXAnY'), [earnEpsTxt(a.y.eps, a.cur), earnRevTxt(a.y.rev, a.cur)].filter(Boolean));
+  if (g && g.y && (fy || !g.q)) h += line(t('earnXMgY'), mg(g.y));
   return h;
 }
 /* כרטיס "דוחות קרובים" — תיק + מעקב, ממוין לפי תאריך */
@@ -11858,7 +11885,8 @@ function renderEarningsCard(noFetch) {
     const d = daysUntil(r.date);
     const when = d === 0 ? t('earnToday') : d === 1 ? t('earnTomorrow') : t('earnInDays', { n: d });
     const tm = r.time === 'bmo' ? t('earnBmo') : r.time === 'amc' ? t('earnAmc') : '';
-    const sub = [when, tm, r.est ? t('earnEst') : ''].filter(Boolean).join(' · ');
+    const exr = earnXFor(earnXAll()[r.sym], r.date);
+    const sub = [when, tm, r.est ? t('earnEst') : '', exr && exr.a && exr.a.fy ? t('earnXFy') : ''].filter(Boolean).join(' · ');
     const dt = new Date(r.date + 'T12:00:00Z');
     const li = el('li', 'earn-row' + (d <= 1 ? ' soon' : ''));
     // v222: נגיעה בדוח → גיליון "הוספה ליומן"
@@ -11870,7 +11898,7 @@ function renderEarningsCard(noFetch) {
     li.innerHTML = stockLogoHTML(r.sym) +
       '<span class="earn-main"><span class="earn-sym" dir="ltr">' + esc(r.sym.replace(/\.TA$/i, '')) + '</span>' +
       '<span class="earn-name">' + esc(companyName(r.sym, names[r.sym] || r.sym)) + '</span>' +
-      '<span class="earn-sub">' + esc(sub) + '</span>' + earnXRowHTML(earnXFor(earnXAll()[r.sym], r.date)) + '</span>' +
+      '<span class="earn-sub">' + esc(sub) + '</span>' + earnXRowHTML(exr) + '</span>' +
       '<span class="earn-cal" aria-label="' + esc(fmtDateIL(r.date)) + '"><span class="earn-mon">' + esc(monFmt.format(dt)) + '</span>' +
       '<span class="earn-day">' + dt.getUTCDate() + '</span></span>';
     list.appendChild(li);
@@ -11983,9 +12011,10 @@ function earnXSheetHTML(ex) {
     }
     return h + '</div>';
   };
-  let h = '<div class="es-x"><div class="esx-title">' + esc(t('earnXTitle')) + '</div>';
-  h += grid('', a && a.q, g && g.q);
-  if (g && !g.q && g.y) h += grid(t('earnXYear'), a && a.y, g.y);
+  const fy = !!(a && a.fy), tn = earnXTone(a);
+  let h = '<div class="es-x"><div class="esx-title">' + esc(t('earnXTitle')) + (fy ? ' · ' + esc(t('earnXFy')) : '') + earnXToneHTML(tn) + '</div>';
+  h += grid(fy ? t('earnXQtr') : '', a && a.q, g && g.q);
+  if ((fy && a.y) || (g && g.y && (fy || !g.q))) h += grid(t('earnXYear'), a && a.y, g && g.y);
   const meta = [];
   if (a && a.q) {
     const n = a.q.n || a.q.rn;
@@ -11994,7 +12023,15 @@ function earnXSheetHTML(ex) {
     if (ya.length) meta.push(t('earnXYago', { v: '\u2066' + ya.join(' · ') + '\u2069' }));
   }
   if (meta.length) h += '<div class="esx-meta">' + esc(meta.join(' · ')) + '</div>';
+  // מגמת הצפי — המספרים שמאחורי הסימון, ועקיפת הצפי ברבעונים האחרונים
+  const why = [];
+  const sp = (v) => '\u2066' + (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v * 100).toFixed(1) + '%\u2069';
+  if (tn && tn.d90 != null) why.push(t('earnXD90', { v: sp(tn.d90) }));
+  if (tn && (tn.up || tn.dn)) why.push(t('earnXRevs', { up: tn.up, dn: tn.dn }));
+  if (why.length) h += '<div class="esx-meta">' + esc(why.join(' · ')) + '</div>';
+  if (a && a.h && a.h.n) h += '<div class="esx-meta">' + esc(t('earnXBeat', { b: a.h.b, n: a.h.n }) + (a.h.s != null ? t('earnXBeatAvg', { v: sp(a.h.s / 100) }) : '')) + '</div>';
   if (g) h += '<div class="esx-meta">' + esc(t('earnXSrc', { d: fmtDateIL(g.fd) })) + '</div>';
+  if (tn) h += '<div class="esx-meta esx-fine">' + esc(t('earnXToneSrc')) + '</div>';
   return h + '</div>';
 }
 function closeEarnCalSheet() {

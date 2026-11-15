@@ -30,7 +30,7 @@ async function get(url, headers, ms, kind) {
 /* ---------- 1. האנליסטים (Yahoo) ---------- */
 const raw = (o, k) => (o && o[k] && typeof o[k] === 'object' && typeof o[k].raw === 'number' ? o[k].raw : null);
 const r4 = (v) => (v == null ? null : Math.round(v * 1e4) / 1e4);
-/* תשובת quoteSummary → { d: תאריך הדוח, q: { eps, epsLo, epsHi, rev, revLo, revHi, n, rn, yEps, yRev, end }, y: { eps, rev, end }, cur } — טהורה */
+/* תשובת quoteSummary → { d: תאריך הדוח, q: { eps, epsLo, epsHi, rev, revLo, revHi, n, rn, yEps, yRev, end, e30, e90, up, dn }, y: {…השנה}, cur, fy?, h? } — טהורה */
 function parseAnalysts(j) {
   const r = j && j.quoteSummary && j.quoteSummary.result && j.quoteSummary.result[0];
   if (!r) return null;
@@ -42,19 +42,31 @@ function parseAnalysts(j) {
   const tq = tr.find((t) => t.period === '0q') || {};
   const ty = tr.find((t) => t.period === '0y') || {};
   const ee = tq.earningsEstimate || {}, rv = tq.revenueEstimate || {};
+  const et = tq.epsTrend || {}, er = tq.epsRevisions || {};
   const q = {
     eps: r4(raw(ce, 'earningsAverage') ?? raw(ee, 'avg')), epsLo: r4(raw(ce, 'earningsLow') ?? raw(ee, 'low')), epsHi: r4(raw(ce, 'earningsHigh') ?? raw(ee, 'high')),
     rev: raw(ce, 'revenueAverage') ?? raw(rv, 'avg'), revLo: raw(ce, 'revenueLow') ?? raw(rv, 'low'), revHi: raw(ce, 'revenueHigh') ?? raw(rv, 'high'),
     n: raw(ee, 'numberOfAnalysts'), rn: raw(rv, 'numberOfAnalysts'), yEps: r4(raw(ee, 'yearAgoEps')), yRev: raw(rv, 'yearAgoRevenue'),
     end: tq.endDate || null,
+    // מגמת הצפי (בקשת המשתמש: "האם הצפי חיובי או שלילי"): הקונצנזוס לפני 30/90 יום, וכמה אנליסטים העלו/הורידו ב־30 יום
+    ec: r4(raw(et, 'current')), e30: r4(raw(et, '30daysAgo')), e90: r4(raw(et, '90daysAgo')), up: raw(er, 'upLast30days'), dn: raw(er, 'downLast30days'),
   };
-  const ye = ty.earningsEstimate || {}, yr = ty.revenueEstimate || {};
-  const y = { eps: r4(raw(ye, 'avg')), rev: raw(yr, 'avg'), end: ty.endDate || null };
+  const ye = ty.earningsEstimate || {}, yr = ty.revenueEstimate || {}, yt = ty.epsTrend || {};
+  const y = { eps: r4(raw(ye, 'avg')), epsLo: r4(raw(ye, 'low')), epsHi: r4(raw(ye, 'high')), rev: raw(yr, 'avg'), revLo: raw(yr, 'low'), revHi: raw(yr, 'high'),
+    n: raw(ye, 'numberOfAnalysts'), yEps: r4(raw(ye, 'yearAgoEps')), yRev: raw(yr, 'yearAgoRevenue'), e90: r4(raw(yt, '90daysAgo')), end: ty.endDate || null };
   const cur = ee.earningsCurrency || rv.revenueCurrency || null;
   if (q.eps == null && q.rev == null) return d ? { d } : null;   // בלי כיסוי אנליסטים
   for (const k of Object.keys(q)) if (q[k] == null) delete q[k];
   const out = { d, q, cur };
   if (y.eps != null || y.rev != null) { for (const k of Object.keys(y)) if (y[k] == null) delete y[k]; out.y = y; }
+  // הדוח הקרוב סוגר את שנת הכספים (הרבעון והשנה נגמרים באותו חודש) — דוח שנתי: מציגים גם את הצפי השנתי
+  if (q.end && y.end && q.end.slice(0, 7) === y.end.slice(0, 7)) out.fy = 1;
+  // עקיפת הצפי ב־4 הרבעונים האחרונים: { b: כמה עקפו, n: מתוך כמה, s: עקיפה ממוצעת באחוזים }
+  const hs = ((r.earningsHistory && r.earningsHistory.history) || []).filter((h) => raw(h, 'epsActual') != null && raw(h, 'epsEstimate') != null).slice(-4);
+  if (hs.length) {
+    const sp = hs.map((h) => raw(h, 'surprisePercent')).filter((v) => v != null);
+    out.h = { b: hs.filter((h) => raw(h, 'epsActual') > raw(h, 'epsEstimate')).length, n: hs.length, s: sp.length ? Math.round(sp.reduce((x, v) => x + v, 0) / sp.length * 1000) / 10 : null };
+  }
   return out;
 }
 async function analysts(sym) {
@@ -63,7 +75,7 @@ async function analysts(sym) {
   for (let a = 0; a < 2; a++) {
     const cs = await _getCrumb(a > 0);
     const url = 'https://query2.finance.yahoo.com/v10/finance/quoteSummary/' + encodeURIComponent(sym) +
-      '?modules=calendarEvents,earningsTrend&crumb=' + encodeURIComponent(cs.crumb);
+      '?modules=calendarEvents,earningsTrend,earningsHistory&crumb=' + encodeURIComponent(cs.crumb);
     try { return cset('a:' + sym, parseAnalysts(await get(url, { 'User-Agent': UA, Cookie: cs.cookie }, 7000))); }
     catch (e) { if (!(e.status === 401 || e.status === 403)) { if (e.status === 404) return cset('a:' + sym, null); throw e; } }
   }

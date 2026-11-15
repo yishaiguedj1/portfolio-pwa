@@ -16,13 +16,21 @@ const E = require(path.join(__dirname, '..', 'ibkr-proxy/lib/earnprev.js'));
   const qs = { quoteSummary: { result: [{
     calendarEvents: { earnings: { earningsDate: [R(1794949200)], earningsAverage: R(2.47121), earningsLow: R(2.25754), earningsHigh: R(2.7), revenueAverage: R(108731903900), revenueLow: R(100481000000), revenueHigh: R(116251000000) } },
     earningsTrend: { trend: [
-      { period: '0q', endDate: '2026-10-31', earningsEstimate: { avg: R(2.47), numberOfAnalysts: R(43), yearAgoEps: R(1.3), earningsCurrency: 'USD' }, revenueEstimate: { avg: R(1.08e11), numberOfAnalysts: R(45), yearAgoRevenue: R(57006000000) } },
+      { period: '0q', endDate: '2026-10-31', earningsEstimate: { avg: R(2.47), numberOfAnalysts: R(43), yearAgoEps: R(1.3), earningsCurrency: 'USD' }, revenueEstimate: { avg: R(1.08e11), numberOfAnalysts: R(45), yearAgoRevenue: R(57006000000) },
+        epsTrend: { current: R(2.47121), '30daysAgo': R(2.47325), '90daysAgo': R(2.35237) }, epsRevisions: { upLast30days: R(0), downLast30days: R(1) } },
       { period: '0y', endDate: '2027-01-31', earningsEstimate: { avg: R(9.327) }, revenueEstimate: { avg: R(411.89e9) } },
     ] },
+    earningsHistory: { history: [['2025Q4', 1.3, 1.25, 0.0346], ['2026Q1', 1.62, 1.54, 0.0532], ['2026Q2', 1.87, 1.77, 0.0554], ['2026Q3', 2.0, 2.09, -0.04]].map(([q, a, e, s]) => ({ quarter: { fmt: q }, epsActual: R(a), epsEstimate: R(e), surprisePercent: R(s) })) },
   }] } };
   const a = E.parseAnalysts(qs);
   ok(a.d === '2026-11-17' && a.q.eps === 2.4712 && a.q.epsLo === 2.2575 && a.q.rev === 108731903900 && a.q.n === 43 && a.q.rn === 45, 'אנליסטים: תאריך הדוח, ממוצע וטווח מ־calendarEvents, מספר אנליסטים מ־earningsTrend');
   ok(a.q.yEps === 1.3 && a.q.yRev === 57006000000 && a.y.eps === 9.327 && a.y.rev === 411.89e9 && a.cur === 'USD', 'אנליסטים: לפני שנה, שנה מלאה ומטבע');
+  ok(a.q.ec === 2.4712 && a.q.e30 === 2.4733 && a.q.e90 === 2.3524 && a.q.up === 0 && a.q.dn === 1, 'מגמת הצפי: הקונצנזוס לפני 30/90 יום, העלו/הורידו ב־30 יום');
+  ok(a.h.b === 3 && a.h.n === 4 && a.h.s === 2.6, 'עקיפת הצפי: 3 מ־4 הרבעונים האחרונים, ממוצע באחוזים');
+  ok(!a.fy, 'רבעון שלא סוגר את שנת הכספים — לא דוח שנתי');
+  const qs2 = JSON.parse(JSON.stringify(qs));
+  qs2.quoteSummary.result[0].earningsTrend.trend[1].endDate = '2026-10-31';
+  ok(E.parseAnalysts(qs2).fy === 1, 'הרבעון והשנה נגמרים באותו חודש — דוח שנתי');
   ok(E.parseAnalysts({ quoteSummary: { result: [{ calendarEvents: { earnings: { earningsDate: [R(1794949200)] } }, earningsTrend: { trend: [] } }] } }).q === undefined, 'בלי כיסוי אנליסטים — בלי q');
   ok(E.parseAnalysts({}) === null, 'תשובה ריקה → null');
 
@@ -91,7 +99,7 @@ const E = require(path.join(__dirname, '..', 'ibkr-proxy/lib/earnprev.js'));
   };
   vm.createContext(sandbox);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-    '\n;globalThis.__t = { earnXFor, earnEpsTxt, earnRevTxt, earnRangeTxt, earnXRowHTML, earnXSheetHTML, LS_CACHE_PREFIXES };', sandbox, { filename: 'app.js' });
+    '\n;globalThis.__t = { earnXFor, earnXTone, earnEpsTxt, earnRevTxt, earnRangeTxt, earnXRowHTML, earnXSheetHTML, LS_CACHE_PREFIXES };', sandbox, { filename: 'app.js' });
   const T = sandbox.__t;
   const x = { at: 1, a: { d: '2026-11-17', q: { eps: 2.4712, rev: 108731903900, n: 43, yEps: 1.3, yRev: 57e9, epsLo: 2.26, epsHi: 2.7 }, cur: 'USD' }, g: { fd: '2026-08-26', q: { rev: [105840000000, 110160000000] } } };
   const m = T.earnXFor(x, '2026-11-17');
@@ -100,10 +108,21 @@ const E = require(path.join(__dirname, '..', 'ibkr-proxy/lib/earnprev.js'));
   ok(T.earnXFor({ g: { fd: '2026-11-17', q: {} } }, '2026-11-17') === null, 'הודעה מיום הדוח עצמו (צפי לרבעון הבא) — לא מוצגת');
   ok(T.earnEpsTxt(2.4712, 'USD') === '$2.47' && T.earnEpsTxt(-0.08, 'USD') === '−$0.08' && T.earnRevTxt(6562743160, 'ILS') === '₪6.56B', 'פורמט: רווח למניה, הפסד, הכנסות בשקלים');
   ok(T.earnRevTxt(108731903900, 'USD') === '$108.7B' && T.earnRevTxt(492e6, 'USD') === '$492M', 'פורמט: מיליארדים מעל 100 בספרה אחת, מיליונים');
-  ok(T.earnRangeTxt(105840000000, 110160000000, 'rev', 'USD') === '$105.8–110.2B' && T.earnRangeTxt(1.34, 1.36, 'eps', 'USD') === '$1.34–1.36' && T.earnRangeTxt(34.8e9, 34.8e9, 'rev', 'USD') === '$34.80B', 'פורמט: טווחים, וערך יחיד בלי טווח');
+  ok(T.earnRangeTxt(105840000000, 110160000000, 'rev', 'USD') === '$105.8–110.2B' && T.earnRangeTxt(1.34, 1.36, 'eps', 'USD') === '$1.34–1.36' && T.earnRangeTxt(34.8e9, 34.8e9, 'rev', 'USD') === '$34.80B' && T.earnRangeTxt(390e9, 398e9, 'rev', 'USD') === '$390–398B', 'פורמט: טווחים (בלי ".0" מיותר), וערך יחיד בלי טווח');
+  const tp = T.earnXTone({ q: { eps: 2.47, ec: 2.4712, e30: 2.4733, e90: 2.3524, up: 0, dn: 1 } });
+  ok(tp.k === 'pos' && Math.abs(tp.d90 - 0.0505) < 0.001, 'מגמה: הצפי עלה 5% ב־90 יום (משקל כפול) למרות אנליסט אחד שהוריד — חיובית');
+  ok(T.earnXTone({ q: { eps: 4.01, ec: 4.0565, e30: 4.0536, e90: 4.455, up: 1, dn: 2 } }).k === 'neg', 'מגמה: הצפי ירד 9% ב־90 יום והורידו יותר מהעלו — שלילית');
+  ok(T.earnXTone({ q: { eps: 4.86, e30: 4.86, e90: 4.85, up: 1, dn: 1 } }).k === 'neu', 'מגמה: בלי תזוזה — ניטרלית');
+  ok(T.earnXTone({ q: { eps: 1 } }) === null && T.earnXTone(null) === null, 'בלי נתוני מגמה — בלי סימון');
   const row = T.earnXRowHTML(m);
   ok(/אנליסטים/.test(row) && row.includes('$2.47 · $108.7B') && /הנהלה/.test(row) && row.includes('$105.8–110.2B'), 'שורות הכרטיס: אנליסטים ואחריהם הנהלה');
   ok(T.earnXRowHTML({ a: null, g: { fd: '2026-10-29', y: { rev: [1995e6, 2020e6] } } }).includes('הנהלה · שנתי'), 'בלי צפי רבעוני — השנתי מסומן');
+  const fyx = { a: { fy: 1, q: { eps: 4.86, rev: 96.69e9, e90: 4.85, e30: 4.86, up: 1, dn: 1 }, y: { eps: 20.01, rev: 396e9 }, cur: 'USD', h: { b: 4, n: 4, s: 5.6 } }, g: { fd: '2026-10-29', q: { rev: [95e9, 97e9] }, y: { rev: [390e9, 398e9] } } };
+  const fyRow = T.earnXRowHTML(fyx);
+  ok(fyRow.includes('אנליסטים · שנתי') && fyRow.includes('$20.01 · $396B') && fyRow.includes('הנהלה · שנתי') && fyRow.includes('$390–398B') && fyRow.includes('$95–97B'), 'דוח שנתי: גם רבעון וגם שנה, לאנליסטים ולהנהלה');
+  ok(/earn-tone neu/.test(fyRow) && /מגמה ניטרלית/.test(fyRow), 'סימון המגמה בשורת האנליסטים');
+  const fySh = T.earnXSheetHTML(fyx);
+  ok(/דוח שנתי/.test(fySh) && /רבעון/.test(fySh) && /שנה מלאה/.test(fySh) && /עקפה את הצפי ב־4 מ־4/.test(fySh) && /לא תחזית ולא המלצה/.test(fySh), 'הגיליון: רבעון + שנה מלאה, עקיפת הצפי והבהרה');
   ok(T.earnXRowHTML(null) === '', 'בלי צפי — בלי שורות');
   const sh = T.earnXSheetHTML(m);
   ok(/צפי לדוח/.test(sh) && /רווח למניה/.test(sh) && /הכנסות/.test(sh) && /43 אנליסטים/.test(sh) && /לפני שנה/.test(sh) && /26\/08\/2026/.test(sh), 'הגיליון: טבלה, מספר אנליסטים, לפני שנה ומקור צפי ההנהלה');
