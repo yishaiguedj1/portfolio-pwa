@@ -18954,22 +18954,25 @@ function txReturn(rows, held, px, div) {
   const pl = s + h * (px || 0) + dv - b;
   return { pl, pct: pl / b * 100, cur, from, open: h > 0, div: dv };
 }
-/* הדיבידנדים לכל מניה — ממנוע מרכז המס (taxil.js → tiDividends), בסכום המקורי במטבע התשלום (gross − wh, נטו אחרי
-   ניכוי במקור), לא בשדות השקליים (grossIls/whIls) של המס. המנוע נטען בעצלתיים פעם אחת, ואז העסקאות מצוירות שוב. */
-let _txDiv = { d: null, m: null }, _txDivLoad = false;
+/* מנוע מרכז המס (taxil.js) — נטען בעצלתיים פעם אחת מהעסקאות, ואז הן מצוירות שוב. true = מוכן */
+let _txEngLoad = false;
+function txEngine() {
+  if (typeof tiFifo === 'function' && typeof tiDividends === 'function') return true;
+  if (!_txEngLoad && typeof document !== 'undefined' && document.head && document.createElement) {
+    _txEngLoad = true;
+    const sc = document.createElement('script'); sc.src = 'taxil.js';
+    sc.onload = () => renderTrades();
+    document.head.appendChild(sc);
+  }
+  return false;
+}
+/* הדיבידנדים לכל מניה — tiDividends של מנוע המס, בסכום המקורי במטבע התשלום (gross − wh, נטו אחרי ניכוי במקור),
+   לא בשדות השקליים (grossIls/whIls) של המס. ממוטמן לפי מערך תנועות המזומן */
+let _txDiv = { d: null, m: null };
 function txDivs() {
   const d = isIbkrMode() ? ibkrCfg().data : null;
   const cash = d && d.cashTransactions;
-  if (!cash || !cash.length) return null;
-  if (typeof tiDividends !== 'function') {
-    if (!_txDivLoad && typeof document !== 'undefined' && document.head && document.createElement) {
-      _txDivLoad = true;
-      const sc = document.createElement('script'); sc.src = 'taxil.js';
-      sc.onload = () => renderTrades();
-      document.head.appendChild(sc);
-    }
-    return null;
-  }
+  if (!cash || !cash.length || !txEngine()) return null;
   if (_txDiv.d === cash) return _txDiv.m;
   const m = new Map();
   try {
@@ -18982,6 +18985,57 @@ function txDivs() {
   } catch (e) { return null; }
   _txDiv = { d: cash, m };
   return m;
+}
+/* בקשת המשתמש: חישוב התשואה של מניה מ־IBKR — במנוע של מרכז המס (tiFifo): ביטולי עסקאות, פיצולים ופעולות תאגידיות,
+   מכפיל, עמלות ומסים על העסקה. משתמשים רק בשדות במטבע העסקה (cost, proceeds, unit — דולר), לא בשקליים
+   (costIls/proceedsIls/gIls/gFx). השער לא משנה אותם — לכן fxOf קבוע (1). ממוטמן לפי מערך העסקאות */
+let _txFifo = { d: null, f: null };
+function txFifo() {
+  const d = isIbkrMode() ? ibkrCfg().data : null;
+  const tr = d && d.trades;
+  if (!tr || !tr.length || !txEngine()) return null;
+  if (_txFifo.d === tr) return _txFifo.f;
+  let f = null;
+  try {
+    const ev = d.taxEvents || [];
+    f = tiFifo(tr, () => 1, { corp: ev.filter((e) => e.k === 'ca'), tin: ev.filter((e) => e.k === 'tr'), alloc: {}, tinCost: {} });
+  } catch (e) { f = null; }
+  _txFifo = { d: tr, f };
+  return f;
+}
+const TX_FIFO_BAD = ['noLots', 'corpNoLots', 'corpDecide', 'noFx', 'feeCur', 'shortOpen', 'option', 'short'];
+/* התשואה הכוללת מתוצאת tiFifo (sales + open) — אותה צורה כמו txReturn. null כשהמנוע סימן בעיה במניה (היסטוריה
+   חסרה, החלטה פתוחה על פעולה תאגידית, שורט/אופציה), כמה מטבעות, או שהכמות הפתוחה ≠ האחזקה של היום. טהורה */
+function txReturnFifo(f, sym, held, px, div) {
+  if (!f) return null;
+  if ((f.issues || []).some((x) => x.sym === sym && TX_FIFO_BAD.includes(x.type))) return null;
+  const sales = (f.sales || []).filter((x) => x.sym === sym), lots = (f.open || []).filter((x) => x.sym === sym);
+  if (!sales.length && !lots.length) return null;
+  let cur = '', cost = 0, gain = 0, oq = 0, oc = 0, from = '';
+  for (const x of sales.concat(lots)) {
+    if (x.deriv || x.crypto) return null;
+    if (!cur) cur = x.cur;
+    if (x.cur !== cur) return null;
+    const d = x.buyDate || x.date;
+    if (d && (!from || d < from)) from = d;
+  }
+  for (const x of sales) { cost += x.cost; gain += x.proceeds - x.cost; }
+  for (const l of lots) { oq += l.qty; oc += l.qty * l.unit; }
+  cost += oc;
+  const h = Math.max(0, Number(held) || 0);
+  if (!(cost > 0) || Math.abs(oq - h) > 1e-6 * Math.max(1, h)) return null;
+  if (h > 0 && !(px > 0)) return null;
+  const dv = Number(div && div[cur]) || 0;
+  const pl = gain + h * (px || 0) - oc + dv;
+  return { pl, pct: pl / cost * 100, cur, from, open: h > 0, div: dv };
+}
+/* מניה שכל העסקאות שלה מ־IBKR — במנוע המס (עד שהוא נטען: בלי שורה, כדי שהמספר לא יקפוץ); עם עסקאות ידניות —
+   txReturn על העסקאות המאוחדות */
+function txReturnOf(sym, all, held, px) {
+  const div = (txDivs() || new Map()).get(sym);
+  const live = (all || []).filter((r) => !r.shadow);
+  if (live.length && live.every((r) => r.src === 'ibkr')) return txEngine() ? txReturnFifo(txFifo(), sym, held, px, div) : null;
+  return txReturn(all, held, px, div);
 }
 function txReturnHTML(x) {
   if (!x) return '';
@@ -19048,7 +19102,7 @@ function txCompanyHTML(c, all, open) {
   const p = POSITIONS.find((x) => x.sym === c.sym);
   const canAdd = !p || p.fromTrades;
   const q = state.quotes && state.quotes[c.sym];
-  h += '<div class="tx-body">' + txReturnHTML(txReturn(all, held, q && q.close, (txDivs() || new Map()).get(c.sym))) + txTilesHTML(txTotals(c.rows)) +
+  h += '<div class="tx-body">' + txReturnHTML(txReturnOf(c.sym, all, held, q && q.close)) + txTilesHTML(txTotals(c.rows)) +
     '<div class="tx-tools"><button type="button" class="tx-sort" data-txsort="1">' + esc(TX_UI.asc ? t('txOldest') : t('txNewest')) + '</button>' +
     (canAdd ? '<button type="button" class="tx-add-co" data-txadd="' + esc(c.sym) + '">' + esc(t('txAddFor')) + '</button>' : '') + '</div>';
   let y = '';

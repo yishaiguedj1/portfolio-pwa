@@ -25,7 +25,8 @@ const sandbox = {
   fetch: async () => { throw new Error('אין רשת בטסט'); },
 };
 vm.createContext(sandbox);
-vm.runInContext(app + '\n;globalThis.__t = { txUnify, txYearsOf, txTotals, txCompanies, txRunning, txReturn, txReturnHTML, txAmt, txQty, renderTrades, TX_UI, POSITIONS };', sandbox, { filename: 'app.js' });
+vm.runInContext(fs.readFileSync(path.join(root, 'taxil.js'), 'utf8'), sandbox, { filename: 'taxil.js' });
+vm.runInContext(app + '\n;globalThis.__t = { txUnify, txYearsOf, txTotals, txCompanies, txRunning, txReturn, txReturnHTML, txReturnFifo, txAmt, txQty, renderTrades, TX_UI, POSITIONS };', sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 
 // --- איחוד: IBKR + ידני, מהחדשה לישנה, צד/כמות/עמלה מוחלטים ---
@@ -89,7 +90,24 @@ const rd = T.txReturn(part, 20, 25, { USD: 12, ILS: 99 });
 ok(rd && Math.abs(rd.pl - (299 + 500 + 12 - 601)) < 1e-9 && rd.div === 12, 'דיבידנדים נטו — רק במטבע העסקאות, בלי המרה');
 ok(/כולל דיבידנדים/.test(T.txReturnHTML({ pl: 1, pct: 1, cur: 'USD', from: '2024-01-01', div: 3 })), 'התצוגה: "כולל דיבידנדים" כשיש');
 ok(/function txDivs\(\)[\s\S]{0,1400}tiDividends\(cash, null\)[\s\S]{0,300}r\.gross\)[\s\S]{0,40}r\.wh\)/.test(app) && !/function txDivs\(\)[\s\S]{0,1600}(grossIls|whIls)/.test(app), 'דיבידנדים ממנוע המס — בסכום המקורי (דולר), לא בשקלים');
-ok(/txReturnHTML\(txReturn\(all, held,/.test(app), 'בכרטיס החברה — מכל העסקאות, לא רק מהשנה שנבחרה');
+ok(/txReturnHTML\(txReturnOf\(c\.sym, all, held,/.test(app), 'בכרטיס החברה — מכל העסקאות, לא רק מהשנה שנבחרה');
+
+// --- מניה מ־IBKR: החישוב במנוע מרכז המס (tiFifo), רק בשדות הדולריים ---
+const fx1 = () => 1;
+const ibT = (o) => Object.assign({ symbol: 'HE', currency: 'USD' }, o);
+const fA = sandbox.tiFifo([ibT({ date: '2024-01-02', side: 'BUY', qty: 100, price: 10, commission: -1, tradeId: '1' }),
+  ibT({ date: '2024-06-02', side: 'SELL', qty: -40, price: 15, commission: -1, tradeId: '2' })], fx1, {});
+const ra = T.txReturnFifo(fA, 'HE', 60, 12, { USD: 5 });
+// עלות 1001; מכירה: 599 − 400.4 = 198.6; פתוח: 60×12 − 600.6 = 119.4; דיבידנד 5
+ok(ra && Math.abs(ra.pl - (198.6 + 119.4 + 5)) < 1e-6 && Math.abs(ra.pct - ra.pl / 1001 * 100) < 1e-9 && ra.from === '2024-01-02', 'מנוע המס: ממומש + לא־ממומש + דיבידנד, אחוז מעלות הקניות');
+const fUs = sandbox.tiFifo([ibT({ date: '2024-01-02', side: 'BUY', qty: 10, price: 10, tradeId: '1' }), ibT({ date: '2024-02-02', side: 'SELL', qty: -10, price: 12, tradeId: '2' })], () => 3.7, {});
+ok(Math.abs(T.txReturnFifo(fUs, 'HE', 0, null).pl - 20) < 1e-9, 'מנוע המס: בדולרים — שער השקל לא משנה את התוצאה');
+const fCa = sandbox.tiFifo([ibT({ date: '2024-01-02', side: 'BUY', qty: 10, price: 10, tradeId: '1' }), ibT({ date: '2024-01-03', side: 'BUY', qty: 10, price: 10, tradeId: '7' }),
+  ibT({ date: '2024-01-03', side: 'BUY (Ca.)', qty: 10, price: 10, tradeId: '8', origTradeId: '7' })], fx1, {});
+ok(T.txReturnFifo(fCa, 'HE', 10, 11) && Math.abs(T.txReturnFifo(fCa, 'HE', 10, 11).pl - 10) < 1e-9, 'מנוע המס: עסקה שבוטלה לא נספרת');
+const fNo = sandbox.tiFifo([ibT({ date: '2024-02-02', side: 'SELL', qty: -10, price: 12, tradeId: '2' })], fx1, {});
+ok(T.txReturnFifo(fNo, 'HE', 0, null) === null && T.txReturnFifo(fA, 'HE', 70, 12) === null && T.txReturnFifo(null, 'HE', 0, 1) === null, 'מנוע המס: היסטוריה חסרה / כמות שונה — לא מציגים');
+ok(/function txFifo\(\)[\s\S]{0,500}tiFifo\(tr, \(\) => 1,/.test(app) && !/function txReturnFifo[\s\S]{0,1600}(costIls|proceedsIls|gIls|gFx)\b(?![^\n]*\*\/)/.test(app.replace(/\/\*[\s\S]*?\*\//g, '')), 'מנוע המס: בלי שדות שקליים בחישוב');
 
 // --- חיווט וממשק ---
 ok(/id="txSeg"[\s\S]{0,400}data-txv="co"[\s\S]{0,200}data-txv="yr"/.test(html) && /id="txYears"/.test(html) && /id="txSearch"/.test(html), 'HTML: בורר חברות/שנים, שנים, חיפוש');
