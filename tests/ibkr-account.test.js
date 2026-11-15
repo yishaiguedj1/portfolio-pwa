@@ -115,7 +115,7 @@ const plan = A('ibkrCloudPlan');
   ok(await csb.Cloud.saveIbkr(null) && writes[writes.length - 1].d.ibkr === DEL, 'cloud: ניתוק/איפוס — השדה נמחק');
 
   /* ---------- 6. החיבורים בקוד ---------- */
-  ok(/ibkrSaveCfg\(\{ lastSync: Date\.now\(\), data: data \}\);\n\s*ibkrCloudPush\(\)/.test(app), 'אחרי כל סנכרון — הדוח עולה לענן');
+  ok(/ibkrSaveCfg\(Object\.assign\(\{ data: data, dataAt: now \}, \(acctId === IBKR_MAIN && !\(o && o\.keepSync\)\) \? \{ lastSync: now \} : \{\}\)\);\n\s*ibkrCloudPush\(\)/.test(app), 'אחרי כל סנכרון — הדוח עולה לענן');
   ok((app.match(/ibkrCloudDrop\(\);/g) || []).length >= 2, 'ניתוק ואיפוס IBKR — הדוח נמחק מהענן');
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL -', e); process.exit(1); });
