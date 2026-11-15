@@ -93,3 +93,8 @@ html.tx-open { overflow: hidden; }
 .tx-atag { display: inline-flex; line-height: 0; }
 .tx-nm .tx-atag { margin-inline-start: 6px; vertical-align: middle; }
 .tx-atag .src-tag { margin: 0; }
+/* 15/11/2026: ניכוי מס במקור — "איך מקבלים את ההחזר" */
+.tx-how { border-top: 1px solid var(--separator); margin-top: 4px; padding-top: 8px; }
+.tx-how summary { cursor: pointer; font-size: 14.5px; font-weight: 600; color: var(--primary); }
+.tx-how ol { margin: 8px 0 0; padding-inline-start: 20px; font-size: 13.5px; line-height: 1.5; color: var(--on-surface-var); }
+.tx-how li + li { margin-top: 6px; }

@@ -144,7 +144,18 @@ function compute() {
   const priceOf = (sym) => { const q = E.quote && E.quote(sym); return q && q.close > 0 ? q.close : null; };
   const unreal = tiUnrealized(f.open, priceOf, fxNow, 0, cpi);
   const health = tiCheck(f.open, d.positions || []);
-  return { d, f, sales, divs, yo, years, yIdx, unreal, health, w8: tiW8(divs), estate: tiEstate(d.positions || [], priceOf), nowY, st, per };
+  // 15/11/2026: ניכוי מס במקור אצל ברוקר ישראלי — מגן המס מתאפס ב־31/12; ההפסד חוזר רק בדוח השנתי (tiWithheld).
+  // st.wh = {מזהה חשבון | '*': true}; st.wh867 = {שנה: מס רווח הון שנוכה, מטופס 867}
+  const whOn = st.wh || {};
+  const acctList = parts ? parts.map((p) => ({ id: p.a.id, name: p.a.name })) : [{ id: '*', name: '' }];
+  const groups = parts ? parts.filter((p) => whOn[p.a.id]).map((p) => ({ id: p.a.id, sales: p.sales, divs: p.divs }))
+    : (whOn['*'] ? [{ id: '*', sales: sales, divs: divs }] : []);
+  const wh = tiWithheld(groups, years.slice().sort((a, b) => a.year - b.year), { wh: st.wh867 || {}, sub: st.sub || [], noOffInt: !!st.noOffInt });
+  // רמז: חיובי Other Fees בשקלים בחשבונות עם ניכוי — כנראה המס שנגבה (לא ודאי; המשתמש מאמת מול 867)
+  const whTx = (d.cashTransactions || []).filter((x) => (parts ? whOn[x.acct] : whOn['*']));
+  const whGuess = groups.length ? tiIlFeeGuess(whTx) : {};
+  return { d, f, sales, divs, yo, years, yIdx, unreal, health, w8: tiW8(divs), estate: tiEstate(d.positions || [], priceOf), nowY, st, per,
+    acctList, whN: groups.length, whIdx: new Map(wh.map((w) => [w.year, w])), wh, whGuess };
 }
 
 /* ---------- פתיחה וסגירה ---------- */
@@ -285,6 +296,7 @@ function paintYear(wrap, C) {
     cA.appendChild(h('p', { class: 'tx-sub', text: T('txByAcctS') }));
     wrap.appendChild(cA);
   }
+  paintWithheld(wrap, C, Y, cur);
   // דיבידנדים וריבית
   // הזיכוי מחושב לכל מקור בנפרד (199, 204(ב)); עודף → החזר מה־IRS או מאגר ל־5 שנים (205א)
   if (Y.div.n || Y.interest.n || Y.marginInt > 0.5) {
@@ -353,6 +365,55 @@ function paintYear(wrap, C) {
   }));
   for (const k of ['noOffInt', 'poolCg', 'fxTax']) adv.appendChild(chkField('tx_' + k, T('tx' + k[0].toUpperCase() + k.slice(1) + 'L'), !!C.st[k], (v) => { saveSettings({ [k]: v }); recompute(); }));
   wrap.appendChild(adv);
+}
+
+/* 15/11/2026 (בקשת המשתמש): ניכוי מס במקור אצל ברוקר ישראלי. הברוקר מקזז הפסדים רק בתוך השנה; מה שנשאר ב־31/12
+   לא עובר אצלו — אבל לפי החוק הוא עובר (92(ב)), ומה שנוכה ביתר חוזר בדוח השנתי. הכרטיס מראה כמה, ואיך מדווחים. */
+function paintWithheld(wrap, C, Y, cur) {
+  const on = C.st.wh || {};
+  const c = h('div', { class: 'tx-card' }, [h('p', { class: 'tx-h', text: T('txWhH') })]);
+  const multi = C.acctList.length > 1;
+  for (const a of C.acctList) {
+    c.appendChild(chkField('txWh_' + a.id, multi ? T('txWhAcctL', { a: a.name || a.id }) : T('txWhL'), !!on[a.id], (v) => {
+      const o = Object.assign({}, settings().wh || {});
+      if (v) o[a.id] = true; else delete o[a.id];
+      saveSettings({ wh: o }); recompute();
+    }));
+  }
+  if (!C.whN) { c.appendChild(h('p', { class: 'tx-sub', text: T('txWhOffS') })); wrap.appendChild(c); return; }
+  const W = C.whIdx.get(S.year);
+  const yr = S.year;
+  if (W && (W.withheld > 0.5 || W.correct > 0.5 || W.left > 0.5)) {
+    const calc = W.withheld > 0.5 || W.correct > 0.5;   // שנת הפסד בלי ניכוי — רק ההפסד שלא עבר
+    if (calc) {
+    c.appendChild(row(T(W.fromForm ? 'txWhGot867' : 'txWhGot'), ils(W.withheld)));
+    c.appendChild(row(T('txWhLaw'), ils(W.correct)));
+    if (W.net > 0.5) c.appendChild(row(T(cur ? 'txWhRefundNow' : 'txWhRefund', { y: yr }), ils(W.net), 'tx-tot tx-gain'));
+    else if (W.net < -0.5) c.appendChild(row(T('txWhMore', { y: yr }), ils(-W.net), 'tx-tot'));
+    else c.appendChild(row(T('txWhEven'), ils(0), 'tx-tot'));
+    if (W.fromCarry > 0.5) c.appendChild(row(T('txWhFromCarry'), ils(W.fromCarry)));
+    if (W.net > 0.5 && !cur) c.appendChild(h('p', { class: 'tx-sub', text: T('txWhUntil', { d: dmy(W.until) }) }));
+    }
+    if (W.left > 0.5) {
+      c.appendChild(row(T(cur ? 'txWhLeftNow' : 'txWhLeft', { y: yr + 1 }), ils(W.left), 'tx-loss'));
+      c.appendChild(h('p', { class: 'tx-sub', text: T(cur ? 'txWhLeftNowS' : 'txWhLeftS', { y: yr, v: ils(W.left * Y.rate) }) }));
+    }
+    if (calc && !W.fromForm) c.appendChild(h('p', { class: 'tx-sub', text: T('txWhEstS') }));
+  } else c.appendChild(h('p', { class: 'tx-sub', text: T('txWhNone', { y: yr }) }));
+  const g = C.whGuess[String(yr)];
+  if (g > 0.5 && !(W && W.fromForm)) c.appendChild(h('p', { class: 'tx-sub', text: T('txWhGuess', { v: ils(g) }) }));
+  if (!cur) c.appendChild(numField('txWh867_' + yr, T('txWh867L', { y: yr }), (C.st.wh867 || {})[yr], (v) => {
+    const o = Object.assign({}, settings().wh867 || {});
+    if (v == null) delete o[yr]; else o[yr] = v;
+    saveSettings({ wh867: o }); recompute();
+  }));
+  // איך מקבלים את ההחזר — הצעדים לפי החוק והטפסים (docs/tax-il-research.md סעיף 7)
+  const how = h('details', { class: 'tx-how' }, [h('summary', { text: T('txWhHowH') })]);
+  const ol = h('ol', {});
+  for (let i = 1; i <= 5; i++) ol.appendChild(h('li', { text: T('txWhHow' + i) }));
+  how.appendChild(ol);
+  c.appendChild(how);
+  wrap.appendChild(c);
 }
 
 function txtField(id, label, val, type, onSave) {
@@ -437,8 +498,24 @@ function paintActions(wrap, C) {
   for (const u of C.unreal) {
     if (!u.missing && u.gIls < -1 && u.taxable === 0) { n1++; c1.appendChild(alertRow('o', '$', T('txFxLoss', { s: u.sym, d: dmy(u.date) }))); }
   }
+  // 15/11/2026: ניכוי במקור — הפסד שנשאר השנה אצל הברוקר יתאפס ב־31/12 (יחזור רק בדוח השנתי)
+  const Wn = C.whIdx.get(C.nowY);
+  if (Wn && Wn.left > 0.5) { n1++; c1.appendChild(alertRow('o', '₪', T('txWhActNow', { v: ils(Wn.left), t: ils(Wn.left * Y.rate), y: C.nowY + 1 }))); }
   if (!n1) c1.appendChild(h('p', { class: 'tx-sub', text: T('txNothing') }));
   wrap.appendChild(c1);
+  // החזרים פתוחים בדוח השנתי (שנים שעברו, בתוך חלון ההחזר), והפסדים שנשארו אצל הברוקר
+  const today = new Date().toISOString().slice(0, 10);
+  const open = C.wh.filter((w) => w.year < C.nowY && w.until >= today);
+  if (open.some((w) => w.net > 0.5 || w.left > 0.5)) {
+    const cW = h('div', { class: 'tx-card' }, [h('p', { class: 'tx-h', text: T('txWhActH') })]);
+    for (const w of open) {
+      if (w.net > 0.5) cW.appendChild(alertRow('g', String(w.year), T('txWhActRefund', { y: w.year, v: ils(w.net), d: dmy(w.until) })));
+      if (w.left > 0.5) cW.appendChild(alertRow('o', String(w.year), T('txWhActFile', { y: w.year, v: ils(w.left) })));
+    }
+    const tot = open.reduce((a, w) => a + Math.max(0, w.net), 0);
+    if (tot > 0.5) cW.appendChild(row(T('txWhActTot'), ils(tot), 'tx-tot tx-gain'));
+    wrap.appendChild(cW);
+  }
   // דוח ומקדמה חצי־שנתיים — 91(ד)(2ג)(ב)
   // מצטבר: הפסד המחצית הראשונה מקטין את מקדמת השנייה (tiSemi)
   const { h1, h2 } = tiSemi(C.sales, C.nowY);
@@ -527,6 +604,14 @@ function buildCsv(C, year) {
   L.push('');
   line([T('txRep1324c')]); head('txRepH1324c');
   for (const c of R.s1324c) line([c.country, T(c.kind === 'interest' ? 'txKindInt' : 'txKindDiv'), c.n, c.grossIls, c.whIls]);
+  // 15/11/2026: \u05e0\u05d9\u05db\u05d5\u05d9 \u05d1\u05de\u05e7\u05d5\u05e8 \u2014 \u05de\u05d4 \u05e0\u05d5\u05db\u05d4, \u05de\u05d4 \u05dc\u05e4\u05d9 \u05d4\u05d7\u05d5\u05e7, \u05d5\u05d4\u05d4\u05d7\u05d6\u05e8 \u05d1\u05d3\u05d5\u05d7
+  const W = C.whIdx && C.whIdx.get(year);
+  if (W) {
+    L.push('');
+    line([T('txWhH')]);
+    for (const [k, v] of [[T(W.fromForm ? 'txWhGot867' : 'txWhGot'), W.withheld], [T('txWhLaw'), W.correct], [T('txWhRefund', { y: year }), W.net],
+      [T('txWhFromCarry'), W.fromCarry], [T('txWhLeft', { y: year + 1 }), W.left]]) line([k, v]);
+  }
   return '\ufeff' + L.join('\r\n') + '\r\n';   // BOM — כדי שגיליון אלקטרוני יפתח את העברית נכון
 }
 function downloadReport(C, year) {
