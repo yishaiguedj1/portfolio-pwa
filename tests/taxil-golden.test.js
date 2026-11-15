@@ -561,4 +561,17 @@ const fx36 = fxFrom({ '2024-01-01': 3.5, '2025-01-01': 3.6, '2025-06-01': 3.7 })
   ok(T.tiWithheld([], T.tiYears(all, [], {}), {}).length === 0, 'G34 בלי ניכוי במקור — ריק');
 }
 
+/* G35 — רמז למס שנגבה בשקלים (Other Fees ב־ILS, לא ודאי): נטו לשנה, החזר מקטין, דולר לא נספר */
+{
+  const g = T.tiIlFeeGuess([
+    { type: 'Other Fees', currency: 'ILS', date: '2025-02-10', amount: -1200 },
+    { type: 'Other Fees', currency: 'ILS', date: '2025-05-12', amount: 300 },
+    { type: 'Other Fees', currency: 'USD', date: '2025-03-01', amount: -10 },
+    { type: 'Withholding Tax', currency: 'ILS', date: '2025-03-01', amount: -50 },
+    { type: 'Other Fees', currency: 'ILS', date: '2024-12-10', amount: 100 },
+  ]);
+  eq(g['2025'], 900, 'G35 נטו 2025');
+  ok(!('2024' in g), 'G35 שנה עם זיכוי בלבד — לא מוצגת');
+}
+
 console.log('# taxil-golden: ' + n + ' בדיקות עברו');

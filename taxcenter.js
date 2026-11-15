@@ -151,8 +151,11 @@ function compute() {
   const groups = parts ? parts.filter((p) => whOn[p.a.id]).map((p) => ({ id: p.a.id, sales: p.sales, divs: p.divs }))
     : (whOn['*'] ? [{ id: '*', sales: sales, divs: divs }] : []);
   const wh = tiWithheld(groups, years.slice().sort((a, b) => a.year - b.year), { wh: st.wh867 || {}, sub: st.sub || [], noOffInt: !!st.noOffInt });
+  // רמז: חיובי Other Fees בשקלים בחשבונות עם ניכוי — כנראה המס שנגבה (לא ודאי; המשתמש מאמת מול 867)
+  const whTx = (d.cashTransactions || []).filter((x) => (parts ? whOn[x.acct] : whOn['*']));
+  const whGuess = groups.length ? tiIlFeeGuess(whTx) : {};
   return { d, f, sales, divs, yo, years, yIdx, unreal, health, w8: tiW8(divs), estate: tiEstate(d.positions || [], priceOf), nowY, st, per,
-    acctList, whN: groups.length, whIdx: new Map(wh.map((w) => [w.year, w])), wh };
+    acctList, whN: groups.length, whIdx: new Map(wh.map((w) => [w.year, w])), wh, whGuess };
 }
 
 /* ---------- פתיחה וסגירה ---------- */
@@ -394,6 +397,8 @@ function paintWithheld(wrap, C, Y, cur) {
     }
     if (!W.fromForm) c.appendChild(h('p', { class: 'tx-sub', text: T('txWhEstS') }));
   } else c.appendChild(h('p', { class: 'tx-sub', text: T('txWhNone', { y: yr }) }));
+  const g = C.whGuess[String(yr)];
+  if (g > 0.5 && !(W && W.fromForm)) c.appendChild(h('p', { class: 'tx-sub', text: T('txWhGuess', { v: ils(g) }) }));
   if (!cur) c.appendChild(numField('txWh867_' + yr, T('txWh867L', { y: yr }), (C.st.wh867 || {})[yr], (v) => {
     const o = Object.assign({}, settings().wh867 || {});
     if (v == null) delete o[yr]; else o[yr] = v;

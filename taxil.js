@@ -572,6 +572,19 @@ function tiYears(sales, divs, opts) {
    (חיובי = החזר בדוח השנתי; שלילי = תשלום נוסף, למשל רווח בחשבון בלי ניכוי), fromCarry (החלק של ההפסד המועבר),
    left (הפסד שנשאר אצל הברוקר ב־31/12 ולא עבר), until (הסוף של חלון ההחזר — TI_REFUND_YEARS אחרי השנה). */
 const TI_REFUND_YEARS = 6;
+/* רמז בלבד (לא ודאי, docs/research/tax-il/08): השירות של הברוקר הישראלי גובה את המס פעם בחודש בשקלים, וב־IBKR
+   הוא כנראה נרשם כ־Other Fees ב־ILS (לא Withholding Tax). מחזיר {שנה: סכום נטו} — המסך מציע, המשתמש מאמת מול 867. */
+function tiIlFeeGuess(cashTx) {
+  const out = {};
+  for (const c of (cashTx || [])) {
+    if (!/other fee/i.test(String((c && c.type) || '')) || String(c.currency || '').toUpperCase() !== 'ILS') continue;
+    const d = tiDate(c.date), a = tiNum(c.amount);
+    if (!d || !a) continue;
+    out[d.slice(0, 4)] = (out[d.slice(0, 4)] || 0) - a;
+  }
+  for (const k of Object.keys(out)) if (!(out[k] > 0.5)) delete out[k];
+  return out;
+}
 function tiWithheld(groups, years, opts) {
   const o = opts || {};
   const G = (groups || []).filter((g) => g && ((g.sales || []).length || (g.divs || []).length));
@@ -753,6 +766,6 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     TI_RULES, tiRules, tiNormTrades, tiFourCase, tiFifo, tiDividends, tiYear, tiYears,
     tiUnrealized, tiHarvest, tiCheck, tiSemi, TI_SRC, tiW8, tiRateOn, tiReport, tiEstate, TI_ESTATE_TH,
-    tiEstateTax, tiCorpGroups, tiResident, tiYearOpts, tiReal, tiWithheld, TI_REFUND_YEARS,
+    tiEstateTax, tiCorpGroups, tiResident, tiYearOpts, tiReal, tiWithheld, TI_REFUND_YEARS, tiIlFeeGuess,
   };
 }
