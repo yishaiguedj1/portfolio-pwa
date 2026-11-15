@@ -21,7 +21,7 @@
   --gb-fill-a: 84%;
   --gb-logo-bg: linear-gradient(180deg, rgba(255, 255, 255, .94), rgba(255, 255, 255, .8));
   --gb-ink: #1D2A3D;
-  --gb-hdr-base: color-mix(in srgb, var(--bg) 50%, transparent);   /* בסיס בועות ההדר — מעמעם את השלג שמאחור (סעיף 7) */
+  --gb-hdr-base: color-mix(in srgb, var(--bg) 38%, transparent);   /* בסיס בועות ההדר — מעמעם את השלג שמאחור (סעיף 7) */
   /* ריחוף בעכבר (תצוגת מחשב, גל 2): החומר מתבהר והצל מתארך — "הרמה" עדינה בלי להזיז את הכפתור */
   --gb-body-hover: linear-gradient(180deg, rgba(255, 255, 255, .74), rgba(255, 255, 255, .5));
   --gb-sh-hover: inset 0 0 0 .5px rgba(255, 255, 255, .8), inset 0 1px 0 rgba(255, 255, 255, .95), inset 0 -1px 0 rgba(255, 255, 255, .3),

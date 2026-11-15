@@ -9,7 +9,7 @@ const HASHES = {
   "./": "7056fd3ed541226b809b65c12a373460",
   "./index.html": "7056fd3ed541226b809b65c12a373460",
   "./styles.css": "bdbf2687646b5ff1616eb1e6b120c82a",
-  "./glass-btn.css": "d168ee0957baf5e115d4676d5e52cf1c",
+  "./glass-btn.css": "d36c15a7a9c425f76cc05eb94a7cd702",
   "./desktop.css": "33ba001ddd5a44b95839d00d4eee36c6",
   "./app.js": "7f71039df6202325dafb1cf08d9bdee2",
   "./returns.js": "afe0d262348852fd10982ef2d0239545",
