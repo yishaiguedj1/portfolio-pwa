@@ -151,6 +151,7 @@ html.dk .lib-root { overflow-x: hidden; }
 
 /* ---------- 3. רוחב התוכן ---------- */
 html.dk main { max-width: var(--dk-max); padding-inline: 24px; }
+html.dk main .tabpage { margin-inline: -24px; padding-inline: 24px; }   /* הדף ברוחב main כולו (styles.css: שכבה אחת לדף, 16/11/2026) */
 html.dk .fine { max-width: var(--dk-max); }
 html.dk .lib-home { max-width: var(--dk-max); padding-inline: 24px; }
 html.dk .st-page { max-width: var(--dk-max); padding-inline: 24px; box-sizing: border-box; }
