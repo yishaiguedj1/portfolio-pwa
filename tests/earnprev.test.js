@@ -99,7 +99,7 @@ const E = require(path.join(__dirname, '..', 'ibkr-proxy/lib/earnprev.js'));
   };
   vm.createContext(sandbox);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-    '\n;globalThis.__t = { earnXFor, earnXTone, earnEpsTxt, earnRevTxt, earnRangeTxt, earnXRowHTML, earnXSheetHTML, LS_CACHE_PREFIXES, earnWinHeight };', sandbox, { filename: 'app.js' });
+    '\n;globalThis.__t = { earnXFor, earnXTone, earnEpsTxt, earnRevTxt, earnRangeTxt, earnXRowHTML, earnXSheetHTML, LS_CACHE_PREFIXES, earnWinRows };', sandbox, { filename: 'app.js' });
   const T = sandbox.__t;
   const x = { at: 1, a: { d: '2026-11-17', q: { eps: 2.4712, rev: 108731903900, n: 43, yEps: 1.3, yRev: 57e9, epsLo: 2.26, epsHi: 2.7 }, cur: 'USD' }, g: { fd: '2026-08-26', q: { rev: [105840000000, 110160000000] } } };
   const m = T.earnXFor(x, '2026-11-17');
@@ -131,12 +131,11 @@ const E = require(path.join(__dirname, '..', 'ibkr-proxy/lib/earnprev.js'));
   ok(T.LS_CACHE_PREFIXES.includes('pwa_earnx_v1') && fs.readFileSync(path.join(__dirname, '..', 'move.js'), 'utf8').includes("'pwa_earnx_v1'"), 'המטמון ב־LS_CACHE_PREFIXES וב־move.js');
   const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
   ok(['.earn-x', '.es-x', '.esx-grid', '.esx-v'].every((c) => css.includes(c)), 'הסגנונות קיימים');
-  // 15/11/2026: הכרטיס לא לוכד את גלילת העמוד — בלי contain על הרשימה; החלון שתי שורות וחצי בכל מסך
+  // 15/11/2026: הכרטיס לא לוכד את גלילת העמוד — בלי contain על הרשימה; שלוש שורות במסך גדול, שתיים בקטן
   const scr = (css.match(/\.earn-list\.earn-scroll \{[^}]*\}/) || [''])[0];
   ok(scr && !/overscroll-behavior/.test(scr) && !/mandatory/.test(scr), 'רשימת הדוחות לא חוסמת את גלילת העמוד בקצה');
-  const WR = (h) => [{ offsetHeight: h }, { offsetHeight: h }, { offsetHeight: h }, { offsetHeight: h }];
-  ok(T.earnWinHeight(WR(60)) === 150, 'החלון — שתי שורות וחצי');
-  ok(T.earnWinHeight(WR(60).slice(0, 2)) === 120, 'רק שתי שורות — בלי חצי');
+  ok(T.earnWinRows(832) === 3 && T.earnWinRows(915) === 3 && T.earnWinRows(1080) === 3, 'מסך גדול (טלפון גדול / מחשב) — שלושה דוחות');
+  ok(T.earnWinRows(780) === 2 && T.earnWinRows(667) === 2, 'מסך קטן — שני דוחות');
 
   console.log('\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ' + n + ')');
 })().catch((e) => { console.error(e); process.exit(1); });

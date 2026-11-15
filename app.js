@@ -12200,21 +12200,22 @@ function renderEarningsCard(noFetch) {
   sizeEarnWindow();
   if (!noFetch) earnXFetch(rows.slice(0, 12).map((r) => r.sym));
 }
-/* v223: חלון של שניים וחצי דוחות (15/11/2026) שנגלל בתוך הכרטיס (כמו רשימת הווידג׳ט): הגובה = שתי השורות הראשונות, עצירה על כל
+/* v223: חלון של שלושה דוחות (שניים במסך קטן) שנגלל בתוך הכרטיס (כמו רשימת הווידג׳ט): הגובה = שתי השורות הראשונות, עצירה על כל
    שורה (scroll-snap), דהייה בתחתית כשיש עוד. נמדד אחרי הציור; בטאב מוסתר (גובה 0) — ננסה שוב כשייראה */
 function sizeEarnWindow() {
   const list = document.getElementById('earnList');
   if (!list) return;
   requestAnimationFrame(() => {
     const rows = list.querySelectorAll('.earn-row');
-    // 15/11/2026 (בקשת המשתמש): שניים וחצי דוחות בכל מסך — חצי השורה השלישית רומז שיש עוד.
-    // השאר בגלילה, ו"עוד N דוחות" מתחת
-    const more = rows.length > 2;
+    // 15/11/2026 (בקשת המשתמש): שלושה דוחות במסך גדול, שניים במסך קטן. השאר בגלילה, ו"עוד N דוחות" מתחת
+    const n = earnWinRows(Math.max(window.innerHeight || 0, (window.screen && screen.height) || 0));
+    const more = rows.length > n;
     list.classList.toggle('earn-scroll', more);
     const btn = document.getElementById('earnMore');
     if (btn) btn.classList.toggle('hidden', !more);
     if (!more) { list.style.maxHeight = ''; return; }
-    const h = earnWinHeight(rows);
+    let h = 0;
+    for (let i = 0; i < n; i++) h += rows[i].offsetHeight;
     if (h > 0) list.style.maxHeight = h + 'px';
     if (!sizeEarnWindow._rs) {
       sizeEarnWindow._rs = true;
@@ -12234,10 +12235,11 @@ function sizeEarnWindow() {
     earnMoreUpdate();
   });
 }
-/* 15/11/2026 (בקשת המשתמש): גובה החלון = שתי שורות וחצי, בכל מסך */
-function earnWinHeight(rows) {
-  const g = (i) => (rows[i] && rows[i].offsetHeight) || 0;
-  return Math.round(g(0) + g(1) + g(2) / 2);
+/* 15/11/2026: כמה דוחות בחלון — 3 במסך גדול (גובה 800 ומעלה, ביחידות CSS), 2 במסך קטן. לפי גובה המסך ולא לפי
+   יחס לגובה השורות: הכלל הקודם (שלוש שורות עד רבע מהמסך) הניח שורה של ~60 פיקסלים, אבל שורה אמיתית (שם, מועד,
+   צפי) היא ~85, ולכן בכל טלפון, גם בגדול, יצאו שניים */
+function earnWinRows(vh) {
+  return vh >= 800 ? 3 : 2;
 }
 /* v224 (בקשת המשתמש: שיהיה ברור שאפשר לגלול): "עוד N דוחות ⌄" מתחת לחלון — N = השורות שעוד מתחת לתצוגה;
    בסוף הרשימה "חזרה למעלה ⌃". יחד עם הדהייה בתחתית */
