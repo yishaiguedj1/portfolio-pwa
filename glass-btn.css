@@ -21,7 +21,8 @@
   --gb-fill-a: 84%;
   --gb-logo-bg: linear-gradient(180deg, rgba(255, 255, 255, .94), rgba(255, 255, 255, .8));
   --gb-ink: #1D2A3D;
-  --gb-hdr-base: color-mix(in srgb, var(--bg) 38%, transparent);   /* בסיס בועות ההדר — מעמעם את השלג שמאחור (סעיף 7) */
+  --gb-hdr-base: color-mix(in srgb, var(--bg) 12%, transparent);   /* בסיס בועות ההדר — מעמעם את השלג שמאחור (סעיף 7); בבהיר כמעט שקוף (בקשת המשתמש) */
+  --gb-hdr-fx: blur(2.5px) saturate(130%);   /* טשטוש בועות ההדר ב־Invest — בבהיר קל מאוד */
   /* ריחוף בעכבר (תצוגת מחשב, גל 2): החומר מתבהר והצל מתארך — "הרמה" עדינה בלי להזיז את הכפתור */
   --gb-body-hover: linear-gradient(180deg, rgba(255, 255, 255, .74), rgba(255, 255, 255, .5));
   --gb-sh-hover: inset 0 0 0 .5px rgba(255, 255, 255, .8), inset 0 1px 0 rgba(255, 255, 255, .95), inset 0 -1px 0 rgba(255, 255, 255, .3),
@@ -36,6 +37,7 @@
   --gb-logo-bg: linear-gradient(180deg, rgba(255, 255, 255, .9), rgba(255, 255, 255, .74));
   --gb-ink: #EEF3FA;
   --gb-hdr-base: color-mix(in srgb, var(--bg) 42%, transparent);
+  --gb-hdr-fx: blur(5px) saturate(140%);
   --gb-body-hover: linear-gradient(180deg, rgba(255, 255, 255, .23), rgba(255, 255, 255, .12));
   --gb-sh-hover: inset 0 0 0 .5px rgba(255, 255, 255, .26), inset 0 1px 0 rgba(255, 255, 255, .32), 0 0 0 .5px rgba(0, 0, 0, .4), 0 8px 20px -8px rgba(0, 0, 0, .65);
 }
@@ -145,7 +147,7 @@ html[data-app="admin"] { --gb-force: #5E5CE6; --gb-ontx: #fff; }
 :where(.appbar) :where(.appbar-sub > *, .fx-pill) { background: var(--gb-body), var(--gb-hdr-base) !important; }
 /* וטשטוש עדין קבוע — רק ב־Invest: שם ההדר ילד ישיר של body, מחוץ לפאות הקובייה, ולכן הטשטוש לא נכבה ונדלק במעברים (שורש הקפיצה
    בסעיף 7). ב־Academy/Studio ההדר בתוך הפאה המסתובבת — נשאר בלי טשטוש */
-:where(body > .appbar) :where(.appbar-sub > *, .fx-pill) { -webkit-backdrop-filter: blur(5px) saturate(140%) !important; backdrop-filter: blur(5px) saturate(140%) !important; }
+:where(body > .appbar) :where(.appbar-sub > *, .fx-pill) { -webkit-backdrop-filter: var(--gb-hdr-fx) !important; backdrop-filter: var(--gb-hdr-fx) !important; }
 
 /* ---------- 8. Academy — זכוכית בתוך הדף בלי טשטוש (03/11/2026, סבב קפיצות 12) ----------
    אותו שורש של סעיף 7, בכל כפתור שבתוך הדף: בכל מעבר (וגם בגרירה קצרה שחוזרת) הטשטוש נכבה בפאה ונדלק בסופה — שכבה חדשה לכל
