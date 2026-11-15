@@ -31,7 +31,8 @@ ok(/\.stock-body \.chart-wrap canvas, #pfChart \{ touch-action: pan-y;/.test(css
 ok(/scTwoFingerHint: 'טיפ/.test(app) && /scTwoFingerHint: 'Tip/.test(app), 'טיפ חד־פעמי בעברית ובאנגלית');
 // v265
 ok(/base: base \}/.test(app) && /map\.pts\[i\]\.close \/ map\.base - 1/.test(app), 'v265: בבועה גם השינוי עד אותו רגע (מתחילת הטווח; 1D מהסגירה הקודמת)');
-ok(/translate\(0px,' \+ \(-tip\.offsetHeight - 4\)/.test(app) && /tip\.style\.top = \(-tip\.offsetHeight - 4\)/.test(app), 'v265: הבועה בשני הגרפים — פינה שמאלית עליונה, מעל הגרף');
+ok(/translate\(0px,' \+ \(-tip\.offsetHeight - 4\)/.test(app), 'v265: הבועה בגרף המניה — פינה שמאלית עליונה, מעל הגרף');
+ok(/function showPfTip\(idx\) \{\s*pfKeyNow\(\{ idx: idx \}\);/.test(app) && !/function pfTipPlace/.test(app), '2.146.0: בגרף הביצועים — הערכים במקרא הצף והתאריך בציר, בלי בועה שמסתירה את הכותרת');
 ok(/pf-tip sc-tip/.test(app) && /radial-gradient\(circle, var\(--on-surface-var\)/.test(css), 'v265: עיצוב הבועה של גרף הביצועים + קו אנכי מנוקד');
 ok(/pfAttachTouch\(canvas\)/.test(app) && /showPfMeasureTip\(a, b\)/.test(app) && /!ms\.on \|\| ms\.pts\.length < 2/.test(app), 'v265: גרף הביצועים — שתי אצבעות = מדידה בבועה (שורת המדידה רק במצב הכפתור)');
 // v266

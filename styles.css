@@ -1112,6 +1112,8 @@ html[dir="ltr"] .stock-foot .kc-open-btn { order: -1; }   /* באנגלית (כ�
 #pfWrap canvas { height: 280px; }
 .pf-key { position: absolute; top: 0; inset-inline-end: -8px; z-index: 2; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
 html[dir="ltr"] .pf-key { inset-inline-end: auto; inset-inline-start: -8px; }
+.chart-wrap.picking .pf-key { inset-inline-end: 4px; } /* בתוך המסגרת המקווקוות של "מתאריך" */
+html[dir="ltr"] .chart-wrap.picking .pf-key { inset-inline-end: auto; inset-inline-start: 4px; }
 .pf-key.hidden { display: none; }
 .pf-key li { display: block; }
 .pf-key .pk-row { display: flex; width: 100%; align-items: center; gap: 6px; min-height: 26px; box-sizing: border-box; padding: 2px 8px; border: 0; background: none; color: var(--on-surface); font: inherit; font-size: 13px; line-height: 1.2; border-radius: var(--radius-xs); cursor: pointer; -webkit-tap-highlight-color: transparent; transition: opacity .18s ease, background-color .18s ease; }

@@ -9652,25 +9652,42 @@ function pfBenchOn(sym) {
 }
 
 /* 2.146.0 (בקשת המשתמש: "יותר מינימליסטי ונקי… להטמיע בחלק השמאלי העליון של הגרף"): המקרא של גרף הביצועים —
-   מקרא צף קומפקטי בפינה העליונה של הגרף (נקודה · שם · תשואת הטווח), במקום הרשימה וכפתורי המדדים שמתחת לגרף.
-   נגיעה בשורת מדד מדליקה/מכבה אותו (כמו כפתורי המדדים לפני כן). בלי מדדי השוואה (הזנה ידנית) — המקרא מוסתר,
-   כי התשואה היחידה כבר מוצגת בשורת הסיכום. */
-function renderPfKey(host, series, showBench) {
+   מקרא צף קומפקטי בפינה העליונה של הגרף (נקודה · שם · תשואה), במקום הרשימה וכפתורי המדדים שמתחת לגרף.
+   נגיעה בשורת מדד מדליקה/מכבה אותו. בלי מדדי השוואה (הזנה ידנית) — שורה אחת, של התיק.
+   ("אין התנגשות בין הבועות"): המקרא הוא גם תצוגת הערכים — בנגיעה בגרף (ro.idx), במדידה בשתי אצבעות (ro.a/ro.b)
+   ובסימון "מתאריך" הוא מציג את הערכים בנקודה, והתאריך — גלולה בציר התאריכים (pfDatePill). בלי בועה נפרדת. */
+function pfReadout() {
+  if (state.pfPickDate && state.pfPickIdx !== null) return { idx: state.pfPickIdx };
+  if (state.pfMeasure && state.pfMeasure.pts.length >= 2) return { a: Math.min(state.pfMeasure.pts[0], state.pfMeasure.pts[1]), b: Math.max(state.pfMeasure.pts[0], state.pfMeasure.pts[1]) };
+  if (state.pfTipIdx !== null && state.pfTipIdx !== undefined) return { idx: state.pfTipIdx };
+  return null;
+}
+function renderPfKey(host, series, showBench, ro) {
   if (!host) return;
-  host.classList.toggle('hidden', !showBench || !series || !series.length);
-  if (!showBench || !series || !series.length) { host.innerHTML = ''; return; }
-  const ret = (s) => s.pts[s.pts.length - 1].norm - 100;
+  const has = !!(series && series.length);
+  host.classList.toggle('hidden', !has);
+  if (!has) { host.innerHTML = ''; return; }
+  const canvas = document.getElementById('pfChart');
+  if (canvas) host.style.top = canvas.offsetTop + 'px'; // מתחת לבועת ההסבר של "מתאריך", כשהיא מוצגת
+  host.classList.toggle('live', !!ro);
+  const ret = (s) => {
+    const last = s.pts.length - 1;
+    if (ro && ro.b !== undefined) return retPct(s.pts[Math.min(ro.a, last)].norm, s.pts[Math.min(ro.b, last)].norm);
+    return s.pts[ro ? Math.min(ro.idx, last) : last].norm - 100;
+  };
   const row = (color, name, s, on) =>
     '<span class="pk-dot" style="--c:' + color + '"></span><span class="pk-name">' + esc(name) + '</span>' +
     (on && s ? '<span class="pk-pct">' + fmtRetHTML(ret(s)) + '</span>' : '');
   const s0 = series[0];
   let html = '<li class="pk-row on">' + row(s0.color, s0.name, s0, true) + '</li>';
-  for (const [sym, labelKey, color] of BENCH_SYMS) {
+  if (showBench) for (const [sym, labelKey, color] of BENCH_SYMS) {
     const on = pfBenchOn(sym);
     const s = series.find((x) => x.sym === sym);
     html += '<li><button type="button" class="pk-row' + (on ? ' on' : '') + '" data-sym="' + esc(sym) + '" aria-pressed="' + on + '">' +
       row(color, t(labelKey), s, on) + '</button></li>';
   }
+  if (host._pkHtml === html) return; // גרירה בגרף — בלי לבנות DOM כשהערכים לא השתנו
+  host._pkHtml = html;
   host.innerHTML = html;
   if (!host._pkBound) {
     host._pkBound = true;
@@ -9685,6 +9702,13 @@ function renderPfKey(host, series, showBench) {
       else paintPfChart(); // כיבוי: סינכרוני ומיידי, בלי רשת
     });
   }
+}
+/* עדכון מיידי של תצוגת הערכים (לפני הציור הבא של הגרף) */
+function pfKeyNow(ro) {
+  const canvas = document.getElementById('pfChart');
+  const map = canvas && canvas._pfMap, paint = canvas && canvas._pfPaint;
+  if (!map || !paint) return;
+  renderPfKey(document.getElementById('pfLegend'), map.series, !!paint.showBench, ro);
 }
 
 /* היסטוריה יומית מהירה לגרף הביצועים: מרוץ מקבילי Yahoo/Yahoo2/Stooq —
@@ -12794,13 +12818,9 @@ function pfPickCancel(redraw) {
   updatePfPickUI();
   if (redraw === true) drawPfChart(); else paintPfChart();
 }
-/* v266: בועת הסימון — תאריך + ערך הקו של התיק באותה נקודה, באותו מקום ועיצוב כמו הבועה הרגילה */
+/* v266: הסימון במצב "מתאריך" — 2.146.0: הערכים במקרא והתאריך בציר (במקום בועה) */
 function showPfPickTip() {
-  const canvas = document.getElementById('pfChart'), map = canvas && canvas._pfMap, tip = pfTipEl();
-  const i = state.pfPickIdx;
-  if (!map || !tip || i === null || !map.series[0].pts[i]) return;
-  const s0 = map.series[0];
-  pfTipPlace(tip, '<b>' + fmtDateIL(s0.pts[i].date) + '</b><div><span class="dot" style="background:' + s0.color + '"></span>' + esc(s0.name) + ' ' + fmtRetHTML(s0.pts[i].norm - 100) + '</div>');
+  if (state.pfPickIdx !== null) pfKeyNow({ idx: state.pfPickIdx });
 }
 
 /* הסבר מתחת לגרף הביצועים — מותאם למקור הנתונים */
@@ -12834,6 +12854,49 @@ function renderPfNote(noBench, srcKind) {
   p.textContent = txt;
 }
 
+/* 2.146.0 (בקשת המשתמש: "להגדיל את הגרף כמה שיותר… אבל שכל החלקים החשובים בכרטיס יוצגו בכל מסך"): גובה הגרף =
+   השטח שבין ההדר הדביק לסרגל הלשוניות, פחות שאר הכרטיס (כותרת, טווחים, שורת התשואה) — כך שכל הכרטיס נכנס במסך אחד.
+   בלי ההערה הקטנה ובלי "המשך/ביטול" של "מתאריך" (זמניים — לא מקפיצים את הגרף). בין 200 ל־460. מחושב מחדש רק כשגודל
+   החלון משתנה או כשהכרטיס עוד לא נמדד (לא בכל גרירה). */
+function pfFitH(canvas) {
+  const MIN = 200, MAX = 460, DEF = 280;
+  if (typeof window === 'undefined' || !canvas || !canvas.getBoundingClientRect) return DEF;
+  const key = window.innerWidth + 'x' + window.innerHeight;
+  if (canvas._pfH && canvas._pfHKey === key) return canvas._pfH;
+  const card = canvas.closest && canvas.closest('.card');
+  if (!card || !card.offsetHeight) return canvas._pfH || DEF;
+  const bar = document.querySelector('.appbar'), tabs = document.querySelector('nav.tabs');
+  const top = bar ? bar.offsetHeight : 0;
+  const bottom = tabs && tabs.offsetHeight && getComputedStyle(tabs).position === 'fixed' ? window.innerHeight - tabs.getBoundingClientRect().top : 0;
+  let other = card.offsetHeight - canvas.offsetHeight;
+  for (const id of ['pfNoteEl', 'pfPickBar', 'pfPickBubble']) { const e = document.getElementById(id); if (e && e.offsetHeight) other -= e.offsetHeight; }
+  const sum = document.getElementById('pfRangeSummary');
+  const ready = !!(sum && sum.offsetHeight); // בציור הראשון שורת התשואה עוד ריקה — אומדן, ונמדד שוב בציור הבא
+  if (!ready) other += 46;
+  const avail = window.innerHeight - top - bottom - other - 16;
+  const hh = Math.round(Math.max(MIN, Math.min(MAX, avail)));
+  canvas._pfH = hh; canvas._pfHKey = ready ? key : '';
+  canvas.style.height = hh + 'px';
+  return hh;
+}
+
+/* 2.146.0: גלולת תאריך בציר התאריכים — רקע המשטח (מסתיר את התוויות מתחת), טקסט מודגש, נשארת בתוך הגרף */
+function pfDatePill(ctx, txt, cx, y, x0, x1) {
+  ctx.save();
+  ctx.font = '600 12.5px system-ui';
+  ctx.direction = 'ltr';
+  const tw = ctx.measureText(txt).width, pw = tw + 16, ph = 22;
+  const x = Math.max(x0, Math.min(x1 - pw, cx - pw / 2)), top = y - 4;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x, top, pw, ph, ph / 2); else ctx.rect(x, top, pw, ph);
+  ctx.fillStyle = cssVar('--surface', '#fff'); ctx.fill();
+  ctx.lineWidth = 1; ctx.strokeStyle = cssVar('--outline', '#E3E7E4'); ctx.stroke();
+  ctx.fillStyle = cssVar('--on-surface', '#1A1C1A');
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(txt, x + pw / 2, top + ph / 2 + 0.5);
+  ctx.restore();
+}
+
 /* שורת תשואת הטווח הנבחר מתחת לגרף — מספר אחד גדול וברור */
 function renderPfRangeSummary(s0) {
   const box = document.getElementById('pfRangeSummary');
@@ -12854,47 +12917,15 @@ function renderPfRangeSummary(s0) {
 
 /* טולטיפ של גרף הביצועים */
 function hidePfTip() {
-  const tip = document.getElementById('pfTip');
-  if (tip) tip.classList.add('hidden');
   state.pfTipIdx = null;
+  pfKeyNow(null);
 }
 function showPfTip(idx) {
-  const canvas = document.getElementById('pfChart');
-  const map = canvas && canvas._pfMap;
-  if (!map || map.n < 2) return;
-  const tip = pfTipEl();
-  const d = map.series[0].pts[idx].date;
-  let html = '<b>' + fmtDateIL(d) + '</b>';
-  for (const s of map.series) {
-    html += '<div><span class="dot" style="background:' + s.color + '"></span>' +
-      esc(s.name) + ' ' + fmtRetHTML(s.pts[idx].norm - 100) + '</div>';
-  }
-  pfTipPlace(tip, html);
+  pfKeyNow({ idx: idx });
 }
-/* v265 (בקשת המשתמש): הבועה של גרף הביצועים — אותו עיצוב, תמיד בפינה השמאלית העליונה, מעל הגרף (לא מסתירה אותו) */
-function pfTipPlace(tip, html) {
-  tip.innerHTML = html;
-  tip.classList.remove('hidden');
-  tip.style.left = '0px';
-  tip.style.top = (-tip.offsetHeight - 4) + 'px';
-}
-function pfTipEl() {
-  let tip = document.getElementById('pfTip');
-  const canvas = document.getElementById('pfChart');
-  if (!tip && canvas) { tip = el('div', 'pf-tip hidden'); tip.id = 'pfTip'; canvas.parentElement.appendChild(tip); }
-  return tip;
-}
-/* v265: מדידה בשתי אצבעות בגרף הביצועים — התוצאה באותה בועה (תאריכים + תשואה לכל קו), בלי כפתור "מדידה" */
+/* v265: מדידה בשתי אצבעות בגרף הביצועים — התשואה בין הנקודות לכל קו, במקרא (2.146.0) */
 function showPfMeasureTip(i1, i2) {
-  const canvas = document.getElementById('pfChart');
-  const map = canvas && canvas._pfMap, tip = pfTipEl();
-  if (!map || map.n < 2 || !tip) return;
-  const a = Math.min(i1, i2), b = Math.max(i1, i2), s0 = map.series[0];
-  let html = '<b>' + ltrNum(fmtDateIL(s0.pts[a].date) + ' – ' + fmtDateIL(s0.pts[b].date)) + '</b>';
-  for (const s of map.series) {
-    html += '<div><span class="dot" style="background:' + s.color + '"></span>' + esc(s.name) + ' ' + fmtRetHTML(retPct(s.pts[a].norm, s.pts[b].norm)) + '</div>';
-  }
-  pfTipPlace(tip, html);
+  pfKeyNow({ a: Math.min(i1, i2), b: Math.max(i1, i2) });
 }
 function pfIdxAt(map, x) {
   let idx = 0;
@@ -13235,10 +13266,11 @@ function paintPfChart() {
   const n = series[0].pts.length;
 
   // 2.146.0: המקרא הצף נצבע לפני הגרף — גובהו קובע את המרווח העליון, כך שאף קו לא עובר מתחתיו
-  renderPfKey(legend, series, !!paint.showBench);
+  renderPfKey(legend, series, !!paint.showBench, pfReadout());
   const keyH = legend && !legend.classList.contains('hidden') ? legend.offsetHeight : 0;
+  const h = pfFitH(canvas);
   const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth || 320, h = 280;
+  const w = canvas.clientWidth || 320;
   canvas.width = w * dpr; canvas.height = h * dpr;
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
@@ -13261,7 +13293,8 @@ function paintPfChart() {
   // של יום אחד תפסה רוחב של שנה שלמה והגרף היה מעוות
   const fr = pfTimeFractions(series[0].pts.map((p) => p.date));
   // 2.146.0: מרווח עליון רק מתחת למקרא — הקווים באזור שלו יורדים מתחת לתחתיתו, ושאר הגרף מנצל את כל הגובה
-  const zoneR = keyH ? legend.offsetWidth + 2 : 0;
+  const zoneR = keyH ? legend.offsetLeft + legend.offsetWidth + 4 : 0;
+  const topAt = (x) => (keyH && x <= zoneR ? keyH + 6 : padT); // 2.146.0: סמנים ופס המדידה לא נכנסים מתחת למקרא
   if (keyH) {
     const r = Math.min(0.6, (keyH + 6 - padT) / plotH);
     let vz = -Infinity;
@@ -13321,7 +13354,8 @@ function paintPfChart() {
   if (ms.pts.length >= 2) {
     const a = Math.min(ms.pts[0], ms.pts[1]), b = Math.max(ms.pts[0], ms.pts[1]);
     ctx.fillStyle = marker + '1F';
-    ctx.fillRect(X(a), padT, X(b) - X(a), plotH);
+    const xa = X(a), xb = X(b), bt = topAt(xa);
+    ctx.fillRect(xa, bt, xb - xa, padT + plotH - bt);
   }
   const drawMarker = (i) => {
     const x = X(i), y = Y(pts0[i].norm - 100);
@@ -13329,7 +13363,8 @@ function paintPfChart() {
     ctx.fillStyle = marker + '2E'; ctx.fill();
     ctx.setLineDash([5, 4]);
     ctx.strokeStyle = marker; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH); ctx.stroke();
+    const lt = ms.pts.length >= 2 ? topAt(X(Math.min(ms.pts[0], ms.pts[1]))) : topAt(x); // במדידה — שני הקווים מגובה הפס
+    ctx.beginPath(); ctx.moveTo(x, lt); ctx.lineTo(x, padT + plotH); ctx.stroke();
     ctx.setLineDash([]);
     ctx.beginPath(); ctx.arc(x, y, 6.5, 0, Math.PI * 2);
     ctx.fillStyle = marker; ctx.fill();
@@ -13338,6 +13373,13 @@ function paintPfChart() {
   for (const i of ms.pts) drawMarker(i);
   if (!ms.on && state.pfTipIdx !== null && state.pfTipIdx < n) drawMarker(state.pfTipIdx);
   if (state.pfPickDate && state.pfPickIdx !== null) { if (state.pfPickIdx >= n) state.pfPickIdx = n - 1; drawMarker(state.pfPickIdx); } // v266
+  // 2.146.0: התאריך של הנקודה — גלולה בציר התאריכים, מעל התוויות (במדידה: הטווח, באמצע בין הנקודות)
+  const ro = pfReadout();
+  if (ro) {
+    const txt = ro.b !== undefined ? fmtDateIL(pts0[Math.min(ro.a, n - 1)].date) + ' – ' + fmtDateIL(pts0[Math.min(ro.b, n - 1)].date) : fmtDateIL(pts0[Math.min(ro.idx, n - 1)].date);
+    const cx = ro.b !== undefined ? (X(Math.min(ro.a, n - 1)) + X(Math.min(ro.b, n - 1))) / 2 : X(Math.min(ro.idx, n - 1));
+    pfDatePill(ctx, txt, cx, h - 20, padL, w - padR);
+  }
 
   canvas._pfMap = { n, padL, plotW, series, xs: fr.map((f) => padL + f * plotW) };
   if (state.pfPickDate && state.pfPickIdx !== null) showPfPickTip(); // v266: הבועה נשארת גם בציור מחדש

@@ -116,5 +116,6 @@ ok(/function paintManualHead\(\)/.test(src) && /paintManualHead\(\);\n  \}/.test
 ok(!/ibkrPerfTitleEl/.test(html) && !/renderManualPerf/.test(src), 'כרטיס הביצועים הוסר (2.146.0)');
 ok(/id="pfWrap"[^>]*>(?:(?!<\/div><\/div>|id="pfChips").)*id="pfLegend" class="pf-key hidden"/s.test(html) && !/pfBenchToggles/.test(html) && !/renderPfBenchToggles/.test(src), 'מקרא גרף הביצועים צף בתוך הגרף, בלי כפתורי המדדים שמתחת (2.146.0)');
 ok(/<div class="section-head">\s*<h2 data-i18n="pfTitle">[^<]*<\/h2>\s*<div class="pf-tools" id="pfTools"><\/div>/.test(html), '"תשואה מתאריך" בשורת הכותרת (2.146.0)');
+ok(/function pfFitH\(canvas\)/.test(src) && /const h = pfFitH\(canvas\);/.test(src) && /'pfNoteEl', 'pfPickBar', 'pfPickBubble'/.test(src), 'גובה הגרף לפי המסך — כל הכרטיס נכנס בין ההדר לסרגל (2.146.0)');
 ok(/manualHistOf\(sym\) \{ return stockChartRows\(/.test(src), 'כולל את המחיר של היום');
 console.log('\n' + n + ' בדיקות עברו');
