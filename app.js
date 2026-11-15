@@ -12673,32 +12673,47 @@ function drawPie() {
   const glassOn = !!(ctx.createLinearGradient && ctx.createRadialGradient && ctx.clip);
   const sliceGlass = (g, L, ox, oy) => {
     if (!glassOn) return;
-    const X = cx + ox, Y = cy + oy, Ro = R + L * 4, k = dark ? 0.6 : 1;
+    const X = cx + ox, Y = cy + oy, Ro = R + L * 4, k = dark ? 0.7 : 1;
     const a = (v) => Math.max(0, Math.min(1, v)).toFixed(3);
+    const box = () => ctx.fillRect(X - Ro - 2, Y - Ro - 2, Ro * 2 + 4, Ro * 2 + 4);
     ctx.save();
     slicePath(g, L);
     ctx.clip();
+    // 1) עובי הזכוכית: השוליים (ליד החור וליד השפה) כהים מעט — האור נשבר בעובי, האמצע צלול
+    const th = ctx.createRadialGradient(X, Y, r, X, Y, Ro);
+    if (th && th.addColorStop) {
+      th.addColorStop(0, 'rgba(0,0,0,' + a(dark ? 0.22 : 0.12) + ')');
+      th.addColorStop(0.2, 'rgba(0,0,0,0)');
+      th.addColorStop(0.78, 'rgba(0,0,0,0)');
+      th.addColorStop(1, 'rgba(0,0,0,' + a(dark ? 0.24 : 0.13) + ')');
+      ctx.fillStyle = th; box();
+    }
+    // 2) ברק: אור אחד מלמעלה לכל העוגה — חזק בחלק העליון, נעלם באמצע, הצללה בתחתית
     const sh = ctx.createLinearGradient(X, Y - Ro, X, Y + Ro);
     if (sh && sh.addColorStop) {
-      sh.addColorStop(0, 'rgba(255,255,255,' + a(0.34 * k + 0.08 * L) + ')');
-      sh.addColorStop(0.46, 'rgba(255,255,255,' + a(0.06 * k) + ')');
+      sh.addColorStop(0, 'rgba(255,255,255,' + a((dark ? 0.62 : 0.48) * k + 0.1 * L) + ')');
+      sh.addColorStop(0.3, 'rgba(255,255,255,' + a((dark ? 0.26 : 0.18) * k) + ')');
       sh.addColorStop(0.5, 'rgba(255,255,255,0)');
-      sh.addColorStop(1, 'rgba(0,0,0,' + a(dark ? 0.2 : 0.09) + ')');
-      ctx.fillStyle = sh; ctx.fillRect(X - Ro - 2, Y - Ro - 2, Ro * 2 + 4, Ro * 2 + 4);
+      sh.addColorStop(1, 'rgba(0,0,0,' + a(dark ? 0.22 : 0.1) + ')');
+      ctx.fillStyle = sh; box();
     }
-    const lens = ctx.createRadialGradient(X, Y, r, X, Y, r + Math.min(16, (Ro - r) * 0.3));
+    // 3) עדשה: זוהר של אור שנשבר לאורך השפה הפנימית
+    const lens = ctx.createRadialGradient(X, Y, r, X, Y, r + Math.min(18, (Ro - r) * 0.32));
     if (lens && lens.addColorStop) {
-      lens.addColorStop(0, 'rgba(255,255,255,' + a(0.3 * k) + ')');
+      lens.addColorStop(0, 'rgba(255,255,255,' + a(0.45 * k) + ')');
       lens.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = lens; ctx.fillRect(X - Ro - 2, Y - Ro - 2, Ro * 2 + 4, Ro * 2 + 4);
+      ctx.fillStyle = lens; box();
     }
-    const rim = ctx.createLinearGradient(X, Y - Ro, X, Y + Ro);
+    // 4) קצה מבריק: קו לבן בתוך הפרוסה (החיתוך מסתיר את החצי החיצוני) — חזק למעלה, ואור חוזר בתחתית
+    const rim = ctx.createLinearGradient(X - Ro * 0.4, Y - Ro, X + Ro * 0.4, Y + Ro);
     if (rim && rim.addColorStop) {
-      rim.addColorStop(0, 'rgba(255,255,255,' + a(0.9 * k) + ')');
-      rim.addColorStop(0.55, 'rgba(255,255,255,' + a(0.32 * k) + ')');
-      rim.addColorStop(1, 'rgba(255,255,255,' + a(0.5 * k) + ')');
+      rim.addColorStop(0, 'rgba(255,255,255,' + a(1 * k) + ')');
+      rim.addColorStop(0.5, 'rgba(255,255,255,' + a(0.28 * k) + ')');
+      rim.addColorStop(1, 'rgba(255,255,255,' + a(0.75 * k) + ')');
       slicePath(g, L);
-      ctx.strokeStyle = rim; ctx.lineWidth = 3.5; ctx.stroke(); // חצי הקו בתוך הפרוסה (החיתוך) — קצה דק ומבריק
+      ctx.strokeStyle = rim; ctx.lineWidth = 5; ctx.stroke();
+      // קו שיער דק נוסף פנימה — כפל השתקפות, כמו בזכוכית עבה
+      ctx.strokeStyle = 'rgba(255,255,255,' + a(0.35 * k) + ')'; ctx.lineWidth = 9; ctx.globalCompositeOperation = 'soft-light'; ctx.stroke();
     }
     ctx.restore();
   };
@@ -12709,9 +12724,10 @@ function drawPie() {
     if (lift(g) > 0.001) continue;
     const [ox, oy] = slicePath(g, 0);
     ctx.save();
-    ctx.globalAlpha = dimA;
+    ctx.globalAlpha = dimA * (dark ? 0.84 : 0.88); // v770: גוף זכוכית שקוף למחצה — הכרטיס נראה דרכו
     ctx.fillStyle = g.s.color; // (גם לבדיקות: הצבע הבסיסי)
     sliceFill(g, 0, ox, oy);
+    ctx.globalAlpha = dimA;
     sliceGlass(g, 0, ox, oy);
     ctx.restore();
   }
