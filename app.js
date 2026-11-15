@@ -1072,7 +1072,7 @@ he: {
   earnXAn: 'אנליסטים', earnXMg: 'הנהלה', earnXMgY: 'הנהלה · שנתי', earnXTitle: 'צפי לדוח', earnXEps: 'רווח למניה', earnXRev: 'הכנסות',
   earnXN: '{n} אנליסטים', earnXN1: 'אנליסט אחד', earnXYago: 'לפני שנה: {v}', earnXSrc: 'צפי ההנהלה מהודעת הדוחות הקודמת ({d})',
   earnXGaap: 'GAAP', earnXYear: 'שנה מלאה',
-  earnXFy: 'דוח שנתי', earnXAnY: 'אנליסטים · שנתי', earnXQtr: 'רבעון', earnXTonePos: 'מגמה חיובית', earnXToneNeg: 'מגמה שלילית', earnXToneNeu: 'מגמה ניטרלית',
+  earnXCard: 'צפי', earnXFy: 'דוח שנתי', earnXAnY: 'אנליסטים · שנתי', earnXQtr: 'רבעון', earnXTonePos: 'מגמה חיובית', earnXToneNeg: 'מגמה שלילית', earnXToneNeu: 'מגמה ניטרלית',
   earnXD90: 'הצפי לרווח למניה {v} ב־90 יום', earnXRevs: 'ב־30 יום: {up} העלו, {dn} הורידו', earnXBeat: 'עקפה את הצפי ב־{b} מ־{n} הרבעונים האחרונים',
   earnXBeatAvg: ' (בממוצע {v})', earnXToneSrc: 'המגמה לפי שינויי הצפי של האנליסטים (Yahoo) — לא תחזית ולא המלצה.',
   calReport: 'דוח רבעוני', calAddAria: 'הוספת הדוח של {sym} ליומן', calGoogle: 'הוספה ל־Google Calendar', calOther: 'יומן אחר (אפל, סמסונג, Outlook)',
@@ -2909,7 +2909,7 @@ en: {
   earnXAn: 'Analysts', earnXMg: 'Company', earnXMgY: 'Company · FY', earnXTitle: 'Expectations', earnXEps: 'EPS', earnXRev: 'Revenue',
   earnXN: '{n} analysts', earnXN1: '1 analyst', earnXYago: 'Year ago: {v}', earnXSrc: 'Company guidance from its previous earnings release ({d})',
   earnXGaap: 'GAAP', earnXYear: 'Full year',
-  earnXFy: 'Annual report', earnXAnY: 'Analysts · FY', earnXQtr: 'Quarter', earnXTonePos: 'Trending up', earnXToneNeg: 'Trending down', earnXToneNeu: 'Flat',
+  earnXCard: 'Est.', earnXFy: 'Annual report', earnXAnY: 'Analysts · FY', earnXQtr: 'Quarter', earnXTonePos: 'Trending up', earnXToneNeg: 'Trending down', earnXToneNeu: 'Flat',
   earnXD90: 'EPS estimate {v} over 90 days', earnXRevs: 'Last 30 days: {up} up, {dn} down', earnXBeat: 'Beat estimates in {b} of the last {n} quarters',
   earnXBeatAvg: ' (avg {v})', earnXToneSrc: 'Trend from analyst estimate revisions (Yahoo) — not a forecast or advice.',
   calReport: 'Earnings', calAddAria: 'Add the {sym} earnings report to your calendar', calGoogle: 'Add to Google Calendar', calOther: 'Other calendar (Apple, Samsung, Outlook)',
@@ -12088,19 +12088,23 @@ function earnXToneHTML(tn) {
   const txt = tn.k === 'pos' ? t('earnXTonePos') : tn.k === 'neg' ? t('earnXToneNeg') : t('earnXToneNeu');
   return '<span class="earn-tone ' + tn.k + '"><span aria-hidden="true">' + (tn.k === 'pos' ? '▲' : tn.k === 'neg' ? '▼' : '●') + '</span> ' + esc(txt) + '</span>';
 }
-/* 15/11/2026: שורות הצפי בכרטיס — "אנליסטים $2.47 · $108.7B" + מגמת הצפי, "הנהלה $105.8–110.2B" (רבעון). דוח שנתי (הרבעון
-   סוגר את שנת הכספים) — גם שורות שנתיות; בלי צפי רבעוני של ההנהלה — השנתי שלה. רווח למניה קודם, הכנסות אחר כך. טהורה */
+/* 15/11/2026: שורת הצפי בכרטיס — מינימלית (בקשת המשתמש): חץ המגמה בצבע, "צפי $2.47 · $108.7B" (רווח למניה · הכנסות של
+   האנליסטים). בלי אנליסטים — צפי ההנהלה (רבעוני, אחרת שנתי). ההנהלה, השנה המלאה והפירוט — בגיליון הדוח. טהורה (מחזירה HTML) */
 function earnXRowHTML(ex) {
   if (!ex) return '';
-  const line = (lab, parts, tail) => parts.length ? '<span class="earn-x"><b>' + esc(lab) + '</b> <span dir="ltr">' + esc(parts.join(' · ')) + '</span>' + (tail || '') + '</span>' : '';
-  const mg = (p) => [p.eps ? earnRangeTxt(p.eps[0], p.eps[1], 'eps', 'USD') : '', p.rev ? earnRangeTxt(p.rev[0], p.rev[1], 'rev', 'USD') : ''].filter(Boolean);
-  const a = ex.a, g = ex.g, fy = !!(a && a.fy);
-  let h = '';
-  if (a) { const q = a.q, c = a.cur; h += line(t('earnXAn'), [earnEpsTxt(q.eps, c), earnRevTxt(q.rev, c)].filter(Boolean), ' ' + earnXToneHTML(earnXTone(a))); }
-  if (g && g.q) h += line(t('earnXMg'), mg(g.q));
-  if (fy && a.y) h += line(t('earnXAnY'), [earnEpsTxt(a.y.eps, a.cur), earnRevTxt(a.y.rev, a.cur)].filter(Boolean));
-  if (g && g.y && (fy || !g.q)) h += line(t('earnXMgY'), mg(g.y));
-  return h;
+  const a = ex.a, g = ex.g;
+  let lab = '', parts = [], ic = '';
+  if (a && a.q) {
+    lab = t('earnXCard');
+    parts = [earnEpsTxt(a.q.eps, a.cur), earnRevTxt(a.q.rev, a.cur)].filter(Boolean);
+    const tn = earnXTone(a);   // בכרטיס רק חיובית/שלילית; ניטרלית — בלי סימן (פחות רעש), המילים בגיליון
+    if (tn && tn.k !== 'neu') ic = '<span class="earn-tone-ic ' + tn.k + '" role="img" aria-label="' + esc(tn.k === 'pos' ? t('earnXTonePos') : t('earnXToneNeg')) + '">' + (tn.k === 'pos' ? '▲' : '▼') + '</span>';
+  } else if (g && (g.q || g.y)) {
+    const p = g.q || g.y;
+    lab = g.q ? t('earnXMg') : t('earnXMgY');
+    parts = [p.eps ? earnRangeTxt(p.eps[0], p.eps[1], 'eps', 'USD') : '', p.rev ? earnRangeTxt(p.rev[0], p.rev[1], 'rev', 'USD') : ''].filter(Boolean);
+  }
+  return parts.length ? '<span class="earn-x">' + ic + '<b>' + esc(lab) + '</b> <span dir="ltr">' + esc(parts.join(' · ')) + '</span></span>' : '';
 }
 /* כרטיס "דוחות קרובים" — תיק + מעקב, ממוין לפי תאריך */
 function renderEarningsCard(noFetch) {
@@ -12149,21 +12153,29 @@ function renderEarningsCard(noFetch) {
   sizeEarnWindow();
   if (!noFetch) earnXFetch(rows.slice(0, 12).map((r) => r.sym));
 }
-/* v223: חלון של שלושה דוחות וחצי (15/11/2026; היה שניים) שנגלל בתוך הכרטיס (כמו רשימת הווידג׳ט): הגובה = שתי השורות הראשונות, עצירה על כל
+/* v223: חלון של שלושה דוחות (15/11/2026; היה שניים) שנגלל בתוך הכרטיס (כמו רשימת הווידג׳ט): הגובה = שתי השורות הראשונות, עצירה על כל
    שורה (scroll-snap), דהייה בתחתית כשיש עוד. נמדד אחרי הציור; בטאב מוסתר (גובה 0) — ננסה שוב כשייראה */
 function sizeEarnWindow() {
   const list = document.getElementById('earnList');
   if (!list) return;
   requestAnimationFrame(() => {
     const rows = list.querySelectorAll('.earn-row');
-    // 15/11/2026 (בקשת המשתמש): שלושה דוחות וחצי — החצי הרביעי מראה שאפשר לגלול. עד 3 דוחות — כולם, בלי גלילה
-    const more = rows.length > 3;
+    // 15/11/2026 (בקשת המשתמש): שלושה דוחות; במסך נמוך — שניים, כדי שהחלון לא יתפוס את רוב המסך
+    // (אחרת הגלילה נתפסת בתוך הרשימה ואי אפשר לגלול את העמוד). השאר בגלילה, ו"עוד N דוחות" מתחת
+    const n = earnWinRows(rows, window.innerHeight);
+    const more = rows.length > n;
     list.classList.toggle('earn-scroll', more);
     const btn = document.getElementById('earnMore');
     if (btn) btn.classList.toggle('hidden', !more);
     if (!more) { list.style.maxHeight = ''; return; }
-    const h = rows[0].offsetHeight + rows[1].offsetHeight + rows[2].offsetHeight + Math.round(rows[3].offsetHeight / 2);
+    let h = 0;
+    for (let i = 0; i < n; i++) h += rows[i].offsetHeight;
     if (h > 0) list.style.maxHeight = h + 'px';
+    if (!sizeEarnWindow._rs) {
+      sizeEarnWindow._rs = true;
+      let tm = 0;
+      window.addEventListener('resize', () => { clearTimeout(tm); tm = setTimeout(sizeEarnWindow, 150); }, { passive: true });
+    }
     if (!list._earnWired) {
       list._earnWired = true;
       list.addEventListener('scroll', () => earnMoreUpdate(), { passive: true });
@@ -12176,6 +12188,12 @@ function sizeEarnWindow() {
     }
     earnMoreUpdate();
   });
+}
+/* 15/11/2026: כמה דוחות בחלון — 3, ו־2 כששלוש שורות תופסות יותר מרבע מגובה המסך (מסך קטן) */
+function earnWinRows(rows, vh) {
+  let h3 = 0;
+  for (let i = 0; i < 3 && i < rows.length; i++) h3 += rows[i].offsetHeight || 0;
+  return vh > 0 && h3 > vh * 0.25 ? 2 : 3;
 }
 /* v224 (בקשת המשתמש: שיהיה ברור שאפשר לגלול): "עוד N דוחות ⌄" מתחת לחלון — N = השורות שעוד מתחת לתצוגה;
    בסוף הרשימה "חזרה למעלה ⌃". יחד עם הדהייה בתחתית */
