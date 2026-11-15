@@ -108,6 +108,8 @@ module.exports = async (req, res) => {
   if (body && (body.op === 'fund' || body.op === 'macro' || body.op === 'fundFlags')) return require('../lib/fundamentals').handle(body, res);
   /* 01/11/2026: שער יציג של בנק ישראל למרכז המס (lib/boifx.js) — מידע ציבורי, מטמון 6 שעות */
   if (body && body.op === 'boifx') return require('../lib/boifx').handle(body, res);
+  /* 15/11/2026: צפי לדוח הקרוב — קונצנזוס האנליסטים (Yahoo) וצפי ההנהלה מהודעת הדוחות הקודמת (SEC), lib/earnprev.js */
+  if (body && body.op === 'earnPrev') return require('../lib/earnprev').handle(body, res);
   const range = RANGES.has(body && body.range) ? body.range : '5y';
   const raw = Array.isArray(body && body.syms) ? body.syms : [];
   const syms = [...new Set(raw.map((s) => String(s || '').trim().toUpperCase()))].filter((s) => SYM_RE.test(s));

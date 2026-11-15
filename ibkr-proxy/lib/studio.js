@@ -58,11 +58,13 @@ const OUT_MAX = 12;   // 01/11/2026: + notes (ההערות לעורך)
 const SUBS_MAX = 5 * 1024 * 1024;           // 22/10/2026: קובץ כתוביות קיים (SRT/VTT/ASS) — סרט של שלוש שעות ≈ 300KB
 const SUBS_FPS = ['24000/1001', '24', '25', '30000/1001', '30'];   // = SUBS_FPS ב־job.py (הגריד לתזמון בלי סרטון)
 const MAX_SIZE = 64 * 1024 ** 3;            // 64GB — הרבה מעל כל ראיון (Drive מקבל עד 5TB)
-const MAX_ACTIVE = 5;                       // עבודות פתוחות בבת אחת למשתמש
+const MAX_ACTIVE = 5;                       // היה: עבודות פתוחות למשתמש; מ־15/11/2026 — רק LIST_MAX בטלפון (maxActive = MAX_ACTIVE_ADMIN לכולם)
 // 21/10/2026 (בקשת המשתמש — מבחני עומס של 2–4 סרטונים ארוכים במקביל): למנהל אין מגבלה מעשית. המשאבים ממילא לא לפי משתמש:
 // השרת לוקח עבודות מהתור לפי הסדר, לפי הליבות והזיכרון שלו — עבודות של משתמש אחד = אותו דבר כמו של כמה משתמשים
 const MAX_ACTIVE_ADMIN = 50;
-const maxActive = (admin) => (admin ? MAX_ACTIVE_ADMIN : MAX_ACTIVE);
+// 15/11/2026 (בקשת המשתמש): "אותן הרשאות למשאבים כמו למנהל" — כל מורשי הסטודיו עד MAX_ACTIVE_ADMIN. MAX_ACTIVE (5) נשאר רק
+// כגודל רשימת העבודה בטלפון (LIST_MAX)
+const maxActive = () => MAX_ACTIVE_ADMIN;
 const MAX_STORED = 100;                     // מעבר לזה — הישנות שהסתיימו נמחקות
 const FIRE_HOUR = 20;                       // הפעלות בשעה למשתמש (ל־Routine מותר 30 — שומרים מרווח לתיקונים ול"הפעל עכשיו")
 const TEST_GAP = 60e3;                      // בדיקת חיבור — לכל היותר פעם בדקה
@@ -911,7 +913,7 @@ function publicJob(job, now) {
 // 02/11/2026: למנהל עד GOLD_MAX_ADMIN (16, בתוך MAX_ACTIVE_ADMIN) — סט המדידה של איכות התרגום: 10 פרקים, ראיון, הרצאה ועבודות זהב
 // קיימות. עבודת זהב גם לא נמחקת בניקוי המקורות (srcPending) — הסימון שומר את המקור להרצות חוזרות. לשאר — 5, כמו קודם
 const GOLD_MAX = 5, GOLD_MAX_ADMIN = 16, GOLD_REF_MAX = 2 * 1024 * 1024;
-const goldMax = (admin) => (admin ? GOLD_MAX_ADMIN : GOLD_MAX);
+const goldMax = () => GOLD_MAX_ADMIN;   // 15/11/2026: אותה תקרה לכולם (כמו maxActive)
 function normGd(o) {
   if (!o || typeof o !== 'object' || !FILE_ID_RE.test(String(o.r || ''))) return null;
   return { r: o.r, n: Number.isInteger(o.n) && o.n > 0 && o.n <= GOLD_REF_MAX ? o.n : 0, at: typeof o.at === 'number' ? o.at : 0 };

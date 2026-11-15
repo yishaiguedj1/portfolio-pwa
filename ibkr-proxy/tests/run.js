@@ -4065,7 +4065,7 @@ function stubFetch(text, status = 200) {
     for (let i = 0; i < 6; i++) r = await run({ op: 'create', idToken: OWNER, spec: SPEC });
     ok(r.payload.ok, 'סטודיו: למנהל אין מגבלה של 5 עבודות פתוחות (מבחני עומס, 21/10/2026)');
     const S5 = require('../lib/studio');
-    ok(S5.maxActive(false) === 5 && S5.maxActive(true) === 50, 'סטודיו: משתמש רגיל — עד 5 עבודות פתוחות בבת אחת');
+    ok(S5.maxActive(false) === 50 && S5.maxActive(true) === 50, 'סטודיו: משתמש רגיל — אותה מגבלה כמו למנהל (50, 15/11/2026)');
     for (const j of (await run({ op: 'jobs', idToken: OWNER })).payload.jobs.filter((x) => x.state === 'new')) await run({ op: 'remove', idToken: OWNER, job: j.id });
     r = await wrk({ op: 'report', job: JS, key: Ks, msg: 'x'.repeat(20000) });
     ok(r.statusCode === 413, 'סטודיו: דיווח ענק מהעובד — נדחה');

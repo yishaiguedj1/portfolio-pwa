@@ -1089,33 +1089,28 @@ he: {
   earnAmc: 'אחרי הסגירה',
   earnEst: 'משוער',
   earnMore: 'עוד {n} דוחות', earnMoreOne: 'עוד דוח אחד', earnTop: 'חזרה למעלה',
+  earnXAn: 'אנליסטים', earnXMg: 'הנהלה', earnXMgY: 'הנהלה · שנתי', earnXTitle: 'צפי לדוח', earnXEps: 'רווח למניה', earnXRev: 'הכנסות',
+  earnXN: '{n} אנליסטים', earnXN1: 'אנליסט אחד', earnXYago: 'לפני שנה: {v}', earnXSrc: 'צפי ההנהלה מהודעת הדוחות הקודמת ({d})',
+  earnXGaap: 'GAAP', earnXYear: 'שנה מלאה',
+  earnXCard: 'צפי', earnXFy: 'דוח שנתי', earnXAnY: 'אנליסטים · שנתי', earnXQtr: 'רבעון', earnXTonePos: 'מגמה חיובית', earnXToneNeg: 'מגמה שלילית', earnXToneNeu: 'מגמה ניטרלית',
+  earnXD90: 'הצפי לרווח למניה {v} ב־90 יום', earnXRevs: 'ב־30 יום: {up} העלו, {dn} הורידו', earnXBeat: 'עקפה את הצפי ב־{b} מ־{n} הרבעונים האחרונים',
+  earnXBeatAvg: ' (בממוצע {v})', earnXToneSrc: 'המגמה לפי שינויי הצפי של האנליסטים (Yahoo) — לא תחזית ולא המלצה.',
   calReport: 'דוח רבעוני', calAddAria: 'הוספת הדוח של {sym} ליומן', calGoogle: 'הוספה ל־Google Calendar', calOther: 'יומן אחר (אפל, סמסונג, Outlook)',
   calIcsNote: 'ביומן אחר נוצרות גם תזכורות — יום לפני ושעה לפני.', calIcsDone: 'הקובץ ירד — פתח אותו כדי להוסיף ליומן', calLocal: '{t} שעון ישראל',
   calEventTitle: 'דוח רבעוני · {sym}{name}', calEventDesc: 'פרסום הדוח הרבעוני של {sym}', calEventEst: 'תאריך משוער (לפי Yahoo Finance)',
   earnDate: 'דוח: {date}',
-  ibkrPerfTitle: 'ביצועי IBKR',
-  perfPeriod: 'תקופת הדוח: {a}–{b}',
   twrOfficial: 'TWR רשמי של IBKR',
-  twrMissing: 'לא זמין — אין TWR רשמי בדוח',
   twrMissingShort: 'אין TWR רשמי',
   navWarn: 'הדוח חסר TWR רשמי — התשואה לא תוצג (לא מנחשים). כדי לקבל תשואות רשמיות: ודאו ששאילתת ה־Flex כוללת את המקטע "Change in NAV", ואז נתקו וסנכרנו מחדש.',
   ovValueReport: 'כולל מזומן · לפי דוח IBKR',
   ovStocksSub: 'כולל מזומן',
-  perfTwr: 'תשואה משוקללת־זמן (TWR)',
-  perfGain: 'רווח/הפסד בתקופה',
   pfDiagPeriods: '{n} תקופות רשמיות · {a}–{b} · TWR: {twr}',
-  perfXirr: 'תשואה משוקללת־כסף (XIRR)',
-  perfRealized: 'רווח ממומש',
-  perfUnrealized: 'רווח לא־ממומש',
-  perfDividends: 'דיבידנדים',
-  perfWithholding: 'מס שנוכה במקור',
-  perfFees: 'עמלות ועמלות נוספות',
   cantCalc: 'לא ניתן לחשב',
   ovInReportPeriod: 'בתקופת הדוח',
   pfNoteIbkr: 'TWR רשמי של IBKR מהדוח, משורשר בין תקופות, בדולרים.',
   pfNoteIbkrDaily: 'TWR יומי מה־NAV של IBKR, בדולרים — הפקדות ומשיכות מנוטרלות, ומעוגן ל־TWR הרשמי של כל תקופה בדוח.',
   pfRangeNeedsDaily: 'אין נתונים מספיק מפורטים לטווח הזה — בדוח יש נקודה אחת לכל תקופה (שנה). כדי לקבל תשואה לפי חודש/שנה/YTD: הוסף בשאילתת ה־Flex ב־IBKR את המקטע "Net Asset Value (NAV) in Base", ואז נתק וסנכרן מחדש.',
-  ibkrNavLegend: 'שווי אמיתי (IBKR)',
+  ibkrNavLegend: 'שווי אמיתי',
   tabPension: 'פנסיה',
   tabSettings: 'הגדרות',
   langTitle: 'שפה',
@@ -1130,7 +1125,7 @@ he: {
   ovVsNetDeposits: 'מול הפקדות נטו',
   ovYield: 'תשואה',
   ovUpdated: 'עודכן: {time}',
-  pfTitle: 'ביצועי התיק לאורך זמן',
+  pfTitle: 'ביצועי התיק',
   pfNote: 'שווי התיק בשקלים לאורך זמן, לפי האחזקות הנוכחיות (אין יומן קניות היסטורי).',
   pieTitle: 'חלוקת התיק',
 
@@ -1210,12 +1205,6 @@ he: {
   twrManual: 'TWR מהעסקאות הידניות',
   twrManualLoading: 'TWR נטען…',
   ovGLHoldings: 'ממומש + לא־ממומש',
-  perfTitleManual: 'ביצועי התיק',
-  perfPeriodManual: 'מהעסקה הראשונה ({a}) עד היום · בדולרים',
-  perfNoTrades: 'לפי מחיר ממוצע · בדולרים',
-  perfNeedTrades: 'נדרשות עסקאות עם תאריך',
-  perfGainManual: 'רווח/הפסד כולל',
-  perfFeesManual: 'עמלות',
 
   rangeDay: 'יום',
   sr1D: '1D', sr5D: '5D', sr1M: '1M', sr3M: '3M', sr1Y: '1Y', sr3Y: '3Y', sr5Y: '5Y',
@@ -2957,33 +2946,28 @@ en: {
   earnAmc: 'After close',
   earnEst: 'estimated',
   earnMore: '{n} more reports', earnMoreOne: '1 more report', earnTop: 'Back to top',
+  earnXAn: 'Analysts', earnXMg: 'Company', earnXMgY: 'Company · FY', earnXTitle: 'Expectations', earnXEps: 'EPS', earnXRev: 'Revenue',
+  earnXN: '{n} analysts', earnXN1: '1 analyst', earnXYago: 'Year ago: {v}', earnXSrc: 'Company guidance from its previous earnings release ({d})',
+  earnXGaap: 'GAAP', earnXYear: 'Full year',
+  earnXCard: 'Est.', earnXFy: 'Annual report', earnXAnY: 'Analysts · FY', earnXQtr: 'Quarter', earnXTonePos: 'Trending up', earnXToneNeg: 'Trending down', earnXToneNeu: 'Flat',
+  earnXD90: 'EPS estimate {v} over 90 days', earnXRevs: 'Last 30 days: {up} up, {dn} down', earnXBeat: 'Beat estimates in {b} of the last {n} quarters',
+  earnXBeatAvg: ' (avg {v})', earnXToneSrc: 'Trend from analyst estimate revisions (Yahoo) — not a forecast or advice.',
   calReport: 'Earnings', calAddAria: 'Add the {sym} earnings report to your calendar', calGoogle: 'Add to Google Calendar', calOther: 'Other calendar (Apple, Samsung, Outlook)',
   calIcsNote: 'Other calendars also get reminders — a day before and an hour before.', calIcsDone: 'Downloaded — open it to add to your calendar', calLocal: '{t} local time',
   calEventTitle: 'Earnings · {sym}{name}', calEventDesc: '{sym} quarterly earnings report', calEventEst: 'Estimated date (per Yahoo Finance)',
   earnDate: 'Earnings: {date}',
-  ibkrPerfTitle: 'IBKR Performance',
-  perfPeriod: 'Report period: {a}–{b}',
   twrOfficial: "IBKR's official TWR",
-  twrMissing: 'Unavailable — no official TWR in the report',
   twrMissingShort: 'No official TWR',
   navWarn: 'The report has no official TWR — the return will not be shown (never guessed). To get official returns: make sure your Flex query includes the "Change in NAV" section, then disconnect and sync again.',
   ovValueReport: 'Incl. cash · per IBKR report',
   ovStocksSub: 'Incl. cash',
-  perfTwr: 'Time-Weighted Return (TWR)',
-  perfGain: 'Period gain/loss',
   pfDiagPeriods: '{n} official periods · {a}–{b} · TWR: {twr}',
-  perfXirr: 'Money-Weighted Return (XIRR)',
-  perfRealized: 'Realized P&L',
-  perfUnrealized: 'Unrealized P&L',
-  perfDividends: 'Dividends',
-  perfWithholding: 'Withholding tax',
-  perfFees: 'Commissions & other fees',
   cantCalc: 'Cannot compute',
   ovInReportPeriod: 'in the report period',
   pfNoteIbkr: "IBKR's official TWR from the report, chained across periods, in USD.",
   pfNoteIbkrDaily: "Daily TWR from IBKR's NAV, in USD — deposits and withdrawals neutralized, anchored to the official TWR of each report period.",
   pfRangeNeedsDaily: 'Not enough detail for this range — the report has one point per period (year). To get month/year/YTD returns: add the "Net Asset Value (NAV) in Base" section to your IBKR Flex query, then disconnect and sync again.',
-  ibkrNavLegend: 'Real value (IBKR)',
+  ibkrNavLegend: 'Real value',
   tabPension: 'Pension',
   tabSettings: 'Settings',
   langTitle: 'Language',
@@ -2998,7 +2982,7 @@ en: {
   ovVsNetDeposits: 'vs. net deposits',
   ovYield: 'Return',
   ovUpdated: 'Updated: {time}',
-  pfTitle: 'Portfolio performance over time',
+  pfTitle: 'Portfolio performance',
   pfNote: 'Portfolio value in ILS over time, based on current holdings (no historical trade log).',
   pieTitle: 'Portfolio allocation',
 
@@ -3078,12 +3062,6 @@ en: {
   twrManual: 'TWR from manual trades',
   twrManualLoading: 'TWR loading…',
   ovGLHoldings: 'Realized + unrealized',
-  perfTitleManual: 'Portfolio Performance',
-  perfPeriodManual: 'From the first trade ({a}) to today · in USD',
-  perfNoTrades: 'By average price · in USD',
-  perfNeedTrades: 'Needs dated trades',
-  perfGainManual: 'Total gain/loss',
-  perfFeesManual: 'Commissions',
 
   rangeDay: 'Day',
   sr1D: '1D', sr5D: '5D', sr1M: '1M', sr3M: '3M', sr1Y: '1Y', sr3Y: '3Y', sr5Y: '5Y',
@@ -4187,6 +4165,61 @@ function earnUpdate(sym, e) {
 async function refreshEarnings() {
   const cached = lsGet(LS_EARN);
   if (cached && cached.bySym) state.earnings = cached.bySym;
+}
+
+/* 15/11/2026 (בקשת המשתמש): צפי לדוח הקרוב — קונצנזוס האנליסטים וצפי ההנהלה (op:'earnPrev' בשרתון, lib/earnprev.js).
+   מידע שוק ציבורי: נשלחים רק הסימבולים של הדוחות שבכרטיס. מטמון 6 שעות לכל מניה; אחרי כישלון — לא לפני 30 דקות. */
+const LS_EARNX = 'pwa_earnx_v1';
+const EARNX_TTL = 6 * 3600e3;
+let _earnXBusy = false;
+function earnXAll() {
+  if (!state.earnX) { const c = lsGet(LS_EARNX); state.earnX = (c && c.bySym) || {}; }
+  return state.earnX;
+}
+/* הצפי שמתאים לדוח בתאריך date: אנליסטים — רק אם תאריך הדוח אצלם קרוב (אחרת זה רבעון אחר); הנהלה — רק מהודעה
+   שפורסמה לפני הדוח ובתוך ~4 חודשים ממנו (ביום הדוח עצמו יוצאת הודעה חדשה עם צפי לרבעון הבא). טהורה */
+function earnXFor(x, date) {
+  if (!x || !date) return null;
+  const day = (iso) => Date.parse(iso + 'T12:00:00Z') / 864e5;
+  const a = x.a && x.a.q && (!x.a.d || Math.abs(day(x.a.d) - day(date)) <= 5) ? x.a : null;
+  const g = x.g && x.g.fd && day(x.g.fd) < day(date) && day(date) - day(x.g.fd) <= 130 ? x.g : null;
+  return a || g ? { a, g } : null;
+}
+async function earnXFetch(syms) {
+  if (_earnXBusy || typeof fetch !== 'function') return;
+  const all = earnXAll(), now = Date.now();
+  const need = syms.filter((s) => { const x = all[s]; return !x || now - (x.at || 0) > (x.fail ? 1800e3 : EARNX_TTL); }).slice(0, 16);
+  if (!need.length) return;
+  _earnXBusy = true;
+  let changed = false;
+  try {
+    const r = await fetch(ibkrProxyBase() + '/api/history', { method: 'POST', headers: ibkrProxyHeaders(), body: JSON.stringify({ op: 'earnPrev', syms: need }) });
+    const j = await r.json();
+    if (!j || !j.ok || !j.data) throw new Error('earnx');
+    for (const s of need) { const v = j.data[s] || {}; all[s] = { at: now, a: v.a || null, g: v.g || null }; changed = true; }
+  } catch (e) {
+    for (const s of need) if (!all[s] || !all[s].a) all[s] = Object.assign({}, all[s] || {}, { at: now, fail: 1 });
+  } finally { _earnXBusy = false; }
+  lsSet(LS_EARNX, { at: now, bySym: all });
+  if (changed) renderEarningsCard(true);
+}
+/* מספרים קצרים: רווח למניה "$2.47", הכנסות "$108.7B" / "₪6.56B", טווח "$18.0–18.2B" — טהורות */
+function earnCurSym(cur) { return { USD: '$', ILS: '₪', EUR: '€', GBP: '£' }[cur || 'USD'] || (cur ? cur + ' ' : '$'); }
+function earnEpsTxt(v, cur) { return v == null ? '' : (v < 0 ? '−' : '') + earnCurSym(cur) + Math.abs(v).toFixed(2); }
+function earnBig(v) {
+  const a = Math.abs(v);
+  return a >= 1e9 ? [a / 1e9, a >= 1e11 ? 1 : 2, 'B'] : a >= 1e6 ? [a / 1e6, a >= 1e8 ? 0 : 1, 'M'] : [a / 1e3, 0, 'K'];
+}
+function earnRevTxt(v, cur) { if (v == null) return ''; const b = earnBig(v); return earnCurSym(cur) + b[0].toFixed(b[1]).replace(/\.0+$/, '') + b[2]; }
+function earnRangeTxt(lo, hi, kind, cur) {
+  if (lo == null) return '';
+  if (hi == null || Math.abs(hi - lo) < 1e-9 * Math.max(1, Math.abs(hi))) return kind === 'eps' ? earnEpsTxt(lo, cur) : earnRevTxt(lo, cur);
+  if (kind === 'eps') return earnEpsTxt(lo, cur) + '–' + Math.abs(hi).toFixed(2);
+  const b = earnBig(hi), d = b[1];
+  const unit = b[2] === 'B' ? 1e9 : b[2] === 'M' ? 1e6 : 1e3;
+  let x = (lo / unit).toFixed(d), y = (hi / unit).toFixed(d);
+  if (/\.0+$/.test(x) && /\.0+$/.test(y)) { x = x.replace(/\.0+$/, ''); y = y.replace(/\.0+$/, ''); }   // "$390–398B" ולא "$390.0–398.0B"
+  return earnCurSym(cur) + x + '–' + y + b[2];
 }
 
 /* סינון טווח מתוך היסטוריה יומית ממוינת (ישן -> חדש) */
@@ -7954,8 +7987,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.146.0';
-const APP_VERSION = 'v764';
+const APP_RELEASE = '2.148.0';
+const APP_VERSION = 'v768';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -7972,7 +8005,7 @@ const APP_PAGE = (typeof window !== 'undefined' && window.SNB_ENV && window.SNB_
    ושמירת התיק נכשלה בלי שאיש ידע. עכשיו התיק וחיבור IBKR קודמים לכל מטמון: מפנים מטמונים שנטענים שוב מהרשת
    (היסטוריית מחירים, ציטוטים, לוגואים, מדדים), מהגדול לקטן, ומנסים שוב; עדיין לא נכנס → הודעה גלויה (פעם ב־10 דק׳).
    נתונים אישיים (תיק, IBKR, מחסני חשבונות אחרים, הספרייה, הסטודיו) לא נמחקים אף פעם. */
-const LS_CACHE_PREFIXES = ['pwa_hist_v2_', 'pwa_hist_v1_', 'pwa_intra_v1_', 'pwa_quotes_v2', 'pwa_fxhist_v1', 'pwa_bench_v1', 'pwa_wordmarks_v4', 'pwa_logo_meta_v1', 'pwa_earn_v1', 'pwa_syscfg_v1', 'pwa_kcq_v1'];
+const LS_CACHE_PREFIXES = ['pwa_hist_v2_', 'pwa_hist_v1_', 'pwa_intra_v1_', 'pwa_quotes_v2', 'pwa_fxhist_v1', 'pwa_bench_v1', 'pwa_wordmarks_v4', 'pwa_logo_meta_v1', 'pwa_earn_v1', 'pwa_earnx_v1', 'pwa_syscfg_v1', 'pwa_kcq_v1'];
 function isQuotaErr(e) {
   return !!e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014);
 }
@@ -10011,35 +10044,64 @@ function pfBenchOn(sym) {
   return !b || b[sym] !== false;
 }
 
-/* כפתורי סימון/ביטול למדדי ההשוואה — ממשק נקי לפי ת־עיצוב.
-   מוצגים רק כשיש היסטוריה אמיתית מ־IBKR; בהזנה ידנית אין השוואה. */
-function renderPfBenchToggles(show) {
-  const host = document.getElementById('pfBenchToggles');
+/* 2.147.0 (בקשת המשתמש: "יותר מינימליסטי ונקי… להטמיע בחלק השמאלי העליון של הגרף"): המקרא של גרף הביצועים —
+   מקרא צף קומפקטי בפינה העליונה של הגרף (נקודה · שם · תשואה), במקום הרשימה וכפתורי המדדים שמתחת לגרף.
+   נגיעה בשורת מדד מדליקה/מכבה אותו. בלי מדדי השוואה (הזנה ידנית) — שורה אחת, של התיק.
+   ("אין התנגשות בין הבועות"): המקרא הוא גם תצוגת הערכים — בנגיעה בגרף (ro.idx), במדידה בשתי אצבעות (ro.a/ro.b)
+   ובסימון "מתאריך" הוא מציג את הערכים בנקודה, והתאריך — גלולה בציר התאריכים (pfDatePill). בלי בועה נפרדת. */
+function pfReadout() {
+  if (state.pfPickDate && state.pfPickIdx !== null) return { idx: state.pfPickIdx };
+  if (state.pfMeasure && state.pfMeasure.pts.length >= 2) return { a: Math.min(state.pfMeasure.pts[0], state.pfMeasure.pts[1]), b: Math.max(state.pfMeasure.pts[0], state.pfMeasure.pts[1]) };
+  if (state.pfTipIdx !== null && state.pfTipIdx !== undefined) return { idx: state.pfTipIdx };
+  return null;
+}
+function renderPfKey(host, series, showBench, ro) {
   if (!host) return;
-  host.innerHTML = '';
-  host.classList.toggle('hidden', !show);
-  if (!show) return;
-  for (const [sym, labelKey, color] of BENCH_SYMS) {
+  const has = !!(series && series.length);
+  host.classList.toggle('hidden', !has);
+  if (!has) { host.innerHTML = ''; return; }
+  const canvas = document.getElementById('pfChart');
+  if (canvas) host.style.top = canvas.offsetTop + 'px'; // מתחת לבועת ההסבר של "מתאריך", כשהיא מוצגת
+  host.classList.toggle('live', !!ro);
+  const ret = (s) => {
+    const last = s.pts.length - 1;
+    if (ro && ro.b !== undefined) return retPct(s.pts[Math.min(ro.a, last)].norm, s.pts[Math.min(ro.b, last)].norm);
+    return s.pts[ro ? Math.min(ro.idx, last) : last].norm - 100;
+  };
+  const row = (color, name, s, on) =>
+    '<span class="pk-dot" style="--c:' + color + '"></span><span class="pk-name">' + esc(name) + '</span>' +
+    (on && s ? '<span class="pk-pct">' + fmtRetHTML(ret(s)) + '</span>' : '');
+  const s0 = series[0];
+  let html = '<li class="pk-row on">' + row(s0.color, s0.name, s0, true) + '</li>';
+  if (showBench) for (const [sym, labelKey, color] of BENCH_SYMS) {
     const on = pfBenchOn(sym);
-    const b = el('button', 'pf-bench-toggle' + (on ? ' on' : ''));
-    b.type = 'button';
-    b.setAttribute('aria-pressed', on ? 'true' : 'false');
-    const dot = el('span', 'pf-bench-dot');
-    dot.style.background = color;
-    b.appendChild(dot);
-    b.appendChild(el('span', 'pf-bench-lbl', t(labelKey)));
-    const chk = el('span', 'pf-bench-check', on ? '✓' : '');
-    b.appendChild(chk);
-    b.addEventListener('click', async () => {
+    const s = series.find((x) => x.sym === sym);
+    html += '<li><button type="button" class="pk-row' + (on ? ' on' : '') + '" data-sym="' + esc(sym) + '" aria-pressed="' + on + '">' +
+      row(color, t(labelKey), s, on) + '</button></li>';
+  }
+  if (host._pkHtml === html) return; // גרירה בגרף — בלי לבנות DOM כשהערכים לא השתנו
+  host._pkHtml = html;
+  host.innerHTML = html;
+  if (!host._pkBound) {
+    host._pkBound = true;
+    host.addEventListener('click', async (ev) => {
+      const btn = ev.target.closest && ev.target.closest('button[data-sym]');
+      if (!btn) return;
+      const sym = btn.dataset.sym;
       if (!state.pfBench) state.pfBench = {};
       const turningOn = !pfBenchOn(sym);
       state.pfBench[sym] = turningOn;
-      renderPfBenchToggles(true);
       if (turningOn) await drawPfChart(); // הפעלה: טוען את המדד החסר (מהיר — מטמון/מרוץ) ומצייר
       else paintPfChart(); // כיבוי: סינכרוני ומיידי, בלי רשת
     });
-    host.appendChild(b);
   }
+}
+/* עדכון מיידי של תצוגת הערכים (לפני הציור הבא של הגרף) */
+function pfKeyNow(ro) {
+  const canvas = document.getElementById('pfChart');
+  const map = canvas && canvas._pfMap, paint = canvas && canvas._pfPaint;
+  if (!map || !paint) return;
+  renderPfKey(document.getElementById('pfLegend'), map.series, !!paint.showBench, ro);
 }
 
 /* היסטוריה יומית מהירה לגרף הביצועים: מרוץ מקבילי Yahoo/Yahoo2/Stooq —
@@ -12018,13 +12080,12 @@ function renderOverview(light) {
     t('ovUpdated', { time: state.quotesAt ? fmtTimeIL(state.quotesAt) : '—' }) + twrTxt;
   paintFxPill(false);
 
-  /* v109: כל ציור עטוף בנפרד — כשל באחד לא יחסום את הכרטיסים שאחריו (כולל "ביצועי IBKR") */
+  /* v109: כל ציור עטוף בנפרד — כשל באחד לא יחסום את הכרטיסים שאחריו */
   try { drawPie(); } catch (e) {}
   // v139: טיק חי — בלי גרף הביצועים/דוחות/IBKR (לא תלויים במחיר החי, ויאפסו מגע בגרף)
   if (!light) {
     try { drawPfChart(); } catch (e) {}
     try { renderEarningsCard(); } catch (e) {}
-    try { renderIbkrPerf(); } catch (e) {}
   }
   try { fitNumbers(); } catch (e) {}
 }
@@ -12046,50 +12107,47 @@ function paintManualHead() {
   yEl.textContent = y === null || !isFinite(y) ? '—' : fmtPct(y, true);
   yEl.className = 'stat-value ' + (y === null || !isFinite(y) ? '' : y >= 0 ? 'pos' : 'neg');
   if (meta) meta.textContent = t('ovUpdated', { time: state.quotesAt ? fmtTimeIL(state.quotesAt) : '—' }) + note;
-  try { renderManualPerf(mp); } catch (e) {}
   try { fitNumbers(); } catch (e) {}
 }
 
-/* v158: כרטיס "ביצועי התיק" במצב ידני — המקבילה של "ביצועי IBKR", מהעסקאות והאחזקות הידניות */
-function renderManualPerf(mp) {
-  const card = document.getElementById('ibkrPerfCard');
-  const list = document.getElementById('ibkrPerfList');
-  const period = document.getElementById('ibkrPerfPeriod');
-  const title = document.getElementById('ibkrPerfTitleEl');
-  if (!card || !list || isIbkrMode()) return;
-  const show = POSITIONS.length > 0 || mtList().length > 0;
-  card.classList.toggle('hidden', !show);
-  if (!show) return;
-  if (title) title.textContent = t('perfTitleManual');
-  if (period) period.textContent = mp.fromDate ? t('perfPeriodManual', { a: fmtDateIL(mp.fromDate) }) : t('perfNoTrades');
-  const mrow = (lbl, val) => {
-    const li = el('li', 'perf-row');
-    li.innerHTML = '<span class="perf-lbl">' + esc(lbl) + '</span>' +
-      '<span class="perf-val ' + val.cls + '">' + esc(val.txt) + '</span>';
-    list.appendChild(li);
-  };
-  const mval = (v, isMoney) => {
-    if (v === null || v === undefined || !isFinite(v)) return { txt: '—', cls: '' };
-    return { txt: isMoney ? ltrNum((v < 0 ? '−' : '') + money(Math.abs(v), 'USD')) : fmtPct(v, true), cls: v > 0 ? 'pos' : v < 0 ? 'neg' : '' };
-  };
-  list.innerHTML = '';
-  mrow(t('perfTwr'), mp.twr !== null ? mval(mp.twr, false)
-    : { txt: mp.fromDate ? (mp.loading ? t('loadingData') : t('cantCalc')) : t('perfNeedTrades'), cls: 'perf-note' });
-  mrow(t('perfGainManual'), mp.missing ? { txt: '—', cls: '' } : mval(mp.gain, true));
-  mrow(t('perfXirr'), mp.xirr !== null ? mval(mp.xirr, false)
-    : { txt: mp.fromDate ? t('cantCalc') : t('perfNeedTrades'), cls: 'perf-note' });
-  mrow(t('perfRealized'), mval(mp.realized, true));
-  mrow(t('perfUnrealized'), mp.missing ? { txt: '—', cls: '' } : mval(mp.unrealized, true));
-  mrow(t('perfFeesManual'), mval(Math.abs(mp.fees) < 0.005 ? 0 : -mp.fees, true));
-  if (mp.avgOnly && mp.fromDate) {
-    const li = el('li', 'perf-row');
-    li.innerHTML = '<span class="perf-lbl fine">' + esc(t('twrAvgNote', { n: mp.avgOnly })) + '</span>';
-    list.appendChild(li);
-  }
+/* 15/11/2026: מגמת הצפי — מנתוני Yahoo בלבד (אין מקור חינמי עם דירוג מוכן; ה־ESP של Zacks בתשלום): כמה הקונצנזוס
+   לרווח למניה זז ב־90 יום (משקל כפול) וב־30 יום, וכמה אנליסטים העלו מול הורידו ב־30 יום. ≥1 חיובית, ≤−1 שלילית. טהורה */
+function earnXTone(a) {
+  const q = a && a.q;
+  const cur = q && (q.ec != null ? q.ec : q.eps);   // הנוכחי מאותה סדרה כמו של לפני 30/90 יום
+  if (cur == null) return null;
+  const pct = (x) => (x == null ? null : (cur - x) / Math.max(Math.abs(x), 0.05));
+  const d90 = pct(q.e90), d30 = pct(q.e30);
+  if (d90 == null && d30 == null && q.up == null && q.dn == null) return null;
+  const r = (q.up || 0) - (q.dn || 0);
+  const sc = (d90 == null ? 0 : d90 > 0.02 ? 2 : d90 < -0.02 ? -2 : 0) + (d30 == null ? 0 : d30 > 0.01 ? 1 : d30 < -0.01 ? -1 : 0) + (r > 0 ? 1 : r < 0 ? -1 : 0);
+  return { k: sc >= 1 ? 'pos' : sc <= -1 ? 'neg' : 'neu', d90: d90, d30: d30, up: q.up || 0, dn: q.dn || 0 };
 }
-
+function earnXToneHTML(tn) {
+  if (!tn) return '';
+  const txt = tn.k === 'pos' ? t('earnXTonePos') : tn.k === 'neg' ? t('earnXToneNeg') : t('earnXToneNeu');
+  return '<span class="earn-tone ' + tn.k + '"><span aria-hidden="true">' + (tn.k === 'pos' ? '▲' : tn.k === 'neg' ? '▼' : '●') + '</span> ' + esc(txt) + '</span>';
+}
+/* 15/11/2026: שורת הצפי בכרטיס — מינימלית (בקשת המשתמש): חץ המגמה בצבע, "צפי $2.47 · $108.7B" (רווח למניה · הכנסות של
+   האנליסטים). בלי אנליסטים — צפי ההנהלה (רבעוני, אחרת שנתי). ההנהלה, השנה המלאה והפירוט — בגיליון הדוח. טהורה (מחזירה HTML) */
+function earnXRowHTML(ex) {
+  if (!ex) return '';
+  const a = ex.a, g = ex.g;
+  let lab = '', parts = [], ic = '';
+  if (a && a.q) {
+    lab = t('earnXCard');
+    parts = [earnEpsTxt(a.q.eps, a.cur), earnRevTxt(a.q.rev, a.cur)].filter(Boolean);
+    const tn = earnXTone(a);   // בכרטיס רק חיובית/שלילית; ניטרלית — בלי סימן (פחות רעש), המילים בגיליון
+    if (tn && tn.k !== 'neu') ic = '<span class="earn-tone-ic ' + tn.k + '" role="img" aria-label="' + esc(tn.k === 'pos' ? t('earnXTonePos') : t('earnXToneNeg')) + '">' + (tn.k === 'pos' ? '▲' : '▼') + '</span>';
+  } else if (g && (g.q || g.y)) {
+    const p = g.q || g.y;
+    lab = g.q ? t('earnXMg') : t('earnXMgY');
+    parts = [p.eps ? earnRangeTxt(p.eps[0], p.eps[1], 'eps', 'USD') : '', p.rev ? earnRangeTxt(p.rev[0], p.rev[1], 'rev', 'USD') : ''].filter(Boolean);
+  }
+  return parts.length ? '<span class="earn-x">' + ic + '<b>' + esc(lab) + '</b> <span dir="ltr">' + esc(parts.join(' · ')) + '</span></span>' : '';
+}
 /* כרטיס "דוחות קרובים" — תיק + מעקב, ממוין לפי תאריך */
-function renderEarningsCard() {
+function renderEarningsCard(noFetch) {
   const card = document.getElementById('earnCard');
   const list = document.getElementById('earnList');
   if (!card || !list) return;
@@ -12105,6 +12163,7 @@ function renderEarningsCard() {
   rows.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   if (!rows.length) { card.classList.add('hidden'); return; }
   card.classList.remove('hidden');
+  const keepTop = list.scrollTop;   // ציור מחדש כשהצפי מגיע — בלי לקפוץ לראש הרשימה
   list.innerHTML = '';
   // v221: שורה בסגנון רשימת iOS — לוגו, סימבול + שם, "בעוד N ימים · אחרי הסגירה", ואריח לוח שנה (חודש + יום) בקצה
   const monFmt = new Intl.DateTimeFormat(state.lang === 'en' ? 'en-US' : 'he-IL', { month: 'short', timeZone: 'UTC' });
@@ -12112,7 +12171,8 @@ function renderEarningsCard() {
     const d = daysUntil(r.date);
     const when = d === 0 ? t('earnToday') : d === 1 ? t('earnTomorrow') : t('earnInDays', { n: d });
     const tm = r.time === 'bmo' ? t('earnBmo') : r.time === 'amc' ? t('earnAmc') : '';
-    const sub = [when, tm, r.est ? t('earnEst') : ''].filter(Boolean).join(' · ');
+    const exr = earnXFor(earnXAll()[r.sym], r.date);
+    const sub = [when, tm, r.est ? t('earnEst') : '', exr && exr.a && exr.a.fy ? t('earnXFy') : ''].filter(Boolean).join(' · ');
     const dt = new Date(r.date + 'T12:00:00Z');
     const li = el('li', 'earn-row' + (d <= 1 ? ' soon' : ''));
     // v222: נגיעה בדוח → גיליון "הוספה ליומן"
@@ -12124,27 +12184,38 @@ function renderEarningsCard() {
     li.innerHTML = stockLogoHTML(r.sym) +
       '<span class="earn-main"><span class="earn-sym" dir="ltr">' + esc(r.sym.replace(/\.TA$/i, '')) + '</span>' +
       '<span class="earn-name">' + esc(companyName(r.sym, names[r.sym] || r.sym)) + '</span>' +
-      '<span class="earn-sub">' + esc(sub) + '</span></span>' +
+      '<span class="earn-sub">' + esc(sub) + '</span>' + earnXRowHTML(exr) + '</span>' +
       '<span class="earn-cal" aria-label="' + esc(fmtDateIL(r.date)) + '"><span class="earn-mon">' + esc(monFmt.format(dt)) + '</span>' +
       '<span class="earn-day">' + dt.getUTCDate() + '</span></span>';
     list.appendChild(li);
   }
+  if (keepTop) list.scrollTop = keepTop;
   sizeEarnWindow();
+  if (!noFetch) earnXFetch(rows.slice(0, 12).map((r) => r.sym));
 }
-/* v223: חלון של שני דוחות שנגלל בתוך הכרטיס (כמו רשימת הווידג׳ט): הגובה = שתי השורות הראשונות, עצירה על כל
+/* v223: חלון של שלושה דוחות (15/11/2026; היה שניים) שנגלל בתוך הכרטיס (כמו רשימת הווידג׳ט): הגובה = שתי השורות הראשונות, עצירה על כל
    שורה (scroll-snap), דהייה בתחתית כשיש עוד. נמדד אחרי הציור; בטאב מוסתר (גובה 0) — ננסה שוב כשייראה */
 function sizeEarnWindow() {
   const list = document.getElementById('earnList');
   if (!list) return;
   requestAnimationFrame(() => {
     const rows = list.querySelectorAll('.earn-row');
-    const more = rows.length > 2;
+    // 15/11/2026 (בקשת המשתמש): שלושה דוחות; במסך נמוך — שניים, כדי שהחלון לא יתפוס את רוב המסך
+    // (אחרת הגלילה נתפסת בתוך הרשימה ואי אפשר לגלול את העמוד). השאר בגלילה, ו"עוד N דוחות" מתחת
+    const n = earnWinRows(rows, window.innerHeight);
+    const more = rows.length > n;
     list.classList.toggle('earn-scroll', more);
     const btn = document.getElementById('earnMore');
     if (btn) btn.classList.toggle('hidden', !more);
     if (!more) { list.style.maxHeight = ''; return; }
-    const h = rows[0].offsetHeight + rows[1].offsetHeight;
+    let h = 0;
+    for (let i = 0; i < n; i++) h += rows[i].offsetHeight;
     if (h > 0) list.style.maxHeight = h + 'px';
+    if (!sizeEarnWindow._rs) {
+      sizeEarnWindow._rs = true;
+      let tm = 0;
+      window.addEventListener('resize', () => { clearTimeout(tm); tm = setTimeout(sizeEarnWindow, 150); }, { passive: true });
+    }
     if (!list._earnWired) {
       list._earnWired = true;
       list.addEventListener('scroll', () => earnMoreUpdate(), { passive: true });
@@ -12158,6 +12229,12 @@ function sizeEarnWindow() {
     earnMoreUpdate();
   });
 }
+/* 15/11/2026: כמה דוחות בחלון — 3, ו־2 כששלוש שורות תופסות יותר מרבע מגובה המסך (מסך קטן) */
+function earnWinRows(rows, vh) {
+  let h3 = 0;
+  for (let i = 0; i < 3 && i < rows.length; i++) h3 += rows[i].offsetHeight || 0;
+  return vh > 0 && h3 > vh * 0.25 ? 2 : 3;
+}
 /* v224 (בקשת המשתמש: שיהיה ברור שאפשר לגלול): "עוד N דוחות ⌄" מתחת לחלון — N = השורות שעוד מתחת לתצוגה;
    בסוף הרשימה "חזרה למעלה ⌃". יחד עם הדהייה בתחתית */
 function earnMoreUpdate() {
@@ -12170,7 +12247,7 @@ function earnMoreUpdate() {
   // שורות שמרכזן מתחת לתחתית החלון (מיקום יחסי לחלון, לא לדף)
   const lb = list.getBoundingClientRect().bottom;
   let n = 0;
-  for (const r of list.querySelectorAll('.earn-row')) { const rr = r.getBoundingClientRect(); if (rr.top + rr.height / 2 > lb) n++; }
+  for (const r of list.querySelectorAll('.earn-row')) { const rr = r.getBoundingClientRect(); if (rr.bottom > lb + 2) n++; }   // 15/11/2026: גם השורה החצויה בתחתית נספרת
   const txt = atEnd ? t('earnTop') : n === 1 ? t('earnMoreOne') : t('earnMore', { n: n });
   const key = (atEnd ? 'top' : 'down') + '|' + txt;
   if (btn._key === key) return;
@@ -12212,6 +12289,52 @@ function earnIcs(ev, nowSec) {
   return L.join('\r\n') + '\r\n';
 }
 const CAL_ICON_CUR = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2.5"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/><line x1="12" y1="13" x2="12" y2="18"/><line x1="9.5" y1="15.5" x2="14.5" y2="15.5"/></svg>';
+/* 15/11/2026: "צפי לדוח" בגיליון — טבלה קטנה: רווח למניה והכנסות × אנליסטים / הנהלה, ומתחת מספר האנליסטים,
+   מה היה לפני שנה, ומאיפה צפי ההנהלה. בלי צפי רבעוני של ההנהלה — השנתי בטבלה נפרדת מול הקונצנזוס השנתי. טהורה */
+function earnXSheetHTML(ex) {
+  if (!ex) return '';
+  const a = ex.a, g = ex.g, c = a ? a.cur : 'USD';
+  const cell = (main, sub) => '<span class="esx-v"><span dir="ltr">' + esc(main || '—') + '</span>' + (sub ? '<small dir="ltr">' + esc(sub) + '</small>' : '') + '</span>';
+  const grid = (title, an, mg) => {
+    const hasG = !!mg, hasA = !!an;
+    if (!hasG && !hasA) return '';
+    let h = '<div class="esx-grid' + (hasG && hasA ? '' : ' one') + '">' + (title ? '<span class="esx-t">' + esc(title) + '</span>' : '<span></span>') +
+      (hasA ? '<span class="esx-h">' + esc(t('earnXAn')) + '</span>' : '') + (hasG ? '<span class="esx-h">' + esc(t('earnXMg')) + '</span>' : '');
+    for (const k of 'eps rev'.split(' ')) {
+      const av = an && (k === 'eps' ? an.eps : an.rev), mv = mg && mg[k];
+      if (av == null && !mv) continue;
+      h += '<span class="esx-k">' + esc(k === 'eps' ? t('earnXEps') : t('earnXRev')) + (k === 'eps' && mg && mg.gaap && mv ? ' <small>' + esc(t('earnXGaap')) + '</small>' : '') + '</span>';
+      if (hasA) {
+        const lo = k === 'eps' ? an.epsLo : an.revLo, hi = k === 'eps' ? an.epsHi : an.revHi;
+        h += cell(k === 'eps' ? earnEpsTxt(av, c) : earnRevTxt(av, c), lo != null && hi != null && hi > lo ? earnRangeTxt(lo, hi, k, c) : '');
+      }
+      if (hasG) h += cell(mv ? earnRangeTxt(mv[0], mv[1], k, 'USD') : '');
+    }
+    return h + '</div>';
+  };
+  const fy = !!(a && a.fy), tn = earnXTone(a);
+  let h = '<div class="es-x"><div class="esx-title">' + esc(t('earnXTitle')) + (fy ? ' · ' + esc(t('earnXFy')) : '') + earnXToneHTML(tn) + '</div>';
+  h += grid(fy ? t('earnXQtr') : '', a && a.q, g && g.q);
+  if ((fy && a.y) || (g && g.y && (fy || !g.q))) h += grid(t('earnXYear'), a && a.y, g && g.y);
+  const meta = [];
+  if (a && a.q) {
+    const n = a.q.n || a.q.rn;
+    if (n) meta.push(n === 1 ? t('earnXN1') : t('earnXN', { n: n }));
+    const ya = [a.q.yEps != null ? earnEpsTxt(a.q.yEps, c) : '', a.q.yRev ? earnRevTxt(a.q.yRev, c) : ''].filter(Boolean);
+    if (ya.length) meta.push(t('earnXYago', { v: '\u2066' + ya.join(' · ') + '\u2069' }));
+  }
+  if (meta.length) h += '<div class="esx-meta">' + esc(meta.join(' · ')) + '</div>';
+  // מגמת הצפי — המספרים שמאחורי הסימון, ועקיפת הצפי ברבעונים האחרונים
+  const why = [];
+  const sp = (v) => '\u2066' + (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v * 100).toFixed(1) + '%\u2069';
+  if (tn && tn.d90 != null) why.push(t('earnXD90', { v: sp(tn.d90) }));
+  if (tn && (tn.up || tn.dn)) why.push(t('earnXRevs', { up: tn.up, dn: tn.dn }));
+  if (why.length) h += '<div class="esx-meta">' + esc(why.join(' · ')) + '</div>';
+  if (a && a.h && a.h.n) h += '<div class="esx-meta">' + esc(t('earnXBeat', { b: a.h.b, n: a.h.n }) + (a.h.s != null ? t('earnXBeatAvg', { v: sp(a.h.s / 100) }) : '')) + '</div>';
+  if (g) h += '<div class="esx-meta">' + esc(t('earnXSrc', { d: fmtDateIL(g.fd) })) + '</div>';
+  if (tn) h += '<div class="esx-meta esx-fine">' + esc(t('earnXToneSrc')) + '</div>';
+  return h + '</div>';
+}
 function closeEarnCalSheet() {
   const v = document.getElementById('earnCalVeil');
   if (!v) return;
@@ -12240,6 +12363,7 @@ function openEarnCalSheet(r, name) {
       '<div class="es-name">' + esc(name) + '</div></div></div>' +
     '<div class="es-when"><div class="es-day">' + esc(dayTxt) + '</div>' +
       '<div class="es-meta">' + esc([when, tm, local ? t('calLocal', { t: local }) : '', r.est ? t('earnEst') : ''].filter(Boolean).join(' · ')) + '</div></div>' +
+    earnXSheetHTML(earnXFor(earnXAll()[r.sym], r.date)) +
     '<button type="button" class="btn es-btn es-google">' + CAL_ICON_CUR + '<span>' + esc(t('calGoogle')) + '</span></button>' +
     '<button type="button" class="btn secondary-btn es-btn es-ics">' + CAL_ICON_CUR + '<span>' + esc(t('calOther')) + '</span></button>' +
     '<div class="es-note">' + esc(t('calIcsNote')) + '</div>' +
@@ -12266,59 +12390,6 @@ function openEarnCalSheet(r, name) {
   document.addEventListener('keydown', function onKey(e) { if (e.key === 'Escape') { closeEarnCalSheet(); document.removeEventListener('keydown', onKey); } });
   document.body.appendChild(veil);
   requestAnimationFrame(() => veil.classList.add('show'));
-}
-
-/* כרטיס "ביצועי IBKR" — TWR רשמי, XIRR, ממומש/לא־ממומש, דיבידנדים, ריבית, מסים, עמלות.
-   מוצג רק במצב IBKR ורק אם יש נתוני סנכרון. */
-function renderIbkrPerf() {
-  const card = document.getElementById('ibkrPerfCard');
-  const list = document.getElementById('ibkrPerfList');
-  const period = document.getElementById('ibkrPerfPeriod');
-  if (!card || !list) return;
-  if (!isIbkrMode()) return; // v158: במצב ידני — renderManualPerf
-  const tEl = document.getElementById('ibkrPerfTitleEl');
-  if (tEl) tEl.textContent = t('ibkrPerfTitle');
-  const show = !!(ibkrCfg().data);
-  card.classList.toggle('hidden', !show);
-  if (!show) return;
-  const data = ibkrCfg().data;
-  const meta = data.meta || {};
-  const base = ibkrBaseCur(data);
-  if (period) period.textContent = t('perfPeriod', { a: fmtDateIL(meta.fromDate), b: fmtDateIL(meta.toDate) });
-  // מנוע חדש (returns.js): TWR רשמי משורשר, רווח מהזהות החשבונאית, XIRR מתזרימים.
-  // בלי TWR רשמי — לא מנחשים: מציגים "לא זמין".
-  const sums = rSums(data);
-  const twr = rHeadlineTwr(data);
-  const gain = rGain(data);
-  const official = rSourceKind(data) === 'official';
-  const xr = rXirr(rXirrFlows(data));
-  const mrow = (lbl, val) => {
-    const li = el('li', 'perf-row');
-    li.innerHTML = '<span class="perf-lbl">' + esc(lbl) + '</span>' +
-      '<span class="perf-val ' + (typeof val === 'object' ? val.cls : '') + '">' +
-      esc(typeof val === 'object' ? val.txt : val) + '</span>';
-    list.appendChild(li);
-  };
-  const mval = (v, isMoney) => {
-    if (v === null || v === undefined || !isFinite(v)) return { txt: '—', cls: '' };
-    return { txt: isMoney ? ltrNum((v < 0 ? '−' : '') + money(Math.abs(v), base)) : fmtPct(v, true), cls: v > 0 ? 'pos' : v < 0 ? 'neg' : '' };
-  };
-  list.innerHTML = '';
-  mrow(t('perfTwr'), official
-    ? mval(twr, false)
-    : { txt: t('twrMissing'), cls: 'perf-note' });
-  mrow(t('perfGain'), gain === null
-    ? { txt: '—', cls: '' }
-    : mval(gain, true));
-  mrow(t('perfXirr'), xr === null
-    ? { txt: t('cantCalc'), cls: 'perf-note' }
-    : mval(xr, false));
-  mrow(t('perfRealized'), mval(sums.realized, true));
-  mrow(t('perfUnrealized'), mval(sums.unrealized, true));
-  mrow(t('perfDividends'), mval(sums.dividends, true));
-  mrow(t('perfWithholding'), mval(sums.withholding, true));
-  mrow(t('perfFees'), mval(Math.abs(sums.fees + sums.commissions) < 0.005 ? 0 : -(sums.fees + sums.commissions), true));
-  try { fitNumbers(); } catch (e) {}
 }
 
 function drawPie() {
@@ -13243,13 +13314,9 @@ function pfPickCancel(redraw) {
   updatePfPickUI();
   if (redraw === true) drawPfChart(); else paintPfChart();
 }
-/* v266: בועת הסימון — תאריך + ערך הקו של התיק באותה נקודה, באותו מקום ועיצוב כמו הבועה הרגילה */
+/* v266: הסימון במצב "מתאריך" — 2.147.0: הערכים במקרא והתאריך בציר (במקום בועה) */
 function showPfPickTip() {
-  const canvas = document.getElementById('pfChart'), map = canvas && canvas._pfMap, tip = pfTipEl();
-  const i = state.pfPickIdx;
-  if (!map || !tip || i === null || !map.series[0].pts[i]) return;
-  const s0 = map.series[0];
-  pfTipPlace(tip, '<b>' + fmtDateIL(s0.pts[i].date) + '</b><div><span class="dot" style="background:' + s0.color + '"></span>' + esc(s0.name) + ' ' + fmtRetHTML(s0.pts[i].norm - 100) + '</div>');
+  if (state.pfPickIdx !== null) pfKeyNow({ idx: state.pfPickIdx });
 }
 
 /* הסבר מתחת לגרף הביצועים — מותאם למקור הנתונים */
@@ -13283,6 +13350,46 @@ function renderPfNote(noBench, srcKind) {
   p.textContent = txt;
 }
 
+/* 2.147.0 (בקשת המשתמש: "להגדיל את הגרף כמה שיותר… אבל שכל החלקים החשובים בכרטיס יוצגו בכל מסך"): גובה הגרף =
+   השטח שבין ההדר הדביק לסרגל הלשוניות, פחות שאר הכרטיס (כותרת, טווחים, שורת התשואה) — כך שכל הכרטיס נכנס במסך אחד.
+   בלי ההערה הקטנה ובלי "המשך/ביטול" של "מתאריך" (זמניים — לא מקפיצים את הגרף). בין 200 ל־460. מחושב מחדש רק כשגודל
+   החלון משתנה או כשהכרטיס עוד לא נמדד (לא בכל גרירה). */
+function pfFitH(canvas) {
+  const MIN = 200, MAX = 460, DEF = 280;
+  if (typeof window === 'undefined' || !canvas || !canvas.getBoundingClientRect) return DEF;
+  const key = window.innerWidth + 'x' + window.innerHeight;
+  if (canvas._pfH && canvas._pfHKey === key) return canvas._pfH;
+  const card = canvas.closest && canvas.closest('.card');
+  if (!card || !card.offsetHeight) return canvas._pfH || DEF;
+  let other = card.offsetHeight - canvas.offsetHeight;
+  for (const id of ['pfNoteEl', 'pfPickBar', 'pfPickBubble']) { const e = document.getElementById(id); if (e && e.offsetHeight) other -= e.offsetHeight; }
+  const sum = document.getElementById('pfRangeSummary');
+  const ready = !!(sum && sum.offsetHeight); // בציור הראשון שורת התשואה עוד ריקה — אומדן, ונמדד שוב בציור הבא
+  if (!ready) other += 46;
+  const avail = viewH() - topCover() - bottomCover() - other - 16; // אותה מדידה כמו בכרטיס המניה (fitCardToScreen)
+  const hh = Math.round(Math.max(MIN, Math.min(MAX, avail)));
+  canvas._pfH = hh; canvas._pfHKey = ready ? key : '';
+  canvas.style.height = hh + 'px';
+  return hh;
+}
+
+/* 2.147.0: גלולת תאריך בציר התאריכים — רקע המשטח (מסתיר את התוויות מתחת), טקסט מודגש, נשארת בתוך הגרף */
+function pfDatePill(ctx, txt, cx, y, x0, x1) {
+  ctx.save();
+  ctx.font = '600 12.5px system-ui';
+  ctx.direction = 'ltr';
+  const tw = ctx.measureText(txt).width, pw = tw + 16, ph = 22;
+  const x = Math.max(x0, Math.min(x1 - pw, cx - pw / 2)), top = y - 4;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x, top, pw, ph, ph / 2); else ctx.rect(x, top, pw, ph);
+  ctx.fillStyle = cssVar('--surface', '#fff'); ctx.fill();
+  ctx.lineWidth = 1; ctx.strokeStyle = cssVar('--outline', '#E3E7E4'); ctx.stroke();
+  ctx.fillStyle = cssVar('--on-surface', '#1A1C1A');
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(txt, x + pw / 2, top + ph / 2 + 0.5);
+  ctx.restore();
+}
+
 /* שורת תשואת הטווח הנבחר מתחת לגרף — מספר אחד גדול וברור */
 function renderPfRangeSummary(s0) {
   const box = document.getElementById('pfRangeSummary');
@@ -13303,47 +13410,15 @@ function renderPfRangeSummary(s0) {
 
 /* טולטיפ של גרף הביצועים */
 function hidePfTip() {
-  const tip = document.getElementById('pfTip');
-  if (tip) tip.classList.add('hidden');
   state.pfTipIdx = null;
+  pfKeyNow(null);
 }
 function showPfTip(idx) {
-  const canvas = document.getElementById('pfChart');
-  const map = canvas && canvas._pfMap;
-  if (!map || map.n < 2) return;
-  const tip = pfTipEl();
-  const d = map.series[0].pts[idx].date;
-  let html = '<b>' + fmtDateIL(d) + '</b>';
-  for (const s of map.series) {
-    html += '<div><span class="dot" style="background:' + s.color + '"></span>' +
-      esc(s.name) + ' ' + fmtRetHTML(s.pts[idx].norm - 100) + '</div>';
-  }
-  pfTipPlace(tip, html);
+  pfKeyNow({ idx: idx });
 }
-/* v265 (בקשת המשתמש): הבועה של גרף הביצועים — אותו עיצוב, תמיד בפינה השמאלית העליונה, מעל הגרף (לא מסתירה אותו) */
-function pfTipPlace(tip, html) {
-  tip.innerHTML = html;
-  tip.classList.remove('hidden');
-  tip.style.left = '0px';
-  tip.style.top = (-tip.offsetHeight - 4) + 'px';
-}
-function pfTipEl() {
-  let tip = document.getElementById('pfTip');
-  const canvas = document.getElementById('pfChart');
-  if (!tip && canvas) { tip = el('div', 'pf-tip hidden'); tip.id = 'pfTip'; canvas.parentElement.appendChild(tip); }
-  return tip;
-}
-/* v265: מדידה בשתי אצבעות בגרף הביצועים — התוצאה באותה בועה (תאריכים + תשואה לכל קו), בלי כפתור "מדידה" */
+/* v265: מדידה בשתי אצבעות בגרף הביצועים — התשואה בין הנקודות לכל קו, במקרא (2.147.0) */
 function showPfMeasureTip(i1, i2) {
-  const canvas = document.getElementById('pfChart');
-  const map = canvas && canvas._pfMap, tip = pfTipEl();
-  if (!map || map.n < 2 || !tip) return;
-  const a = Math.min(i1, i2), b = Math.max(i1, i2), s0 = map.series[0];
-  let html = '<b>' + ltrNum(fmtDateIL(s0.pts[a].date) + ' – ' + fmtDateIL(s0.pts[b].date)) + '</b>';
-  for (const s of map.series) {
-    html += '<div><span class="dot" style="background:' + s.color + '"></span>' + esc(s.name) + ' ' + fmtRetHTML(retPct(s.pts[a].norm, s.pts[b].norm)) + '</div>';
-  }
-  pfTipPlace(tip, html);
+  pfKeyNow({ a: Math.min(i1, i2), b: Math.max(i1, i2) });
 }
 function pfIdxAt(map, x) {
   let idx = 0;
@@ -13592,14 +13667,14 @@ async function drawPfChart() {
   // לא מציגים תשואה מומצאת. מסבירים איך לקבל נתונים מפורטים.
   if (srcKind === 'ibkr' && rangeGap > 10) {
     if (loading) { loading.textContent = t('pfRangeNeedsDaily'); loading.classList.remove('hidden'); }
-    if (legend) legend.innerHTML = '';
+    renderPfKey(legend, null, false);
     canvas._pfMap = null;
     canvas._pfPaint = null;
     const ctx0 = canvas.getContext && canvas.getContext('2d');
     if (ctx0) ctx0.clearRect(0, 0, canvas.width, canvas.height);
     renderPfNote(true, srcKind);
     renderPfRangeSummary(null);
-    renderPfBenchToggles(false);
+    renderPfKey(legend, null, false);
     return;
   }
   // חיתוך לתחילת תקופת הדוח — טווח שמתחיל לפני שהתיק נפתח מציג תשואה פיקטיבית.
@@ -13626,12 +13701,12 @@ async function drawPfChart() {
   }
   if (pfRows.length < 2) {
     if (loading) { loading.textContent = t('noChartNow'); loading.classList.remove('hidden'); }
-    if (legend) legend.innerHTML = '';
+    renderPfKey(legend, null, false);
     canvas._pfMap = null;
     canvas._pfPaint = null;
     renderPfNote(true, srcKind);
     renderPfRangeSummary(null);
-    renderPfBenchToggles(false);
+    renderPfKey(legend, null, false);
     return;
   }
 
@@ -13661,15 +13736,14 @@ async function drawPfChart() {
   const series = allSeries.filter((s) => s.pts.length >= 2);
   if (!series.length) {
     if (loading) { loading.textContent = t('noChartNow'); loading.classList.remove('hidden'); }
-    if (legend) legend.innerHTML = '';
+    renderPfKey(legend, null, false);
     canvas._pfMap = null;
     canvas._pfPaint = null;
     renderPfNote(true, srcKind);
     renderPfRangeSummary(null);
     return;
   }
-  canvas._pfPaint = { series: series, benchEmpty: benchSeries.length === 0, srcKind: srcKind };
-  renderPfBenchToggles(showBench);
+  canvas._pfPaint = { series: series, benchEmpty: benchSeries.length === 0, srcKind: srcKind, showBench: showBench };
   paintPfChart();
 }
 
@@ -13684,8 +13758,12 @@ function paintPfChart() {
   if (!series.length) return;
   const n = series[0].pts.length;
 
+  // 2.147.0: המקרא הצף נצבע לפני הגרף — גובהו קובע את המרווח העליון, כך שאף קו לא עובר מתחתיו
+  renderPfKey(legend, series, !!paint.showBench, pfReadout());
+  const keyH = legend && !legend.classList.contains('hidden') ? legend.offsetHeight : 0;
+  const h = pfFitH(canvas);
   const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth || 320, h = 210;
+  const w = canvas.clientWidth || 320;
   canvas.width = w * dpr; canvas.height = h * dpr;
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
@@ -13707,6 +13785,15 @@ function paintPfChart() {
   // v125: ציר X לפי זמן, לא לפי אינדקס — בנתוני תקופות (נקודה לשנה) תקופה
   // של יום אחד תפסה רוחב של שנה שלמה והגרף היה מעוות
   const fr = pfTimeFractions(series[0].pts.map((p) => p.date));
+  // 2.147.0: מרווח עליון רק מתחת למקרא — הקווים באזור שלו יורדים מתחת לתחתיתו, ושאר הגרף מנצל את כל הגובה
+  const zoneR = keyH ? legend.offsetLeft + legend.offsetWidth + 4 : 0;
+  const topAt = (x) => (keyH && x <= zoneR ? keyH + 6 : padT); // 2.147.0: סמנים ופס המדידה לא נכנסים מתחת למקרא
+  if (keyH) {
+    const r = Math.min(0.6, (keyH + 6 - padT) / plotH);
+    let vz = -Infinity;
+    for (const s of series) s.pts.forEach((p, i) => { if (padL + (n <= 1 ? plotW / 2 : fr[i] * plotW) <= zoneR) vz = Math.max(vz, p.norm - 100); });
+    if (isFinite(vz) && r > 0) max = Math.max(max, min + (vz - min) / (1 - r));
+  }
   const X = (i) => padL + (n <= 1 ? plotW / 2 : fr[i] * plotW);
   const Y = (v) => padT + (1 - (v - min) / (max - min)) * plotH;
 
@@ -13717,7 +13804,7 @@ function paintPfChart() {
     const y = Y(v);
     ctx.strokeStyle = cssVar('--outline', '#E3E7E4');
     ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(y < keyH + 4 ? zoneR : padL, y); ctx.lineTo(w - padR, y); ctx.stroke(); // 2.147.0: לא מתחת למקרא
     ctx.fillStyle = cssVar('--on-surface-var', '#9AA5A0');
     ctx.textAlign = 'left';
     ctx.direction = 'ltr'; // v166: הסימן משמאל למספר גם בקנבס (ברירת המחדל יורשת RTL)
@@ -13760,7 +13847,8 @@ function paintPfChart() {
   if (ms.pts.length >= 2) {
     const a = Math.min(ms.pts[0], ms.pts[1]), b = Math.max(ms.pts[0], ms.pts[1]);
     ctx.fillStyle = marker + '1F';
-    ctx.fillRect(X(a), padT, X(b) - X(a), plotH);
+    const xa = X(a), xb = X(b), bt = topAt(xa);
+    ctx.fillRect(xa, bt, xb - xa, padT + plotH - bt);
   }
   const drawMarker = (i) => {
     const x = X(i), y = Y(pts0[i].norm - 100);
@@ -13768,7 +13856,8 @@ function paintPfChart() {
     ctx.fillStyle = marker + '2E'; ctx.fill();
     ctx.setLineDash([5, 4]);
     ctx.strokeStyle = marker; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH); ctx.stroke();
+    const lt = ms.pts.length >= 2 ? topAt(X(Math.min(ms.pts[0], ms.pts[1]))) : topAt(x); // במדידה — שני הקווים מגובה הפס
+    ctx.beginPath(); ctx.moveTo(x, lt); ctx.lineTo(x, padT + plotH); ctx.stroke();
     ctx.setLineDash([]);
     ctx.beginPath(); ctx.arc(x, y, 6.5, 0, Math.PI * 2);
     ctx.fillStyle = marker; ctx.fill();
@@ -13777,6 +13866,13 @@ function paintPfChart() {
   for (const i of ms.pts) drawMarker(i);
   if (!ms.on && state.pfTipIdx !== null && state.pfTipIdx < n) drawMarker(state.pfTipIdx);
   if (state.pfPickDate && state.pfPickIdx !== null) { if (state.pfPickIdx >= n) state.pfPickIdx = n - 1; drawMarker(state.pfPickIdx); } // v266
+  // 2.147.0: התאריך של הנקודה — גלולה בציר התאריכים, מעל התוויות (במדידה: הטווח, באמצע בין הנקודות)
+  const ro = pfReadout();
+  if (ro) {
+    const txt = ro.b !== undefined ? fmtDateIL(pts0[Math.min(ro.a, n - 1)].date) + ' – ' + fmtDateIL(pts0[Math.min(ro.b, n - 1)].date) : fmtDateIL(pts0[Math.min(ro.idx, n - 1)].date);
+    const cx = ro.b !== undefined ? (X(Math.min(ro.a, n - 1)) + X(Math.min(ro.b, n - 1))) / 2 : X(Math.min(ro.idx, n - 1));
+    pfDatePill(ctx, txt, cx, h - 20, padL, w - padR);
+  }
 
   canvas._pfMap = { n, padL, plotW, series, xs: fr.map((f) => padL + f * plotW) };
   if (state.pfPickDate && state.pfPickIdx !== null) showPfPickTip(); // v266: הבועה נשארת גם בציור מחדש
@@ -13784,14 +13880,6 @@ function paintPfChart() {
   canvas.classList.toggle('measuring', state.pfPickDate || ms.on);
   updatePfMeasureChip();
 
-  if (legend) {
-    legend.innerHTML = series.map((s) => {
-      const r = s.pts[s.pts.length - 1].norm - 100;
-      return '<li><span class="dot" style="background:' + s.color + '"></span>' +
-        '<span class="lg-name">' + esc(s.name) + '</span>' +
-        '<span class="lg-pct">' + fmtRetHTML(r) + '</span></li>';
-    }).join('');
-  }
   renderPfRangeSummary(series[0]);
   renderPfNote(paint.benchEmpty, paint.srcKind);
 }
@@ -18332,11 +18420,11 @@ function scMeasure(pts, i, j) {
 function scRender(canvas) {
   const wrap = canvas.parentNode, map = canvas._chartMap, sc = canvas._sc;
   let ov = wrap && wrap.querySelector('.sc-ov');
-  if (!sc || !map || map.n < 2 || !wrap) { if (ov) ov.classList.add('hidden'); return; }
   const sym = canvas.id.replace(/^chart-/, '');
+  const sret = stockNode(sym, 'sret-');
+  if (!sc || !map || map.n < 2 || !wrap) { if (ov) ov.classList.add('hidden'); if (sret) sret.classList.remove('ro'); return; }
   if (!ov) {
     ov = el('div', 'sc-ov');
-    ov.setAttribute('aria-live', 'polite');
     ov.innerHTML = '<i class="sc-band"></i><i class="sc-line"></i><i class="sc-line sc-l2"></i><i class="sc-dot"></i><i class="sc-dot sc-d2"></i><div class="pf-tip sc-tip"></div>';
     wrap.appendChild(ov);
   }
@@ -18370,6 +18458,31 @@ function scRender(canvas) {
   }
   ov.classList.toggle('m', sc.mode === 'm');
   ov.classList.toggle('neg', tone === 'neg');
+  /* 2.147.0 (בקשת המשתמש: "שהבועה לא תסתיר את הגרפים בזמן הסימון — אף פעם"): הערכים מוצגים בשורת התשואה שמעל הגרף,
+     במקומה (תאריך · מחיר · שינוי; במדידה — הטווח · תשואה · שינוי במחיר), בלי בועה שמכסה את הגרף או את הנתונים.
+     שורה אחת בגובה השורה הרגילה — הכרטיס לא זז. בלי שורת התשואה (מקרה קצה) — הבועה הישנה. */
+  if (sret) {
+    let ro = sret.querySelector('.rs-ro');
+    if (!ro) { ro = el('span', 'rs-ro'); ro.setAttribute('aria-live', 'polite'); sret.appendChild(ro); }
+    const col = cssVar(map.up ? '--gain' : '--loss', map.up ? '#137333' : '#B3261E');
+    let r;
+    if (sc.mode === 'm') {
+      const m = scMeasure(map.pts, clamp(sc.a), clamp(sc.b));
+      r = '<span class="ro-d">' + ltrNum(esc(scDateTxt(map.pts[m.a], map.intraday)) + ' – ' + esc(scDateTxt(map.pts[m.b], map.intraday))) + '</span>' +
+        '<span class="ro-v ' + tone + '">' + fmtPct(m.pct, true) + '</span><span class="ro-c ' + tone + '">' + fmtSignedPx(m.chg, sym) + '</span>';
+    } else {
+      const i = clamp(sc.i);
+      const chg = map.base > 0 && !sc.pick ? (map.pts[i].close / map.base - 1) * 100 : null;
+      r = '<span class="ro-d">' + esc(scDateTxt(map.pts[i], map.intraday)) + '</span><span class="ro-v">' + scPxTxt(sym, map.pts[i].close) + '</span>' +
+        (chg !== null && isFinite(chg) ? '<span class="ro-c ' + (chg >= 0 ? 'pos' : 'neg') + '">' + fmtPct(chg, true) + '</span>' : '');
+    }
+    r = '<span class="dot" style="background:' + col + '"></span>' + r;
+    if (ro._html !== r) { ro.innerHTML = r; ro._html = r; }
+    sret.classList.add('ro');
+    tip.classList.add('hidden');
+    return;
+  }
+  tip.classList.remove('hidden');
   if (tip._html !== html) { tip.innerHTML = html; tip._html = html; }
   const dot = tip.querySelector('.dot');
   if (dot) dot.style.background = cssVar(map.up ? '--gain' : '--loss', map.up ? '#137333' : '#B3261E');
