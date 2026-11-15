@@ -272,7 +272,7 @@ async function check(app, S, step, want) {
   }
   const ent = await S.page.evaluate(() => { const l = window.__probe.ent; window.__probe.ent = []; return l; });
   if (ent.length) bad(app, step, 'אנימציית כניסה מ־opacity 0 ב' + (step === 'פתיחה' ? 'ציור הראשון' : 'זמן המעבר') + ' (' + ent.length + '): ' + [...new Set(ent)].slice(0, 4).join(' '));
-  const pl = S.lt && S.lt.on ? S.lt.pills.slice() : [], gl = S.lt && S.lt.on && app === 'academy' ? S.lt.glass.slice() : [];
+  const pl = S.lt && S.lt.on ? S.lt.pills.slice() : [], gl = S.lt && S.lt.on && (app === 'academy' || app === 'invest') ? S.lt.glass.slice() : [];
   const tl = layerTransient(S);
   if (gl.length) bad(app, step, 'בזמן המעבר נוצרו ' + gl.length + ' שכבות טשטוש חדשות לרכיבים בתוך הדף (בטלפון — הבהוב לפריים): ' + [...new Set(gl)].slice(0, 5).join(' '));
   if (pl.length) bad(app, step, 'בזמן המעבר נוצרו ' + pl.length + ' שכבות חדשות לבועות בהדר (בטלפון — מלבן ריק לפריים): ' + [...new Set(pl)].slice(0, 4).join(' '));

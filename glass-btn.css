@@ -148,6 +148,16 @@ html[data-app="admin"] { --gb-force: #5E5CE6; --gb-ontx: #fff; }
     :is(.appbar, .lib-selbar, .mg-fab, .mg-abar, .mg-cta, .mg-foot, .pl-foot, .be-foot, .mg-snack, .lib-veil, .lib-sheet, .rd, .px-view) *) {
   -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
 }
+
+/* ---------- 9. Invest — זכוכית בתוך הדף בלי טשטוש (15/11/2026, בקשת המשתמש: "החיפוש, המיון והסינון כל הזמן נעלמים") ----------
+   השורש של סעיף 8, בעמודי Invest: כל גרירה/מעבר בקובייה מוסיפה לדף .cube-flat (--gb-fx: none) ומורידה בנחיתה — שכבת טשטוש חדשה
+   לכל "סינון", צ'יפ מיון, תפריט ולשונית רשימה, "+" וטווח בגרף (qa-sweep: 1–9 בכל מעבר), ובטלפון השכבה מוצגת פריים לפני שנצבעה —
+   וגם השכנים שנדחסים איתה (השנים, שדה החיפוש). מאחורי כפתור בתוך הדף רק הרקע האחיד של האפליקציה — הטשטוש לא נראה. נשאר רק במה
+   שצף מעל תוכן: בועת הסינון, התפריטים, תוצאות החיפוש, המקרא והבועה בגרף */
+:where(main .tabpage) :not(:is(.src-pop, .menu-drop, .stock-search-results, .pf-pick-bubble, .pf-key),
+    :is(.src-pop, .menu-drop, .stock-search-results, .pf-pick-bubble, .pf-key) *) {
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+}
 }
 
 /* @glass-exempt — לא כפתורים במראה (נשארים כמו שהם):
