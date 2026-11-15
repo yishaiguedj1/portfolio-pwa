@@ -12852,6 +12852,7 @@ function drawPie() {
   if (pieAnimRaf && legend.children && legend.children.length) { pieMarkLegend(legend); return; }
   legend.innerHTML = '';
   const sorted = slicesUnique.slice().sort(cashLast);
+  const maxV = sorted.reduce((m, s) => Math.max(m, s.value), 0) || 1; // הפס של כל שורה — יחסית לאחזקה הגדולה
   for (const s of sorted) {
     const src = s.cash ? null : logoSrc(s.sym);
     const e = src ? pieLogoImg(s.sym) : null;
@@ -12860,11 +12861,11 @@ function drawPie() {
       '<span class="pie-leg-logo' + (s.cash ? ' cash' : e && e.ready && e.light ? ' inv' : '') + '">' +
       '<span class="pie-leg-fb">' + esc(s.cash ? (cur === 'ILS' ? '₪' : '$') : (normalizeSym(s.sym) || '?').charAt(0)) + '</span>' +
       (src && !(e && e.failed) ? '<img src="' + src + '" alt="" loading="lazy" decoding="async" data-err="hide-self">' : '') + '</span>' +
-      '<span class="dot" style="background:' + s.color + '"></span>' +
       '<span class="lg-name">' + (s.cash ? '<span class="lg-sym">' + esc(t('pieCash')) + '</span>' : '<bdi dir="ltr" class="lg-sym">' + esc(s.sym) + '</bdi>') +
       (full && full.toUpperCase() !== String(s.sym).toUpperCase() ? '<span class="lg-full" dir="auto">' + esc(full) + '</span>' : '') + '</span>' +
-      '<span class="lg-val">' + money(val(s.value), cur) + '</span>' +
-      '<span class="lg-pct">' + (s.value / total * 100).toFixed(1) + '%</span>');
+      '<span class="lg-bar" aria-hidden="true"><i style="width:' + Math.max(2, s.value / maxV * 100).toFixed(1) + '%;background:' + s.color + '"></i></span>' +
+      '<span class="lg-num"><span class="lg-pct">' + (s.value / total * 100).toFixed(1) + '%</span>' +
+      '<span class="lg-val">' + money(val(s.value), cur) + '</span></span>');
     if (li.dataset) li.dataset.sym = s.sym;
     li.addEventListener && li.addEventListener('click', () => { // נגיעה בשורה = נגיעה בפרוסה
       const next = state.pieActive === s.sym ? null : s.sym;
