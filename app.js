@@ -7987,8 +7987,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.149.0';
-const APP_VERSION = 'v769';
+const APP_RELEASE = '2.150.0';
+const APP_VERSION = 'v770';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -11454,7 +11454,12 @@ function deskGridIdx(cur, n, k) {
   if (k === 'ArrowUp') return cur < 0 ? 0 : Math.max(0, cur - 1);
   return null;
 }
-function deskGridRows(g) { return [...g.querySelectorAll('li')].filter((r) => !r.parentElement.closest('li') && r.offsetParent !== null && !r.classList.contains('dep-sub')); }
+function deskGridRows(g) {   // 15/11/2026: שורות בתוך כרטיס שנה פתוח (ההפקדות) נחשבות; בכרטיס סגור — לא
+  return [...g.querySelectorAll('li')].filter((r) => {
+    const p = r.parentElement.closest('li');
+    return (!p || p.matches('.dep-yr.open')) && r.offsetParent !== null && !r.classList.contains('dep-sub') && !r.classList.contains('dep-mo');
+  });
+}
 function deskGridKey(e) {
   const k = e.key;
   if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || !/^(ArrowUp|ArrowDown|Home|End|Enter)$/.test(k)) return false;
@@ -18822,7 +18827,9 @@ function renderDeposits() {
   renderSrcFilter('deposits');
   const sf = getSrcFilter('deposits');
   const shown = depositsNewestFirst(DEPOSITS).filter((x) => srcPass(sf, isIbkrDeposit(x.d) ? 'ibkr' : 'manual'));
-  shown.forEach((x) => ul.appendChild(buildDepositRow(x.d, x.i, ed)));
+  // 15/11/2026 (בקשת המשתמש): כרטיס זכוכית לכל שנה במקום רשימה אחת ארוכה — השנה האחרונה פתוחה
+  const yrOpen = state._depYrOpen || (state._depYrOpen = new Map());
+  depYearGroups(shown).forEach((g, k) => ul.appendChild(buildDepYear(g, yrOpen.has(g.y) ? yrOpen.get(g.y) : k === 0, ed, yrOpen)));
   if (!shown.length && DEPOSITS.length && !(hasMf && srcPass(sf, 'manual'))) ul.appendChild(el('p', 'fine', t('srcFilterEmpty')));
   if (hasMf && srcPass(sf, 'manual')) {
     const head = el('li', 'dep-sub');
@@ -18847,6 +18854,74 @@ function renderDeposits() {
       ul.appendChild(li);
     }
   }
+}
+
+/* טהורה: הפקדות (כבר מהחדשה לישנה) בקבוצות לפי שנה, עם הנטו בשקלים (חיובי = נכנס לתיק) */
+function depYearGroups(shown) {
+  const out = [], by = new Map();
+  for (const x of shown) {
+    const y = depDateKey(x.d).slice(0, 4) || '—';
+    let g = by.get(y);
+    if (!g) { g = { y, items: [], net: 0 }; by.set(y, g); out.push(g); }
+    g.items.push(x);
+    g.net -= depILS(x.d);
+    // בתוך השנה — קטלוג לפי חודש (בקשת המשתמש: שיהיה ברור באיזה חודש בוצעה כל הפקדה)
+    const m = depDateKey(x.d).slice(4, 6);
+    let mo = g.months && g.months[g.months.length - 1];
+    if (!mo || mo.m !== m) { mo = { m, items: [], net: 0 }; (g.months || (g.months = [])).push(mo); }
+    mo.items.push(x);
+    mo.net -= depILS(x.d);
+  }
+  for (const g of out) { g.net = Math.round(g.net * 100) / 100; for (const mo of g.months) mo.net = Math.round(mo.net * 100) / 100; }
+  return out;
+}
+function depMonthName(m) {
+  if (!m) return '';
+  try { return new Intl.DateTimeFormat(state.lang === 'en' ? 'en-US' : 'he-IL', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2000, Number(m) - 1, 1))); } catch (e) { return m; }
+}
+const depNetTxt = (v) => ltrNum((v < 0 ? '−' : '') + '₪' + Math.abs(v).toLocaleString('en-US', { maximumFractionDigits: 0 }));
+const ICON_DEP_CHEV = '<svg class="dep-yr-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+function buildDepYear(g, open, ed, yrOpen) {
+  const li = el('li', 'dep-yr' + (open ? ' open' : ''));
+  li.dataset.yr = g.y;
+  const id = 'depYr-' + g.y.replace(/\W/g, '_');
+  const h = el('button', 'dep-yr-h');
+  h.type = 'button';
+  h.setAttribute('aria-expanded', open ? 'true' : 'false');
+  h.setAttribute('aria-controls', id);
+  const net = depNetTxt(g.net);
+  h.innerHTML = '<span class="dep-yr-t"><b>' + esc(g.y) + '</b><span>' + esc(t('records', { n: g.items.length })) + '</span></span>' +
+    '<span class="dep-yr-net">' + net + '</span>' + ICON_DEP_CHEV;
+  h.addEventListener('click', () => {
+    const on = !li.classList.contains('open');
+    if (on && li.parentElement) {   // אקורדיון: שנה אחת פתוחה — הרשימה לא חוזרת להיות ארוכה
+      li.parentElement.querySelectorAll(':scope > .dep-yr.open').forEach((o) => {
+        o.classList.remove('open');
+        o.firstChild.setAttribute('aria-expanded', 'false');
+        yrOpen.set(o.dataset.yr, false);
+      });
+    }
+    li.classList.toggle('open', on);
+    h.setAttribute('aria-expanded', on ? 'true' : 'false');
+    yrOpen.set(g.y, on);
+    if (on) setTimeout(() => { try { h.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {} }, 360);
+  });
+  li.appendChild(h);
+  const body = el('div', 'dep-yr-body');
+  const list = el('ul', 'rows dep-yr-list');
+  list.id = id;
+  for (const mo of g.months) {
+    if (mo.m) {
+      const mh = el('li', 'dep-mo');
+      mh.innerHTML = '<span>' + esc(depMonthName(mo.m)) + '</span>' +
+        (mo.items.length > 1 ? '<span class="dep-mo-net">' + depNetTxt(mo.net) + '</span>' : ''); // הפקדה אחת — הסכום כבר בשורה
+      list.appendChild(mh);
+    }
+    mo.items.forEach((x) => list.appendChild(buildDepositRow(x.d, x.i, ed)));
+  }
+  body.appendChild(list);
+  li.appendChild(body);
+  return li;
 }
 
 function buildDepositRow(d, i, ed) {

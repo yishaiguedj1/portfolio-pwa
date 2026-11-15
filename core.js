@@ -388,8 +388,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.149.0';
-const APP_VERSION = 'v769';
+const APP_RELEASE = '2.150.0';
+const APP_VERSION = 'v770';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -1249,7 +1249,12 @@ function deskGridIdx(cur, n, k) {
   if (k === 'ArrowUp') return cur < 0 ? 0 : Math.max(0, cur - 1);
   return null;
 }
-function deskGridRows(g) { return [...g.querySelectorAll('li')].filter((r) => !r.parentElement.closest('li') && r.offsetParent !== null && !r.classList.contains('dep-sub')); }
+function deskGridRows(g) {   // 15/11/2026: שורות בתוך כרטיס שנה פתוח (ההפקדות) נחשבות; בכרטיס סגור — לא
+  return [...g.querySelectorAll('li')].filter((r) => {
+    const p = r.parentElement.closest('li');
+    return (!p || p.matches('.dep-yr.open')) && r.offsetParent !== null && !r.classList.contains('dep-sub') && !r.classList.contains('dep-mo');
+  });
+}
 function deskGridKey(e) {
   const k = e.key;
   if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || !/^(ArrowUp|ArrowDown|Home|End|Enter)$/.test(k)) return false;
