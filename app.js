@@ -6124,6 +6124,7 @@ function srcFilterName(k) {
 function closeSrcPops(except) {
   document.querySelectorAll('.src-filter.open').forEach((w) => {
     if (w === except) return;
+    if (w._onClose) { try { w._onClose(); } catch (e) { /* בלי לעצור את הסגירה */ } }   // גלגלת הטווח: קובעת את הפריט שבאמצע
     w.classList.remove('open');
     if (w._modal) { const m = w._modal; w._modal = null; modalDone(m); }
     const b = w.querySelector('.src-btn, .range-btn'); if (b) b.setAttribute('aria-expanded', 'false');
@@ -13282,35 +13283,43 @@ function renderPfChips() {
   }
   const cur = pfCurRange();
   box.querySelectorAll(':scope > .range-btn').forEach((b) => b.classList.toggle('active', b.dataset.range === cur));
-  const yw = box.querySelector('.pf-wheel');
+  const yw = box.querySelector('.rg-wheel');
   if (yw && yw._sync) yw._sync(cur);
 }
 function pfYearWheel() {
-  const keys = PF_YEAR_RANGES, n = keys.length, ROW = PF_WH_ROW;
-  const yw = el('div', 'src-filter range-year pf-wheel');
+  return rangeWheel({ keys: PF_YEAR_RANGES, cur: pfCurRange, short: (k) => esc(pfShort(k)), long: (k) => esc(pfWhLong(k)), pick: pfPickRange, live: true });
+}
+/* גלגלת טווח משותפת (ביצועי התיק, כרטיס המניה ורשימות המעקב).
+   o = { keys, cur() → המפתח הנבחר, short(k)/long(k) → HTML לכפתור/לגלגלת, pick(k), live }.
+   live = הבחירה נקבעת כבר כשהגלילה נעצרת (הגרף מתעדכן והגלגלת נשארת פתוחה); אחרת — בסגירה בלבד
+   (בכרטיס המניה הבחירה בונה את הכרטיס מחדש). הסגירה (בחוץ / "חזור" / הפריט שבאמצע / שחרור גרירה) תמיד קובעת. */
+function rangeWheel(o) {
+  const keys = o.keys, n = keys.length, ROW = PF_WH_ROW;
+  const yw = el('div', 'src-filter range-year rg-wheel');
   yw.innerHTML = '<button class="range-btn" type="button" aria-haspopup="listbox" aria-expanded="false">' +
       '<span class="range-lbl"></span><span class="range-ud">' + ICON_UPDOWN + '</span></button>' +
     '<div class="src-pop range-pop wh-pop hidden">' +
       '<div class="wh-band" aria-hidden="true"></div>' +
       '<div class="wh-scroll" role="listbox" aria-label="' + esc(t('srYearMenu')) + '"><div class="wh-pad"></div>' +
-        keys.map((k, i) => '<div class="wh-it" role="option" aria-selected="false" data-i="' + i + '">' + esc(pfWhLong(k)) + '</div>').join('') +
+        keys.map((k, i) => '<div class="wh-it" role="option" aria-selected="false" data-i="' + i + '">' + o.long(k) + '</div>').join('') +
       '<div class="wh-pad"></div></div>' +
     '</div>';
   const btn = yw.querySelector('.range-btn'), lbl = yw.querySelector('.range-lbl'), pop = yw.querySelector('.wh-pop'), sc = yw.querySelector('.wh-scroll');
   const items = [...sc.querySelectorAll('.wh-it')];
   const flat = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let shown = -1, raf = 0, settleT = 0, drag = null;
+  let shown = -1, raf = 0, settleT = 0, drag = null, i0 = 0, moved = false;
   const isOpen = () => yw.classList.contains('open');
   const posNow = () => sc.scrollTop / ROW;
   const idxNow = () => Math.max(0, Math.min(n - 1, Math.round(posNow())));
-  const selIdx = () => Math.max(0, keys.indexOf(pfCurRange()));
+  const selIdx = () => Math.max(0, keys.indexOf(o.cur()));
   /* התווית בכפתור: מתגלגלת למעלה/למטה כשהפריט שבאמצע מתחלף */
   const setLabel = (i, roll) => {
     if (i === shown) return;
     const dir = shown < 0 || !roll ? '' : i > shown ? 'up' : 'down';
     shown = i;
-    lbl.textContent = pfShort(keys[i]);
+    lbl.innerHTML = o.short(keys[i]);
     btn.classList.toggle('long', keys[i] === 'max');
+    btn.classList.toggle('cal', keys[i] === 'custom');
     lbl.classList.remove('roll-up', 'roll-down');
     if (dir) { void lbl.offsetWidth; lbl.classList.add('roll-' + dir); try { if (navigator.vibrate) navigator.vibrate(3); } catch (e) { /* בלי רטט */ } }
   };
@@ -13326,13 +13335,18 @@ function pfYearWheel() {
       it.classList.toggle('cur', on);
       it.setAttribute('aria-selected', String(on));
     });
-    if (isOpen()) setLabel(idxNow(), true);
+    if (isOpen()) { if (idxNow() !== i0) moved = true; setLabel(idxNow(), true); }
   };
-  const place = (i) => { sc.scrollTop = i * ROW; paint(); };
-  const commit = () => {
-    if (!isOpen()) { yw._sync(pfCurRange()); return; }   // נסגרה באמצע גלילה — לא קובעים, התווית חוזרת לנבחר
-    const i = idxNow();
-    if (keys[i] !== pfCurRange()) pfPickRange(keys[i]);
+  const sync = (cur) => {
+    const on = keys.includes(cur);
+    btn.classList.toggle('active', on);
+    if (!isOpen()) setLabel(on ? keys.indexOf(cur) : 0, false);
+  };
+  const commit = (force) => {
+    if (!isOpen()) { sync(o.cur()); return; }   // נסגרה באמצע גלילה — הבחירה כבר נקבעה בסגירה; רק התווית
+    if (!moved && !force && !keys.includes(o.cur())) return;   // טווח אחר נבחר (3M…) ופתחו וסגרו בלי לגלול — לא משנים
+    const k = keys[idxNow()];
+    if (k !== o.cur()) o.pick(k);
   };
   const open = () => {
     closeSrcPops(yw);
@@ -13340,16 +13354,19 @@ function pfYearWheel() {
     yw.classList.add('open');
     pop.classList.remove('hidden');
     btn.setAttribute('aria-expanded', 'true');
-    place(selIdx());
+    i0 = selIdx(); moved = false;
+    sc.scrollTop = i0 * ROW;
+    paint();
   };
+  yw._onClose = () => { clearTimeout(settleT); commit(); };
   sc.addEventListener('scroll', () => {
     if (!raf) raf = requestAnimationFrame(paint);
-    if (drag) return;
+    if (drag || !o.live) return;
     clearTimeout(settleT);
     settleT = setTimeout(commit, 140);   // הגלילה נעצרה (גם במנגנון הנעילה) — קובעים
   }, { passive: true });
   items.forEach((it, i) => it.addEventListener('click', () => {
-    if (i === idxNow()) { commit(); closeSrcPops(); return; }
+    if (i === idxNow()) { moved = true; closeSrcPops(); return; }   // הקשה על הפריט שבאמצע = בחירה מפורשת
     sc.scrollTo({ top: i * ROW, behavior: flat ? 'auto' : 'smooth' });
   }));
   pop.addEventListener('click', (e) => e.stopPropagation());
@@ -13382,18 +13399,13 @@ function pfYearWheel() {
     btn.dataset.drag = '1';
     setTimeout(() => { delete btn.dataset.drag; }, 60);
     sc.classList.remove('drag');
-    const i = idxNow();
-    sc.scrollTo({ top: i * ROW, behavior: flat ? 'auto' : 'smooth' });
-    setTimeout(() => { if (!isOpen()) return; commit(); closeSrcPops(); }, flat ? 0 : 260);
+    sc.scrollTo({ top: idxNow() * ROW, behavior: flat ? 'auto' : 'smooth' });
+    setTimeout(() => { if (isOpen()) closeSrcPops(); }, flat ? 0 : 260);
   };
   btn.addEventListener('pointerup', end);
   btn.addEventListener('pointercancel', end);
-  /* סנכרון מבחוץ (בחירה בכפתור אחר / "מתאריך"): כשהגלגלת סגורה — התווית והסימון לפי הטווח שנבחר */
-  yw._sync = (cur) => {
-    const on = keys.includes(cur);
-    btn.classList.toggle('active', on);
-    if (!isOpen()) setLabel(on ? keys.indexOf(cur) : 0, false);
-  };
+  yw._sync = sync;   // סנכרון מבחוץ (בחירה בכפתור אחר / "מתאריך"): כשהגלגלת סגורה — התווית והסימון לפי הטווח שנבחר
+  sync(o.cur());
   return yw;
 }
 
@@ -17760,33 +17772,12 @@ function buildStockBody(p, m) {
   for (const [key, label] of RANGES) {
     if (YEAR_RANGES.includes(key) && key !== YEAR_RANGES[0]) continue;
     if (key === YEAR_RANGES[0]) {
-      const on = YEAR_RANGES.includes(cur);
-      // v229: "מתאריך" = אייקון לוח שנה בכפתור (התאריך עצמו בשורת התשואה); בתפריט: מקסימום בשמו המלא
-      const btnLbl = on && cur === 'custom' ? CAL_ICON : esc(labelOf(on ? cur : key));
-      const optLbl = (k) => k === 'max' ? esc(t('srMaxName')) : k === 'custom' ? CAL_ICON + esc(t('srFrom')) : esc(labelOf(k));
-      const yw = el('div', 'src-filter range-year');
-      yw.innerHTML = '<button class="range-btn' + (on ? ' active' : '') + (on && cur === 'custom' ? ' cal' : '') + (on && cur === 'max' ? ' long' : '') + '" type="button" aria-haspopup="true" aria-expanded="false">' +
-        '<span class="range-lbl">' + btnLbl + '</span><span class="range-caret" aria-hidden="true">▾</span></button>' +
-        '<div class="src-pop menu-drop range-pop hidden" role="menu">' +
-          '<div class="src-pop-title">' + esc(t('srYearMenu')) + '</div>' +
-          YEAR_RANGES.map((k) => (k === 'custom' ? '<div class="range-pop-sep" role="separator"></div>' : '') +
-            '<button class="src-opt' + (k === cur ? ' on' : '') + '" type="button" role="menuitemradio" aria-checked="' + (k === cur) +
-            '" data-range="' + k + '"><span class="src-opt-name">' + optLbl(k) + '</span><span class="src-opt-check">' + (k === cur ? ICON_CHECK : '') + '</span></button>').join('') +
-        '</div>';
-      const yb = yw.querySelector('.range-btn'), pop = yw.querySelector('.range-pop');
-      yb.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const open = !yw.classList.contains('open');
-        closeSrcPops(yw);
-        yw.classList.toggle('open', open);
-        pop.classList.toggle('hidden', !open);
-        yb.setAttribute('aria-expanded', String(open));
-      });
-      pop.addEventListener('click', (e) => e.stopPropagation());
-      pop.querySelectorAll('button[data-range]').forEach((b) => b.addEventListener('click', () => {
-        closeSrcPops();
-        if (b.dataset.range === 'custom') openStockFromSheet(sym); else pick(b.dataset.range);
-      }));
+      // v229: "מתאריך" = אייקון לוח שנה בכפתור (התאריך עצמו בשורת התשואה); מקסימום בשמו המלא.
+      // 15/11/2026 (בקשת המשתמש): התפריט = גלגלת הזכוכית (rangeWheel), כמו בביצועי התיק; גם ברשימות המעקב (אותו כרטיס)
+      const yw = rangeWheel({ keys: YEAR_RANGES, cur: () => state.range[sym] || 'year', live: false,
+        short: (k) => k === 'custom' ? CAL_ICON : esc(labelOf(k)),
+        long: (k) => k === 'max' ? esc(t('srMaxName')) : k === 'custom' ? CAL_ICON + esc(t('srFrom')) : esc(pfWhLong(k)),
+        pick: (k) => { if (k === 'custom') openStockFromSheet(sym); else pick(k); } });
       ranges.appendChild(yw);
       continue;
     }

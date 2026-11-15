@@ -1289,11 +1289,12 @@ footer.fine { text-align: center; }
 #pfChips.stock-chips { overflow: visible; gap: 6px; padding-bottom: 0; }
 #pfChips.stock-chips .range-btn { padding-block: 6px; font-size: 13px; }
 /* כפתור השנה = גלגלת זכוכית לפי ת־גרף: ⌃⌄ במקום החץ, והתווית מתגלגלת כשהפריט שבאמצע מתחלף */
-.pf-wheel .range-btn { overflow: hidden; }
+.rg-wheel .range-btn { overflow: hidden; }
 .range-ud { display: inline-flex; opacity: .7; }
-.range-ud .ic { width: 12px; height: 12px; margin: 0; }
-.pf-wheel .range-lbl.roll-up { animation: whRollUp .18s ease-out; }
-.pf-wheel .range-lbl.roll-down { animation: whRollDown .18s ease-out; }
+.range-year .range-btn .range-ud > .ic.ic { width: 12px; height: 12px; margin: 0; vertical-align: 0; }   /* גם כשהכפתור במצב "מתאריך" (.cal) */
+.wh-it .ic { width: 18px; height: 18px; margin: 0; margin-inline-end: 6px; vertical-align: -3px; }
+.rg-wheel .range-lbl.roll-up { animation: whRollUp .18s ease-out; }
+.rg-wheel .range-lbl.roll-down { animation: whRollDown .18s ease-out; }
 @keyframes whRollUp { from { transform: translateY(70%); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes whRollDown { from { transform: translateY(-70%); opacity: 0; } to { transform: none; opacity: 1; } }
 /* הבועה: זכוכית נוזלית — לוח שקוף מטושטש (מהכלל של התפריטים הצפים), פינות גדולות, קו אור עליון ופנימי */
@@ -1313,7 +1314,7 @@ footer.fine { text-align: center; }
 .wh-it { height: 36px; line-height: 36px; padding-inline: 18px; text-align: center; white-space: nowrap; scroll-snap-align: center; cursor: pointer;
   font-size: 16px; font-weight: 600; color: var(--on-surface-var); font-variant-numeric: tabular-nums; will-change: transform, opacity; }
 .wh-it.cur { color: var(--on-surface); font-weight: 700; font-size: 17px; }
-@media (prefers-reduced-motion: reduce) { .pf-wheel .range-lbl.roll-up, .pf-wheel .range-lbl.roll-down { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .rg-wheel .range-lbl.roll-up, .rg-wheel .range-lbl.roll-down { animation: none; } }
 /* v107: טווחי גרף המניה מתחת לגרף — כמו בגרף הראשי */
 .stock-body .chip-row.stock-chips { margin-top: 12px; }
 /* v228: 1D 5D 1M 3M YTD 1Y — שישה כפתורים ברוחב שווה בשורה אחת (בלי גלילה, כדי שתפריט השנה לא ייחתך);
