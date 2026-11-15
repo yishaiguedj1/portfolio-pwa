@@ -563,6 +563,44 @@ function tiYears(sales, divs, opts) {
   return out;
 }
 
+/* ניכוי מס במקור אצל ברוקר ישראלי (15/11/2026, docs/research/tax-il/07, 08; docs/tax-il-research.md סעיף 7).
+   הברוקר המנכה מחשב כל חשבון לבד וכל שנה קלנדרית לבד: הפסד שלא קוזז עד 31/12 ("מגן המס") מתאפס אצלו ולא עובר.
+   החוק כן מעביר אותו (92(ב)) — אבל רק דרך דוח שנתי, ובתנאי שהוגש דוח גם לשנת ההפסד. לכן מה שנוכה ביתר חוזר רק בדוח.
+   groups — [{id, sales, divs}] של החשבונות שבהם יש ניכוי במקור; years — tiYears של האדם (כל החשבונות יחד, עם ההפסד
+   המועבר); o.wh — {שנה: מס רווח הון שנוכה בפועל, מטופס 867} גובר על ההערכה; o.sub — כמו ב־tiYear.
+   לכל שנה: withheld (מה שהברוקר ניכה — הערכה, או 867), correct (מס רווח ההון לפי החוק), net = withheld − correct
+   (חיובי = החזר בדוח השנתי; שלילי = תשלום נוסף, למשל רווח בחשבון בלי ניכוי), fromCarry (החלק של ההפסד המועבר),
+   left (הפסד שנשאר אצל הברוקר ב־31/12 ולא עבר), until (הסוף של חלון ההחזר — TI_REFUND_YEARS אחרי השנה). */
+const TI_REFUND_YEARS = 6;
+function tiWithheld(groups, years, opts) {
+  const o = opts || {};
+  const G = (groups || []).filter((g) => g && ((g.sales || []).length || (g.divs || []).length));
+  if (!G.length) return [];
+  const out = [];
+  for (const Y of (years || [])) {
+    const y = Y.year;
+    let est = 0, left = 0, any = false;
+    for (const g of G) {
+      if (!(g.sales || []).some((s) => s.sellDate.slice(0, 4) === String(y))) continue;
+      any = true;
+      // כמו שהברוקר רואה: החשבון הזה בלבד, בלי הפסד מועבר, בלי מאגר זיכוי
+      const b = tiYear(y, g.sales, g.divs, { carry: 0, sub: o.sub || [], noOffInt: !!o.noOffInt });
+      est += b.cgTax;
+      left += b.carryOut;
+    }
+    const given = o.wh && o.wh[y] != null && isFinite(Number(o.wh[y])) ? Math.max(0, Number(o.wh[y])) : null;
+    if (!any && given == null) continue;
+    const withheld = given != null ? given : est;
+    const correct = Math.max(0, Y.cgTax);
+    out.push({
+      year: y, withheld: withheld, est: est, fromForm: given != null, correct: correct, net: withheld - correct,
+      fromCarry: Y.rate * Y.carryUsed, carryIn: Y.carryIn, carryUsed: Y.carryUsed, carryOut: Y.carryOut,
+      left: left, until: (y + TI_REFUND_YEARS) + '-12-31',
+    });
+  }
+  return out;
+}
+
 /* דוח ומקדמה חצי־שנתיים — 91(ד)(2ג)(ב): עד 31/7 על המחצית הראשונה, עד 31/1 על השנה כולה פחות מה שכבר דווח.
    מצטבר: הפסד של המחצית הראשונה מקטין את מקדמת השנייה (ולא נעלם). בלי מס יסף (121ב(ב)) ובלי הפסד מועבר
    (קיזוזו בדיווח החצי־שנתי שנוי במחלוקת — docs/tax-il-research.md). מחזיר את הבסיס החייב, לא את המס. */
@@ -715,6 +753,6 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     TI_RULES, tiRules, tiNormTrades, tiFourCase, tiFifo, tiDividends, tiYear, tiYears,
     tiUnrealized, tiHarvest, tiCheck, tiSemi, TI_SRC, tiW8, tiRateOn, tiReport, tiEstate, TI_ESTATE_TH,
-    tiEstateTax, tiCorpGroups, tiResident, tiYearOpts, tiReal,
+    tiEstateTax, tiCorpGroups, tiResident, tiYearOpts, tiReal, tiWithheld, TI_REFUND_YEARS,
   };
 }
