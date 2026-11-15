@@ -2556,7 +2556,7 @@ html[data-theme="dark"] .lib-root .lib-back { background: var(--gl-back) !import
 #tab-trades { --tx-g: #1FA846; }
 [data-theme="dark"] #tab-trades { --tx-g: var(--gain); }
 .tx-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
-.tx-seg { flex: 1; display: flex; padding: 3px; border-radius: var(--pill); background: var(--gl-card); box-shadow: var(--gl-card-sh); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); }
+.tx-seg { flex: 1; display: flex; padding: 3px; border-radius: var(--pill); background: var(--gl-card); box-shadow: var(--gl-card-sh); }   /* בלי טשטוש — כמו שאר הכרטיסים: זכוכית בתוך פאה מסתובבת נצבעת כפס אטום */
 .tx-seg button { flex: 1; border: 0; background: transparent; color: var(--on-surface-var); font: inherit; font-size: 15.5px; font-weight: 600;
   padding: 9px 0; border-radius: var(--pill); cursor: pointer; transition: background-color .2s ease, color .2s ease; }
 .tx-seg button.on { background: var(--gl-btn); color: var(--on-surface); box-shadow: var(--gl-btn-sh); }
