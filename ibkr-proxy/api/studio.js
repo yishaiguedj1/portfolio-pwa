@@ -3216,7 +3216,8 @@ async function handler(req, res, deps = {}) {
     await capWarm(deps, now);
     const list = await servers().catch(() => []);
     return { month: S.monthUsed(st.mu, now), cap: userMonth(st), online: list.filter((x) => x.online && !x.paused).length, servers: list.length,
-      admin: isAdmin(user), ka: await kaAllowed(), vi: isAdmin(user) || await flagOn(deps, 'st_vi', now), nc: UM.isAdm(st), capDef: S.CAP_DEF, capMax: S.CAP_MAX };   // 9/11/2026: vi — לשונית הניתוח (st_vi; המנהל תמיד)
+      admin: isAdmin(user), ka: await kaAllowed(), vi: true, vx: !isAdmin(user) && !(await flagOn(deps, 'st_vi', now)) ? 1 : 0, nc: UM.isAdm(st),
+      cr: UM.crOf(st), capDef: S.CAP_DEF, capMax: S.CAP_MAX };   // 15/11/2026 (בקשת המשתמש): הלשונית לכל מורשי הסטודיו; vx = המתג st_vi כבוי (נעול, לא נעלם). cr = בקשת הגדלה שממתינה
   };
   const opsFor = async (u) => { const d = await readDoc(deps, 'studioOps', u).catch(() => null) || {}; return O.opsView(d.al, now, d.mu); };
   const scFor = async (u) => { const d = await readDoc(deps, 'studioOps', u).catch(() => null) || {}; return SC.scanView(d.sc); };   // v378
@@ -3547,13 +3548,15 @@ async function handler(req, res, deps = {}) {
       const o = { updated: now };
       if (body.cap !== undefined) { const c = UM.normCap(body.cap); if (c < 0) return res.status(400).json({ ok: false, error: 'bad_params' }); o.mc = c; }
       if (body.ps !== undefined) { if (u === uid) return res.status(400).json({ ok: false, error: 'bad_params' }); o.ps = body.ps === true ? 1 : 0; }
-      if (o.mc === undefined && o.ps === undefined) return res.status(400).json({ ok: false, error: 'bad_params' });
+      if (o.mc !== undefined || body.crx === true) o.crw = 0;   // 15/11/2026: תקרה חדשה = הבקשה טופלה; crx = דחייה
+      if (o.mc === undefined && o.ps === undefined && o.crw === undefined) return res.status(400).json({ ok: false, error: 'bad_params' });
       const st = await readStats(deps, u);
       try { await patchDoc(deps, 'studioStats', u, o); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
       aoCache.delete('uact');
       const who = UM.label(st.nm, st.em);
       if (o.mc !== undefined) await adminLog(deps, user, 'us_cap', who + ' · ' + (o.mc ? '$' + o.mc : '—'), now);
       if (o.ps !== undefined) await adminLog(deps, user, o.ps ? 'us_pause' : 'us_resume', who, now);
+      if (body.crx === true && o.mc === undefined) await adminLog(deps, user, 'us_cap', who + ' · ✕', now);   // בקשת הגדלה נדחתה
       return res.status(200).json({ ok: true });
     }
     if (op === 'adminUsage') {
@@ -3748,6 +3751,23 @@ async function handler(req, res, deps = {}) {
       const rl = S.normRules(body.rl);
       await patchDoc(deps, 'studioStats', uid, { rl, updated: now });
       return res.status(200).json({ ok: true, rl });
+    }
+    if (op === 'capReq') {
+      // 15/11/2026 (בקשת המשתמש): "נגמרה המכסה החודשית — אפשר לבקש הגדלה". w = התקרה החודשית המבוקשת (דולרים שלמים,
+      // מעל התקרה של היום); w: 0 = ביטול. התראה למנהל — פעם בשעה לכל היותר; המנהל מאשר/דוחה במרכז הניהול (adminUserSet)
+      if (isAdmin(user)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      await capWarm(deps, now);
+      const st = await readStats(deps, uid), cur = userMonth(st), old = UM.crOf(st), w = Number(body.w);
+      if (w === 0) { await patchDoc(deps, 'studioStats', uid, { crw: 0, updated: now }); return res.status(200).json({ ok: true, cr: null }); }
+      if (!Number.isInteger(w) || w <= cur || w > UM.CAP_MAX) return res.status(400).json({ ok: false, error: 'bad_params' });
+      const cr = { w, at: now };
+      try { await patchDoc(deps, 'studioStats', uid, { crw: w, cra: now, updated: now }); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+      aoCache.delete('uact');
+      if (!old || now - old.at > 3600e3) {
+        const adm = await adminUid(deps, now);
+        if (adm && adm !== uid) await notify(deps, adm, 'capreq', '', now, { nm: UM.label(st.nm, st.em), w, cap: cur });
+      }
+      return res.status(200).json({ ok: true, cr });
     }
     if (op === 'halt') {
       // v367: מתג החירום — "עצור את כל הסוכנים": כל עבודה שהופעלה מבוטלת ומפתח העבודה שלה נמחק (העובד מקבל "עצור" בפנייה הבאה,

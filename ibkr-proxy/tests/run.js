@@ -3613,6 +3613,33 @@ function stubFetch(text, status = 200) {
     studio._reset();   // הבלוק הזה שלח הרבה בקשות — מאפסים את מגבלת הקצב בזיכרון לפני הבדיקות הבאות
 
     // ---- מצב "API של המערכת": השרת שלנו מושך עבודות (בלי Routine, בלי פורט פתוח) ----
+    {   // 15/11/2026 (בקשת המשתמש): בקשת הגדלה של המכסה — המשתמש מבקש, המנהל מאשר (תקרה אישית) או דוחה
+      let q = await run({ op: 'status', idToken: FRIEND });
+      ok(q.payload.api && q.payload.api.vi === true && [0, 1].includes(q.payload.api.vx) && q.payload.api.cr === null, 'מכסה: הלשונית לכולם (vx = נעולה), בלי בקשה');
+      const cap0 = q.payload.api.cap;
+      q = await run({ op: 'capReq', idToken: FRIEND, w: cap0 });
+      ok(q.statusCode === 400, 'מכסה: בקשה — רק מעל התקרה של היום');
+      q = await run({ op: 'capReq', idToken: FRIEND, w: 10001 });
+      ok(q.statusCode === 400, 'מכסה: בקשה — עד CAP_MAX');
+      q = await run({ op: 'capReq', idToken: OWNER, w: 50 });
+      ok(q.statusCode === 400, 'מכסה: המנהל לא מבקש (אין לו תקרה)');
+      q = await run({ op: 'capReq', idToken: FRIEND, w: cap0 + 30 });
+      ok(q.payload.ok && q.payload.cr.w === cap0 + 30, 'מכסה: הבקשה נשמרה');
+      q = await run({ op: 'status', idToken: FRIEND });
+      ok(q.payload.api.cr && q.payload.api.cr.w === cap0 + 30, 'מכסה: הבקשה חוזרת לטלפון (ממתינה)');
+      q = await run({ op: 'adminUserSet', idToken: FRIEND, u: 'friendUid03', cap: 999 });
+      ok(q.statusCode === 403, 'מכסה: רק המנהל מאשר');
+      q = await run({ op: 'adminUserSet', idToken: OWNER, u: 'friendUid03', crx: true });
+      ok(q.payload.ok, 'מכסה: דחייה');
+      q = await run({ op: 'status', idToken: FRIEND });
+      ok(q.payload.api.cr === null && q.payload.api.cap === cap0, 'מכסה: אחרי דחייה — בלי בקשה, אותה תקרה');
+      await run({ op: 'capReq', idToken: FRIEND, w: cap0 + 40 });
+      q = await run({ op: 'adminUserSet', idToken: OWNER, u: 'friendUid03', cap: cap0 + 25 });
+      ok(q.payload.ok, 'מכסה: אישור (בסכום אחר מהמבוקש)');
+      q = await run({ op: 'status', idToken: FRIEND });
+      ok(q.payload.api.cr === null && q.payload.api.cap === cap0 + 25, 'מכסה: אחרי אישור — התקרה האישית החדשה, הבקשה נסגרה');
+      await run({ op: 'adminUserSet', idToken: OWNER, u: 'friendUid03', cap: 0 });   // חזרה לתקרה של המערכת
+    }
     await run({ op: 'adminUserSet', idToken: OWNER, def: 12 });   // 29/10/2026: התקרה לכל משתמש — sysCfg.ucap (STUDIO_API_USER_MONTH_USD כבר לא בשימוש)
     const srvRun = async (body, token) => { const x = mockRes(); await studio._handler({ method: 'POST', headers: token ? { authorization: 'Bearer ' + token } : {}, body }, x, deps()); payloads.push(JSON.stringify(x.payload)); return x; };
     rr = await run({ op: 'srvCreate', idToken: FRIEND, name: 'x' });

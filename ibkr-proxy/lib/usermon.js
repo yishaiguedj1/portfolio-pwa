@@ -22,7 +22,7 @@ const SPEND_STEPS = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
 const CAP_WARN = 0.8;                         // התראה למנהל כשמשתמש עובר 80% מהתקרה שלו
 const TL_DAYS = 30, TL_MAX = 300;             // הטיימליין: 30 יום (= jobs30), עד 300 אירועים
 const DAILY_H = 21;                           // הסיכום היומי — 21:00 שעון ישראל
-const KINDS = ['watch', 'watch_end', 'watch_clear', 'cap80', 'daily', 'spend'];
+const KINDS = ['watch', 'watch_end', 'watch_clear', 'cap80', 'daily', 'spend', 'capreq'];   // 15/11/2026: capreq — בקשת הגדלה של מכסה
 
 /* השם והמייל מהטוקן — שם נקי (בלי תווי בקרה וסוגריים זוויתיים), מייל רק בצורה תקינה */
 function idOf(user) {
@@ -44,6 +44,12 @@ const ours = (job) => !!(job && job.spec && job.spec.eng === 'api' && job.spec.r
 function capOf(st, def) {
   const c = Number(st && st.mc);
   return Number.isInteger(c) && c >= CAP_MIN && c <= CAP_MAX ? c : def;
+}
+/* 15/11/2026 (בקשת המשתמש): בקשה להגדלת המכסה החודשית — studioStats.crw (הסכום המבוקש, דולרים שלמים) ו־cra (מתי).
+   שדות שטוחים (toFields לא שומר אובייקט מקונן); crw: 0 אחרי אישור/דחייה = אין בקשה */
+function crOf(st) {
+  const w = Number(st && st.crw), at = n0(st && st.cra);
+  return Number.isInteger(w) && w >= CAP_MIN && w <= CAP_MAX && at ? { w, at } : null;
 }
 function normCap(v) {
   if (v === null || v === 0 || v === '') return 0;              // 0 = חזרה לברירת המחדל
@@ -122,7 +128,7 @@ function usersView(stats, jobs, now, opt) {
     const r = get(st.id);
     r.nm = String(st.nm || ''); r.em = String(st.em || ''); r.ls = n0(st.ls); r.fs = n0(st.fs);
     r.mo = Math.round(S.monthUsed(st.mu, now) * 100) / 100; r.cap = capOf(st, def); r.ps = paused(st);
-    r.mc = capOf(st, 0) || 0; r.ad = isAdm(st);
+    r.mc = capOf(st, 0) || 0; r.ad = isAdm(st); r.cr = isAdm(st) ? null : crOf(st);
     if (st.tt && typeof st.tt === 'object') r.tt = addTotal(st.tt, {});
   }
   const from = now - TL_DAYS * 86400000;
@@ -205,6 +211,8 @@ function pushText(kind, x, lang) {
     : [en ? '■ ' + nm + ' · the job stopped' : '■ ' + nm + ' · העבודה נעצרה', d + usdT(x.usd) + (en ? ' spent' : ' עד העצירה')];
   if (kind === 'watch_clear') return en ? ['✓ No other users are working', 'You can start a translation or a test run'] : ['✓ אין עבודות של משתמשים אחרים', d + 'אפשר להתחיל תרגום או בדיקה'];
   if (kind === 'cap80') return [en ? nm + ' · 80% of the monthly cap' : nm + ' · 80% מהתקרה החודשית', d + usdT(x.usd) + (en ? ' of ' : ' מתוך ') + usdT(x.cap)];
+  if (kind === 'capreq') return [en ? nm + ' · asks for a higher monthly cap' : nm + ' · מבקש להגדיל את המכסה החודשית',
+    d + usdT(x.w).replace('.00', '') + (en ? ' a month · now ' : ' לחודש · היום ') + usdT(x.cap).replace('.00', '')];
   if (kind === 'daily') return [en ? 'Today in THE SNOWBALL' : 'היום ב־THE SNOWBALL',
     d + (en ? x.u + ' active users · ' + x.n + ' translations · ' + usdT(x.usd) : x.u + ' משתמשים פעילים · ' + x.n + ' תרגומים · ' + usdT(x.usd))
       + (n0(x.mo) > 0 ? (en ? ' · month ' : ' · החודש ') + usdT(x.mo) : '')];
@@ -345,5 +353,5 @@ function usage(jobs, stats, now, o) {
     mo: { usd: r2(mo), proj: r2(mo / el * dim), d: Math.floor(el), dim }, fr: Math.round(fr * 100), cut, rec };
 }
 
-module.exports = { KINDS, CAP_MIN, CAP_MAX, CAP_DEF, ADMIN_CAP, isAdm, monthCap, SPEND_STEPS, TYPES, typeOf, engOf, usage, spendStep, CAP_WARN, TL_DAYS, TL_MAX, DAILY_H, idOf, label, tokOf, ours, capOf, normCap, paused, addTotal, backfill,
+module.exports = { KINDS, CAP_MIN, CAP_MAX, CAP_DEF, ADMIN_CAP, isAdm, monthCap, crOf, SPEND_STEPS, TYPES, typeOf, engOf, usage, spendStep, CAP_WARN, TL_DAYS, TL_MAX, DAILY_H, idOf, label, tokOf, ours, capOf, normCap, paused, addTotal, backfill,
   liveRow, byAgent, isLive, usersView, timeline, pushText, dailyDue, dailySum, watchFor, capWarn };

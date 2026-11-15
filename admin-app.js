@@ -1810,6 +1810,8 @@ page('people', { tab: 'act', parent: 'act', title: () => t('admUsT'), render(p) 
   const tot = rows.reduce((a, r) => a + val(r).usd, 0);
   p.append(chips([['d30', t('admUs30')], ['all', t('admUsAll')]], P, (k) => { D.usP = k; paint(); }));
   if (!rows.length) { p.append(list(row({ c: 'gray', ic: '👥', t: t('admPpNone') }))); return; }
+  const crs = rows.filter((r) => r.cr);   // 15/11/2026: בקשות להגדלת מכסה — בראש, כל אחת פותחת את המשתמש
+  if (crs.length) p.append(grp(t('admCrT')), list(...crs.map((r) => row({ c: 'orange', ic: '⤒', t: r.name, s: fmt(t('admCrRow'), { w: usd(r.cr.w, 0), c: usd(r.cap, 0) }), tr: ago(r.cr.at), on: () => { D.userU = r.u; go('user'); } }))));
   p.append(grp(t('admUsSum'), null), list(...rows.map((r) => { const v = val(r);
     return row({ c: r.me ? 'blue' : avC(r.u), ic: r.me ? '✓' : avI(r.name), t: r.me ? t('admLiveMe') : r.name,
       s: [r.live ? '● ' + t('admUsNow') : '', r.ps ? t('admUsPaused') : '', fmt(t('admUsRowS'), { n: v.n, h: hrsTxt(v.sec), tok: fmt(t('admTokN'), { n: tokTxt(v.tok) }) }), r.live ? '' : ago(r.ls)].filter(Boolean).join(' · '),
@@ -1832,6 +1834,11 @@ page('user', { tab: 'act', parent: 'people', title: () => { const r = userOf(D.u
     row({ c: 'purple', ic: '∑', t: t('admUsAll'), s: fmt(t('admUCntS'), { n: r.all.n, h: hrsTxt(r.all.sec), tok: fmt(t('admTokN'), { n: tokTxt(r.all.tok) }) }), v: usd(r.all.usd) })));
   const mg = [r.ad ? row({ c: 'green', ic: '∞', t: t('admUCap'), s: t('admUCapAdm') })   // המנהל — בלי תקרה של המערכת (UM.monthCap)
     : row({ c: 'orange', ic: '⤒', t: t('admUCap'), s: r.mc ? t('admUCapOwn') : t('admUCapSys'), v: usd(r.cap, 0), on: () => capDlg(r) })];
+  if (r.cr && !r.ad) {   // 15/11/2026: בקשת הגדלה — לאשר (התקרה האישית, הסכום ניתן לשינוי) או לדחות
+    p.append(grp(t('admCrT')), list(row({ c: 'orange', ic: '⤒', t: fmt(t('admCrRow'), { w: usd(r.cr.w, 0), c: usd(r.cap, 0) }), tr: ago(r.cr.at) }),
+      row({ c: 'green', ic: '✓', t: t('admCrOk'), s: t('admCrOkS'), v: usd(r.cr.w, 0), on: () => capDlg(r, r.cr.w) }),
+      row({ c: 'red', ic: '✕', t: t('admCrNo'), on: () => askConfirm(fmt(t('admCrNoQ'), { n: r.name }), () => userSet(r, { crx: true }), { ok: t('admCrNo') }) })));
+  }
   if (!r.me) mg.push(row({ c: r.ps ? 'red' : 'green', ic: r.ps ? '⏸' : '▶', t: t('admUPause'), s: r.ps ? t('admUPauseOn') : t('admUPauseOff'), on: () => pauseDlg(r) }));
   p.append(grp(t('admUMgmt')), list(...mg));
   const evs = ((D.act && D.act.tl) || []).filter((e) => e.u === r.u).slice(0, 40);
@@ -1905,8 +1912,8 @@ async function userSet(r, o) {
   flash(j.ok ? t('admSaved') : t('admErr'));
   if (j.ok) { D.log = null; await needAct(true); }
 }
-function capDlg(r) {
-  const inp = h('input', 'adm-inp'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.min = '1'; inp.max = '10000'; inp.value = r.mc ? String(r.mc) : ''; inp.placeholder = String(D.act.capDef || '');
+function capDlg(r, want) {   // want — סכום מבקשת הגדלה (15/11/2026)
+  const inp = h('input', 'adm-inp'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.min = '1'; inp.max = '10000'; inp.value = want ? String(want) : r.mc ? String(r.mc) : ''; inp.placeholder = String(D.act.capDef || '');
   askConfirm(fmt(t('admUCapQ'), { n: r.name, d: usd(D.act.capDef, 0) }), () => {
     const v = inp.value.trim();
     if (v && !(Number(v) >= 1 && Number(v) <= 10000)) { flash(t('admUBadCap')); return; }

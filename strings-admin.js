@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1673 מפתחות מתוך 6878) */
+/* המחרוזות של admin (1679 מפתחות מתוך 6894) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -272,6 +272,12 @@ he: {
   "admCopy": "העתק",
   "admCopyBrief": "העתק סיכום לשיחה עם Claude",
   "admCopyFail": "ההעתקה לא הצליחה",
+  "admCrNo": "לדחות",
+  "admCrNoQ": "לדחות את הבקשה של {n}?",
+  "admCrOk": "לאשר",
+  "admCrOkS": "אפשר לשנות את הסכום לפני השמירה",
+  "admCrRow": "מבקש {w} לחודש · היום {c}",
+  "admCrT": "בקשות להגדלת מכסה",
   "admCtG": "לפי סוג התוכן",
   "admCtJd": "השופט {v}",
   "admCtN": "{n} עבודות",
@@ -1947,6 +1953,12 @@ en: {
   "admCopy": "Copy",
   "admCopyBrief": "Copy summary for a Claude chat",
   "admCopyFail": "Copy failed",
+  "admCrNo": "Decline",
+  "admCrNoQ": "Decline {n}'s request?",
+  "admCrOk": "Approve",
+  "admCrOkS": "You can change the amount before saving",
+  "admCrRow": "Asks for {w} a month · now {c}",
+  "admCrT": "Quota increase requests",
   "admCtG": "By content type",
   "admCtJd": "judge {v}",
   "admCtN": "{n} jobs",

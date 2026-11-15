@@ -124,7 +124,8 @@ export function normSettings(o) {
 export function normApi(a) {
   if (!a || typeof a !== 'object') return null;
   const n = (x) => (Number.isFinite(+x) && +x >= 0 ? +x : 0);
-  return { month: n(a.month), cap: n(a.cap), online: Math.floor(n(a.online)), servers: Math.floor(n(a.servers)), admin: a.admin === true, ka: a.ka === true, vi: a.vi === true, nc: a.nc === true };   // 10/11/2026: vi (המתג st_vi) — עד היום נזרק כאן, והניתוח לא הוצג גם למנהל   // nc — המנהל: בלי תקרה חודשית של המערכת (29/10/2026)
+  return { month: n(a.month), cap: n(a.cap), online: Math.floor(n(a.online)), servers: Math.floor(n(a.servers)), admin: a.admin === true, ka: a.ka === true, vi: a.vi === true, vx: a.vx === 1, nc: a.nc === true,
+    cr: a.cr && Number.isInteger(a.cr.w) && a.cr.w > 0 ? { w: a.cr.w, at: n(a.cr.at) } : null };   // 15/11/2026: vx — הניתוח נעול (st_vi כבוי), cr — בקשת הגדלה שממתינה   // 10/11/2026: vi (המתג st_vi) — עד היום נזרק כאן, והניתוח לא הוצג גם למנהל   // nc — המנהל: בלי תקרה חודשית של המערכת (29/10/2026)
 }
 /* השרתים (srvList, למנהל) — רק מה שמוצג; השם טקסט בלבד */
 export function normServers(list) {
@@ -2440,7 +2441,7 @@ function onPop(e) {
    (הפעילה, ואם אין — האחרונה שהסתיימה) · מגדל הפיקוח. מה שמחוץ לחוגה ממופה לאח שלו (stKeyOf) */
 const ST_SIB = ['ka', 'home', 'vi', 'job', 'tower'];   // 10/11/2026 (בקשת המשתמש): הניתוח במרכז ועמוד הבית; מימינו התרגום ומימין לו הקריוקי (מי שלא רואה אותו — החוגה של היום)
 /* עמוד הבית: הניתוח כשהלשונית זמינה, אחרת התרגום. השורש של כל השרשראות (chainFor), ההחלקה והפתיחה */
-const stRoot = () => (viTabOk() ? 'vi' : 'home');
+const stRoot = () => (viTabOk() && !ui.api.vx ? 'vi' : 'home');   // 15/11/2026: ניתוח נעול (vx) — הבית הוא התרגום
 const ST_NOSWIPE = ['play', 'subs', 'cut', 'cutsrc', 'tracks', 'dpick', 'vids', 'link', 'linkfmt', 'linksec', 'fmthelp', 'grab', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr'];   // עורכים, נגן וטפסים — בלי
 const ST_TAB_KEYS = ['d', 't', 'r'];
 let swipePop = 0;
@@ -2449,7 +2450,8 @@ function stDialJob() {            // הפעילה (בתור / רצה / בהעל�
   const on = store.jobs.find((r) => r && r.srv && !FINAL.includes(r.srv.state) && (r.srv.state !== 'new' || r.up.started));
   return on ? { rec: on, on: true } : (() => { const d = store.jobs.find((r) => r && r.srv && r.srv.state === 'done'); return d ? { rec: d, on: false } : null; })();
 }
-function stDialKeys() { const j = stDialJob() || (stDialJ && ui.view === 'job' && ui.param === stDialJ); return ST_SIB.filter((k) => (k !== 'job' || j) && (k !== 'ka' || kaOk()) && (k !== 'vi' || viTabOk())); }
+// 15/11/2026 (בקשת המשתמש): "העבודה" (פעילה / אחרונה) — תמיד בחוגה ובסרגל הצד, גם בלי עבודות (אז — דף ריק, pageJobNone)
+function stDialKeys() { return ST_SIB.filter((k) => (k !== 'ka' || kaOk()) && (k !== 'vi' || viTabOk())); }
 function stKeyOf(v, p) {          // לאיזה פריט בחוגה שייך הדף
   const ch = chainFor(v, p);
   if (ch.some((x) => x.v === 'tower')) return 'tower';
@@ -2459,7 +2461,7 @@ function stKeyOf(v, p) {          // לאיזה פריט בחוגה שייך ה�
   return sib ? sib.v : 'home';
 }
 function stSibTarget(k) {
-  if (k === 'job') { const cur = ui.view === 'job' && stKeyOf(ui.view, ui.param) === 'job' ? ui.param : null, dj = stDialJob(); const id = cur || (dj && dj.rec.id); return id ? { v: 'job', p: id } : null; }
+  if (k === 'job') { const cur = ui.view === 'job' && stKeyOf(ui.view, ui.param) === 'job' ? ui.param : null, dj = stDialJob(); const id = cur || (dj && dj.rec.id); return { v: 'job', p: id || '' }; }
   return ST_SIB.includes(k) ? { v: k, p: null } : null;
 }
 function stSibOk() {              // דף ראשי שהבית נמצא ישר מתחתיו
@@ -3347,9 +3349,12 @@ function pageHome(p, kaTab, viTab) {   // 10/11/2026: viTab — לשונית ה�
   const hb = haltBanner(); if (hb) p.append(hb);   // v367: מתג החירום פעיל — כאן רואים למה עבודות לא מתחילות
   const mb = majorBanner(); if (mb) p.append(mb);   // v371: תקלה רחבה — במקום הבאנר של ההתראות (היא כבר אומרת את החשוב)
   const ub = mb ? null : urgentBanner(); if (ub) p.append(ub);   // v368: התראה דחופה (P1–P2) — מיד; הקלות — רק בסיכום במגדל
+  const cb = capBanner(); if (cb) p.append(cb);   // 15/11/2026: נגמרה המכסה החודשית — ובקשת הגדלה
+  if (viTab && ui.api && ui.api.vx) { const vb = h('div', 'st-banner warn'); vb.dataset.k = 'vi-off'; vb.append(ico('power'), h('span', null, T('studioViOffB'))); p.append(vb); }
   const nc = btn('st-newcard', null, () => { form = freshForm(null); if (kaTab) form.ka = true; if (viTab) form.vi = true; go('new', kaTab ? 'ka' : viTab ? 'vi' : null); }, 'new');
   const plus = h('span', 'st-plus'); plus.append(ico(kaTab ? 'note' : viTab ? 'lect' : 'plus'));
   nc.append(plus, kaTab ? rowTxt(T('studioKaNew'), T('studioKaNewSub')) : viTab ? rowTxt(T('studioViNew'), T('studioViNewSub')) : rowTxt(T('studioNew'), T('studioNewSub')));
+  if (viTab && ui.api && ui.api.vx) nc.disabled = true;
   p.append(nc);
   const jobs = store.jobs.filter((rec) => !rec.spec.ka === !kaTab && !rec.spec.vi === !viTab);   // 30/10/2026: שירים — רק בלשונית הקריוקי · 10/11: ניתוחים — רק בלשונית הניתוח
   // 1/11/2026: עבודה שרצה עכשיו (גם ישנה שחודשה) — בראש הרשימה, לא עמוק ב"עבודות קודמות"; השאר לפי התאריך
@@ -3762,7 +3767,7 @@ export function kaLyr(t) {
 const VI_FROM = ['auto', 'he', 'en'];   // 10/11/2026 (PR 1.2א, 9.3 סעיף 2): זיהוי אוטומטי (העובד — vt/lang.py), עם דריסה לעברית או לאנגלית
 /* 10/11/2026 (PR 1.5א): לשונית הניתוח — כמו kaOk (שרת ו־R2), ו־ui.api.vi (המנהל תמיד; אחרים — כשהמתג st_vi דולק, ה8) */
 const viTabOk = () => !!(ui.api && ui.api.vi && ui.api.servers > 0 && ui.r2);
-const viOk = (f) => viTabOk() && !!f && !f.ka && !f.subs && !f.ph;
+const viOk = (f) => viTabOk() && !ui.api.vx && !!f && !f.ka && !f.subs && !f.ph;   // 15/11/2026: vx — המתג כבוי: הלשונית נשארת, יצירה נעולה
 const viDry = (f) => !!(f && f.vdry && ui.api && ui.api.admin);   // הרצה יבשה (בלי Claude) — המנהל בלבד; השרתון אוכף
 function viSpecOf(f, spec) {
   Object.assign(spec, { vi: 1, from: VI_FROM.includes(f.vf) ? f.vf : 'auto', to: ['he'], out: [], eng: 'api', cap: store.settings.cap });
@@ -7424,6 +7429,36 @@ async function setHalt(on) {
     if (on) await refreshJobs(true);
   } finally { haltBusy = false; render('none'); }
 }
+/* 15/11/2026 (בקשת המשתמש): המכסה החודשית נגמרה — הודעה, ו"לבקש הגדלה" מהמנהל (op:'capReq'; המנהל מאשר במרכז הניהול).
+   בקשה שממתינה — במקום הכפתור. המנהל (nc) — בלי תקרה של המערכת */
+let capReqBusy = false;
+function capBanner() {
+  const a = ui.api;
+  if (!a || a.admin || a.nc || !(a.cap > 0) || !apiMode() || a.month < a.cap - 0.01) return null;
+  const b = h('div', 'st-banner warn');
+  b.dataset.k = 'cap-banner';
+  b.append(ico('power'), h('span', null, T('studioCapOverB', { a: fmtUsd(a.month), c: fmtUsdWhole(a.cap) })));
+  if (a.cr) b.append(h('small', null, T('studioCapReqWait', { w: fmtUsdWhole(a.cr.w) })));
+  else { const go1 = btn('st-mini tint', T('studioCapReqBtn'), capReqDlg, 'cap-req'); go1.disabled = capReqBusy || blocked(); b.append(go1); }
+  return b;
+}
+function capReqDlg() {
+  const a = ui.api;
+  if (!a || typeof askConfirm !== 'function') return;
+  const inp = h('input', 'st-in'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.min = String(Math.floor(a.cap) + 1); inp.max = '10000';
+  inp.value = String(Math.min(10000, Math.max(Math.floor(a.cap) + 1, Math.round(a.cap * 2))));
+  askConfirm(T('studioCapReqQ', { c: fmtUsdWhole(a.cap) }), async () => {
+    const w = Math.round(Number(inp.value));
+    if (!(w > a.cap && w <= 10000)) { flashSafe(T('studioCapReqBad')); return; }
+    capReqBusy = true; render('none');
+    try {
+      const j = await net.api('capReq', { w });
+      if (!j.ok) { flashSafe(errText(j.error)); return; }
+      if (ui.api) ui.api.cr = j.cr && j.cr.w ? { w: j.cr.w, at: num(j.cr.at) } : null;
+      flashSafe(T('studioCapReqSent'));
+    } finally { capReqBusy = false; render('none'); }
+  }, { body: inp, ok: T('studioCapReqGo') });
+}
 function haltBanner() {
   if (!ui.halt) return null;
   const b = h('div', 'st-banner warn st-halt');
@@ -9558,7 +9593,16 @@ function techSec(rec, ph0, outs) {
   det.append(sum, list(...rows), links);
   return [h('div', 'st-gap sm'), det];
 }
+/* 15/11/2026: "העבודה" בלי אף עבודה — דף ריק, עם כפתור לפרויקט חדש */
+function pageJobNone(p) {
+  p.append(navBar({ back: T('studioShort') }));
+  const e = h('div', 'st-empty');
+  const ic = h('span', 'st-empty-ic'); ic.append(ico('film'));
+  e.append(ic, h('b', null, T('studioJobNoneT')), h('p', null, T('studioJobNoneS')));
+  p.append(e, list(rowNav({ tile: tile('plus', 'red'), label: T('studioNew'), onClick: () => { form = freshForm(null); go('new'); }, k: 'jn-new' })));
+}
 function pageJob(p) {
+  if (!ui.param) { pageJobNone(p); return; }
   const rec = jobRec(ui.param);
   if (!rec) { back(); return; }
   if (viPageOk(rec)) { pageVi(p, rec); return; }   // PR 1.5ב: ניתוח שהסתיים — דף הניתוח (9.4)

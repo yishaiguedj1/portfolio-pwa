@@ -90,7 +90,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   ok(/\[400, 'vi_lang'\]/.test(api) && /\[400, 'vi_long'\]/.test(api) && /\[503, 'r2_needed'\] : null\);/.test(api), 'create: שפה, אורך ו־R2 — לפני ההעלאה');
   ok(/const vie = spec\.vi \? await viCreateErr\(spec\) : null;[^\n]*\n\s+if \(vie\) return res\.status\(vie\[0\]\)\.json\(\{ ok: false, error: vie\[1\] \}\);\n\s+if \(!S\.langReady\(spec\)\)/.test(api), 'create: בדיקות הניתוח לפני lang_unsupported');
   ok(/job\.spec\.vi === 1 && !g\.adm && !\(await flagOn\(deps, 'st_vi', now\)\)\) return \[409, \{ ok: false, error: 'vi_off'/.test(api), 'startJob: המתג כבה בין היצירה להתחלה');
-  ok(/vi: isAdmin\(user\) \|\| await flagOn\(deps, 'st_vi', now\)/.test(api), 'apiView: הלשונית — המנהל תמיד, אחרים לפי המתג');
+  ok(/vi: true, vx: !isAdmin\(user\) && !\(await flagOn\(deps, 'st_vi', now\)\) \? 1 : 0/.test(api), 'apiView: הלשונית לכל מורשי הסטודיו; המתג כבוי = נעולה (vx), לא נעלמת (15/11/2026)');
   /* התור */
   ok(/\(\(a\.spec \|\| \{\}\)\.vi === 1\) - \(\(b\.spec \|\| \{\}\)\.vi === 1\)/.test(api), 'הלקיחה: הניתוח אחרי התרגום');
   ok(/if \(job\.spec && job\.spec\.vi === 1 && hb\.vi !== 1\) continue;/.test(api), 'הלקיחה: רק לעובד שמכיר ניתוח (עובד ישן היה מריץ אותו כתרגום, עם Claude)');
@@ -173,7 +173,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   { const NA = new Function('return ' + (stj.match(/export function normApi\(a\) \{[\s\S]*?\n\}/) || [''])[0].replace('export ', ''))();
     ok(NA({ vi: true }).vi === true && NA({ vi: 1 }).vi === false && NA({}).vi === false, 'normApi: vi עובר מהסטטוס (נזרק עד 1.5א — הניתוח לא הוצג גם למנהל)'); }
   ok(/const ST_SIB = \['ka', 'home', 'vi', 'job', 'tower'\];/.test(stj) && /\(k !== 'vi' \|\| viTabOk\(\)\)/.test(stj), 'החוגה: הניתוח במרכז (מימינו התרגום ומימין לו הקריוקי, 10/11), רק למי שמורשה');
-  ok(/const stRoot = \(\) => \(viTabOk\(\) \? 'vi' : 'home'\);/.test(stj) && /\[\{ v: stRoot\(\), p: null \}\]/.test(stj) && /ui\.view = restore \? \(restore\.sv \|\| stRoot\(\)\) : stRoot\(\);/.test(stj), 'עמוד הבית = הניתוח (כשהלשונית זמינה), אחרת התרגום');
+  ok(/const stRoot = \(\) => \(viTabOk\(\) && !ui\.api\.vx \? 'vi' : 'home'\);/.test(stj) && /\[\{ v: stRoot\(\), p: null \}\]/.test(stj) && /ui\.view = restore \? \(restore\.sv \|\| stRoot\(\)\) : stRoot\(\);/.test(stj), 'עמוד הבית = הניתוח (כשהלשונית זמינה), אחרת התרגום');
   ok(/rootFresh = !restore && stRoot\(\) === 'home';/.test(stj) && /if \(rootFresh\) \{[^]*?rootFresh = false;[^]*?ui\.view === 'home' && stRoot\(\) === 'vi' && \(!CW_OK \|\| stack\.length === 1\)[^]*?ui\.view = 'vi'; ui\.param = null;[^]*?history\.state\.studio === 1\) history\.replaceState\(cleanState\(\{ studio: 1, sv: 'vi', sp: null \}\)/.test(stj),
     'פתיחה ראשונה בלי מטמון: הסטטוס הראשון מעביר מהתרגום לניתוח — פעם אחת, רק אם לא זזו, בלי רשומת היסטוריה');
   ok(/if \(ui\.view === 'home' \|\| ui\.view === 'vi'\) \{ refreshStatus\(\); refreshJobs\(\); \}/.test(stj) && /r2: src\.st\.r2 === true/.test(stj), 'עמוד הבית החדש מרענן כמו הבית; R2 במטמון — הניתוח כבר בפתיחה');
