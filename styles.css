@@ -1107,21 +1107,21 @@ html[dir="ltr"] .stock-foot .kc-open-btn { order: -1; }   /* באנגלית (כ�
 .pf-range-summary .rs-val.pos { color: var(--gain, #1B7A3D); }
 .pf-range-summary .rs-val.neg { color: var(--loss, #C62828); }
 .pf-range-summary .rs-range { font-size: 13.5px; color: var(--on-surface-var); }
-/* כפתורי מדדי השוואה — פילס נקיים לפי ת־עיצוב */
-.pf-bench-row { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:2px 0 4px; }
-.pf-bench-toggle {
-  display:inline-flex; align-items:center; gap:7px;
-  padding:7px 14px 7px 12px; border-radius: var(--pill); cursor:pointer;
-  border:1px solid var(--outline, #E3E7E4); background:var(--surface, #fff);
-  font-size:13.5px; font-weight:600; color:var(--on-surface-var, #6B756F);
-  transition:transform .15s ease, opacity .15s ease, background .15s ease, color .15s ease, border-color .15s ease;
-}
-.pf-bench-toggle:active { transform:scale(.96); }
-.pf-bench-dot { width:10px; height:10px; border-radius:50%; flex:none; }
-.pf-bench-check { font-size:12px; font-weight:700; color:var(--primary, #30D158); min-width:14px; text-align:center; }
-.pf-bench-toggle.on { color:var(--on-surface, #1A1C1A); border-color:var(--primary, #30D158); background:color-mix(in srgb, var(--primary, #30D158) 8%, var(--surface, #fff)); }
-.pf-bench-toggle:not(.on) { opacity:.55; }
-.pf-bench-toggle:not(.on) .pf-bench-check { color:transparent; }
+/* 2.146.0: מקרא צף בפינה העליונה של גרף הביצועים (בקצה מול ציר האחוזים) — נקודה · שם · תשואה, בלי מסגרת.
+   שורת מדד היא כפתור הדלקה/כיבוי: כבוי = טבעת ריקה ושם מעומעם. הגרף שומר מרווח עליון בגובה המקרא. */
+#pfWrap canvas { height: 280px; }
+.pf-key { position: absolute; top: 0; inset-inline-end: -8px; z-index: 2; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+html[dir="ltr"] .pf-key { inset-inline-end: auto; inset-inline-start: -8px; }
+.pf-key.hidden { display: none; }
+.pf-key li { display: block; }
+.pf-key .pk-row { display: flex; width: 100%; align-items: center; gap: 6px; min-height: 26px; box-sizing: border-box; padding: 2px 8px; border: 0; background: none; color: var(--on-surface); font: inherit; font-size: 13px; line-height: 1.2; border-radius: var(--radius-xs); cursor: pointer; -webkit-tap-highlight-color: transparent; transition: opacity .18s ease, background-color .18s ease; }
+.pf-key li.pk-row { cursor: default; }
+.pf-key button.pk-row:active { background: color-mix(in srgb, var(--on-surface) 7%, transparent); }
+.pf-key .pk-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--c); box-shadow: inset 0 0 0 1.5px var(--c); transition: background-color .18s ease; }
+.pf-key .pk-name { font-weight: 600; white-space: nowrap; }
+.pf-key .pk-pct { margin-inline-start: auto; padding-inline-start: 10px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pf-key .pk-row:not(.on) { color: var(--on-surface-var); }
+.pf-key .pk-row:not(.on) .pk-dot { background: transparent; }
 
 /* גיליון בחירת "תשואה מתאריך" */
 .pf-sheet-veil {

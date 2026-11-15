@@ -6,12 +6,12 @@
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
 const CACHE_NAME = 'portfolio-pwa-v764';
 const HASHES = {
-  "./": "36d03b86dfe0ecacf402c2219c84c276",
-  "./index.html": "36d03b86dfe0ecacf402c2219c84c276",
-  "./styles.css": "63440a6832d8dd7a67948d85a81e9af3",
-  "./glass-btn.css": "d611a90cace20632e2cf8ad996439c3a",
+  "./": "d08c95fd6d906c810a414a839cef35d8",
+  "./index.html": "d08c95fd6d906c810a414a839cef35d8",
+  "./styles.css": "394e51ea6d216123a5a6ee52d4a4116f",
+  "./glass-btn.css": "9abd92a41f391d1323bdc16ead629bad",
   "./desktop.css": "eaaf25499d331de74ae02cd0e7419d2f",
-  "./app.js": "a75ee6b7e5082f1986e4815fd403698a",
+  "./app.js": "edd643e193e0eaa28650c53de4547f49",
   "./returns.js": "3590562b0282025a8a79650ad6b3a49b",
   "./cloud.js": "d403f6c76884375dc9999b80660f1ddf",
   "./firebase-config.js": "a4adfadcd5fe3b79a29e9fa0eeb94df0",

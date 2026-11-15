@@ -9651,34 +9651,39 @@ function pfBenchOn(sym) {
   return !b || b[sym] !== false;
 }
 
-/* כפתורי סימון/ביטול למדדי ההשוואה — ממשק נקי לפי ת־עיצוב.
-   מוצגים רק כשיש היסטוריה אמיתית מ־IBKR; בהזנה ידנית אין השוואה. */
-function renderPfBenchToggles(show) {
-  const host = document.getElementById('pfBenchToggles');
+/* 2.146.0 (בקשת המשתמש: "יותר מינימליסטי ונקי… להטמיע בחלק השמאלי העליון של הגרף"): המקרא של גרף הביצועים —
+   מקרא צף קומפקטי בפינה העליונה של הגרף (נקודה · שם · תשואת הטווח), במקום הרשימה וכפתורי המדדים שמתחת לגרף.
+   נגיעה בשורת מדד מדליקה/מכבה אותו (כמו כפתורי המדדים לפני כן). בלי מדדי השוואה (הזנה ידנית) — המקרא מוסתר,
+   כי התשואה היחידה כבר מוצגת בשורת הסיכום. */
+function renderPfKey(host, series, showBench) {
   if (!host) return;
-  host.innerHTML = '';
-  host.classList.toggle('hidden', !show);
-  if (!show) return;
+  host.classList.toggle('hidden', !showBench || !series || !series.length);
+  if (!showBench || !series || !series.length) { host.innerHTML = ''; return; }
+  const ret = (s) => s.pts[s.pts.length - 1].norm - 100;
+  const row = (color, name, s, on) =>
+    '<span class="pk-dot" style="--c:' + color + '"></span><span class="pk-name">' + esc(name) + '</span>' +
+    (on && s ? '<span class="pk-pct">' + fmtRetHTML(ret(s)) + '</span>' : '');
+  const s0 = series[0];
+  let html = '<li class="pk-row on">' + row(s0.color, s0.name, s0, true) + '</li>';
   for (const [sym, labelKey, color] of BENCH_SYMS) {
     const on = pfBenchOn(sym);
-    const b = el('button', 'pf-bench-toggle' + (on ? ' on' : ''));
-    b.type = 'button';
-    b.setAttribute('aria-pressed', on ? 'true' : 'false');
-    const dot = el('span', 'pf-bench-dot');
-    dot.style.background = color;
-    b.appendChild(dot);
-    b.appendChild(el('span', 'pf-bench-lbl', t(labelKey)));
-    const chk = el('span', 'pf-bench-check', on ? '✓' : '');
-    b.appendChild(chk);
-    b.addEventListener('click', async () => {
+    const s = series.find((x) => x.sym === sym);
+    html += '<li><button type="button" class="pk-row' + (on ? ' on' : '') + '" data-sym="' + esc(sym) + '" aria-pressed="' + on + '">' +
+      row(color, t(labelKey), s, on) + '</button></li>';
+  }
+  host.innerHTML = html;
+  if (!host._pkBound) {
+    host._pkBound = true;
+    host.addEventListener('click', async (ev) => {
+      const btn = ev.target.closest && ev.target.closest('button[data-sym]');
+      if (!btn) return;
+      const sym = btn.dataset.sym;
       if (!state.pfBench) state.pfBench = {};
       const turningOn = !pfBenchOn(sym);
       state.pfBench[sym] = turningOn;
-      renderPfBenchToggles(true);
       if (turningOn) await drawPfChart(); // הפעלה: טוען את המדד החסר (מהיר — מטמון/מרוץ) ומצייר
       else paintPfChart(); // כיבוי: סינכרוני ומיידי, בלי רשת
     });
-    host.appendChild(b);
   }
 }
 
@@ -13138,14 +13143,14 @@ async function drawPfChart() {
   // לא מציגים תשואה מומצאת. מסבירים איך לקבל נתונים מפורטים.
   if (srcKind === 'ibkr' && rangeGap > 10) {
     if (loading) { loading.textContent = t('pfRangeNeedsDaily'); loading.classList.remove('hidden'); }
-    if (legend) legend.innerHTML = '';
+    renderPfKey(legend, null, false);
     canvas._pfMap = null;
     canvas._pfPaint = null;
     const ctx0 = canvas.getContext && canvas.getContext('2d');
     if (ctx0) ctx0.clearRect(0, 0, canvas.width, canvas.height);
     renderPfNote(true, srcKind);
     renderPfRangeSummary(null);
-    renderPfBenchToggles(false);
+    renderPfKey(legend, null, false);
     return;
   }
   // חיתוך לתחילת תקופת הדוח — טווח שמתחיל לפני שהתיק נפתח מציג תשואה פיקטיבית.
@@ -13172,12 +13177,12 @@ async function drawPfChart() {
   }
   if (pfRows.length < 2) {
     if (loading) { loading.textContent = t('noChartNow'); loading.classList.remove('hidden'); }
-    if (legend) legend.innerHTML = '';
+    renderPfKey(legend, null, false);
     canvas._pfMap = null;
     canvas._pfPaint = null;
     renderPfNote(true, srcKind);
     renderPfRangeSummary(null);
-    renderPfBenchToggles(false);
+    renderPfKey(legend, null, false);
     return;
   }
 
@@ -13207,15 +13212,14 @@ async function drawPfChart() {
   const series = allSeries.filter((s) => s.pts.length >= 2);
   if (!series.length) {
     if (loading) { loading.textContent = t('noChartNow'); loading.classList.remove('hidden'); }
-    if (legend) legend.innerHTML = '';
+    renderPfKey(legend, null, false);
     canvas._pfMap = null;
     canvas._pfPaint = null;
     renderPfNote(true, srcKind);
     renderPfRangeSummary(null);
     return;
   }
-  canvas._pfPaint = { series: series, benchEmpty: benchSeries.length === 0, srcKind: srcKind };
-  renderPfBenchToggles(showBench);
+  canvas._pfPaint = { series: series, benchEmpty: benchSeries.length === 0, srcKind: srcKind, showBench: showBench };
   paintPfChart();
 }
 
@@ -13230,8 +13234,11 @@ function paintPfChart() {
   if (!series.length) return;
   const n = series[0].pts.length;
 
+  // 2.146.0: המקרא הצף נצבע לפני הגרף — גובהו קובע את המרווח העליון, כך שאף קו לא עובר מתחתיו
+  renderPfKey(legend, series, !!paint.showBench);
+  const keyH = legend && !legend.classList.contains('hidden') ? legend.offsetHeight : 0;
   const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth || 320, h = 210;
+  const w = canvas.clientWidth || 320, h = 280;
   canvas.width = w * dpr; canvas.height = h * dpr;
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
@@ -13253,6 +13260,14 @@ function paintPfChart() {
   // v125: ציר X לפי זמן, לא לפי אינדקס — בנתוני תקופות (נקודה לשנה) תקופה
   // של יום אחד תפסה רוחב של שנה שלמה והגרף היה מעוות
   const fr = pfTimeFractions(series[0].pts.map((p) => p.date));
+  // 2.146.0: מרווח עליון רק מתחת למקרא — הקווים באזור שלו יורדים מתחת לתחתיתו, ושאר הגרף מנצל את כל הגובה
+  const zoneR = keyH ? legend.offsetWidth + 2 : 0;
+  if (keyH) {
+    const r = Math.min(0.6, (keyH + 6 - padT) / plotH);
+    let vz = -Infinity;
+    for (const s of series) s.pts.forEach((p, i) => { if (padL + (n <= 1 ? plotW / 2 : fr[i] * plotW) <= zoneR) vz = Math.max(vz, p.norm - 100); });
+    if (isFinite(vz) && r > 0) max = Math.max(max, min + (vz - min) / (1 - r));
+  }
   const X = (i) => padL + (n <= 1 ? plotW / 2 : fr[i] * plotW);
   const Y = (v) => padT + (1 - (v - min) / (max - min)) * plotH;
 
@@ -13263,7 +13278,7 @@ function paintPfChart() {
     const y = Y(v);
     ctx.strokeStyle = cssVar('--outline', '#E3E7E4');
     ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(y < keyH + 4 ? zoneR : padL, y); ctx.lineTo(w - padR, y); ctx.stroke(); // 2.146.0: לא מתחת למקרא
     ctx.fillStyle = cssVar('--on-surface-var', '#9AA5A0');
     ctx.textAlign = 'left';
     ctx.direction = 'ltr'; // v166: הסימן משמאל למספר גם בקנבס (ברירת המחדל יורשת RTL)
@@ -13330,14 +13345,6 @@ function paintPfChart() {
   canvas.classList.toggle('measuring', state.pfPickDate || ms.on);
   updatePfMeasureChip();
 
-  if (legend) {
-    legend.innerHTML = series.map((s) => {
-      const r = s.pts[s.pts.length - 1].norm - 100;
-      return '<li><span class="dot" style="background:' + s.color + '"></span>' +
-        '<span class="lg-name">' + esc(s.name) + '</span>' +
-        '<span class="lg-pct">' + fmtRetHTML(r) + '</span></li>';
-    }).join('');
-  }
   renderPfRangeSummary(series[0]);
   renderPfNote(paint.benchEmpty, paint.srcKind);
 }
