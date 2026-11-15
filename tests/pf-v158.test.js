@@ -113,6 +113,9 @@ ok(near(mp2.realized, 1200 - 5 - 1005) && near(mp2.fees, 10), 'ממומש ועמ
 ok(/srcKind === 'trades' \|\| srcKind === 'holdings'/.test(src), 'השוואת מדדים גם במצב ידני');
 ok(/const mr = tr\.length \? manualTwrRows\(tr, manualHistOf/.test(src), 'הגרף במצב ידני: TWR מהעסקאות');
 ok(/function paintManualHead\(\)/.test(src) && /paintManualHead\(\);\n  \}/.test(src), 'כותרת התשואה במצב ידני = TWR');
-ok(/id="ibkrPerfTitleEl"/.test(html) && /perfTitleManual: 'ביצועי התיק'/.test(src) && /perfTitleManual: 'Portfolio Performance'/.test(src), 'כרטיס ביצועים גם במצב ידני');
+ok(!/ibkrPerfTitleEl/.test(html) && !/renderManualPerf/.test(src), 'כרטיס הביצועים הוסר (2.147.0)');
+ok(/id="pfWrap"[^>]*>(?:(?!<\/div><\/div>|id="pfChips").)*id="pfLegend" class="pf-key hidden"/s.test(html) && !/pfBenchToggles/.test(html) && !/renderPfBenchToggles/.test(src), 'מקרא גרף הביצועים צף בתוך הגרף, בלי כפתורי המדדים שמתחת (2.147.0)');
+ok(/<div class="section-head">\s*<h2 data-i18n="pfTitle">[^<]*<\/h2>\s*<div class="pf-tools" id="pfTools"><\/div>/.test(html), '"תשואה מתאריך" בשורת הכותרת (2.147.0)');
+ok(/function pfFitH\(canvas\)/.test(src) && /const h = pfFitH\(canvas\);/.test(src) && /'pfNoteEl', 'pfPickBar', 'pfPickBubble'/.test(src), 'גובה הגרף לפי המסך — כל הכרטיס נכנס בין ההדר לסרגל (2.147.0)');
 ok(/manualHistOf\(sym\) \{ return stockChartRows\(/.test(src), 'כולל את המחיר של היום');
 console.log('\n' + n + ' בדיקות עברו');

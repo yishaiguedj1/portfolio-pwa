@@ -1079,23 +1079,12 @@ he: {
   calIcsNote: 'ביומן אחר נוצרות גם תזכורות — יום לפני ושעה לפני.', calIcsDone: 'הקובץ ירד — פתח אותו כדי להוסיף ליומן', calLocal: '{t} שעון ישראל',
   calEventTitle: 'דוח רבעוני · {sym}{name}', calEventDesc: 'פרסום הדוח הרבעוני של {sym}', calEventEst: 'תאריך משוער (לפי Yahoo Finance)',
   earnDate: 'דוח: {date}',
-  ibkrPerfTitle: 'ביצועי IBKR',
-  perfPeriod: 'תקופת הדוח: {a}–{b}',
   twrOfficial: 'TWR רשמי של IBKR',
-  twrMissing: 'לא זמין — אין TWR רשמי בדוח',
   twrMissingShort: 'אין TWR רשמי',
   navWarn: 'הדוח חסר TWR רשמי — התשואה לא תוצג (לא מנחשים). כדי לקבל תשואות רשמיות: ודאו ששאילתת ה־Flex כוללת את המקטע "Change in NAV", ואז נתקו וסנכרנו מחדש.',
   ovValueReport: 'כולל מזומן · לפי דוח IBKR',
   ovStocksSub: 'כולל מזומן',
-  perfTwr: 'תשואה משוקללת־זמן (TWR)',
-  perfGain: 'רווח/הפסד בתקופה',
   pfDiagPeriods: '{n} תקופות רשמיות · {a}–{b} · TWR: {twr}',
-  perfXirr: 'תשואה משוקללת־כסף (XIRR)',
-  perfRealized: 'רווח ממומש',
-  perfUnrealized: 'רווח לא־ממומש',
-  perfDividends: 'דיבידנדים',
-  perfWithholding: 'מס שנוכה במקור',
-  perfFees: 'עמלות ועמלות נוספות',
   cantCalc: 'לא ניתן לחשב',
   ovInReportPeriod: 'בתקופת הדוח',
   pfNoteIbkr: 'TWR רשמי של IBKR מהדוח, משורשר בין תקופות, בדולרים.',
@@ -1116,7 +1105,7 @@ he: {
   ovVsNetDeposits: 'מול הפקדות נטו',
   ovYield: 'תשואה',
   ovUpdated: 'עודכן: {time}',
-  pfTitle: 'ביצועי התיק לאורך זמן',
+  pfTitle: 'ביצועי התיק',
   pfNote: 'שווי התיק בשקלים לאורך זמן, לפי האחזקות הנוכחיות (אין יומן קניות היסטורי).',
   pieTitle: 'חלוקת התיק',
 
@@ -1196,12 +1185,6 @@ he: {
   twrManual: 'TWR מהעסקאות הידניות',
   twrManualLoading: 'TWR נטען…',
   ovGLHoldings: 'ממומש + לא־ממומש',
-  perfTitleManual: 'ביצועי התיק',
-  perfPeriodManual: 'מהעסקה הראשונה ({a}) עד היום · בדולרים',
-  perfNoTrades: 'לפי מחיר ממוצע · בדולרים',
-  perfNeedTrades: 'נדרשות עסקאות עם תאריך',
-  perfGainManual: 'רווח/הפסד כולל',
-  perfFeesManual: 'עמלות',
 
   rangeDay: 'יום',
   sr1D: '1D', sr5D: '5D', sr1M: '1M', sr3M: '3M', sr1Y: '1Y', sr3Y: '3Y', sr5Y: '5Y',
@@ -2933,23 +2916,12 @@ en: {
   calIcsNote: 'Other calendars also get reminders — a day before and an hour before.', calIcsDone: 'Downloaded — open it to add to your calendar', calLocal: '{t} local time',
   calEventTitle: 'Earnings · {sym}{name}', calEventDesc: '{sym} quarterly earnings report', calEventEst: 'Estimated date (per Yahoo Finance)',
   earnDate: 'Earnings: {date}',
-  ibkrPerfTitle: 'IBKR Performance',
-  perfPeriod: 'Report period: {a}–{b}',
   twrOfficial: "IBKR's official TWR",
-  twrMissing: 'Unavailable — no official TWR in the report',
   twrMissingShort: 'No official TWR',
   navWarn: 'The report has no official TWR — the return will not be shown (never guessed). To get official returns: make sure your Flex query includes the "Change in NAV" section, then disconnect and sync again.',
   ovValueReport: 'Incl. cash · per IBKR report',
   ovStocksSub: 'Incl. cash',
-  perfTwr: 'Time-Weighted Return (TWR)',
-  perfGain: 'Period gain/loss',
   pfDiagPeriods: '{n} official periods · {a}–{b} · TWR: {twr}',
-  perfXirr: 'Money-Weighted Return (XIRR)',
-  perfRealized: 'Realized P&L',
-  perfUnrealized: 'Unrealized P&L',
-  perfDividends: 'Dividends',
-  perfWithholding: 'Withholding tax',
-  perfFees: 'Commissions & other fees',
   cantCalc: 'Cannot compute',
   ovInReportPeriod: 'in the report period',
   pfNoteIbkr: "IBKR's official TWR from the report, chained across periods, in USD.",
@@ -2970,7 +2942,7 @@ en: {
   ovVsNetDeposits: 'vs. net deposits',
   ovYield: 'Return',
   ovUpdated: 'Updated: {time}',
-  pfTitle: 'Portfolio performance over time',
+  pfTitle: 'Portfolio performance',
   pfNote: 'Portfolio value in ILS over time, based on current holdings (no historical trade log).',
   pieTitle: 'Portfolio allocation',
 
@@ -3050,12 +3022,6 @@ en: {
   twrManual: 'TWR from manual trades',
   twrManualLoading: 'TWR loading…',
   ovGLHoldings: 'Realized + unrealized',
-  perfTitleManual: 'Portfolio Performance',
-  perfPeriodManual: 'From the first trade ({a}) to today · in USD',
-  perfNoTrades: 'By average price · in USD',
-  perfNeedTrades: 'Needs dated trades',
-  perfGainManual: 'Total gain/loss',
-  perfFeesManual: 'Commissions',
 
   rangeDay: 'Day',
   sr1D: '1D', sr5D: '5D', sr1M: '1M', sr3M: '3M', sr1Y: '1Y', sr3Y: '3Y', sr5Y: '5Y',
@@ -7981,8 +7947,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.146.1';
-const APP_VERSION = 'v765';
+const APP_RELEASE = '2.147.1';
+const APP_VERSION = 'v766';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -10038,35 +10004,64 @@ function pfBenchOn(sym) {
   return !b || b[sym] !== false;
 }
 
-/* כפתורי סימון/ביטול למדדי ההשוואה — ממשק נקי לפי ת־עיצוב.
-   מוצגים רק כשיש היסטוריה אמיתית מ־IBKR; בהזנה ידנית אין השוואה. */
-function renderPfBenchToggles(show) {
-  const host = document.getElementById('pfBenchToggles');
+/* 2.147.0 (בקשת המשתמש: "יותר מינימליסטי ונקי… להטמיע בחלק השמאלי העליון של הגרף"): המקרא של גרף הביצועים —
+   מקרא צף קומפקטי בפינה העליונה של הגרף (נקודה · שם · תשואה), במקום הרשימה וכפתורי המדדים שמתחת לגרף.
+   נגיעה בשורת מדד מדליקה/מכבה אותו. בלי מדדי השוואה (הזנה ידנית) — שורה אחת, של התיק.
+   ("אין התנגשות בין הבועות"): המקרא הוא גם תצוגת הערכים — בנגיעה בגרף (ro.idx), במדידה בשתי אצבעות (ro.a/ro.b)
+   ובסימון "מתאריך" הוא מציג את הערכים בנקודה, והתאריך — גלולה בציר התאריכים (pfDatePill). בלי בועה נפרדת. */
+function pfReadout() {
+  if (state.pfPickDate && state.pfPickIdx !== null) return { idx: state.pfPickIdx };
+  if (state.pfMeasure && state.pfMeasure.pts.length >= 2) return { a: Math.min(state.pfMeasure.pts[0], state.pfMeasure.pts[1]), b: Math.max(state.pfMeasure.pts[0], state.pfMeasure.pts[1]) };
+  if (state.pfTipIdx !== null && state.pfTipIdx !== undefined) return { idx: state.pfTipIdx };
+  return null;
+}
+function renderPfKey(host, series, showBench, ro) {
   if (!host) return;
-  host.innerHTML = '';
-  host.classList.toggle('hidden', !show);
-  if (!show) return;
-  for (const [sym, labelKey, color] of BENCH_SYMS) {
+  const has = !!(series && series.length);
+  host.classList.toggle('hidden', !has);
+  if (!has) { host.innerHTML = ''; return; }
+  const canvas = document.getElementById('pfChart');
+  if (canvas) host.style.top = canvas.offsetTop + 'px'; // מתחת לבועת ההסבר של "מתאריך", כשהיא מוצגת
+  host.classList.toggle('live', !!ro);
+  const ret = (s) => {
+    const last = s.pts.length - 1;
+    if (ro && ro.b !== undefined) return retPct(s.pts[Math.min(ro.a, last)].norm, s.pts[Math.min(ro.b, last)].norm);
+    return s.pts[ro ? Math.min(ro.idx, last) : last].norm - 100;
+  };
+  const row = (color, name, s, on) =>
+    '<span class="pk-dot" style="--c:' + color + '"></span><span class="pk-name">' + esc(name) + '</span>' +
+    (on && s ? '<span class="pk-pct">' + fmtRetHTML(ret(s)) + '</span>' : '');
+  const s0 = series[0];
+  let html = '<li class="pk-row on">' + row(s0.color, s0.name, s0, true) + '</li>';
+  if (showBench) for (const [sym, labelKey, color] of BENCH_SYMS) {
     const on = pfBenchOn(sym);
-    const b = el('button', 'pf-bench-toggle' + (on ? ' on' : ''));
-    b.type = 'button';
-    b.setAttribute('aria-pressed', on ? 'true' : 'false');
-    const dot = el('span', 'pf-bench-dot');
-    dot.style.background = color;
-    b.appendChild(dot);
-    b.appendChild(el('span', 'pf-bench-lbl', t(labelKey)));
-    const chk = el('span', 'pf-bench-check', on ? '✓' : '');
-    b.appendChild(chk);
-    b.addEventListener('click', async () => {
+    const s = series.find((x) => x.sym === sym);
+    html += '<li><button type="button" class="pk-row' + (on ? ' on' : '') + '" data-sym="' + esc(sym) + '" aria-pressed="' + on + '">' +
+      row(color, t(labelKey), s, on) + '</button></li>';
+  }
+  if (host._pkHtml === html) return; // גרירה בגרף — בלי לבנות DOM כשהערכים לא השתנו
+  host._pkHtml = html;
+  host.innerHTML = html;
+  if (!host._pkBound) {
+    host._pkBound = true;
+    host.addEventListener('click', async (ev) => {
+      const btn = ev.target.closest && ev.target.closest('button[data-sym]');
+      if (!btn) return;
+      const sym = btn.dataset.sym;
       if (!state.pfBench) state.pfBench = {};
       const turningOn = !pfBenchOn(sym);
       state.pfBench[sym] = turningOn;
-      renderPfBenchToggles(true);
       if (turningOn) await drawPfChart(); // הפעלה: טוען את המדד החסר (מהיר — מטמון/מרוץ) ומצייר
       else paintPfChart(); // כיבוי: סינכרוני ומיידי, בלי רשת
     });
-    host.appendChild(b);
   }
+}
+/* עדכון מיידי של תצוגת הערכים (לפני הציור הבא של הגרף) */
+function pfKeyNow(ro) {
+  const canvas = document.getElementById('pfChart');
+  const map = canvas && canvas._pfMap, paint = canvas && canvas._pfPaint;
+  if (!map || !paint) return;
+  renderPfKey(document.getElementById('pfLegend'), map.series, !!paint.showBench, ro);
 }
 
 /* היסטוריה יומית מהירה לגרף הביצועים: מרוץ מקבילי Yahoo/Yahoo2/Stooq —
@@ -12045,13 +12040,12 @@ function renderOverview(light) {
     t('ovUpdated', { time: state.quotesAt ? fmtTimeIL(state.quotesAt) : '—' }) + twrTxt;
   paintFxPill(false);
 
-  /* v109: כל ציור עטוף בנפרד — כשל באחד לא יחסום את הכרטיסים שאחריו (כולל "ביצועי IBKR") */
+  /* v109: כל ציור עטוף בנפרד — כשל באחד לא יחסום את הכרטיסים שאחריו */
   try { drawPie(); } catch (e) {}
   // v139: טיק חי — בלי גרף הביצועים/דוחות/IBKR (לא תלויים במחיר החי, ויאפסו מגע בגרף)
   if (!light) {
     try { drawPfChart(); } catch (e) {}
     try { renderEarningsCard(); } catch (e) {}
-    try { renderIbkrPerf(); } catch (e) {}
   }
   try { fitNumbers(); } catch (e) {}
 }
@@ -12073,46 +12067,7 @@ function paintManualHead() {
   yEl.textContent = y === null || !isFinite(y) ? '—' : fmtPct(y, true);
   yEl.className = 'stat-value ' + (y === null || !isFinite(y) ? '' : y >= 0 ? 'pos' : 'neg');
   if (meta) meta.textContent = t('ovUpdated', { time: state.quotesAt ? fmtTimeIL(state.quotesAt) : '—' }) + note;
-  try { renderManualPerf(mp); } catch (e) {}
   try { fitNumbers(); } catch (e) {}
-}
-
-/* v158: כרטיס "ביצועי התיק" במצב ידני — המקבילה של "ביצועי IBKR", מהעסקאות והאחזקות הידניות */
-function renderManualPerf(mp) {
-  const card = document.getElementById('ibkrPerfCard');
-  const list = document.getElementById('ibkrPerfList');
-  const period = document.getElementById('ibkrPerfPeriod');
-  const title = document.getElementById('ibkrPerfTitleEl');
-  if (!card || !list || isIbkrMode()) return;
-  const show = POSITIONS.length > 0 || mtList().length > 0;
-  card.classList.toggle('hidden', !show);
-  if (!show) return;
-  if (title) title.textContent = t('perfTitleManual');
-  if (period) period.textContent = mp.fromDate ? t('perfPeriodManual', { a: fmtDateIL(mp.fromDate) }) : t('perfNoTrades');
-  const mrow = (lbl, val) => {
-    const li = el('li', 'perf-row');
-    li.innerHTML = '<span class="perf-lbl">' + esc(lbl) + '</span>' +
-      '<span class="perf-val ' + val.cls + '">' + esc(val.txt) + '</span>';
-    list.appendChild(li);
-  };
-  const mval = (v, isMoney) => {
-    if (v === null || v === undefined || !isFinite(v)) return { txt: '—', cls: '' };
-    return { txt: isMoney ? ltrNum((v < 0 ? '−' : '') + money(Math.abs(v), 'USD')) : fmtPct(v, true), cls: v > 0 ? 'pos' : v < 0 ? 'neg' : '' };
-  };
-  list.innerHTML = '';
-  mrow(t('perfTwr'), mp.twr !== null ? mval(mp.twr, false)
-    : { txt: mp.fromDate ? (mp.loading ? t('loadingData') : t('cantCalc')) : t('perfNeedTrades'), cls: 'perf-note' });
-  mrow(t('perfGainManual'), mp.missing ? { txt: '—', cls: '' } : mval(mp.gain, true));
-  mrow(t('perfXirr'), mp.xirr !== null ? mval(mp.xirr, false)
-    : { txt: mp.fromDate ? t('cantCalc') : t('perfNeedTrades'), cls: 'perf-note' });
-  mrow(t('perfRealized'), mval(mp.realized, true));
-  mrow(t('perfUnrealized'), mp.missing ? { txt: '—', cls: '' } : mval(mp.unrealized, true));
-  mrow(t('perfFeesManual'), mval(Math.abs(mp.fees) < 0.005 ? 0 : -mp.fees, true));
-  if (mp.avgOnly && mp.fromDate) {
-    const li = el('li', 'perf-row');
-    li.innerHTML = '<span class="perf-lbl fine">' + esc(t('twrAvgNote', { n: mp.avgOnly })) + '</span>';
-    list.appendChild(li);
-  }
 }
 
 /* 15/11/2026: מגמת הצפי — מנתוני Yahoo בלבד (אין מקור חינמי עם דירוג מוכן; ה־ESP של Zacks בתשלום): כמה הקונצנזוס
@@ -12381,59 +12336,6 @@ function openEarnCalSheet(r, name) {
   document.addEventListener('keydown', function onKey(e) { if (e.key === 'Escape') { closeEarnCalSheet(); document.removeEventListener('keydown', onKey); } });
   document.body.appendChild(veil);
   requestAnimationFrame(() => veil.classList.add('show'));
-}
-
-/* כרטיס "ביצועי IBKR" — TWR רשמי, XIRR, ממומש/לא־ממומש, דיבידנדים, ריבית, מסים, עמלות.
-   מוצג רק במצב IBKR ורק אם יש נתוני סנכרון. */
-function renderIbkrPerf() {
-  const card = document.getElementById('ibkrPerfCard');
-  const list = document.getElementById('ibkrPerfList');
-  const period = document.getElementById('ibkrPerfPeriod');
-  if (!card || !list) return;
-  if (!isIbkrMode()) return; // v158: במצב ידני — renderManualPerf
-  const tEl = document.getElementById('ibkrPerfTitleEl');
-  if (tEl) tEl.textContent = t('ibkrPerfTitle');
-  const show = !!(ibkrCfg().data);
-  card.classList.toggle('hidden', !show);
-  if (!show) return;
-  const data = ibkrCfg().data;
-  const meta = data.meta || {};
-  const base = ibkrBaseCur(data);
-  if (period) period.textContent = t('perfPeriod', { a: fmtDateIL(meta.fromDate), b: fmtDateIL(meta.toDate) });
-  // מנוע חדש (returns.js): TWR רשמי משורשר, רווח מהזהות החשבונאית, XIRR מתזרימים.
-  // בלי TWR רשמי — לא מנחשים: מציגים "לא זמין".
-  const sums = rSums(data);
-  const twr = rHeadlineTwr(data);
-  const gain = rGain(data);
-  const official = rSourceKind(data) === 'official';
-  const xr = rXirr(rXirrFlows(data));
-  const mrow = (lbl, val) => {
-    const li = el('li', 'perf-row');
-    li.innerHTML = '<span class="perf-lbl">' + esc(lbl) + '</span>' +
-      '<span class="perf-val ' + (typeof val === 'object' ? val.cls : '') + '">' +
-      esc(typeof val === 'object' ? val.txt : val) + '</span>';
-    list.appendChild(li);
-  };
-  const mval = (v, isMoney) => {
-    if (v === null || v === undefined || !isFinite(v)) return { txt: '—', cls: '' };
-    return { txt: isMoney ? ltrNum((v < 0 ? '−' : '') + money(Math.abs(v), base)) : fmtPct(v, true), cls: v > 0 ? 'pos' : v < 0 ? 'neg' : '' };
-  };
-  list.innerHTML = '';
-  mrow(t('perfTwr'), official
-    ? mval(twr, false)
-    : { txt: t('twrMissing'), cls: 'perf-note' });
-  mrow(t('perfGain'), gain === null
-    ? { txt: '—', cls: '' }
-    : mval(gain, true));
-  mrow(t('perfXirr'), xr === null
-    ? { txt: t('cantCalc'), cls: 'perf-note' }
-    : mval(xr, false));
-  mrow(t('perfRealized'), mval(sums.realized, true));
-  mrow(t('perfUnrealized'), mval(sums.unrealized, true));
-  mrow(t('perfDividends'), mval(sums.dividends, true));
-  mrow(t('perfWithholding'), mval(sums.withholding, true));
-  mrow(t('perfFees'), mval(Math.abs(sums.fees + sums.commissions) < 0.005 ? 0 : -(sums.fees + sums.commissions), true));
-  try { fitNumbers(); } catch (e) {}
 }
 
 function drawPie() {
@@ -13358,13 +13260,9 @@ function pfPickCancel(redraw) {
   updatePfPickUI();
   if (redraw === true) drawPfChart(); else paintPfChart();
 }
-/* v266: בועת הסימון — תאריך + ערך הקו של התיק באותה נקודה, באותו מקום ועיצוב כמו הבועה הרגילה */
+/* v266: הסימון במצב "מתאריך" — 2.147.0: הערכים במקרא והתאריך בציר (במקום בועה) */
 function showPfPickTip() {
-  const canvas = document.getElementById('pfChart'), map = canvas && canvas._pfMap, tip = pfTipEl();
-  const i = state.pfPickIdx;
-  if (!map || !tip || i === null || !map.series[0].pts[i]) return;
-  const s0 = map.series[0];
-  pfTipPlace(tip, '<b>' + fmtDateIL(s0.pts[i].date) + '</b><div><span class="dot" style="background:' + s0.color + '"></span>' + esc(s0.name) + ' ' + fmtRetHTML(s0.pts[i].norm - 100) + '</div>');
+  if (state.pfPickIdx !== null) pfKeyNow({ idx: state.pfPickIdx });
 }
 
 /* הסבר מתחת לגרף הביצועים — מותאם למקור הנתונים */
@@ -13398,6 +13296,46 @@ function renderPfNote(noBench, srcKind) {
   p.textContent = txt;
 }
 
+/* 2.147.0 (בקשת המשתמש: "להגדיל את הגרף כמה שיותר… אבל שכל החלקים החשובים בכרטיס יוצגו בכל מסך"): גובה הגרף =
+   השטח שבין ההדר הדביק לסרגל הלשוניות, פחות שאר הכרטיס (כותרת, טווחים, שורת התשואה) — כך שכל הכרטיס נכנס במסך אחד.
+   בלי ההערה הקטנה ובלי "המשך/ביטול" של "מתאריך" (זמניים — לא מקפיצים את הגרף). בין 200 ל־460. מחושב מחדש רק כשגודל
+   החלון משתנה או כשהכרטיס עוד לא נמדד (לא בכל גרירה). */
+function pfFitH(canvas) {
+  const MIN = 200, MAX = 460, DEF = 280;
+  if (typeof window === 'undefined' || !canvas || !canvas.getBoundingClientRect) return DEF;
+  const key = window.innerWidth + 'x' + window.innerHeight;
+  if (canvas._pfH && canvas._pfHKey === key) return canvas._pfH;
+  const card = canvas.closest && canvas.closest('.card');
+  if (!card || !card.offsetHeight) return canvas._pfH || DEF;
+  let other = card.offsetHeight - canvas.offsetHeight;
+  for (const id of ['pfNoteEl', 'pfPickBar', 'pfPickBubble']) { const e = document.getElementById(id); if (e && e.offsetHeight) other -= e.offsetHeight; }
+  const sum = document.getElementById('pfRangeSummary');
+  const ready = !!(sum && sum.offsetHeight); // בציור הראשון שורת התשואה עוד ריקה — אומדן, ונמדד שוב בציור הבא
+  if (!ready) other += 46;
+  const avail = viewH() - topCover() - bottomCover() - other - 16; // אותה מדידה כמו בכרטיס המניה (fitCardToScreen)
+  const hh = Math.round(Math.max(MIN, Math.min(MAX, avail)));
+  canvas._pfH = hh; canvas._pfHKey = ready ? key : '';
+  canvas.style.height = hh + 'px';
+  return hh;
+}
+
+/* 2.147.0: גלולת תאריך בציר התאריכים — רקע המשטח (מסתיר את התוויות מתחת), טקסט מודגש, נשארת בתוך הגרף */
+function pfDatePill(ctx, txt, cx, y, x0, x1) {
+  ctx.save();
+  ctx.font = '600 12.5px system-ui';
+  ctx.direction = 'ltr';
+  const tw = ctx.measureText(txt).width, pw = tw + 16, ph = 22;
+  const x = Math.max(x0, Math.min(x1 - pw, cx - pw / 2)), top = y - 4;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x, top, pw, ph, ph / 2); else ctx.rect(x, top, pw, ph);
+  ctx.fillStyle = cssVar('--surface', '#fff'); ctx.fill();
+  ctx.lineWidth = 1; ctx.strokeStyle = cssVar('--outline', '#E3E7E4'); ctx.stroke();
+  ctx.fillStyle = cssVar('--on-surface', '#1A1C1A');
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(txt, x + pw / 2, top + ph / 2 + 0.5);
+  ctx.restore();
+}
+
 /* שורת תשואת הטווח הנבחר מתחת לגרף — מספר אחד גדול וברור */
 function renderPfRangeSummary(s0) {
   const box = document.getElementById('pfRangeSummary');
@@ -13418,47 +13356,15 @@ function renderPfRangeSummary(s0) {
 
 /* טולטיפ של גרף הביצועים */
 function hidePfTip() {
-  const tip = document.getElementById('pfTip');
-  if (tip) tip.classList.add('hidden');
   state.pfTipIdx = null;
+  pfKeyNow(null);
 }
 function showPfTip(idx) {
-  const canvas = document.getElementById('pfChart');
-  const map = canvas && canvas._pfMap;
-  if (!map || map.n < 2) return;
-  const tip = pfTipEl();
-  const d = map.series[0].pts[idx].date;
-  let html = '<b>' + fmtDateIL(d) + '</b>';
-  for (const s of map.series) {
-    html += '<div><span class="dot" style="background:' + s.color + '"></span>' +
-      esc(s.name) + ' ' + fmtRetHTML(s.pts[idx].norm - 100) + '</div>';
-  }
-  pfTipPlace(tip, html);
+  pfKeyNow({ idx: idx });
 }
-/* v265 (בקשת המשתמש): הבועה של גרף הביצועים — אותו עיצוב, תמיד בפינה השמאלית העליונה, מעל הגרף (לא מסתירה אותו) */
-function pfTipPlace(tip, html) {
-  tip.innerHTML = html;
-  tip.classList.remove('hidden');
-  tip.style.left = '0px';
-  tip.style.top = (-tip.offsetHeight - 4) + 'px';
-}
-function pfTipEl() {
-  let tip = document.getElementById('pfTip');
-  const canvas = document.getElementById('pfChart');
-  if (!tip && canvas) { tip = el('div', 'pf-tip hidden'); tip.id = 'pfTip'; canvas.parentElement.appendChild(tip); }
-  return tip;
-}
-/* v265: מדידה בשתי אצבעות בגרף הביצועים — התוצאה באותה בועה (תאריכים + תשואה לכל קו), בלי כפתור "מדידה" */
+/* v265: מדידה בשתי אצבעות בגרף הביצועים — התשואה בין הנקודות לכל קו, במקרא (2.147.0) */
 function showPfMeasureTip(i1, i2) {
-  const canvas = document.getElementById('pfChart');
-  const map = canvas && canvas._pfMap, tip = pfTipEl();
-  if (!map || map.n < 2 || !tip) return;
-  const a = Math.min(i1, i2), b = Math.max(i1, i2), s0 = map.series[0];
-  let html = '<b>' + ltrNum(fmtDateIL(s0.pts[a].date) + ' – ' + fmtDateIL(s0.pts[b].date)) + '</b>';
-  for (const s of map.series) {
-    html += '<div><span class="dot" style="background:' + s.color + '"></span>' + esc(s.name) + ' ' + fmtRetHTML(retPct(s.pts[a].norm, s.pts[b].norm)) + '</div>';
-  }
-  pfTipPlace(tip, html);
+  pfKeyNow({ a: Math.min(i1, i2), b: Math.max(i1, i2) });
 }
 function pfIdxAt(map, x) {
   let idx = 0;
@@ -13707,14 +13613,14 @@ async function drawPfChart() {
   // לא מציגים תשואה מומצאת. מסבירים איך לקבל נתונים מפורטים.
   if (srcKind === 'ibkr' && rangeGap > 10) {
     if (loading) { loading.textContent = t('pfRangeNeedsDaily'); loading.classList.remove('hidden'); }
-    if (legend) legend.innerHTML = '';
+    renderPfKey(legend, null, false);
     canvas._pfMap = null;
     canvas._pfPaint = null;
     const ctx0 = canvas.getContext && canvas.getContext('2d');
     if (ctx0) ctx0.clearRect(0, 0, canvas.width, canvas.height);
     renderPfNote(true, srcKind);
     renderPfRangeSummary(null);
-    renderPfBenchToggles(false);
+    renderPfKey(legend, null, false);
     return;
   }
   // חיתוך לתחילת תקופת הדוח — טווח שמתחיל לפני שהתיק נפתח מציג תשואה פיקטיבית.
@@ -13741,12 +13647,12 @@ async function drawPfChart() {
   }
   if (pfRows.length < 2) {
     if (loading) { loading.textContent = t('noChartNow'); loading.classList.remove('hidden'); }
-    if (legend) legend.innerHTML = '';
+    renderPfKey(legend, null, false);
     canvas._pfMap = null;
     canvas._pfPaint = null;
     renderPfNote(true, srcKind);
     renderPfRangeSummary(null);
-    renderPfBenchToggles(false);
+    renderPfKey(legend, null, false);
     return;
   }
 
@@ -13776,15 +13682,14 @@ async function drawPfChart() {
   const series = allSeries.filter((s) => s.pts.length >= 2);
   if (!series.length) {
     if (loading) { loading.textContent = t('noChartNow'); loading.classList.remove('hidden'); }
-    if (legend) legend.innerHTML = '';
+    renderPfKey(legend, null, false);
     canvas._pfMap = null;
     canvas._pfPaint = null;
     renderPfNote(true, srcKind);
     renderPfRangeSummary(null);
     return;
   }
-  canvas._pfPaint = { series: series, benchEmpty: benchSeries.length === 0, srcKind: srcKind };
-  renderPfBenchToggles(showBench);
+  canvas._pfPaint = { series: series, benchEmpty: benchSeries.length === 0, srcKind: srcKind, showBench: showBench };
   paintPfChart();
 }
 
@@ -13799,8 +13704,12 @@ function paintPfChart() {
   if (!series.length) return;
   const n = series[0].pts.length;
 
+  // 2.147.0: המקרא הצף נצבע לפני הגרף — גובהו קובע את המרווח העליון, כך שאף קו לא עובר מתחתיו
+  renderPfKey(legend, series, !!paint.showBench, pfReadout());
+  const keyH = legend && !legend.classList.contains('hidden') ? legend.offsetHeight : 0;
+  const h = pfFitH(canvas);
   const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth || 320, h = 210;
+  const w = canvas.clientWidth || 320;
   canvas.width = w * dpr; canvas.height = h * dpr;
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
@@ -13822,6 +13731,15 @@ function paintPfChart() {
   // v125: ציר X לפי זמן, לא לפי אינדקס — בנתוני תקופות (נקודה לשנה) תקופה
   // של יום אחד תפסה רוחב של שנה שלמה והגרף היה מעוות
   const fr = pfTimeFractions(series[0].pts.map((p) => p.date));
+  // 2.147.0: מרווח עליון רק מתחת למקרא — הקווים באזור שלו יורדים מתחת לתחתיתו, ושאר הגרף מנצל את כל הגובה
+  const zoneR = keyH ? legend.offsetLeft + legend.offsetWidth + 4 : 0;
+  const topAt = (x) => (keyH && x <= zoneR ? keyH + 6 : padT); // 2.147.0: סמנים ופס המדידה לא נכנסים מתחת למקרא
+  if (keyH) {
+    const r = Math.min(0.6, (keyH + 6 - padT) / plotH);
+    let vz = -Infinity;
+    for (const s of series) s.pts.forEach((p, i) => { if (padL + (n <= 1 ? plotW / 2 : fr[i] * plotW) <= zoneR) vz = Math.max(vz, p.norm - 100); });
+    if (isFinite(vz) && r > 0) max = Math.max(max, min + (vz - min) / (1 - r));
+  }
   const X = (i) => padL + (n <= 1 ? plotW / 2 : fr[i] * plotW);
   const Y = (v) => padT + (1 - (v - min) / (max - min)) * plotH;
 
@@ -13832,7 +13750,7 @@ function paintPfChart() {
     const y = Y(v);
     ctx.strokeStyle = cssVar('--outline', '#E3E7E4');
     ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(y < keyH + 4 ? zoneR : padL, y); ctx.lineTo(w - padR, y); ctx.stroke(); // 2.147.0: לא מתחת למקרא
     ctx.fillStyle = cssVar('--on-surface-var', '#9AA5A0');
     ctx.textAlign = 'left';
     ctx.direction = 'ltr'; // v166: הסימן משמאל למספר גם בקנבס (ברירת המחדל יורשת RTL)
@@ -13875,7 +13793,8 @@ function paintPfChart() {
   if (ms.pts.length >= 2) {
     const a = Math.min(ms.pts[0], ms.pts[1]), b = Math.max(ms.pts[0], ms.pts[1]);
     ctx.fillStyle = marker + '1F';
-    ctx.fillRect(X(a), padT, X(b) - X(a), plotH);
+    const xa = X(a), xb = X(b), bt = topAt(xa);
+    ctx.fillRect(xa, bt, xb - xa, padT + plotH - bt);
   }
   const drawMarker = (i) => {
     const x = X(i), y = Y(pts0[i].norm - 100);
@@ -13883,7 +13802,8 @@ function paintPfChart() {
     ctx.fillStyle = marker + '2E'; ctx.fill();
     ctx.setLineDash([5, 4]);
     ctx.strokeStyle = marker; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH); ctx.stroke();
+    const lt = ms.pts.length >= 2 ? topAt(X(Math.min(ms.pts[0], ms.pts[1]))) : topAt(x); // במדידה — שני הקווים מגובה הפס
+    ctx.beginPath(); ctx.moveTo(x, lt); ctx.lineTo(x, padT + plotH); ctx.stroke();
     ctx.setLineDash([]);
     ctx.beginPath(); ctx.arc(x, y, 6.5, 0, Math.PI * 2);
     ctx.fillStyle = marker; ctx.fill();
@@ -13892,6 +13812,13 @@ function paintPfChart() {
   for (const i of ms.pts) drawMarker(i);
   if (!ms.on && state.pfTipIdx !== null && state.pfTipIdx < n) drawMarker(state.pfTipIdx);
   if (state.pfPickDate && state.pfPickIdx !== null) { if (state.pfPickIdx >= n) state.pfPickIdx = n - 1; drawMarker(state.pfPickIdx); } // v266
+  // 2.147.0: התאריך של הנקודה — גלולה בציר התאריכים, מעל התוויות (במדידה: הטווח, באמצע בין הנקודות)
+  const ro = pfReadout();
+  if (ro) {
+    const txt = ro.b !== undefined ? fmtDateIL(pts0[Math.min(ro.a, n - 1)].date) + ' – ' + fmtDateIL(pts0[Math.min(ro.b, n - 1)].date) : fmtDateIL(pts0[Math.min(ro.idx, n - 1)].date);
+    const cx = ro.b !== undefined ? (X(Math.min(ro.a, n - 1)) + X(Math.min(ro.b, n - 1))) / 2 : X(Math.min(ro.idx, n - 1));
+    pfDatePill(ctx, txt, cx, h - 20, padL, w - padR);
+  }
 
   canvas._pfMap = { n, padL, plotW, series, xs: fr.map((f) => padL + f * plotW) };
   if (state.pfPickDate && state.pfPickIdx !== null) showPfPickTip(); // v266: הבועה נשארת גם בציור מחדש
@@ -13899,14 +13826,6 @@ function paintPfChart() {
   canvas.classList.toggle('measuring', state.pfPickDate || ms.on);
   updatePfMeasureChip();
 
-  if (legend) {
-    legend.innerHTML = series.map((s) => {
-      const r = s.pts[s.pts.length - 1].norm - 100;
-      return '<li><span class="dot" style="background:' + s.color + '"></span>' +
-        '<span class="lg-name">' + esc(s.name) + '</span>' +
-        '<span class="lg-pct">' + fmtRetHTML(r) + '</span></li>';
-    }).join('');
-  }
   renderPfRangeSummary(series[0]);
   renderPfNote(paint.benchEmpty, paint.srcKind);
 }
@@ -18447,11 +18366,11 @@ function scMeasure(pts, i, j) {
 function scRender(canvas) {
   const wrap = canvas.parentNode, map = canvas._chartMap, sc = canvas._sc;
   let ov = wrap && wrap.querySelector('.sc-ov');
-  if (!sc || !map || map.n < 2 || !wrap) { if (ov) ov.classList.add('hidden'); return; }
   const sym = canvas.id.replace(/^chart-/, '');
+  const sret = stockNode(sym, 'sret-');
+  if (!sc || !map || map.n < 2 || !wrap) { if (ov) ov.classList.add('hidden'); if (sret) sret.classList.remove('ro'); return; }
   if (!ov) {
     ov = el('div', 'sc-ov');
-    ov.setAttribute('aria-live', 'polite');
     ov.innerHTML = '<i class="sc-band"></i><i class="sc-line"></i><i class="sc-line sc-l2"></i><i class="sc-dot"></i><i class="sc-dot sc-d2"></i><div class="pf-tip sc-tip"></div>';
     wrap.appendChild(ov);
   }
@@ -18485,6 +18404,31 @@ function scRender(canvas) {
   }
   ov.classList.toggle('m', sc.mode === 'm');
   ov.classList.toggle('neg', tone === 'neg');
+  /* 2.147.0 (בקשת המשתמש: "שהבועה לא תסתיר את הגרפים בזמן הסימון — אף פעם"): הערכים מוצגים בשורת התשואה שמעל הגרף,
+     במקומה (תאריך · מחיר · שינוי; במדידה — הטווח · תשואה · שינוי במחיר), בלי בועה שמכסה את הגרף או את הנתונים.
+     שורה אחת בגובה השורה הרגילה — הכרטיס לא זז. בלי שורת התשואה (מקרה קצה) — הבועה הישנה. */
+  if (sret) {
+    let ro = sret.querySelector('.rs-ro');
+    if (!ro) { ro = el('span', 'rs-ro'); ro.setAttribute('aria-live', 'polite'); sret.appendChild(ro); }
+    const col = cssVar(map.up ? '--gain' : '--loss', map.up ? '#137333' : '#B3261E');
+    let r;
+    if (sc.mode === 'm') {
+      const m = scMeasure(map.pts, clamp(sc.a), clamp(sc.b));
+      r = '<span class="ro-d">' + ltrNum(esc(scDateTxt(map.pts[m.a], map.intraday)) + ' – ' + esc(scDateTxt(map.pts[m.b], map.intraday))) + '</span>' +
+        '<span class="ro-v ' + tone + '">' + fmtPct(m.pct, true) + '</span><span class="ro-c ' + tone + '">' + fmtSignedPx(m.chg, sym) + '</span>';
+    } else {
+      const i = clamp(sc.i);
+      const chg = map.base > 0 && !sc.pick ? (map.pts[i].close / map.base - 1) * 100 : null;
+      r = '<span class="ro-d">' + esc(scDateTxt(map.pts[i], map.intraday)) + '</span><span class="ro-v">' + scPxTxt(sym, map.pts[i].close) + '</span>' +
+        (chg !== null && isFinite(chg) ? '<span class="ro-c ' + (chg >= 0 ? 'pos' : 'neg') + '">' + fmtPct(chg, true) + '</span>' : '');
+    }
+    r = '<span class="dot" style="background:' + col + '"></span>' + r;
+    if (ro._html !== r) { ro.innerHTML = r; ro._html = r; }
+    sret.classList.add('ro');
+    tip.classList.add('hidden');
+    return;
+  }
+  tip.classList.remove('hidden');
   if (tip._html !== html) { tip.innerHTML = html; tip._html = html; }
   const dot = tip.querySelector('.dot');
   if (dot) dot.style.background = cssVar(map.up ? '--gain' : '--loss', map.up ? '#137333' : '#B3261E');
