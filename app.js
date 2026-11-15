@@ -12160,14 +12160,22 @@ function sizeEarnWindow() {
   if (!list) return;
   requestAnimationFrame(() => {
     const rows = list.querySelectorAll('.earn-row');
-    // 15/11/2026 (בקשת המשתמש): בדיוק שלושה דוחות; השאר בגלילה, ו"עוד N דוחות" מתחת
-    const more = rows.length > 3;
+    // 15/11/2026 (בקשת המשתמש): שלושה דוחות; במסך נמוך — שניים, כדי שהחלון לא יתפוס את רוב המסך
+    // (אחרת הגלילה נתפסת בתוך הרשימה ואי אפשר לגלול את העמוד). השאר בגלילה, ו"עוד N דוחות" מתחת
+    const n = earnWinRows(rows, window.innerHeight);
+    const more = rows.length > n;
     list.classList.toggle('earn-scroll', more);
     const btn = document.getElementById('earnMore');
     if (btn) btn.classList.toggle('hidden', !more);
     if (!more) { list.style.maxHeight = ''; return; }
-    const h = rows[0].offsetHeight + rows[1].offsetHeight + rows[2].offsetHeight;
+    let h = 0;
+    for (let i = 0; i < n; i++) h += rows[i].offsetHeight;
     if (h > 0) list.style.maxHeight = h + 'px';
+    if (!sizeEarnWindow._rs) {
+      sizeEarnWindow._rs = true;
+      let tm = 0;
+      window.addEventListener('resize', () => { clearTimeout(tm); tm = setTimeout(sizeEarnWindow, 150); }, { passive: true });
+    }
     if (!list._earnWired) {
       list._earnWired = true;
       list.addEventListener('scroll', () => earnMoreUpdate(), { passive: true });
@@ -12180,6 +12188,12 @@ function sizeEarnWindow() {
     }
     earnMoreUpdate();
   });
+}
+/* 15/11/2026: כמה דוחות בחלון — 3, ו־2 כששלוש שורות תופסות יותר מרבע מגובה המסך (מסך קטן) */
+function earnWinRows(rows, vh) {
+  let h3 = 0;
+  for (let i = 0; i < 3 && i < rows.length; i++) h3 += rows[i].offsetHeight || 0;
+  return vh > 0 && h3 > vh * 0.25 ? 2 : 3;
 }
 /* v224 (בקשת המשתמש: שיהיה ברור שאפשר לגלול): "עוד N דוחות ⌄" מתחת לחלון — N = השורות שעוד מתחת לתצוגה;
    בסוף הרשימה "חזרה למעלה ⌃". יחד עם הדהייה בתחתית */

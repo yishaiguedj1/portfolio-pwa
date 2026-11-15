@@ -1515,7 +1515,8 @@ html[data-app="cashflow"] .login-overlay { background: linear-gradient(160deg, #
 /* v221: דוחות קרובים — רשימה לפי ת־עיצוב/Material: לוגו, סימבול ושם, שורת "בעוד N ימים", ואריח לוח שנה בקצה */
 .earn-list { list-style: none; margin: 4px 0 0; padding: 0; }
 /* v223: שלושה דוחות גלויים (15/11/2026; היה שניים; בלי דהייה — "עוד N דוחות" מתחת מספיק), השאר בגלילה בתוך הכרטיס — עוצר על כל שורה, בלי פס גלילה, דהייה בתחתית כשיש עוד */
-.earn-list.earn-scroll { max-height: 260px; overflow-y: auto; overscroll-behavior: contain; scroll-snap-type: y mandatory; scrollbar-width: none; }
+/* 15/11/2026: בלי overscroll-behavior: contain — בקצה הרשימה הגלילה ממשיכה לעמוד (אחרת העמוד "נתקע" במסך קטן) */
+.earn-list.earn-scroll { max-height: 200px; overflow-y: auto; scroll-snap-type: y proximity; scrollbar-width: none; }
 .earn-list.earn-scroll::-webkit-scrollbar { display: none; }
 .earn-list.earn-scroll.at-end { -webkit-mask-image: none; mask-image: none; }
 .earn-list.earn-scroll .earn-row { scroll-snap-align: start; }
