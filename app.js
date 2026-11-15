@@ -563,6 +563,7 @@ he: {
   txUnits: "{n} יח׳",
   txTaxable: "חייב",
   txCarry0H: "הפסד מועבר מלפני הנתונים",
+  txByAcct: "לפי חשבון IBKR", txAcctTotal: "סך הכל", txByAcctS: "המס של כל חשבון מחושב כאילו הוא היחיד. הסך הכל מחושב על כל החשבונות יחד — הפסד בחשבון אחד מקוזז מרווח בחשבון אחר, וגם ההפסד המועבר וההכנסה האחרת נכנסים רק אליו — לכן הוא יכול להיות נמוך מסכום החשבונות.",
   txCarry0S: "הפסד הון שדווח לפני {y} ועדיין לא נוצל (מהשומה או מהדוח השנתי).",
   txCarry0L: "סכום בשקלים",
   txValue: "שווי היום",
@@ -1331,6 +1332,7 @@ he: {
   btnCancel: 'ביטול',
   btnOk: 'אישור', ibkrImportOk: 'ייבוא', ibkrBgOn: 'הסנכרון האוטומטי הופעל', ibkrBgOff: 'הסנכרון האוטומטי כובה',
   ibkrAutoLbl: 'סנכרון אוטומטי', ibkrConnLbl: 'חיבור', ibkrViaAccount: 'דרך החשבון', ibkrAutoSynced: 'עודכן אוטומטית מ־IBKR',
+  ibkrAcctsTitle: 'חשבונות', ibkrAcctCounts: '{p} מניות · {t} עסקאות · {c} תנועות', ibkrRowOff: 'לא מחובר', ibkrRowOn: 'מחובר', ibkrRowN: '{n} חשבונות',
   ibkrAcctAdd: '+ הוספת חשבון IBKR', ibkrAcctAddTitle: 'חשבון IBKR נוסף — הנתונים שלו יתווספו לתיק', ibkrAcctAddOk: 'הוספה וסנכרון', ibkrAcctName: 'שם', ibkrAcctNamePh: 'חשבון {n}', ibkrAcctMain: 'חשבון ראשי', ibkrAcctNoData: 'עוד לא סונכרן',
   ibkrAcctRemoveConfirm: 'להסיר את "{name}"? המניות, העסקאות וההפקדות שלו יוסרו מהתיק, וה־token שלו יימחק מהטלפון.', ibkrAcctRemoveOk: 'הסרה', ibkrAcctRemoved: '"{name}" הוסר',
   ibkrMultiMixedBase: 'לחשבונות מטבעות בסיס שונים — אין תשואה משולבת לתיק. השווי, המניות וההפקדות מוצגים.', ibkrMultiNoDaily: 'בשאילתת ה־Flex של אחד החשבונות חסר המקטע Net Asset Value (NAV) in Base — בלעדיו אין תשואה משולבת.',
@@ -2409,6 +2411,7 @@ en: {
   txUnits: "{n} units",
   txTaxable: "taxable",
   txCarry0H: "Loss carried from before the data",
+  txByAcct: "By IBKR account", txAcctTotal: "Total", txByAcctS: "Each account's tax is computed as if it were the only one. The total is computed on all accounts together — a loss in one account offsets a gain in another, and the carried loss and other income only count there — so it can be lower than the sum of the accounts.",
   txCarry0S: "A capital loss reported before {y} and not yet used (from the assessment or the annual return).",
   txCarry0L: "Amount in ₪",
   txValue: "Value today",
@@ -3177,6 +3180,7 @@ en: {
   btnCancel: 'Cancel',
   btnOk: 'OK', ibkrImportOk: 'Import', ibkrBgOn: 'Auto sync is on', ibkrBgOff: 'Auto sync is off',
   ibkrAutoLbl: 'Auto sync', ibkrConnLbl: 'Connection', ibkrViaAccount: 'Via your account', ibkrAutoSynced: 'Updated automatically from IBKR',
+  ibkrAcctsTitle: 'Accounts', ibkrAcctCounts: '{p} stocks · {t} trades · {c} cash moves', ibkrRowOff: 'Not connected', ibkrRowOn: 'Connected', ibkrRowN: '{n} accounts',
   ibkrAcctAdd: '+ Add IBKR account', ibkrAcctAddTitle: 'Another IBKR account — its data is added to the portfolio', ibkrAcctAddOk: 'Add and sync', ibkrAcctName: 'Name', ibkrAcctNamePh: 'Account {n}', ibkrAcctMain: 'Main account', ibkrAcctNoData: 'Not synced yet',
   ibkrAcctRemoveConfirm: 'Remove "{name}"? Its stocks, trades and deposits are removed from the portfolio, and its token is deleted from this phone.', ibkrAcctRemoveOk: 'Remove', ibkrAcctRemoved: '"{name}" removed',
   ibkrMultiMixedBase: 'The accounts have different base currencies — no combined return. Value, stocks and deposits are shown.', ibkrMultiNoDaily: 'One account\'s Flex query is missing the Net Asset Value (NAV) in Base section — no combined return without it.',
@@ -4359,6 +4363,7 @@ function ibkrCfg() {
   catch (e) { return {}; }
 }
 function ibkrSaveCfg(patch) {
+  _ibAcctMemo = null;   // 15/11/2026: שמות וצבעי החשבונות מהתיק — נקראים מחדש
   const c = Object.assign({}, ibkrCfg(), patch);
   lsPutCritical(LS_IBKR, JSON.stringify(c));   // הדוחות השמורים של IBKR — לפני מטמונים שנטענים שוב
   return c;
@@ -4391,8 +4396,32 @@ function ibkrSaveAcct(id, patch) {
 /* התיק המשולב מהדוחות השמורים (או הדוח של הראשי כשאין חשבון נוסף עם נתונים) */
 function ibkrCombined(cfg) {
   const c = cfg || {};
-  const list = [ibkrOwnData(c)].concat(ibkrAccts(c).map((a) => a.data)).filter((d) => ibkrHasImportedData(d));
-  return list.length > 1 ? rMergeAccounts(list, ibkrFlowsByDate) : (list[0] || null);
+  const pairs = [[ibkrOwnData(c), ibkrAcctInfo(c, IBKR_MAIN)]].concat(ibkrAccts(c).map((a) => [a.data, ibkrAcctInfo(c, a.id)]))
+    .filter((p) => ibkrHasImportedData(p[0]));
+  return pairs.length > 1 ? rMergeAccounts(pairs.map((p) => p[0]), ibkrFlowsByDate, pairs.map((p) => p[1])) : (pairs.length ? pairs[0][0] : null);
+}
+/* 15/11/2026 (בקשת המשתמש): צבע קבוע לכל חשבון — הראשי אדום, אחריו כחול, ירוק, צהוב (ועוד שניים). ci נשמר בחשבון
+   בהוספה (הפנוי הנמוך), כך שהסרת חשבון לא מחליפה את הצבעים של האחרים. הצבעים עצמם ב־styles.css (.ib-c0…ib-c5) */
+const IBKR_ACCT_COLORS = 6;
+function ibkrFreeCi(cfg) {
+  const used = new Set([0].concat(ibkrAccts(cfg).map((a) => +a.ci || 0)));
+  for (let i = 1; i < IBKR_ACCT_COLORS; i++) if (!used.has(i)) return i;
+  return 1;
+}
+/* {id, name, ci} של חשבון (טהורה) */
+function ibkrAcctInfo(cfg, id) {
+  if (!id || id === IBKR_MAIN) return { id: IBKR_MAIN, name: (cfg && cfg.mainName) || t('ibkrAcctMain'), ci: 0 };
+  const a = ibkrAccts(cfg).find((x) => x.id === id);
+  return a ? { id: a.id, name: a.name || '', ci: (+a.ci > 0 && +a.ci < IBKR_ACCT_COLORS) ? +a.ci : 1 } : null;
+}
+/* שמות וצבעי החשבונות מהתיק (meta.accts — עובר בענן, כך שגם מכשיר בלי ה־tokens יודע), במטמון עד השמירה הבאה */
+let _ibAcctMemo = null;
+function ibkrAcctMap() {
+  if (_ibAcctMemo) return _ibAcctMemo;
+  const m = new Map();
+  try { for (const a of ((((ibkrCfg().data || {}).meta || {}).accts) || [])) if (a && a.id) m.set(a.id, a); } catch (e) {}
+  _ibAcctMemo = m;
+  return m;
 }
 /* שומר את הדוח הממוזג של חשבון אחד ומחזיר את התיק המשולב לייבוא */
 function ibkrStoreAcct(id, raw) {
@@ -5305,6 +5334,8 @@ function ibkrFriendlyErr(msg) {
 
 function renderIbkrCard() {
   const cfg = ibkrCfg();
+  const rv = document.getElementById('ibkrRowVal');   // 15/11/2026: השורה בהגדרות
+  if (rv) rv.textContent = ibkrRowValText(cfg);
   // שחזור ערכי שדות הסנכרון (token נשמר בטלפון בלבד)
   const tk = document.getElementById('ibkrToken');
   const qd = document.getElementById('ibkrQuery');
@@ -5332,8 +5363,8 @@ function renderIbkrCard() {
         row(t('ibkrLastSyncLbl'), cfg.lastSync ? fmtTimeIL(cfg.lastSync) : '—') +
         // v312: מתג אחד "סנכרון אוטומטי" (פעיל כברירת מחדל) — העדכון היומי + הסנכרון ברקע בשרתון
         (viaAcct ? row(t('ibkrConnLbl'), t('ibkrViaAccount')) + '</div>' :
-        '<div class="ib-row"><span>' + esc(t('ibkrAutoLbl')) + '</span><button type="button" class="ib-sw" id="ibkrAutoSw" role="switch" aria-checked="' + (ibkrAutoOn(cfg) ? 'true' : 'false') + '" aria-label="' + esc(t('ibkrAutoLbl')) + '"><i></i></button></div>' +
-        ibkrAcctsHtml(cfg) + '</div>');   // 15/11/2026: החשבונות + "הוספת חשבון"
+        '<div class="ib-row"><span>' + esc(t('ibkrAutoLbl')) + '</span><button type="button" class="ib-sw" id="ibkrAutoSw" role="switch" aria-checked="' + (ibkrAutoOn(cfg) ? 'true' : 'false') + '" aria-label="' + esc(t('ibkrAutoLbl')) + '"><i></i></button></div></div>') +
+        ibkrAcctsHtml(cfg, !viaAcct);   // 15/11/2026: כרטיס לכל חשבון + "הוספת חשבון"
       const sw = document.getElementById('ibkrAutoSw');
       if (sw) sw.addEventListener('click', () => ibkrAutoToggle(!ibkrAutoOn(ibkrCfg())));
       const add = document.getElementById('ibkrAcctAdd');
@@ -5413,7 +5444,8 @@ function ibkrMapImport(data) {
     lots++;
     const cb = Math.abs(Number(p.costBasis) || 0);
     let e = bySym.get(sym);
-    if (!e) { e = { sym, shares: 0, cost: 0, mp: 0 }; bySym.set(sym, e); }
+    if (!e) { e = { sym, shares: 0, cost: 0, mp: 0, accts: [] }; bySym.set(sym, e); }
+    if (p.acct && !e.accts.includes(p.acct)) e.accts.push(String(p.acct));   // 15/11/2026: מאילו חשבונות
     e.shares += qty;
     e.cost += cb;
     const mp = Number(p.markPrice) || 0;
@@ -5427,7 +5459,9 @@ function ibkrMapImport(data) {
     // של הדוח — רק כשהיסטוריית העסקאות מסבירה את כל הכמות (אחרת: פיצול/העברה/היסטוריה חלקית)
     const a = ac[e.sym];
     if (a && a.avg > 0 && Math.abs(a.shares - e.shares) < 1e-6) avg = a.avg;
-    positions.push({ sym: e.sym, name: e.sym, full: '', shares: e.shares, avg: avg > 0 ? avg : 0 });
+    const pos = { sym: e.sym, name: e.sym, full: '', shares: e.shares, avg: avg > 0 ? avg : 0 };
+    if (e.accts.length) pos.accts = e.accts;
+    positions.push(pos);
   }
   let usd = 0, ils = 0, hasCash = false;
   for (const c of (d.cashBalances || [])) {
@@ -6038,8 +6072,17 @@ function depositsNewestFirst(list) {
 
 /* v147: תגית מקור אחידה לכל פריט — "ידני" או הלוגו של Interactive Brokers.
    אותה תגית על כפתורי האיפוס, כך שרואים מה כל כפתור מוחק. */
-function srcTagHTML(kind) {
+function srcTagHTML(kind, acct) {
   if (kind === 'ibkr') {
+    // 15/11/2026 (בקשת המשתמש): כמה חשבונות — הלוגו בצבע של החשבון (אחד לכל חשבון שהפריט שייך אליו)
+    const ids = [...new Set([].concat(acct || []).filter(Boolean))];
+    const map = ids.length ? ibkrAcctMap() : null;
+    const infos = ids.map((id) => map && map.get(id)).filter(Boolean);
+    if (infos.length) {
+      const one = (a) => '<span class="src-tag src-ibkr ib-c' + ((+a.ci || 0) % IBKR_ACCT_COLORS) + '" title="' + esc('IBKR · ' + a.name) + '" aria-label="' + esc('IBKR · ' + a.name) + '">' +
+        '<i class="ib-logo" aria-hidden="true"></i></span>';
+      return infos.length > 1 ? '<span class="src-tags">' + infos.map(one).join('') + '</span>' : one(infos[0]);   // כמה חשבונות — יחד, באותו מקום
+    }
     return '<span class="src-tag src-ibkr" title="Interactive Brokers" aria-label="Interactive Brokers">' +
       '<img src="ibkr-logo.png" alt="IBKR" width="14" height="14"></span>';
   }
@@ -6971,7 +7014,7 @@ function ibkrAddAcct() {
     const bad = ibkrAcctCheck(c, name, token, queryId);
     if (bad) { ibkrShowErr({ credsMissing: t('credsMissing'), ibkrAcctBadQuery: t('ibkrAcctBadQuery'), ibkrAcctDup: t('ibkrAcctDup'), ibkrAcctMax: t('ibkrAcctMax') }[bad] || bad); return; }
     const id = 'a' + Date.now().toString(36);
-    const patch = { accts: ibkrAccts(c).concat([{ id, name, token, queryId, data: null, lastSync: 0 }]) };
+    const patch = { accts: ibkrAccts(c).concat([{ id, name, token, queryId, data: null, lastSync: 0, ci: ibkrFreeCi(c) }]) };
     if (!ibkrAccts(c).length) patch.own = c.data || null;   // החשבון הנוסף הראשון: הדוח של הראשי עובר ל־own
     ibkrSaveCfg(patch);
     renderIbkrCard();
@@ -6991,21 +7034,43 @@ function ibkrRemoveAcct(id) {
     else { renderIbkrCard(); flash(t('ibkrAcctRemoved', { name: a.name })); }
   }, { danger: true, ok: t('ibkrAcctRemoveOk') });
 }
-/* רשימת החשבונות בכרטיס (HTML) — הראשי + כל נוסף (עד איזה יום יש נתונים), והוספה */
-function ibkrAcctsHtml(cfg) {
-  const accts = ibkrAccts(cfg);
-  const upTo = (d) => { const td = d && d.meta && d.meta.toDate; return td ? fmtDateIL(td) : t('ibkrAcctNoData'); };
-  let h = '';
-  if (accts.length) {
-    h += '<div class="ib-row"><span>' + esc(t('ibkrAcctMain')) + '</span><span class="ib-v" dir="ltr">' + esc(upTo(ibkrOwnData(cfg))) + '</span></div>';
-    for (const a of accts) {
-      h += '<div class="ib-row ib-acct"><span>' + esc(a.name) + '</span><span class="ib-v"><span dir="ltr">' + esc(upTo(a.data)) + '</span>' +
-        '<button type="button" class="ib-x" data-ib-rm="' + esc(a.id) + '" aria-label="' + esc(t('ibkrAcctRemoveOk') + ' ' + a.name) + '">' +
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button></span></div>';
-    }
+/* 15/11/2026 (בקשת המשתמש): עמוד IBKR — כרטיס לכל חשבון מסונכרן: הלוגו בצבע שלו, שם, תקופה, סנכרון אחרון ומספרים.
+   השמות, הצבעים והתקופות מ־meta.accts של התיק (גם במכשיר בלי ה־tokens); חשבון שנוסף ועוד לא סונכרן — מההגדרות במכשיר.
+   own = יש במכשיר הזה את ה־tokens (אפשר להסיר ולהוסיף). טהורה חוץ מ־t/fmt. */
+function ibkrAcctsHtml(cfg, own) {
+  const data = cfg.data || {}, meta = data.meta || {};
+  const multi = Array.isArray(meta.accts) && meta.accts.length > 1;
+  const list = multi ? meta.accts.map((a) => Object.assign({}, a))
+    : [Object.assign(ibkrAcctInfo(cfg, IBKR_MAIN), { from: meta.fromDate || '', to: meta.toDate || '' })];
+  if (own) for (const a of ibkrAccts(cfg)) if (!list.some((x) => x.id === a.id)) list.push(Object.assign(ibkrAcctInfo(cfg, a.id), { pending: true }));
+  const sync = (id) => { const a = ibkrAcct(cfg, id); return a && a.lastSync ? fmtTimeIL(a.lastSync) : ''; };
+  const cnt = (k, id) => (multi ? (data[k] || []).filter((x) => x && x.acct === id).length : (data[k] || []).length);
+  const xSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
+  let h = '<p class="ib-sec">' + esc(t('ibkrAcctsTitle')) + '</p><div class="ib-accs">';
+  for (const a of list) {
+    const ci = (+a.ci || 0) % IBKR_ACCT_COLORS;
+    const rm = own && a.id !== IBKR_MAIN ? '<button type="button" class="ib-x" data-ib-rm="' + esc(a.id) + '" aria-label="' + esc(t('ibkrAcctRemoveOk') + ' ' + a.name) + '">' + xSvg + '</button>' : '';
+    const per = a.pending ? t('ibkrAcctNoData') : ((a.from ? fmtDateIL(a.from) : '—') + ' – ' + (a.to ? fmtDateIL(a.to) : '—'));
+    const s = sync(a.id);
+    h += '<div class="ib-acc">' +
+      '<div class="ib-acc-h"><span class="src-tag src-ibkr ib-c' + ci + '"><i class="ib-logo" aria-hidden="true"></i></span><b>' + esc(a.name) + '</b>' +
+        (s ? '<span class="ib-acc-t">' + esc(s) + '</span>' : '') + rm + '</div>' +
+      '<div class="ib-acc-l"><span dir="ltr">' + esc(per) + '</span></div>' +
+      (a.pending ? '' : '<div class="ib-acc-l">' + esc(t('ibkrAcctCounts', { p: cnt('positions', a.id), t: cnt('trades', a.id), c: cnt('cashTransactions', a.id) })) + '</div>') +
+      '</div>';
   }
-  if (accts.length < IBKR_ACCTS_MAX) h += '<button type="button" class="ib-row ib-add" id="ibkrAcctAdd"><span>' + esc(t('ibkrAcctAdd')) + '</span></button>';
+  h += '</div>';
+  if (own && ibkrAccts(cfg).length < IBKR_ACCTS_MAX) h += '<button type="button" class="ib-add" id="ibkrAcctAdd">' + esc(t('ibkrAcctAdd')) + '</button>';
   return h;
+}
+/* השורה בהגדרות: מצב החיבור במילה (טהורה חוץ מ־t) */
+function ibkrRowValText(cfg) {
+  const c = cfg || {};
+  const has = ibkrHasImportedData(c.data);
+  if (!c.token && has) return t('ibkrViaAccount');
+  if (!c.token || !c.queryId) return t('ibkrRowOff');
+  const n = 1 + ibkrAccts(c).length;
+  return n > 1 ? t('ibkrRowN', { n }) : t('ibkrRowOn');
 }
 
 /* סנכרון מ־IBKR (Flex Web Service) — מקור הנתונים היחיד של מצב IBKR.
@@ -8056,7 +8121,7 @@ function ibkrRebuildDeposits(list, data, fxOf) {
 function depIdentity(list) {
   return (list || []).map((d) => {
     const n = depNative(d);
-    return String(d.date || '') + '|' + (isIbkrDeposit(d) ? 'i' : 'm') + '|' + (n ? n.cur + ' ' + n.amt : num(d.amount));
+    return String(d.date || '') + '|' + (isIbkrDeposit(d) ? 'i' + (d.acct ? ':' + d.acct : '') : 'm') + '|' + (n ? n.cur + ' ' + n.amt : num(d.amount));
   }).sort().join(';');
 }
 /* מחיל את הגזירה על DB.deposits במקום (DEPOSITS מצביע לאותו מערך). מחזיר true אם השתנה. */
@@ -10346,6 +10411,7 @@ function ibkrMapDeposits(cashTx, fxOf) {
       amt: r2(amt),
     };
     if (cur !== 'ILS' && cur !== 'USD') dep.fxb = Number(c.fxToBase) || 0;
+    if (c.acct) dep.acct = String(c.acct);   // 15/11/2026: כמה חשבונות — צבע החשבון בתגית
     out.push(dep);
   }
   out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
@@ -10449,9 +10515,9 @@ function tabShouldRender(name) {
 }
 /* 30/10/2026 (בקשת המשתמש): הסדר מימין לשמאל (ב־RTL) — מעקב, מניות, הסקירה (הראשי, באמצע), עסקאות, הפקדות, פנסיה; כמו בחוגה.
    settings בראש — מחוץ לחוגה ולהחלקה (DIAL_TABS = slice(1, 7)) */
-const TAB_ORDER = ['settings', 'wishlist', 'stocks', 'overview', 'trades', 'deposits', 'pension', 'advanced', 'backup']; // v287: advanced = עמוד משנה של ההגדרות; 14/10/2026: backup (גיבוי ל־Google Drive) — גם
+const TAB_ORDER = ['settings', 'wishlist', 'stocks', 'overview', 'trades', 'deposits', 'pension', 'ibkr', 'advanced', 'backup'];   // 15/11/2026: ibkr = עמוד משנה של ההגדרות (כל חשבונות IBKR) // v287: advanced = עמוד משנה של ההגדרות; 14/10/2026: backup (גיבוי ל־Google Drive) — גם
 function tabRenderer(name) {
-  return { overview: renderOverview, stocks: renderStocks, trades: renderTrades, wishlist: renderWishlist, deposits: renderDeposits, pension: renderPension, settings: renderSettingsLive, advanced: renderSettingsLive, backup: pfbkPaint }[name] || null;
+  return { overview: renderOverview, stocks: renderStocks, trades: renderTrades, wishlist: renderWishlist, deposits: renderDeposits, pension: renderPension, settings: renderSettingsLive, advanced: renderSettingsLive, backup: pfbkPaint, ibkr: renderIbkrCard }[name] || null;
 }
 /* ---- 29/10/2026 (בקשת המשתמש, לפי סרטון): הלשוניות = "חוגה" בתחתית המסך ----
    המנוע משותף (<core> למטה — גם הסטודיו); כאן רק Invest: אילו לשוניות, איזה עמוד פעיל ואיך עוברים (הקובייה של העמודים).
@@ -11414,7 +11480,7 @@ function setTabPageDirection(prev, name) {
    אפשרויות מתקדמות = 2 — ורשומה בהיסטוריה לכל רמה ({snb: עומק}). "חזור" מהמתקדמות → הגדרות, מההגדרות → הסקירה
    (העמוד הראשי), ומהעמוד הראשי — יציאה כרגיל. מעבר ישיר לעמוד רדוד יותר (לשונית, "‹ הגדרות") מקצר את ההיסטוריה
    בהתאם (history.go שלילי, בלי לטפל ב־popstate שנוצר ממנו). */
-const NAV_SUBS = 'advanced backup'.split(' '); // עמודי משנה של ההגדרות (רמה 2); איזה מהם — ב־sub של הרשומה (מחרוזת — לא מערך זוגות, שבדיקת התרגום קוראת כמפתח)
+const NAV_SUBS = 'advanced backup ibkr'.split(' '); // עמודי משנה של ההגדרות (רמה 2); איזה מהם — ב־sub של הרשומה (מחרוזת — לא מערך זוגות, שבדיקת התרגום קוראת כמפתח)
 function navDepth(name) { return NAV_SUBS.indexOf(name) >= 0 ? 2 : name === 'settings' ? 1 : 0; }
 function navTabForDepth(d) {
   if (d >= 2) { let s = ''; try { s = (history.state && history.state.sub) || ''; } catch (e) {} return NAV_SUBS.indexOf(s) >= 0 ? s : 'advanced'; }
@@ -16431,10 +16497,10 @@ function barHeightVar() {
    14/10/2026 (בקשת המשתמש): העמוד מסתובב בקובייה צמוד לאצבע; **ההחלקה הקצרה בין רשימות המעקב בוטלה** —
    בכל הטאבים החלקה = עמוד, ובין הרשימות עוברים בלחיצה על הצ'יפים. */
 // 30/10/2026 (בקשת המשתמש): ההגדרות מחוץ לסבב — רק מהתפריט; מהן החלקה אחורה = "חזור" לסקירה
-const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'settings' && t !== 'advanced' && t !== 'backup');
+const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'settings' && t !== 'advanced' && t !== 'backup' && t !== 'ibkr');
 function pageSwipeTarget(cur, next) { // next=true → העמוד הבא (שמאלה ב־RTL)
   if (cur === 'settings') return next ? null : 'overview';   // 30/10/2026: החלקה אחורה מההגדרות = "חזור" לסקירה
-  if (cur === 'advanced' || cur === 'backup') return next ? null : 'settings'; // v287: עמוד משנה — החלקה אחורה חוזרת להגדרות (כמו באייפון)
+  if (cur === 'advanced' || cur === 'backup' || cur === 'ibkr') return next ? null : 'settings'; // v287: עמוד משנה — החלקה אחורה חוזרת להגדרות (כמו באייפון)
   const i = PAGE_SWIPE_MAIN.indexOf(cur);
   if (i < 0) return null;
   return (next ? PAGE_SWIPE_MAIN[i + 1] : PAGE_SWIPE_MAIN[i - 1]) || null;
@@ -16482,7 +16548,7 @@ function wirePageSwipe() {
     if (cubeNow && cubeNow.finish) cubeNow.finish(); // 14/10/2026: הקובייה עוד מסתובבת — נגיעה מסיימת אותה (העמוד החדש מתחת לאצבע)
     if (e.touches.length !== 1 || state.cardAnim || dragBusy() || cubeDesk()) return;
     const cur = currentTabName();
-    if (cur !== 'settings' && cur !== 'advanced' && cur !== 'backup' && PAGE_SWIPE_MAIN.indexOf(cur) < 0) return;
+    if (cur !== 'settings' && cur !== 'advanced' && cur !== 'backup' && cur !== 'ibkr' && PAGE_SWIPE_MAIN.indexOf(cur) < 0) return;
     const t = e.touches[0], w = window.innerWidth || 400;
     if (t.clientX < PAGE_SWIPE_EDGE || t.clientX > w - PAGE_SWIPE_EDGE) return;
     const tg = e.target; // גם בשטח הריק מתחת לתוכן (body), לא בהדר/בחלונות צפים
@@ -17119,7 +17185,7 @@ function stockHeadHTML(p, m) {
   // v204: שתי שורות עצמאיות ליד הלוגו — שורה 1: סימבול + תגית המקור + מחיר; שורה 2: שם החברה + בועת הסשן.
   // כך הבועה מתחרה רק עם שם החברה (שנקטע ב־…) ולא עם הסימבול/התגית — תמיד שתי שורות, בלי התנגשות.
   return '<span class="stock-id">' + stockLogoHTML(sym) +
-    '<span class="sh-r1"><span class="stock-sym"><bdi dir="ltr">' + esc(dispSym(sym)) + '</bdi></span>' + (p.watch ? '' : srcTagHTML(positionSource(p))) +
+    '<span class="sh-r1"><span class="stock-sym"><bdi dir="ltr">' + esc(dispSym(sym)) + '</bdi></span>' + (p.watch ? '' : srcTagHTML(positionSource(p), p.accts)) +
     '<span class="stock-price' + stockPriceSizeCls(priceTxt) + '" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span></span>' +
     '<span class="sh-r2"><span class="stock-name">' + esc(companyName(p.sym, p.name) || p.name) + '</span>' + // v201: שם החברה, לא הסימבול פעמיים
     '<span class="stock-ext">' + extSessionHTML(m.q, m) + '</span></span></span>' +
@@ -17554,7 +17620,9 @@ function analysisEnv() {
 }
 /* מרכז המס (01/11/2026): מודול נפרד שנטען רק בלחיצה (taxcenter.js + taxil.js + taxcenter.css) */
 function openTaxCenterNow() {
-  const env = Object.assign(analysisEnv(), { data: () => ibkrCfg().data || null });
+  // 15/11/2026: כמה חשבונות IBKR — רשימת החשבונות (שם וצבע) ותגית בצבע החשבון
+  const env = Object.assign(analysisEnv(), { data: () => ibkrCfg().data || null,
+    accounts: () => [...ibkrAcctMap().values()], srcTag: (id) => srcTagHTML('ibkr', id) });
   import('./taxcenter.js').then((m) => m.openTaxCenter(env)).catch(() => flash(t('txErrLoad')));
 }
 function openAnalysisFor(sym) {
@@ -18475,7 +18543,7 @@ function buildTradeRow(tr, src) {
   main.innerHTML = '<span class="r-date">' + esc(fmtDateIL(d.date)) +
     (d.time ? ' <span class="r-time">' + esc(d.time) + '</span>' : '') + '</span> ' +
     '<span class="side-chip ' + (d.isBuy ? 'buy' : 'sell') + '">' +
-    esc(d.isBuy ? t('buySide') : t('sellSide')) + '</span>' + (src ? srcTagHTML(src) : '') + '<br>' +
+    esc(d.isBuy ? t('buySide') : t('sellSide')) + '</span>' + (src ? srcTagHTML(src, src === 'ibkr' ? tr && tr.acct : null) : '') + '<br>' +
     '<span class="r-note">' + esc(d.symbol) + ' · ' + esc(d.qtyTxt) + ' × ' + esc(d.priceTxt) + '</span>';
   li.appendChild(main);
   const wrap = el('span');
@@ -18609,7 +18677,7 @@ function buildDepositRow(d, i, ed) {
   li.dataset.depIdx = i;
   const main = el('span');
   const dTxt = /^\d{4}-\d{2}-\d{2}$/.test(String(d.date || '')) ? fmtDateIL(d.date) : String(d.date || '');
-  main.innerHTML = '<span class="r-date">' + esc(dTxt) + '</span> ' + srcTagHTML(isIbkrDeposit(d) ? 'ibkr' : 'manual') +
+  main.innerHTML = '<span class="r-date">' + esc(dTxt) + '</span> ' + srcTagHTML(isIbkrDeposit(d) ? 'ibkr' : 'manual', d.acct) +
     (d.place ? '<br><span class="r-note">' + esc(d.place) + '</span>' : '');
   li.appendChild(main);
   const wrap = el('span');
@@ -19347,8 +19415,12 @@ function init() {
   // v85: שמירת מיקום גלילה לכל טאב
   try { initScrollSaver(); } catch (e) {}
 
-  // נתוני IBKR — סנכרון Flex
+  // נתוני IBKR — סנכרון Flex (15/11/2026: בעמוד משלו; בהגדרות שורה שפותחת אותו)
   renderIbkrCard();
+  const ibkrOp = document.getElementById('ibkrOpen');
+  if (ibkrOp) ibkrOp.addEventListener('click', () => switchTab('ibkr'));
+  const ibkrBk = document.getElementById('ibkrBack');
+  if (ibkrBk) ibkrBk.addEventListener('click', () => switchTab('settings'));
   const ibkrDc = document.getElementById('ibkrDisconnect');
   if (ibkrDc) ibkrDc.addEventListener('click', ibkrDisconnect);
   const ibkrSt = document.getElementById('ibkrSaveTest');

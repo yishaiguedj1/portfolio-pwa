@@ -55,9 +55,9 @@ ok(m.positions.every((p) => tagged.pos[['I', 'M'].indexOf(p.sym)] === 'manual') 
 ok(tagged.dep.join(',') === 'ibkr,manual', 'הפקדה ISO = IBKR, DD/MM/YYYY = ידני');
 
 // --- 3. חיווט: כל סוגי השורות ---
-ok(/srcTagHTML\(positionSource\(p\)\)/.test(src), 'כרטיס מניה: תגית לפי המקור');
+ok(/srcTagHTML\(positionSource\(p\)[,)]/.test(src), 'כרטיס מניה: תגית לפי המקור');
 ok(/buildTradeRow\(r\.ib, 'ibkr'\)/.test(src) && /currency: symCur\(n\.sym\) \}, 'manual'\)/.test(src), 'עסקאות: IBKR עם לוגו, ידניות עם "ידני"');
-ok(/srcTagHTML\(isIbkrDeposit\(d\) \? 'ibkr' : 'manual'\)/.test(src), 'הפקדות ומשיכות: תגית לפי המקור');
+ok(/srcTagHTML\(isIbkrDeposit\(d\) \? 'ibkr' : 'manual'[,)]/.test(src), 'הפקדות ומשיכות: תגית לפי המקור');
 ok((src.match(/srcTagHTML\('manual'\) \+ '<br>/g) || []).length >= 3, 'קניות ידניות בטאב ההפקדות ושורות פנסיה: "ידני"');
 ok(/fmtDateIL\(d\.date\) : String\(d\.date/.test(src), 'הפקדת IBKR מוצגת DD/MM/YYYY כמו השאר (לא 2023-09-28)');
 ok(!/'<span class="src-tag">' \+ esc\(t\('manualTag'\)\) \+ '<\/span>' : ''/.test(src), 'אין עוד תגית "ידני" בלבד בלי חלופת IBKR');

@@ -9,7 +9,7 @@ const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const fn = (name) => { const i = app.indexOf('function ' + name + '('); let d = 0, j = app.indexOf('{', i); for (let k = j; k < app.length; k++) { if (app[k] === '{') d++; else if (app[k] === '}' && !--d) return app.slice(i, k + 1); } return ''; };
 const set = html.slice(html.indexOf('id="tab-settings"'), html.indexOf('id="tab-advanced"'));
-const iDisp = set.indexOf('data-i18n="displayTitle"'), iAdv = set.indexOf('id="advancedCard"'), iIbkr = set.indexOf('id="ibkrCard"');
+const iDisp = set.indexOf('data-i18n="displayTitle"'), iAdv = set.indexOf('id="advancedCard"'), iIbkr = set.indexOf('id="ibkrRowCard"');
 ok(iAdv > 0 && iDisp > iAdv && iIbkr > iDisp, 'בהגדרות (v292): אפשרויות מתקדמות → תצוגה → IBKR');
 ok(/id="advancedOpen"[\s\S]*data-i18n="advancedTitle"/.test(set) && !/id="widgetCard"/.test(set), 'בהגדרות רק שורת קישור; הווידג׳ט לא שם');
 const pg = html.slice(html.indexOf('id="tab-advanced"'));
@@ -22,5 +22,5 @@ vm.runInNewContext("const TAB_ORDER = ['settings', 'overview', 'stocks', 'wishli
   (app.match(/const PAGE_SWIPE_MAIN = [^\n]+/) || [''])[0] + fn('pageSwipeTarget') + ';this.f = pageSwipeTarget;', ctx);
 ok(ctx.f('advanced', false) === 'settings' && ctx.f('advanced', true) === null, 'החלקה אחורה מהעמוד → הגדרות; קדימה — כלום');
 ok(ctx.f('settings', true) === null && ctx.f('settings', false) === 'overview' && ctx.f('pension', true) === null, 'העמוד לא נכנס לסבב העמודים הראשיים');
-ok(/PAGE_SWIPE_MAIN = TAB_ORDER\.filter\(\(t\) => t !== 'settings' && t !== 'advanced' && t !== 'backup'\)/.test(app), 'advanced (וההגדרות) מחוץ לעמודים הראשיים');
+ok(/PAGE_SWIPE_MAIN = TAB_ORDER\.filter\(\(t\) => t !== 'settings' && t !== 'advanced' && t !== 'backup'( && t !== 'ibkr')?\)/.test(app), 'advanced (וההגדרות) מחוץ לעמודים הראשיים');
 console.log('# ' + n + ' בדיקות עברו');

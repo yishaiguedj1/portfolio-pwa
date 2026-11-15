@@ -190,12 +190,16 @@ function rMergeData(a, b) {
      (זה בדיוק ה־TWR היומי של התיק כולו; חשבון חדש נכנס במשקל 0 ביום הראשון שלו — לא נספר כתשואה).
      משורשר לתקופות לפי שנה קלנדרית (navPeriods) + הסדרה עצמה (twrDaily).
    • חשבון בלי NAV יומי, או מטבעות בסיס שונים — אין TWR משולב (לא מנחשים): meta.noDailyTwr / meta.mixedBase.
-   flowsOf(data) → {date: תזרים במטבע הבסיס} (ibkrFlowsByDate באפליקציה). רשימה של דוח אחד — מוחזר כמו שהוא. */
-function rMergeAccounts(list, flowsOf) {
-  const L = (list || []).filter((d) => d && typeof d === 'object');
+   flowsOf(data) → {date: תזרים במטבע הבסיס} (ibkrFlowsByDate באפליקציה). רשימה של דוח אחד — מוחזר כמו שהוא.
+   info[i] = {id, name, ci} של החשבון ה־i: כל עסקה/תנועה/פוזיציה/מזומן/אירוע מס מקבל acct = id (צבע החשבון בתגית המקור,
+   ומרכז המס מחשב לכל חשבון), ו־meta.accts = info — כך גם מכשיר אחר (שמקבל את התיק מהענן) יודע את השמות והצבעים. */
+function rMergeAccounts(list, flowsOf, info) {
+  const pairs = (list || []).map((d, i) => [d, (info || [])[i]]).filter((p) => p[0] && typeof p[0] === 'object');
+  const L = pairs.map((p) => p[0]);
   if (L.length <= 1) return L[0] || null;
   const byDate = (a, b) => String((a && a.date) || '').localeCompare(String((b && b.date) || ''));
-  const cat = (k) => [].concat(...L.map((d) => (Array.isArray(d[k]) ? d[k] : [])));
+  const tag = (x, a) => (a && a.id && x && typeof x === 'object' ? Object.assign({}, x, { acct: a.id }) : x);
+  const cat = (k) => [].concat(...pairs.map(([d, a]) => (Array.isArray(d[k]) ? d[k].map((x) => tag(x, a)) : [])));
   const metas = L.map((d) => d.meta || {});
   const fds = metas.map((m) => m.fromDate).filter(Boolean).sort();
   const tds = metas.map((m) => m.toDate).filter(Boolean).sort();
@@ -217,6 +221,10 @@ function rMergeAccounts(list, flowsOf) {
     twrDaily: [],
   };
   if (Object.keys(fields).length) out.meta.fields = fields;
+  if (pairs.every((p) => p[1] && p[1].id)) {
+    out.meta.accts = pairs.map(([d, a]) => ({ id: a.id, name: String(a.name || ''), ci: +a.ci || 0,
+      from: String((d.meta || {}).fromDate || ''), to: String((d.meta || {}).toDate || '') }));   // התקופה של כל חשבון — לעמוד IBKR
+  }
   if (bases.length > 1) { out.meta.mixedBase = true; return out; }
   const acc = [];
   for (const d of L) {

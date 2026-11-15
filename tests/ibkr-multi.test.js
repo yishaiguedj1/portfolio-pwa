@@ -150,3 +150,61 @@ console.log('\n' + n + ' בדיקות עברו');
   ok(X('ibkrCombined')(cfgOf()) === null, 'שניהם אופסו — אין תיק');
 }
 console.log(n + ' בדיקות עברו (כולל איפוס)');
+
+/* ---------- 4. צבע לכל חשבון ומרכז המס לפי חשבון (בקשת המשתמש) ---------- */
+{
+  // תיוג במיזוג + meta.accts
+  const info = [{ id: 'main', name: 'ראשי', ci: 0 }, { id: 'a1', name: 'שני', ci: 1 }];
+  const T2 = R.rMergeAccounts([A, B], flowsOf, info);
+  ok(T2.trades.every((x) => x.acct) && T2.trades.find((x) => x.tradeId === 'B1').acct === 'a1', 'כל עסקה מתויגת בחשבון שלה');
+  ok(T2.positions.find((x) => x.symbol === 'AAA').acct === 'main' && T2.cashTransactions[0].acct === 'a1', 'פוזיציות ותנועות מתויגות');
+  ok(!A.trades[0].acct, 'התיוג על עותק — הדוח השמור של החשבון לא משתנה');
+  ok(T2.meta.accts.map((a) => a.id + a.name + a.ci).join() === 'mainראשי0,a1שני1', 'meta.accts — שמות וצבעים לכל מכשיר (עובר בענן)');
+  ok(T2.meta.accts[0].to === '2026-01-06' && T2.meta.accts[1].from === '2026-01-02', 'meta.accts — התקופה של כל חשבון (לעמוד IBKR)');
+  // עמוד IBKR: כרטיס לכל חשבון, מספרים לפי חשבון; השורה בהגדרות
+  const html = X('ibkrAcctsHtml')({ data: T2, token: 'T', queryId: '1', accts: [{ id: 'a1', name: 'שני', token: 'T2', queryId: '2', ci: 1 }, { id: 'a2', name: 'חדש', token: 'T3', queryId: '3', ci: 2 }] }, true);
+  ok((html.match(/class="ib-acc"/g) || []).length === 3 && /ib-c2/.test(html) && /ibkrAcctAdd/.test(html), 'עמוד IBKR: כרטיס לכל חשבון (גם שעוד לא סונכרן) + הוספה');
+  ok((html.match(/data-ib-rm=/g) || []).length === 2, 'הסרה — רק לחשבונות הנוספים');
+  ok(!/data-ib-rm=|ibkrAcctAdd/.test(X('ibkrAcctsHtml')({ data: T2 }, false)), 'מכשיר בלי ה־tokens — רואים את החשבונות, בלי הסרה/הוספה');
+  ok(X('ibkrRowValText')({ token: 'T', queryId: '1', accts: [{ id: 'a1' }] }) === X('t')('ibkrRowN', { n: 2 }) && X('ibkrRowValText')({}) === X('t')('ibkrRowOff'), 'השורה בהגדרות: "2 חשבונות" / "לא מחובר"');
+  // מיפוי היבוא: מניה בשני חשבונות → accts של שניהם
+  const im = X('ibkrMapImport')(T2);
+  ok(JSON.stringify(im.positions.find((p) => p.sym === 'SAME').accts) === '["main","a1"]' && JSON.stringify(im.positions.find((p) => p.sym === 'AAA').accts) === '["main"]', 'מניה — מאילו חשבונות');
+  const deps = X('ibkrMapDeposits')(T2.cashTransactions, () => 3.5);
+  ok(deps.length === 1 && deps[0].acct === 'a1', 'הפקדה — מתויגת בחשבון');
+  // צבע קבוע: הפנוי הנמוך, הראשי תמיד 0
+  ok(X('ibkrFreeCi')({ accts: [{ id: 'x', ci: 1 }, { id: 'y', ci: 3 }] }) === 2, 'חשבון חדש מקבל את הצבע הפנוי (הסרה לא מחליפה צבעים)');
+  ok(X('ibkrAcctInfo')({}, 'main').ci === 0, 'הראשי — אדום (0)');
+  // התגית בצבע החשבון
+  save({ data: T2 });
+  const tagM = X('srcTagHTML')('ibkr', ['main', 'a1']);
+  ok(/ib-c0/.test(tagM) && /ib-c1/.test(tagM) && /שני/.test(tagM), 'תגית: לוגו בצבע של כל חשבון, עם השם');
+  ok(/<img src="ibkr-logo.png"/.test(X('srcTagHTML')('ibkr')), 'בלי חשבון — התגית הרגילה (חשבון יחיד לא השתנה)');
+  ok(/ib-c3/.test(X('srcTagHTML')('ibkr', 'zz')) === false, 'מזהה לא מוכר — התגית הרגילה');
+  ok(/ib-c0[^}]*#d71920/.test(fs.readFileSync(path.join(root, 'styles.css'), 'utf8')) && /ib-c1 \{ --ib-c: #1f6fe5/.test(fs.readFileSync(path.join(root, 'styles.css'), 'utf8')), 'אדום לראשי, כחול לשני');
+
+  // מרכז המס: FIFO לכל חשבון, מס לכל חשבון וסך הכל
+  const tc = fs.readFileSync(path.join(root, 'taxcenter.js'), 'utf8').replace(/^export /gm, '') +
+    '\n;globalThis.__tc = { setE: (e) => { E = e; }, S, compute };';
+  const tb = { console, Date, Math, JSON, Map, Set, localStorage: mkStore(), document: { getElementById: () => null } };
+  vm.createContext(tb);
+  vm.runInContext(fs.readFileSync(path.join(root, 'taxil.js'), 'utf8'), tb);
+  vm.runInContext(tc, tb);
+  const tr = (acct, id, date, side, qty, price) => ({ acct, tradeId: id, date, symbol: 'XYZ', side, qty: side === 'SELL' ? -qty : qty, price, currency: 'USD', commission: 0 });
+  // ראשי: קנה ב־100 ומכר ב־150 (רווח). שני: קנה ב־200 ומכר ב־150 (הפסד). FIFO משותף היה מוכר מהמנה של הראשי פעמיים.
+  const D = { meta: { accounts: 2, accts: info }, positions: [], cashTransactions: [], trades: [
+    tr('main', 'm1', '2026-01-05', 'BUY', 10, 100), tr('a1', 'b1', '2026-01-06', 'BUY', 10, 200),
+    tr('main', 'm2', '2026-02-05', 'SELL', 10, 150), tr('a1', 'b2', '2026-02-06', 'SELL', 10, 150)] };
+  const rows = [['2020-01-01', 3]];
+  tb.__tc.S.fx = { USD: { from: '2020-01-01', rows } };
+  tb.__tc.setE({ t: (k) => k, data: () => D, accounts: () => info, quote: () => null });
+  const C = tb.__tc.compute();
+  const y = C.yIdx.get(2026), pm = C.per.find((p) => p.id === 'main').yIdx.get(2026), pa = C.per.find((p) => p.id === 'a1').yIdx.get(2026);
+  ok(C.per.length === 2 && C.sales.length === 2 && C.sales.every((s) => s.acct), 'מכירה לכל חשבון, מתויגת');
+  ok(near(C.sales.find((s) => s.acct === 'main').taxable, 1500, 1) && near(C.sales.find((s) => s.acct === 'a1').taxable, -1500, 1), 'FIFO לכל חשבון בנפרד: +500$ בראשי, −500$ בשני (×3 ש״ח)');
+  ok(pm.due > 0 && near(pa.due, 0, 0.01), 'המס של כל חשבון לבדו — בראשי יש מס, בשני אין');
+  ok(near(y.due, 0, 0.01), 'הסך הכל: ההפסד בשני מקוזז מהרווח בראשי');
+  tb.__tc.setE({ t: (k) => k, data: () => ({ positions: [], cashTransactions: [], trades: D.trades.map((x) => Object.assign({}, x, { acct: undefined })) }), accounts: () => [], quote: () => null });
+  ok(tb.__tc.compute().per === null, 'חשבון יחיד — בלי חלוקה (כמו קודם)');
+}
+console.log(n + ' בדיקות עברו (כולל צבעים ומס)');

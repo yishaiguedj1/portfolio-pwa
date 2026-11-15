@@ -87,3 +87,9 @@ html.tx-open { overflow: hidden; }
 .tx-adv summary { cursor: pointer; list-style: none; }
 .tx-adv summary::-webkit-details-marker { display: none; }
 .tx-chk input { width: auto; inline-size: 22px; block-size: 22px; accent-color: var(--primary); }
+/* 15/11/2026: כמה חשבונות IBKR — שם החשבון עם הלוגו בצבע שלו */
+.tx-acct { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.tx-acct > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tx-atag { display: inline-flex; line-height: 0; }
+.tx-nm .tx-atag { margin-inline-start: 6px; vertical-align: middle; }
+.tx-atag .src-tag { margin: 0; }
