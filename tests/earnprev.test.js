@@ -131,12 +131,11 @@ const E = require(path.join(__dirname, '..', 'ibkr-proxy/lib/earnprev.js'));
   ok(T.LS_CACHE_PREFIXES.includes('pwa_earnx_v1') && fs.readFileSync(path.join(__dirname, '..', 'move.js'), 'utf8').includes("'pwa_earnx_v1'"), 'המטמון ב־LS_CACHE_PREFIXES וב־move.js');
   const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
   ok(['.earn-x', '.es-x', '.esx-grid', '.esx-v'].every((c) => css.includes(c)), 'הסגנונות קיימים');
-  // 15/11/2026: הכרטיס לא לוכד את גלילת העמוד — בלי contain על הרשימה, ובמסך נמוך שתי שורות
+  // 15/11/2026: הכרטיס לא לוכד את גלילת העמוד — בלי contain על הרשימה; שלוש שורות במסך גדול, שתיים בקטן
   const scr = (css.match(/\.earn-list\.earn-scroll \{[^}]*\}/) || [''])[0];
   ok(scr && !/overscroll-behavior/.test(scr) && !/mandatory/.test(scr), 'רשימת הדוחות לא חוסמת את גלילת העמוד בקצה');
-  const WR = (h) => [{ offsetHeight: h }, { offsetHeight: h }, { offsetHeight: h }, { offsetHeight: h }];
-  ok(T.earnWinRows(WR(61), 844) === 3 && T.earnWinRows(WR(61), 915) === 3, 'מסך רגיל — שלושה דוחות');
-  ok(T.earnWinRows(WR(61), 667) === 2 && T.earnWinRows(WR(61), 640) === 2, 'מסך קטן — שני דוחות');
+  ok(T.earnWinRows(832) === 3 && T.earnWinRows(915) === 3 && T.earnWinRows(1080) === 3, 'מסך גדול (טלפון גדול / מחשב) — שלושה דוחות');
+  ok(T.earnWinRows(780) === 2 && T.earnWinRows(667) === 2, 'מסך קטן — שני דוחות');
 
   console.log('\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ' + n + ')');
 })().catch((e) => { console.error(e); process.exit(1); });
