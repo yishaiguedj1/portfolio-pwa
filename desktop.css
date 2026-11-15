@@ -161,7 +161,7 @@ html.dk .st-page:is([data-v="home"], [data-v="ka"], [data-v="vi"], [data-v="towe
 html.dk .cf-root { max-width: var(--dk-max); padding-inline: 24px; }
 
 /* עמודות קריאה — הגדרות וטפסים לא נמתחים */
-html.dk :is(#tab-settings, #tab-advanced, #tab-backup) { max-width: var(--dk-read); margin-inline: auto; }
+html.dk :is(#tab-settings, #tab-advanced, #tab-backup, #tab-ibkr) { max-width: var(--dk-read); margin-inline: auto; }
 
 /* Academy: דף הספר — עמודת קריאה (כפתור "קרא" לא נמתח לכל הרוחב) */
 html.dk .bk { max-width: var(--dk-read); margin-inline: auto; }

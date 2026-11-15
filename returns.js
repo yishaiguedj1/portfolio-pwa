@@ -179,6 +179,112 @@ function rMergeData(a, b) {
   };
 }
 
+/* ---------------- כמה חשבונות IBKR (15/11/2026, בקשת המשתמש) ----------------
+   תיק אחד משולב מהדוחות של כמה חשבונות נפרדים (לא חלקי זמן של אותו חשבון — זה rMergeData).
+   • עסקאות, תנועות מזומן ואירועי מס — איחוד (כל חשבון כבר בלי כפילויות, והמזהים שונים).
+   • פוזיציות ומזומן — של כל החשבונות (ibkrMapImport מאחד מניה שמוחזקת בכמה חשבונות).
+   • NAV יומי — סכום. לפני היום הראשון של חשבון הוא 0; אחרי היום האחרון שלו — הימים לא נכנסים
+     (הסדרה נגמרת ביום האחרון שמשותף לכולם, כדי שלא ייראה כאילו חשבון נעלם).
+   • TWR — לא ממצעים TWR רשמי של חשבונות שונים. לכל חשבון סדרה יומית מעוגנת ל־TWR הרשמי שלו
+     (rDailyTwrSeries), והתשואה היומית של התיק = ממוצע התשואות היומיות משוקלל לפי ה־NAV של היום הקודם
+     (זה בדיוק ה־TWR היומי של התיק כולו; חשבון חדש נכנס במשקל 0 ביום הראשון שלו — לא נספר כתשואה).
+     משורשר לתקופות לפי שנה קלנדרית (navPeriods) + הסדרה עצמה (twrDaily).
+   • חשבון בלי NAV יומי, או מטבעות בסיס שונים — אין TWR משולב (לא מנחשים): meta.noDailyTwr / meta.mixedBase.
+   flowsOf(data) → {date: תזרים במטבע הבסיס} (ibkrFlowsByDate באפליקציה). רשימה של דוח אחד — מוחזר כמו שהוא.
+   info[i] = {id, name, ci} של החשבון ה־i: כל עסקה/תנועה/פוזיציה/מזומן/אירוע מס מקבל acct = id (צבע החשבון בתגית המקור,
+   ומרכז המס מחשב לכל חשבון), ו־meta.accts = info — כך גם מכשיר אחר (שמקבל את התיק מהענן) יודע את השמות והצבעים. */
+function rMergeAccounts(list, flowsOf, info) {
+  const pairs = (list || []).map((d, i) => [d, (info || [])[i]]).filter((p) => p[0] && typeof p[0] === 'object');
+  const L = pairs.map((p) => p[0]);
+  if (L.length <= 1) return L[0] || null;
+  const byDate = (a, b) => String((a && a.date) || '').localeCompare(String((b && b.date) || ''));
+  const tag = (x, a) => (a && a.id && x && typeof x === 'object' ? Object.assign({}, x, { acct: a.id }) : x);
+  const cat = (k) => [].concat(...pairs.map(([d, a]) => (Array.isArray(d[k]) ? d[k].map((x) => tag(x, a)) : [])));
+  const metas = L.map((d) => d.meta || {});
+  const fds = metas.map((m) => m.fromDate).filter(Boolean).sort();
+  const tds = metas.map((m) => m.toDate).filter(Boolean).sort();
+  const bases = [...new Set(metas.map((m) => String(m.baseCurrency || 'USD').toUpperCase()))];
+  const fields = {};
+  for (const m of metas) {
+    if (!m.fields || typeof m.fields !== 'object') continue;
+    for (const k of Object.keys(m.fields)) if (Array.isArray(m.fields[k])) fields[k] = [...new Set((fields[k] || []).concat(m.fields[k]))].sort();
+  }
+  const out = {
+    meta: { fromDate: fds[0] || '', toDate: tds[0] || '', baseCurrency: bases[0] || 'USD', title: 'Merged IBKR accounts', accounts: L.length },
+    trades: cat('trades').sort(byDate),
+    positions: cat('positions'),
+    cashTransactions: cat('cashTransactions').sort(byDate),
+    taxEvents: cat('taxEvents'),
+    cashBalances: cat('cashBalances'),
+    navPeriods: [],
+    navDaily: [],
+    twrDaily: [],
+  };
+  if (Object.keys(fields).length) out.meta.fields = fields;
+  if (pairs.every((p) => p[1] && p[1].id)) {
+    out.meta.accts = pairs.map(([d, a]) => ({ id: a.id, name: String(a.name || ''), ci: +a.ci || 0,
+      from: String((d.meta || {}).fromDate || ''), to: String((d.meta || {}).toDate || '') }));   // התקופה של כל חשבון — לעמוד IBKR
+  }
+  if (bases.length > 1) { out.meta.mixedBase = true; return out; }
+  const acc = [];
+  for (const d of L) {
+    const nav = (d.navDaily || []).filter((x) => x && rValidDate(x.date || '') && fin(x.total))
+      .map((x) => ({ date: x.date, total: Number(x.total) })).sort(byDate);
+    if (nav.length < 2) { out.meta.noDailyTwr = true; return out; }
+    const fl = (typeof flowsOf === 'function' && flowsOf(d)) || {};
+    const ix = rDailyTwrSeries(nav, fl, rNavPeriods(d));
+    acc.push({ nav, fl, ix, first: nav[0].date, last: nav[nav.length - 1].date, ni: -1, xi: -1, navNow: 0, ixNow: null });
+  }
+  const end = acc.map((a) => a.last).sort()[0];
+  const dates = [...new Set([].concat(...acc.map((a) => a.nav.map((x) => x.date))))].filter((t) => t <= end).sort();
+  if (dates.length < 2) { out.meta.noDailyTwr = true; return out; }
+  const r2 = (v) => Math.round(v * 100) / 100;
+  const days = [], totals = [];   // days: {date, base, prevTotal, total, g, gain}
+  let prevTotal = 0;
+  for (let k = 0; k < dates.length; k++) {
+    const t = dates[k];
+    let total = 0, wSum = 0, wg = 0, gain = 0;
+    for (const a of acc) {
+      const navPrev = a.navNow, ixPrev = a.ixNow;
+      while (a.ni + 1 < a.nav.length && a.nav[a.ni + 1].date <= t) a.ni++;
+      while (a.xi + 1 < a.ix.length && a.ix[a.xi + 1].date <= t) a.xi++;
+      a.navNow = a.ni >= 0 ? a.nav[a.ni].total : 0;
+      a.ixNow = a.xi >= 0 ? a.ix[a.xi].value : null;
+      total += a.navNow;
+      if (k === 0 || !(navPrev > 0)) continue;   // חשבון שעוד לא התחיל — משקל 0 (גם ביום הראשון שלו)
+      const g = (ixPrev > 0 && a.ixNow > 0) ? a.ixNow / ixPrev : 1;
+      wSum += navPrev; wg += navPrev * g;
+      gain += a.navNow - navPrev - (Number(a.fl[t]) || 0);
+    }
+    if (k > 0) days.push({ date: t, base: dates[k - 1], prevTotal, total, g: wSum > 0 ? wg / wSum : 1, gain });
+    totals.push(total);
+    prevTotal = total;
+  }
+  out.navDaily = dates.map((t, k) => ({ date: t, total: r2(totals[k]) }));
+  let v = 100;
+  out.twrDaily = [{ date: dates[0], value: 100 }];
+  for (const d of days) { v *= d.g; out.twrDaily.push({ date: d.date, value: Math.round(v * 1e6) / 1e6 }); }
+  // תקופות לפי שנה קלנדרית — TWR = מכפלת הימים, רווח = סכום הרווח היומי של כל חשבון
+  let cur = null;
+  const flush = () => {
+    if (!cur) return;
+    const gainSum = cur.gain;
+    out.navPeriods.push({
+      fromDate: cur.fromDate, toDate: cur.toDate,
+      startingValue: r2(cur.start), endingValue: r2(cur.endV),
+      netFlows: r2(cur.endV - cur.start - gainSum),
+      twr: Math.round((cur.g - 1) * 100 * 1e6) / 1e6,
+    });
+  };
+  for (const d of days) {
+    const y = d.date.slice(0, 4);
+    if (!cur || cur.y !== y) { flush(); cur = { y, fromDate: d.date, start: d.prevTotal, g: 1, gain: 0 }; }
+    cur.toDate = d.date; cur.endV = d.total; cur.g *= d.g; cur.gain += d.gain;
+  }
+  flush();
+  return out;
+}
+
 /* מספר ימים בין שני תאריכי ISO (b − a), ערך מוחלט. */
 function rDaysBetween(a, b) {
   const pa = String(a).split('-'), pb = String(b).split('-');
@@ -463,5 +569,6 @@ if (typeof module !== 'undefined' && module.exports) {
     rNavPeriods, rChainTwr, rTwrIndexSeries, rGain, rSums, rXirrFlows, rXirr,
     rSourceKind, rHeadlineTwr,
     rMergeNavDaily, rDailyTwrSeries, rCombinedTwrSeries, rDaysBetween,
+    rMergeAccounts,
   };
 }

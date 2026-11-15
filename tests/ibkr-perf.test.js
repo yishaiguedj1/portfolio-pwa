@@ -155,7 +155,7 @@ ok(T.ibkrXirrFlows(estData, 0) === null, 'בלי NAV ובלי שווי סיום 
 ok(T.ibkrBaseCur(sample) === 'USD', 'מטבע בסיס מהדוח');
 ok(T.ibkrBaseCur(null) === 'USD', 'ברירת מחדל USD');
 
-/* ---------- הכרטיס "ביצועי IBKR" הוסר (2.146.0, בקשת המשתמש) ---------- */
+/* ---------- הכרטיס "ביצועי IBKR" הוסר (2.147.0, בקשת המשתמש) ---------- */
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 ok(!html.includes('ibkrPerfCard'), 'כרטיס ביצועי IBKR לא חוזר ל־index.html');
 
