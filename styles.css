@@ -255,7 +255,7 @@ html[dir="ltr"] .appbar-row > * { --dir: ltr; }
 /* 20/10/2026 (בקשת המשתמש, 2.16.0): הקפסולה של המצב (השוק ב־Invest, הגיבוי ב־Academy, החיבור ב־Studio) — מתחת לגלובוס
    ולכפתור השני, בצד הימני; בועת השער (רק ב־Invest) — מתחת ל־☰ בצד השמאלי. שתיהן באותו גודל בדיוק: ברוחב של שני
    הכפתורים שמעליהן ובגובה של כפתור, וכל אחת מיושרת לקצה החיצוני שלהם */
-.appbar-left > .appbar-sub { grid-column: 1 / 5; grid-row: 2; justify-self: start; position: relative; z-index: 1; }
+.appbar-left > .appbar-sub { grid-column: 1 / 5; grid-row: 2; justify-self: start; position: relative; z-index: 5;   /* מעל שכבת השלג הקדמית (4) — הפתיתים עוברים מאחור, מעומעמים (15/11/2026) */ }
 .appbar .appbar-left > .appbar-sub[hidden] { display: none; }
 .appbar-left > .fx-pill { grid-column: 6 / 10; grid-row: 2; justify-self: end; }
 .appbar .fx-pill, .appbar .appbar-sub > * { box-sizing: border-box; width: calc(var(--ib) * 2 + 8px); min-width: 0; min-height: var(--pill-h); }   /* גובה הבועה = משלים את הלוגו (גם ב־320, שם הכפתורים 40) */
@@ -501,7 +501,7 @@ html[data-app="academy"] .appbar .brand, html[data-app="studio"] .appbar .brand 
 .appbar .icon-btn { width: var(--ib); height: var(--ib); font-size: calc(var(--ib) * .45); }
 .appbar .icon-btn, .appbar .fx-pill, .appbar .st-pill.open { background: linear-gradient(var(--surface-2), var(--surface-2)) var(--bg); }
 /* בועת השער כמו הכפתורים: ממוקמת (אחרת שכבת השלג — הקשר ערימה של הלוגו — מצוירת מעליה) ועם אותו מסגור */
-.appbar .fx-pill { position: relative; z-index: 1; border: 1px solid var(--card-border); }
+.appbar .fx-pill { position: relative; z-index: 5; border: 1px solid var(--card-border); }
 .appbar .st-pill.pre { background: color-mix(in srgb, #FF9F0A 18%, var(--bg)); }
 .appbar .st-pill.post { background: color-mix(in srgb, #5E5CE6 18%, var(--bg)); }
 .appbar .st-pill.night { background: color-mix(in srgb, #0A84FF 16%, var(--bg)); }
@@ -604,6 +604,52 @@ html[data-app="academy"] .appbar .brand, html[data-app="studio"] .appbar .brand 
   .brand-logo { width: 84px; height: 84px; }
   .icon-btn { width: 38px; height: 38px; font-size: 18px; }
   .appbar { --ib: 38px; --pill-h: 40px; padding-inline: 10px; }
+}
+
+/* 15/11/2026 (בקשת המשתמש — "לצמצם בגובה כדי לפנות מקום בעמוד, מסודר ונקי, בלי שייראה דחוס"; לפי ת־עיצוב): הדר קומפקטי בטלפון.
+   כפתורים 44 (גודל לחיצה מינימלי), בועות בגובה 44 ובאותו גודל בדיוק — נמתחות עד 10px מהלוגו (מקום לשמות החגים הארוכים),
+   והלוגו = גובה שתי השורות (44 + 8 + 44 = 96, היה 128). ההדר 146 → 110. נמדד: כל החגים, סופ״ש ו"דיליי" נכנסים בבועת השוק
+   ב־320–430, עברית ואנגלית. תצוגת מחשב (.dk), מרכז הניהול וטלפון לרוחב — בלי שינוי. ‎--hdr-logo‎ ולא ‎--logo‎ (תפוס: כתובת התמונה) */
+@media not ((orientation: landscape) and (max-height: 500px)) {   /* טלפון לרוחב — ההדר בשורה אחת (למטה), בלי שינוי */
+  html:not(.dk):where(:not([data-app="admin"])) .appbar { --ib: 44px; --pill-h: 44px; --hdr-logo: calc(var(--ib) + 8px + var(--pill-h)); padding-block: 8px 6px; }
+  html:not(.dk):where(:not([data-app="admin"])) .appbar .brand-logo { width: var(--hdr-logo); height: var(--hdr-logo); }
+  html:not(.dk):where(:not([data-app="admin"])) .appbar .icon-btn { width: var(--ib); height: var(--ib); }
+  html:not(.dk):where(:not([data-app="admin"])) .appbar-row { grid-template-rows: var(--ib) var(--pill-h); row-gap: 8px; }
+  html:not(.dk):where(:not([data-app="admin"])) .appbar h1.brand { grid-row: 1 / 3; }
+  html:not(.dk):where(:not([data-app="admin"])) .appbar-left > .appbar-sub { justify-self: stretch; margin-inline-end: 10px; }
+  html:not(.dk):where(:not([data-app="admin"])) .appbar-left > .fx-pill { justify-self: stretch; margin-inline-start: 10px; }
+  html:not(.dk)[dir="ltr"]:where(:not([data-app="admin"])) .appbar-left > .appbar-sub { margin-inline: 10px 0; }   /* הרשת תמיד rtl — בצד של הלוגו */
+  html:not(.dk)[dir="ltr"]:where(:not([data-app="admin"])) .appbar-left > .fx-pill { margin-inline: 0 10px; }
+  html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .fx-pill, .appbar .appbar-sub > *) { width: auto; min-height: 0; height: var(--pill-h); }
+  html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .appbar-sub > :has(> .sub-cap), .appbar .fx-pill) { padding: 3px 8px; gap: 1px; }
+  html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .sub-cap, .fx-pill-label) { font-size: 11.5px; line-height: 1.2; gap: 4px; }
+  html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .sub-val, .fx-pill-value) { font-size: 16px; line-height: 1.1; }
+  html:not(.dk):lang(en):where(:not([data-app="admin"])) .appbar .sub-cap { font-size: 11px; letter-spacing: -.2px; }
+  html:not(.dk):lang(en):where(:not([data-app="admin"])) .appbar .appbar-sub > :has(> .sub-cap) { padding-inline: 5px; }
+  @media (max-width: 360px) {
+    html:not(.dk):where(:not([data-app="admin"])) .appbar { --ib: 40px; --pill-h: 42px; padding-inline: 12px; }
+    html:not(.dk):where(:not([data-app="admin"])) .appbar .icon-btn { font-size: 18px; }
+    html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .sub-cap, .fx-pill-label) { font-size: 10.5px; }
+    html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .sub-val, .fx-pill-value) { font-size: 15px; }
+    html:not(.dk):where(:not([data-app="admin"])) .appbar-left > .appbar-sub { margin-inline-end: 6px; }
+    html:not(.dk):where(:not([data-app="admin"])) .appbar-left > .fx-pill { margin-inline-start: 6px; }
+    html:not(.dk)[dir="ltr"]:where(:not([data-app="admin"])) .appbar-left > .appbar-sub { margin-inline: 4px 0; }
+    html:not(.dk)[dir="ltr"]:where(:not([data-app="admin"])) .appbar-left > .fx-pill { margin-inline: 0 4px; }
+    html:not(.dk):lang(en):where(:not([data-app="admin"])) .appbar .sub-cap { font-size: 9.8px; gap: 3px; }
+    html:not(.dk):lang(en):where(:not([data-app="admin"])) .appbar .appbar-sub > :has(> .sub-cap) { padding-inline: 3px; }
+  }
+  @media (max-width: 319px) {
+    html:not(.dk):where(:not([data-app="admin"])) .appbar { --ib: 38px; --pill-h: 38px; padding-inline: 10px; }
+    html:not(.dk):where(:not([data-app="admin"])) .appbar-left > .appbar-sub { margin-inline-end: 4px; }
+    html:not(.dk):where(:not([data-app="admin"])) .appbar-left > .fx-pill { margin-inline-start: 4px; }
+    html:not(.dk)[dir="ltr"]:where(:not([data-app="admin"])) .appbar-left > .appbar-sub { margin-inline: 3px 0; }
+    html:not(.dk)[dir="ltr"]:where(:not([data-app="admin"])) .appbar-left > .fx-pill { margin-inline: 0 3px; }
+    html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .sub-val, .fx-pill-value) { font-size: 14.5px; }
+    html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .sub-cap, .fx-pill-label) { font-size: 10px; gap: 3px; }
+    html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .appbar-sub > :has(> .sub-cap), .appbar .fx-pill) { padding-inline: 4px; }
+    html:not(.dk):lang(en):where(:not([data-app="admin"])) .appbar .sub-cap { font-size: 9.2px; letter-spacing: -.25px; }
+    html:not(.dk):lang(en):where(:not([data-app="admin"])) .appbar .appbar-sub > :has(> .sub-cap) { padding-inline: 2px; }
+  }
 }
 
 /* ---- Status banner ---- */
@@ -1285,12 +1331,44 @@ footer.fine { text-align: center; }
 .add-plus { font-size: 20px; }
 .chip-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; }
 #pfChips { margin-top: 12px; }
+/* 15/11/2026: טווחי ביצועי התיק = בדיוק כמו בכרטיס המניה (כפתורים מקוצרים ברוחב שווה + תפריט שנים) */
+#pfChips.stock-chips { overflow: visible; gap: 6px; padding-bottom: 0; }
+#pfChips.stock-chips .range-btn { padding-block: 6px; font-size: 13px; }
+/* כפתור השנה = גלגלת זכוכית לפי ת־גרף: ⌃⌄ במקום החץ, והתווית מתגלגלת כשהפריט שבאמצע מתחלף */
+.rg-wheel .range-btn { overflow: hidden; }
+.range-ud { display: inline-flex; opacity: .7; }
+.range-year .range-btn .range-ud > .ic.ic { width: 12px; height: 12px; margin: 0; vertical-align: 0; }   /* גם כשהכפתור במצב "מתאריך" (.cal) */
+.wh-it .ic { width: 18px; height: 18px; margin: 0; margin-inline-end: 6px; vertical-align: -3px; }
+.rg-wheel .range-lbl.roll-up { animation: whRollUp .18s ease-out; }
+.rg-wheel .range-lbl.roll-down { animation: whRollDown .18s ease-out; }
+@keyframes whRollUp { from { transform: translateY(70%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes whRollDown { from { transform: translateY(-70%); opacity: 0; } to { transform: none; opacity: 1; } }
+/* הבועה: זכוכית נוזלית — לוח שקוף מטושטש (מהכלל של התפריטים הצפים), פינות גדולות, קו אור עליון ופנימי */
+.range-year .src-pop.wh-pop { min-width: 150px; padding: 0; overflow: hidden; border-radius: var(--radius);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), inset 0 0 0 .5px rgba(255, 255, 255, .35), var(--gl-ring), var(--gl-shadow); }
+[data-theme="dark"] .range-year .src-pop.wh-pop {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), inset 0 0 0 .5px rgba(255, 255, 255, .12), var(--gl-ring), var(--gl-shadow); }
+/* העדשה באמצע: מילוי זכוכית עם קו אור — הפריט שבתוכה הוא הנבחר */
+.wh-band { position: absolute; inset-inline: 6px; top: 72px; height: 36px; border-radius: var(--radius-xs); pointer-events: none;
+  background: var(--gl-fill); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4), inset 0 0 0 .5px rgba(255, 255, 255, .14); }
+.wh-scroll { position: relative; height: 180px; overflow-y: auto; overscroll-behavior: contain; scroll-snap-type: y mandatory;
+  scrollbar-width: none; perspective: 520px; touch-action: pan-y;
+  -webkit-mask-image: linear-gradient(transparent, #000 34%, #000 66%, transparent); mask-image: linear-gradient(transparent, #000 34%, #000 66%, transparent); }
+.wh-scroll::-webkit-scrollbar { display: none; }
+.wh-scroll.drag { scroll-snap-type: none; }
+.wh-pad { height: 72px; }
+.wh-it { height: 36px; line-height: 36px; padding-inline: 18px; text-align: center; white-space: nowrap; scroll-snap-align: center; cursor: pointer;
+  font-size: 16px; font-weight: 600; color: var(--on-surface-var); font-variant-numeric: tabular-nums; will-change: transform, opacity; }
+.wh-it.cur { color: var(--on-surface); font-weight: 700; font-size: 17px; }
+@media (prefers-reduced-motion: reduce) { .rg-wheel .range-lbl.roll-up, .rg-wheel .range-lbl.roll-down { animation: none; } }
 /* v107: טווחי גרף המניה מתחת לגרף — כמו בגרף הראשי */
 .stock-body .chip-row.stock-chips { margin-top: 12px; }
 /* v228: 1D 5D 1M 3M YTD 1Y — שישה כפתורים ברוחב שווה בשורה אחת (בלי גלילה, כדי שתפריט השנה לא ייחתך);
    אותו עיצוב כפתור, רק ריפוד צדדי קטן יותר. תפריט השנה = בועת הסינון, צמוד לקצה של הכפתור */
 .stock-body .chip-row.stock-chips { overflow: visible; gap: 6px; }
 .stock-chips > .range-btn, .stock-chips > .range-year { flex: 1 1 0; min-width: 0; }
+/* 15/11/2026: רשת עמודות שוות בדיוק — ב־flex בבסיס 0 הריפוד והמסגרת של כפתור רגיל (10px) לא מתכווצים, וכפתור השנה (עטוף) יצא צר ב־10px */
+.chip-row.stock-chips { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
 .stock-chips .range-btn { padding-inline: 4px; text-align: center; white-space: nowrap; }
 .stock-chips .range-year .range-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 3px; }
 .range-year .range-btn.cal .ic { width: 17px; height: 17px; margin: 0; stroke: currentColor; vertical-align: -3px; }
