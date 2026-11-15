@@ -286,7 +286,7 @@ ok(K4.deskGridIdx(-1, 5, 'ArrowDown') === 0 && K4.deskGridIdx(2, 5, 'ArrowDown')
 ok(K4.readerSize(19, 'Equal') === 20 && K4.readerSize(30, 'Equal') === 30 && K4.readerSize(14, 'Minus') === 14 && K4.readerSize(25, 'Digit0') === 19 && K4.readerSize(19, 'KeyA') === null, 'קורא: ⌘= ⌘− בטווח 14–30, ⌘0 — ברירת המחדל');
 ok(/canvas\.tabIndex = 0;/.test(fn(app, 'scAttach')) && /addEventListener\('keydown', \(e\) => scKey\(canvas, sym, e\)\)/.test(fn(app, 'scAttach')), 'גרף: מגיעים אליו ב־Tab ועונה למקלדת');
 ok(/if \(canvas\._sc && !canvas\._sc\.pick\) \{ e\.preventDefault\(\); e\.stopPropagation\(\); scSet\(canvas, null\); \}/.test(fn(app, 'scKey')), 'גרף: Esc מנקה סמן — ורק אז נבלע');
-ok(/if \(deskGridKey\(e\)\) return;/.test(fn(app, 'deskKey')) && (R('index.html').match(/class="rows" data-dk-grid tabindex="0"/g) || []).length === 2, 'טבלאות: העסקאות וההפקדות במקלדת');
+ok(/if \(deskGridKey\(e\)\) return;/.test(fn(app, 'deskKey')) && (R('index.html').match(/class="(rows|tx-list[\w -]*)" data-dk-grid tabindex="0"/g) || []).length === 2, 'טבלאות: העסקאות וההפקדות במקלדת');
 ok(/e\.code === 'KeyF' && !e\.shiftKey\) \{ e\.preventDefault\(\); openToc\('find'\)/.test(fn(lib, 'readerModKey')) && /if \(readerModKey\(e\)\) return;/.test(fn(lib, 'readerKey')), 'קורא: ⌘F — החיפוש בספר');
 ok(/if \(start === 'find'\) setTimeout/.test(lib), 'קורא: החיפוש נפתח ישר בלשונית שלו');
 ok(/e\.key !== 'Enter' \|\| !\(e\.metaKey \|\| e\.ctrlKey\)[\s\S]{0,200}cueStep\(k, hist\.cur\.length, e\.shiftKey\)/.test(R('studiosubs.js')), 'עורך הכתוביות: ⌘↩ לשורה הבאה, ⇧ לקודמת');

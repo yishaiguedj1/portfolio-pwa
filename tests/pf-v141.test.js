@@ -161,7 +161,7 @@ ok(/const mt = isIbkrMode\(\) \? manualTotalsUSD\(POSITIONS, mtActiveTrades\(\),
 ok(/ibkrReturnRows\(ibkrData\)/.test(src), 'גרף הביצועים: סדרה משולבת');
 ok(/if \((p\.watch \|\| )?!isIbkrMode\(\) \|\| p\.src === 'manual'\)/.test(src), 'כפתור עריכה גם למניות ידניות במצב IBKR');
 ok(/srcTagHTML\(positionSource\(p\)[,)]/.test(src), 'תגית "ידני" בכרטיס המניה (v147: תגית מקור משותפת — ידני/IBKR)');
-ok(/concat\(man\.map/.test(src), 'טאב עסקאות: IBKR + ידניות יחד');
+ok(/txUnify\(ib, man, mtShadowed\)/.test(src), 'טאב עסקאות: IBKR + ידניות יחד');
 
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
 ok(require('./_swver').swVersionOk(ver), 'CACHE_NAME תואם לגרסה');
