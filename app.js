@@ -11907,19 +11907,20 @@ function renderEarningsCard(noFetch) {
   sizeEarnWindow();
   if (!noFetch) earnXFetch(rows.slice(0, 12).map((r) => r.sym));
 }
-/* v223: חלון של שני דוחות שנגלל בתוך הכרטיס (כמו רשימת הווידג׳ט): הגובה = שתי השורות הראשונות, עצירה על כל
+/* v223: חלון של שלושה דוחות וחצי (15/11/2026; היה שניים) שנגלל בתוך הכרטיס (כמו רשימת הווידג׳ט): הגובה = שתי השורות הראשונות, עצירה על כל
    שורה (scroll-snap), דהייה בתחתית כשיש עוד. נמדד אחרי הציור; בטאב מוסתר (גובה 0) — ננסה שוב כשייראה */
 function sizeEarnWindow() {
   const list = document.getElementById('earnList');
   if (!list) return;
   requestAnimationFrame(() => {
     const rows = list.querySelectorAll('.earn-row');
-    const more = rows.length > 2;
+    // 15/11/2026 (בקשת המשתמש): שלושה דוחות וחצי — החצי הרביעי מראה שאפשר לגלול. עד 3 דוחות — כולם, בלי גלילה
+    const more = rows.length > 3;
     list.classList.toggle('earn-scroll', more);
     const btn = document.getElementById('earnMore');
     if (btn) btn.classList.toggle('hidden', !more);
     if (!more) { list.style.maxHeight = ''; return; }
-    const h = rows[0].offsetHeight + rows[1].offsetHeight;
+    const h = rows[0].offsetHeight + rows[1].offsetHeight + rows[2].offsetHeight + Math.round(rows[3].offsetHeight / 2);
     if (h > 0) list.style.maxHeight = h + 'px';
     if (!list._earnWired) {
       list._earnWired = true;
@@ -11946,7 +11947,7 @@ function earnMoreUpdate() {
   // שורות שמרכזן מתחת לתחתית החלון (מיקום יחסי לחלון, לא לדף)
   const lb = list.getBoundingClientRect().bottom;
   let n = 0;
-  for (const r of list.querySelectorAll('.earn-row')) { const rr = r.getBoundingClientRect(); if (rr.top + rr.height / 2 > lb) n++; }
+  for (const r of list.querySelectorAll('.earn-row')) { const rr = r.getBoundingClientRect(); if (rr.bottom > lb + 2) n++; }   // 15/11/2026: גם השורה החצויה בתחתית נספרת
   const txt = atEnd ? t('earnTop') : n === 1 ? t('earnMoreOne') : t('earnMore', { n: n });
   const key = (atEnd ? 'top' : 'down') + '|' + txt;
   if (btn._key === key) return;

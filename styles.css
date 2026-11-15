@@ -1498,8 +1498,8 @@ html[data-app="cashflow"] .login-overlay { background: linear-gradient(160deg, #
 /* ---- דוחות קרובים ---- */
 /* v221: דוחות קרובים — רשימה לפי ת־עיצוב/Material: לוגו, סימבול ושם, שורת "בעוד N ימים", ואריח לוח שנה בקצה */
 .earn-list { list-style: none; margin: 4px 0 0; padding: 0; }
-/* v223: שני דוחות גלויים, השאר בגלילה בתוך הכרטיס — עוצר על כל שורה, בלי פס גלילה, דהייה בתחתית כשיש עוד */
-.earn-list.earn-scroll { max-height: 150px; overflow-y: auto; overscroll-behavior: contain; scroll-snap-type: y mandatory; scrollbar-width: none; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent); }
+/* v223: שלושה דוחות וחצי גלויים (15/11/2026; היה שניים), השאר בגלילה בתוך הכרטיס — עוצר על כל שורה, בלי פס גלילה, דהייה בתחתית כשיש עוד */
+.earn-list.earn-scroll { max-height: 330px; overflow-y: auto; overscroll-behavior: contain; scroll-snap-type: y mandatory; scrollbar-width: none; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent); }
 .earn-list.earn-scroll::-webkit-scrollbar { display: none; }
 .earn-list.earn-scroll.at-end { -webkit-mask-image: none; mask-image: none; }
 .earn-list.earn-scroll .earn-row { scroll-snap-align: start; }
