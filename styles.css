@@ -2069,6 +2069,17 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 #ibkrCard .ib-row + .ib-row { border-top: 1px solid var(--ib-line); }
 #ibkrCard .ib-row > span:first-child { color: var(--on-surface-var); flex: none; }
 #ibkrCard .ib-v { color: var(--on-surface); font-weight: 600; font-variant-numeric: tabular-nums; unicode-bidi: isolate; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* 15/11/2026: כמה חשבונות IBKR — שורה לכל חשבון (שם · עד איזה יום · הסרה) ו"הוספת חשבון" */
+#ibkrCard .ib-acct > span:first-child { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#ibkrCard .ib-acct .ib-v { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+#ibkrCard .ib-x { flex: none; width: 32px; height: 32px; margin: -6px 0; margin-inline-end: -8px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--on-surface-var); cursor: pointer; }
+#ibkrCard .ib-x svg { width: 16px; height: 16px; }
+#ibkrCard .ib-x:focus-visible { outline: 2.5px solid var(--ibkr); outline-offset: 0; }
+#ibkrCard .ib-add { width: 100%; border: 0; border-radius: 0; background: none; font: inherit; font-size: min(15px, 3.85vw); text-align: start; cursor: pointer; }
+#ibkrCard .ib-add > span:first-child { color: var(--ibkr-ink); font-weight: 700; }
+#ibkrCard .ib-add:focus-visible { outline: 2.5px solid var(--ibkr); outline-offset: -2px; }
+.dlg .ib-addform { grid-template-columns: 1fr; margin: 4px 0 14px; text-align: start; }
+.dlg .ib-addform label { color: inherit; opacity: .85; }
 #ibkrCard .ib-more { margin-top: 12px; border-top: 1px solid var(--ib-line); }
 #ibkrCard .ib-more > details { padding: 0; margin: 0; border-bottom: 1px solid var(--ib-line); }
 #ibkrCard .ib-more > details:last-child { border-bottom: 0; }
