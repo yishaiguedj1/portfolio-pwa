@@ -7987,8 +7987,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.148.0';
-const APP_VERSION = 'v768';
+const APP_RELEASE = '2.149.1';
+const APP_VERSION = 'v770';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -12454,7 +12454,8 @@ function drawPie() {
   const FONT = '-apple-system, system-ui, "Segoe UI", Roboto, sans-serif';
   const tw = (txt) => { const m = ctx.measureText(txt); return (m && m.width) || txt.length * 6; };
   const HOLE = 0.38; // חור קטן יותר = טבעת עבה יותר, יותר תוויות נכנסות לפרוסה
-  const LS = 26, SYM_H = 12, BUB_H = 26, H = LS + 2 + SYM_H + 2 + BUB_H;
+  const LS = 30, SYM_H = 14, BUB_H = 31, // v770: תוויות גדולות וברורות יותר (בקשת המשתמש)
+    H = LS + 2 + SYM_H + 2 + BUB_H;
   let a0 = -Math.PI / 2;
   const segs = ordered.map((s) => {
     const a2 = a0 + (s.value / total) * Math.PI * 2;
@@ -12462,10 +12463,10 @@ function drawPie() {
     // v187: זווית התווית (`lab`) נקבעת בשרשרת ב־posAt — צמודה לצד שנגד כיוון השעון של הפרוסה
     const g = { s: s, a: a0, a2: a2, mid: (a0 + a2) / 2, lab: (a0 + a2) / 2, pctTxt: pct.toFixed(1) + '%',
       valTxt: fmtShortMoney(val(s.value), cur), symTxt: s.cash ? t('pieCash') : (normalizeSym(s.sym) || '?') };
-    ctx.font = '700 10.5px ' + FONT;
+    ctx.font = '700 12px ' + FONT;
     const symW = tw(g.symTxt), pW = tw(g.pctTxt);
-    ctx.font = '500 10px ' + FONT;
-    g.bubW = Math.max(pW, tw(g.valTxt)) + 14;
+    ctx.font = '500 11.5px ' + FONT;
+    g.bubW = Math.max(pW, tw(g.valTxt)) + 16;
     g.W = Math.max(LS, symW, g.bubW);
     a0 = a2;
     return g;
@@ -12605,6 +12606,27 @@ function drawPie() {
     g.sc = SC; g.out = OUTER || rho > (holeOf(R) + R) / 2 + 6; // תווית על השפה (לא במרכז הפרוסה) → קו מוביל
     g.skip = false;
   }
+  // v770: הפריסה מקטינה את כל התוויות יחד (עד 72%) בגלל הפרוסות הצפופות; כאן כל תווית שיש סביבה מקום — בעיקר בפרוסות הגדולות —
+  // חוזרת לגודל מלא (או קרוב), בלי לגעת בשכנות, בלי לגלוש מהקנבס ובלי להיכנס לחור שבמרכז (הסכום). מהפרוסה הגדולה לקטנה.
+  if (!OUTER && segs.length > 1) {
+    const hole0 = holeOf(R);
+    const hw = (g, s) => g.W * s / 2 + 1.5, hh = (g, s) => H * s / 2 + 1.5;
+    const inSlice = (g, x, y) => { let t = Math.atan2(y, x); while (t < g.a) t += Math.PI * 2; return t <= g.a2; };
+    const fits = (g, s) => { // מחזיר מיקום (אולי מוזז פנימה מקצה הקנבס) או null
+      const x = Math.max(-w / 2 + 2 + hw(g, s), Math.min(w / 2 - 2 - hw(g, s), g.x));
+      const y = Math.max(-h / 2 + 2 + hh(g, s), Math.min(h / 2 - 2 - hh(g, s), g.y));
+      if (!inSlice(g, x, y - (H / 2 - LS / 2) * s)) return null; // הלוגו נשאר על הפרוסה שלו
+      const x0 = x - hw(g, s), x1 = x + hw(g, s), y0 = y - hh(g, s), y1 = y + hh(g, s);
+      const nx = Math.max(x0, Math.min(0, x1)), ny = Math.max(y0, Math.min(0, y1));
+      if (Math.hypot(nx, ny) < hole0 - 2) return null;
+      return segs.every((o) => o === g || Math.abs(o.x - x) >= hw(o, o.sc) + hw(g, s) || Math.abs(o.y - y) >= hh(o, o.sc) + hh(g, s)) ? [x, y] : null;
+    };
+    let cap = 1; // גודל יורד עם גודל הפרוסה — פרוסה קטנה לא מקבלת תווית גדולה מפרוסה גדולה ממנה
+    for (const g of segs.slice().sort((x, y) => (y.a2 - y.a) - (x.a2 - x.a))) {
+      for (const s of [1, 0.93, 0.86, 0.8]) { if (s > cap) continue; if (s <= g.sc) break; const at = fits(g, s); if (at) { g.sc = s; g.x = at[0]; g.y = at[1]; break; } }
+      cap = Math.min(cap, g.sc);
+    }
+  }
   const r = holeOf(R);
   const gap = ordered.length > 1 ? 2.5 : 0;
   // v178: נגיעה בפרוסה "מרימה" אותה — יוצאת החוצה מהטבעת, גדלה מעט ומטילה צל רך (תחושת עומק מוחשית).
@@ -12730,7 +12752,7 @@ function drawPie() {
       let thL = Math.atan2(g.y, g.x);
       while (thL < g.a) thL += Math.PI * 2;
       while (thL > g.a + Math.PI * 2) thL -= Math.PI * 2;
-      const onSlice = thL <= g.a2 && rhoL <= R + 2 && (g.a2 - g.a) * Math.min(rhoL, R) >= g.W * SC * 0.6;
+      const onSlice = thL <= g.a2 && rhoL <= R + 2 && (g.a2 - g.a) * Math.min(rhoL, R) >= g.W * g.sc * 0.6;
       if (onSlice) continue;
       const L = lift(g);
       const off = L * 6, ox = Math.cos(g.mid) * off, oy = Math.sin(g.mid) * off;
@@ -12738,7 +12760,7 @@ function drawPie() {
       const dx = tx - g.x, dy = ty - g.y, dist = Math.hypot(dx, dy);
       if (dist < 1) continue;
       const ux = dx / dist, uy = dy / dist;
-      const hw = g.W * SC / 2 + 2, hh = H * SC / 2 + 2;
+      const hw = g.W * g.sc / 2 + 2, hh = H * g.sc / 2 + 2;
       const edge = Math.min(Math.abs(ux) > 1e-6 ? hw / Math.abs(ux) : Infinity, Math.abs(uy) > 1e-6 ? hh / Math.abs(uy) : Infinity);
       if (dist <= edge + 6) continue; // התווית כבר מכסה את אמצע הפרוסה — ברור בלי קו
       const len = Math.min(18, dist - edge - 3);
@@ -12791,7 +12813,7 @@ function drawPie() {
     top += LS + 2;
     if (!g.chip) { // סימבול — מחוץ לטבעת בצבע הטקסט של הכרטיס, בתוכה כהה על הפסטל
       ctx.fillStyle = g.out ? cssVar('--on-surface', ink) : 'rgba(28,28,30,.88)';
-      ctx.font = '700 10.5px ' + FONT;
+      ctx.font = '700 12px ' + FONT;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(g.symTxt, x, top + SYM_H / 2);
       top += SYM_H + 2;
@@ -12799,19 +12821,19 @@ function drawPie() {
     // בועה: אחוז מהתיק מעל השווי
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,.14)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 1;
-    pieRoundRect(ctx, x - g.bubW / 2, top, g.bubW, BUB_H, 9);
+    pieRoundRect(ctx, x - g.bubW / 2, top, g.bubW, BUB_H, 10);
     ctx.fillStyle = dark ? 'rgba(44,44,46,.96)' : 'rgba(255,255,255,.96)';
     ctx.fill();
     ctx.restore();
     if (g.out && !dark) { // על רקע הכרטיס הלבן — קו מתאר עדין במקום צל בלבד
-      pieRoundRect(ctx, x - g.bubW / 2 + 0.5, top + 0.5, g.bubW - 1, BUB_H - 1, 9);
+      pieRoundRect(ctx, x - g.bubW / 2 + 0.5, top + 0.5, g.bubW - 1, BUB_H - 1, 10);
       ctx.strokeStyle = 'rgba(0,0,0,.08)'; ctx.lineWidth = 1; ctx.stroke();
     }
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = ink; ctx.font = '700 10.5px ' + FONT;
-    ctx.fillText(g.pctTxt, x, top + 9);
-    ctx.fillStyle = sub; ctx.font = '500 10px ' + FONT;
-    ctx.fillText(g.valTxt, x, top + 19.5);
+    ctx.fillStyle = ink; ctx.font = '700 12px ' + FONT;
+    ctx.fillText(g.pctTxt, x, top + 10.5);
+    ctx.fillStyle = sub; ctx.font = '500 11.5px ' + FONT;
+    ctx.fillText(g.valTxt, x, top + 22.5);
     ctx.restore();
   }
   ctx.textBaseline = 'alphabetic';
@@ -12856,13 +12878,12 @@ function drawPie() {
   for (const s of sorted) {
     const src = s.cash ? null : logoSrc(s.sym);
     const e = src ? pieLogoImg(s.sym) : null;
-    const full = s.cash ? '' : companyName(s.sym, s.name);
     const li = el('li', '',
       '<span class="pie-leg-logo' + (s.cash ? ' cash' : e && e.ready && e.light ? ' inv' : '') + '">' +
       '<span class="pie-leg-fb">' + esc(s.cash ? (cur === 'ILS' ? '₪' : '$') : (normalizeSym(s.sym) || '?').charAt(0)) + '</span>' +
       (src && !(e && e.failed) ? '<img src="' + src + '" alt="" loading="lazy" decoding="async" data-err="hide-self">' : '') + '</span>' +
       '<span class="lg-name">' + (s.cash ? '<span class="lg-sym">' + esc(t('pieCash')) + '</span>' : '<bdi dir="ltr" class="lg-sym">' + esc(s.sym) + '</bdi>') +
-      (full && full.toUpperCase() !== String(s.sym).toUpperCase() ? '<span class="lg-full" dir="auto">' + esc(full) + '</span>' : '') + '</span>' +
+      '</span>' +
       '<span class="lg-bar" aria-hidden="true"><i style="width:' + Math.max(2, s.value / maxV * 100).toFixed(1) + '%;background:' + s.color + '"></i></span>' +
       '<span class="lg-num"><span class="lg-pct">' + (s.value / total * 100).toFixed(1) + '%</span>' +
       '<span class="lg-val">' + money(val(s.value), cur) + '</span></span>');

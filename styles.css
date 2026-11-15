@@ -799,7 +799,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .stat-sub { font-size: 13px; color: var(--on-surface-var); margin-top: 6px; }
 
 /* ---- Pie ---- */
-.pie-wrap { display: flex; justify-content: center; margin-inline: -20px; } /* v175/v769: העוגה ברוחב הכרטיס כולו, מקצה לקצה */
+.pie-wrap { display: flex; justify-content: center; margin-inline: -20px; } /* v175/v770: העוגה ברוחב הכרטיס כולו, מקצה לקצה */
 #pieChart { -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; outline: none; } /* v179: בלי הריבוע הכחול בנגיעה */
 #pieChart { width: 100%; max-width: 560px; aspect-ratio: 1 / 1; height: auto; display: block; }
 .pie-leg-logo {
@@ -826,7 +826,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .legend li:last-child { border-bottom: 0; }
 .dot { width: 13px; height: 13px; border-radius: 5px; flex: none; }
 .legend .lg-name { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* v769: מקרא העוגה — שורה אחת לכל אחזקה: לוגו · סימבול · פס המשקל בצבע הפרוסה · אחוז מעל השווי.
+/* v770: מקרא העוגה — שורה אחת לכל אחזקה: לוגו · סימבול · פס המשקל בצבע הפרוסה · אחוז מעל השווי.
    בלי שם החברה ובלי הנקודה (הפס נושא את הצבע) — קומפקטי ונקי, לפי ת־עיצוב */
 #pieLegend { margin-top: 6px; }
 #pieLegend li {
@@ -839,7 +839,6 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 #pieLegend .pie-leg-fb { font-size: 14px; }
 #pieLegend .lg-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #pieLegend .lg-sym { font-weight: 700; font-size: 15.5px; }
-#pieLegend .lg-full { display: none; }
 #pieLegend .lg-bar { height: 6px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--on-surface) 7%, transparent); }
 #pieLegend .lg-bar i { display: block; height: 100%; border-radius: inherit; }
 #pieLegend .lg-num { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; min-width: 58px; }
@@ -848,7 +847,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 /* v180: שורת המקרא של הפרוסה שנבחרה — רקע עדין, והלוגו קופץ בקפיץ כמו בעוגה */
 #pieLegend li .pie-leg-logo { transition: transform .5s cubic-bezier(.34, 1.56, .64, 1), box-shadow .3s ease; }
 #pieLegend li.active { background: color-mix(in srgb, var(--primary) 9%, transparent); padding-inline: 10px; margin-inline: -10px; }
-#pieLegend li.active .pie-leg-logo { transform: scale(1.15) translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,.18), inset 0 0 0 1px rgba(0,0,0,.06); }
+#pieLegend li.active .pie-leg-logo { transform: scale(1.18) translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.18), inset 0 0 0 1px rgba(0,0,0,.06); }
 @media (prefers-reduced-motion: reduce) { #pieLegend li, #pieLegend li .pie-leg-logo { transition: none; } }
 .legend .lg-val { color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
 .legend .lg-pct { font-weight: 700; min-width: 56px; text-align: end; font-variant-numeric: tabular-nums; }
