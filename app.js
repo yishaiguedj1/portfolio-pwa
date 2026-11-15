@@ -1090,7 +1090,7 @@ he: {
   pfNoteIbkr: 'TWR רשמי של IBKR מהדוח, משורשר בין תקופות, בדולרים.',
   pfNoteIbkrDaily: 'TWR יומי מה־NAV של IBKR, בדולרים — הפקדות ומשיכות מנוטרלות, ומעוגן ל־TWR הרשמי של כל תקופה בדוח.',
   pfRangeNeedsDaily: 'אין נתונים מספיק מפורטים לטווח הזה — בדוח יש נקודה אחת לכל תקופה (שנה). כדי לקבל תשואה לפי חודש/שנה/YTD: הוסף בשאילתת ה־Flex ב־IBKR את המקטע "Net Asset Value (NAV) in Base", ואז נתק וסנכרן מחדש.',
-  ibkrNavLegend: 'שווי אמיתי (IBKR)',
+  ibkrNavLegend: 'שווי אמיתי',
   tabPension: 'פנסיה',
   tabSettings: 'הגדרות',
   langTitle: 'שפה',
@@ -2927,7 +2927,7 @@ en: {
   pfNoteIbkr: "IBKR's official TWR from the report, chained across periods, in USD.",
   pfNoteIbkrDaily: "Daily TWR from IBKR's NAV, in USD — deposits and withdrawals neutralized, anchored to the official TWR of each report period.",
   pfRangeNeedsDaily: 'Not enough detail for this range — the report has one point per period (year). To get month/year/YTD returns: add the "Net Asset Value (NAV) in Base" section to your IBKR Flex query, then disconnect and sync again.',
-  ibkrNavLegend: 'Real value (IBKR)',
+  ibkrNavLegend: 'Real value',
   tabPension: 'Pension',
   tabSettings: 'Settings',
   langTitle: 'Language',
@@ -7947,8 +7947,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.147.0';
-const APP_VERSION = 'v765';
+const APP_RELEASE = '2.147.2';
+const APP_VERSION = 'v767';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
