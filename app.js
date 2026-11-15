@@ -12668,6 +12668,40 @@ function drawPie() {
     } else ctx.fillStyle = g.s.color;
     ctx.fill();
   };
+  // v770: מראה זכוכית לכל פרוסה (בקשת המשתמש, לפי ת־עיצוב): אור אחד מלמעלה לכל העוגה — ברק בחצי העליון והצללה עדינה
+  // בתחתית, זוהר של שבירת אור לאורך השפה הפנימית, וקצה מבריק דק (חזק למעלה, חלש למטה). מצויר לפני קווי הרווח.
+  const glassOn = !!(ctx.createLinearGradient && ctx.createRadialGradient && ctx.clip);
+  const sliceGlass = (g, L, ox, oy) => {
+    if (!glassOn) return;
+    const X = cx + ox, Y = cy + oy, Ro = R + L * 4, k = dark ? 0.6 : 1;
+    const a = (v) => Math.max(0, Math.min(1, v)).toFixed(3);
+    ctx.save();
+    slicePath(g, L);
+    ctx.clip();
+    const sh = ctx.createLinearGradient(X, Y - Ro, X, Y + Ro);
+    if (sh && sh.addColorStop) {
+      sh.addColorStop(0, 'rgba(255,255,255,' + a(0.34 * k + 0.08 * L) + ')');
+      sh.addColorStop(0.46, 'rgba(255,255,255,' + a(0.06 * k) + ')');
+      sh.addColorStop(0.5, 'rgba(255,255,255,0)');
+      sh.addColorStop(1, 'rgba(0,0,0,' + a(dark ? 0.2 : 0.09) + ')');
+      ctx.fillStyle = sh; ctx.fillRect(X - Ro - 2, Y - Ro - 2, Ro * 2 + 4, Ro * 2 + 4);
+    }
+    const lens = ctx.createRadialGradient(X, Y, r, X, Y, r + Math.min(16, (Ro - r) * 0.3));
+    if (lens && lens.addColorStop) {
+      lens.addColorStop(0, 'rgba(255,255,255,' + a(0.3 * k) + ')');
+      lens.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = lens; ctx.fillRect(X - Ro - 2, Y - Ro - 2, Ro * 2 + 4, Ro * 2 + 4);
+    }
+    const rim = ctx.createLinearGradient(X, Y - Ro, X, Y + Ro);
+    if (rim && rim.addColorStop) {
+      rim.addColorStop(0, 'rgba(255,255,255,' + a(0.9 * k) + ')');
+      rim.addColorStop(0.55, 'rgba(255,255,255,' + a(0.32 * k) + ')');
+      rim.addColorStop(1, 'rgba(255,255,255,' + a(0.5 * k) + ')');
+      slicePath(g, L);
+      ctx.strokeStyle = rim; ctx.lineWidth = 3.5; ctx.stroke(); // חצי הקו בתוך הפרוסה (החיתוך) — קצה דק ומבריק
+    }
+    ctx.restore();
+  };
   // v179: כשפרוסה מורמת — השאר נסוגות לרקע (שקיפות), כמו מיקוד באפל
   const focus = Math.max(0, Math.min(1, state.pieFocus || 0));
   const dimA = 1 - 0.5 * focus;
@@ -12678,6 +12712,7 @@ function drawPie() {
     ctx.globalAlpha = dimA;
     ctx.fillStyle = g.s.color; // (גם לבדיקות: הצבע הבסיסי)
     sliceFill(g, 0, ox, oy);
+    sliceGlass(g, 0, ox, oy);
     ctx.restore();
   }
   // רווחים בין הפרוסות — קווים רדיאליים בצבע הכרטיס
@@ -12700,19 +12735,7 @@ function drawPie() {
     const [ox, oy] = slicePath(g, L);
     sliceFill(g, L, ox, oy);
     ctx.restore();
-    // ברק עדין על הפרוסה המורמת — כמו אור מלמעלה על משטח אמיתי
-    if (ctx.createLinearGradient) {
-      ctx.save();
-      slicePath(g, L);
-      ctx.clip();
-      const sh = ctx.createLinearGradient(cx + ox, cy + oy - R, cx + ox, cy + oy + R);
-      if (sh && sh.addColorStop) {
-        sh.addColorStop(0, 'rgba(255,255,255,' + (0.28 * Math.min(1, L)).toFixed(3) + ')');
-        sh.addColorStop(0.55, 'rgba(255,255,255,0)');
-        ctx.fillStyle = sh; ctx.fillRect(0, 0, w, h);
-      }
-      ctx.restore();
-    }
+    sliceGlass(g, L, ox, oy); // v770: אותה זכוכית, עם ברק חזק מעט יותר כשהפרוסה מורמת
     slicePath(g, L);
     ctx.strokeStyle = surface; ctx.lineWidth = gap || 1.5; ctx.stroke();
     if (!g.chip) { g.x += ox; g.y += oy; } // v180: התווית זזה יחד עם הפרוסה; שבב בטור נשאר במקומו (הקו המוביל זז)
