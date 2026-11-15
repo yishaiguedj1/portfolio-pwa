@@ -14,7 +14,8 @@ vm.createContext(sb);
 vm.runInContext(pick('function depDateKey(', 'function depositsNewestFirst('), sb);
 vm.runInContext(pick('function depositsNewestFirst(', '/* v147:'), sb);
 vm.runInContext(pick('function depILS(', '/* סך הפקדות נטו'), sb);
-vm.runInContext(pick('function depYearGroups(', 'function depMonthName('), sb);
+vm.runInContext(pick('function depYearGroups(', 'const depNetTxt'), sb);
+vm.runInContext(pick('function depShortDate(', 'function buildDepositRow('), sb);
 const R = (c) => vm.runInContext(c, sb);
 const g = R(`depYearGroups(depositsNewestFirst([
   { date: '03/01/2025', amount: -1000 }, { date: '2026-02-10', amount: -500 }, { date: '20/06/2025', amount: 300 },
@@ -31,5 +32,13 @@ ok(/:scope > \.dep-yr\.open/.test(app), 'אקורדיון — פתיחת שנה 
 ok(/aria-expanded/.test(pick('function buildDepYear(', 'function buildDepositRow(')), 'נגישות: aria-expanded על כותרת השנה');
 ok(/p\.matches\('\.dep-yr\.open'\)/.test(app), 'מקלדת במחשב: שורות של שנה פתוחה נספרות, של סגורה — לא');
 ok(/\.rows li\.dep-yr \{[^}]*backdrop-filter: var\(--glass-blur\)/.test(css) && /\.dep-yr-body \{[^}]*grid-template-rows: 0fr/.test(css), 'עיצוב: כרטיס זכוכית ופתיחה חלקה');
-ok(/\.dep-yr-list \{[^}]*padding-inline/.test(css), 'יישור לוגי בלבד');
+ok(/\.dep-yr-in \{[^}]*padding-inline/.test(css), 'יישור לוגי בלבד');
+ok(g[1].nIn === 1 && g[1].nOut === 1 && g[1].sumIn === 1000 && g[1].sumOut === 300, 'אריחי השנה: הפקדות ומשיכות בנפרד');
+ok(R("depIsOut({ amount: 300 })") && !R("depIsOut({ amount: -300 })") && R("depIsOut({ amount: 0, cur: 'USD', amt: 50 })") && !R("depIsOut({ amount: 0, cur: 'USD', amt: -50 })"), 'משיכה מול הפקדה (גם במטבע זר בלי סכום בשקלים)');
+ok(R("depShortDate({ date: '29/10/2026' })") === '29/10' && R("depShortDate({ date: '2026-03-05' })") === '05/03', 'תאריך קצר בשורה — השנה והחודש בכותרות');
+const row = pick('function buildDepositRow(', '/* טופס עריכת הפקדה');
+ok(/dir="auto"/.test(row) && /\.dep-note \{[^}]*text-overflow: ellipsis/.test(css), 'הערה בשורה אחת, לועזית נחתכת בסופה');
+ok(/if \(ed\)[\s\S]*'dep-ed'/.test(row) && /const ed = !isIbkrMode\(\);/.test(app), 'עיפרון בכל שורה במצב ידני; IBKR — לקריאה בלבד');
+ok(!/editDepositsBtn/.test(app) && /id="depAddBtn"/.test(fs.readFileSync(path.join(root, 'index.html'), 'utf8')), 'בלי מצב עריכה — "+" בשורת הכלים');
+ok(/'mini-btn danger', t\('btnDeleteRow'\)/.test(pick('function showEditDepositForm(', 'function showAddDepositForm(')), 'מחיקה מתוך טופס העריכה');
 console.log('# dep-years: ' + n + ' בדיקות עברו');
