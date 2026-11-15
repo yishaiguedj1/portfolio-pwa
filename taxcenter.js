@@ -383,7 +383,9 @@ function paintWithheld(wrap, C, Y, cur) {
   if (!C.whN) { c.appendChild(h('p', { class: 'tx-sub', text: T('txWhOffS') })); wrap.appendChild(c); return; }
   const W = C.whIdx.get(S.year);
   const yr = S.year;
-  if (W) {
+  if (W && (W.withheld > 0.5 || W.correct > 0.5 || W.left > 0.5)) {
+    const calc = W.withheld > 0.5 || W.correct > 0.5;   // שנת הפסד בלי ניכוי — רק ההפסד שלא עבר
+    if (calc) {
     c.appendChild(row(T(W.fromForm ? 'txWhGot867' : 'txWhGot'), ils(W.withheld)));
     c.appendChild(row(T('txWhLaw'), ils(W.correct)));
     if (W.net > 0.5) c.appendChild(row(T(cur ? 'txWhRefundNow' : 'txWhRefund', { y: yr }), ils(W.net), 'tx-tot tx-gain'));
@@ -391,11 +393,12 @@ function paintWithheld(wrap, C, Y, cur) {
     else c.appendChild(row(T('txWhEven'), ils(0), 'tx-tot'));
     if (W.fromCarry > 0.5) c.appendChild(row(T('txWhFromCarry'), ils(W.fromCarry)));
     if (W.net > 0.5 && !cur) c.appendChild(h('p', { class: 'tx-sub', text: T('txWhUntil', { d: dmy(W.until) }) }));
+    }
     if (W.left > 0.5) {
       c.appendChild(row(T(cur ? 'txWhLeftNow' : 'txWhLeft', { y: yr + 1 }), ils(W.left), 'tx-loss'));
       c.appendChild(h('p', { class: 'tx-sub', text: T(cur ? 'txWhLeftNowS' : 'txWhLeftS', { y: yr, v: ils(W.left * Y.rate) }) }));
     }
-    if (!W.fromForm) c.appendChild(h('p', { class: 'tx-sub', text: T('txWhEstS') }));
+    if (calc && !W.fromForm) c.appendChild(h('p', { class: 'tx-sub', text: T('txWhEstS') }));
   } else c.appendChild(h('p', { class: 'tx-sub', text: T('txWhNone', { y: yr }) }));
   const g = C.whGuess[String(yr)];
   if (g > 0.5 && !(W && W.fromForm)) c.appendChild(h('p', { class: 'tx-sub', text: T('txWhGuess', { v: ils(g) }) }));

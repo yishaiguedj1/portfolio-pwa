@@ -563,6 +563,26 @@ he: {
   txUnits: "{n} יח׳",
   txTaxable: "חייב",
   txCarry0H: "הפסד מועבר מלפני הנתונים",
+  txWhH: "ניכוי מס במקור בברוקר", txWhL: "הברוקר מנכה ממני מס במקור", txWhAcctL: "ניכוי מס במקור בחשבון {a}",
+  txWhOffS: "ברוקר שמנכה מס במקור מקזז הפסד רק באותה שנה. הפסד שנשאר ב־31/12 לא עובר אצלו, אבל לפי החוק הוא עובר, ומה שנוכה ביתר חוזר בדוח שנתי. סמנו כדי לראות כמה.",
+  txWhGot: "נוכה במקור על רווחי הון (הערכה)", txWhGot867: "נוכה במקור על רווחי הון (לפי 867)", txWhLaw: "המס לפי החוק",
+  txWhRefund: "החזר בדוח השנתי ל־{y}", txWhRefundNow: "החזר צפוי עד היום", txWhMore: "תשלום נוסף בדוח ל־{y}", txWhEven: "אין הפרש",
+  txWhFromCarry: "מזה בזכות הפסד משנים קודמות", txWhUntil: "אפשר לבקש את ההחזר עד {d}.",
+  txWhLeft: "הפסד שלא עבר אצל הברוקר ל־{y}", txWhLeftNow: "הפסד שיתאפס אצל הברוקר לפני {y}",
+  txWhLeftS: "הוא לא אבד: הוא עובר לפי החוק, אבל רק דרך דוח שנתי לשנת {y}. כשתרוויחו בשנים הבאות, הוא יכול להחזיר עד {v} מס.",
+  txWhLeftNowS: "ב־31/12 הברוקר יאפס אותו. לפי החוק הוא עובר לשנים הבאות, אבל רק דרך דוח שנתי לשנת {y} (שווה עד {v} מס).",
+  txWhEstS: "ההערכה מחושבת כמו שהברוקר מחשב: כל חשבון לבד וכל שנה לבד. את הסכום המדויק מקלידים מטופס 867.",
+  txWhNone: "אין מכירות בשנת {y} בחשבון עם ניכוי.", txWh867L: "מס שנוכה על רווחי הון לפי טופס 867 לשנת {y}",
+  txWhGuess: "בנתוני IBKR יש חיובים בשקלים (Other Fees) של {v} השנה. ייתכן שזה המס שנוכה — לאמת מול 867.",
+  txWhHowH: "איך מקבלים את ההחזר",
+  txWhHow1: "לשנת ההפסד: דוח שנתי (טופס 1301) עם נספח ג׳ (1322), טופס 1344 וטופס 867 מהברוקר. את ההפסד שנשאר רושמים להעברה בשדה 166 (או 299, הפסד מחו״ל — לברר עם רו״ח). בלי דוח לשנה הזו ההפסד לא עובר (סעיף 92(ב)), גם אם פטורים מדוח.",
+  txWhHow2: "לשנה שבה הרווחתם: דוח שנתי עם 867 של אותה שנה. בנספח ג׳ רושמים את קיזוז ההפסד המועבר (קוד 63), ובשדה 040 את המס שנוכה במקור.",
+  txWhHow3: "את שורת ההפסדים ב־867 לא מעתיקים כהפסד מועבר: היא לפני הקיזוז שהברוקר כבר עשה. ההפסד שעובר הוא הסכום כאן, וגם רשות המסים דורשת לנצל אותו מול הרווח הראשון.",
+  txWhHow4: "ההחזר מגיע עם הצמדה למדד וריבית של 4% לשנה, מסוף שנת המס. טופס 135 לא מתאים למי שיש לו דיבידנד או הכנסה מחו״ל.",
+  txWhHow5: "אפשר לבקש החזר עד 6 שנים מסוף שנת המס. בדוח לרו״ח כאן יש את כל המספרים.",
+  txWhActNow: "יש השנה הפסד של {v} שהברוקר לא קיזז. ב־31/12 הוא יתאפס אצלו. לשמור אותו לשנים הבאות (עד {t} מס) אפשר רק בדוח שנתי.",
+  txWhActH: "החזרים מהברוקר המנכה", txWhActRefund: "בדוח השנתי ל־{y} מגיע לכם החזר משוער של {v}. אפשר לבקש עד {d}.",
+  txWhActFile: "הפסד של {v} משנת {y} לא עבר אצל הברוקר. כדי שיקוזז מרווחים בהמשך צריך דוח שנתי לשנת {y}.", txWhActTot: "סך ההחזרים הפתוחים",
   txByAcct: "לפי חשבון IBKR", txAcctTotal: "סך הכל", txByAcctS: "המס של כל חשבון מחושב כאילו הוא היחיד. הסך הכל מחושב על כל החשבונות יחד — הפסד בחשבון אחד מקוזז מרווח בחשבון אחר, וגם ההפסד המועבר וההכנסה האחרת נכנסים רק אליו — לכן הוא יכול להיות נמוך מסכום החשבונות.",
   txCarry0S: "הפסד הון שדווח לפני {y} ועדיין לא נוצל (מהשומה או מהדוח השנתי).",
   txCarry0L: "סכום בשקלים",
@@ -2411,6 +2431,26 @@ en: {
   txUnits: "{n} units",
   txTaxable: "taxable",
   txCarry0H: "Loss carried from before the data",
+  txWhH: "Tax withheld by the broker", txWhL: "My broker withholds tax at source", txWhAcctL: "Tax withheld at source in {a}",
+  txWhOffS: "A broker that withholds tax offsets losses only within the same year. A loss left on Dec 31 does not carry over there, but by law it does, and the excess tax comes back through an annual return. Check to see how much.",
+  txWhGot: "Withheld on capital gains (estimate)", txWhGot867: "Withheld on capital gains (per 867)", txWhLaw: "Tax by law",
+  txWhRefund: "Refund in the {y} annual return", txWhRefundNow: "Expected refund so far", txWhMore: "Additional tax in the {y} return", txWhEven: "No difference",
+  txWhFromCarry: "Of which from prior-year losses", txWhUntil: "The refund can be claimed until {d}.",
+  txWhLeft: "Loss not carried to {y} by the broker", txWhLeftNow: "Loss the broker will reset before {y}",
+  txWhLeftS: "It is not lost: by law it carries forward, but only through an annual return for {y}. When you have gains later, it can return up to {v} in tax.",
+  txWhLeftNowS: "On Dec 31 the broker resets it. By law it carries forward, but only through an annual return for {y} (worth up to {v} in tax).",
+  txWhEstS: "The estimate follows the broker's method: each account and each year on its own. Enter the exact amount from form 867.",
+  txWhNone: "No sales in {y} in an account with withholding.", txWh867L: "Tax withheld on capital gains per form 867 for {y}",
+  txWhGuess: "IBKR data has shekel charges (Other Fees) of {v} this year. This may be the withheld tax — check against 867.",
+  txWhHowH: "How to get the refund",
+  txWhHow1: "For the loss year: annual return (form 1301) with appendix C (1322), form 1344 and form 867 from the broker. Enter the remaining loss to carry in field 166 (or 299, foreign loss — check with an accountant). Without a return for that year the loss does not carry (section 92(b)), even if you are exempt from filing.",
+  txWhHow2: "For the year with gains: annual return with that year's 867. In appendix C enter the carried-loss offset (code 63), and in field 040 the tax withheld at source.",
+  txWhHow3: "Do not copy the losses line of form 867 as the carried loss: it is before the offset the broker already made. The carried loss is the amount here, and the Tax Authority requires using it against the first gains.",
+  txWhHow4: "The refund comes with CPI linkage and 4% annual interest from the end of the tax year. Form 135 does not fit anyone with dividends or other foreign income.",
+  txWhHow5: "A refund can be claimed up to 6 years after the end of the tax year. The accountant report here has all the numbers.",
+  txWhActNow: "There is a loss of {v} this year the broker has not offset. On Dec 31 it resets there. Keeping it for later years (up to {t} in tax) is possible only through an annual return.",
+  txWhActH: "Refunds from the withholding broker", txWhActRefund: "The {y} annual return should give you an estimated refund of {v}. Claim by {d}.",
+  txWhActFile: "A loss of {v} from {y} was not carried by the broker. To offset it against later gains you need an annual return for {y}.", txWhActTot: "Total open refunds",
   txByAcct: "By IBKR account", txAcctTotal: "Total", txByAcctS: "Each account's tax is computed as if it were the only one. The total is computed on all accounts together — a loss in one account offsets a gain in another, and the carried loss and other income only count there — so it can be lower than the sum of the accounts.",
   txCarry0S: "A capital loss reported before {y} and not yet used (from the assessment or the annual return).",
   txCarry0L: "Amount in ₪",
@@ -7914,8 +7954,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.145.0';
-const APP_VERSION = 'v763';
+const APP_RELEASE = '2.146.0';
+const APP_VERSION = 'v764';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
