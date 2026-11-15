@@ -25,7 +25,7 @@ const sandbox = {
   fetch: async () => { throw new Error('אין רשת בטסט'); },
 };
 vm.createContext(sandbox);
-vm.runInContext(app + '\n;globalThis.__t = { txUnify, txYearsOf, txTotals, txCompanies, txRunning, txAmt, txQty, renderTrades, TX_UI, POSITIONS };', sandbox, { filename: 'app.js' });
+vm.runInContext(app + '\n;globalThis.__t = { txUnify, txYearsOf, txTotals, txCompanies, txRunning, txReturn, txReturnHTML, txAmt, txQty, renderTrades, TX_UI, POSITIONS };', sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 
 // --- איחוד: IBKR + ידני, מהחדשה לישנה, צד/כמות/עמלה מוחלטים ---
@@ -70,6 +70,27 @@ T.renderTrades();
 T.TX_UI.v = 'yr'; T.renderTrades(); T.TX_UI.v = 'co';
 ok(true, 'renderTrades רץ בלי DOM בשתי התצוגות');
 
+// --- התשואה הכוללת על מניה: מאז הקנייה הראשונה, כולל מה שנמכר ---
+const R = (side, qty, price, fee, date, extra) => Object.assign({ sym: 'HE', side, qty, price, fee, cur: 'USD', feeCur: 'USD', date }, extra || {});
+const sold = [R('SELL', 241, 12.18, 5, '2025-08-22'), R('BUY', 74, 10.07, 5, '2024-09-25'), R('BUY', 152, 9.81, 5, '2024-05-01'), R('BUY', 15, 9.5, 5, '2024-02-01')];
+const rs = T.txReturn(sold, 0, null);
+const buys = 74 * 10.07 + 152 * 9.81 + 15 * 9.5 + 15, sells = 241 * 12.18 - 5;
+ok(rs && Math.abs(rs.pl - (sells - buys)) < 1e-9 && Math.abs(rs.pct - (sells - buys) / buys * 100) < 1e-9 && rs.from === '2024-02-01' && !rs.open, 'נמכרה כולה: תמורה − קניות − עמלות, מאז הקנייה הראשונה');
+const part = [R('SELL', 10, 30, 1, '2026-01-01'), R('BUY', 30, 20, 1, '2025-01-01')];
+const rp = T.txReturn(part, 20, 25);
+ok(rp && Math.abs(rp.pl - (299 + 500 - 601)) < 1e-9 && rp.open, 'חלק נמכר: כולל שווי האחזקה היום במחיר הנוכחי');
+ok(T.txReturn(part, 25, 25) === null, 'היסטוריה חסרה (הכמות נטו ≠ האחזקה) — לא מציגים');
+ok(T.txReturn(part, 20, null) === null, 'אחזקה בלי מחיר — לא מציגים');
+ok(T.txReturn([R('BUY', 1, 10, 0, '2025-01-01'), R('BUY', 1, 10, 0, '2025-02-01', { cur: 'ILS', feeCur: 'ILS' })], 2, 10) === null, 'כמה מטבעות — לא מציגים');
+ok(T.txReturn([R('BUY', 5, 10, 0, '2025-01-01'), R('BUY', 5, 10, 0, '2025-02-01', { shadow: true })], 5, 12).pl === 10, 'עסקה ידנית שלא נספרת — מחוץ לחישוב');
+ok(/class="tx-g">\+\$100 · \+25\.0%/.test(T.txReturnHTML({ pl: 100, pct: 25, cur: 'USD', from: '2024-01-01' })) &&
+  /class="tx-l">−\$50 · −10\.0%/.test(T.txReturnHTML({ pl: -50, pct: -10, cur: 'USD', from: '2024-01-01' })) && T.txReturnHTML(null) === '', 'התצוגה: סימן וצבע לפי רווח/הפסד');
+const rd = T.txReturn(part, 20, 25, { USD: 12, ILS: 99 });
+ok(rd && Math.abs(rd.pl - (299 + 500 + 12 - 601)) < 1e-9 && rd.div === 12, 'דיבידנדים נטו — רק במטבע העסקאות, בלי המרה');
+ok(/כולל דיבידנדים/.test(T.txReturnHTML({ pl: 1, pct: 1, cur: 'USD', from: '2024-01-01', div: 3 })), 'התצוגה: "כולל דיבידנדים" כשיש');
+ok(/function txDivs\(\)[\s\S]{0,1400}tiDividends\(cash, null\)[\s\S]{0,300}r\.gross\)[\s\S]{0,40}r\.wh\)/.test(app) && !/function txDivs\(\)[\s\S]{0,1600}(grossIls|whIls)/.test(app), 'דיבידנדים ממנוע המס — בסכום המקורי (דולר), לא בשקלים');
+ok(/txReturnHTML\(txReturn\(all, held,/.test(app), 'בכרטיס החברה — מכל העסקאות, לא רק מהשנה שנבחרה');
+
 // --- חיווט וממשק ---
 ok(/id="txSeg"[\s\S]{0,400}data-txv="co"[\s\S]{0,200}data-txv="yr"/.test(html) && /id="txYears"/.test(html) && /id="txSearch"/.test(html), 'HTML: בורר חברות/שנים, שנים, חיפוש');
 ok(!/tradeFormHost/.test(html) && /id="addManualTradeBtn"/.test(html), 'HTML: עסקה חדשה בגיליון (בלי מארח טופס בעמוד)');
@@ -78,7 +99,7 @@ ok(/function openTradeSheet\(opts\)[\s\S]{0,400}modalPush\(closeTradeSheet\)/.te
 ok(/data-mt="' \+ esc\(r\.id\)/.test(app) && /const ed = r\.src === 'manual'/.test(app), 'רק עסקה ידנית נלחצת לעריכה (IBKR לקריאה בלבד)');
 ok(/.mt-del[\s\S]{0,200}color: var\(--loss\)/.test(css) && /\.tx-co-list \{[^}]*var\(--gl-card\)/.test(css), 'CSS: זכוכית, מחיקה באדום');
 ok(!/\.tx-[\w-]+[^{}]*\{[^}]*(margin|padding)-(left|right)|\.tx-[\w-]+[^{}]*\{[^}]*text-align: (left|right)/.test(css), 'CSS: יישור לוגי בלבד');
-for (const k of ['txByCo', 'txByYr', 'txAll', 'txCount', 'txCount1', 'txCos', 'txCos1', 'txShares', 'txSoldOut', 'txBuys', 'txSells', 'txFees', 'txAfter', 'txNewest', 'txOldest', 'txAddFor', 'txSearchPh', 'txNoMatch', 'mtDelBtn', 'mtTotal', 'txViewAria', 'txYearAria'])
+for (const k of ['txByCo', 'txByYr', 'txAll', 'txCount', 'txCount1', 'txCos', 'txCos1', 'txShares', 'txSoldOut', 'txBuys', 'txSells', 'txFees', 'txAfter', 'txNewest', 'txOldest', 'txAddFor', 'txReturn', 'txSince', 'txWithDiv', 'txSearchPh', 'txNoMatch', 'mtDelBtn', 'mtTotal', 'txViewAria', 'txYearAria'])
   ok((app.match(new RegExp('\\n  ' + k + ': \'', 'g')) || []).length === 2, 'מחרוזת בעברית ובאנגלית: ' + k);
 
 console.log('\n' + n + ' בדיקות עברו');

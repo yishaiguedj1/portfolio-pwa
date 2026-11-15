@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1673 מפתחות מתוך 6937) */
+/* המחרוזות של admin (1673 מפתחות מתוך 6940) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",

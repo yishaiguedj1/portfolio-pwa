@@ -1742,6 +1742,9 @@ he: {
   txBuys: 'קניות',
   txSells: 'מכירות',
   txFees: 'עמלות',
+  txReturn: 'תשואה כוללת',
+  txSince: 'מאז {d}',
+  txWithDiv: 'כולל דיבידנדים',
   txAfter: 'אחרי: {n}',
   txNewest: '↓ החדשות למעלה',
   txOldest: '↑ הישנות למעלה',
@@ -3621,6 +3624,9 @@ en: {
   txBuys: 'Buys',
   txSells: 'Sells',
   txFees: 'Fees',
+  txReturn: 'Total return',
+  txSince: 'since {d}',
+  txWithDiv: 'incl. dividends',
   txAfter: 'After: {n}',
   txNewest: '↓ Newest first',
   txOldest: '↑ Oldest first',
@@ -8033,8 +8039,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.151.0';
-const APP_VERSION = 'v772';
+const APP_RELEASE = '2.152.0';
+const APP_VERSION = 'v773';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -18928,6 +18934,63 @@ function txRunning(rows, nowShares) {
   }
   return h < -1e-6 ? null : out;
 }
+/* 15/11/2026 (בקשת המשתמש): התשואה הכוללת על מניה — מאז הקנייה הראשונה ועד היום, כולל מה שכבר נמכר.
+   רווח = תמורת המכירות + שווי האחזקה היום − עלות הקניות − העמלות; אחוז = רווח / עלות הקניות (כולל עמלות קנייה).
+   rows = כל העסקאות של המניה (לא רק השנה שנבחרה). לא מציגים (null) כשאי אפשר לדעת: היסטוריה חסרה (הכמות נטו
+   לא שווה לאחזקה של היום), כמה מטבעות, או אחזקה בלי מחיר. div = דיבידנדים נטו לפי מטבע ({USD: 12.5}) — נספר רק
+   מה שבמטבע העסקאות (בלי המרה). טהורה */
+function txReturn(rows, held, px, div) {
+  let b = 0, s = 0, net = 0, cur = '', from = '';
+  for (const r of rows || []) {
+    if (r.shadow) continue;
+    if (!cur) cur = r.cur;
+    if (r.cur !== cur || (r.fee && r.feeCur !== cur)) return null;
+    if (r.side === 'BUY') { b += r.qty * r.price + r.fee; net += r.qty; } else { s += r.qty * r.price - r.fee; net -= r.qty; }
+    if (!from || r.date < from) from = r.date;
+  }
+  const h = Math.max(0, Number(held) || 0);
+  if (!(b > 0) || Math.abs(net - h) > 1e-6 * Math.max(1, h)) return null;
+  if (h > 0 && !(px > 0)) return null;
+  const dv = Number(div && div[cur]) || 0;
+  const pl = s + h * (px || 0) + dv - b;
+  return { pl, pct: pl / b * 100, cur, from, open: h > 0, div: dv };
+}
+/* הדיבידנדים לכל מניה — ממנוע מרכז המס (taxil.js → tiDividends), בסכום המקורי במטבע התשלום (gross − wh, נטו אחרי
+   ניכוי במקור), לא בשדות השקליים (grossIls/whIls) של המס. המנוע נטען בעצלתיים פעם אחת, ואז העסקאות מצוירות שוב. */
+let _txDiv = { d: null, m: null }, _txDivLoad = false;
+function txDivs() {
+  const d = isIbkrMode() ? ibkrCfg().data : null;
+  const cash = d && d.cashTransactions;
+  if (!cash || !cash.length) return null;
+  if (typeof tiDividends !== 'function') {
+    if (!_txDivLoad && typeof document !== 'undefined' && document.head && document.createElement) {
+      _txDivLoad = true;
+      const sc = document.createElement('script'); sc.src = 'taxil.js';
+      sc.onload = () => renderTrades();
+      document.head.appendChild(sc);
+    }
+    return null;
+  }
+  if (_txDiv.d === cash) return _txDiv.m;
+  const m = new Map();
+  try {
+    for (const r of tiDividends(cash, null)) {
+      if (r.kind !== 'dividend' || !r.sym) continue;
+      const o = m.get(r.sym) || {};
+      o[r.cur] = (o[r.cur] || 0) + (Number(r.gross) || 0) - (Number(r.wh) || 0);
+      m.set(r.sym, o);
+    }
+  } catch (e) { return null; }
+  _txDiv = { d: cash, m };
+  return m;
+}
+function txReturnHTML(x) {
+  if (!x) return '';
+  const cls = x.pl > 1e-9 ? 'tx-g' : x.pl < -1e-9 ? 'tx-l' : '';
+  const sg = x.pl > 1e-9 ? '+' : x.pl < -1e-9 ? '−' : '';
+  const v = sg + txAmt({ [x.cur]: x.pl }) + ' · ' + sg + Math.abs(x.pct).toFixed(1) + '%';
+  return '<div class="tx-ret"><small>' + esc(t('txReturn')) + '<span>' + esc(t('txSince', { d: fmtDateIL(x.from) }) + (x.div > 1e-9 ? ' · ' + t('txWithDiv') : '')) + '</span></small><b class="' + cls + '">' + esc(v) + '</b></div>';
+}
 function txQty(q) { const n = Number(q) || 0; return Number.isInteger(n) ? n.toLocaleString('en-US') : String(+n.toFixed(4)); }
 /* סכום לפי מטבע ("$12,480 · ₪3,200"); dec = ספרות אחרי הנקודה. טהורה */
 function txAmt(m, dec) {
@@ -18985,7 +19048,8 @@ function txCompanyHTML(c, all, open) {
   const rows = TX_UI.asc ? c.rows.slice().reverse() : c.rows;
   const p = POSITIONS.find((x) => x.sym === c.sym);
   const canAdd = !p || p.fromTrades;
-  h += '<div class="tx-body">' + txTilesHTML(txTotals(c.rows)) +
+  const q = state.quotes && state.quotes[c.sym];
+  h += '<div class="tx-body">' + txReturnHTML(txReturn(all, held, q && q.close, (txDivs() || new Map()).get(c.sym))) + txTilesHTML(txTotals(c.rows)) +
     '<div class="tx-tools"><button type="button" class="tx-sort" data-txsort="1">' + esc(TX_UI.asc ? t('txOldest') : t('txNewest')) + '</button>' +
     (canAdd ? '<button type="button" class="tx-add-co" data-txadd="' + esc(c.sym) + '">' + esc(t('txAddFor')) + '</button>' : '') + '</div>';
   let y = '';
