@@ -14270,17 +14270,17 @@ async function wordmarkLoad(syms) {
     return true;
   } finally { _wmBusy = false; }
 }
-/* טהורה: ציר "עגול" (±50 וכו') — עד 4 קטעים. v259: חזרה לציר של v257 (בקשת המשתמש — "העיצוב הזה היה מעולה") */
+/* טהורה: הציר. v769 (בקשת המשתמש — "תנצל את כל הרוחב"): התחום צמוד לנתונים (מהאחוז הנמוך עד הגבוה, 0 תמיד בפנים) —
+   הפס הארוך בכל צד מגיע עד קצה הגרף, בלי חצי ציר ריק עד ‎−100%; קווי הרשת — רק הערכים העגולים שבתוך התחום (עד 4 קטעים) */
 function gainScale(vals) {
-  let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
+  const lo = Math.min(0, ...vals);
+  let hi = Math.max(0, ...vals);
   if (hi - lo < 1e-9) hi = lo + 10;
   const steps = [2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
   let step = steps[steps.length - 1];
-  for (const st of steps) { if (Math.ceil(hi / st) - Math.floor(lo / st) <= 4) { step = st; break; } }
-  lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
-  if (hi === lo) hi = lo + step;
+  for (const st of steps) { if (Math.floor(hi / st + 1e-9) - Math.ceil(lo / st - 1e-9) <= 4) { step = st; break; } }
   const ticks = [];
-  for (let v = lo; v <= hi + 1e-9; v += step) ticks.push(Math.round(v * 1e6) / 1e6);
+  for (let v = Math.ceil(lo / step - 1e-9) * step; v <= hi + 1e-9; v += step) ticks.push(Math.round(v * 1e6) / 1e6);
   return { lo, hi, step, ticks, x: (v) => (v - lo) / (hi - lo) * 100 };
 }
 /* טהורה: השורות — אחזקות עם מחיר ועלות, מהגבוהה לנמוכה */
@@ -14321,7 +14321,11 @@ function renderGainBars() {
   const missing = rows.map((r) => r.sym).filter((s) => !wmStore()[s]);
   if (missing.length) wordmarkLoad(rows.map((r) => r.sym)).then((ok) => { if (ok) { _gbKey = ''; renderGainBars(); } });
   const sc = gainScale(rows.map((r) => r.g));
-  const key = rows.map((r) => r.sym + (wordmarkOf(r.sym) ? '*' : '')).join(',') + '|' + sc.lo + ':' + sc.hi + '|' + state.lang;
+  // v769: גובה השורה לפי מספר המניות — הכרטיס כולו נכנס בגובה המסך (כמו כרטיס המניה); 26–32px
+  const vh = (typeof window !== 'undefined' && window.innerHeight) || 800;
+  const rh = Math.max(GB_RH_MIN, Math.min(GB_RH_MAX, Math.floor((vh - 390) / rows.length)));
+  if (box._rh !== rh) { box._rh = rh; box.style.setProperty('--gb-rh', rh + 'px'); box.style.setProperty('--gb-in', (rh >= 30 ? 4 : 3) + 'px'); }
+  const key = rows.map((r) => r.sym + (wordmarkOf(r.sym) ? '*' : '')).join(',') + '|' + sc.ticks.join(':') + '|' + state.lang;
   if (key !== _gbKey) {
     _gbKey = key;
     const x0 = sc.x(0);
@@ -14345,9 +14349,12 @@ function renderGainBars() {
     }, { once: true }));
     if (typeof ResizeObserver !== 'undefined' && !box._ro) { box._ro = new ResizeObserver(() => gainBarsFit(box)); box._ro.observe(box); }
   }
-  // עדכון במקום (גם בטיק החי): אורך הפס, הצד, והאחוז
+  // עדכון במקום (גם בטיק החי): אורך הפס, הצד, האחוז — ו־v769: גם קווי הרשת והאפס (התחום צמוד לנתונים וזז עם המחירים)
   const byS = new Map(rows.map((r) => [r.sym, r]));
   const x0 = sc.x(0);
+  box.style.setProperty('--gb-zero', x0.toFixed(3) + '%');
+  box.querySelectorAll('.gb-grid').forEach((g, i) => { if (sc.ticks[i] !== undefined) g.style.left = sc.x(sc.ticks[i]).toFixed(3) + '%'; });
+  box.querySelectorAll('.gb-axis span').forEach((a, i) => { if (sc.ticks[i] !== undefined) a.style.left = sc.x(sc.ticks[i]).toFixed(3) + '%'; });
   box.querySelectorAll('.gb-row').forEach((row) => {
     const r = byS.get(row.dataset.sym);
     if (!r) return;
@@ -14372,32 +14379,42 @@ function gainSetActive(box, sym) {
    (עד קצה הגרף) — ואף פעם לא ארוך מפס של אחוז גדול ממנו (הסדר נשמר). לוגו רחב מאוד (ברקשייר/‏J&J) שלא קריא (<9px) גם
    ברוחב המרבי → לוגו מורכב (אייקון + שם). כמו כן בלי לוגו אופקי לחברה (אפל, טסלה, בזק). */
 const GB_WM_PCT = 20, GB_H_MAX = 18, GB_H_MIN = 10, GB_H_FLOOR = 9, GB_PAD = 14, GB_FB_MAX = 124;
+/* v769: שורה דחוסה (בקשת המשתמש — כמה שיותר מניות לגובה): 26–32px במקום 46; הלוגו עד גובה האריח פחות 8px */
+const GB_RH_MAX = 32, GB_RH_MIN = 26;
+function gainDims(rh) { const inset = rh >= 30 ? 4 : 3, th = rh - 2 * inset; return { th, hMax: Math.min(GB_H_MAX, th - 8), ic: rh - 8, fbi: th - 6 }; }
 function gainUsesMark(g) { return Math.abs(g) >= GB_WM_PCT - 1e-9; }
 /* טהורה: רוחב הפס (px) לפס עם לוגו — bw אורך אמיתי, avail עד קצה הגרף, r יחס הלוגו (0 = מורכב), fbw/tkw רוחב המורכב
    עם השם / עם הסימבול. → { w, fb: מורכב?, tk: סימבול במקום שם (השם לא נכנס — בלי "Home D…"), h: גובה הלוגו } */
-function gainTile(bw, avail, r, fbw, tkw) {
+function gainTile(bw, avail, r, fbw, tkw, hMax = GB_H_MAX) {
   if (r) {
     const w = Math.min(avail, Math.max(bw, GB_H_MIN * r + GB_PAD));
-    const h = Math.min(GB_H_MAX, (w - GB_PAD) / r);
+    const h = Math.min(hMax, (w - GB_PAD) / r);
     if (h >= GB_H_FLOOR) return { w, fb: false, h };
   }
-  const nw = fbw + GB_PAD + 4;
-  if (nw <= Math.min(avail, GB_FB_MAX + GB_PAD)) return { w: Math.min(avail, Math.max(bw, nw)), fb: true, tk: false, h: 0 };
-  return { w: Math.max(bw, tkw + GB_PAD + 4), fb: true, tk: true, h: 0 }; // הסימבול תמיד שלם (השוליים מתאימים)
+  // v769: השם רק כשהוא לא מנפח את הפס מעבר לאורך האמיתי (או לרוחב הסימבול) — אחרת "UnitedHealth" ב־30% נראה כמו 55%
+  const nw = fbw + GB_PAD + 4, kw = tkw + GB_PAD + 4;
+  if (nw <= Math.min(avail, GB_FB_MAX + GB_PAD) && nw <= Math.max(bw, kw) + 8) return { w: Math.min(avail, Math.max(bw, nw)), fb: true, tk: false, h: 0 };
+  return { w: Math.max(bw, kw), fb: true, tk: true, h: 0 }; // הסימבול תמיד שלם (השוליים מתאימים)
 }
 function gainBarsFit(box) {
   const plot = box.querySelector('.gb-plot');
   if (!plot) return;
   const rows = [...box.querySelectorAll('.gb-row')];
   const pw = new Map(rows.map((r) => [r, r.querySelector('.gb-pct').offsetWidth || 0]));
+  const dm = gainDims(box._rh || GB_RH_MAX);
+  // v769 ("תנצל את כל הרוחב"): "פרפר" — כשיש גם רווחים וגם הפסדים, האחוז יושב בצד הריק של קו האפס (בשורה שלו הצד השני תמיד
+  // ריק), והשוליים לא צריכים להכיל את האחוזים — הפסים מקבלים כמעט את כל רוחב הכרטיס. רק כשהאחוזים נכנסים בצד השני
+  const pwMax = (up) => Math.max(0, ...rows.filter((r) => r._up === up).map((r) => pw.get(r)));
+  const hasUp = rows.some((r) => r._up), hasDn = rows.some((r) => !r._up);
   const fitAll = (W) => {
     const x0 = row0(box) / 100 * W;
+    const bf = hasUp && hasDn && x0 + (box._ml || 0) >= pwMax(true) + 10 && W - x0 + (box._mr || 0) >= pwMax(false) + 10;
     const fits = rows.map((row) => {
       const bw = Math.abs(row._xe - row._x0) / 100 * W;
       if (!gainUsesMark(row._g)) return { row, bw, w: bw, out: true };
       const mk = row.querySelector('.gb-mark'), fb = row.querySelector('.gb-fb');
       const fbn = fb && fb.querySelector('.gb-fbn:not(.gb-fbs)'), fbs = fb && fb.querySelector('.gb-fbs');
-      const t = gainTile(bw, row._up ? W - x0 : x0, mk ? (+mk.dataset.r || 4) : 0, fbn ? 28 + fbn.scrollWidth : 0, fbs ? 28 + fbs.scrollWidth : 0);
+      const t = gainTile(bw, row._up ? W - x0 : x0, mk ? (+mk.dataset.r || 4) : 0, fbn ? dm.fbi + 6 + fbn.scrollWidth : 0, fbs ? dm.fbi + 6 + fbs.scrollWidth : 0, dm.hMax);
       return { row, bw, w: t.w, fb: t.fb, tk: t.tk, h: t.h, out: false };
     });
     // הסדר נשמר: פס של אחוז גדול לא קצר מפס של אחוז קטן ממנו באותו צד (השורות ממוינות מהגבוה לנמוך)
@@ -14405,18 +14422,19 @@ function gainBarsFit(box) {
       const side = fits.filter((f) => f.row._up === up && !f.out);
       if (up) side.reverse(); // מהקטן לגדול
       let prev = 0;
-      for (const f of side) { if (f.w < prev) { f.w = prev; if (!f.fb) f.h = Math.min(GB_H_MAX, (f.w - GB_PAD) / (+f.row.querySelector('.gb-mark').dataset.r || 4)); } prev = f.w; }
+      for (const f of side) { if (f.w < prev) { f.w = prev; if (!f.fb) f.h = Math.min(dm.hMax, (f.w - GB_PAD) / (+f.row.querySelector('.gb-mark').dataset.r || 4)); } prev = f.w; }
     }
     // שוליים לכל צד בנפרד — רק כמה שהאחוז (ומתחת ל־20%: גם הלוגו הרגיל) שאחרי קצה הפס צריכים; ‏24 לתוויות הציר
     let ml = 24, mr = 24;
     for (const f of fits) {
-      const ext = pw.get(f.row) + (f.out ? 42 : 8) + 4;
+      const ext = bf ? (f.out ? dm.ic + 10 : 2) : pw.get(f.row) + (f.out ? dm.ic + 14 : 8) + 4;
       if (f.row._up) mr = Math.max(mr, x0 + f.w + ext - W); else ml = Math.max(ml, ext - (x0 - f.w));
     }
     // הגרף עצמו לפחות 55% מהרוחב — אף פעם לא נמחץ
     const room = 0.45 * (W + (box._ml || 0) + (box._mr || 0));
     if (ml + mr > room) { const k = room / (ml + mr); ml *= k; mr *= k; }
-    return { fits, x0, ml: Math.ceil(ml), mr: Math.ceil(mr) };
+    if (bf) { ml = Math.max(ml, pwMax(true) + 10 - x0); mr = Math.max(mr, pwMax(false) + 10 - (W - x0)); }
+    return { fits, x0, bf, ml: Math.ceil(ml), mr: Math.ceil(mr) };
   };
   // השוליים תלויים ברוחב הגרף ולהפך — כמה סבבים עד יציבות (שוליים רק גדלים בתוך אותו ציור, כדי שלא יתנדנדו)
   let res = null, W = 0;
@@ -14429,7 +14447,8 @@ function gainBarsFit(box) {
     box._ml = ml; box._mr = mr;
     box.style.setProperty('--gb-ml', ml + 'px'); box.style.setProperty('--gb-mr', mr + 'px');
   }
-  const { fits, x0 } = res;
+  const { fits, x0, bf } = res;
+  box.classList.toggle('gb-bf', !!bf);
   // תוויות הציר צפופות (טלפון צר) — כל שנייה, 0 תמיד נשאר
   const ax = [...box.querySelectorAll('.gb-axis span')];
   if (ax.length > 2) {
@@ -14445,11 +14464,16 @@ function gainBarsFit(box) {
     row.classList.toggle('gb-tk', !f.out && !!f.fb && !!f.tk);
     if (!f.out && !f.fb) { const mk = row.querySelector('.gb-mark'), r = +mk.dataset.r || 4; mk.style.height = f.h.toFixed(1) + 'px'; mk.style.width = (f.h * r).toFixed(1) + 'px'; }
     bar.style.left = (row._up ? x0 : x0 - w) + 'px'; bar.style.width = w + 'px';
-    const endPx = row._up ? x0 + w : x0 - w, off = f.out ? 6 + 28 + 8 : 8; // מתחת ל־20%: הלוגו הרגיל בקצה הפס (28px), ואז האחוז
-    if (row._up) { ico.style.left = (endPx + 6) + 'px'; ico.style.right = 'auto'; pct.style.left = (endPx + off) + 'px'; pct.style.right = 'auto'; }
-    else { ico.style.right = (W - endPx + 6) + 'px'; ico.style.left = 'auto'; pct.style.right = (W - endPx + off) + 'px'; pct.style.left = 'auto'; }
+    const endPx = row._up ? x0 + w : x0 - w, off = f.out ? 6 + dm.ic + 8 : 8; // מתחת ל־20%: הלוגו הרגיל בקצה הפס (rh−8 px), ואז האחוז
+    if (row._up) { ico.style.left = (endPx + 6) + 'px'; ico.style.right = 'auto'; }
+    else { ico.style.right = (W - endPx + 6) + 'px'; ico.style.left = 'auto'; }
+    if (bf) { // פרפר: האחוז צמוד לקו האפס מהצד הריק
+      if (row._up) { pct.style.right = (W - x0 + 8) + 'px'; pct.style.left = 'auto'; } else { pct.style.left = (x0 + 8) + 'px'; pct.style.right = 'auto'; }
+    } else if (row._up) { pct.style.left = (endPx + off) + 'px'; pct.style.right = 'auto'; }
+    else { pct.style.right = (W - endPx + off) + 'px'; pct.style.left = 'auto'; }
     // v262: הגדלה בנגיעה — כמה שיש מקום עד קצה הכרטיס (השוליים + 14px מהריפוד), בין 8% ל־15%
-    const pw0 = pw.get(row), room = (row._up ? W + (box._mr || 0) - (endPx + off + pw0) : (box._ml || 0) + endPx - off - pw0) + 14;
+    const pw0 = bf ? 0 : pw.get(row), off0 = bf ? (f.out ? 6 + dm.ic : 0) : off;
+    const room = (row._up ? W + (box._mr || 0) - (endPx + off0 + pw0) : (box._ml || 0) + endPx - off0 - pw0) + 14;
     const gs = gainLift(w, room, pw0, f.out);
     row.style.setProperty('--gb-s', gs.s.toFixed(3));
     row.style.setProperty('--gb-shift', gs.shift.toFixed(1) + 'px');

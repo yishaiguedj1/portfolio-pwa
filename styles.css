@@ -2034,20 +2034,27 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 }
 
 /* ---- v256: רווח/הפסד מהקנייה — פס לכל מניה, בנוי מהלוגו האופקי שלה (אריח לבן בשתי הערכות, כמו הלוגואים) ---- */
-.gb { position: relative; padding-top: 4px; }
+/* v769 (בקשת המשתמש): דחוס לגובה המסך (שורה 26–32px, ‎--gb-rh מ־renderGainBars), כל הרוחב, ומראה זכוכית —
+   אריח "זכוכית חלבית" בצורת קפסולה עם הבזק עליון, זוהר רך בצבע הרווח/ההפסד מקצה הפס, וכיפה זוהרת בקצה */
+#gainCard { padding: 16px 10px 12px; }
+#gainCard > h2 { margin-bottom: 8px; padding-inline: 8px; }
+.gb { position: relative; padding-top: 2px; }
 .gb-plot { position: relative; margin-inline: var(--gb-ml, 52px) var(--gb-mr, 52px); }
-.gb-grid { position: absolute; top: 0; bottom: 0; width: 0; border-inline-start: 1px dashed var(--card-border); pointer-events: none; }
-.gb-grid.zero { border-inline-start: 1.5px solid var(--on-surface-var); opacity: .45; }
-.gb-row { position: relative; display: block; width: 100%; height: 46px; padding: 0; margin: 0; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.gb-grid { position: absolute; top: 0; bottom: 0; width: 0; border-inline-start: 1px dashed var(--card-border); opacity: .7; pointer-events: none; }
+.gb-grid.zero { border-inline-start: 1px solid var(--on-surface-var); opacity: .35; }
+.gb-row { position: relative; display: block; width: 100%; height: var(--gb-rh, 32px); padding: 0; margin: 0; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .gb-bar {
-  position: absolute; top: 7px; bottom: 7px; display: flex; align-items: center; justify-content: center;
-  background: #FFFFFF; border-radius: var(--radius-xs);
-  box-shadow: 0 1px 3px rgba(0,0,0,.14), inset 0 0 0 1px rgba(0,0,0,.06);
+  position: absolute; top: var(--gb-in, 4px); bottom: var(--gb-in, 4px); display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, #FFFFFF 0%, rgba(255,255,255,.94) 52%, rgba(244,246,249,.9) 100%);
+  border-radius: var(--radius-xs);
+  box-shadow: 0 1px 1.5px rgba(0,0,0,.07), 0 3px 10px -3px rgba(0,0,0,.16), inset 0 1px 0 #FFFFFF, inset 0 -1px 0 rgba(0,0,0,.05), inset 0 0 0 .5px rgba(0,0,0,.08);
   transition: left .5s cubic-bezier(.2,.8,.2,1), width .5s cubic-bezier(.2,.8,.2,1), transform .15s;
 }
-.gb-bar::after { content: ''; position: absolute; top: 0; bottom: 0; width: 4px; }
-.gb-up .gb-bar::after { right: 0; border-radius: 0 var(--radius-xs) var(--radius-xs) 0; background: var(--gain); }
-.gb-down .gb-bar::after { left: 0; border-radius: var(--radius-xs) 0 0 var(--radius-xs); background: var(--loss); }
+.gb-up:not(.gb-out) .gb-bar { background-image: linear-gradient(90deg, transparent 55%, color-mix(in srgb, var(--gain) 14%, transparent)), linear-gradient(180deg, #FFFFFF 0%, rgba(255,255,255,.94) 52%, rgba(244,246,249,.9) 100%); }
+.gb-down:not(.gb-out) .gb-bar { background-image: linear-gradient(270deg, transparent 55%, color-mix(in srgb, var(--loss) 14%, transparent)), linear-gradient(180deg, #FFFFFF 0%, rgba(255,255,255,.94) 52%, rgba(244,246,249,.9) 100%); }
+.gb-bar::after { content: ''; position: absolute; top: 3px; bottom: 3px; width: 3px; border-radius: var(--radius-xs); }
+.gb-up .gb-bar::after { right: 3px; background: var(--gain); box-shadow: 0 0 6px color-mix(in srgb, var(--gain) 70%, transparent); }
+.gb-down .gb-bar::after { left: 3px; background: var(--loss); box-shadow: 0 0 6px color-mix(in srgb, var(--loss) 70%, transparent); }
 /* נגיעה (כמו בעוגה): הפס גדל החוצה מקו האפס בקפיץ עדין, צל רך — בלי עמעום של השאר (v261). v262: הגדלה מורגשת יותר —
    לכל פס כמה שיש מקום (8%–15%, ‎--gb-s מ־gainBarsFit), והאחוז/הלוגו זזים בדיוק עם קצה הפס (‎--gb-shift) — בלי חפיפה ובלי לצאת מהכרטיס */
 .gb-row > * { transition: transform .42s cubic-bezier(.3,1.3,.5,1), opacity .3s, box-shadow .3s; }
@@ -2057,7 +2064,7 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 .gb-row.active { z-index: 2; }
 .gb-up.active .gb-bar { transform: translateX(4px) scale(var(--gb-s, 1.12)); }
 .gb-down.active .gb-bar { transform: translateX(-4px) scale(var(--gb-s, 1.12)); }
-.gb-row.active:not(.gb-out) .gb-bar { box-shadow: 0 8px 22px rgba(0,0,0,.24), inset 0 0 0 1px rgba(0,0,0,.06); }
+.gb-row.active:not(.gb-out) .gb-bar { box-shadow: 0 8px 22px rgba(0,0,0,.22), inset 0 1px 0 #FFFFFF, inset 0 0 0 .5px rgba(0,0,0,.08); }
 .gb-up.active .gb-pct { transform: translate(calc(var(--gb-shift, 12px) + var(--gb-x, 0px)), -50%) scale(1.1); }
 .gb-up.active .gb-ico { transform: translate(var(--gb-shift, 12px), -50%) scale(1.15); }
 .gb-down.active .gb-pct { transform: translate(calc(-1 * (var(--gb-shift, 12px) + var(--gb-x, 0px))), -50%) scale(1.1); }
@@ -2069,28 +2076,32 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 .gb-usefb .gb-bar > .gb-mark { display: none; }
 .gb-usefb .gb-bar > .gb-mark ~ .gb-fb { position: static; visibility: visible; }
 .gb-fb { display: flex; align-items: center; gap: 6px; max-width: calc(100% - 14px); overflow: hidden; }
-.gb-fb .stock-logo { width: 22px; height: 22px; border-radius: 6px; box-shadow: none; flex: none; }
+.gb-fb .stock-logo { width: calc(var(--gb-rh, 32px) - 2 * var(--gb-in, 4px) - 6px); height: calc(var(--gb-rh, 32px) - 2 * var(--gb-in, 4px) - 6px); border-radius: 6px; box-shadow: none; flex: none; }
 .gb-fb .stock-logo-fb { font-size: 12px; }
 .gb-fb .stock-logo-img { padding: 1px; }
 .gb-fb > .gb-fbs { position: absolute; visibility: hidden; }
 .gb-tk .gb-fb > .gb-fbn:not(.gb-fbs) { position: absolute; visibility: hidden; }
 .gb-tk .gb-fb > .gb-fbs { position: static; visibility: visible; }
-.gb-fbn { font-size: 13px; font-weight: 800; color: #1C1C1E; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -.2px; }
+.gb-fbn { font-size: 12.5px; font-weight: 800; color: #1C1C1E; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -.2px; }
 /* מתחת ל־20% — פס דק בצבע באורך האמיתי + הלוגו הרגיל בקצה, ואז האחוז */
-.gb-out .gb-bar { top: 20px; bottom: 20px; min-width: 4px; border-radius: 3px; box-shadow: none; }
-.gb-out.gb-up .gb-bar { background: var(--gain); }
-.gb-out.gb-down .gb-bar { background: var(--loss); }
+.gb-out .gb-bar { top: calc(50% - 3px); bottom: auto; height: 6px; min-width: 6px; border-radius: var(--radius-xs); }
+.gb-out.gb-up .gb-bar { background: linear-gradient(90deg, color-mix(in srgb, var(--gain) 55%, transparent), var(--gain)); box-shadow: 0 0 8px color-mix(in srgb, var(--gain) 45%, transparent), inset 0 1px 0 rgba(255,255,255,.45); }
+.gb-out.gb-down .gb-bar { background: linear-gradient(270deg, color-mix(in srgb, var(--loss) 55%, transparent), var(--loss)); box-shadow: 0 0 8px color-mix(in srgb, var(--loss) 45%, transparent), inset 0 1px 0 rgba(255,255,255,.45); }
 .gb-out .gb-bar::after, .gb-out .gb-bar > * { display: none; }
 .gb-ico { position: absolute; top: 50%; transform: translateY(-50%); display: none; }
 .gb-out .gb-ico { display: block; }
-.gb-ico .stock-logo { width: 28px; height: 28px; border-radius: 8px; }
+.gb-ico .stock-logo { width: calc(var(--gb-rh, 32px) - 8px); height: calc(var(--gb-rh, 32px) - 8px); border-radius: 7px; }
 .gb-ico .stock-logo-fb { font-size: 13px; }
 .gb-ico .stock-logo-img { padding: 2px; }
-.gb-pct { position: absolute; top: 50%; transform: translateY(-50%); font-size: 15px; font-weight: 800; letter-spacing: -.2px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.gb-pct { position: absolute; top: 50%; transform: translateY(-50%); font-size: 14px; font-weight: 800; letter-spacing: -.2px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .gb-up .gb-pct { color: var(--gain); }
+/* v769 פרפר: האחוז צמוד לקו האפס מהצד הריק — בנגיעה רק גדל במקום (לא זז עם קצה הפס) */
+.gb-bf .gb-up .gb-pct { transform-origin: right center; }
+.gb-bf .gb-down .gb-pct { transform-origin: left center; }
+.gb-bf .gb-row.active .gb-pct { transform: translateY(-50%) scale(1.1); }
 .gb-down .gb-pct { color: var(--loss); }
-.gb-axis { position: relative; height: 20px; margin: 6px 0 0; margin-inline: var(--gb-ml, 52px) var(--gb-mr, 52px); }
-.gb-axis span { position: absolute; top: 0; transform: translateX(-50%); font-size: 12px; font-weight: 600; color: var(--on-surface-var); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.gb-axis { position: relative; height: 16px; margin: 4px 0 0; margin-inline: var(--gb-ml, 52px) var(--gb-mr, 52px); }
+.gb-axis span { position: absolute; top: 0; transform: translateX(-50%); font-size: 11px; font-weight: 600; color: var(--on-surface-var); white-space: nowrap; font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .gb-bar, .gb-row > * { transition: none; } }
 
 /* ---------------- v280: כרטיס IBKR בגוון בורדו + כרטיס התקדמות המשיכה ----------------
