@@ -606,6 +606,52 @@ html[data-app="academy"] .appbar .brand, html[data-app="studio"] .appbar .brand 
   .appbar { --ib: 38px; --pill-h: 40px; padding-inline: 10px; }
 }
 
+/* 15/11/2026 (בקשת המשתמש — "לצמצם בגובה כדי לפנות מקום בעמוד, מסודר ונקי, בלי שייראה דחוס"; לפי ת־עיצוב): הדר קומפקטי בטלפון.
+   כפתורים 44 (גודל לחיצה מינימלי), בועות בגובה 44 ובאותו גודל בדיוק — נמתחות עד 10px מהלוגו (מקום לשמות החגים הארוכים),
+   והלוגו = גובה שתי השורות (44 + 8 + 44 = 96, היה 128). ההדר 146 → 110. נמדד: כל החגים, סופ״ש ו"דיליי" נכנסים בבועת השוק
+   ב־320–430, עברית ואנגלית. תצוגת מחשב (.dk), מרכז הניהול וטלפון לרוחב — בלי שינוי. ‎--hdr-logo‎ ולא ‎--logo‎ (תפוס: כתובת התמונה) */
+@media not ((orientation: landscape) and (max-height: 500px)) {   /* טלפון לרוחב — ההדר בשורה אחת (למטה), בלי שינוי */
+  html:not(.dk):where(:not([data-app="admin"])) .appbar { --ib: 44px; --pill-h: 44px; --hdr-logo: calc(var(--ib) + 8px + var(--pill-h)); padding-block: 8px 6px; }
+  html:not(.dk):where(:not([data-app="admin"])) .appbar .brand-logo { width: var(--hdr-logo); height: var(--hdr-logo); }
+  html:not(.dk):where(:not([data-app="admin"])) .appbar .icon-btn { width: var(--ib); height: var(--ib); }
+  html:not(.dk):where(:not([data-app="admin"])) .appbar-row { grid-template-rows: var(--ib) var(--pill-h); row-gap: 8px; }
+  html:not(.dk):where(:not([data-app="admin"])) .appbar h1.brand { grid-row: 1 / 3; }
+  html:not(.dk):where(:not([data-app="admin"])) .appbar-left > .appbar-sub { justify-self: stretch; margin-inline-end: 10px; }
+  html:not(.dk):where(:not([data-app="admin"])) .appbar-left > .fx-pill { justify-self: stretch; margin-inline-start: 10px; }
+  html:not(.dk)[dir="ltr"]:where(:not([data-app="admin"])) .appbar-left > .appbar-sub { margin-inline: 10px 0; }   /* הרשת תמיד rtl — בצד של הלוגו */
+  html:not(.dk)[dir="ltr"]:where(:not([data-app="admin"])) .appbar-left > .fx-pill { margin-inline: 0 10px; }
+  html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .fx-pill, .appbar .appbar-sub > *) { width: auto; min-height: 0; height: var(--pill-h); }
+  html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .appbar-sub > :has(> .sub-cap), .appbar .fx-pill) { padding: 3px 8px; gap: 1px; }
+  html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .sub-cap, .fx-pill-label) { font-size: 11.5px; line-height: 1.2; gap: 4px; }
+  html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .sub-val, .fx-pill-value) { font-size: 16px; line-height: 1.1; }
+  html:not(.dk):lang(en):where(:not([data-app="admin"])) .appbar .sub-cap { font-size: 11px; letter-spacing: -.2px; }
+  html:not(.dk):lang(en):where(:not([data-app="admin"])) .appbar .appbar-sub > :has(> .sub-cap) { padding-inline: 5px; }
+  @media (max-width: 360px) {
+    html:not(.dk):where(:not([data-app="admin"])) .appbar { --ib: 40px; --pill-h: 42px; padding-inline: 12px; }
+    html:not(.dk):where(:not([data-app="admin"])) .appbar .icon-btn { font-size: 18px; }
+    html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .sub-cap, .fx-pill-label) { font-size: 10.5px; }
+    html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .sub-val, .fx-pill-value) { font-size: 15px; }
+    html:not(.dk):where(:not([data-app="admin"])) .appbar-left > .appbar-sub { margin-inline-end: 6px; }
+    html:not(.dk):where(:not([data-app="admin"])) .appbar-left > .fx-pill { margin-inline-start: 6px; }
+    html:not(.dk)[dir="ltr"]:where(:not([data-app="admin"])) .appbar-left > .appbar-sub { margin-inline: 4px 0; }
+    html:not(.dk)[dir="ltr"]:where(:not([data-app="admin"])) .appbar-left > .fx-pill { margin-inline: 0 4px; }
+    html:not(.dk):lang(en):where(:not([data-app="admin"])) .appbar .sub-cap { font-size: 9.8px; gap: 3px; }
+    html:not(.dk):lang(en):where(:not([data-app="admin"])) .appbar .appbar-sub > :has(> .sub-cap) { padding-inline: 3px; }
+  }
+  @media (max-width: 319px) {
+    html:not(.dk):where(:not([data-app="admin"])) .appbar { --ib: 38px; --pill-h: 38px; padding-inline: 10px; }
+    html:not(.dk):where(:not([data-app="admin"])) .appbar-left > .appbar-sub { margin-inline-end: 4px; }
+    html:not(.dk):where(:not([data-app="admin"])) .appbar-left > .fx-pill { margin-inline-start: 4px; }
+    html:not(.dk)[dir="ltr"]:where(:not([data-app="admin"])) .appbar-left > .appbar-sub { margin-inline: 3px 0; }
+    html:not(.dk)[dir="ltr"]:where(:not([data-app="admin"])) .appbar-left > .fx-pill { margin-inline: 0 3px; }
+    html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .sub-val, .fx-pill-value) { font-size: 14.5px; }
+    html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .sub-cap, .fx-pill-label) { font-size: 10px; gap: 3px; }
+    html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .appbar-sub > :has(> .sub-cap), .appbar .fx-pill) { padding-inline: 4px; }
+    html:not(.dk):lang(en):where(:not([data-app="admin"])) .appbar .sub-cap { font-size: 9.2px; letter-spacing: -.25px; }
+    html:not(.dk):lang(en):where(:not([data-app="admin"])) .appbar .appbar-sub > :has(> .sub-cap) { padding-inline: 2px; }
+  }
+}
+
 /* ---- Status banner ---- */
 .banner {
   margin: 16px 16px 0; padding: 12px 16px;
