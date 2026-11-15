@@ -226,17 +226,18 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
 
   <!-- עסקאות IBKR -->
   <section id="tab-trades" class="tabpage" role="tabpanel">
-    <div class="section-head">
-      <div class="head-actions">
-        <button class="chip-btn" id="addManualTradeBtn" type="button" data-i18n="tradesAddManual">＋ עסקה ידנית</button>
-        <div class="src-filter" id="tradesSrcFilter"></div>
+    <div class="tx-bar">
+      <div class="tx-seg" id="txSeg" role="tablist" data-i18n-aria="txViewAria" aria-label="">
+        <button type="button" role="tab" class="on" aria-selected="true" data-txv="co" data-i18n="txByCo">חברות</button>
+        <button type="button" role="tab" aria-selected="false" data-txv="yr" data-i18n="txByYr">שנים</button>
       </div>
+      <button class="tx-add" id="addManualTradeBtn" type="button" data-i18n-aria="mtAddTitle" aria-label=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+      <div class="src-filter" id="tradesSrcFilter"></div>
     </div>
-    <div id="tradeFormHost"></div>
+    <div class="tx-years hidden" id="txYears" role="group" data-i18n-aria="txYearAria" aria-label=""></div>
+    <div class="tx-search hidden" id="txSearchWrap"><input id="txSearch" type="search" autocomplete="off" enterkeyhint="search" data-i18n-ph="txSearchPh" placeholder="חיפוש חברה"></div>
     <p class="fine hidden" id="tradesHint"></p>
-    <div class="card">
-      <ul id="tradeList" class="rows" data-dk-grid tabindex="0" data-i18n-aria="dkGridTrades" aria-label=""></ul>
-    </div>
+    <ul id="tradeList" class="tx-list tx-co-list" data-dk-grid tabindex="0" data-i18n-aria="dkGridTrades" aria-label=""></ul>
   </section>
 
   <!-- מעקב (wishlist) — v240: זהה לטאב המניות (חיפוש, מיון, כרטיסים), בלי נתוני אחזקה -->

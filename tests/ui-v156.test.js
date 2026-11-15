@@ -8,7 +8,9 @@ const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 let n = 0;
 function ok(c, name) { n++; if (!c) { console.error('FAIL - ' + name); process.exit(1); } console.log('ok - ' + name); }
 
-for (const tab of ['deposits', 'trades', 'stocks']) {
+// 15/11/2026: בעסקאות — סרגל הבורר (חברות | שנים), הפלוס, והסינון בקצה החיצוני
+ok(/<div class="tx-bar">[\s\S]{0,1400}<\/button>\s*<div class="src-filter" id="tradesSrcFilter"><\/div>\s*<\/div>/.test(html), 'trades: כפתור הסינון בסרגל, בקצה החיצוני (הבועה נפתחת לתוך המסך)');
+for (const tab of ['deposits', 'stocks']) {
   ok(new RegExp('<div class="head-actions">(\\s*<button[^\\n]*</button>)?\\s*<div class="src-filter" id="' + tab + 'SrcFilter"></div>').test(html),
     tab + ': כפתור הסינון בכותרת, בקצה החיצוני (הבועה נפתחת לתוך המסך)');
 }

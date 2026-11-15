@@ -2550,3 +2550,95 @@ html[data-theme="dark"] .lib-root .lib-back { background: var(--gl-back) !import
   :where(.demo-prog-bar, .ip-bar, .lib-bar, .lib-mini, .st-tprog, .st-pbar, .st-ut-bar, .st-pl-track, .adm-lbar) { transition: none; }
   :where(.demo-prog-bar, .ip-bar, .lib-bar, .lib-mini, .st-tprog, .st-pbar, .st-ut-bar, .st-pl-track, .adm-lbar) > *::after { animation: none; }
 }
+
+/* ==== 15/11/2026 (בקשת המשתמש): העסקאות לפי חברות ולפי שנים — ניהול תיק לפי ת־תיק, בזכוכית לפי ת־עיצוב ====
+   בתוך הלשונית, מתחת להדר: בורר "חברות | שנים", שנים לסינון, רשימת חברות שנפתחות במקום / כרטיסי שנים. */
+#tab-trades { --tx-g: #1FA846; }
+[data-theme="dark"] #tab-trades { --tx-g: var(--gain); }
+.tx-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
+.tx-seg { flex: 1; display: flex; padding: 3px; border-radius: var(--pill); background: var(--gl-card); box-shadow: var(--gl-card-sh); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); }
+.tx-seg button { flex: 1; border: 0; background: transparent; color: var(--on-surface-var); font: inherit; font-size: 15.5px; font-weight: 600;
+  padding: 9px 0; border-radius: var(--pill); cursor: pointer; transition: background-color .2s ease, color .2s ease; }
+.tx-seg button.on { background: var(--gl-btn); color: var(--on-surface); box-shadow: var(--gl-btn-sh); }
+[data-theme="dark"] .tx-seg button.on { background: rgba(255, 255, 255, .16); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18); }
+.tx-add { flex: none; width: 44px; height: 44px; border: 0; border-radius: var(--pill); display: grid; place-items: center; cursor: pointer;
+  background: var(--primary); color: var(--on-primary); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 4px 14px color-mix(in srgb, var(--primary) 40%, transparent); }
+.tx-add svg { width: 22px; height: 22px; }
+.tx-years { display: flex; gap: 6px; margin: 0 0 12px; overflow-x: auto; scrollbar-width: none; }
+.tx-years::-webkit-scrollbar { display: none; }
+.tx-y { flex: none; display: inline-flex; align-items: baseline; gap: 6px; border: 0; font: inherit; font-size: 14.5px; font-weight: 600; padding: 7px 14px; border-radius: var(--pill); cursor: pointer;
+  background: var(--gl-fill); color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
+.tx-y small { font-size: 12px; font-weight: 500; opacity: .65; }
+.tx-y.on { background: var(--on-surface); color: var(--bg); }
+.tx-search { margin: 0 0 12px; }
+.tx-search input { width: 100%; font: inherit; font-size: 16px; padding: 10px 16px; border: 0; border-radius: var(--pill); background: var(--gl-fill); color: var(--on-surface); }
+.tx-list { list-style: none; margin: 0; padding: 0; }
+.tx-co-list { border-radius: var(--radius); background: var(--gl-card); box-shadow: var(--gl-card-sh); overflow: hidden; }
+.tx-co-list > p, .tx-yr-list > p { padding: 16px; margin: 0; }
+.tx-co + .tx-co { border-top: .5px solid var(--separator); }
+.tx-co.sold > .tx-co-h { opacity: .62; }
+.tx-co-h, .tx-yr-h { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; padding: 12px 16px; }
+.tx-co-h .stock-logo { flex: none; }
+.tx-mid { flex: 1; min-width: 0; display: block; }
+.tx-t1 { display: block; font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tx-t1 > span { font-size: 13.5px; font-weight: 400; color: var(--on-surface-var); }
+.tx-t2 { display: block; font-size: 13px; color: var(--on-surface-var); margin-top: 3px; font-variant-numeric: tabular-nums; }
+.tx-t2 .src-tag, .tx-t2 .src-tags { vertical-align: -3px; }
+.tx-end { flex: none; display: block; text-align: end; }
+.tx-e1 { display: block; font-size: 16px; font-weight: 600; direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+.tx-e2 { display: block; font-size: 12px; color: var(--on-surface-var); margin-top: 3px; }
+.tx-dots { display: inline-flex; gap: 3px; margin-inline: 5px 0; vertical-align: 1px; }
+.tx-dots i { width: 6px; height: 6px; border-radius: var(--pill); background: var(--gain); }
+.tx-dots i.s { background: var(--loss); }
+.tx-chev { flex: none; width: 16px; height: 16px; color: var(--on-surface-var); opacity: .55; transition: transform .25s ease; }
+[dir="rtl"] .tx-chev { transform: scaleX(-1); }
+.open > .tx-co-h .tx-chev, .open > .tx-yr-h .tx-chev { transform: rotate(90deg); }
+.tx-g { color: var(--tx-g); }
+.tx-l { color: var(--loss); }
+.tx-body { padding: 0 12px 14px; }
+.tx-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+.tx-tile { padding: 10px 12px; border-radius: var(--radius-sm); background: var(--gl-fill); min-width: 0; }
+.tx-tile small { display: block; font-size: 12px; color: var(--on-surface-var); }
+.tx-tile b { display: block; font-size: 15.5px; margin-top: 4px; direction: ltr; text-align: end; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tx-tools { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 2px 0 4px; }
+.tx-sort, .tx-add-co { border: 0; font: inherit; font-size: 14px; font-weight: 600; padding: 7px 14px; border-radius: var(--pill); cursor: pointer; }
+.tx-sort { background: transparent; color: var(--on-surface-var); padding-inline: 4px; }
+.tx-add-co { background: var(--primary-container); color: var(--on-primary-container); }
+.tx-yh { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: var(--on-surface-var); padding: 10px 4px 6px; }
+.tx-grp { border-radius: var(--radius-sm); background: var(--gl-fill); overflow: hidden; }
+.tx-row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; position: relative; }
+.tx-grp .tx-row + .tx-row, .tx-body > .tx-row + .tx-row { border-top: .5px solid var(--separator); }
+.tx-row.ed { cursor: pointer; }
+.tx-row.ed:active { background: var(--gl-fill); }
+.tx-row.dim { opacity: .55; }
+.tx-row .stock-logo { flex: none; width: 34px; height: 34px; }
+.tx-side { flex: none; width: 30px; height: 30px; border-radius: var(--pill); display: grid; place-items: center; font-size: 17px; font-weight: 800; }
+.tx-side.b { background: color-mix(in srgb, var(--gain) 16%, transparent); color: var(--tx-g); }
+.tx-side.s { background: color-mix(in srgb, var(--loss) 14%, transparent); color: var(--loss); }
+.tx-row .tx-t1 { font-size: 15px; }
+.tx-row .tx-t1 > span { font-size: 13.5px; }
+.tx-row .tx-e1 { font-size: 15px; }
+.tx-man { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: var(--radius-xs); background: var(--gl-fill); color: var(--on-surface-var); }
+.tx-edit { flex: none; color: var(--on-surface-var); opacity: .55; display: grid; }
+.tx-edit svg { width: 15px; height: 15px; }
+.tx-yr { border-radius: var(--radius); background: var(--gl-card); box-shadow: var(--gl-card-sh); overflow: hidden; margin-bottom: 10px; }
+.tx-yr-h { display: block; padding: 14px 16px; }
+.tx-yr-top { display: flex; align-items: center; gap: 10px; }
+.tx-yr-top b { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tx-yr-top > span:not(.tx-chev) { flex: 1; text-align: end; font-size: 13px; color: var(--on-surface-var); }
+.tx-kv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+.tx-kv > span { display: block; min-width: 0; }
+.tx-kv small { display: block; font-size: 12px; color: var(--on-surface-var); }
+.tx-kv b { display: block; font-size: 15px; margin-top: 2px; direction: ltr; text-align: end; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tx-yr .tx-body { padding: 0 0 6px; }
+.tx-mo { font-size: 12px; font-weight: 700; color: var(--on-surface-var); padding: 10px 16px 2px; }
+.tx-yr .tx-row { padding-inline: 16px; }
+/* הגיליון של עסקה ידנית */
+.mt-sheet { max-height: 92vh; overflow-y: auto; border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
+.mt-sheet .mt-form h2 { font-size: 18px; text-align: center; margin: 0 0 14px; }
+.mt-sheet .add-mode { display: flex; padding: 3px; border-radius: var(--pill); background: var(--gl-fill); margin-bottom: 14px; }
+.mt-sheet .add-mode .range-btn { flex: 1; }
+.mt-total { display: flex; justify-content: space-between; font-size: 14.5px; color: var(--on-surface-var); padding: 10px 4px; }
+.mt-total b { color: var(--on-surface); font-variant-numeric: tabular-nums; }
+.mt-sheet .edit-actions .btn { flex: 1; }
+.mt-del { display: block; width: 100%; border: 0; background: transparent; color: var(--loss); font: inherit; font-size: 16px; font-weight: 600; padding: 12px; margin-top: 4px; cursor: pointer; }

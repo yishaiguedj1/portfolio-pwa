@@ -1727,6 +1727,28 @@ he: {
   depManualTitle: 'קניות ידניות — מחוץ ל־IBKR',
   depManualNote: 'כסף שהוכנס לתיק דרך מניות שהוספת ביד: קנייה = הפקדה, מכירה = משיכה. דולר הומר לשקל לפי שער יום העסקה. לא משנה את התשואה (TWR מנטרל תזרימים).',
   depManualAvg: 'לפי ממוצע',
+  txByCo: 'חברות',
+  txByYr: 'שנים',
+  txViewAria: 'תצוגת העסקאות',
+  txYearAria: 'שנה',
+  txAll: 'הכל',
+  txCount: '{n} עסקאות',
+  txCount1: 'עסקה אחת',
+  txCos: '{n} חברות',
+  txCos1: 'חברה אחת',
+  txShares: 'מניות',
+  txSoldOut: 'נמכרה',
+  txBuys: 'קניות',
+  txSells: 'מכירות',
+  txFees: 'עמלות',
+  txAfter: 'אחרי: {n}',
+  txNewest: '↓ החדשות למעלה',
+  txOldest: '↑ הישנות למעלה',
+  txAddFor: '＋ עסקה',
+  txSearchPh: 'חיפוש חברה',
+  txNoMatch: 'אין עסקאות שמתאימות',
+  mtDelBtn: 'מחיקת העסקה',
+  mtTotal: 'סה״כ',
   mtShadowed: 'לא נספר — {sym} מוחזקת עכשיו ב־IBKR',
   kvRealized: 'רווח ממומש',
   mtManageHint: 'המניה מנוהלת לפי עסקאות — הכמות והמחיר הממוצע מחושבים מהן.',
@@ -3583,6 +3605,28 @@ en: {
   depManualTitle: 'Manual buys — outside IBKR',
   depManualNote: 'Money that entered the portfolio through stocks you added by hand: a buy counts as a deposit, a sell as a withdrawal. USD converted to ILS at the trade-date rate. Does not change the return (TWR neutralizes flows).',
   depManualAvg: 'By average',
+  txByCo: 'Companies',
+  txByYr: 'Years',
+  txViewAria: 'Trades view',
+  txYearAria: 'Year',
+  txAll: 'All',
+  txCount: '{n} trades',
+  txCount1: '1 trade',
+  txCos: '{n} companies',
+  txCos1: '1 company',
+  txShares: 'shares',
+  txSoldOut: 'Sold',
+  txBuys: 'Buys',
+  txSells: 'Sells',
+  txFees: 'Fees',
+  txAfter: 'After: {n}',
+  txNewest: '↓ Newest first',
+  txOldest: '↑ Oldest first',
+  txAddFor: '＋ Trade',
+  txSearchPh: 'Search company',
+  txNoMatch: 'No matching trades',
+  mtDelBtn: 'Delete trade',
+  mtTotal: 'Total',
   mtShadowed: 'Not counted — {sym} is now held at IBKR',
   kvRealized: 'Realized P&L',
   mtManageHint: 'This stock is tracked by trades — quantity and average price are computed from them.',
@@ -7987,8 +8031,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.149.0';
-const APP_VERSION = 'v769';
+const APP_RELEASE = '2.151.0';
+const APP_VERSION = 'v771';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -15249,7 +15293,7 @@ function showTradeForm(host, opts) {
   if (!host || host.querySelector('.mt-form')) return;
   const tr = o.trade ? mtNorm(o.trade) : null;
   let side = tr ? tr.side : 'BUY';
-  const card = el('div', 'card mt-form');
+  const card = el('div', (o.sheet ? '' : 'card ') + 'mt-form');
   const v = (x) => (x === undefined || x === null ? '' : String(x));
   card.innerHTML =
     '<h2>' + (tr ? t('mtEditTitle') : t('mtAddTitle')) + '</h2>' +
@@ -15264,16 +15308,31 @@ function showTradeForm(host, opts) {
     '<label>' + '<span>' + t('fldTradePrice', { c: '<span class="cur-px">$</span>' }) + '</span>' + '<input class="mt-price" type="number" min="0" step="any" inputmode="decimal" value="' + esc(tr ? pxToInput(tr.sym, tr.price) : '') + '"></label>' +
     '<label>' + '<span>' + t('fldFee', { c: '<span class="cur-sym">$</span>' }) + '</span>' + '<input class="mt-fee" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.fee ? tr.fee : '')) + '"></label>' +
     '</div>' +
+    '<div class="mt-total"><span>' + esc(t('mtTotal')) + '</span><b dir="ltr"></b></div>' +
     '<div class="form-err hidden"></div>' +
     '<div class="edit-actions"><button class="btn mt-save" type="button">' + t('btnSave') + '</button>' +
-    '<button class="link-btn mt-cancel" type="button">' + t('btnCancel') + '</button></div>';
+    '<button class="link-btn mt-cancel" type="button">' + t('btnCancel') + '</button></div>' +
+    (o.sheet && tr ? '<button class="mt-del" type="button">' + esc(t('mtDelBtn')) + '</button>' : '');
   const paintSide = () => card.querySelectorAll('[data-side]').forEach((b) => b.classList.toggle('active', b.dataset.side === side));
   paintSide();
   card.querySelectorAll('[data-side]').forEach((b) => b.addEventListener('click', () => { side = b.dataset.side; paintSide(); }));
-  host.insertBefore(card, host.firstChild);
+  if (o.sheet) host.appendChild(card); else host.insertBefore(card, host.firstChild);
   bindCurSym(card, card.querySelector('.mt-sym'));
   const close = () => { card.remove(); if (o.onClose) o.onClose(); };
   card.querySelector('.mt-cancel').addEventListener('click', close);
+  // 15/11/2026: הסכום הכולל מתעדכן תוך כדי הקלדה (כמות × מחיר + עמלה, במטבע המניה)
+  const paintTotal = () => {
+    const sym = card.querySelector('.mt-sym').value.trim().toUpperCase();
+    const q = parseFloat(card.querySelector('.mt-qty').value), px = pxFromInput(sym, parseFloat(card.querySelector('.mt-price').value));
+    const f = parseFloat(card.querySelector('.mt-fee').value) || 0;
+    const ok = q > 0 && px > 0;
+    card.querySelector('.mt-total b').textContent = ok ? fmtTradeMoney(q * px + (side === 'BUY' ? f : -f), symCur(sym)) : '—';
+  };
+  card.querySelectorAll('input').forEach((i) => i.addEventListener('input', paintTotal));
+  card.querySelectorAll('[data-side]').forEach((b) => b.addEventListener('click', paintTotal));
+  paintTotal();
+  const delB = card.querySelector('.mt-del');
+  if (delB) delB.addEventListener('click', () => { close(); mtDeleteTrade(o.trade); });
   card.querySelector('.mt-save').addEventListener('click', () => {
     const errEl = card.querySelector('.form-err');
     const fail = (m) => { errEl.textContent = m; errEl.classList.remove('hidden'); };
@@ -15296,11 +15355,12 @@ function showTradeForm(host, opts) {
     mtSyncPositions();
     saveDB();
     card.remove();
+    if (o.sheet && o.onClose) o.onClose();
     renderAll();
     flash(t('mtSaved'));
     refreshQuotes().then(() => warmHistories());
   });
-  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (!o.sheet) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function mtDeleteTrade(x) {
@@ -18733,6 +18793,199 @@ function buildTradeRow(tr, src) {
   return li;
 }
 
+/* ---------------- 15/11/2026 (בקשת המשתמש): העסקאות לפי חברות ולפי שנים ----------------
+   ניהול תיק לפי ת־תיק: בורר "חברות | שנים" ושנים לסינון. חברה נפתחת במקום, בתוך הלשונית (לא עמוד נפרד, בלי "חזור"):
+   סיכום (קניות, מכירות, עמלות) וכל העסקאות שלה לפי הסדר, מחולקות לשנים, עם האחזקה אחרי כל עסקה. "שנים" = כרטיס לכל
+   שנה עם הסיכום, ונפתח לעסקאות לפי חודשים. עסקה ידנית נערכת בגיליון זכוכית; עסקה מ־IBKR — לקריאה בלבד (הסנכרון דורס).
+   החישובים טהורים ונבדקים (tests/tx-view.test.js); הציור דרך nodeKeep/listSync (בלי ניקוי הרשימה). */
+const TX_CHEV = '<svg class="tx-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+const TX_UI = { v: 'co', y: 'all', co: '', yr: null, asc: false, q: '' };
+const _txKeys = new Map();   // מפתח יציב לכל צומת (חברה/שנה) — לשימוש חוזר בצומת שלא השתנה
+function txKey(k) { if (!_txKeys.has(k)) _txKeys.set(k, { k }); return _txKeys.get(k); }
+
+/* עסקה אחידה מכל המקורות, מהחדשה לישנה. טהורה (shadow = פונקציה: עסקה ידנית שלא נספרת) */
+function txUnify(ib, man, shadow) {
+  const rows = [];
+  for (const x of (ib || [])) {
+    if (!x || !x.symbol) continue;
+    const cur = String(x.currency || 'USD').toUpperCase();
+    rows.push({ k: x, src: 'ibkr', sym: String(x.symbol), date: String(x.date || '').slice(0, 10),
+      time: /^\d{2}:\d{2}/.test(String(x.time || '')) ? String(x.time).slice(0, 5) : '', tradeId: x.tradeId || '',
+      side: String(x.side || '').toUpperCase() === 'BUY' ? 'BUY' : 'SELL', qty: Math.abs(Number(x.qty) || 0),
+      price: Math.abs(Number(x.price) || 0), fee: Math.abs(Number(x.commission) || 0), cur,
+      feeCur: String(x.commissionCurrency || cur).toUpperCase(), acct: x.acct || null, id: '' });
+  }
+  for (const x of (man || [])) {
+    const n = mtNorm(x);
+    if (!n.sym) continue;
+    const cur = symCur(n.sym);
+    rows.push({ k: x, src: 'manual', sym: n.sym, date: n.date, time: '', tradeId: '', side: n.side, qty: n.qty, price: n.price,
+      fee: n.fee, cur, feeCur: cur, acct: null, id: n.id, shadow: !!(shadow && shadow(n.sym)) });
+  }
+  return rows.map((r, i) => [r, i]).sort((a, b) => tradeNewestFirst(a[0], b[0]) || a[1] - b[1]).map((e) => e[0]);
+}
+/* השנים שיש בהן עסקאות, מהחדשה. טהורה */
+function txYearsOf(rows) {
+  const m = new Map();
+  for (const r of rows || []) { const y = r.date.slice(0, 4); if (/^\d{4}$/.test(y)) m.set(y, (m.get(y) || 0) + 1); }
+  return [...m.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1)).map(([y, n]) => ({ y, n }));
+}
+/* סכומים לפי מטבע: קניות, מכירות, עמלות, ומונים. טהורה */
+function txTotals(rows) {
+  const o = { buy: {}, sell: {}, fee: {}, nb: 0, ns: 0, syms: new Set() };
+  const add = (m, c, v) => { m[c] = (m[c] || 0) + v; };
+  for (const r of rows || []) {
+    o.syms.add(r.sym);
+    if (r.side === 'BUY') { o.nb++; add(o.buy, r.cur, r.qty * r.price); } else { o.ns++; add(o.sell, r.cur, r.qty * r.price); }
+    if (r.fee) add(o.fee, r.feeCur, r.fee);
+  }
+  return o;
+}
+/* החברות לפי העסקה האחרונה (החדשה למעלה). rows ממוינות מהחדשה. טהורה */
+function txCompanies(rows) {
+  const m = new Map();
+  for (const r of rows || []) { if (!m.has(r.sym)) m.set(r.sym, []); m.get(r.sym).push(r); }
+  return [...m.entries()].map(([sym, rs]) => ({ sym, rows: rs, last: rs[0].date }));
+}
+/* האחזקה אחרי כל עסקה — מעוגנת לאחזקה של היום והולכת אחורה (היסטוריה חלקית מ־IBKR לא מקלקלת את האחרונות).
+   rows מהחדשה; ידנית שלא נספרת (shadow) — בלי ערך. אחזקה שלילית איפשהו = חסרה היסטוריה → null (לא מציגים). טהורה */
+function txRunning(rows, nowShares) {
+  const out = [];
+  let h = Math.max(0, Number(nowShares) || 0);
+  for (const r of rows || []) {
+    if (r.shadow) { out.push(null); continue; }
+    if (h < -1e-6) return null;
+    out.push(Math.abs(h) < 1e-9 ? 0 : h);
+    h -= r.side === 'BUY' ? r.qty : -r.qty;
+  }
+  return h < -1e-6 ? null : out;
+}
+function txQty(q) { const n = Number(q) || 0; return Number.isInteger(n) ? n.toLocaleString('en-US') : String(+n.toFixed(4)); }
+/* סכום לפי מטבע ("$12,480 · ₪3,200"); dec = ספרות אחרי הנקודה. טהורה */
+function txAmt(m, dec) {
+  const ks = Object.keys(m || {}).filter((c) => Math.abs(m[c]) > 1e-9).sort((a, b) => (a === 'USD' ? -1 : b === 'USD' ? 1 : a < b ? -1 : 1));
+  const d = dec === undefined ? 0 : dec;
+  const one = (c) => { const s = Math.abs(m[c]).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+    return c === 'USD' ? '$' + s : c === 'ILS' ? '₪' + s : c + ' ' + s; };
+  return ks.length ? ks.map(one).join(' · ') : '—';
+}
+function txHeld(sym) { return POSITIONS.filter((p) => p.sym === sym).reduce((s, p) => s + (Number(p.shares) || 0), 0); }
+function txCountTxt(n) { return n === 1 ? t('txCount1') : t('txCount', { n }); }
+function txMonthName(ym) {
+  try { return new Intl.DateTimeFormat(getLang() === 'en' ? 'en-US' : 'he-IL', { month: 'long', timeZone: 'UTC' }).format(new Date(ym + '-15T12:00:00Z')); }
+  catch (e) { return ym; }
+}
+
+/* שורת עסקה — בתוך חברה פתוחה (bySym) או בתוך שנה (עם לוגו). ידנית = נלחצת לעריכה */
+function txRowHTML(r, opts) {
+  const o = opts || {}, buy = r.side === 'BUY';
+  const tot = fmtTradeMoney(r.qty * r.price, r.cur);
+  const qp = esc(txQty(r.qty)) + ' × ' + esc(fmtTradeMoney(r.price, r.cur));
+  const tag = r.src === 'ibkr' ? srcTagHTML('ibkr', r.acct) : '<span class="tx-man">' + esc(t('manualTag')) + '</span>';
+  const ed = r.src === 'manual';
+  const lead = o.logo ? stockLogoHTML(r.sym) : '<span class="tx-side ' + (buy ? 'b' : 's') + '" aria-hidden="true">' + (buy ? '+' : '−') + '</span>';
+  const t1 = o.logo   // בתוך שנה: התגית בשורה הראשונה (השנייה כבר מלאה בתאריך ובכמות)
+    ? '<b dir="ltr">' + esc(dispSym(r.sym)) + '</b> <span class="' + (buy ? 'tx-g' : 'tx-l') + '">' + esc(buy ? t('buySide') : t('sellSide')) + '</span> ' + tag
+    : '<b>' + esc(buy ? t('buySide') : t('sellSide')) + '</b> <span dir="ltr">' + qp + '</span>';
+  const d = o.logo ? esc(fmtDateIL(r.date).slice(0, 5)) + ' · <span dir="ltr">' + qp + '</span>' : esc(fmtDateIL(r.date)) + (r.time ? ' · ' + esc(r.time) : '');
+  const after = o.after === null || o.after === undefined ? '' : '<div class="tx-e2">' + esc(t('txAfter', { n: txQty(o.after) })) + '</div>';
+  return '<div class="tx-row' + (ed ? ' ed' : '') + (r.shadow ? ' dim' : '') + '"' + (ed ? ' role="button" tabindex="0" data-mt="' + esc(r.id) + '"' : '') + '>' +
+    lead + '<div class="tx-mid"><div class="tx-t1">' + t1 + '</div><div class="tx-t2">' + d + (o.logo ? '' : ' ' + tag) + '</div>' +
+    (r.shadow ? '<div class="tx-t2">' + esc(t('mtShadowed', { sym: r.sym })) + '</div>' : '') + '</div>' +
+    '<div class="tx-end"><div class="tx-e1">' + esc(tot) + '</div>' + after + '</div>' +
+    (ed ? '<span class="tx-edit" aria-hidden="true">' + ICON_EDIT + '</span>' : '') + '</div>';
+}
+function txTilesHTML(tt) {
+  const tile = (lbl, v, cls) => '<div class="tx-tile"><small>' + esc(lbl) + '</small><b class="' + cls + '">' + esc(v) + '</b></div>';
+  return '<div class="tx-tiles">' + tile(t('txBuys') + ' · ' + tt.nb, txAmt(tt.buy), 'tx-g') + tile(t('txSells') + ' · ' + tt.ns, txAmt(tt.sell), 'tx-l') +
+    tile(t('txFees'), txAmt(tt.fee), '') + '</div>';
+}
+/* חברה: שורה + (כשפתוחה) הסיכום והעסקאות לפי שנים */
+function txCompanyHTML(c, all, open) {
+  const held = txHeld(c.sym);
+  const name = companyName(c.sym, '');
+  const dots = c.rows.slice(0, 5).map((r) => '<i class="' + (r.side === 'BUY' ? 'b' : 's') + '"></i>').join('');
+  let h = '<button type="button" class="tx-co-h" data-txco="' + esc(c.sym) + '" aria-expanded="' + open + '">' + stockLogoHTML(c.sym) +
+    '<span class="tx-mid"><span class="tx-t1"><b dir="ltr">' + esc(dispSym(c.sym)) + '</b>' + (name && name !== c.sym ? ' <span>' + esc(name) + '</span>' : '') + '</span>' +
+    '<span class="tx-t2">' + esc(txCountTxt(c.rows.length)) + '<span class="tx-dots" aria-hidden="true">' + dots + '</span> · ' + esc(fmtDateIL(c.last)) + '</span></span>' +
+    '<span class="tx-end"><span class="tx-e1">' + (held > 0 ? esc(txQty(held)) : '—') + '</span><span class="tx-e2">' + esc(held > 0 ? t('txShares') : t('txSoldOut')) + '</span></span>' +
+    '' + TX_CHEV + '</button>';
+  if (!open) return h;
+  const run = txRunning(all, held);
+  const after = new Map();
+  if (run) all.forEach((r, i) => after.set(r, run[i]));
+  const rows = TX_UI.asc ? c.rows.slice().reverse() : c.rows;
+  const p = POSITIONS.find((x) => x.sym === c.sym);
+  const canAdd = !p || p.fromTrades;
+  h += '<div class="tx-body">' + txTilesHTML(txTotals(c.rows)) +
+    '<div class="tx-tools"><button type="button" class="tx-sort" data-txsort="1">' + esc(TX_UI.asc ? t('txOldest') : t('txNewest')) + '</button>' +
+    (canAdd ? '<button type="button" class="tx-add-co" data-txadd="' + esc(c.sym) + '">' + esc(t('txAddFor')) + '</button>' : '') + '</div>';
+  let y = '';
+  for (const r of rows) {
+    const ry = r.date.slice(0, 4);
+    if (ry !== y) {
+      if (y) h += '</div>';
+      y = ry;
+      const n = rows.filter((x) => x.date.slice(0, 4) === ry).length;
+      h += '<div class="tx-yh"><span>' + esc(ry) + '</span><span>' + esc(txCountTxt(n)) + '</span></div><div class="tx-grp">';
+    }
+    h += txRowHTML(r, { after: after.has(r) ? after.get(r) : null });
+  }
+  if (y) h += '</div>';
+  return h + '</div>';
+}
+/* שנה: כרטיס סיכום + (כשפתוחה) העסקאות לפי חודשים */
+function txYearHTML(y, rows, open) {
+  const tt = txTotals(rows);
+  const kv = (lbl, v, cls) => '<span><small>' + esc(lbl) + '</small><b class="' + cls + '">' + esc(v) + '</b></span>';
+  let h = '<button type="button" class="tx-yr-h" data-txyr="' + esc(y) + '" aria-expanded="' + open + '">' +
+    '<span class="tx-yr-top"><b>' + esc(y) + '</b><span>' + esc(txCountTxt(rows.length) + ' · ' + (tt.syms.size === 1 ? t('txCos1') : t('txCos', { n: tt.syms.size }))) + '</span>' + TX_CHEV + '</span>' +
+    '<span class="tx-kv">' + kv(t('txBuys'), txAmt(tt.buy), 'tx-g') + kv(t('txSells'), txAmt(tt.sell), 'tx-l') + kv(t('txFees'), txAmt(tt.fee), '') + '</span></button>';
+  if (!open) return h;
+  h += '<div class="tx-body">';
+  let m = '';
+  for (const r of rows) {
+    const ym = r.date.slice(0, 7);
+    if (ym !== m) { m = ym; h += '<div class="tx-mo">' + esc(txMonthName(ym)) + '</div>'; }
+    h += txRowHTML(r, { logo: true });
+  }
+  return h + '</div>';
+}
+function txYearsBar(years, total) {
+  const box = document.getElementById('txYears');
+  if (!box) return;
+  const show = TX_UI.v === 'co' && years.length > 1;
+  const html = !show ? '' : '<button type="button" class="tx-y' + (TX_UI.y === 'all' ? ' on' : '') + '" data-txy="all" aria-pressed="' + (TX_UI.y === 'all') + '">' + esc(t('txAll')) + '</button>' +
+    years.map((x) => '<button type="button" class="tx-y' + (TX_UI.y === x.y ? ' on' : '') + '" data-txy="' + x.y + '" aria-pressed="' + (TX_UI.y === x.y) + '">' + x.y + '<small>' + x.n + '</small></button>').join('');
+  if (box._h !== html) { box._h = html; box.innerHTML = html; }
+  if (box.classList) box.classList.toggle('hidden', !show);
+  const sw = document.getElementById('txSearchWrap');
+  if (sw && sw.classList) sw.classList.toggle('hidden', !(TX_UI.v === 'co' && total > 8));
+  const seg = document.getElementById('txSeg');
+  if (seg && seg.querySelectorAll) seg.querySelectorAll('[data-txv]').forEach((b) => { const on = b.dataset.txv === TX_UI.v; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
+}
+/* לחיצות — מאזין אחד לכל הלשונית (הצמתים נשמרים בין ציורים) */
+function txWire() {
+  const tab = document.getElementById('tab-trades');
+  if (!tab || tab._txWired || !tab.addEventListener) return;
+  tab._txWired = true;
+  const act = (e) => {
+    const g = (s) => e.target && e.target.closest && e.target.closest(s);
+    let b;
+    if ((b = g('[data-txv]'))) { TX_UI.v = b.dataset.txv; renderTrades(); return; }
+    if ((b = g('[data-txy]'))) { TX_UI.y = b.dataset.txy; TX_UI.co = ''; renderTrades(); return; }
+    if ((b = g('[data-txco]'))) { const s = b.dataset.txco; TX_UI.co = TX_UI.co === s ? '' : s; renderTrades(); return; }
+    if ((b = g('[data-txyr]'))) { const y = b.dataset.txyr; TX_UI.yr = TX_UI.yr === y ? '' : y; renderTrades(); return; }
+    if (g('[data-txsort]')) { TX_UI.asc = !TX_UI.asc; renderTrades(); return; }
+    if ((b = g('[data-txadd]'))) { const s = b.dataset.txadd; openTradeSheet({ sym: s, lockSym: true, name: companyName(s, s) }); return; }
+    if ((b = g('[data-mt]'))) { const x = mtList().find((y) => String(mtNorm(y).id) === b.dataset.mt); if (x) openTradeSheet({ trade: x }); }
+  };
+  tab.addEventListener('click', act);
+  tab.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.dataset && e.target.dataset.mt) { e.preventDefault(); act(e); } });
+  const q = document.getElementById('txSearch');
+  if (q) q.addEventListener('input', () => { TX_UI.q = q.value.trim().toUpperCase(); renderTrades(); });
+}
+
 function renderTrades() {
   const list = document.getElementById('tradeList');
   const hint = document.getElementById('tradesHint');
@@ -18741,7 +18994,8 @@ function renderTrades() {
   const ib = ready ? ibkrTrades() : [];
   const man = mtList();
   if (!tabShouldRender('trades')) return; // v193
-  const was = nodesOf(list), out = [];   // סבב 6: שורה שלא השתנתה נשארת
+  const was = nodesOf(list), out = [];   // סבב 6: צומת שלא השתנה נשאר
+  txWire();
   renderSrcFilter('trades');
   const sf = getSrcFilter('trades');
   if (hint) {
@@ -18750,23 +19004,58 @@ function renderTrades() {
     hint.classList.toggle('hidden', !showHint);
     if (showHint) hint.textContent = t('tradesNeedIbkr');
   }
+  const rows = txUnify(ib, man, mtShadowed).filter((r) => srcPass(sf, r.src));
+  const years = txYearsOf(rows);
+  if (TX_UI.y !== 'all' && !years.some((x) => x.y === TX_UI.y)) TX_UI.y = 'all';
+  const cos = txCompanies(rows);
+  txYearsBar(years, cos.length);
+  if (list.classList) { list.classList.toggle('tx-co-list', TX_UI.v === 'co'); list.classList.toggle('tx-yr-list', TX_UI.v === 'yr'); }
   if (!ib.length && !man.length) {
     listSync(list, ready ? [el('p', 'fine', t('tradesEmpty'))] : []);
     return;
   }
-  // מאוחד, מהחדש לישן — ידניות מסומנות ועם עריכה/מחיקה
-  const host = document.getElementById('tradeFormHost');
-  const edit = (x) => { if (host) { host.innerHTML = ''; showTradeForm(host, { trade: x }); } };
-  const rows = ib.map((x) => ({ d: String(x.date || '').slice(0, 10), ib: x }))
-    .concat(man.map((x) => ({ d: mtNorm(x).date, mt: x })))
-    .filter((r) => srcPass(sf, r.mt ? 'manual' : 'ibkr'))
-    .sort((a, b) => (a.d < b.d ? 1 : a.d > b.d ? -1 : 0)); // יציב — בתוך יום נשמר הסדר של ibkrTrades
-  if (!rows.length) out.push(el('p', 'fine', t('srcFilterEmpty')));
-  for (const r of rows) {
-    const nd = r.mt ? buildManualTradeRow(r.mt, edit) : buildTradeRow(r.ib, 'ibkr');
-    out.push(nodeKeep(was, r.mt || r.ib, nd) || nd);
+  if (TX_UI.v === 'yr') {
+    if (TX_UI.yr === null && years.length) TX_UI.yr = years[0].y;   // בפתיחה — השנה האחרונה פתוחה
+    for (const x of years) {
+      const nd = el('li', 'tx-yr' + (TX_UI.yr === x.y ? ' open' : ''), txYearHTML(x.y, rows.filter((r) => r.date.slice(0, 4) === x.y), TX_UI.yr === x.y));
+      out.push(nodeKeep(was, txKey('y' + x.y), nd) || nd);
+    }
+  } else {
+    const q = TX_UI.q;
+    for (const c of cos) {
+      const inY = TX_UI.y === 'all' ? c.rows : c.rows.filter((r) => r.date.slice(0, 4) === TX_UI.y);
+      if (!inY.length) continue;
+      if (q && !c.sym.toUpperCase().includes(q) && !companyName(c.sym, '').toUpperCase().includes(q)) continue;
+      const open = TX_UI.co === c.sym;
+      const nd = el('li', 'tx-co' + (open ? ' open' : '') + (txHeld(c.sym) > 0 ? '' : ' sold'),
+        txCompanyHTML({ sym: c.sym, rows: inY, last: inY[0].date }, c.rows, open));
+      out.push(nodeKeep(was, txKey('c' + c.sym), nd) || nd);
+    }
   }
+  if (!out.length) out.push(el('p', 'fine', rows.length ? t('txNoMatch') : t('srcFilterEmpty')));
   listSync(list, out);
+}
+
+/* גיליון זכוכית לעסקה ידנית (חדשה / עריכה) — הטופס הקיים בתוך גיליון מלמטה */
+function closeTradeSheet() {
+  const v = document.getElementById('mtSheetVeil');
+  if (!v) return;
+  v.remove();
+  if (v._modal) { const m = v._modal; v._modal = null; modalDone(m); }
+}
+function openTradeSheet(opts) {
+  closeTradeSheet();
+  const veil = el('div', 'pf-sheet-veil mt-veil');
+  veil.id = 'mtSheetVeil';
+  veil._modal = modalPush(closeTradeSheet);
+  const sh = el('div', 'pf-sheet mt-sheet');
+  sh.setAttribute('role', 'dialog');
+  sh.setAttribute('aria-modal', 'true');
+  sh.innerHTML = '<div class="sheet-grab" aria-hidden="true"></div>';
+  veil.appendChild(sh);
+  veil.addEventListener('click', (e) => { if (e.target === veil) closeTradeSheet(); });
+  document.body.appendChild(veil);
+  showTradeForm(sh, Object.assign({}, opts, { sheet: true, onClose: closeTradeSheet }));
 }
 
 function renderDeposits() {
@@ -19766,10 +20055,7 @@ function init() {
 
   // ניקוי מטמון ורענון — מביא את הגרסה החדשה ביותר מהשרת
   const amtBtn = document.getElementById('addManualTradeBtn');
-  if (amtBtn) amtBtn.addEventListener('click', () => {
-    const host = document.getElementById('tradeFormHost');
-    if (host) { host.innerHTML = ''; showTradeForm(host, {}); }
-  });
+  if (amtBtn) amtBtn.addEventListener('click', () => openTradeSheet({}));   // 15/11/2026: גיליון זכוכית
   const clearCacheBtn = document.getElementById('clearCache');
   if (clearCacheBtn) clearCacheBtn.addEventListener('click', async () => {
     try {
