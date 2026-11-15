@@ -1320,6 +1320,8 @@ footer.fine { text-align: center; }
    אותו עיצוב כפתור, רק ריפוד צדדי קטן יותר. תפריט השנה = בועת הסינון, צמוד לקצה של הכפתור */
 .stock-body .chip-row.stock-chips { overflow: visible; gap: 6px; }
 .stock-chips > .range-btn, .stock-chips > .range-year { flex: 1 1 0; min-width: 0; }
+/* 15/11/2026: רשת עמודות שוות בדיוק — ב־flex בבסיס 0 הריפוד והמסגרת של כפתור רגיל (10px) לא מתכווצים, וכפתור השנה (עטוף) יצא צר ב־10px */
+.chip-row.stock-chips { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
 .stock-chips .range-btn { padding-inline: 4px; text-align: center; white-space: nowrap; }
 .stock-chips .range-year .range-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 3px; }
 .range-year .range-btn.cal .ic { width: 17px; height: 17px; margin: 0; stroke: currentColor; vertical-align: -3px; }
