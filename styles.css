@@ -2702,6 +2702,10 @@ html[data-theme="dark"] .lib-root .lib-back { background: var(--gl-back) !import
 .tx-tile { padding: 10px 12px; border-radius: var(--radius-sm); background: var(--gl-fill); min-width: 0; }
 .tx-tile small { display: block; font-size: 12px; color: var(--on-surface-var); }
 .tx-tile b { display: block; font-size: 15.5px; margin-top: 4px; direction: ltr; text-align: end; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tx-ret { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; margin-bottom: 8px; border-radius: var(--radius-sm); background: var(--gl-fill); }
+.tx-ret small { font-size: 13px; color: var(--on-surface-var); min-width: 0; }
+.tx-ret small span { display: block; font-size: 12px; margin-top: 2px; }
+.tx-ret b { font-size: 17px; direction: ltr; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tx-tools { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 2px 0 4px; }
 .tx-sort, .tx-add-co { border: 0; font: inherit; font-size: 14px; font-weight: 600; padding: 7px 14px; border-radius: var(--pill); cursor: pointer; }
 .tx-sort { background: transparent; color: var(--on-surface-var); padding-inline: 4px; }
