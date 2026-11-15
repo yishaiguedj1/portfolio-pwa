@@ -32,11 +32,11 @@ ok(/const clash = \(p, q\) =>/.test(src) && /placed\.some\(\(o\) => clash\(o, g\
 ok(/pctTxt: pct\.toFixed\(1\) \+ '%'/.test(src), 'v172: אחוז עם ספרה עשרונית תמיד (18.1%)');
 ok(/ctx\.strokeStyle = surface; ctx\.lineWidth = gap;/.test(src), 'רווח דק בצבע הכרטיס בין הפרוסות');
 ok(/\.pie-leg-logo \{[^}]*width: 34px; height: 34px; border-radius: 10px;/.test(css), 'מקרא: לוגו גדול יותר, אריח מעוגל');
-ok(/class="lg-full" dir="auto"/.test(src) && /#pieLegend \.lg-full \{ align-self: flex-start; max-width: 100%;/.test(css), 'מקרא: שם מלא מתחת לסימבול, חיתוך בסוף השם');
+ok(!/class="lg-full"/.test(src) && /#pieLegend li \{\s*display: grid; grid-template-columns: 30px 68px 1fr auto;/.test(css) && /<span class="lg-num"><span class="lg-pct">/.test(src), 'v770: מקרא בשורה אחת — לוגו · סימבול · פס · אחוז מעל השווי, בלי שם החברה');
 ok(/data-err="hide-self"/.test(src) && /im\.dataset\.err === 'hide-self'/.test(src), 'לוגו שלא נטען — נשארת האות, לא ריבוע ריק');
 ok(/const cashLast = \(x, y\) => \(x\.cash \? 1 : 0\) - \(y\.cash \? 1 : 0\) \|\| y\.value - x\.value;/.test(src) && /const ordered = slicesUnique\.slice\(\)\.sort\(cashLast\);/.test(src), 'v170: הפרוסות לפי גודל, מהגדולה ב־12 בשעון עם כיוון השעון (המזומן תמיד אחרון)');
 ok(/\.pie-leg-logo\.inv \.pie-leg-fb \{ display: none; \}/.test(css), 'v174: לוגו לבן מהופך — בלי האות מאחוריו');
-ok(/\.pie-wrap \{ display: flex; justify-content: center; margin-inline: -12px; \}/.test(css) && /#pieChart \{ width: 100%; max-width: 520px;/.test(css), 'v175: העוגה כמעט ברוחב הכרטיס');
+ok(/\.pie-wrap \{ display: flex; justify-content: center; margin-inline: -20px; \}/.test(css) && /#pieChart \{ width: 100%; max-width: 560px;/.test(css), 'v175/v770: העוגה ברוחב הכרטיס כולו');
 ok(A('PIE_RANK_PALETTE').slice(0, 4).join() === '#8DC63F,#8FC1E3,#F46A5C,#C95CF5' && /x\.color = x\.cash \? PIE_CASH_COLOR : PIE_RANK_PALETTE\[rk\+\+ % PIE_RANK_PALETTE\.length\]/.test(src), 'v178: צבעי הפרוסות לפי הדירוג בתיק (ירוק, תכלת, אלמוגי, סגול…)');
 const geom = { cx: 100, cy: 100, r: 40, R: 90, segs: [{ sym: 'A', a: -Math.PI / 2, a2: 0 }, { sym: 'B', a: 0, a2: 3 * Math.PI / 2 }] };
 ok(A('pieHitSym')(geom, 160, 40) === 'A' && A('pieHitSym')(geom, 40, 160) === 'B' && A('pieHitSym')(geom, 100, 100) === null && A('pieHitSym')(geom, 100, -10) === null, 'v178: זיהוי הפרוסה שנגעו בה (לא במרכז ולא מחוץ לטבעת)');

@@ -146,8 +146,8 @@ function makeSandbox() {
   ok(fills.includes(A('PIE_RANK_PALETTE')[1].toUpperCase()), 'drawPie (v178): השנייה בצבע השני');
   ok(legendChildren.length === 2, 'drawPie: שורת מקרא לכל חברה');
   ok(legendChildren.every((li) => /pie-leg-logo/.test(li.innerHTML)), 'מקרא: לוגו קטן בכל שורה');
-  ok(legendChildren.every((li) => /class="dot"/.test(li.innerHTML)), 'מקרא: עיגול הצבע עדיין קיים');
-  ok(/pie-leg-logo[\s\S]*?dot/.test(legendChildren[0].innerHTML), 'מקרא: הלוגו לפני עיגול הצבע (ימני יותר ב-RTL)');
+  ok(legendChildren.every((li) => /class="lg-bar"[^>]*><i style="width:[\d.]+%;background:/.test(li.innerHTML)), 'v770: מקרא: פס המשקל בצבע הפרוסה (במקום עיגול הצבע)');
+  ok(/pie-leg-logo[\s\S]*?lg-bar/.test(legendChildren[0].innerHTML), 'מקרא: הלוגו לפני הפס (ימני יותר ב-RTL)');
   ok(legendChildren.every((li) => /financialmodelingprep\.com\/image-stock\//.test(li.innerHTML)), 'מקרא: מקור הלוגו כמו בטאב המניות');
 
   // --- 4ב. המזומן = פרוסה משלו, והאחוזים מתוך כל התיק (מניות + מזומן) ---
