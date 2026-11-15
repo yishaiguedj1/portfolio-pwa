@@ -29,7 +29,7 @@ for (const tab of ['deposits', 'trades', 'stocks']) {
   ok(new RegExp("renderSrcFilter\\('" + tab + "'\\)").test(src), 'הבורר מצויר ב־' + tab);
 }
 ok(/srcPass\(sf, isIbkrDeposit\(x\.d\)/.test(src), 'הפקדות: מקור לפי isIbkrDeposit (כמו התגית והאיפוס)');
-ok(/srcPass\(sf, r\.mt \? 'manual' : 'ibkr'\)/.test(src), 'עסקאות: ידני מול IBKR');
+ok(/filter\(\(r\) => srcPass\(sf, r\.src\)\)/.test(src), 'עסקאות: ידני מול IBKR');
 ok(/srcPass\(sf, positionSource\(p\)\)/.test(src), 'מניות: מקור לפי positionSource');
 ok(/\.rows li > :not\(:first-child\) \{ flex: none; \}/.test(css) && /overflow-wrap: anywhere/.test(css), 'הסכום לא מתכווץ, התיאור נשבר');
 ok(/srcFilterLabel: 'הצג לפי מקור'/.test(src) && /srcFilterLabel: 'Show by source'/.test(src), 'תוויות בעברית ובאנגלית');
