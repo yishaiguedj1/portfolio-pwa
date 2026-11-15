@@ -31,6 +31,12 @@ const ils = (v, d) => {
 const money = (v, cur) => (cur === 'ILS' ? ils(v, 2) : LRI + (v < 0 ? MINUS : '') + (cur === 'USD' ? '$' : cur + ' ') + Math.abs(v).toLocaleString('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 }) + PDI);
 const dmy = (iso) => (iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '');
 const qtyTxt = (q) => LRI + (Math.round(q * 1e4) / 1e4).toLocaleString('en-US') + PDI;
+/* 15/11/2026: תגית החשבון בצבע שלו (אותה תגית כמו באפליקציה — HTML מ־srcTagHTML, עם esc) */
+function acctTag(id) {
+  const s = h('span', { class: 'tx-atag' });
+  if (E.srcTag) s.innerHTML = E.srcTag(id);
+  return s;
+}
 const row = (k, v, cls) => h('div', { class: 'tx-row' + (cls ? ' ' + cls : '') }, [h('span', { text: k }), h('span', { class: 'tx-num', text: v })]);
 function settings() { try { return JSON.parse(localStorage.getItem(LS_TAX) || 'null') || {}; } catch (e) { return {}; } }
 function saveSettings(p) {
@@ -100,12 +106,34 @@ function compute() {
   // 02/11/2026 (שלבים 7–12): פעולות תאגידיות והעברות ניירות, ההחלטות של המשתמש, תושבות וההגדרות השנויות במחלוקת
   const ev = d.taxEvents || [];
   const cpi = S.fx.CPI ? (dt) => tiRateOn(S.fx.CPI.rows, dt) : null;
-  const f = tiFifo(d.trades || [], fxOf, { cpi: cpi, corp: ev.filter((e) => e.k === 'ca'), tin: ev.filter((e) => e.k === 'tr'), alloc: st.alloc || {}, tinCost: st.tinCost || {} });
-  const R = tiResident(f.sales, tiDividends(d.cashTransactions || [], fxOf), st.res);
-  const sales = R.sales, divs = R.divs;
+  const fifoOf = (trades, evs) => tiFifo(trades, fxOf, { cpi: cpi, corp: evs.filter((e) => e.k === 'ca'), tin: evs.filter((e) => e.k === 'tr'), alloc: st.alloc || {}, tinCost: st.tinCost || {} });
+  // 15/11/2026 (בקשת המשתמש): כמה חשבונות IBKR — FIFO לכל חשבון בנפרד (מנה שנקנתה בחשבון אחד לא נמכרת מחשבון אחר),
+  // המס של כל חשבון לבדו, והסך הכל על כל המכירות יחד (הפסד בחשבון אחד מקוזז מרווח בחשבון אחר — המס הוא של האדם)
+  const accts = ((E.accounts && E.accounts()) || []).filter((a) => a && a.id);
+  let f, sales, divs, parts = null;
+  if (accts.length > 1) {
+    parts = accts.map((a) => {
+      const own = (x) => x && x.acct === a.id;
+      const fa = fifoOf((d.trades || []).filter(own), ev.filter(own));
+      const Ra = tiResident(fa.sales, tiDividends((d.cashTransactions || []).filter(own), fxOf), st.res);
+      for (const x of Ra.sales.concat(Ra.divs, fa.open || [])) x.acct = a.id;
+      return { a, f: fa, sales: Ra.sales, divs: Ra.divs };
+    });
+    const all = (k) => [].concat(...parts.map((p) => p.f[k] || []));
+    f = { open: all('open'), sales: all('sales'), fx: all('fx'), issues: all('issues') };
+    sales = [].concat(...parts.map((p) => p.sales)).sort((x, y) => (x.sellDate < y.sellDate ? -1 : x.sellDate > y.sellDate ? 1 : 0));
+    divs = [].concat(...parts.map((p) => p.divs)).sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));
+  } else {
+    f = fifoOf(d.trades || [], ev);
+    const R = tiResident(f.sales, tiDividends(d.cashTransactions || [], fxOf), st.res);
+    sales = R.sales; divs = R.divs;
+  }
   const yo = { carry: Number(st.carry0) || 0, other: st.other || {}, otherCap: st.otherCap || {}, noOffInt: !!st.noOffInt, poolCg: !!st.poolCg,
     fxTax: !!st.fxTax, fx: f.fx || [], sub: st.sub || [], filed: st.filed || {}, cpi: cpi };
   const years = tiYears(sales, divs, yo);
+  // המס של כל חשבון לבדו — בלי ההפסד המועבר מלפני הנתונים ובלי ההכנסה האחרת (הם של האדם, נכנסים רק לסך הכל)
+  const per = parts ? parts.map((p) => ({ id: p.a.id, name: p.a.name, ci: p.a.ci,
+    yIdx: new Map(tiYears(p.sales, p.divs, Object.assign({}, yo, { carry: 0, other: {}, otherCap: {}, fx: p.f.fx || [] })).map((y) => [y.year, y])) })) : null;
   const nowY = new Date().getFullYear();
   const yIdx = new Map(years.map((y) => [y.year, y]));
   if (!yIdx.has(nowY)) {
@@ -116,7 +144,7 @@ function compute() {
   const priceOf = (sym) => { const q = E.quote && E.quote(sym); return q && q.close > 0 ? q.close : null; };
   const unreal = tiUnrealized(f.open, priceOf, fxNow, 0, cpi);
   const health = tiCheck(f.open, d.positions || []);
-  return { d, f, sales, divs, yo, years, yIdx, unreal, health, w8: tiW8(divs), estate: tiEstate(d.positions || [], priceOf), nowY, st };
+  return { d, f, sales, divs, yo, years, yIdx, unreal, health, w8: tiW8(divs), estate: tiEstate(d.positions || [], priceOf), nowY, st, per };
 }
 
 /* ---------- פתיחה וסגירה ---------- */
@@ -246,6 +274,17 @@ function paintYear(wrap, C) {
     }));
   }
   wrap.appendChild(c1);
+  // 15/11/2026: כמה חשבונות IBKR — המס של כל חשבון והסך הכל
+  if (C.per) {
+    const cA = h('div', { class: 'tx-card' }, [h('p', { class: 'tx-h', text: T('txByAcct') })]);
+    for (const p of C.per) {
+      const Yi = p.yIdx.get(S.year);
+      cA.appendChild(h('div', { class: 'tx-row' }, [h('span', { class: 'tx-acct' }, [acctTag(p.id), h('span', { text: p.name })]), h('span', { class: 'tx-num', text: ils(Yi ? Yi.due : 0) })]));
+    }
+    cA.appendChild(row(T('txAcctTotal'), ils(Y.due), 'tx-tot'));
+    cA.appendChild(h('p', { class: 'tx-sub', text: T('txByAcctS') }));
+    wrap.appendChild(cA);
+  }
   // דיבידנדים וריבית
   // הזיכוי מחושב לכל מקור בנפרד (199, 204(ב)); עודף → החזר מה־IRS או מאגר ל־5 שנים (205א)
   if (Y.div.n || Y.interest.n || Y.marginInt > 0.5) {
@@ -287,7 +326,7 @@ function paintYear(wrap, C) {
     for (const s of ys2.slice().reverse()) {
       c4.appendChild(h('button', { class: 'tx-item', type: 'button', onclick: () => openLots(s.sym, [s], true) }, [
         h('span', { class: 'tx-tag', text: s.sym.slice(0, 5) }),
-        h('span', {}, [h('div', { class: 'tx-nm', text: s.sym }), h('div', { class: 'tx-ds', text: dmy(s.sellDate) + ' · ' + T('txUnits', { n: qtyTxt(s.qty) }) })]),
+        h('span', {}, [h('div', { class: 'tx-nm' }, [s.sym, s.acct ? acctTag(s.acct) : null]), h('div', { class: 'tx-ds', text: dmy(s.sellDate) + ' · ' + T('txUnits', { n: qtyTxt(s.qty) }) })]),
         h('span', { class: 'tx-end' }, [h('span', { class: 'tx-num ' + (s.taxable < 0 ? 'tx-loss' : ''), text: ils(s.taxable) }), h('span', { class: 'tx-ds', text: T('txTaxable') })]),
       ]));
     }

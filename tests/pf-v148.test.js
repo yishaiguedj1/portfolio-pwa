@@ -48,7 +48,7 @@ const A = (k) => vm.runInContext(k, sb);
   ok(/ibkrSaveCfg\(\{ proxyUrl: '', token, queryId, appKey: '',/.test(src) && /if \(cfg\.appKey\) ibkrSaveCfg\(\{ appKey: '' \}\)/.test(src), 'v150: מפתח ישן שנשמר בטלפון נמחק');
 
   // --- 4. ניתוק מוחק פרטי גישה ---
-  ok(/ibkrSaveCfg\(\{ lastSync: 0, data: null, token: '', queryId: '', appKey: '', statementUrl: '' \}\)/.test(src), 'ניתוק מוחק token, Query ID ומפתח שרתון');
+  ok(/ibkrSaveCfg\(\{ lastSync: 0, (dataAt: 0, )?data: null, (own: null, accts: \[\], )?token: '', queryId: '', appKey: '', statementUrl: '' \}\)/.test(src), 'ניתוק מוחק token, Query ID ומפתח שרתון');
   ok(/removeItem\('pwa_tdkey_v1'\)/.test(src), 'v220: Twelve Data הוסר — מפתח ישן נמחק מהטלפון');
 
   // --- 5. ענן ---

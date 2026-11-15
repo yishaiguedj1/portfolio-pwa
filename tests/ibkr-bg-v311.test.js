@@ -48,9 +48,9 @@ ok(!T.ibkrAutoSyncDue(Object.assign({}, base, { autoTry: now - 16 * 60000, autoR
 
   // מבנה הקוד: עדכון שקט לא משאיר הודעה אדומה; ניתוק מוחק גם מהשרתון; ייבוא → ack
   ok(/if \(silent\) return result;\s+\/\/ v311/.test(app), 'עדכון שקט שנכשל — בלי הודעת שגיאה אדומה (התקלה מהצילום)');
-  ok(/if \(res === 'ok' \|\| res === 'uptodate'\) ibkrClearErr\(\)/.test(app), 'עדכון שקט שהצליח — מנקה שגיאה ישנה מהמסך');
+  ok(/if \(\(res === 'ok' \|\| res === 'uptodate'\) && id === IBKR_MAIN\) ibkrClearErr\(\)/.test(app), 'עדכון שקט שהצליח — מנקה שגיאה ישנה מהמסך');
   ok(/const hadBg = c0\.bgOn \|\| !c0\.token;[\s\S]{0,400}bgPurge: !!hadBg \}\);[\s\S]{0,60}if \(hadBg\) ibkrBgPurge\(\)/.test(app), 'ניתוק — ה־token המוצפן נמחק גם מהשרתון (עם ניסיון חוזר)');
-  ok(/ibkrSaveCfg\(\{ lastSync: Date\.now\(\), data: data \}\);\s+(ibkrCloudPush\(\)[^\n]*\n\s+)?ibkrBgAck\(\)/.test(app), 'אחרי ייבוא — הדוח נמחק מהענן (ack)');
+  ok(/ibkrSaveCfg\(Object\.assign\(\{ data: data, dataAt: now \}, \(acctId === IBKR_MAIN && !\(o && o\.keepSync\)\) \? \{ lastSync: now \} : \{\}\)\);\s+(ibkrCloudPush\(\)[^\n]*\n\s+)?ibkrBgAck\(\)/.test(app), 'אחרי ייבוא — הדוח נמחק מהענן (ack)');
   ok(/role="switch" aria-checked=/.test(app) && /\.ib-sw/.test(fs.readFileSync(path.join(root, 'styles.css'), 'utf8')), 'מתג נגיש (role=switch) בכרטיס');
   ok(!/localStorage[^\n]*bgToken|bg[A-Za-z]*:\s*cfg\.token/.test(app), 'ה־token לא נשמר בשום מקום חדש בטלפון');
 

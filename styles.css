@@ -1829,6 +1829,17 @@ html[data-app="cashflow"] .login-overlay { background: linear-gradient(160deg, #
 /* v147: תגית מקור IBKR — הלוגו של Interactive Brokers, באותו מבנה כמו "ידני" */
 .src-tag.src-ibkr { padding: 2px 6px; line-height: 0; background: color-mix(in srgb, #d71920 12%, transparent); }
 .src-tag.src-ibkr img { width: 14px; height: 14px; display: inline-block; vertical-align: middle; }
+/* 15/11/2026 (בקשת המשתמש): כמה חשבונות IBKR — הלוגו בצבע החשבון (מסכה על הצורה של הלוגו): ראשי אדום, כחול, ירוק, צהוב, סגול, כתום */
+.src-tag.ib-c0 { --ib-c: #d71920; } .src-tag.ib-c1 { --ib-c: #1f6fe5; } .src-tag.ib-c2 { --ib-c: #16a34a; }
+.src-tag.ib-c3 { --ib-c: #e3a400; } .src-tag.ib-c4 { --ib-c: #8b5cf6; } .src-tag.ib-c5 { --ib-c: #f2711c; }
+.src-tag.src-ibkr[class*="ib-c"] { background: color-mix(in srgb, var(--ib-c) 14%, transparent); }
+.src-tag .ib-logo { width: 14px; height: 14px; display: inline-block; vertical-align: middle; background: var(--ib-c);
+  -webkit-mask: url(ibkr-logo.png) center / contain no-repeat; mask: url(ibkr-logo.png) center / contain no-repeat; }
+.src-tags { display: inline-flex; align-items: center; gap: 3px; vertical-align: middle; }
+.src-tags > .src-tag { margin: 0; }
+.stock-id .src-tags { grid-row: 1; grid-column: 3; justify-self: start; }
+.sh-r1 .src-tags { flex: none; align-self: flex-start; margin-top: 1px; margin-inline-end: auto; }
+.sh-r1 .src-tags > .src-tag { font-size: 10.5px; padding: 1px 6px; line-height: 1.3; }
 .danger-btn .src-tag { margin-inline-start: 0; margin-inline-end: 8px; background: #fff; color: var(--primary); }
 .danger-btn .src-tag.src-ibkr { background: #fff; }
 
@@ -1953,7 +1964,7 @@ details.note[open] > :not(summary) { animation: demoIn .28s cubic-bezier(.2, .9,
 .sh-r1 .stock-price.px-xl { font-size: 20px; }
 @media (max-width: 374px) { .sh-r1 .stock-price { font-size: 25px; } .sh-r1 .stock-price.px-lg { font-size: 21px; } .sh-r1 .stock-price.px-xl { font-size: 17px; letter-spacing: -.8px; } }
 /* 11/11/2026: מסך צר במיוחד (280) — גם 25px חרג משמאל לכרטיס; כאן המחיר קטן יותר ותג המקור ("ידני") מוסתר, והשורה נכנסת */
-@media (max-width: 319px) { .sh-r1 .stock-price { font-size: 20px; letter-spacing: -.4px; } .sh-r1 .stock-price.px-lg { font-size: 17px; } .sh-r1 .stock-price.px-xl { font-size: 14px; } .sh-r1 .src-tag { display: none; } }
+@media (max-width: 319px) { .sh-r1 .stock-price { font-size: 20px; letter-spacing: -.4px; } .sh-r1 .stock-price.px-lg { font-size: 17px; } .sh-r1 .stock-price.px-xl { font-size: 14px; } .sh-r1 .src-tag, .sh-r1 .src-tags { display: none; } }
 /* המחיר הוא LTR פנימית — margin-inline-start שלו הוא הצד הלא נכון ב־RTL; דוחפים מצד התגית/הסימבול (בכיוון השורה) */
 .sh-r1 .src-tag, .sh-r1 .stock-sym:has(+ .stock-price) { margin-inline-end: auto; }
 .sh-r2 .stock-name { flex: 0 1 auto; min-width: 0; max-width: none; contain: none; margin-top: 2px; } /* רוחב טבעי — מתכווץ (…) רק כשהבועה צריכה מקום; לא נמתח (שם באנגלית היה נדחף לקצה השני) */
@@ -2091,6 +2102,25 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 #ibkrCard .ib-row + .ib-row { border-top: 1px solid var(--ib-line); }
 #ibkrCard .ib-row > span:first-child { color: var(--on-surface-var); flex: none; }
 #ibkrCard .ib-v { color: var(--on-surface); font-weight: 600; font-variant-numeric: tabular-nums; unicode-bidi: isolate; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* 15/11/2026: עמוד IBKR — כרטיס לכל חשבון (הלוגו בצבע שלו · שם · תקופה · מספרים), הסרה ו"הוספת חשבון" */
+#ibkrCard .ib-sec { margin: 16px 2px 8px; font-size: 13px; font-weight: 600; color: var(--on-surface-var); }
+#ibkrCard .ib-accs { display: flex; flex-direction: column; gap: 8px; }
+#ibkrCard .ib-acc { border-radius: var(--radius-sm); background: var(--ib-tint); padding: 10px 14px; }
+#ibkrCard .ib-acc-h { display: flex; align-items: center; gap: 8px; min-height: 26px; }
+#ibkrCard .ib-acc-h .src-tag { margin: 0; flex: none; }
+#ibkrCard .ib-acc-h b { flex: 1 1 auto; min-width: 0; font-size: 15.5px; font-weight: 700; color: var(--on-surface); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#ibkrCard .ib-acc-l { margin-top: 3px; font-size: 13.5px; color: var(--on-surface-var); font-variant-numeric: tabular-nums; unicode-bidi: isolate; text-align: start; }
+#ibkrCard .ib-acc-t { flex: none; font-size: 12.5px; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
+#ibkrCard .ib-x { flex: none; width: 32px; height: 32px; margin: -4px 0; margin-inline-end: -8px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--on-surface-var); cursor: pointer; }
+#ibkrCard .ib-x svg { width: 16px; height: 16px; }
+#ibkrCard .ib-x:focus-visible { outline: 2.5px solid var(--ibkr); outline-offset: 0; }
+#ibkrCard .ib-add { display: block; width: 100%; margin-top: 8px; padding: 11px 14px; border: 1.5px dashed var(--ib-line); border-radius: var(--radius-sm); background: none; font: inherit; font-size: min(15px, 3.85vw); font-weight: 700; color: var(--ibkr-ink); text-align: start; cursor: pointer; }
+#ibkrCard .ib-add:focus-visible { outline: 2.5px solid var(--ibkr); outline-offset: 2px; }
+.row-link-ic.ib-row-ic { background: color-mix(in srgb, #d71920 12%, var(--surface)); }
+.row-link-ic.ib-row-ic img { width: 20px; height: 20px; }
+#tab-ibkr #ibkrCard { margin-top: 12px; }
+.dlg .ib-addform { grid-template-columns: 1fr; margin: 4px 0 14px; text-align: start; }
+.dlg .ib-addform label { color: inherit; opacity: .85; }
 #ibkrCard .ib-more { margin-top: 12px; border-top: 1px solid var(--ib-line); }
 #ibkrCard .ib-more > details { padding: 0; margin: 0; border-bottom: 1px solid var(--ib-line); }
 #ibkrCard .ib-more > details:last-child { border-bottom: 0; }
