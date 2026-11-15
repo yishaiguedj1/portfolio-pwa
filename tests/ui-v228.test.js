@@ -36,7 +36,12 @@ ok(/if \(!force && wantMax && state\.histMax\[sym\]\) return state\.histMax\[sym
 ok(/if \(state\.stockPick\[sym\]\) \{/.test(src) && /setStockFrom\(sym, d\)/.test(src), 'נגיעה בגרף במצב בחירה קובעת תאריך התחלה');
 ok(/function openStockFromSheet\(sym\)/.test(src) && /inp\.max = todayISO\(\)/.test(src), 'גיליון: סימון בגרף / בחירה מהיומן (עד היום)');
 ok(A("t('sr1D')") === '1D' && A("t('sr5D')") === '5D' && A("t('sr1Y')") === '1Y', 'התוויות כמו בצילום (1D, 5D, 1Y)');
-ok(/range-year/.test(src) && /data-range="/.test(src) && /closeSrcPops\(\);\s*if \(b\.dataset\.range === 'custom'\) openStockFromSheet\(sym\); else pick\(b\.dataset\.range\)/.test(src), 'תפריט השנה: בחירה סוגרת ומחליפה טווח');
+// 15/11/2026: תפריט השנה = גלגלת הזכוכית המשותפת (rangeWheel) — "מתאריך" פותח את הגיליון, השאר מחליפים טווח
+ok(/rangeWheel\(\{ keys: YEAR_RANGES,/.test(src) && /if \(k === 'custom'\) openStockFromSheet\(sym\); else pick\(k\);/.test(src), 'תפריט השנה: בחירה סוגרת ומחליפה טווח');
+ok(/function rangeWheel\(o\)/.test(src) && /scroll-snap-type: y mandatory/.test(css) && /\.wh-scroll\.drag \{ scroll-snap-type: none; \}/.test(css), 'גלגלת: נעילה לפריט, ובגרירה על הכפתור הנעילה כבויה');
+ok(/if \(w\._onClose\)/.test(src) && /yw\._onClose = /.test(src), 'גלגלת: הסגירה (בחוץ / "חזור") קובעת את הפריט שבאמצע');
+ok(/if \(!moved && !force && !keys\.includes\(o\.cur\(\)\)\) return;/.test(src), 'גלגלת: פתיחה וסגירה בלי גלילה לא מחליפה טווח אחר (3M…) בשנה');
+ok(/\.chip-row\.stock-chips \{ display: grid; grid-auto-flow: column; grid-auto-columns: minmax\(0, 1fr\); \}/.test(css), 'כל כפתורי הטווח ברוחב זהה (רשת)');
 ok(/\.range-year \.src-pop\.range-pop \{ top: auto; bottom: calc\(100% \+ 8px\)/.test(css), 'התפריט נפתח למעלה (בלי top+bottom יחד — בועה מכווצת)');
 ok(/\.stock-body \.chip-row\.stock-chips \{ overflow: visible;/.test(css), 'שורת הטווחים בלי גלילה — התפריט לא נחתך');
 
