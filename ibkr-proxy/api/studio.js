@@ -415,8 +415,8 @@ async function learnMediaPull(deps, ids, withVideo) {
    תקלה בקריאה = לא שומרים (זהירות) */
 async function learnSkip(deps, job, cache) {
   if (!(await flagOn(deps, 'learn'))) return true;   // 15/10/2026: הדגל "איסוף למאגר הלמידה" כבוי — לכולם
-  // 10/11/2026 (ניתוח, PR 1.3): מאגר משלו (רשומה k:'vi', הקורפוס viq/vic) — ועד ה7 רק העבודות של המנהל, לא של אף אחד אחר
-  if (job && job.spec && job.spec.vi === 1 && (!job.uid || job.uid !== (await adminUid(deps, deps.now || Date.now())))) return true;
+  // 10/11/2026 (ניתוח, PR 1.3): מאגר משלו (רשומה k:'vi', הקורפוס viq/vic). 15/11/2026 (בקשת המשתמש): לכל המשתמשים, כמו בתרגום —
+  // דולק כברירת מחדל אחרי ההודעה (lva), וכל מתג נכבה בהגדרות (viCol)
   const uid = job.uid;
   let p = cache && cache.get(uid);
   if (!p) {
@@ -640,13 +640,18 @@ async function learnCorpusForget(deps, ids) {
    וההסכמה לתוכן הניתוח (lat — נוסח LRN_VV) נשמרה. כל פתיחה של פריט מחוץ לאצווה (משיכה לניתוח) נרשמת ביומן הפענוח */
 const LRN_VV = 5;   // **זהה ל־LRN_VV ב־studio.js** (נפרד מ־LRN_TV/LRN_FV — הסכמה לניתוח לא רושמת את ההסכמות של התרגום) — הנוסח שמכסה את הניתוח: התמליל, טקסט השקפים והתוצאה נשמרים (lat), שקפים ממוזערים (lam), אירועי השימוש (lau)
 const VI_PULL_MAX = 10, VI_LOG_MAX = 200;
+/* 15/11/2026 (בקשת המשתמש): איסוף הניתוח כמו בתרגום — הודעה אחת (lva = נקראה; או הסכמה מפורשת מלפני כן) ואז דולק,
+   אלא אם המשתמש כיבה את המתג (lat/lam/lau = 0). לא נקבע = דולק */
+const viOn = (st, k) => st[k] == null || +st[k] > 0;
+const viCol = (st, k) => !!st && (+st.lva > 0 || +st[k] > 0) && viOn(st, k);
+const viEff = (st, k) => (viOn(st, k) ? +st[k] || 1 : 0);
 async function learnViPut(deps, job, b64, now) {
   try {
     const c = learnCfg();
     if (!c.ok || job.kind !== 'tr' || !(job.spec && job.spec.vi === 1) || job.lc || typeof b64 !== 'string' || b64.length > LC_MAX_BODY) return false;
-    if (await learnSkip(deps, job)) return false;   // הדגל, המתג, "מחק את התרומות שלי", ורק המנהל
+    if (await learnSkip(deps, job)) return false;   // הדגל, המתג הראשי ו"מחק את התרומות שלי"
     const st = (await readDoc(deps, 'studioStats', job.uid)) || {};
-    if (!(+st.lat > 0)) return false;
+    if (!viCol(st, 'lat')) return false;
     const lid = VC.viLid(job.id);
     if (!lid) return false;
     const raw = require('zlib').gunzipSync(Buffer.from(b64, 'base64'), { maxOutputLength: 16 * 1024 * 1024 });
@@ -3682,7 +3687,10 @@ async function handler(req, res, deps = {}) {
       // בקשה עם vi נוגעת **רק** בשלוש האלה — לא ב־lra/lrt/lrm/lrf ולא במתג (הסכמה לניתוח איננה קריאה של נוסח התרגום או האיסוף המלא)
       if (body.vi !== undefined) {
         const vx = {};
-        if (body.ack === true && (body.tv | 0) === LRN_VV && body.vi && typeof body.vi === 'object') for (const k of ['lat', 'lam', 'lau']) if (typeof body.vi[k] === 'boolean') vx[k] = body.vi[k] ? now : 0;
+        if (body.ack === true && (body.tv | 0) === LRN_VV && body.vi && typeof body.vi === 'object') {
+          for (const k of ['lat', 'lam', 'lau']) if (typeof body.vi[k] === 'boolean') vx[k] = body.vi[k] ? now : 0;
+          if (body.vi.ack === true) vx.lva = now;   // 15/11/2026: ההודעה של הניתוח נקראה (מעכשיו האיסוף דולק, אלא אם כובה)
+        }
         if (!Object.keys(vx).length) return res.status(400).json({ ok: false, error: 'bad_request' });
         await patchDoc(deps, 'studioStats', uid, Object.assign({ updated: now }, vx));
         return res.status(200).json(Object.assign({ ok: true }, vx));
@@ -3716,7 +3724,7 @@ async function handler(req, res, deps = {}) {
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
         norm: S.normsView(st.ns, 'r'), normA: S.normsView(st.ns, 'a') /* 11/10: הרגיל לפי המנוע */, sh: S.thView(st.thr) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now, gEta.et, gEta.ka) /* 31/10: k — קריוקי */,
-        pk: S.pickerCfg(process.env, gdrive.cfg().id), gb: gbrowse.configured() || (gbRemote() ? 'r' : false) /* 26/10: רשימת הקבצים ב־Drive — 'r' = אולי ב־Vercel (gbConfig) */, lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lrm: +st.lrm || 0 /* מ׳4 */, mf: await fullModes() /* 15/10: כל מצבי התרגום (המנהל / הרשימה) */, url: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok /* 22/10: הורדה מקישור */, yc: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok && YT.ytCloud(await ytDoc(deps, now)) /* 25/10: יוטיוב לענן דרך החשבון הייעודי */, lrf: +st.lrf || 0 /* האיסוף המלא — הנוסח נקרא */, lat: +st.lat || 0, lam: +st.lam || 0, lau: +st.lau || 0 /* 10/11: ההסכמות של הניתוח */, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, kt: { s: SC.SRC_TTL, j: SC.jobTtl(PROJECT()) } /* 26/10: כמה זמן נשמר — באומדן שלפני ההתחלה */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
+        pk: S.pickerCfg(process.env, gdrive.cfg().id), gb: gbrowse.configured() || (gbRemote() ? 'r' : false) /* 26/10: רשימת הקבצים ב־Drive — 'r' = אולי ב־Vercel (gbConfig) */, lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lrm: +st.lrm || 0 /* מ׳4 */, mf: await fullModes() /* 15/10: כל מצבי התרגום (המנהל / הרשימה) */, url: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok /* 22/10: הורדה מקישור */, yc: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok && YT.ytCloud(await ytDoc(deps, now)) /* 25/10: יוטיוב לענן דרך החשבון הייעודי */, lrf: +st.lrf || 0 /* האיסוף המלא — הנוסח נקרא */, lat: viEff(st, 'lat'), lam: viEff(st, 'lam'), lau: viEff(st, 'lau'), lva: +st.lva || 0 /* 10/11: ההסכמות של הניתוח · 15/11: דולק כברירת מחדל, lva = ההודעה נקראה */, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, kt: { s: SC.SRC_TTL, j: SC.jobTtl(PROJECT()) } /* 26/10: כמה זמן נשמר — באומדן שלפני ההתחלה */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
     }
     if (op === 'push') {
       // שלב 4: התראות — key (המפתח הציבורי, ל־subscribe בטלפון) / on (מנוי של המכשיר) / off / test
@@ -4354,7 +4362,7 @@ async function handler(req, res, deps = {}) {
       const isVi = !!(job.spec && job.spec.vi === 1), VIG = ['vi', 'vf'];
       const bux = body.ux && typeof body.ux === 'object' && !Array.isArray(body.ux) ? Object.fromEntries(Object.entries(body.ux).filter(([g]) => VIG.includes(g) === isVi)) : null;
       if (!LR.normUx(bux)) return res.status(400).json({ ok: false, error: 'bad_params' });
-      if (isVi && !(+(await readStats(deps, uid)).lau > 0)) return res.status(200).json({ ok: true, saved: false });
+      if (isVi && !viCol(await readStats(deps, uid), 'lau')) return res.status(200).json({ ok: true, saved: false });
       const ux = LR.mergeUx(job.ux, bux);
       await patchJob(deps, job.id, { ux });
       job.ux = ux;

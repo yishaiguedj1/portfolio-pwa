@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2461 מפתחות מתוך 6894) */
+/* המחרוזות של studio (2462 מפתחות מתוך 6895) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -2347,7 +2347,8 @@ he: {
   "studioViLeftSponsor": "חסות",
   "studioViLeftUnver": "לא אומת מול התמליל",
   "studioViLoadErr": "לא הצלחנו לטעון את הניתוח. נסה שוב בעוד רגע.",
-  "studioViLrnNote": "שלושת המתגים של הניתוח — כל אחד כבוי עד שמסמנים. כשמאגר הלמידה כבוי, לא נשמר כלום",
+  "studioViLrnAckQ": "הניתוחים שלך עוזרים לשפר את ניתוח הסרטונים. נשמרים התמליל, הטקסט שעל השקפים, התוצאה של הניתוח, תמונות קטנות של השקפים ואיך השתמשת בעמוד הניתוח. הכל מוצפן, בלי שם הקובץ ובלי פרטים מזהים, ונמחק אחרי 24 חודשים. אפשר לכבות ולמחוק בכל רגע ב־Studio ← הגדרות.",
+  "studioViLrnNote": "שלושת המתגים של הניתוח דולקים כברירת מחדל, ואפשר לכבות כל אחד. כשמאגר הלמידה כבוי, לא נשמר כלום",
   "studioViMiss": "חסר כאן משהו",
   "studioViMode": "מצב הניתוח",
   "studioViNew": "ניתוח חדש",
@@ -4810,7 +4811,8 @@ en: {
   "studioViLeftSponsor": "Sponsorship",
   "studioViLeftUnver": "Not verified against the transcript",
   "studioViLoadErr": "Couldn't load the analysis. Try again in a moment.",
-  "studioViLrnNote": "The three analysis switches are each off until you turn them on. When the learning pool is off, nothing is kept",
+  "studioViLrnAckQ": "Your analyses help improve video analysis. We keep the transcript, the text on the slides, the analysis result, small slide images and how you used the analysis page. Everything is encrypted, without the file name or identifying details, and deleted after 24 months. You can turn this off and delete it any time in Studio → Settings.",
+  "studioViLrnNote": "The three analysis switches are on by default, and you can turn each one off. When the learning pool is off, nothing is kept",
   "studioViMiss": "Something is missing here",
   "studioViMode": "Analysis mode",
   "studioViNew": "New analysis",

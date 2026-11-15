@@ -1451,7 +1451,8 @@ async function refreshStatus(force) {
       }
     }
     ui.lrf = num(j.lrf);                       // 15/10: הנוסח של האיסוף המלא (תקופת הפיתוח) — נקרא
-    if (!viPrefBusy) { ui.lat = num(j.lat); ui.lam = num(j.lam); ui.lau = num(j.lau); }   // 10/11/2026: ההסכמות של הניתוח (LRN_VV)
+    if (!viPrefBusy) { ui.lat = num(j.lat); ui.lam = num(j.lam); ui.lau = num(j.lau); }   // 10/11/2026: ההסכמות של הניתוח (LRN_VV) · 15/11: דולקות כברירת מחדל
+    ui.lva = num(j.lva); ui.lvaK = true;   // 15/11/2026: ההודעה של הניתוח נקראה
     save();
     lrnNotice();
   } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : j.error === 'fs_http_429' ? 'quota' : 'error';
@@ -3320,7 +3321,7 @@ function jobsCard(rows) {
 /* 30/10/2026 (בקשת המשתמש — "שני כלים נפרדים לגמרי"): קריוקי = לשונית משלה בחוגה, רשימה משלה ופרויקט חדש משלו.
    הטופס פותח ישר במצב קריוקי (form.ka קבוע — אין מתג), והבית של התרגום לא מציג שירים */
 function pageKa(p) { pageHome(p, true); }
-function pageViL(p) { pageHome(p, false, true); }   // 10/11/2026: לשונית הניתוח — הרשימה (הדף של ניתוח אחד = דף העבודה)
+function pageViL(p) { pageHome(p, false, true); viLrnNotice(); }   // 10/11/2026: לשונית הניתוח — הרשימה (הדף של ניתוח אחד = דף העבודה)
 const LIVE_PH = new Set(['running', 'queued', 'extract', 'audio', 'video', 'wait']);
 /* 02/11/2026 (סבב קפיצות 8, הקלטת Studio: ההדר והכרטיסים מהבהבים בבית כשהרשימה מתעדכנת; docs/smooth-architecture.md ש1/ש2):
    ציור במקום (none) של הבית בנה דף חדש והעביר אליו את ההדר — הוצאה מהמסמך הורסת את השכבות שלו (הלוגו החי והשלג, הגדולות
@@ -3791,7 +3792,7 @@ function viForm(p, f) {
   go1.disabled = !(f.fileObj || f.drive || (f.link && f.linkOk)) || ui.starting || !(f.vr || dry);
   const ft = h('div', 'st-foot'); ft.append(go1, h('p', 'st-foot-n', est)); p.append(ft);
 }
-const viLrnSaved = () => !!(ui.lat > 0 && ui.lrn !== false && ui.api && ui.api.admin);   // משתמשים אחרים — לא נשמר לפני ה7 (docs/privacy.md)
+const viLrnSaved = () => !!(ui.lat > 0 && ui.lrn !== false && (ui.lva > 0 || (ui.api && ui.api.admin)));   // 15/11/2026: לכל המשתמשים, אחרי ההודעה (docs/privacy.md)
 /* השדות של הקריוקי ל־spec (קובץ או קישור). המנוע — תמיד השרת שלנו */
 function kaSpec(f, spec) {
   if (!f.ka) return spec;
@@ -9963,6 +9964,17 @@ function lrnNotice() {
 /* 10/11/2026 (ניתוח, 7.11): הסכמה לכל מטרה, כבויה עד שמסמנים — הנוסח LRN_VV (נפרד מ־LRN_TV של התרגום; docs/privacy.md).
    השרתון רושם רק lat/lam/lau — לא את ההסכמות של התרגום. כשהמאגר כבוי (ui.lrn) — לא נאסף כלום ממילא */
 export const LRN_VV = 5;   // **זהה ל־LRN_VV בשרתון** (api/studio.js)
+/* 15/11/2026 (בקשת המשתמש): כמו בתרגום — הודעה אחת בכניסה הראשונה ללשונית הניתוח; כל סגירה = נקראה (lva), ומאז האיסוף
+   דולק. אפשר לכבות כל מתג (או את המאגר כולו) ב־Studio ← הגדרות. כשהמאגר כבוי — בלי הודעה (לא נאסף כלום ממילא) */
+let viAsked = false;
+function viLrnNotice() {
+  if (viAsked || !ui.lvaK || ui.lva > 0 || ui.lrn === false || ui.access !== 'ok' || typeof askConfirm !== 'function') return;
+  viAsked = true;
+  setTimeout(() => askConfirm(T('studioViLrnAckQ'), () => {
+    ui.lva = Date.now();
+    net.api('learnPref', { ack: true, tv: LRN_VV, vi: { ack: true } }).catch(() => {});
+  }, { alert: true, ok: T('studioLrnAckOk') }), 700);
+}
 const VI_PREF = () => [['lat', T('studioViLatT'), T('studioViLatS')], ['lam', T('studioViLamT'), T('studioViLamS')], ['lau', T('studioViLauT'), T('studioViLauS')]];
 const viPrefRows = () => VI_PREF().map(([k, t, s2]) => {
   const r = rowSwitch({ label: t, sub: s2, on: ui[k] > 0, onClick: () => setViPref(k, !(ui[k] > 0)), k: 'vp:' + k });
