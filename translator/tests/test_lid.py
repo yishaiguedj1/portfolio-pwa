@@ -86,6 +86,27 @@ class Choose(unittest.TestCase):
         self.assertEqual(lid.choose(lp_rows(rows), CODES, wins, base=("he", "en", "fr")), ["he", "en", "fr", "ar"])
         self.assertEqual(lid.choose(lp_rows([]), CODES, []), ["he", "en"])
 
+    def test_extra_language_needs_a_run(self):
+        # המדידה: טעות אקראית (חלונות בודדים או זוגות) לא יוצרת רצף; שפה אמיתית — רצף של 3 ומעלה, גם כשהיא 3% מסרטון ארוך
+        wins = [(i * 3.0, i * 3.0 + 3.0, i) for i in range(100)]
+        rows = [("en", 0.9)] * 40 + [("fr", 0.95)] * 3 + [("en", 0.9)] * 20 + [("ar", 0.9)] * 2 + [("en", 0.9)] * 10 \
+            + [("ar", 0.9)] * 2 + [("en", 0.9)] * 23
+        self.assertEqual(lid.choose(lp_rows(rows), CODES, wins), ["he", "en", "fr"],
+                         "צרפתית: רצף של 3 (9 שנ׳, 3%) — נוספת; ערבית: 12 שנ׳ אבל רק זוגות — לא")
+        self.assertEqual(lid.choose(lp_rows(rows), CODES, wins, extra_run=2), ["he", "en", "ar", "fr"])
+        rows = [("en", 0.9)] * 10 + [("fr", 0.95), ("fr", 0.6), ("fr", 0.95), ("fr", 0.95)] + [("en", 0.9)] * 10
+        self.assertEqual(lid.choose(lp_rows(rows), CODES, wins[:24]), ["he", "en"], "חלון לא בטוח באמצע שובר את הרצף")
+
+    def test_many_languages_fit(self):
+        # המדידה: בסרטון עם 4 שפות נוספות, תקרה של 3 השאירה רוסית בחוץ — והיא סומנה "צרפתית" (כאן: 3 שפות ותקרה של 2)
+        wins = [(i * 3.0, i * 3.0 + 3.0, i) for i in range(100)]
+        rows = [("en", 0.9)] * 30
+        for lg in ("fr", "ar", "ru"):
+            rows += [(lg, 0.95)] * 4 + [("en", 0.9)] * 5
+        rows += [("en", 0.9)] * (100 - len(rows))
+        self.assertEqual(lid.choose(lp_rows(rows), CODES, wins), ["he", "en", "fr", "ar", "ru"])
+        self.assertEqual(lid.choose(lp_rows(rows), CODES, wins, extra_max=2), ["he", "en", "fr", "ar"])
+
     def test_restrict_normalizes(self):
         r = lid.restrict(lp_rows([("en", 0.6), ("ar", 0.9)]), CODES, ["he", "en"])
         self.assertTrue(np.allclose(np.exp(r).sum(axis=1), 1.0))
@@ -128,7 +149,7 @@ class Fold(unittest.TestCase):
         out = lid.fold(lp, codes)
         self.assertAlmostEqual(float(np.exp(out[0, 2])), 0.9, places=6, msg="רוסית + בלארוסית = רוסית")
         self.assertEqual(float(out[0, 3]), -np.inf, "בלארוסית לא מועמדת")
-        self.assertEqual(lid.choose(out, codes, [(0.0, 9.0, 0), (9.0, 12.0, 1)], extra_min_s=6.0, extra_share=0.05),
+        self.assertEqual(lid.choose(out, codes, [(0.0, 9.0, 0), (9.0, 12.0, 1)], extra_min_s=6.0, extra_run=1),
                          ["he", "en", "ru"], "הרוסית נבחרת — לא הבלארוסית")
         self.assertAlmostEqual(float(lp[0, 3]), np.log(0.6), msg="המקור לא משתנה")
         self.assertTrue(np.array_equal(lid.fold(lp, ["he", "en", "x", "y"]), lp), "בלי השפות — בלי שינוי")
@@ -146,6 +167,162 @@ class Regions(unittest.TestCase):
         self.assertEqual(lid.lang_at(regs, 9.5), "en", "קרוב לאזור — השפה שלו")
         self.assertEqual(lid.lang_at(regs, 30.0, "en"), "en", "רחוק — ברירת המחדל")
         self.assertEqual(lid.regions([], [], [], []), [])
+
+
+def lab_of(regs, wins):
+    """תווית וביטחון לכל חלון — מהאזור שבו המרכז שלו."""
+    lab, prob = [], []
+    for a, b, _ in wins:
+        g = next(g for g in regs if g["s"] <= (a + b) / 2 <= g["e"])
+        lab.append(g["lg"])
+        prob.append(g["p"])
+    return lab, prob
+
+
+ZERO = {"n": 0, "flip": 0, "nlow": 0, "fliplow": 0}
+
+
+class Verify(unittest.TestCase):
+    """אימות אזורי המיעוט: ECAPA מהסס (0.78–0.96 בחלונות) — whisper-small, ששומע את כל האזור, מכריע; ECAPA בטוח — לא."""
+    def setUp(self):
+        self.wins = [(0.0, 3.0, 0), (1.5, 4.5, 0), (5.0, 8.0, 1), (6.5, 9.5, 1), (10.0, 13.0, 2), (11.5, 14.5, 2)]
+        self.audio = np.zeros(16000 * 16, dtype="float32")
+        self.cand = ["he", "en"]
+
+    def em(self, rows):
+        return np.log(np.array(rows))
+
+    def run_v(self, regs, em, wp, **kw):
+        lab, prob = lab_of(regs, self.wins)
+        return lid.verify(regs, lab, prob, self.wins, em, self.cand, self.audio, "he", wp, **kw)
+
+    def test_unsure_minority_region_is_overturned(self):
+        regs = [{"s": 0.0, "e": 4.5, "lg": "he", "p": 0.99}, {"s": 5.0, "e": 9.5, "lg": "en", "p": 0.87},
+                {"s": 10.0, "e": 14.5, "lg": "he", "p": 0.99}]
+        em = self.em([[0.99, 0.01]] * 2 + [[0.22, 0.78], [0.04, 0.96]] + [[0.99, 0.01]] * 2)
+        heard = []
+
+        def wp(clip):
+            heard.append(len(clip) / 16000)
+            return {"he": 0.95, "en": 0.01, "ar": 0.04}
+        lab, prob, st, fl = self.run_v(regs, em, wp)
+        self.assertEqual((lab, st, fl), (["he"] * 6, dict(ZERO, n=1, flip=1), {2, 3}))
+        self.assertAlmostEqual(heard[0], 4.5, places=2, msg="whisper שומע את האזור עצמו")
+        merged = lid.regions(self.wins, lab, prob, [(0.0, 4.5), (5.0, 9.5), (10.0, 14.5)])
+        self.assertEqual([(g["s"], g["e"], g["lg"]) for g in merged], [(0.0, 14.5, "he")], "שלושת האזורים מתאחדים")
+
+    def test_confident_or_short_or_main_regions_are_not_checked(self):
+        regs = [{"s": 0.0, "e": 4.5, "lg": "he", "p": 0.5}, {"s": 5.0, "e": 9.5, "lg": "en", "p": 1.0},
+                {"s": 10.0, "e": 11.5, "lg": "en", "p": 0.6}]
+        called = []
+        wins = self.wins[:5]
+        lab, prob = lab_of(regs, wins)
+        out = lid.verify(regs, lab, prob, wins, self.em([[0.5, 0.5]] * 5), self.cand, self.audio, "he",
+                         lambda c: called.append(1) or {"he": 1.0})
+        self.assertEqual((out[0], out[2], called), (lab, ZERO, []), "השפה הראשית — לא; בטוח (1.0) — לא; קצר מ־2 שנ׳ — לא")
+
+    def test_whisper_cannot_overturn_a_sure_ecapa(self):
+        regs = [{"s": 0.0, "e": 4.5, "lg": "he", "p": 0.99}, {"s": 5.0, "e": 9.5, "lg": "en", "p": 0.99},
+                {"s": 10.0, "e": 14.5, "lg": "he", "p": 0.99}]
+        em = self.em([[0.99, 0.01]] * 2 + [[0.002, 0.998]] * 2 + [[0.99, 0.01]] * 2)
+        lab, _, st, _ = self.run_v(regs, em, lambda c: {"he": 0.7, "en": 0.3})
+        self.assertEqual((st, lab[2]), (dict(ZERO, n=1), "en"), "whisper בחלון קצר טועה — ECAPA בטוח מנצח")
+
+    def test_failure_keeps_regions(self):
+        regs = [{"s": 0.0, "e": 4.5, "lg": "he", "p": 0.99}, {"s": 5.0, "e": 9.5, "lg": "en", "p": 0.8},
+                {"s": 10.0, "e": 14.5, "lg": "he", "p": 0.99}]
+        lab, _ = lab_of(regs, self.wins)
+
+        def boom(c):
+            raise RuntimeError("x")
+        for fn in (boom, None):
+            out = self.run_v(regs, self.em([[0.5, 0.5]] * 6), fn)
+            self.assertEqual((out[0], out[2], out[3]), (lab, ZERO, set()))
+
+    def test_whisper_probs_reads_all_languages(self):
+        class Info:
+            language, language_probability = "he", 0.9
+            all_language_probs = [("he", 0.9), ("en", 0.06), ("iw", 0.01)]
+
+        class M:
+            def transcribe(self, clip, **kw):
+                return iter(()), Info()
+        self.assertEqual(L.whisper_probs(M())(np.zeros(16000, "float32")), {"he": 0.91, "en": 0.06})
+
+
+class LostEcapa(unittest.TestCase):
+    """מבטא כבד: ECAPA "הולך לאיבוד" (רוב ההסתברות על שפות שאינן מועמדות), והצמצום לעברית/אנגלית הוא הטלת מטבע.
+    המדידה: אנגלית במבטא ערבי בתוך סרטון עברי — סומנה כולה "עברית"; whisper: אנגלית 0.38, ערבית 0.51, עברית 0."""
+    def setUp(self):
+        self.wins = [(1.5 * i, 1.5 * i + 3.0, 0) for i in range(12)]
+        self.audio = np.zeros(16000 * 22, dtype="float32")
+        self.cov = np.array([0.99] * 3 + [0.02] * 8 + [0.99])
+
+    def go(self, wp, cand=("he", "en"), lab=None):
+        cand = list(cand)
+        em = np.log(np.array([[0.9, 0.1] + [1e-6] * (len(cand) - 2)] * 12))
+        em = em - np.logaddexp.reduce(em, axis=1, keepdims=True)
+        lab = lab or ["he"] * 12
+        regs = [{"s": 0.0, "e": 19.5, "lg": "he", "p": 0.9}]
+        return lid.verify(regs, lab, [0.9] * 12, self.wins, em, cand, self.audio, "he", wp, cov=self.cov)
+
+    def test_whisper_decides_he_vs_en(self):
+        heard = []
+        lab, _, st, fl = self.go(lambda c: heard.append(len(c) / 16000) or {"ar": 0.51, "en": 0.38})
+        self.assertEqual((lab[3:11], lab[:3] + lab[11:], st["nlow"], st["fliplow"]), (["en"] * 8, ["he"] * 4, 1, 1))
+        self.assertEqual(fl, set(range(3, 11)))
+        self.assertAlmostEqual(heard[0], 13.5, places=1, msg="whisper שומע את הרצף (4.5–18)")
+
+    def test_whisper_unsure_too(self):
+        lab, _, st, _ = self.go(lambda c: {"ar": 0.9, "en": 0.05, "he": 0.01})
+        self.assertEqual((lab, st), (["he"] * 12, ZERO), "עברית+אנגלית < 0.2 — גם whisper לא יודע")
+
+    def test_only_he_vs_en(self):
+        lab, _, st, _ = self.go(lambda c: {"ar": 0.8, "he": 0.15, "en": 0.05}, cand=("he", "en", "ar"))
+        self.assertEqual((lab, st["fliplow"]), (["he"] * 12, 0), "whisper מבלבל עברית⇄ערבית — לא מחליפים לערבית")
+
+    def test_mixed_chunk_is_skipped(self):
+        lab0 = ["he"] * 3 + ["he", "en"] * 4 + ["he"]
+        lab, _, st, _ = self.go(lambda c: {"en": 0.99}, lab=lab0)
+        self.assertEqual((lab, st["nlow"]), (lab0, 0), "רצף שחוצה גבול — whisper שומע תערובת")
+
+    def test_low_chunks(self):
+        w = [(1.5 * i, 1.5 * i + 3.0, 0) for i in range(40)]
+        cov = np.array([0.9] * 2 + [0.1] * 3 + [0.9] + [0.1] * 3 + [0.9] * 3 + [0.1] * 2 + [0.9] * 27)
+        self.assertEqual(lid.low_chunks(cov, w), [[2, 3, 4, 6, 7, 8], [12, 13]], "חלון טוב בודד לא שובר; שלושה — כן")
+        self.assertEqual(lid.low_chunks(cov, w, min_s=5.0), [[2, 3, 4, 6, 7, 8]], "רצף של 4.5 שנ׳ — קצר מ־5")
+        self.assertEqual([len(c) for c in lid.low_chunks(np.full(40, 0.1), w)], [19, 21], "חתיכות של עד 30 שנ׳")
+        self.assertAlmostEqual(float(lid.coverage(lp_rows([("ar", 0.6)]), CODES, ["he", "en"])[0]), 0.2, places=5)
+
+
+class Confirm(unittest.TestCase):
+    """שפה נוספת צריכה אישור של whisper ברצף החזק שלה. המדידה: 2 מתוך 11 דוברי אנגלית ילידים זוהו כ"וולשית" לכל
+    ההקלטה (הקטגוריה הוולשית של VoxLingua107 מלאה באנגלית); whisper: אנגלית 0.955, וולשית 0.035."""
+    def setUp(self):
+        self.wins = [(3.0 * i, 3.0 * i + 3.0, i) for i in range(10)]
+        self.audio = np.zeros(16000 * 31, dtype="float32")
+        self.lp = lp_rows([("en", 0.9)] * 3 + [("ru", 0.9)] * 4 + [("en", 0.9)] * 3)
+
+    def go(self, wp):
+        return lid.confirm(["he", "en", "ru"], ("he", "en"), self.lp, CODES, self.wins, self.audio, wp)
+
+    def test_drop_keep_swap(self):
+        heard = []
+        self.assertEqual(self.go(lambda c: heard.append(len(c) / 16000) or {"en": 0.955, "ru": 0.035}),
+                         (["he", "en"], {"chk": 1, "drop": 1, "swap": 0}))
+        self.assertEqual(heard, [12.0], "whisper שומע את הרצף החזק (9–21)")
+        self.assertEqual(self.go(lambda c: {"ru": 0.6, "en": 0.3})[0], ["he", "en", "ru"])
+        self.assertEqual(self.go(lambda c: {"ru": 0.25, "en": 0.7})[0], ["he", "en", "ru"], "0.2 ומעלה — נשארת")
+        self.assertEqual(self.go(lambda c: {"fr": 0.8, "ru": 0.05}), (["he", "en", "fr"], {"chk": 1, "drop": 0, "swap": 1}))
+        self.assertEqual(self.go(lambda c: {"ar": 0.4, "ru": 0.1, "en": 0.05})[0], ["he", "en", "ru"],
+                         "whisper לא בטוח בשפה אחרת, ולא מעדיף שפת בסיס — נשארת")
+
+    def test_without_whisper(self):
+        def boom(c):
+            raise RuntimeError("x")
+        self.assertEqual(self.go(boom), (["he", "en", "ru"], {"chk": 0, "drop": 0, "swap": 0}))
+        self.assertEqual(self.go(None)[0], ["he", "en", "ru"])
+        self.assertEqual(lid.confirm(["he", "en"], ("he", "en"), self.lp, CODES, self.wins, self.audio, lambda c: {})[1]["chk"], 0)
 
 
 class Timeline(unittest.TestCase):
@@ -168,6 +345,18 @@ class Timeline(unittest.TestCase):
         self.assertEqual(lid.timeline(clock(5), model=m, vad_fn=lambda a: [])["regions"], [])
         with self.assertRaises(ValueError):
             lid.timeline(clock(1), model=m, spans=[(0, lid.MAX_S + 10)])
+
+    def test_verify_inside_timeline(self):
+        spans = [(1.0, 13.0), (14.0, 26.0), (27.0, 39.0), (40.0, 59.0)]
+        plan = [(26.0, "en", 0.9), (39.0, "he", 0.7), (99, "en", 0.9)]      # עברית מהססת (האזור יוצא בביטחון 0.9)
+        base = lid.timeline(clock(60), spans=spans, model=FakeModel(plan))
+        self.assertEqual(([g["lg"] for g in base["regions"]], base["vf"]["n"]), (["en", "he", "en"], 0))
+        heard = []
+        tl = lid.timeline(clock(60), spans=spans, model=FakeModel(plan), verify_fn=lambda c: heard.append(float(c[0])) or {"en": 0.999})
+        self.assertEqual(([g["lg"] for g in tl["regions"]], tl["vf"]["n"], tl["vf"]["flip"], tl["main"]), (["en"], 1, 1, "en"))
+        self.assertEqual(tl["regions"][0].get("v"), 1)
+        self.assertTrue(26.0 <= heard[0] <= 28.0, "whisper שומע את האזור החשוד עצמו")
+        self.assertEqual(lid.timeline(clock(5), model=FakeModel(plan), vad_fn=lambda a: [])["vf"], {})
 
     def test_prefer_breaks_ties_only(self):
         m = FakeModel([(99, "en", 0.52)])         # כמעט שוויון — ההעדפה של המשתמש מכריעה בהתחלה
@@ -262,7 +451,7 @@ class AnalysisPath(unittest.TestCase):
         def fake_asr(wav, lang, t0, tl_=None):
             seen["lang"], seen["tl"] = lang, tl_
             return {"v": 1, "lang": lang, "engine": "x", "quality": "ok", "words": [], "stats": {}}
-        with mock.patch.object(V, "lang_timeline", lambda wav, prefer, model=None: tl), mock.patch.object(V, "_asr", fake_asr):
+        with mock.patch.object(V, "lang_timeline", lambda wav, prefer, model=None, wmodel=None: tl), mock.patch.object(V, "_asr", fake_asr):
             r = V.asr("x.wav", "en")
             self.assertEqual((seen["lang"], r["langs"]["chosen"], r["langs"]["main"]), ("he", "en", "he"),
                              "נבחרה אנגלית, 83% בעברית — מתמללים בעברית, ושומרים מה נבחר")
@@ -270,10 +459,10 @@ class AnalysisPath(unittest.TestCase):
             r = V.asr("x.wav", "auto")
             self.assertEqual((r["lang"], r["stats"]["auto"]["src"]), ("he", "ecapa"))
             tl2 = dict(tl, share={"he": 0.55, "en": 0.45})
-        with mock.patch.object(V, "lang_timeline", lambda wav, prefer, model=None: tl2), mock.patch.object(V, "_asr", fake_asr):
+        with mock.patch.object(V, "lang_timeline", lambda wav, prefer, model=None, wmodel=None: tl2), mock.patch.object(V, "_asr", fake_asr):
             V.asr("x.wav", "en")
             self.assertEqual(seen["lang"], "en", "55% — לא מספיק כדי לעקוף את הבחירה")
-        with mock.patch.object(V, "lang_timeline", lambda wav, prefer, model=None: None), mock.patch.object(V, "_asr", fake_asr):
+        with mock.patch.object(V, "lang_timeline", lambda wav, prefer, model=None, wmodel=None: None), mock.patch.object(V, "_asr", fake_asr):
             r = V.asr("x.wav", "en")
             self.assertNotIn("langs", r, "בלי ציר — כמו קודם")
 
@@ -309,7 +498,7 @@ class TranslationPath(unittest.TestCase):
             def tsp(audio, found, **kw):
                 got["found"] = found
                 return [dict(g, tx="שלום", wd=[[" שלום", g["s"] + 0.1, g["s"] + 0.5]]) for g in found]
-            with mock.patch.object(lid, "ready", lambda path=None: True), mock.patch.object(lid, "timeline", lambda a, prefer="": tl), \
+            with mock.patch.object(lid, "ready", lambda path=None: True), mock.patch.object(lid, "timeline", lambda a, prefer="", verify_fn=None: tl), \
                     mock.patch.object(L, "transcribe_spans", tsp), mock.patch.dict(sys.modules, {"soundfile": fake_sf(20)}):
                 cli.cmd_lang(types.SimpleNamespace(name="job1"))
             doc = json.loads((pd / "foreign.json").read_text(encoding="utf-8"))

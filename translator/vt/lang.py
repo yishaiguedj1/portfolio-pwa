@@ -176,6 +176,26 @@ def detect_spans(audio, spans: list, primary: str, model=None, p_min: float = P_
     return out[:MAX_SEG * 4]
 
 
+def whisper_probs(model=None):
+    """16/11/2026 (ציר השפות — אימות אזורי המיעוט, vt/lid.verify): פונקציה קטע → {שפה: הסתברות} של whisper-small
+    (רק הזיהוי, בלי תמלול). המודל נטען בקריאה הראשונה — סרטון בלי אזור חשוד לא טוען אותו בכלל."""
+    box = {"m": model}
+
+    def fn(clip) -> dict:
+        if box["m"] is None:
+            box["m"] = _model()
+        _, info = box["m"].transcribe(clip, beam_size=1, condition_on_previous_text=False, vad_filter=False)
+        out: dict = {}
+        for k, p in getattr(info, "all_language_probs", None) or []:
+            k = norm_lg(k)
+            if k:
+                out[k] = out.get(k, 0.0) + float(p)
+        if not out and norm_lg(getattr(info, "language", "")):
+            out[norm_lg(info.language)] = float(getattr(info, "language_probability", 0) or 0)
+        return out
+    return fn
+
+
 VOTE_AT = (0.1, 0.25, 0.4, 0.55, 0.7, 0.85)   # main_lang: איפה דוגמים (לא ההתחלה — לרוב מוזיקה / פתיח)
 VOTE_S = 20.0                                # אורך כל דגימה
 

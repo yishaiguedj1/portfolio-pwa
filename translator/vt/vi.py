@@ -177,19 +177,34 @@ def _load16(wav: str):
     return audio
 
 
-def lang_timeline(wav: str, prefer: str, model=None) -> dict | None:
-    """16/11/2026 (בקשת המשתמש — זיהוי שפה מדויק, גם בתוכן מעורב): ציר השפות על כל הדיבור (vt/lid.py, ‏ECAPA).
+def verify_fn(wmodel=None):
+    """whisper-small כמודל שני בציר (vt/lid: אישור שפה נוספת, אזורי מיעוט חשודים, רצפים שבהם ECAPA "הלך לאיבוד") —
+    כשהמודל בתמונה; ‏SNB_LID_VERIFY=off — בלי."""
+    from . import lang as L
+    if os.environ.get("SNB_LID_VERIFY") == "off" or (wmodel is None and not L.ready()):
+        return None
+    return L.whisper_probs(wmodel)
+
+
+def lang_timeline(wav: str, prefer: str, model=None, wmodel=None) -> dict | None:
+    """16/11/2026 (בקשת המשתמש — זיהוי שפה מדויק, גם בתוכן מעורב): ציר השפות על כל הדיבור (vt/lid.py, ‏ECAPA),
+    ומה שחשוד נבדק שוב ב־whisper-small (wmodel — אם כבר נטען; vt/lid.verify).
     בלי המודל / ‏SNB_LID=off / תקלה — None, והדרך הישנה (main_lang, ‏detect / detect_spans)."""
     from . import lid
     if os.environ.get("SNB_LID") == "off" or (model is None and not lid.ready()):
         return None
     try:
-        tl = lid.timeline(_load16(wav), prefer=prefer if prefer in ("he", "en") else "", model=model)
+        tl = lid.timeline(_load16(wav), prefer=prefer if prefer in ("he", "en") else "", model=model,
+                          verify_fn=verify_fn(wmodel))
     except Exception as e:  # noqa: BLE001 — שלב משני; הדרך הישנה
         log(f"ציר השפות נכשל ({type(e).__name__}) — הזיהוי הישן")
         return None
     sh = ", ".join(f"{k} {round(v * 100)}%" for k, v in tl["share"].items())
-    log(f"ציר השפות: {sh or 'אין דיבור'} · {len(tl['regions'])} אזורים · {tl['n']} חלונות · {tl['s']} שנ׳")
+    vf = tl.get("vf") or {}
+    chk = vf.get("n", 0) + vf.get("nlow", 0) + vf.get("chk", 0)
+    log(f"ציר השפות: {sh or 'אין דיבור'} · {len(tl['regions'])} אזורים · {tl['n']} חלונות · {tl['s']} שנ׳"
+        + (f" · whisper בדק {chk}, שינה {vf.get('flip', 0) + vf.get('fliplow', 0)}, פסל {vf.get('drop', 0) + vf.get('swap', 0)} שפות"
+           if chk else ""))
     return tl
 
 
@@ -198,6 +213,7 @@ def langs_doc(tl: dict | None, chosen: str = "") -> dict:
     if not tl:
         return {}
     out = {"src": "ecapa", "main": tl["main"], "share": tl["share"], "cands": tl["cands"], "n": tl["n"], "s": tl["s"],
+           "vf": tl.get("vf") or {},
            "regions": [[g["s"], g["e"], g["lg"], g["p"]] for g in tl["regions"][:TL_KEEP]]}
     if chosen:
         out["chosen"] = chosen
@@ -279,7 +295,7 @@ def asr(wav: str, lang: str, lid_model=None, tl_model=None) -> dict:
     (בקשת המשתמש: "גם אם המשתמש בחר רק אנגלית ויש גם מידע בעברית"). שפה שאינה עברית/אנגלית — בלי תמלול (vi_lang)."""
     t0 = time.time()
     auto, chosen = None, ""
-    tl = lang_timeline(wav, lang, tl_model)
+    tl = lang_timeline(wav, lang, tl_model, lid_model)
     if lang == "auto":
         if tl and tl["main"]:
             auto = {"lg": tl["main"], "p": tl["share"].get(tl["main"], 0.0), "n": tl["n"], "src": "ecapa"}

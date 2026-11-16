@@ -9,10 +9,13 @@
   1. דיבור — Silero (‏vt/asr_he.vad, הקטעים עד 14 שנ׳); מוזיקה ושקט לא נכנסים.
   2. חלונות — קטע קצר הוא חלון אחד; ארוך — חלונות של WIN שנ׳ בצעד HOP (חפיפה של חצי).
   3. ECAPA על כל חלון → log-הסתברות ל־107 השפות; שפה "גונבת" מתקפלת לשפה שהיא בעצם (FOLD: בלארוסית → רוסית).
-  4. השפות המועמדות: עברית, אנגלית והשפה שנבחרה — ועוד שפה רק כשחלונות רבים מזהים אותה בביטחון (EXTRA_*).
+  4. השפות המועמדות: עברית, אנגלית והשפה שנבחרה — ועוד שפה רק כשרצף של חלונות מזהה אותה בביטחון (EXTRA_*),
+     ו־whisper-small מאשר אותה ברצף הזה (confirm; ב־VoxLingua107 "וולשית" מלאה באנגלית).
   5. Viterbi על רצף החלונות: מעבר שפה עולה SWITCH (פחות בהפסקה ארוכה) — כך חלון בודד שגוי לא "מחליף שפה".
   6. אזורים — רצף חלונות באותה שפה, בגבולות הדיבור; לכל אזור הביטחון הממוצע.
-הפלט: {"regions": [{s, e, lg, p}], "share": {lg: חלק מזמן הדיבור}, "main", "cands", "n", "s"}.
+  7. אימות ב־whisper-small (verify): אזור בשפת מיעוט שבו ECAPA לא בטוח (VERIFY_*), ורצף שבו ECAPA "הלך לאיבוד" —
+     רוב ההסתברות שלו על שפות שאינן מועמדות, כמו במבטא כבד (LOW_*; רק עברית מול אנגלית). ההחלטה — שני המודלים יחד.
+הפלט: {"regions": [{s, e, lg, p, v?}], "share": {lg: חלק מזמן הדיבור}, "main", "cands", "n", "vf", "s"}.
 """
 
 from __future__ import annotations
@@ -36,11 +39,27 @@ TEMP = 1.0              # כיול ה־log-הסתברות (מכויל על סט 
 SWITCH = 6.0            # עלות מעבר שפה בין חלונות סמוכים (ביחידות log)
 GAP_S = 1.5             # הפסקה ארוכה מזה — מעבר זול יותר (חילופי דוברים, שקף חדש)
 GAP_SWITCH = 2.0
-EXTRA_P = 0.7           # שפה נוספת: חלון שבו היא הראשונה בביטחון ≥ 0.7...
-EXTRA_SHARE = 0.05      # ...בלפחות 5% מזמן הדיבור...
-EXTRA_MIN_S = 6.0       # ...ובלפחות 6 שנ׳
-EXTRA_MAX = 3
+EXTRA_P = 0.7           # שפה נוספת: חלונות שבהם היא הראשונה בביטחון ≥ 0.7...
+EXTRA_MIN_S = 6.0       # ...שמסתכמים בלפחות 6 שנ׳...
+EXTRA_RUN = 3           # ...וביניהם רצף של 3 חלונות עוקבים. טעות אקראית לא יוצרת רצף: במדידה (70 סרטונים) לשפות שגויות
+                        # היה רצף של 2 לכל היותר, ולאמיתיות 3 ומעלה. אחוז מהסרטון (היה 5%) פסל שפה אמיתית בסרטון ארוך
+EXTRA_MAX = 5           # תקרה בלבד — הסינון האמיתי הוא הרצף. ב־3 נפלה רוסית אמיתית (12.7 שנ׳, ECAPA 0.95–0.997) בסרטון
+                        # עם 4 שפות נוספות, וסומנה "צרפתית"; 4 ומעלה — אותן תוצאות בשני הסטים, ושום שפה מיותרת לא נוספה
 MAX_S = 4 * 3600        # מעל 4 שעות דיבור — לא מנתחים (הגבלת זמן)
+VERIFY_P = 0.995        # אזור בשפת מיעוט שבו ECAPA בטוח פחות מזה — נבדק שוב ב־whisper-small (מפל: ECAPA הזול על הכל,
+                        # whisper רק בחשודים — במדידה 26 מתוך 160 אזורי מיעוט, פחות מאחד לסרטון; whisper הסכים בכולם). ההחלטה — סכום שניהם
+VERIFY_MIN_S = 2.0      # אזור קצר מזה לא נבדק: whisper לא אמין בחלון קצר (35% ב־1.5 שנ׳ בעברית)
+VERIFY_CLIP_S = 30.0    # whisper שומע עד 30 שנ׳ — מאמצע האזור
+VERIFY_MAX = 40         # עד כמה אזורים לסרטון (הפחות בטוחים קודם)
+LOW_COV = 0.5           # כיסוי המועמדות בחלון — כמה מההסתברות של ECAPA נופלת על השפות המועמדות. מתחת לזה ההכרעה ביניהן
+                        # היא הטלת מטבע: במבטא ערבי כבד ECAPA אמר "מקדונית", "ליטאית", "אלבנית" — ואנגלית/עברית קיבלו 0.01
+LOW_MIN_S = 4.0         # רצף כזה (חלון טוב בודד לא שובר) של 4 שנ׳ ו־3 חלונות לפחות, ש־75% מהם באותה שפה (רצף שחוצה
+LOW_RUN = 3             # גבול — whisper שומע תערובת ומכריע לא נכון; כך נפסלה במדידה החלפה שגויה של 7 שנ׳ עברית)
+LOW_PURE = 0.75
+LOW_W = 0.2             # whisper צריך לתת לעברית+אנגלית יחד לפחות 0.2. ההכרעה — רק עברית מול אנגלית: whisper-small מבלבל
+                        # עברית⇄ערבית בקטעים כאלה (3 החלפות שגויות במדידה, כשהותרו כל המועמדות)
+LOW_MAX = 40
+CONFIRM_P = 0.2         # שפה נוספת נשארת מועמדת אם whisper נותן לה ≥ 0.2 ברצף החזק שלה, או יותר מלכל שפת בסיס
 
 # קודי VoxLingua107 שונים מ־ISO 639-1 של שאר המערכת
 CODE = {"iw": "he", "jw": "jv"}
@@ -290,23 +309,29 @@ def windows(spans: list, win: float = WIN, hop: float = HOP, one_max: float = ON
     return out
 
 
-def choose(lp, codes: list[str], wins: list, base=BASE, extra_p: float = EXTRA_P, extra_share: float = EXTRA_SHARE,
-           extra_min_s: float = EXTRA_MIN_S, extra_max: int = EXTRA_MAX) -> list[str]:
+def choose(lp, codes: list[str], wins: list, base=BASE, extra_p: float = EXTRA_P, extra_min_s: float = EXTRA_MIN_S,
+           extra_run: int = EXTRA_RUN, extra_max: int = EXTRA_MAX) -> list[str]:
     """השפות המועמדות: base (שקיימות במודל), ועוד שפה שהיא הראשונה בביטחון ≥ extra_p בחלונות שסכום האורך שלהם
-    ≥ extra_min_s שנ׳ ו־≥ extra_share מזמן הדיבור (לפי חלונות; חלון חופף נספר לפי אורכו — קירוב)."""
+    ≥ extra_min_s שנ׳ (חלון חופף נספר לפי אורכו — קירוב), וביניהם רצף של extra_run חלונות עוקבים."""
     import numpy as np
     cand = [c for c in base if c in codes]
     if not len(wins):
         return cand
-    tot = sum(e - s for s, e, _ in wins) or 1.0
     top = np.argmax(lp, axis=1)
     pr = np.exp(lp[np.arange(len(wins)), top])
     acc: dict[str, float] = {}
+    run: dict[str, int] = {}
+    cur, n = None, 0
     for (s, e, _), j, p in zip(wins, top, pr):
         c = codes[j]
         if p >= extra_p and c not in cand:
             acc[c] = acc.get(c, 0.0) + (e - s)
-    extra = [c for c, v in sorted(acc.items(), key=lambda kv: -kv[1]) if v >= extra_min_s and v / tot >= extra_share]
+            n = n + 1 if c == cur else 1
+            cur = c
+            run[c] = max(run.get(c, 0), n)
+        else:
+            cur, n = None, 0
+    extra = [c for c, v in sorted(acc.items(), key=lambda kv: -kv[1]) if v >= extra_min_s and run.get(c, 0) >= extra_run]
     return cand + extra[:extra_max]
 
 
@@ -383,6 +408,164 @@ def regions(wins: list, lab: list[str], prob: list[float], spans: list) -> list[
             for g in out]
 
 
+def coverage(lp, codes: list[str], cand: list[str]):
+    """לכל חלון: כמה מההסתברות של ECAPA (אחרי fold) נופלת על השפות המועמדות. נמוך — ההכרעה ביניהן לא אמינה."""
+    import numpy as np
+    if not len(lp):
+        return np.zeros(0)
+    return np.exp(np.asarray(lp)[:, [codes.index(c) for c in cand]]).sum(axis=1)
+
+
+def _clip(audio, s: float, e: float, clip_s: float = VERIFY_CLIP_S):
+    if e - s > clip_s:
+        mid = (s + e) / 2
+        s, e = mid - clip_s / 2, mid + clip_s / 2
+    return audio[max(0, int(s * SR)):int(e * SR)]
+
+
+def confirm(cand: list[str], base, lp, codes: list[str], wins: list, audio, probs_fn, extra_p: float = EXTRA_P,
+            min_p: float = CONFIRM_P) -> tuple[list[str], dict]:
+    """שפה נוספת (לא מ־base) נשארת מועמדת רק אם whisper-small מאשר אותה ברצף החזק שלה (חלונות עוקבים שבהם היא
+    הראשונה ב־extra_p; הפסקה של עד 2 שנ׳ לא שוברת): ≥ min_p — נשארת; whisper אומר שפה אחרת שאינה בסיס (≥ 0.5) — היא
+    נכנסת במקומה; אחרת נשארת רק אם whisper לא מעדיף עליה שפת בסיס. בלי probs_fn / תקלה — כמו קודם.
+    → (מועמדות, {chk, drop, swap})."""
+    import numpy as np
+    st = {"chk": 0, "drop": 0, "swap": 0}
+    base = [c for c in cand if c in base]
+    extra = [c for c in cand if c not in base]
+    if not extra or probs_fn is None or not len(wins):
+        return cand, st
+    pr = np.exp(np.asarray(lp))
+    top = pr.argmax(axis=1)
+    keep = list(base)
+    for c in extra:
+        ci = codes.index(c)
+        best: list[int] = []
+        cur: list[int] = []
+        for i, w in enumerate(wins):
+            ok = top[i] == ci and pr[i, ci] >= extra_p
+            if ok and (not cur or w[2] == wins[cur[-1]][2] or w[0] - wins[cur[-1]][1] < 2.0):
+                cur.append(i)
+            else:
+                best = cur if len(cur) > len(best) else best
+                cur = [i] if ok else []
+        best = cur if len(cur) > len(best) else best
+        if not best:
+            keep.append(c)
+            continue
+        try:
+            wp = probs_fn(_clip(audio, wins[best[0]][0], wins[best[-1]][1])) or {}
+        except Exception:                        # noqa: BLE001 — בלי אישור, כמו קודם
+            keep.append(c)
+            continue
+        st["chk"] += 1
+        g = lambda k: float(wp.get(k, 0.0) or 0.0)
+        wt = max(wp, key=g) if wp else ""
+        if g(c) >= min_p:
+            keep.append(c)
+        elif wt and wt != c and wt not in base and wt not in cand and wt not in keep and wt in codes and g(wt) >= 0.5:
+            keep.append(wt)
+            st["swap"] += 1
+        elif g(c) >= max([g(b) for b in base] or [0.0]):
+            keep.append(c)
+        else:
+            st["drop"] += 1
+    return keep, st
+
+
+def low_chunks(cov, wins: list, th: float = LOW_COV, min_s: float = LOW_MIN_S, max_s: float = VERIFY_CLIP_S) -> list[list[int]]:
+    """רצפים של חלונות בכיסוי נמוך (חלון טוב אחד באמצע לא שובר), מפוצלים לחתיכות של עד max_s → [[אינדקסים]]."""
+    runs: list[list[int]] = []
+    cur: list[int] = []
+    good = 0
+    for i, c in enumerate(cov):
+        if c < th:
+            cur.append(i)
+            good = 0
+        elif cur:
+            good += 1
+            if good > 1:
+                runs.append(cur)
+                cur, good = [], 0
+    if cur:
+        runs.append(cur)
+    out: list[list[int]] = []
+    for r in runs:
+        if wins[r[-1]][1] - wins[r[0]][0] < min_s:
+            continue
+        parts: list[list[int]] = []
+        ch: list[int] = []
+        for i in r:
+            if ch and wins[i][1] - wins[ch[0]][0] > max_s:
+                parts.append(ch)
+                ch = []
+            ch.append(i)
+        if parts and (wins[ch[-1]][1] - wins[ch[0]][0] < min_s or len(ch) < LOW_RUN):
+            parts[-1] += ch                      # זנב קצר — מצטרף לחתיכה הקודמת של אותו רצף
+        else:
+            parts.append(ch)
+        out += parts
+    return out
+
+
+def verify(regs: list[dict], lab: list[str], prob: list[float], wins: list, em, cand: list[str], audio, main: str, probs_fn,
+           cov=None, min_p: float = VERIFY_P, min_s: float = VERIFY_MIN_S, cap: int = VERIFY_MAX, low_cap: int = LOW_MAX):
+    """אימות ב־whisper-small (probs_fn(קטע) → {שפה: הסתברות}) — כל מודל חזק במקום שהשני חלש: ECAPA מדויק בחלון קצר,
+    whisper שומע קטע שלם ועמיד יותר למבטא. שני סוגים:
+      - "מיעוט": אזור שאינו בשפה הראשית, ECAPA בטוח בו פחות מ־min_p, ואורכו ≥ min_s — הכרעה בין כל המועמדות.
+      - "כיסוי": רצף שבו ECAPA "הלך לאיבוד" (low_chunks), ו־75% ממנו בעברית או באנגלית — הכרעה רק ביניהן.
+    ההכרעה: ממוצע ה־log-הסתברות של ECAPA בחלונות + ה־log-הסתברות של whisper. → (lab, prob, {n, flip, nlow, fliplow},
+    החלונות ששונו). תקלה ב־probs_fn — בלי שינוי, כמו קודם."""
+    import numpy as np
+    st = {"n": 0, "flip": 0, "nlow": 0, "fliplow": 0}
+    lab, prob = list(lab), list(prob)
+    flipped: set = set()
+    if not len(wins) or probs_fn is None:
+        return lab, prob, st, flipped
+    em = np.asarray(em)
+    cs = [(a + b) / 2 for a, b, _ in wins]
+    jobs = []
+    sus = sorted([g for g in regs if g["lg"] != main and g["p"] < min_p and g["e"] - g["s"] >= min_s], key=lambda g: g["p"])
+    for g in sus[:cap]:
+        idx = [k for k, c in enumerate(cs) if g["s"] <= c <= g["e"]]
+        if idx:
+            jobs.append(("min", idx, g["s"], g["e"]))
+    if cov is not None and "he" in cand and "en" in cand:
+        hi = [cand.index("he"), cand.index("en")]
+        low = []
+        for idx in low_chunks(cov, wins):
+            top = max(set(lab[i] for i in idx), key=lambda c: sum(lab[i] == c for i in idx))
+            if top in ("he", "en") and len(idx) >= LOW_RUN and sum(lab[i] == top for i in idx) >= LOW_PURE * len(idx):
+                low.append(idx)
+        for idx in sorted(low, key=lambda ix: float(np.mean([cov[i] for i in ix])))[:low_cap]:
+            jobs.append(("low", idx, wins[idx[0]][0], wins[idx[-1]][1]))
+    for kind, idx, s, e in jobs:
+        try:
+            wp = probs_fn(_clip(audio, s, e)) or {}
+        except Exception:                        # noqa: BLE001 — בלי אימות, כמו קודם
+            continue
+        w = np.array([max(float(wp.get(c, 0.0) or 0.0), 1e-6) for c in cand])
+        tot = em[idx].mean(axis=0) + np.log(w / w.sum())
+        cur = max(set(lab[i] for i in idx), key=lambda c: sum(lab[i] == c for i in idx))
+        if kind == "low":
+            if sum(float(wp.get(c, 0.0) or 0.0) for c in ("he", "en")) < LOW_W:
+                continue
+            st["nlow"] += 1
+            tot = np.where(np.isin(np.arange(len(cand)), hi), tot, -np.inf)
+        else:
+            st["n"] += 1
+        j = int(np.argmax(tot))
+        if cand[j] == cur:
+            continue
+        st["flip" if kind == "min" else "fliplow"] += 1
+        pj = round(float(np.exp(tot[j] - np.logaddexp.reduce(tot[np.isfinite(tot)]))), 2)
+        for i in idx:
+            if kind == "min" or lab[i] == cur:
+                lab[i], prob[i] = cand[j], pj
+                flipped.add(i)
+    return lab, prob, st, flipped
+
+
 def share(regs: list[dict]) -> dict:
     """חלק כל שפה מזמן הדיבור (לפי האזורים), מהגדול לקטן."""
     acc: dict[str, float] = {}
@@ -404,9 +587,11 @@ def lang_at(regs: list[dict], t: float, default: str = "") -> str:
     return best
 
 
-def timeline(audio, spans: list | None = None, prefer: str = "", model: Model | None = None, vad_fn=None) -> dict:
+def timeline(audio, spans: list | None = None, prefer: str = "", model: Model | None = None, vad_fn=None,
+             verify_fn=None) -> dict:
     """הציר המלא (ראו ראש הקובץ). prefer = השפה שהמשתמש בחר (מועמדת תמיד, ומקבלת יתרון קטן בהתחלה).
-    spans = קטעי הדיבור אם כבר יש (אחרת Silero). מודל חסר / תקלה — זורק; הקוראים מטפלים."""
+    spans = קטעי הדיבור אם כבר יש (אחרת Silero). verify_fn(קטע) → {שפה: הסתברות} — אימות אזורי המיעוט החשודים
+    (whisper-small; בלי — בלי אימות). מודל חסר / תקלה — זורק; הקוראים מטפלים."""
     import numpy as np
     t0 = time.time()
     if spans is None:
@@ -418,17 +603,26 @@ def timeline(audio, spans: list | None = None, prefer: str = "", model: Model | 
         raise ValueError("ארוך מדי לזיהוי שפה")
     wins = windows(spans)
     if not wins:
-        return {"regions": [], "share": {}, "main": "", "cands": [], "n": 0, "s": round(time.time() - t0, 1)}
+        return {"regions": [], "share": {}, "main": "", "cands": [], "n": 0, "vf": {}, "s": round(time.time() - t0, 1)}
     m = model or Model()
     lp = fold(m.logp([audio[int(s * SR):int(e * SR)] for s, e, _ in wins]), m.codes)
     base = tuple(dict.fromkeys(BASE + ((prefer,) if prefer else ())))
-    cand = choose(lp, m.codes, wins, base=base)
+    cand, cf = confirm(choose(lp, m.codes, wins, base=base), base, lp, m.codes, wins, audio, verify_fn)
     em = restrict(lp, m.codes, cand)
     prior = np.array([math.log(0.6) if c == prefer else math.log(0.4 / max(1, len(cand) - 1)) for c in cand]) if prefer in cand else None
     path = viterbi(em, wins, prior=prior)
     lab = [cand[j] for j in path]
     prob = [float(np.exp(em[i, j])) for i, j in enumerate(path)]
     regs = regions(wins, lab, prob, spans)
+    main = next(iter(share(regs)), "")
+    lab, prob, vf, flipped = verify(regs, lab, prob, wins, em, cand, audio, main, verify_fn, cov=coverage(lp, m.codes, cand))
+    if flipped:
+        regs = regions(wins, lab, prob, spans)
+        cs = [(wins[i][0] + wins[i][1]) / 2 for i in flipped]
+        for g in regs:
+            if any(g["s"] <= c <= g["e"] for c in cs):
+                g["v"] = 1
+    vf.update(cf)
     sh = share(regs)
-    return {"regions": regs, "share": sh, "main": next(iter(sh), ""), "cands": cand, "n": len(wins),
+    return {"regions": regs, "share": sh, "main": next(iter(sh), ""), "cands": cand, "n": len(wins), "vf": vf,
             "s": round(time.time() - t0, 1)}

@@ -199,12 +199,12 @@ def cmd_lang(a):
     doc: dict = {"v": 1, "seg": []}
     try:
         if use_tl:
-            from .vi import _load16, langs_doc
+            from .vi import _load16, langs_doc, verify_fn
             audio = _load16(wav)
-            tl = lid.timeline(audio, prefer="en")
+            tl = lid.timeline(audio, prefer="en", verify_fn=verify_fn())
             found = L.foreign_regions(tl, "en", audio=audio)
             doc["seg"] = L.transcribe_spans(audio, found) if found else []
-            doc["tl"] = {k: v for k, v in langs_doc(tl).items() if k in ("src", "main", "share", "n", "s")}
+            doc["tl"] = {k: v for k, v in langs_doc(tl).items() if k in ("src", "main", "share", "n", "s", "vf")}
             log("שפות (ציר): " + ", ".join(f"{k} {round(v * 100)}%" for k, v in tl["share"].items()))
         else:
             doc["seg"] = L.detect(wav, res.get("words") or [])
