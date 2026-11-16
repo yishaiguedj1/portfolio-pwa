@@ -42,7 +42,7 @@ jobs:
         run: |
           git merge-base --is-ancestor "$SHA" HEAD || { echo "::error::$SHA לא נמצא ב־main — לא פורסים"; exit 1; }
           git checkout -q --detach "$SHA"
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
       - name: הבנייה, גרסת המערכת, והאם זו גרסה חדשה
@@ -118,7 +118,7 @@ jobs:
         run: |
           git merge-base --is-ancestor "$SHA" HEAD || { echo "::error::$SHA לא נמצא ב־main — לא פורסים"; exit 1; }
           git checkout -q --detach "$SHA"
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
       - name: תיקיית האתר — רק קבצי האפליקציה (tools/sitefiles.js)
@@ -148,7 +148,7 @@ jobs:
         run: |
           git merge-base --is-ancestor "$SHA" HEAD || { echo "::error::$SHA לא נמצא ב־main — לא פורסים"; exit 1; }
           git checkout -q --detach "$SHA"
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
       - name: העלאה לייצור (Cloudflare Pages ‏thesnowball-prod)
@@ -184,7 +184,7 @@ jobs:
         run: |
           git merge-base --is-ancestor "$SHA" HEAD || { echo "::error::$SHA לא נמצא ב־main — לא פורסים"; exit 1; }
           git checkout -q --detach "$SHA"
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
       - name: האתר החי מגיש את הגרסה, וכל קובץ זהה לטביעה
