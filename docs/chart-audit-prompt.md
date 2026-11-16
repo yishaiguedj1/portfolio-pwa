@@ -10,7 +10,7 @@
 
 ## 0. לפני הכל
 1. הצ'קליסט של CLAUDE.md (סעיף 13). בדיקת בעלות (סעיף 11): `list_sessions` (mine, limit 15) — סשן "בדיקת העומק של מנתח החברות" רץ במקביל; לא נוגעים ב־`tools/fund-deep/` ולא בקבצים שלו, ותור ה־PR משותף (PR פתוח אחד בכל רגע).
-2. לקרוא את `docs/fund-deep-audit.md` כולו — זה התבנית: אותה שיטה (מלאי של כל ערך במסך → מודל תצוגה → מאמת בלתי תלוי → ורדיקטים → מיון לשורש → תיקון עם בדיקה), אותה רמת עומק ואותו מבנה מסמכים.
+2. לקרוא את `docs/fund-deep-audit.md` כולו — זה התבנית: אותה שיטה (מלאי של כל ערך במסך → מודל תצוגה → מאמת בלתי תלוי → ורדיקטים → מיון לשורש → תיקון עם בדיקה), אותה רמת עומק ואותו מבנה מסמכים. כל עוד ה־PR של בדיקת המנתח לא מוזג, הקבצים שלה (`docs/fund-deep-audit.md`, `docs/research/fund-deep/`, `tools/fund-deep/`) נמצאים רק בענף שלה: `git fetch -q origin claude/audit-company-analysis-system-ojt14l` ואז `git show FETCH_HEAD:docs/fund-deep-audit.md` (וכך לכל קובץ) — קוראים משם, לא ממזגים את הענף.
 3. הקוד (רק בקטעים, grep ואז sed): `ibkr-proxy/lib/candles.js` (כולו, 8KB — op:'candles', החלונות IVS, נר הרפאים, יישור הנקודה החיה, ILA→ILS, המטמון, `to`); `chartlib.js` (`TF`, `aggregate`, `fromColumns`, `mergeBars`, `applyTick`, ואחר כך `CALC`/`IND` וההמרות); `chart.js` (223KB — רק: `RANGES`, `op: 'candles'`, `applyTick(`, `tzOffset`, `dayKeyFor`, `BASESEC`, `switchCell`, הרענון כל 20/60 שנ׳); `ibkr-proxy/api/quotes.js` (המחיר החי שנכנס לנר האחרון); `tests/chart.test.js`.
 4. התיעוד: `docs/invest.md` — הסעיפים "גרף הנרות — השוואה … ונרות חיים", "מגע", "העסקאות שלי וקו הממוצע", ושורת המסחר המורחב והלילי; `docs/architecture.md` (השורה של chart.js); `docs/standards.md` — ת־גרף (מוצר הייחוס).
 

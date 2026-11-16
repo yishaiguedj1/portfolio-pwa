@@ -1044,5 +1044,210 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     ok(near(ec(2022), 2.2), 'EPS מפעילות נמשכת: נמשכת + שהופסקה מאותו דוח (2.08 + 0.12)');
     ok(ec(2023) == null, 'EPS מפעילות נמשכת: שורת הפעילות שהופסקה רק בדוח אחר — לא משלימים');
   }
+  /* ---------- חוב כפי שמודפס במאזן (F7, 16/11/2026): השורות של המאזן האחרון, וההיסטוריה של כל שורה ---------- */
+  {
+    const inst = (end, val, form, filed) => [null, end, val, form, filed];
+    // מיליונים (ההשוואה למאזן — בסובלנות של 1.5 מיליון או 0.5%)
+    const K = (pairs) => pairs.map(([y, v]) => inst(y + '-12-31', v * 1e6, '10-K', (y + 1) + '-02-20'));
+    const base = [['Revenues', 'USD', yrs([500, 510, 520, 530, 540, 550, 560], 2019)], ['NetIncomeLoss', 'USD', yrs([50, 51, 52, 53, 54, 55, 56], 2019)]];
+    // מאזן מודפס: שורות [ns, tag, label, [2025, 2024], total] בין "סך נכסים" ל"סך התחייבויות והון" (ואחריו — after)
+    const bs = (rows, after = []) => ({ bs: { title: 'Consolidated Balance Sheets', cols: [{ end: '2025-12-31' }, { end: '2024-12-31' }], scale: { cur: 1e6, sh: 1e6 },
+      rows: [{ ns: 'us-gaap', tag: 'Assets', label: 'Total assets', total: true, v: [9e4, 8e4] },
+        ...rows.map(([ns, tag, label, v, total]) => ({ ns, tag, label, v, total: !!total })),
+        { ns: 'us-gaap', tag: 'LiabilitiesAndStockholdersEquity', label: 'Total liabilities and equity', total: true, v: [9e4, 8e4] },
+        ...after.map(([ns, tag, label, v]) => ({ ns, tag, label, v }))] } });
+    const debt = (d, y) => d.A.debt && d.A.debt[d.fy.indexOf(y + '-12-31')] / 1e6;
+    const yrsv = (y0, a) => a.map((v, i) => [y0 + i, v]);
+    // (1) Hershey: תגיות החוב שכוללות חכירה מימונית הן חוב (לא רק ההלוואות הקצרות); Coca-Cola: לפני המעבר לתגית של היום — מהחלופה
+    const HS = facts([...base,
+      ['ShortTermBorrowings', 'USD', K(yrsv(2019, [32, 74, 939, 694, 720, 1307, 219]))],
+      ['LongTermDebtAndCapitalLeaseObligationsCurrent', 'USD', K(yrsv(2019, [703, 7, 506, 2, 401, 605, 503]))],
+      ['LongTermDebtAndCapitalLeaseObligations', 'USD', K(yrsv(2022, [3343, 3089, 3190, 4681]))],
+      ['LongTermDebtNoncurrent', 'USD', K(yrsv(2019, [3531, 4522, 4084]))]]);
+    const hsF = bs([['us-gaap', 'ShortTermBorrowings', 'Short-term debt', [219, 1307]], ['us-gaap', 'AccountsPayableCurrent', 'Accounts payable', [900, 800]],
+      ['us-gaap', 'LongTermDebtAndCapitalLeaseObligationsCurrent', 'Current portion of long-term debt', [503, 605]],
+      ['us-gaap', 'LongTermDebtAndCapitalLeaseObligations', 'Long-term debt', [4681, 3190]]]);
+    const df = F.debtFace(hsF, 'USD');
+    ok(df.lines.map((l) => l.tag).join() === 'ShortTermBorrowings,LongTermDebtAndCapitalLeaseObligationsCurrent,LongTermDebtAndCapitalLeaseObligations' && df.tot.get('2025-12-31') === 5403e6,
+      'חוב במאזן: שלוש שורות החוב (כולל התגיות "…AndCapitalLeaseObligations"), בלי ספקים');
+    const hs = F.normalizeSec(HS, [], hsF);
+    ok(debt(hs, 2025) === 5403 && debt(hs, 2024) === 5102 && debt(hs, 2022) === 694 + 2 + 3343, 'Hershey: חוב = הלוואות קצרות + חלויות + חוב לזמן ארוך — כמו במאזן');
+    ok(debt(hs, 2020) === 74 + 7 + 4522 && hs.tags.debt === 'ShortTermBorrowings+LongTermDebtAndCapitalLeaseObligationsCurrent+LongTermDebtAndCapitalLeaseObligations',
+      'Coca-Cola: השנים שלפני התגית של היום — מהחלופה מאותו סוג (LongTermDebtNoncurrent)');
+    // (2) Microsoft: שורת ניירות ערך מסחריים שנעלמה מהמאזן (0 בעמודות של היום) — נכנסת להיסטוריה
+    const MS = facts([...base,
+      ['LongTermDebtCurrent', 'USD', K(yrsv(2019, [5516, 3749, 8072, 2749, 5247, 2249, 2999]))],
+      ['LongTermDebtNoncurrent', 'USD', K(yrsv(2019, [66662, 59578, 50074, 47032, 41990, 42688, 40152]))],
+      ['CommercialPaper', 'USD', K(yrsv(2019, [0, 0, 0, 0, 6693, 0, 0]))]]);
+    const ms = F.normalizeSec(MS, [], bs([['us-gaap', 'LongTermDebtCurrent', 'Current portion of long-term debt', [2999, 2249]],
+      ['us-gaap', 'LongTermDebtNoncurrent', 'Long-term debt', [40152, 42688]]]));
+    ok(debt(ms, 2023) === 6693 + 5247 + 41990 && debt(ms, 2025) === 2999 + 40152 && debt(ms, 2021) === 8072 + 50074,
+      'Microsoft: ניירות ערך מסחריים של 2023 בחוב, אף שאינם שורה במאזן של 2025');
+    // (3) Xcel: ‏LongTermDebt בשורת "Long-term debt" של מאזן מסווג — בפועל החלק הלא שוטף; בשנים קודמות אותה תגית כוללת את
+    //     החלויות (מהביאורים) — ההיסטוריה מהחלופה הלא שוטפת שתואמת למאזן
+    const XE = facts([...base,
+      ['LongTermDebtAndCapitalLeaseObligationsCurrent', 'USD', K(yrsv(2019, [702, 421, 601, 1151, 552, 1103, 501]))],
+      ['ShortTermBorrowings', 'USD', K(yrsv(2019, [595, 584, 1005, 813, 785, 695, 1550]))],
+      ['LongTermDebt', 'USD', K(yrsv(2019, [18109, 20066, 22380, 23964, 25465, 27316, 31832]))],
+      ['LongTermDebtAndCapitalLeaseObligations', 'USD', K(yrsv(2019, [17407, 19645, 21779, 22813, 24913, 27316, 31832]))]]);
+    const xe = F.normalizeSec(XE, [], bs([['us-gaap', 'LongTermDebtAndCapitalLeaseObligationsCurrent', 'Current portion of long-term debt', [501, 1103]],
+      ['us-gaap', 'ShortTermBorrowings', 'Short-term debt', [1550, 695]], ['us-gaap', 'LongTermDebt', 'Long-term debt', [31832, 27316]]]));
+    ok(debt(xe, 2020) === 421 + 584 + 19645 && debt(xe, 2025) === 501 + 1550 + 31832, 'Xcel: בלי לספור את החלויות פעמיים בשנים הקודמות (20,650, לא 21,071)');
+    // (4) Con Edison: "LONG-TERM DEBT" מתויג LongTermDebtFairValue — חוב; "סך התחייבויות לא שוטפות" (…OtherThanLongtermDebt…) וסך ההון
+    //     והחוב — לא חוב
+    const edF = bs([['us-gaap', 'OtherLongTermDebtCurrent', 'Long-term debt due within one year', [250, 0]], ['us-gaap', 'NotesPayableCurrent', 'Notes payable', [1575, 2170]],
+      ['us-gaap', 'LiabilitiesOtherThanLongtermDebtNoncurrent', 'TOTAL NONCURRENT LIABILITIES', [18248, 17516], true],
+      ['us-gaap', 'LongTermDebtFairValue', 'LONG-TERM DEBT', [25551, 24651]], ['us-gaap', 'CapitalizationLongtermDebtAndEquity', 'Total capitalization', [49741, 46613], true]]);
+    const de = F.debtFace(edF, 'USD');
+    ok(de.lines.map((l) => l.tag).join() === 'OtherLongTermDebtCurrent,NotesPayableCurrent,LongTermDebtFairValue' && de.tot.get('2025-12-31') === 27376e6,
+      'Con Edison: שורת החוב בתגית "שווי הוגן" נכנסת; "התחייבויות חוץ מחוב" וסך ההון והחוב — לא');
+    // (5) AEP: שורת "סך הלוואות קצרות" במקום השורות שלפניה; Bank of America: אחרי "סך התחייבויות והון" (פירוט הישויות) — לא נספר
+    const ae = F.debtFace(bs([['us-gaap', 'CommercialPaper', 'Commercial paper', [600, 500]], ['us-gaap', 'OtherShortTermBorrowings', 'Other short-term debt', [400, 400]],
+      ['us-gaap', 'ShortTermBorrowings', 'Total short-term debt', [1000, 900], true], ['us-gaap', 'LongTermDebtNoncurrent', 'Long-term debt', [5000, 4000]]],
+    [['us-gaap', 'LongTermDebtNoncurrent', 'Long-term debt', [777, 777]]]), 'USD');
+    ok(ae.lines.map((l) => l.tag).join() === 'ShortTermBorrowings,LongTermDebtNoncurrent' && ae.tot.get('2025-12-31') === 6000e6, 'שורת סך של חוב במקום רכיביה, ובלי השורות שאחרי סך ההתחייבויות וההון');
+    // (6) שורה בתגית של החברה, או ערך שלא תואם למאזן — השיטה הקודמת (לא חוב חלקי)
+    const OL = facts([...base, ['LongTermDebtNoncurrent', 'USD', K(yrsv(2019, [10, 11, 12, 13, 14, 15, 16]))], ['ShortTermBorrowings', 'USD', K(yrsv(2019, [1, 1, 1, 1, 1, 2, 3]))]]);
+    const ol1 = F.normalizeSec(OL, [], bs([['xyz', 'Borrowings', 'Short-term borrowings', [3, 2]], ['us-gaap', 'LongTermDebtNoncurrent', 'Long-term debt', [16, 15]]]));
+    const ol2 = F.normalizeSec(OL, [], bs([['us-gaap', 'ShortTermBorrowings', 'Short-term borrowings', [3, 2]], ['us-gaap', 'LongTermDebtNoncurrent', 'Long-term debt', [99, 15]]]));
+    ok(debt(ol1, 2025) === 19 && debt(ol2, 2025) === 19 && ol1.tags.debt !== 'Borrowings' && !/\+/.test(ol2.tags.debt || ''), 'שורה בתגית של החברה / ערך שלא תואם למאזן — השיטה הקודמת');
+    // (7) McDonald's: חלויות שהיום בביאור (725 בעמודה של 2025, בתוך "Long-term debt") — לא נוספות למאזן של היום; ב־2020 היו שורה
+    const MC = facts([...base, ['LongTermDebtNoncurrent', 'USD', K(yrsv(2019, [34118, 35197, 35623, 35904, 37153, 38424, 39973]))],
+      ['LongTermDebtCurrent', 'USD', K([[2019, 59], [2020, 2244], [2025, 725]])], ['DebtCurrent', 'USD', K([[2022, 0], [2023, 2192], [2024, 0]])],
+      ['ShortTermBorrowings', 'USD', K([[2023, 2192], [2024, 0]])], ['LongTermDebt', 'USD', K([[2019, 34177], [2020, 37441], [2025, 39973]])]]);
+    const mc = F.normalizeSec(MC, [], bs([['us-gaap', 'LongTermDebtNoncurrent', 'Long-term debt', [39973, 38424]]]));
+    ok(debt(mc, 2025) === 39973 && debt(mc, 2024) === 38424, "McDonald's: חלויות שבביאור היום — לא נוספות לשנים של המאזן");
+    ok(debt(mc, 2023) === 37153 + 2192, "McDonald's: חוב שוטף כולל (DebtCurrent) — פעם אחת, לא יחד עם רכיביו (ShortTermBorrowings)");
+    ok(debt(mc, 2020) === 35197 + 2244 && debt(mc, 2019) === 34118 + 59, "McDonald's: החלויות של 2019–2020 — בחוב, כי סך החוב לזמן ארוך באותה שנה (LongTermDebt) כולל אותן מעבר לשורה");
+    // (8) Exelon: החוב לזמן ארוך מוצג רק בפירוט עם ממד ("צד לא קשור") — אין במאזן שנקרא שורה שיכולה להכיל אותו: נכנס בכל התאריכים
+    const EX = facts([...base, ['ShortTermBorrowings', 'USD', K(yrsv(2019, [1370, 2031, 1248, 2586, 2523, 1859, 612]))],
+      ['LongTermDebtAndCapitalLeaseObligationsCurrent', 'USD', K(yrsv(2019, [4710, 1819, 2153, 1802, 1403, 1453, 1665]))],
+      ['LongTermDebtNoncurrent', 'USD', K(yrsv(2019, [31329, 35093, 30749, 35272, 39692, 42947, 47413]))]]);
+    const ex = F.normalizeSec(EX, [], bs([['us-gaap', 'ShortTermBorrowings', 'Short-term borrowings', [612, 1859]],
+      ['us-gaap', 'LongTermDebtAndCapitalLeaseObligationsCurrent', 'Long-term debt due within one year', [1665, 1453]]]));
+    ok(debt(ex, 2025) === 612 + 1665 + 47413 && debt(ex, 2020) === 2031 + 1819 + 35093, 'Exelon: חוב לזמן ארוך שלא נקרא מהמאזן (פירוט עם ממד) — מהתגית, בכל השנים');
+    // (9) Revvity: "Current portion of long-term debt" בתגית OtherLongTermDebtCurrent — חלויות: בשנים שבהן הן מתויגות גם
+    //     LongTermDebtCurrent (בביאור) — פעם אחת
+    const RV = facts([...base, ['OtherLongTermDebtCurrent', 'USD', K(yrsv(2019, [40, 41, 42, 43, 44, 45, 46]))], ['LongTermDebtCurrent', 'USD', K(yrsv(2019, [40, 41, 42]))],
+      ['LongTermDebtNoncurrent', 'USD', K(yrsv(2019, [3000, 3100, 3200, 3300, 3400, 3500, 3600]))]]);
+    const rv = F.normalizeSec(RV, [], bs([['us-gaap', 'OtherLongTermDebtCurrent', 'Current portion of long-term debt', [46, 45]], ['us-gaap', 'LongTermDebtNoncurrent', 'Long-term debt', [3600, 3500]]]));
+    ok(debt(rv, 2020) === 41 + 3100 && debt(rv, 2025) === 46 + 3600, 'Revvity: חלויות בתגית OtherLongTermDebtCurrent — לא נספרות פעמיים');
+    // (10) "Short-term borrowings and current portion of long-term debt" בתגית ShortTermBorrowings — חוב שוטף כולל: החלויות שבביאור לא נוספות
+    const SB = facts([...base, ['ShortTermBorrowings', 'USD', K(yrsv(2019, [300, 310, 320, 330, 340, 350, 360]))], ['LongTermDebtCurrent', 'USD', K(yrsv(2019, [100, 110, 120]))],
+      ['LongTermDebtNoncurrent', 'USD', K(yrsv(2019, [900, 910, 920, 930, 940, 950, 960]))]]);
+    const sb = F.normalizeSec(SB, [], bs([['us-gaap', 'ShortTermBorrowings', 'Short-term borrowings and current portion of long-term debt', [360, 350]],
+      ['us-gaap', 'LongTermDebtNoncurrent', 'Long-term debt', [960, 950]]]));
+    ok(debt(sb, 2020) === 310 + 910, 'שורה אחת של הלוואות קצרות וחלויות — החלויות שבביאור לא נוספות עליה');
+    // (11) מאזן לא מסווג עם "Long-term debt" (LongTermDebt): AIG — ההלוואות הקצרות בתוך השורה: סך החוב של החברה
+    //      (DebtLongtermAndShorttermCombinedAmount) שווה לשורה — לא נוספות; Hartford — "Short-term debt" הייתה שורה נפרדת (נוספת)
+    const AI = facts([...base, ['LongTermDebt', 'USD', K(yrsv(2019, [3500, 3600, 3700, 2718, 1060, 900, 950]))], ['ShortTermBorrowings', 'USD', K([[2022, 150], [2023, 25]])],
+      ['DebtLongtermAndShorttermCombinedAmount', 'USD', K([[2022, 2718], [2023, 1060]])]]);
+    const ai = F.normalizeSec(AI, [], bs([['us-gaap', 'LongTermDebt', 'Long-term debt', [950, 900]]]));
+    ok(debt(ai, 2022) === 2718 && debt(ai, 2025) === 950, 'AIG: הלוואות קצרות שבתוך "Long-term debt" — לא נספרות פעמיים');
+    const HG = facts([...base, ['LongTermDebt', 'USD', K(yrsv(2019, [4348, 4352, 4944, 4357, 4362, 4366, 4371]))], ['LongTermDebtNoncurrent', 'USD', K(yrsv(2019, [4348, 4352]))],
+      ['ShortTermBorrowings', 'USD', K([[2019, 500], [2020, 0]])]]);
+    const hg = F.normalizeSec(HG, [], bs([['us-gaap', 'LongTermDebt', 'Long-term debt', [4371, 4366]]]));
+    ok(debt(hg, 2019) === 4348 + 500 && debt(hg, 2020) === 4352 && debt(hg, 2025) === 4371, 'Hartford: "Short-term debt" של 2019 (שורה שנעלמה) — בחוב');
+    // (12) Palo Alto: במאזן רק אג"ח להמרה לא שוטפות — החלויות של אותו מכשיר (ConvertibleDebtCurrent) נכנסות בשנים שבהן היו
+    const PA = facts([...base, ['ConvertibleDebtNoncurrent', 'USD', K(yrsv(2019, [1700, 1600, 0, 2000, 1900, 1800, 1700]))], ['ConvertibleDebtCurrent', 'USD', K([[2021, 3226], [2022, 0]])]]);
+    const pa = F.normalizeSec(PA, [], bs([['us-gaap', 'ConvertibleDebtNoncurrent', 'Long-term convertible senior notes', [1700, 1800]]]));
+    ok(debt(pa, 2021) === 3226 && debt(pa, 2020) === 1600 && debt(pa, 2025) === 1700, 'Palo Alto: החלויות של האג"ח להמרה (שורה שנעלמה) — בחוב');
+    // (13) Con Edison: תגית "רכה" (LongTermDebtFairValue) — בשנים קודמות השווי ההוגן שבביאור: ההיסטוריה מהחלופה; וניירות ערך מסחריים
+    //      (CommercialPaper) הם הפירוט של "Notes payable", לא ההיסטוריה של "Term loan"
+    const ED = facts([...base, ['LongTermDebtFairValue', 'USD', K([[2019, 99999], [2020, 88888], [2024, 24651], [2025, 25551]])],
+      ['LongTermDebtNoncurrent', 'USD', K(yrsv(2019, [18527, 20382, 22604, 22439, 21989, 24710]))], ['LongTermDebtCurrent', 'USD', K(yrsv(2019, [1446, 1967, 440, 1002, 251, 0, 250]))],
+      ['NotesPayableCurrent', 'USD', K(yrsv(2019, [1692, 1705, 1488, 2640, 2288, 2170, 1575]))], ['CommercialPaper', 'USD', K(yrsv(2019, [1692, 1705, 1488, 2640, 2288, 2170]))],
+      ['LoansPayableToBankCurrent', 'USD', K([[2024, 500], [2025, 500]])]]);
+    const ed = F.normalizeSec(ED, [], bs([['us-gaap', 'LongTermDebtCurrent', 'Long-term debt due within one year', [250, 0]],
+      ['us-gaap', 'LoansPayableToBankCurrent', 'Term loan', [500, 500]], ['us-gaap', 'NotesPayableCurrent', 'Notes payable', [1575, 2170]],
+      ['us-gaap', 'LongTermDebtFairValue', 'LONG-TERM DEBT', [25551, 24651]]]));
+    ok(debt(ed, 2025) === 250 + 500 + 1575 + 25551 && debt(ed, 2020) === 1967 + 1705 + 20382,
+      'Con Edison: היסטוריית השורה בתגית "שווי הוגן" מהחלופה, וניירות הערך המסחריים לא נספרים פעמיים');
+    // (14) Tyler: היום במאזן רק אג"ח להמרה; ב־2021 "Long-term debt" (LongTermDebtNoncurrent) כללה גם הלוואות — מחליפים כשסך החוב
+    //      לזמן ארוך (LongTermDebt) מאשר
+    const TY = facts([...base, ['ConvertibleDebtNoncurrent', 'USD', K(yrsv(2020, [0, 593, 594, 596, 598, 0]))], ['LongTermDebtNoncurrent', 'USD', K(yrsv(2021, [1311, 957, 596, 598]))],
+      ['LoansPayableCurrent', 'USD', K(yrsv(2020, [0, 30, 30, 50, 0, 600]))], ['LongTermDebt', 'USD', K(yrsv(2021, [1341, 987, 646, 598, 600]))]]);
+    const ty = F.normalizeSec(TY, [], bs([['us-gaap', 'LoansPayableCurrent', 'Current portion of convertible senior notes', [600, 0]],
+      ['us-gaap', 'ConvertibleDebtNoncurrent', 'Convertible senior notes due 2026, net', [0, 598]]]));
+    ok(debt(ty, 2021) === 1341 && debt(ty, 2022) === 987 && debt(ty, 2023) === 646 && debt(ty, 2025) === 600, 'Tyler: סך החוב הלא שוטף של 2021–2022 (הלוואות + אג"ח), לא רק האג"ח');
+    // (15) Trimble: החלויות (LongTermDebtCurrent) מתויגות גם ShortTermBorrowings באותו סכום — פעם אחת
+    const TR = facts([...base, ['LongTermDebtNoncurrent', 'USD', K(yrsv(2019, [1624, 1291, 1293, 1220, 2536, 1390, 1391]))],
+      ['LongTermDebtCurrent', 'USD', K([[2019, 219], [2020, 256], [2022, 300]])], ['ShortTermBorrowings', 'USD', K([[2019, 219], [2020, 256], [2022, 300]])]]);
+    const tr = F.normalizeSec(TR, [], bs([['us-gaap', 'LongTermDebtNoncurrent', 'Long-term debt', [1391, 1390]]]));
+    ok(debt(tr, 2019) === 1624 + 219 && debt(tr, 2022) === 1220 + 300, 'Trimble: אותו סכום בשתי תגיות — נספר פעם אחת');
+    // (16) Welltower: "Secured debt" ב־SecuredDebtOther מ־2024 — לפני כן מ־SecuredDebt (חלופה לפי המכשיר); "Unsecured credit facility" — לא
+    //      סך החוב (LongTermDebt) כחלופה
+    const WE = facts([...base, ['LineOfCredit', 'USD', K(yrsv(2019, [1588, 0, 0, 0, 0, 0, 0]))], ['UnsecuredDebt', 'USD', K(yrsv(2019, [10500, 11000, 11500, 12000, 12500, 13000, 13500]))],
+      ['SecuredDebt', 'USD', K(yrsv(2019, [2676, 2500, 2400, 2300, 2200]))], ['SecuredDebtOther', 'USD', K([[2024, 2338], [2025, 2814]])],
+      ['LongTermDebt', 'USD', K(yrsv(2019, [13200, 13500, 13900, 14300, 14700, 15338, 16314]))]]);
+    const we = F.normalizeSec(WE, [], bs([['us-gaap', 'LineOfCredit', 'Unsecured credit facility and commercial paper', [0, 0]],
+      ['us-gaap', 'UnsecuredDebt', 'Senior unsecured notes', [13500, 13000]], ['us-gaap', 'SecuredDebtOther', 'Secured debt', [2814, 2338]]]));
+    ok(debt(we, 2019) === 1588 + 10500 + 2676 && debt(we, 2025) === 13500 + 2814, 'Welltower: היסטוריית "Secured debt" מ־SecuredDebt');
+    // (17) Otis: "Short-term borrowings and current portion" (DebtCurrent) — בתגית שלה רק מ־2021; ב־2019–2020 רק החלויות (0, מהחלופה):
+    //      ההלוואות הקצרות בתגית שלהן — כן; ב־2021 הן בתוך השורה — לא
+    const OT = facts([...base, ['DebtCurrent', 'USD', K(yrsv(2021, [24, 670, 32, 1351, 1056]))], ['LongTermDebtCurrent', 'USD', K(yrsv(2019, [0, 0, 0]))],
+      ['LongTermDebtNoncurrent', 'USD', K(yrsv(2019, [5, 5262, 7249, 6098, 6866, 6973, 7000]))],
+      ['ShortTermBorrowings', 'USD', K(yrsv(2019, [34, 701, 24, 139, 32, 51, 500]))], ['CommercialPaper', 'USD', K([[2020, 664], [2021, 0]])]]);
+    const ot = F.normalizeSec(OT, [], bs([['us-gaap', 'DebtCurrent', 'Short-term borrowings and current portion of long-term debt', [1056, 1351]],
+      ['us-gaap', 'LongTermDebtNoncurrent', 'Long-term debt', [7000, 6973]]]));
+    ok(debt(ot, 2019) === 34 + 5 && debt(ot, 2020) === 701 + 5262 && debt(ot, 2021) === 24 + 7249, 'Otis: ההלוואות הקצרות של 2019–2020 — רק כשלשורת החוב השוטף אין ערך בתגית שלה');
+    // (18) KLA: מאזן מסווג ("Total current liabilities") ובו רק "Long-term debt" (LongTermDebt): בשנים הישנות התגית כוללת את החלויות — לא
+    //      מוסיפים; כשהיא שווה ל־LongTermDebtNoncurrent — החלויות בשורה נפרדת: מוסיפים; הלוואות קצרות שכבר בתוך LongTermDebt — לא
+    const KL = facts([...base, ['LongTermDebt', 'USD', K(yrsv(2019, [3423, 3461, 3424, 3700, 5143, 5880, 5884]))],
+      ['LongTermDebtNoncurrent', 'USD', K([[2019, 3173], [2020, 3441], [2023, 5143], [2024, 5880]])],
+      ['LongTermDebtCurrent', 'USD', K([[2019, 250], [2023, 750], [2025, 0]])], ['ShortTermBorrowings', 'USD', K([[2020, 20], [2021, 20]])]]);
+    const kl = F.normalizeSec(KL, [], bs([['us-gaap', 'AccountsPayableCurrent', 'Accounts payable', [400, 380]], ['us-gaap', 'LiabilitiesCurrent', 'Total current liabilities', [3000, 2900], true],
+      ['us-gaap', 'LongTermDebt', 'Long-term debt', [5884, 5880]]]));
+    ok(debt(kl, 2019) === 3423 && debt(kl, 2020) === 3461 && debt(kl, 2021) === 3444 && debt(kl, 2023) === 5143 + 750 && debt(kl, 2025) === 5884,
+      'KLA: ‏LongTermDebt כולל חלויות ב־2019, בלעדיהן ב־2023; ההלוואות הקצרות של 2020 כבר בפנים, של 2021 לא');
+    // (19) Cardinal: ניירות ערך מסחריים בתוך "Current portion of long-term obligations and other short-term borrowings" — סך החוב של החברה
+    //      (DebtAndCapitalLeaseObligations) כבר שווה לסכום: לא מוסיפים
+    const CA = facts([...base, ['LongTermDebtAndCapitalLeaseObligationsCurrent', 'USD', K(yrsv(2019, [1327, 1000, 900, 800, 700, 600, 500]))],
+      ['LongTermDebtAndCapitalLeaseObligations', 'USD', K(yrsv(2019, [9068, 9000, 8900, 8800, 8700, 8600, 8500]))], ['CommercialPaper', 'USD', K([[2019, 855], [2020, 0]])],
+      ['DebtAndCapitalLeaseObligations', 'USD', K([[2019, 10395]])]]);
+    const ca = F.normalizeSec(CA, [], bs([['us-gaap', 'LongTermDebtAndCapitalLeaseObligationsCurrent', 'Current portion of long-term obligations and other short-term borrowings', [500, 600]],
+      ['us-gaap', 'LongTermDebtAndCapitalLeaseObligations', 'Long-term obligations, less current portion', [8500, 8600]]]));
+    ok(debt(ca, 2019) === 10395, 'Cardinal: ניירות הערך המסחריים שבתוך שורת החלויות — לא נוספים כשסך החוב של החברה כבר שווה לסכום');
+    // (20) McKesson: ‏DebtAndCapitalLeaseObligations = חוב לזמן ארוך כולל חלויות בלבד — לא ראיה שההלוואות הקצרות כבר בפנים
+    const MK = facts([...base, ['LongTermDebtAndCapitalLeaseObligationsCurrent', 'USD', K(yrsv(2019, [777, 438, 404, 48, 1165, 1191, 1297]))],
+      ['LongTermDebtAndCapitalLeaseObligations', 'USD', K(yrsv(2019, [6467, 5518, 5452, 5625, 4422, 4463, 4500]))],
+      ['ShortTermBorrowings', 'USD', K([[2019, 152], [2020, 372]])], ['DebtAndCapitalLeaseObligations', 'USD', K([[2019, 7244], [2020, 5956]])]]);
+    const mk = F.normalizeSec(MK, [], bs([['us-gaap', 'LongTermDebtAndCapitalLeaseObligationsCurrent', 'Current portion of long-term debt', [1297, 1191]],
+      ['us-gaap', 'LongTermDebtAndCapitalLeaseObligations', 'Long-term debt', [4500, 4463]]]));
+    ok(debt(mk, 2019) === 777 + 6467 + 152 && debt(mk, 2020) === 438 + 5518 + 372, 'McKesson: ההלוואות הקצרות נוספות גם כש־DebtAndCapitalLeaseObligations שווה לחוב לזמן ארוך');
+    // (21) Nordson: "Current maturities of long-term debt and notes payable" — התווית לא ראיה שניירות הערך המסחריים בתוך השורה:
+    //      ב־2021 השורה (10) קטנה מהם (192) — הם נוספים
+    const ND = facts([...base, ['LongTermDebtCurrent', 'USD', K(yrsv(2019, [101, 95, 10, 336, 315, 54, 50]))],
+      ['LongTermDebtNoncurrent', 'USD', K(yrsv(2019, [2085, 2119, 1529, 1786, 1681, 1943, 1836]))], ['CommercialPaper', 'USD', K([[2021, 192], [2024, 0]])]]);
+    const nd = F.normalizeSec(ND, [], bs([['us-gaap', 'LongTermDebtCurrent', 'Current maturities of long-term debt and notes payable', [50, 54]],
+      ['us-gaap', 'LongTermDebtNoncurrent', 'Long-term debt', [1836, 1943]]]));
+    ok(debt(nd, 2021) === 10 + 1529 + 192 && debt(nd, 2022) === 336 + 1786, 'Nordson: ניירות ערך מסחריים נוספים גם כשתווית החלויות מזכירה "notes payable"');
+    // (22) Invitation Homes: מאזן לא מסווג, ארבע שורות "סך" של מכשיר, ו־LongTermDebt שווה לסכומן ב־2024–2025. ב־2020–2023 היו גם אג"ח
+    //      להמרה והלוואה בנקאית — שורות שנעלמו, שמשלימות בדיוק את הפער עד LongTermDebt: נכנסות (פעם אחת — NotesAndLoansPayable באותו סכום).
+    //      ‏Welltower ‏2022: ‏SeniorNotes ‏545 הוא חלק מ־"Senior unsecured notes" ולא משלים את הפער — לא נכנס
+    const IH = facts([...base, ['SecuredDebt', 'USD', K(yrsv(2020, [4820, 3056, 1646, 1627, 1386, 1384]))], ['SeniorNotes', 'USD', K(yrsv(2020, [0, 1922, 2518, 3305, 3801, 4399]))],
+      ['UnsecuredDebt', 'USD', K(yrsv(2020, [2471, 2478, 3204, 3212, 2446, 2452]))], ['LineOfCredit', 'USD', K(yrsv(2020, [0, 0, 0, 0, 570, 145]))],
+      ['ConvertibleDebt', 'USD', K([[2020, 339], [2021, 141], [2022, 0]])], ['LoansPayableToBank', 'USD', K(yrsv(2020, [401, 401, 401, 401]))],
+      ['NotesAndLoansPayable', 'USD', K([[2020, 401]])], ['LongTermDebt', 'USD', K(yrsv(2020, [8032, 7999, 7769, 8546, 8203, 8380]))]]);
+    const ih = F.normalizeSec(IH, [], bs([['us-gaap', 'SecuredDebt', 'Secured debt, net', [1384, 1386]], ['us-gaap', 'SeniorNotes', 'Unsecured notes, net', [4399, 3801]],
+      ['us-gaap', 'UnsecuredDebt', 'Term loan facilities, net', [2452, 2446]], ['us-gaap', 'LineOfCredit', 'Revolving facility', [145, 570]]]));
+    const WL = facts([...base, ['UnsecuredDebt', 'USD', K(yrsv(2022, [12437, 13552, 13162, 16384]))], ['SecuredDebtOther', 'USD', K([[2024, 2338], [2025, 2814]])],
+      ['SecuredDebt', 'USD', K(yrsv(2022, [2111, 2183, 2338, 2814]))], ['LineOfCredit', 'USD', K(yrsv(2022, [0, 0, 0, 0]))], ['SeniorNotes', 'USD', K(yrsv(2022, [545, 546, 744, 745]))],
+      ['LongTermDebt', 'USD', K(yrsv(2022, [14714, 15736, 15500, 19198]))]]);
+    const wl = F.normalizeSec(WL, [], bs([['us-gaap', 'LineOfCredit', 'Unsecured credit facility and commercial paper', [0, 0]],
+      ['us-gaap', 'UnsecuredDebt', 'Senior unsecured notes', [16384, 13162]], ['us-gaap', 'SecuredDebtOther', 'Secured debt', [2814, 2338]]]));
+    ok(debt(ih, 2020) === 4820 + 2471 + 339 + 401 && debt(ih, 2022) === 1646 + 2518 + 3204 + 401 && debt(ih, 2024) === 8203 && debt(wl, 2022) === 12437 + 2111,
+      'Invitation Homes: שורות שנעלמו נכנסות רק כשהן משלימות בדיוק את LongTermDebt; Welltower — לא');
+    // (23) Veralto: חלויות + לא שוטף, ו־LongTermDebt שווה לסכום בעמודות של היום. ברבעון שאחרי הדוח השנתי לשורת החלויות אין ערך, והן
+    //      ב־DebtCurrent (‏2,671 + 249 = 2,920): הסך — לפי LongTermDebt
+    const q1 = (v) => ['2026-01-01', '2026-03-31', v * 1e6, '10-Q', '2026-05-01'], qi = (v) => [null, '2026-03-31', v * 1e6, '10-Q', '2026-05-01'];
+    const VL = facts([['Revenues', 'USD', [...yrs([500, 510, 520, 530, 540, 550, 560], 2019), q1(140)]], ['NetIncomeLoss', 'USD', [...yrs([50, 51, 52, 53, 54, 55, 56], 2019), q1(14)]],
+      ['LongTermDebtCurrent', 'USD', K([[2024, 700], [2025, 700]])], ['LongTermDebtNoncurrent', 'USD', [...K(yrsv(2019, [2650, 2660, 2670, 2672, 2672, 1972, 1973])), qi(2671)]],
+      ['LongTermDebt', 'USD', [...K(yrsv(2019, [2650, 2660, 2670, 2672, 2672, 2672, 2673])), qi(2920)]], ['DebtCurrent', 'USD', [...K([[2025, 700]]), qi(249)]]]);
+    const vl = F.normalizeSec(VL, [], bs([['us-gaap', 'LongTermDebtCurrent', 'Current portion of long-term debt', [700, 700]],
+      ['us-gaap', 'LongTermDebtNoncurrent', 'Long-term debt', [1973, 1972]]]));
+    const vq = vl.q.indexOf('2026-03-31');
+    ok(vq >= 0 && vl.Q.debt[vq] / 1e6 === 2920 && debt(vl, 2025) === 2673 && debt(vl, 2022) === 2672, 'Veralto: ברבעון שאחרי הדוח השנתי — החלויות שבתגית אחרת, לפי LongTermDebt');
+  }
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });

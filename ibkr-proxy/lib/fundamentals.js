@@ -158,9 +158,10 @@ function faceYearVals(face, sts, cur) {
    שהחברה עברה לתגית של היום). בלי חכירה תפעולית, וחכירה מימונית רק כשהיא בתוך שורת החוב — כמו שמודפס */
 const DEBT_CAT = {
   st: ['ShortTermBorrowings', 'CommercialPaper', 'OtherShortTermBorrowings', 'ShortTermBankLoansAndNotesPayable', 'ShortTermNonBankLoansAndNotesPayable',
-    'NotesPayableCurrent', 'LoansPayableCurrent', 'LinesOfCreditCurrent', 'BankOverdrafts', 'NotesAndLoansPayableCurrent', 'SecuredDebtCurrent', 'UnsecuredDebtCurrent',
-    'ConvertibleNotesPayableCurrent', 'ConvertibleDebtCurrent', 'SeniorNotesCurrent', 'OtherLongTermDebtCurrent', 'LoansPayableToBankCurrent'],
-  c: ['LongTermDebtCurrent', 'LongTermDebtAndCapitalLeaseObligationsCurrent'],
+    'NotesPayableCurrent', 'LoansPayableCurrent', 'LinesOfCreditCurrent', 'BankOverdrafts', 'NotesAndLoansPayableCurrent', 'LoansPayableToBankCurrent'],
+  // חלויות שוטפות של מכשיר מסוים (Revvity: ‏OtherLongTermDebtCurrent "Current portion of long-term debt")
+  c: ['LongTermDebtCurrent', 'LongTermDebtAndCapitalLeaseObligationsCurrent', 'OtherLongTermDebtCurrent', 'ConvertibleNotesPayableCurrent', 'ConvertibleDebtCurrent',
+    'SeniorNotesCurrent', 'SecuredDebtCurrent', 'UnsecuredDebtCurrent'],
   dc: ['DebtCurrent'],
   nc: ['LongTermDebtNoncurrent', 'LongTermDebtAndCapitalLeaseObligations', 'OtherLongTermDebtNoncurrent', 'LongTermNotesPayable', 'ConvertibleDebtNoncurrent',
     'ConvertibleLongTermNotesPayable', 'SeniorLongTermNotes', 'LongTermLineOfCredit', 'UnsecuredLongTermDebt', 'LongTermLoansPayable', 'SecuredLongTermDebt',
@@ -172,8 +173,15 @@ const DEBT_CAT = {
     'OtherNotesPayable', 'WarehouseAgreementBorrowings', 'LongtermBorrowings'],
 };
 // השנים שלפני המעבר לתגית של היום: חלופה מאותו סוג (רק לשורה הראשונה מכל סוג, וחלופה שאינה שורה בעצמה)
+// (סך: רק לשורת סך כללית, לא לשורה של מכשיר)
 const DEBT_ALT = { c: ['LongTermDebtCurrent', 'LongTermDebtAndCapitalLeaseObligationsCurrent'], nc: ['LongTermDebtNoncurrent', 'LongTermDebtAndCapitalLeaseObligations'],
   dc: ['LongTermDebtCurrent', 'LongTermDebtAndCapitalLeaseObligationsCurrent'], st: ['ShortTermBorrowings', 'CommercialPaper'], tot: ['LongTermDebt'] };
+const DEBT_TOT_MAIN = new Set(['LongTermDebt', 'DebtAndCapitalLeaseObligations', 'LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities',
+  'DebtLongtermAndShorttermCombinedAmount']);
+// חלופה לפי המכשיר, לכל שורה (Welltower: "Secured debt" ב־SecuredDebtOther מ־2024, לפני כן SecuredDebt)
+const DEBT_FAM = { SecuredDebtOther: ['SecuredDebt'], SecuredDebt: ['SecuredDebtOther'], UnsecuredDebt: ['UnsecuredLongTermDebt'], SeniorNotes: ['SeniorLongTermNotes'],
+  ConvertibleDebt: ['ConvertibleNotesPayable'], ConvertibleNotesPayable: ['ConvertibleDebt'], LineOfCredit: ['LongTermLineOfCredit'], NotesPayable: ['LongTermNotesPayable'],
+  LoansPayable: ['LongTermLoansPayable'] };
 const DEBT_OF = new Map(Object.entries(DEBT_CAT).flatMap(([c, ts]) => ts.map((t) => [t, c])));
 const DEBT_LAB = /borrowing|commercial paper|notes? payable|\bdebt\b|loans? payable|bank loans?|credit facilit|senior (unsecured )?notes|convertible (senior )?notes|debentures|bonds payable|term loans?|mortgages? (payable|notes|loans)|lines? of credit|revolving/i;
 const DEBT_NOT = /operating lease|interest payable|accrued|accounts payable|deferred|debt securities|held.for.sale|derivative|guarantee|total liabilities|receivable|investment|due to (related|affiliat)|deposits?\b|repurchase|trading|capitalization|fair value|other than long.?term debt/i;
@@ -184,11 +192,32 @@ const DEBT_NOTAG = /OtherThanLong|^Capitalization|^EquityAndLongTermDebt|^Tempor
 const DEBT_SOFT = /FairValue|^DebtInstrument(Face|Carrying)Amount$|Lease(s)?Liabilit|^(Finance|Operating|Capital)Lease\w*$|^CapitalLeaseObligations?\w*$/;
 // "חוב לזמן ארוך כולל חלויות" — במאזן מסווג שיש בו גם שורת חלויות, השורה היא בפועל החלק הלא שוטף (Xcel)
 const DEBT_TOT_LTD = new Set(['LongTermDebt', 'LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities']);
-// שורות שהיו במאזנים של פעם ואינן במאזן של היום (Microsoft: ניירות ערך מסחריים 2013–2018 ו־2023–2024; McDonald's: חלויות 2020, 2023).
-// סדר: חוב שוטף כולל (dc) לפני רכיביו; COVER — אילו סוגים של שורה קיימת באותו תאריך כבר כוללים אותה
-const DEBT_IMPL = [['dc', ['DebtCurrent']], ['st', ['ShortTermBorrowings', 'CommercialPaper']], ['c', ['LongTermDebtCurrent', 'LongTermDebtAndCapitalLeaseObligationsCurrent']],
-  ['nc', ['LongTermDebtNoncurrent', 'LongTermDebtAndCapitalLeaseObligations']]];
-const DEBT_COVER = { dc: ['st', 'c', 'dc', 'tot'], st: ['st', 'dc', 'tot'], c: ['c', 'dc', 'tot'], nc: ['nc', 'tot'] };
+// שורות שאינן במאזן של היום (DEBT_IMPL): היו פעם (Microsoft: ניירות ערך מסחריים 2013–2018 ו־2023–2024), או מוצגות רק בפירוט עם
+// ממד שלא נקרא (Exelon: החוב לזמן ארוך — לפי "צד קשור / לא קשור"). סדר: לא שוטף, חוב שוטף כולל (dc) לפני רכיביו; COVER — אילו
+// סוגים של שורה קיימת באותו תאריך כבר כוללים אותה
+// (חלויות של מכשיר מסוים — אחרונות: רק כשאין חוב שוטף כולל או חלויות באותו תאריך; Gen Digital ‏2013: ‏ConvertibleDebtCurrent; ‏WTW ‏2015:
+// ‏SeniorNotesCurrent הוא חלק מ־DebtCurrent)
+const DEBT_IMPL = [['nc', ['LongTermDebtNoncurrent', 'LongTermDebtAndCapitalLeaseObligations']], ['dc', ['DebtCurrent']],
+  ['st', ['ShortTermBorrowings', 'CommercialPaper']], ['c', ['LongTermDebtCurrent', 'LongTermDebtAndCapitalLeaseObligationsCurrent']]];
+// תווית של שורת חוב שוטף שכוללת גם הלוואות קצרות (לא "long-term borrowings" / "long-term notes payable")
+const DEBT_STLAB = /short.?term|commercial paper|(?<!long.?term )(notes payable|borrowings)/i;
+const DEBT_IMPL_C2 = ['ConvertibleDebtCurrent', 'ConvertibleNotesPayableCurrent', 'OtherLongTermDebtCurrent', 'SeniorNotesCurrent'];
+// ltd — ערך מהתגית LongTermDebt ("חוב לזמן ארוך כולל חלויות"): כולל חלויות, לא הלוואות קצרות (Hartford: "Short-term debt" בשורה נפרדת עד
+// 2019). כשההלוואות הקצרות כן בתוך LongTermDebt — הראיה בתגיות: סך החוב של החברה כבר שווה לסכום (AIG ‏2022), או ש־LongTermDebtNoncurrent
+// ועוד ההלוואות שווה ל־LongTermDebt (KLA) — ראו בלולאת הרכיבים החסרים
+const DEBT_COVER = { dc: ['st', 'c', 'dc', 'tot', 'ltd'], st: ['st', 'dc', 'tot'], c: ['c', 'dc', 'tot', 'ltd'], nc: ['nc', 'tot', 'ltd'] };
+// החלויות של אותו מכשיר כמו שורה לא שוטפת במאזן (Palo Alto: ‏ConvertibleDebtNoncurrent ↔ ConvertibleDebtCurrent)
+const DEBT_PAIR = { ConvertibleLongTermNotesPayable: 'ConvertibleNotesPayableCurrent', SeniorLongTermNotes: 'SeniorNotesCurrent', SecuredLongTermDebt: 'SecuredDebtCurrent',
+  UnsecuredLongTermDebt: 'UnsecuredDebtCurrent', LongTermLoansPayable: 'LoansPayableCurrent', LongTermLineOfCredit: 'LinesOfCreditCurrent', LongTermNotesPayable: 'NotesPayableCurrent' };
+// סוג השורה לפי התווית, בתגית של הלוואות קצרות: "הלוואות קצרות וחלויות" — חוב שוטף כולל; "חלויות" — חלויות (Tyler: ‏LoansPayableCurrent
+// "Current portion of convertible senior notes"); ובתגית "רכה" — לפי התווית. שורת חלויות שהתווית שלה "…and notes payable" נשארת
+// חלויות: התגית שלה בתאריכים אחרים היא רק החלויות (Nordson)
+function debtCat(l) {
+  const lab = l.label || '', cur = /current (portion|maturities)|due within one year|currently due/i.test(lab), st = /short.?term|commercial paper|notes payable|borrowings/i.test(lab);
+  if (l.cat === 'st' && cur) return st ? 'dc' : 'c';
+  if (!l.cat && DEBT_SOFT.test(l.tag)) return cur ? 'c' : st ? 'st' : 'nc';
+  return l.cat;
+}
 const FIN_LEASE = /financ\w* leases?|capital leases?/i;
 /* שורות החוב במאזן המודפס: [{tag, ns, cat, label, v}] ו־tot: סוף העמודה → הסכום שהודפס. רק בצד ההתחייבויות (אחרי סך הנכסים ועד
    "סך התחייבויות והון" — אחריו בא אצל בנקים פירוט הישויות המאוחדות, Bank of America: אותן שורות שוב). שורת "סך" של חוב — במקום
@@ -224,7 +253,8 @@ function debtFace(face, cur) {
     let s = 0, any = false; for (const l of lines) if (l.v[ci] != null) { s += l.v[ci]; any = true; }
     if (any && !tot.has(c.end)) { tot.set(c.end, s); cols.push([c.end, ci]); }
   });
-  return { lines, tot, cols };
+  // מאזן מסווג — יש בו "סך התחייבויות שוטפות" (KLA: היום בלי שורת חלויות, ו־"Long-term debt" בתגית LongTermDebt היא הלא שוטף)
+  return { lines, tot, cols, cls: rows.slice(a0 + 1, stop).some((r) => r.tag === 'LiabilitiesCurrent') };
 }
 /* הפרש של שתי תגיות (רווח כולל פחות זכויות מיעוט): כל תקופה ששתיהן קיימות בה; לכל הגשה שבשתיהן — ההפרש באותה הגשה */
 function diffFacts(a, b) {
@@ -773,55 +803,146 @@ function normalizeSec(facts, splits = [], face = null) {
   const dF = !isIfrs ? debtFace(face, rc || cur || 'USD') : null;
   if (dF && dF.lines.length && dF.tot.size && dF.lines.every((l, i) => l.ns === 'us-gaap' && dF.lines.findIndex((x) => x.tag === l.tag) === i)) {
     const near = (a, b) => Math.abs(a - b) <= Math.max(1.5e6, 0.005 * Math.abs(b));
-    const faceTags = new Set(dF.lines.map((l) => l.tag)), cats = new Set(dF.lines.map((l) => l.cat));
-    const classified = cats.has('c') || cats.has('dc'), inst = (t) => tagFacts(tax[t], unitOf('debt')).inst;
-    const catUsed = new Set(), usedT = new Set();
+    // אותו סכום בדיוק = אותו חוב (Trimble: החלויות מתויגות גם ShortTermBorrowings; ‏CME: החלויות של האג"ח — UnsecuredDebtCurrent —
+    // הן שורת "Short-term debt"; ‏UPS)
+    const same = (a, b) => Math.abs(a - b) <= Math.max(5e5, 5e-4 * Math.abs(b));
+    const faceTags = new Set(dF.lines.map((l) => l.tag)), lcat = dF.lines.map(debtCat), cats = new Set(lcat);
+    const classified = dF.cls || cats.has('c') || cats.has('dc'), inst = (t) => tagFacts(tax[t], unitOf('debt')).inst;
+    const fd = new Set(dF.cols.map(([e]) => e)), catUsed = new Set(), usedT = new Set(), ltdNcT = inst('LongTermDebtNoncurrent');
     let ser = [];
-    for (const l of dF.lines) {
-      const cat = l.cat === 'tot' && classified && DEBT_TOT_LTD.has(l.tag) ? 'nc' : l.cat;
-      const alts = cat && !catUsed.has(cat) ? (DEBT_ALT[cat] || []).filter((t) => t !== l.tag && !faceTags.has(t)) : [];
-      if (cat) catUsed.add(cat);
+    const pre = [];
+    for (const [i, l] of dF.lines.entries()) {
+      // "חוב לזמן ארוך כולל חלויות" במאזן מסווג (יש גם שורת חלויות) — בפועל הלא שוטף (Xcel); במאזן לא מסווג — ltd (Hartford)
+      const cat = lcat[i] === 'tot' && DEBT_TOT_LTD.has(l.tag) ? (classified ? 'nc' : 'ltd') : lcat[i];
+      const ak = cat === 'ltd' || (cat === 'tot' && DEBT_TOT_MAIN.has(l.tag)) ? 'tot' : cat === 'tot' ? null : cat;
+      const alts = [...(ak && !catUsed.has(ak) ? DEBT_ALT[ak] || [] : []), ...(DEBT_FAM[l.tag] || [])]
+        .filter((t, j, a) => t !== l.tag && !faceTags.has(t) && a.indexOf(t) === j);
+      if (ak) catUsed.add(ak);
       const cs = [l.tag, ...alts].map((t) => ({ t, m: inst(t) }));
-      const good = cs.filter((c) => dF.cols.every(([e, ci]) => l.v[ci] == null || (c.m.has(e) && near(c.m.get(e).v, l.v[ci]))));
+      const good = cs.filter((c) => dF.cols.every(([e, ci]) => l.v[ci] == null || (c.m.has(e) ? near(c.m.get(e).v, l.v[ci]) : !l.v[ci])));
       if (!good.length) { ser = null; break; }
-      if (cat !== l.cat) good.reverse();
-      const m = new Map(), src = new Map();
-      for (const c of [...good, ...cs.filter((x) => !good.includes(x))]) {
-        usedT.add(c.t);
-        for (const [e, h] of c.m) if (!m.has(e)) { m.set(e, h); src.set(e, c.t === l.tag ? cat : DEBT_OF.get(c.t)); }
-      }
-      ser.push({ l, cat, m, src, ks: [...m.keys()] });
+      if (cat === 'nc' && lcat[i] === 'tot') good.reverse();
+      // תגית "רכה" (Con Edison: ‏LongTermDebtFairValue) — בשנים קודמות אותה תגית היא השווי ההוגן שבביאור: מחוץ לעמודות של
+      // המאזן — החלופות קודם
+      const soft = !l.cat && DEBT_SOFT.test(l.tag), own = cs[0];
+      const order = soft ? [...cs.slice(1), own] : [...good, ...cs.filter((x) => !good.includes(x))];
+      pre.push({ l, cat, soft, own, order });
     }
-    const impl = !ser || cats.has(null) ? [] : DEBT_IMPL.map(([k, ts]) => {
-      const m = new Map();
-      for (const t of ts) {
-        if (usedT.has(t)) continue;
-        const x = inst(t);
-        if (dF.cols.some(([e]) => x.has(e) && x.get(e).v)) continue;
-        for (const [e, h] of x) if (!m.has(e)) m.set(e, h);
+    if (ser) for (const p of pre) {
+      const { l, cat, soft, own, order } = p;
+      // הלוואות קצרות: חלופה לא ממלאת תאריך שבו שורה קצרה אחרת מדווחת בתגית שלה (Con Edison: ניירות הערך המסחריים הם הפירוט של
+      // "Notes payable", לא ההיסטוריה של "Term loan")
+      const busy = (e) => cat === 'st' && pre.some((q) => q !== p && q.cat === 'st' && q.own.m.has(e));
+      const m = new Map(), src = new Map(), tg = new Map();
+      if (soft) for (const [e, h] of own.m) if (fd.has(e)) { m.set(e, h); src.set(e, cat); tg.set(e, own.t); }
+      for (const c of order) {
+        usedT.add(c.t);
+        for (const [e, h] of c.m) {
+          if (m.has(e) || (c.t !== l.tag && busy(e))) continue;
+          // ערך מ־LongTermDebt בשורה לא שוטפת: כולל חלויות (KLA ‏2015–2019: ‏3,190 = ‏3,173 + ‏17), חוץ מתאריך שבו הוא שווה ל־LongTermDebtNoncurrent
+          // (KLA ‏2024: ‏5,880, והחלויות ‏750 בשורה נפרדת)
+          const c0 = c.t === l.tag ? cat : DEBT_OF.get(c.t) || cat;
+          const c1 = cat === 'nc' && DEBT_TOT_LTD.has(c.t) && !(ltdNcT.has(e) && same(ltdNcT.get(e).v, h.v)) ? 'ltd' : c0;
+          m.set(e, h); src.set(e, c1 === 'tot' && cat === 'nc' ? 'nc' : c1); tg.set(e, c.t);
+        }
       }
-      return { k, m };
-    }).filter((x) => x.m.size);
+      ser.push({ l, cat, m, src, tg, ks: [...m.keys()] });
+    }
+    // תגית בלי שורה שיש לה ערך בעמודות של היום: בדרך כלל פירוט בביאור של שורה קיימת — לא נכנסת. חוץ מ: חוב לזמן ארוך כשאין
+    // במאזן שורה שיכולה להכיל אותו (שורה שלא נקראה — כל התאריכים); ערך זניח היום (Nike: ‏5 מיליון בתוך ההתחייבויות לשלם — רק
+    // השנים שלפני המאזן); וחלויות (McDonald's: היום בתוך "Long-term debt") — רק בתאריך שבו סך החוב לזמן ארוך (LongTermDebt,
+    // כולל חלויות) שווה ללא שוטף + החלויות, כלומר הן לא היו בתוך השורה
+    const f0 = dF.cols.map(([e]) => e).sort()[0], ltd = inst('LongTermDebt');
+    // רכיב שיש לו ערך מהותי בעמודות של היום — בתוך שורה של המאזן שאינה החוב הלא שוטף; נכנס רק בתאריך שבו לשורות האלה אין ערך
+    // (Otis ‏2019 ו־Cooper ‏2014: "Short-term debt" שבמאזן — בלי ערך, וההלוואות הקצרות בתגית שלהן)
+    const nonNc = ser ? ser.filter((s) => s.cat !== 'nc') : [];
+    // ‏LongTermDebt שווה לסכום שורות החוב בכל עמודות המאזן של היום — הוא סך החוב של החברה באותה הגדרה; בתאריך שבו הסכום קטן ממנו,
+    // ויש ראיה שחסרה שורה: (א) מאזן לא מסווג שכל שורותיו "סך" של מכשיר — תגיות של מכשירי חוב שאינם במאזן של היום, שמשלימות בדיוק את
+    // הפער באותו תאריך (Invitation Homes ‏2020–2023: אג"ח להמרה 339 והלוואה בנקאית 401 — שורות שנעלמו; Welltower ‏2022: ‏SeniorNotes ‏545 —
+    // חלק מ־"Senior unsecured notes", לא משלים — לא);
+    // (ב) חלויות + לא שוטף — ראיה: לשורה של המאזן אין ערך באותו תאריך (Veralto ‏10/2026: אחרי הדוח השנתי החלויות ב־DebtCurrent)
+    const lFace = ser && !faceTags.has('LongTermDebt') && dF.cols.every(([e]) => ltd.has(e) && near(ltd.get(e).v, dF.tot.get(e)));
+    const totL = lFace && !classified && [...cats].every((k) => k === 'tot');
+    const clsL = lFace && !totL && [...cats].every((k) => k === 'c' || k === 'nc');
+    const gone = totL ? DEBT_CAT.tot.filter((t) => !DEBT_TOT_MAIN.has(t) && !faceTags.has(t) && !usedT.has(t) && ![...faceTags].some((f) => (DEBT_FAM[f] || []).includes(t))).map(inst) : [];
+    // סך החוב של החברה (קצר + ארוך) בתגית משלו — כשהסכום כבר שווה לו באותו תאריך, אין רכיב חסר (AIG ‏2022: ‏27,179 כולל ההלוואות
+    // הקצרות). ‏DebtAndCapitalLeaseObligations — רק כששורת חוב שוטף במאזן מצהירה שהיא כוללת הלוואות קצרות (Cardinal: "...and other
+    // short-term borrowings"): חברות רבות מדווחות בו חוב לזמן ארוך כולל חלויות בלבד (McKesson ‏2020–2024, ‏Lowe's ‏2014, ‏Western Digital
+    // ‏2015 — ההלוואות הקצרות מחוץ לו)
+    const stIn = dF.lines.some((l, i) => ['c', 'dc', 'st'].includes(lcat[i]) && DEBT_STLAB.test(l.label || '') && /long.?term|current/i.test(l.label || ''));
+    const totT = ['DebtLongtermAndShorttermCombinedAmount', ...(stIn ? ['DebtAndCapitalLeaseObligations'] : [])].filter((t) => !faceTags.has(t)).map(inst);
+    const unknown = dF.lines.some((l, i) => !lcat[i]);
+    const pairs = dF.lines.map((l) => DEBT_PAIR[l.tag] || (/Noncurrent$/.test(l.tag) ? l.tag.replace(/Noncurrent$/, 'Current') : null)).filter((t) => t && !faceTags.has(t));
+    // לכל סוג: התגיות לפי הסדר — בכל תאריך הראשונה שעוברת את כל הבדיקות (Otis ‏2020: ‏ShortTermBorrowings נחסמת, CommercialPaper נבדקת)
+    const impl = !ser || unknown ? [] : DEBT_IMPL.map(([k, ts0]) => {
+      const list = [];
+      for (const t of k === 'c' ? [...new Set([...ts0, ...pairs, ...DEBT_IMPL_C2])] : ts0) {
+        if (usedT.has(t)) continue;
+        const x = inst(t), atF = dF.cols.map(([e]) => (x.has(e) ? x.get(e).v : 0));
+        const big = dF.cols.some(([e], i) => Math.abs(atF[i]) > Math.max(1.5e6, 0.005 * Math.abs(dF.tot.get(e) || 0)));
+        const mode = !atF.some(Boolean) || (k === 'nc' && !['nc', 'tot', 'ltd'].some((x) => cats.has(x))) ? 'all' : !big ? 'past' : k === 'c' ? 'check'
+          : nonNc.length ? 'gap' : null;
+        if (mode && x.size) list.push({ x, mode });
+      }
+      return { k, list };
+    }).filter((g) => g.list.length);
     if (ser) {
       const ends = new Set(); for (const s of ser) for (const e of s.ks) ends.add(e);
-      debtLine = new Map();
+      debtLine = new Map(); const faceSum = new Map();
       for (const e of [...ends].sort()) {
-        let v = 0, ok = true; const have = new Set();
+        let v = 0, ok = true, nc = 0, lt = 0; const have = new Set(), vals = [];
         for (const s of ser) {
           const h = s.m.get(e);
-          if (h) { v += h.v; have.add(s.src.get(e)); continue; }
+          if (h) {
+            const c = s.src.get(e);
+            v += h.v; vals.push(h.v); have.add(c);
+            if (c === 'nc') nc += h.v;
+            if (c === 'nc' || c === 'c') lt += h.v;
+            continue;
+          }
           const before = s.ks.some((x) => x < e), after = s.ks.some((x) => x > e);
           // חור בין שני ערכים — חסר; לפני שהשורה הופיעה: הלוואות קצרות / חלויות — 0, חוב לזמן ארוך — חסר; אחרי שנעלמה — 0
           if ((before && after) || (!before && !['st', 'c', 'dc'].includes(s.cat))) { ok = false; break; }
         }
         if (!ok) continue;
-        for (const x of impl) {
-          const h = x.m.get(e);
-          if (h && h.v && !DEBT_COVER[x.k].some((k) => have.has(k))) { v += h.v; have.add(x.k); }
+        faceSum.set(e, v);
+        // מכשיר במאזן של היום, ובעבר סך החוב הלא שוטף בתגית הכללית (Tyler: עד 2023 ‏LongTermDebtNoncurrent = אג"ח להמרה + הלוואות; היום
+        // רק אג"ח להמרה) — מחליפים רק כשסך החוב לזמן ארוך באותו תאריך (LongTermDebt, כולל חלויות) מאשר
+        const L = ltd.get(e);
+        if (L && e < f0 && !faceTags.has('LongTermDebt') && !near(lt, L.v)) {
+          for (const s of ser) {
+            const h = s.m.get(e);
+            if (!h || s.cat !== 'nc' || s.src.get(e) !== 'nc' || DEBT_ALT.nc.includes(s.tg.get(e))) continue;
+            const G = DEBT_ALT.nc.filter((g) => !faceTags.has(g)).map((g) => inst(g).get(e)).find((x) => x && x.v > h.v && near(lt - h.v + x.v, L.v));
+            if (G) { v += G.v - h.v; nc += G.v - h.v; lt += G.v - h.v; }
+          }
         }
+        // הלוואות קצרות בתוך LongTermDebt באותו תאריך: ‏LongTermDebt = ‏LongTermDebtNoncurrent + ההלוואות (KLA ‏2020: ‏3,461 = ‏3,441 + ‏20)
+        const lv = ser.map((s) => (s.tg.get(e) === 'LongTermDebt' ? s.m.get(e).v : null)).find((x) => x != null), ncv = ltdNcT.get(e);
+        const T = totT.map((x) => x.get(e)).find(Boolean);
+        for (const g of impl) {
+          if (T && near(v, T.v)) break;
+          if (DEBT_COVER[g.k].some((k) => have.has(k))) continue;
+          for (const { x, mode } of g.list) {
+            const h = x.get(e);
+            if (!h || !h.v || (mode !== 'all' && e >= f0)) continue;
+            if (vals.some((y) => same(h.v, y))) break; // אותו סכום כבר נספר — החוב הזה כבר בפנים
+            if (g.k === 'st' && lv != null && ncv && near(ncv.v + h.v, lv)) break;
+            // הרכיב בתוך שורה של המאזן של היום (gap): רק כשהשורה הזו לא מדווחת בתגית שלה באותו תאריך
+            if (mode === 'gap' && nonNc.some((s) => s.tg.get(e) === s.l.tag)) continue;
+            if (mode === 'check' && (!L || !near(nc + h.v, L.v) || Math.abs(nc + h.v - L.v) >= Math.abs(nc - L.v))) continue;
+            v += h.v; vals.push(h.v); have.add(g.k); if (g.k === 'nc') nc += h.v; if (g.k === 'nc' || g.k === 'c') lt += h.v;
+            break;
+          }
+        }
+        if (totL && L && v < L.v && !near(v, L.v)) {
+          const gs = []; for (const x of gone) { const h = x.get(e); if (h && h.v > 0 && !gs.some((y) => same(y, h.v))) gs.push(h.v); }
+          const add = gs.reduce((a, b) => a + b, 0);
+          if (add && near(v + add, L.v)) v += add;
+        } else if (clsL && L && lt < L.v && !near(lt, L.v) && ser.some((s) => !s.m.has(e))) v += L.v - lt;
         debtLine.set(e, v);
       }
-      if ([...dF.tot].every(([e, t]) => debtLine.has(e) && near(debtLine.get(e), t))) tags.debt = ser.map((s) => s.l.tag).join('+');
+      if ([...dF.tot].every(([e, t]) => faceSum.has(e) && near(faceSum.get(e), t))) tags.debt = ser.map((s) => s.l.tag).join('+');
       else debtLine = null;
     }
   }

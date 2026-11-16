@@ -114,14 +114,22 @@ DEBT_TOTAL = ['LongTermDebt', 'LongTermDebtAndCapitalLeaseObligations', 'DebtIns
 DEBT_NC = ['LongTermDebtNoncurrent', 'LongTermDebtAndCapitalLeaseObligationsNoncurrent' , 'OtherLongTermDebtNoncurrent', 'SeniorNotesNoncurrent',
            'ConvertibleNotesPayableNoncurrent', 'LongTermNotesPayableNoncurrent', 'UnsecuredLongTermDebt', 'SeniorLongTermNotes']
 DEBT_C = ['LongTermDebtCurrent', 'LongTermDebtAndCapitalLeaseObligationsCurrent', 'DebtCurrent', 'OtherLongTermDebtCurrent',
-          'ConvertibleNotesPayableCurrent', 'SeniorNotesCurrent']
+          'ConvertibleNotesPayableCurrent', 'SeniorNotesCurrent', 'ConvertibleDebtCurrent']
 DEBT_ST = ['CommercialPaper', 'ShortTermBorrowings', 'OtherShortTermBorrowings', 'ShortTermBankLoansAndNotesPayable', 'BankOverdrafts']
-DEBT_RE = re.compile(r'borrowing|commercial paper|notes? payable|\bdebt\b|loans? payable|bank loans?|credit facilit|senior (unsecured )?notes|convertible (senior )?notes|debentures|bonds payable|term loan|current (portion|maturities) of long|mortgages? (payable|notes|loans)|lines? of credit|revolving|LongTermDebt|ShortTermBorrowings|CommercialPaper|NotesPayable|LinesOfCredit|LineOfCredit|Debt(Current|Noncurrent)', re.I)
+DEBT_RE = re.compile(r'borrowing|commercial paper|notes? payable|\bdebt\b|loans? payable|bank loans?|credit facilit|senior (unsecured )?notes|convertible (senior )?notes|debentures|bonds payable|term loan|current (portion|maturities) of long|mortgages? (payable|notes|loans)|lines? of credit|revolving|LongTermDebt|ShortTermBorrowings|CommercialPaper|NotesPayable|LinesOfCredit|LineOfCredit|Debt(Current|Noncurrent)|'
+                     # "Unsecured notes" / "Long-term notes" / "Senior unsecured notes" (Invitation Homes, ‏Everest, ‏Welltower — 16/11/2026)
+                     r'(long.term|unsecured|secured|subordinated|junior|senior|exchangeable|guaranteed|convertible)( senior| unsecured| subordinated)* notes|notes due|'
+                     r'SeniorNotes|SubordinatedDebt|JuniorSubordinated|SecuredDebt|UnsecuredDebt|ConvertibleDebt|OtherBorrowings|LongtermBorrowings|AdvancesFromFederalHomeLoanBanks|LoansPayable', re.I)
 # תגיות שאינן חוב גם כשהשם או התווית נשמעים כך (16/11/2026): "סך התחייבויות לא שוטפות חוץ מחוב" (Con Edison — נספר כחוב
 # ו"הצפוי" יצא כפול), סך ההון והחוב, רכיב ההון של אג"ח להמרה, ריבית לשלם, הנחות/עלויות הנפקה, חובות לחברות קשורות, נכסים
 NOT_DEBT_TAG = re.compile(r'OtherThanLong|^Capitalization|^EquityAndLongTermDebt|^TemporaryEquity|^ReserveForEsop|^DebtInstrumentInterestRate|'
                           r'UnamortizedLossReacquiredDebt|UnamortizedDebtIssuance|DebtInstrumentUnamortized|DebtFairValueAdjustment|^ConvertibleDebtEquity|'
                           r'^InterestPayable|^DueTo(Affiliate|RelatedParties)|Receivable|Investments?\b|Investments?[A-Z]|^MarketableSecurities|^AllowanceFor')
+# פסוקית "including …" / "net of …" בסוף התווית — לא משנה את סוג השורה (VeriSign: "Convertible debentures, including contingent interest
+# derivative" — חוב, לא נגזר)
+INCL_RE = re.compile(r',?\s*\(?(including|includes|net of)\b.*$', re.I)
+# תגית של חוב, אבל התווית — ספקים / מימון ספקים (Mosaic: ‏ShortTermBankLoansAndNotesPayable "Structured accounts payable arrangements")
+PAYABLE_LAB = re.compile(r'accounts payable|structured payables?|supplier financ|trade payables?', re.I)
 DEBT_EXCL = re.compile(r'operating lease|interest payable|accrued|accounts payable|deferred|debt securities|held.for.sale|derivative|due to (related|affiliat)|guarantee|total liabilities|liabilities of|customer|deposits|payable to|insurance|policy|unearned|pension|tax|dividend|issuance cost', re.I)
 LEASE_RE = re.compile(r'finance lease|capital lease', re.I)
 ST_RE = re.compile(r'short.?term (borrowings|debt|notes|loans)|commercial paper|notes payable|bank (loans|overdraft)|loans payable|(?<!long.term )borrowings(?! .*long)', re.I)
@@ -238,10 +246,21 @@ class Printed:
              'FROM sub s JOIN pre p ON p.adsh = s.adsh JOIN num n ON n.adsh = p.adsh AND n.tag = p.tag AND n.version = p.version '
              'WHERE s.cik IN (%s)' % ','.join('?' * len(ciks)))
         self.rows = db.execute(q, list(ciks)).fetchall()
+        # שורות המאזן כפי שהוצגו (גם בלי ערך בלי ממד) — לזהות מאזן שהחוב בו מוצג רק בפירוט עם ממד (Exelon)
+        self.bs_pre = {}
+        for adsh, tag, lab, line in db.execute('SELECT p.adsh, p.tag, p.plabel, p.line FROM sub s JOIN pre p ON p.adsh = s.adsh '
+                                               "WHERE s.cik IN (%s) AND p.stmt = 'BS' AND p.inpth = 0" % ','.join('?' * len(ciks)), list(ciks)):
+            self.bs_pre.setdefault(adsh, []).append((tag, lab or '', line))
         self.by = {}  # (ddate, qtrs) → שורות
         for r in self.rows:
             self.by.setdefault((r[8], r[9]), []).append(r)
         self.splits = splits_from(self.rows)
+
+    def debt_missing(self, adsh, rows):
+        """שורות חוב במאזן של ההגשה (אחרי סך הנכסים) שאין להן ערך בלי ממד — החוב "המודפס" שנקרא חלקי"""
+        have = {r[6] for r in rows}
+        a0 = max([r[5] for r in rows if r[6] == 'Assets'] or [0])
+        return [t for t, lab, line in self.bs_pre.get(adsh, []) if line > a0 and t not in have and debt_row(t, lab)]
 
     def adj(self, m, filed, v):
         u = MET[m]['u']
@@ -398,6 +417,19 @@ def nq_same(a, b):
 
 # ---------------------------------------------------------------- האימות עצמו
 DEBT_ALL = set(DEBT_TOTAL + DEBT_NC + DEBT_C + DEBT_ST)
+
+
+def debt_row(tag, lab):
+    """שורת חוב במאזן (לא חכירה מימונית לבדה, לא כותרת) — אותה הגדרה כמו ב־face_debt"""
+    if tag.endswith('Abstract') or NOT_DEBT_TAG.search(tag):
+        return False
+    lab = INCL_RE.sub('', lab)
+    txt = tag + ' ' + lab
+    if (DEBT_EXCL.search(txt) and tag not in DEBT_ALL) or PAYABLE_LAB.search(lab):
+        return False
+    if tag in LEASE_FIN or (LEASE_RE.search(lab) and not DEBT_RE.search(LEASE_RE.sub('', lab))):
+        return False
+    return tag in DEBT_ALL or bool(DEBT_RE.search(txt))
 LTD_NC_LAB = re.compile(r'less current|net of current|non-?current|excluding current|long-term portion', re.I)
 
 
@@ -621,11 +653,11 @@ class Co:
         lc = ln.get('LiabilitiesCurrent')
         parts, used = [], []
         for r in rows:
-            tag, lab, val, pos = r[6], (r[7] or ''), r[11], (r[14] or 0, r[5])
+            tag, lab, val, pos = r[6], INCL_RE.sub('', r[7] or ''), r[11], (r[14] or 0, r[5])
             if a0 and pos <= a0:
                 continue
             txt = tag + ' ' + lab
-            if NOT_DEBT_TAG.search(tag) or (DEBT_EXCL.search(txt) and tag not in DEBT_ALL):
+            if NOT_DEBT_TAG.search(tag) or (DEBT_EXCL.search(txt) and tag not in DEBT_ALL) or PAYABLE_LAB.search(lab):
                 continue
             if tag in LEASE_FIN or (LEASE_RE.search(lab) and not DEBT_RE.search(re.sub(LEASE_RE, '', lab))):
                 kind = 'lease'
@@ -668,10 +700,13 @@ class Co:
                     byf.setdefault(r[0], [r[1], fdate(r[2]), []])[2].append(r)
             tots = []
             for adsh, (form, filed, rows) in byf.items():
+                # עמודת מאזן = יש בה סך נכסים (Welltower: דוח 2017 מדווח ל־2015 רק ערך מביאור — לא המאזן של 2015)
+                if not any(r[6] in ('Assets', 'LiabilitiesAndStockholdersEquity') for r in rows):
+                    continue
                 tot, S, used = self.face_debt(rows)
                 if tot is None and 'lease' not in S:
                     continue
-                tots.append(dict(form=form, filed=filed, total=tot or 0, S=S, used=used))
+                tots.append(dict(form=form, filed=filed, total=tot or 0, S=S, used=used, adsh=adsh, rows=rows))
             rec = dict(m='debt', mode=mode, end=e, me=ddate, ours=ours)
             if not tots:
                 if ours:
@@ -684,10 +719,14 @@ class Co:
             rec['exp'] = exp['total']
             rec['parts'] = [(k, l[:60], v) for k, l, v in exp['used']]
             rec['filings'] = [(t['form'], t['filed'], t['total']) for t in tots]
+            miss = self.pr.debt_missing(exp['adsh'], exp['rows'])
             if ours is None:
                 rec['verdict'] = 'MISS' if exp['total'] else 'NONE'
             elif same(ours, exp['total'], 'money'):
                 rec['verdict'] = 'DER'
+            elif miss:
+                rec['verdict'] = 'PART'
+                rec['why'] = 'במאזן שורות חוב שאין להן ערך בלי ממד (%s) — הצפוי חלקי; שלנו %s מול %s' % (', '.join(miss[:3]), ours, exp['total'])
             elif any(same(ours, t['total'], 'money') for t in tots):
                 rec['verdict'] = 'OLD'
             else:
