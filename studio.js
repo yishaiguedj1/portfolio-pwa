@@ -33,8 +33,8 @@ export const MODES = [
   { id: 'lab2', q: 2, u: 3, min: 85 },
   { id: 'lab3', q: 3, u: 4, min: 95 },
   { id: 'lab1', q: 1, u: 2, min: 80 },
-  { id: 'perf', q: 1, u: 1, min: 76, tier: 'perf' },   // "ביצועים"
-  { id: 'std', q: 1, u: 1, min: 74, tier: 'std' },     // "רגיל" — ברירת המחדל
+  { id: 'perf', q: 5, u: 4, min: 76, tier: 'perf' },   // "ביצועים"
+  { id: 'std', q: 4, u: 2, min: 74, tier: 'std' },     // "רגיל" — ברירת המחדל
 ];
 export const DEFAULT_MODE = 'std';
 export const PUBLIC_MODES = ['std', 'perf'];   // **= PUBLIC_CODES ב־lib/modecode.js** (= PUBLIC_MODES בשרתון)
