@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2451 מפתחות מתוך 6956) */
+/* המחרוזות של studio (2449 מפתחות מתוך 6956) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -2353,8 +2353,6 @@ he: {
   "studioViRead": "{n} דק׳ קריאה",
   "studioViReport": "דווח על טעות",
   "studioViResume": "המשך מ־{t}",
-  "studioViRights": "יש לי זכות לנתח את החומר",
-  "studioViS": "בדיקה למנהל — בלי Claude ובלי עלות",
   "studioViScreenOnly": "רק על המסך",
   "studioViSlide": "שקף {n}",
   "studioViSo": "{n} שורות רק על המסך",
@@ -4806,8 +4804,6 @@ en: {
   "studioViRead": "{n} min read",
   "studioViReport": "Report a mistake",
   "studioViResume": "Continue from {t}",
-  "studioViRights": "I have the right to analyze this material",
-  "studioViS": "Admin test — no Claude, no cost",
   "studioViScreenOnly": "On screen only",
   "studioViSlide": "Slide {n}",
   "studioViSo": "{n} lines only on screen",

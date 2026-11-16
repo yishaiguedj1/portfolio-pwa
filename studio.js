@@ -3776,14 +3776,12 @@ function viForm(p, f) {
   const ul0 = uiLang(), dry = viDry(f);
   p.append(secT(T('studioViLang')), list(...VI_FROM.map((c) => rowRadio({ label: c === 'auto' ? T('studioAuto') : langName(c, ul0), on: f.vf === c, onClick: () => { f.vf = c; render('none'); }, k: 'vf:' + c }))));
   if (!dry) p.append(secT(T('studioViMode')), ...modePicker(f.mode, (id) => { f.mode = id; render('none'); }, { vi: f.vf }));
-  const rows = [rowCheck({ label: T('studioViRights'), on: !!f.vr, onClick: () => { f.vr = !f.vr; render('none'); }, k: 'vr' })];
-  if (ui.api && ui.api.admin) rows.push(rowCheck({ label: T('studioViT'), sub: T('studioViS'), on: !!f.vdry, onClick: () => { f.vdry = !f.vdry; render('none'); }, k: 'vdry' }));
-  p.append(h('div', 'st-gap sm'), list(...rows), note(viLrnSaved() ? T('studioViPrivOn') : T('studioViPrivOff')));
+  p.append(note(viLrnSaved() ? T('studioViPrivOn') : T('studioViPrivOff')));   // 16/11/2026: בלי הצהרת הזכויות ובלי "ניתוח יבש" בטופס (בקשת המשתמש) — viSpecOf שולח vr לבד
   const d = kaDur(f), mode = modeFor(f.mode, ui.mf);
   const min = d ? Math.max(1, Math.round(viPlan(null, d, dry).t / 60)) : 0;
   const est = dry ? T('studioViNote') : d ? T('studioViEst', { t: min < 60 ? T('studioMinShort', { m: min }) : T('studioHMShort', { t: fmtHM(min) }), usd: fmtUsd(viUsd(mode, f.vf, d)) }) : T('studioViEstH', { usd: fmtUsd(viUsd(mode, f.vf, 3600)) });
   const go1 = btn('st-btn wide', ui.starting ? T('studioStarting') : dry ? T('studioViStart') : T('studioViGo'), startFromForm, 'start');
-  go1.disabled = !(f.fileObj || f.drive || (f.link && f.linkOk)) || ui.starting || !(f.vr || dry);
+  go1.disabled = !(f.fileObj || f.drive || (f.link && f.linkOk)) || ui.starting;
   const ft = h('div', 'st-foot'); ft.append(go1, h('p', 'st-foot-n', est)); p.append(ft);
 }
 const viLrnSaved = () => !!(ui.lat > 0 && ui.lrn !== false && ui.api && ui.api.admin);   // משתמשים אחרים — לא נשמר לפני ה7 (docs/privacy.md)
