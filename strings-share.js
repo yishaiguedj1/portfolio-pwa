@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של share (112 מפתחות מתוך 6990) */
+/* המחרוזות של share (115 מפתחות מתוך 6993) */
 const STRINGS = {
 he: {
   "studioMoreN": "ועוד {n}",
@@ -83,6 +83,8 @@ he: {
   "studioViDraft": "טיוטה — הנקודות עוד לא אומתו מול התמליל.",
   "studioViInEn": "באנגלית",
   "studioViInHe": "בעברית",
+  "studioViLang2": "{a} ו{b}",
+  "studioViLang3": "{a}, {b} ו{c}",
   "studioViLeft": "מה לא נכנס",
   "studioViLeftAsr": "לא נשמע בבירור",
   "studioViLeftBudget": "לא נכנס לאורך הסיכום",
@@ -98,6 +100,7 @@ he: {
   "studioViRead": "{n} דק׳ קריאה",
   "studioViReport": "דווח על טעות",
   "studioViResume": "המשך מ־{t}",
+  "studioViScr": "בשקפים: {l}",
   "studioViScreenOnly": "רק על המסך",
   "studioViSlide": "שקף {n}",
   "studioViSupL": "אומתו",
@@ -197,6 +200,8 @@ en: {
   "studioViDraft": "Draft — the points have not been checked against the transcript yet.",
   "studioViInEn": "In English",
   "studioViInHe": "In Hebrew",
+  "studioViLang2": "{a} and {b}",
+  "studioViLang3": "{a}, {b} and {c}",
   "studioViLeft": "What was left out",
   "studioViLeftAsr": "Not clearly audible",
   "studioViLeftBudget": "Did not fit the summary length",
@@ -212,6 +217,7 @@ en: {
   "studioViRead": "{n} min read",
   "studioViReport": "Report a mistake",
   "studioViResume": "Continue from {t}",
+  "studioViScr": "Slides: {l}",
   "studioViScreenOnly": "On screen only",
   "studioViSlide": "Slide {n}",
   "studioViSupL": "verified",

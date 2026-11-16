@@ -42,6 +42,13 @@ export function normVi(o) {
   const out = { v: VI_V, pv: Number.isInteger(o.pv) && o.pv >= 1 && o.pv <= 999 ? o.pv : 1 };
   const lg = isObj(o.lang) ? o.lang : {};
   out.lang = { src: VI_LANGS.includes(lg.src) ? lg.src : 'en', out: 'he' };
+  for (const k of ['sp', 'scr']) {   // 16/11/2026: השפות המדוברות (ציר השפות) ושפות הטקסט על המסך — [{lg, sh}], עד 4
+    const xs = [];
+    for (const x of lst(lg[k], 8)) {
+      if (isObj(x) && typeof x.lg === 'string' && LANG_RE.test(x.lg) && fin(x.sh, 0, 1) && x.sh > 0 && !xs.some((y) => y.lg === x.lg)) xs.push({ lg: x.lg, sh: r3(x.sh) });
+    }
+    if (xs.length) out.lang[k] = xs.slice(0, 4);
+  }
   out.genre = VI_GENRES.includes(o.genre) ? o.genre : 'other';
   const vd = isObj(o.video) ? o.video : {};
   out.video = { dur: fin(vd.dur, 0, 86400) ? r3(vd.dur) : 0 };
@@ -63,6 +70,9 @@ export function normVi(o) {
     if (t == null || t === false) continue;
     const x = { id: r.id, text: t, conf: fin(r.conf, 0, 100) ? Math.round(r.conf) : 0, lang: LANG_RE.test(String(r.lang || '')) ? r.lang : 'und' };
     if (r.dir === 'rtl' || r.dir === 'ltr') x.dir = r.dir;
+    // 16/11/2026: שורה מעורבת — השפות שבה לפי הסדר (2–4, בלי כפילות), כמו vicheck.py
+    const lg = [...new Set((Array.isArray(r.lgs) ? r.lgs.slice(0, 8) : []).filter((v) => typeof v === 'string' && LANG_RE.test(v)))].slice(0, 4);
+    if (lg.length >= 2) x.lgs = lg;
     out.ocr.push(x);
   }
   const ocrIds = new Set(out.ocr.map((x) => x.id));
@@ -181,6 +191,20 @@ export function chapterSlides(v, ix, c, its) {
 }
 const words = (s) => (String(s || '').match(/[\p{L}\p{N}][\p{L}\p{N}'’.\-]*/gu) || []).length;
 /* זמן הקריאה של הדף (כ־200 מילים לדקה), לפחות דקה */
+/* 16/11/2026: שם שפה בשפת הממשק (Intl), והשפות בשורת הפתיחה — "עברית ואנגלית" רק כשמדברים ביותר משפה אחת (lang.sp,
+   ‏≥ 5% מהדיבור), ו"בשקפים: …" רק כשבשקפים כמה שפות או שפה אחרת מהדיבור (lang.scr). אחרת — כמו קודם ("בעברית") */
+const uiLg = () => (typeof document !== 'undefined' && document.documentElement.lang === 'en' ? 'en' : 'he');
+export function lgName(c, ui) {
+  try { return new Intl.DisplayNames([ui || uiLg()], { type: 'language' }).of(c) || c; } catch (e) { return c; }
+}
+export const langsOf = (xs, min = 0.05) => (xs || []).filter((x) => x.sh >= min).slice(0, 3).map((x) => x.lg);
+export function langLine(v, T, ui) {
+  const sp = langsOf(v.lang.sp), sc = langsOf(v.lang.scr), nm = (c) => lgName(c, ui);
+  const list = (a) => (a.length > 2 ? T('studioViLang3', { a: nm(a[0]), b: nm(a[1]), c: nm(a[2]) }) : T('studioViLang2', { a: nm(a[0]), b: nm(a[1]) }));
+  const said = sp.length > 1 ? list(sp) : v.lang.src === 'he' ? T('studioViInHe') : T('studioViInEn');
+  const shown = sc.length > 1 ? list(sc) : sc.length === 1 && sc[0] !== (sp[0] || v.lang.src) ? nm(sc[0]) : '';
+  return said + (shown ? ' · ' + T('studioViScr', { l: shown }) : '');
+}
 export function readMin(v) {
   let w = 0;
   for (const x of v.items) w += words(x.text);
@@ -325,7 +349,7 @@ export function renderVi(ctx) {
   const hd = h('header', 'st-vi-hd');
   hd.append(h('h1', 'st-large clamp', ctx.title || (v.video.title || '')));   // כמו דף העבודה
   const meta = h('div', 'st-vi-meta');
-  meta.append(tm(v.video.dur), ' · ' + (v.lang.src === 'he' ? T('studioViInHe') : T('studioViInEn')) + ' · ' + T('studioViRead', { n: readMin(v) }));
+  meta.append(tm(v.video.dur), ' · ' + langLine(v, T) + ' · ' + T('studioViRead', { n: readMin(v) }));
   const trust = h('div', 'st-vi-trust');
   const tq = h('div');   // שתי שורות קבועות — בלי נקודה מפרידה שנשארת לבד בקצה שורה
   if (v.quality.items > 0) { const b = h('b'); const nn = h('bdi', null, v.quality.sup + '/' + v.quality.items); nn.dir = 'ltr'; b.dir = 'auto'; b.append(nn, ' ' + T('studioViSupL')); tq.append(b, h('span', 'st-vi-dot', '·')); }   // auto: בממשק באנגלית — כל פריט בסדר שלו בתוך הדף (rtl)

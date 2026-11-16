@@ -163,13 +163,87 @@ def words_from_segments(segs: list[dict]) -> list[dict]:
     return out
 
 
-def lang_mix(wav: str, words: list[dict], segs: list[dict] | None, primary: str, model=None, en_run=None) -> tuple[list[dict], dict]:
+SWITCH_MAIN = 0.6        # 16/11/2026: נבחרה שפה, אבל לפחות 60% מהדיבור בשפה האחרת (עברית/אנגלית) — מתמללים בשפה של הקול
+TL_KEEP = 3000           # אזורים שנשמרים בתוצאת התמלול (langs.regions)
+
+
+def _load16(wav: str):
+    import soundfile as sf
+    audio, sr = sf.read(wav, dtype="float32")
+    if getattr(audio, "ndim", 1) > 1:
+        audio = audio.mean(axis=1)
+    if sr != 16000:
+        raise ValueError("sr")
+    return audio
+
+
+def verify_fn(wmodel=None):
+    """whisper-small כמודל שני בציר (vt/lid: אישור שפה נוספת, אזורי מיעוט חשודים, רצפים שבהם ECAPA "הלך לאיבוד") —
+    כשהמודל בתמונה; ‏SNB_LID_VERIFY=off — בלי."""
+    from . import lang as L
+    if os.environ.get("SNB_LID_VERIFY") == "off" or (wmodel is None and not L.ready()):
+        return None
+    return L.whisper_probs(wmodel)
+
+
+def lang_timeline(wav: str, prefer: str, model=None, wmodel=None) -> dict | None:
+    """16/11/2026 (בקשת המשתמש — זיהוי שפה מדויק, גם בתוכן מעורב): ציר השפות על כל הדיבור (vt/lid.py, ‏ECAPA),
+    ומה שחשוד נבדק שוב ב־whisper-small (wmodel — אם כבר נטען; vt/lid.verify).
+    בלי המודל / ‏SNB_LID=off / תקלה — None, והדרך הישנה (main_lang, ‏detect / detect_spans)."""
+    from . import lid
+    if os.environ.get("SNB_LID") == "off" or (model is None and not lid.ready()):
+        return None
+    try:
+        tl = lid.timeline(_load16(wav), prefer=prefer if prefer in ("he", "en") else "", model=model,
+                          verify_fn=verify_fn(wmodel))
+    except Exception as e:  # noqa: BLE001 — שלב משני; הדרך הישנה
+        log(f"ציר השפות נכשל ({type(e).__name__}) — הזיהוי הישן")
+        return None
+    sh = ", ".join(f"{k} {round(v * 100)}%" for k, v in tl["share"].items())
+    vf = tl.get("vf") or {}
+    chk = vf.get("n", 0) + vf.get("nlow", 0) + vf.get("chk", 0)
+    log(f"ציר השפות: {sh or 'אין דיבור'} · {len(tl['regions'])} אזורים · {tl['n']} חלונות · {tl['s']} שנ׳"
+        + (f" · whisper בדק {chk}, שינה {vf.get('flip', 0) + vf.get('fliplow', 0)}, פסל {vf.get('drop', 0) + vf.get('swap', 0)} שפות"
+           if chk else ""))
+    return tl
+
+
+def langs_doc(tl: dict | None, chosen: str = "") -> dict:
+    """תקציר הציר לתוצאת התמלול (asr.json → analyze: ‏vi.json lang.sp, והשלד של Claude)."""
+    if not tl:
+        return {}
+    out = {"src": "ecapa", "main": tl["main"], "share": tl["share"], "cands": tl["cands"], "n": tl["n"], "s": tl["s"],
+           "vf": tl.get("vf") or {},
+           "regions": [[g["s"], g["e"], g["lg"], g["p"]] for g in tl["regions"][:TL_KEEP]]}
+    if chosen:
+        out["chosen"] = chosen
+    return out
+
+
+def lang_mix(wav: str, words: list[dict], segs: list[dict] | None, primary: str, model=None, en_run=None,
+             tl: dict | None = None) -> tuple[list[dict], dict]:
     """10/11/2026 — השפה המדוברת בכל רגע (בקשת המשתמש): קטע בשפה אחרת מתומלל במנוע של השפה שלו, והמילים שלו עם lg.
-    עברית (segs = הקטעים של ivrit): זיהוי שפה בכל קטע; אנגלית: המועמדים בביטחון נמוך של Parakeet (A12).
-    בלי מודל הזיהוי / ‏SNB_LID=off / תקלה — המילים כמו שהן."""
+    16/11/2026: עם ציר השפות (tl, ‏vt/lid.py) — הקטעים מהציר, על כל הדיבור (עברית — ivrit, אנגלית — Parakeet, אחרת —
+    whisper-small). בלי ציר — הדרך הישנה: עברית (segs = הקטעים של ivrit) — זיהוי שפה בכל קטע; אנגלית — המועמדים בביטחון
+    נמוך של Parakeet (A12). בלי מודל הזיהוי / ‏SNB_LID=off / תקלה — המילים כמו שהן."""
     from . import lang as L
     st: dict = {"lid_n": 0}
-    if not words or os.environ.get("SNB_LID") == "off" or (model is None and not L.ready()):
+    if not words or os.environ.get("SNB_LID") == "off":
+        return words, st
+    if tl is not None:
+        t0 = time.time()
+        try:
+            audio = _load16(wav)
+            found = L.foreign_regions(tl, primary, audio=audio)
+            seg = L.transcribe_spans(audio, found, model=model, en_run=en_run) if found else []
+            words = L.merge_words(words, seg)
+            st = {"lid_n": len(seg), "lid_s": round(time.time() - t0, 1), "lid_src": "ecapa"}
+            if seg:
+                log(f"שפות: {len(seg)} קטעים בשפה אחרת ({', '.join(sorted({g['lg'] for g in seg}))}) — כל אחד במנוע של השפה שלו")
+        except Exception as e:  # noqa: BLE001 — שלב משני; התמלול הראשי נשאר
+            log(f"שפות: התמלול של הקטעים נכשל ({type(e).__name__}) — ממשיכים בלעדיו")
+        return words, st
+    if model is None and not L.ready():
         return words, st
     t0 = time.time()
     try:
@@ -214,30 +288,41 @@ def detect_main(wav: str, model=None) -> dict:
         return {"lg": "en", "p": 0.0, "n": 0, "src": "err"}
 
 
-def asr(wav: str, lang: str, lid_model=None) -> dict:
+def asr(wav: str, lang: str, lid_model=None, tl_model=None) -> dict:
     """שמע 16kHz → מילים עם זמן. עברית — vt/asr_he.py (‏VAD → ivrit → zipformer); אנגלית — Parakeet, כמו בתרגום.
-    lang = "auto" (PR 1.2א): קודם השפה הראשית (detect_main). שפה שאינה עברית/אנגלית — בלי תמלול (המתזמר: vi_lang)."""
+    16/11/2026: קודם ציר השפות (lang_timeline) — השפה הראשית לפי זמן הדיבור, והקטעים בשפה אחרת. "auto" — השפה הראשית
+    מהציר (בלי ציר — detect_main); נבחרה שפה, אבל רוב הדיבור (‏≥ SWITCH_MAIN) בעברית/אנגלית האחרת — מתמללים בשפה של הקול
+    (בקשת המשתמש: "גם אם המשתמש בחר רק אנגלית ויש גם מידע בעברית"). שפה שאינה עברית/אנגלית — בלי תמלול (vi_lang)."""
     t0 = time.time()
-    auto = None
+    auto, chosen = None, ""
+    tl = lang_timeline(wav, lang, tl_model, lid_model)
     if lang == "auto":
-        auto = detect_main(wav, lid_model)
+        if tl and tl["main"]:
+            auto = {"lg": tl["main"], "p": tl["share"].get(tl["main"], 0.0), "n": tl["n"], "src": "ecapa"}
+        else:
+            auto = detect_main(wav, lid_model)
         lang = auto["lg"]
-        log(f"השפה הראשית: {lang} ({auto['p']}, {auto['n']} דגימות)")
+        log(f"השפה הראשית: {lang} ({auto['p']}, {auto['n']} {'חלונות' if auto.get('src') == 'ecapa' else 'דגימות'})")
         if lang not in ("he", "en"):
             return {"v": V, "lang": lang, "engine": "lid", "quality": "low", "words": [],
-                    "stats": {"auto": auto, "n": 0, "s": round(time.time() - t0, 1)}}
-    r = _asr(wav, lang, t0)
+                    "stats": {"auto": auto, "n": 0, "s": round(time.time() - t0, 1)}, "langs": langs_doc(tl)}
+    elif tl and tl["main"] in ("he", "en") and tl["main"] != lang and tl["share"].get(tl["main"], 0) >= SWITCH_MAIN:
+        log(f"נבחרה {lang}, אבל {round(tl['share'][tl['main']] * 100)}% מהדיבור ב־{tl['main']} — מתמללים בשפה של הקול")
+        chosen, lang = lang, tl["main"]
+    r = _asr(wav, lang, t0, tl)
     if auto:
         r["stats"]["auto"] = auto
+    if tl:
+        r["langs"] = langs_doc(tl, chosen)
     return r
 
 
-def _asr(wav: str, lang: str, t0: float) -> dict:
+def _asr(wav: str, lang: str, t0: float, tl: dict | None = None) -> dict:
     if lang == "he":
         from . import asr_he
         r = asr_he.run(wav, log=log)
         segs = [g for g in r.get("segments") or [] if str(g.get("text") or "").strip()]
-        words, lid = lang_mix(wav, words_from_segments(segs), segs, "he")
+        words, lid = lang_mix(wav, words_from_segments(segs), segs, "he", tl=tl)
         st = {k: v for k, v in (r.get("stats") or {}).items() if isinstance(v, (int, float)) and not isinstance(v, bool)}
         return {"v": V, "vh": asr_he.V, "lang": "he", "engine": r.get("engine"), "quality": r.get("quality") or "ok", "words": words,
                 "stats": dict(st, **lid, n=len(words), s=round(time.time() - t0, 1)), "timing": r.get("timing") or {}}
@@ -246,7 +331,7 @@ def _asr(wav: str, lang: str, t0: float) -> dict:
     words = [dict({"w": str(w["w"]), "s": round(float(w["s"]), 3), "e": round(float(w["e"]), 3)},
                   **({"p": w["conf"]} if isinstance(w.get("conf"), (int, float)) else {}))
              for w in r.get("words") or [] if w.get("w") and w.get("e") is not None and w.get("s") is not None]
-    words, lid = lang_mix(wav, words, None, "en")
+    words, lid = lang_mix(wav, words, None, "en", tl=tl)
     return {"v": V, "lang": "en", "engine": "parakeet", "quality": "ok" if words else "low", "words": words,
             "stats": dict(lid, n=len(words), s=round(time.time() - t0, 1))}
 

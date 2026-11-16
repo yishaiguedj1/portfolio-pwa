@@ -107,11 +107,45 @@ def _clip(t: str, n: int) -> str:
     return t if len(t) <= n else t[:n - 1] + '…'
 
 
-def skeleton(lang: str, bounds: list[dict], inv: dict, slides: list[dict], ocr: list[dict], max_chars: int = 24000) -> str:
+LANG_NAME = {'he': 'Hebrew', 'en': 'English', 'ar': 'Arabic', 'ru': 'Russian', 'fr': 'French', 'es': 'Spanish',
+             'de': 'German', 'it': 'Italian', 'pt': 'Portuguese', 'yi': 'Yiddish'}
+
+
+def screen_langs(ocr: list[dict]) -> tuple[list[tuple[str, float]], int]:
+    """16/11/2026: שפות הטקסט על המסך — [(שפה, חלק מהאותיות)] מהגדול לקטן (‏≥ 3%), וכמה שורות מעורבות.
+    שורה מעורבת מתחלקת שווה בין השפות שלה (lgs); בלי lgs — לא נספרת."""
+    cnt: dict[str, float] = {}
+    mixed = 0
+    for o in ocr or []:
+        n = sum(1 for c in str(o.get('text') or '') if c.isalpha())
+        lg = o.get('lang')
+        if lg == 'mix':
+            mixed += 1
+            ls = [x for x in o.get('lgs') or [] if isinstance(x, str)]
+            for x in ls:
+                cnt[x] = cnt.get(x, 0) + n / len(ls)
+        elif isinstance(lg, str) and lg not in ('other', 'und') and n:
+            cnt[lg] = cnt.get(lg, 0) + n
+    tot = sum(cnt.values())
+    out = [(k, round(v / tot, 2)) for k, v in sorted(cnt.items(), key=lambda kv: -kv[1]) if tot and v / tot >= 0.03]
+    return out, mixed
+
+
+def skeleton(lang: str, bounds: list[dict], inv: dict, slides: list[dict], ocr: list[dict], max_chars: int = 24000,
+             sp: dict | None = None) -> str:
     """השלד (19.2 סעיף 2) — אחרי ה־system, באותו בלוק קבוע: מועמדי הגבול, המלאים ומלאי השקפים (מזהה + שורות ה־OCR).
     חתוך ל־max_chars (כ־6–8K טוקנים) כדי שהקידומת תישאר קטנה (5.5)."""
     by_id = {o['id']: o for o in ocr}
     out = ['## Talk', 'Spoken language: ' + ('Hebrew' if lang == 'he' else 'English') + '. Write all notes in Hebrew.']
+    spk = [(k, v) for k, v in (sp or {}).items() if isinstance(v, (int, float)) and v >= 0.03]
+    if len(spk) > 1:                    # 16/11/2026: ציר השפות — כמה שפות מדוברות; כל קטע תומלל בשפה שלו
+        out[1] = ('Spoken languages: ' + ', '.join('%s %d%%' % (LANG_NAME.get(k, k), round(v * 100)) for k, v in spk)
+                  + '. Each part is transcribed in its own language; all of it is the talk. Write all notes in Hebrew.')
+    sl, mixed = screen_langs(ocr)
+    if len(sl) > 1 or (sl and sl[0][0] != lang):
+        out.append('Screen text: ' + ', '.join('%s %d%%' % (LANG_NAME.get(k, k), round(v * 100)) for k, v in sl)
+                   + (' (%d lines mix languages)' % mixed if mixed else '')
+                   + '. Slide text in every language is evidence.')
     if bounds:
         out += ['', '## Boundary candidates (unit ids where a new chapter may start)',
                 ', '.join(b['ev'][0] + ('*' if b.get('why') in ('slide', 'both') else '') for b in bounds if b.get('ev')),

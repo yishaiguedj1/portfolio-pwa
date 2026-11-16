@@ -3,7 +3,10 @@
  "pv": 0,
  "lang": {
   "src": "fr",
-  "out": "en"
+  "out": "en",
+  "sp": [{"lg": "he", "sh": 0.6}, {"lg": "he", "sh": 0.3}, {"lg": "EN", "sh": 0.2}, {"lg": "en", "sh": 1.5}, {"lg": "ar", "sh": 0},
+         {"lg": ["ru"], "sh": 0.1}, {"lg": "ru", "sh": 0.12345}, "x", {"lg": "fr", "sh": 0.05}, {"lg": "es", "sh": 0.05}],
+  "scr": "en"
  },
  "genre": "sermon",
  "video": {
@@ -166,7 +169,22 @@
    "text": "free text",
    "conf": 250,
    "lang": "english",
-   "dir": "up"
+   "dir": "up",
+   "lgs": "he,en"
+  },
+  {
+   "id": "o3.2",
+   "text": "שלום hello привет",
+   "conf": 70,
+   "lang": "mix",
+   "lgs": ["he", "HE", "en", "he", 5, "x", "ru", "ar", "fr"]
+  },
+  {
+   "id": "o3.3",
+   "text": "רק עברית",
+   "conf": 80,
+   "lang": "mix",
+   "lgs": ["he", "he"]
   }
  ],
  "segments": [

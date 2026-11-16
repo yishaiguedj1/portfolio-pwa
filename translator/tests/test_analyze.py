@@ -93,6 +93,17 @@ class TestScreen(unittest.TestCase):
         self.assertEqual(sl[0]["ocr"], ["o1.1", "o1.2", "o1.3", "o1.4", "o1.5"])
         self.assertEqual(sl[1].get("oerr"), 1)
         self.assertEqual(ocr[3]["dir"], "rtl")
+        self.assertNotIn("lgs", ocr[3], "שורה בשפה אחת — בלי lgs")
+
+    def test_slides_doc_mix_langs(self):
+        """שורה מעורבת (OCR גרסה 2) — lgs: השפות שבה לפי הסדר, בלי other ובלי כפילות"""
+        mix = {"text": "שימוש ב־API של Python ובעברית", "conf": 88, "lang": "mix", "dir": "rtl", "box": [0, 0, 9, 9],
+               "segs": [["שימוש ב־", "he"], ["API", "en"], ["של", "he"], ["Python", "en"], ["ובעברית", "he"]]}
+        one = {"text": "רק עברית", "conf": 90, "lang": "mix", "dir": "rtl", "box": [0, 0, 9, 9], "segs": [["רק עברית", "he"]]}
+        scr = {"units": [{"id": "s1", "t0": 0, "t1": 9, "kind": "slide", "states": [{"t0": 0}], "ocr": {"lines": [mix, one]}}]}
+        _, ocr = A.slides_doc(scr)
+        self.assertEqual(ocr[0]["lgs"], ["he", "en"])
+        self.assertNotIn("lgs", ocr[1], "שפה אחת — lgs לא נכתב גם כשהתווית mix")
 
     def test_screen_only(self):
         sl, ocr = A.slides_doc(SCREEN)

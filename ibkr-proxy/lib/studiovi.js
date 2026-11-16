@@ -70,6 +70,13 @@ function normVi(o) {
   const out = { v: VI_V, pv: Number.isInteger(o.pv) && o.pv >= 1 && o.pv <= 999 ? o.pv : 1 };
   const lg = isObj(o.lang) ? o.lang : {};
   out.lang = { src: VI_LANGS.includes(lg.src) ? lg.src : 'en', out: 'he' };
+  for (const k of ['sp', 'scr']) {   // 16/11/2026: השפות המדוברות (ציר השפות) ושפות הטקסט על המסך — [{lg, sh}], עד 4
+    const xs = [];
+    for (const x of list(lg[k], 8)) {
+      if (isObj(x) && typeof x.lg === 'string' && LANG_RE.test(x.lg) && fin(x.sh, 0, 1) && x.sh > 0 && !xs.some((y) => y.lg === x.lg)) xs.push({ lg: x.lg, sh: r3(x.sh) });
+    }
+    if (xs.length) out.lang[k] = xs.slice(0, 4);
+  }
   out.genre = VI_GENRES.includes(o.genre) ? o.genre : 'other';
   const vd = isObj(o.video) ? o.video : {};
   out.video = { dur: fin(vd.dur, 0, 86400) ? r3(vd.dur) : 0 };
@@ -92,6 +99,9 @@ function normVi(o) {
     if (t == null || t === false) continue;
     const x = { id: r.id, text: t, conf: fin(r.conf, 0, 100) ? Math.round(r.conf) : 0, lang: LANG_RE.test(String(r.lang || '')) ? r.lang : 'und' };
     if (r.dir === 'rtl' || r.dir === 'ltr') x.dir = r.dir;
+    // 16/11/2026: שורה מעורבת — השפות שבה לפי הסדר (2–4, בלי כפילות), כמו vicheck.py
+    const lg = [...new Set((Array.isArray(r.lgs) ? r.lgs.slice(0, 8) : []).filter((v) => typeof v === 'string' && LANG_RE.test(v)))].slice(0, 4);
+    if (lg.length >= 2) x.lgs = lg;
     out.ocr.push(x);
   }
   const ocrIds = new Set(out.ocr.map((x) => x.id));

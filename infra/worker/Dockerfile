@@ -185,6 +185,21 @@ RUN HF_HOME=/tmp/hf HF_HUB_DISABLE_TELEMETRY=1 /opt/vt/bin/python -c \
     | sha256sum -c - \
  && rm -rf /tmp/hf /opt/lid/whisper-small/.cache
 
+# ---------------------------------------------------------------- ציר השפות המדוברות (16/11/2026, translator/vt/lid.py)
+# speechbrain/lang-id-voxlingua107-ecapa ‏(Apache-2.0, ‏~85MB, ‏107 שפות) — בגרסה נעולה ונבדק מול sha256. רק המשקולות ורשימת
+# השפות: הרשת עצמה ממומשת ב־vt/lid.py ‏(torch, ‏weights_only) — בלי speechbrain ובלי hyperpyyaml. שלב נפרד מ־lid: השכבה
+# של whisper-small לא משתנה. בלי המודל: הזיהוי הקודם (vt/lang.py), כמו קודם.
+FROM deps AS lidecapa
+RUN HF_HOME=/tmp/hf HF_HUB_DISABLE_TELEMETRY=1 /opt/vt/bin/python -c \
+    "from huggingface_hub import hf_hub_download as d; [d('speechbrain/lang-id-voxlingua107-ecapa', f, revision='0253049ae131d6a4be1c4f0d8b0ff483a0f8c8e9', local_dir='/opt/lid/ecapa') for f in ('embedding_model.ckpt', 'classifier.ckpt', 'label_encoder.txt')]" \
+ && cd /opt/lid/ecapa && printf '%s\n' \
+    "ab750d5c06d713477045fa798fab5d33e959dbc0dfe4de510a9a47844c79a19a  embedding_model.ckpt" \
+    "a50d9024ff58d317031c9787d4c6c614d454a87a8ef32f9d36338cd3ff57adbc  classifier.ckpt" \
+    "9f566d83c4f19168be4a0bf86c0c7dac7d3264a95105bcbf33a7c32b83ccc17f  label_encoder.txt" \
+    | sha256sum -c - \
+ && rm -rf /tmp/hf /opt/lid/ecapa/.cache \
+ && find /opt/lid/ecapa -type d -exec chmod 755 {} + && find /opt/lid/ecapa -type f -exec chmod 644 {} +
+
 # ---------------------------------------------------------------- טקסט שעל המסך (25/10/2026, translator/vt/burnin.py)
 # PP-OCRv3 det + rec (‏PaddleOCR, ‏Apache-2.0) מהגלגל הרשמי של rapidocr_onnxruntime 1.2.3 ב־PyPI — הגלגל והמודלים נבדקים
 # מול sha256. det מזהה איפה יש טקסט בפסים העליון/התחתון, rec מאשר שזה טקסט — הכתוביות מורמות מעליו. בלי המודלים: כמו קודם.
@@ -240,12 +255,15 @@ COPY --from=separator /opt/separator /opt/separator
 COPY --from=karaokehe /opt/karaoke-he /opt/karaoke-he
 COPY --from=lid /opt/lid /opt/lid
 COPY --from=vi /opt/vi /opt/vi
+COPY --from=lidecapa /opt/lid/ecapa /opt/lid/ecapa
 # 09/11/2026: ניתוח סרטונים — Tesseract 5 עם heb ו־eng ‏(Apache-2.0; ה־tessdata ה"מהיר" של Debian) ל־OCR של השקפים
 # (translator/vt/ocr.py). שכבה נפרדת אחרי השכבות הכבדות: הן נשארות זהות לתמונה הקודמת, והשרת מושך רק את החדשות.
+# 16/11/2026 (OCR גרסה 2): גם ara ו־rus — מעבר שני רק על שורות שנקראו רע (VI_OCR_EXTRA; כמה MB, Apache-2.0)
 RUN apt-get update -qq \
- && apt-get install -y -qq --no-install-recommends tesseract-ocr tesseract-ocr-heb tesseract-ocr-eng >/dev/null \
+ && apt-get install -y -qq --no-install-recommends tesseract-ocr tesseract-ocr-heb tesseract-ocr-eng \
+      tesseract-ocr-ara tesseract-ocr-rus >/dev/null \
  && rm -rf /var/lib/apt/lists/* \
- && tesseract --list-langs 2>&1 | grep -qx heb && tesseract --list-langs 2>&1 | grep -qx eng
+ && for l in heb eng ara rus; do tesseract --list-langs 2>&1 | grep -qx "$l" || exit 1; done
 COPY --chown=root:root translator /app/translator
 # 16/10/2026: הגדרת השרת לעדכון ידני בלי שרת חדש — נתונים בלבד, שום דבר לא מריץ אותם לבד (infra/worker/snb-host-apply)
 COPY --chown=root:root infra/host/snb-common.sh infra/compose.yaml infra/host/snb-update infra/host/snb-update.timer infra/host/snb-update.service /opt/snb-host/
@@ -254,7 +272,7 @@ RUN rm -rf /app/translator/tests /app/translator/research /app/translator/__pyca
  && find /app /opt/aligner /opt/speaker -type d -exec chmod 755 {} + && find /app /opt/aligner /opt/speaker -type f -exec chmod 644 {} + \
  && find /opt/linebreak -type d -exec chmod 755 {} + && find /opt/linebreak -type f -exec chmod 644 {} + \
  && find /opt/burnin -type d -exec chmod 755 {} + && find /opt/burnin -type f -exec chmod 644 {} + \
- && find /opt/sepdeps /opt/separator /opt/karaoke-he /opt/lid -type d -exec chmod 755 {} + && find /opt/sepdeps /opt/separator /opt/karaoke-he /opt/lid -type f -exec chmod 644 {} + \
+ && find /opt/sepdeps /opt/separator /opt/karaoke-he /opt/lid/whisper-small -type d -exec chmod 755 {} + && find /opt/sepdeps /opt/separator /opt/karaoke-he /opt/lid/whisper-small -type f -exec chmod 644 {} + \
  && chmod 644 /opt/snb-host/snb-common.sh /opt/snb-host/compose.yaml /opt/snb-host/snb-update /opt/snb-host/snb-update.timer /opt/snb-host/snb-update.service
 # 20/10/2026: בדיקת עשן מול הספריות האמיתיות שבתמונה (הבדיקות ב־CI רצות בלי anthropic) — בניית הלקוח של Claude
 # בלי רשת. anthropic 1.x עבר ל־httpx2 ודחה httpx.Timeout ב־TypeError: כל עבודה בשרת קרסה בקריאה הראשונה, והבנייה עברה
@@ -271,6 +289,9 @@ RUN cd /app/translator && /opt/vt/bin/python -c "import karaoke as K; assert K.s
 RUN cd /app/translator && HF_HUB_OFFLINE=1 /opt/vt/bin/python -c "import karaoke; from vt import align_he as H; assert H.ready(), 'karaoke-he'; import stable_whisper, faster_whisper, ctranslate2; m = H.load_ivrit(); c, d = H.load_ctc(); assert '[pad]' in d; print('karaoke-he', stable_whisper.__version__, ctranslate2.__version__)"
 # 01/11/2026 (A12): מודל זיהוי השפה נטען בלי רשת
 RUN cd /app/translator && HF_HUB_OFFLINE=1 /opt/vt/bin/python -c "from vt import lang as L; assert L.ready(), 'lid'; m = L._model(); print('lid', L.LID_DIR)"
+# 16/11/2026: ציר השפות — ECAPA נטען (strict, ‏weights_only) ומחזיר הסתברות ל־107 השפות על אות סינתטי, בלי רשת
+RUN cd /app/translator && /opt/vt/bin/python -B -c \
+    "from vt import lid; import numpy as n; assert lid.ready(), 'ecapa'; m = lid.Model(); t = n.arange(48000, dtype='float32') / 16000; x = (0.1 * n.sin(2 * n.pi * 220 * t)).astype('float32'); p = m.logp([x, x[:24000]]); assert p.shape == (2, 107) and abs(float(n.exp(p[0]).sum()) - 1) < 1e-3, p.shape; assert 'he' in m.codes and 'iw' not in m.codes; print('ecapa', len(m.codes))"
 # 09/11/2026: ניתוח סרטונים (גל 0) — Tesseract קורא שורה שצוירה ב־Pillow; zipformer נטען ומפענח שקט באותו תהליך עם ה־VAD
 # של faster-whisper (שני עותקים של onnxruntime — נבדק שהם חיים יחד); גלאי השקפים רץ על פריימים סינתטיים
 RUN cd /app/translator && /opt/vt/bin/python -B -c \

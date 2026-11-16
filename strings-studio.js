@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2457 מפתחות מתוך 6990) */
+/* המחרוזות של studio (2460 מפתחות מתוך 6993) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -2335,6 +2335,8 @@ he: {
   "studioViLamS": "גם תמונות קטנות של השקפים, מוצפנות באותו אופן.",
   "studioViLamT": "תמונות השקפים מהניתוח",
   "studioViLang": "שפת ההרצאה",
+  "studioViLang2": "{a} ו{b}",
+  "studioViLang3": "{a}, {b} ו{c}",
   "studioViLatS": "כדי לשפר את ניתוח הסרטונים, נשמרים התמליל, הטקסט שעל השקפים והתוצאה של הניתוח — מוצפנים, בלי שם הקובץ ובלי פרטים מזהים (מספרי טלפון, מיילים ומספרים ארוכים מוחלפים בתגים). נמחק אחרי 24 חודשים, או מיד ב'מחק את התרומות שלי'.",
   "studioViLatT": "תוכן הניתוח",
   "studioViLauS": "גם איך השתמשת בעמוד הניתוח — מונים ומשוב (👍/👎 ו'מה לא נכון'), בלי טקסט חופשי.",
@@ -2361,6 +2363,7 @@ he: {
   "studioViRead": "{n} דק׳ קריאה",
   "studioViReport": "דווח על טעות",
   "studioViResume": "המשך מ־{t}",
+  "studioViScr": "בשקפים: {l}",
   "studioViScreenOnly": "רק על המסך",
   "studioViSlide": "שקף {n}",
   "studioViSo": "{n} שורות רק על המסך",
@@ -4794,6 +4797,8 @@ en: {
   "studioViLamS": "Small images of the slides too, encrypted the same way.",
   "studioViLamT": "Slide images from analyses",
   "studioViLang": "Lecture language",
+  "studioViLang2": "{a} and {b}",
+  "studioViLang3": "{a}, {b} and {c}",
   "studioViLatS": "To improve video analysis, the transcript, the text on the slides and the analysis result are kept — encrypted, without the file name or identifying details (phone numbers, emails and long numbers are replaced with tags). Deleted after 24 months, or right away with ‘Delete my contributions’.",
   "studioViLatT": "Analysis content",
   "studioViLauS": "How you used the analysis page too — counts and feedback (👍/👎 and ‘What’s wrong’), no free text.",
@@ -4820,6 +4825,7 @@ en: {
   "studioViRead": "{n} min read",
   "studioViReport": "Report a mistake",
   "studioViResume": "Continue from {t}",
+  "studioViScr": "Slides: {l}",
   "studioViScreenOnly": "On screen only",
   "studioViSlide": "Slide {n}",
   "studioViSo": "{n} lines only on screen",
