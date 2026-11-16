@@ -225,9 +225,13 @@ def is_live(t, tf, cut, tz):
 
 # ---------------------------------------------------------------- הבדיקות
 def check_inv(bars, tf, tz):
-    """+ JUMP: סגירה פי 3 ומעלה (או שליש) מהנר הקודם — ערבוב יחידות (אגורות/שקלים ×100) או פיצול לא מותאם"""
-    bad, dup, prev, seen, jump = [], [], None, {}, []
+    """+ JUMP: סגירה פי 3 ומעלה (או שליש) מהנר הקודם — ערבוב יחידות (אגורות/שקלים ×100) או פיצול לא מותאם
+       + UNIT: נר שבתוכו שדה אחד פי 50–200 משדה אחר (TEVA.TA שבועי 2010: פ 239, ג 23800) — אגורות ושקלים באותו נר"""
+    bad, dup, prev, seen, jump, unit = [], [], None, {}, [], []
     for i, b in enumerate(bars):
+        px = [x for x in b[1:5] if x and x > 0]
+        if px and 50 <= max(px) / min(px) <= 200:
+            unit.append([lt(b[0], tz)] + [round(x, 6) for x in b[1:5]])
         if i and bars[i - 1][4] > 0 and not (1 / 3 < b[4] / bars[i - 1][4] < 3):
             jump.append([lt(b[0], tz), round(bars[i - 1][4], 6), round(b[4], 6)])
         t, o, h, l, c, v = b
@@ -241,7 +245,7 @@ def check_inv(bars, tf, tz):
             if k in seen:
                 dup.append([k, seen[k], rnd(b)])
             seen[k] = rnd(b)
-    return {'bad': len(bad), 'dup': len(dup), 'jump': len(jump), 'ex': [rnd(x) for x in bad[:3]] + dup[:3], 'ex_jump': jump[:4]}
+    return {'bad': len(bad), 'dup': len(dup), 'jump': len(jump), 'unit': len(unit), 'ex': [rnd(x) for x in bad[:3]] + dup[:3], 'ex_jump': jump[:4], 'ex_unit': unit[:6]}
 
 
 def check_gap(bars, sec, cls, pre, tz):
@@ -356,7 +360,8 @@ def src_series(srcs, tf, cls, pre, tz):
                         bars = agg(r['bars'], lambda t, r=r: dkey(t, tf, ktz(r)))
                         break
         if rec is not None and bars and not INTRA(tf) and noopen:
-            bars = {k: (b if datetime.fromtimestamp(b[0], timezone.utc).year not in noopen else [b[0], None] + list(b[2:])) for k, b in bars.items()}
+            yr = lambda t: int(t[:4]) if isinstance(t, str) else datetime.fromtimestamp(t, timezone.utc).year   # נר שנצבר (agg) — המפתח הוא מחרוזת
+            bars = {k: (b if yr(b[0]) not in noopen else [b[0], None] + list(b[2:])) for k, b in bars.items()}
             note += ' בלי פתיחה:' + ','.join(str(y) for y in (min(noopen), max(noopen)))
         if rec is not None and bars:
             out.append((name, bars, int(rec.get('at') or 0) or 10 ** 12, note))
@@ -663,6 +668,7 @@ def run_sym(out, sym, tfs, pres):
                 a.get('off', '-'), a.get('agg', '-'), a.get('gone', '-'), r['inv']['bad'], r['inv']['dup'], r['inv']['jump'],
                 ' gap=%d' % r['gap']['slots'] if r.get('gap') else '', ' END=' + r['endErr'] if r.get('endErr') else '')
                 + (' WD=%d' % a['wday'] if a.get('wday') else '')
+                + (' UNIT=%d' % r['inv']['unit'] if r['inv'].get('unit') else '')
                 + (' ADJ=%s' % ';'.join('%s:%s×%s' % (n, e[0], e[1]) for n, es in r['src']['adjev'].items() for e in es if e[2] == 'adj')[:160]
                    if any(e[2] == 'adj' for es in r['src']['adjev'].values() for e in es) else ''))
     rep['xday'] = xday(out, sym, cls, 'America/New_York')
@@ -726,6 +732,8 @@ def selftest():
     # כפילות חודש (שני נרות לנובמבר)
     m = [[int(datetime(2026, 11, 2, 14, 30, tzinfo=UTC).timestamp()), 1, 2, 1, 2, 5], [int(datetime(2026, 11, 16, 14, 30, tzinfo=UTC).timestamp()), 2, 3, 2, 3, 1]]
     assert check_inv(m, '1M', 'America/New_York')['dup'] == 1
+    u = check_inv([[1269212400, 239, 23800, 236.5, 23800, 0], [1269817200, 236.5, 237.1, 234.9, 237.1, 0]], '1W', 'Asia/Jerusalem')
+    assert u['unit'] == 1 and u['jump'] == 1, u   # נר באגורות בתוך סדרה בשקלים
     # שבועי שמתחיל ביום חמישי (C-013: period1=0 = חמישי 1/1/1970) — מסומן WD
     thu = int(datetime(2026, 11, 12, tzinfo=NY).timestamp())
     mon = int(datetime(2026, 11, 9, tzinfo=NY).timestamp())

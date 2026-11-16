@@ -94,8 +94,16 @@ process.env.CHART_DEEP_BACKOFF = '5';
   const kc = KV.compare([{ timestamp: 1260e3, open: 1, high: 2, low: 0.5, close: 1.5, volume: 10 }, { timestamp: 1290e3, open: 1, high: 2, low: 0.5, close: 1.5, volume: 10 }], km);
   ok(kc.same === 1 && kc.onlyShown === 1 && kc.onlyModel === 1 && kc.near.shown.length === 2, 'kcverify: השוואה — זהים, רק במסך, רק במודל, וסביבת ההבדל');
 
+  /* ---------- summary.py: סיכום לפי סמל מקבצי ההשוואה ---------- */
+  fs.mkdirSync(path.join(tmp, 'sum', 'cmp'), { recursive: true });
+  fs.writeFileSync(path.join(tmp, 'sum', 'cmp', 'X.json'), JSON.stringify({ sym: 'X', cls: 'us', xcal: { '1W': { n: 5, exp: 4 } }, tfs: {
+    '1D.0': { n: 10, src: { v: { V3: 7, V2: 1, MIX: 0, DIFF: 2, 'DIFF?': 0, NOSRC: 0 }, srcs: [['webull', '1d', 10]] }, align: { off: 0 }, inv: { dup: 0, jump: 1, unit: 1 } },
+    '1W.0': { n: 5, src: { v: { V3: 0, V2: 5, MIX: 0, DIFF: 0, 'DIFF?': 0, NOSRC: 0 } }, align: { wday: 5 }, inv: {} } } }));
+  const sm = execFileSync('python3', ['-I', path.join(T, 'summary.py'), '--out', path.join(tmp, 'sum')], { encoding: 'utf8' });
+  ok(/^X\s+us\s+n=15\s+V3=7 V2=6 MIX=0 DIFF=2/.test(sm) && /WD=5/.test(sm) && /UNIT=1/.test(sm) && /xcal 1W 4\/5/.test(sm) && /1D\.0:2/.test(sm), 'summary: סכום הפסיקות, WD, UNIT, xcal והמרווח עם DIFF');
+
   /* ---------- היגיינה: בלי מפתחות, בלי שם מוצר הייחוס ---------- */
-  const all = ['snap.js', 'model.js', 'sources.py', 'compare.py', 'live.js', 'livecheck.js', 'kcverify.js', 'ind.py'].map((f) => fs.readFileSync(path.join(T, f), 'utf8')).join('\n');
+  const all = ['snap.js', 'model.js', 'sources.py', 'compare.py', 'live.js', 'livecheck.js', 'kcverify.js', 'ind.py', 'summary.py'].map((f) => fs.readFileSync(path.join(T, f), 'utf8')).join('\n');
   ok(!/api_token=(?!demo)[A-Za-z0-9]{6,}|apikey=(?!demo)[A-Za-z0-9]{6,}/.test(all), 'אין מפתח אמיתי בכלים (רק מפתחות ההדגמה הציבוריים)');
 
   fs.rmSync(tmp, { recursive: true, force: true });
