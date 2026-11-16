@@ -45,12 +45,12 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const N = await import(path.join(root, 'studionet.js')), ED = await import(path.join(root, 'studioedl.js'));
   const STUBS = { createNet: () => ({}), probeVideo: async () => ({}), extractAudio: async () => ({}), uploadBoth: async () => {}, stageEstimates: N.stageEstimates, progressModel: N.progressModel, createBackup: () => ({}), waitOAuthCode: () => {}, normEdl: ED.normEdl, edlPre: ED.edlPre, outDur: ED.outDur, edlDur: ED.edlDur, normTrackPref: (x) => ({ a: '', cc: '', ...(x || {}) }), normPq: (v) => (v === 'auto' || [4320, 2160, 1440, 1080, 720, 480, 360, 240, 144].includes(v) ? v : 'src'), normLadder: () => null, normChapters: () => [], normSty: () => null, normPlaces: () => ({}), STY_COLORS: {}, STY_Y: 40 };
   const S = new Function('t', '__stubs', body + '\nreturn { startEstimate, NORM_FIXED };')(undefined, STUBS);
-  const e1 = S.startEstimate('sonnet-medium', 1800, null, null, false);
+  const e1 = S.startEstimate('lab2', 1800, null, null, false);
   ok(e1.min === 43 && e1.usd === 3 && e1.left === null && !e1.over, 'Routine: זמן (85 דק׳ לשעה × חצי שעה) ושווה ערך בדולרים (כולל העלות הקבועה)');
   ok(/export const NORM_FIXED = 1\.5;/.test(sj) && /const NORM_FIXED = 1\.5;/.test(read('ibkr-proxy/lib/studio.js')), 'NORM_FIXED זהה בטלפון ובשרתון');
-  const e2 = S.startEstimate('sonnet-medium', 3600, { 'sonnet-medium': { ph: 4, mx: 6, n: 5 } }, { month: 18, cap: 20 }, true);
+  const e2 = S.startEstimate('lab2', 3600, { lab2: { ph: 4, mx: 6, n: 5 } }, { month: 18, cap: 20 }, true);
   ok(e2.usd === 4.05 && e2.left === 2 && e2.over, 'מצב השרת: "הרגיל" שלך + הקבוע של השרת (NORM_FIXED_API — בלי פתיחת סשן), כמה נשאר החודש, ויותר ממה שנשאר — מסומן');
-  ok(S.startEstimate('sonnet-medium', 0, null, null, false).min === 0, 'בלי אורך — בלי אומדן (לא ממציאים)');
+  ok(S.startEstimate('lab2', 0, null, null, false).min === 0, 'בלי אורך — בלי אומדן (לא ממציאים)');
   ok(/const est = startEstimate\(spec\.mode, spec\.dur, curNorm\(\), ui\.api, apiMode\(\)\);/.test(sj) && /if \(!yes \|\| form !== f\) \{ ui\.starting = false;/.test(sj)
     && sj.indexOf('const est = startEstimate(') < sj.indexOf("const j = await net.api('create', { spec });"), 'האישור לפני שנוצרת עבודה ולפני ההעלאה; "ביטול" — חוזרים לטופס');
 

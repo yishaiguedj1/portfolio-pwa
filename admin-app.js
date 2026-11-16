@@ -39,6 +39,7 @@ async function api0(op, body) {
     const r = await fetch(ibkrProxyBase() + '/api/studio', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, ibkrProxyHeaders()),
       body: JSON.stringify(Object.assign({}, body || {}, { op, idToken: tk })) });
     const j = await r.json().catch(() => null);
+    if (j && j.mn && typeof j.mn === 'object' && !Array.isArray(j.mn)) MN = j.mn;   // 16/11/2026: שמות המצבים — מהשרתון, למנהל בלבד
     return j && typeof j === 'object' ? j : { ok: false, error: 'http_' + r.status };
   } catch (e) { return { ok: false, error: 'net' }; }
 }
@@ -934,8 +935,8 @@ page('flags', { tab: 'sys', parent: 'sys', title: () => t('admCfg'), render(p) {
   });
   p.append(list(...rows), h('p', 'adm-foot', t('admFlFoot')));
 } });
-/* 15/10/2026 (בקשת המשתמש): מצבי התרגום בסטודיו — לכולם "רגיל" (Haiku High) ו"ביצועים" (Sonnet Medium); כאן — מי מקבל את
-   כל המודלים (גם Sonnet Low/High ו־Opus). המנהל תמיד. השרתון אוכף (modeOk ב־api/studio.js), וגם פותח לרשימה את הסטודיו */
+/* 15/10/2026 (בקשת המשתמש): מצבי התרגום בסטודיו — לכולם "רגיל" ו"ביצועים"; כאן — מי מקבל גם את מצבי הבדיקה (lab1–lab4).
+   המנהל תמיד. השרתון אוכף (modeOk ב־api/studio.js), וגם פותח לרשימה את הסטודיו */
 /* רשימת מיילים במרכז הניהול (sysCfg): "כל המודלים" (am) וחשבונות הבדיקה (ts, 25/10/2026) — אותו מסך, מפתח אחר */
 function emListPage(p, k, L) {
   const cf = D.cfg;
@@ -1120,7 +1121,10 @@ page('infra', { tab: 'sys', parent: 'sys', title: () => t('admInfra'), render(p)
 /* ---- AI ועלויות (15/10/2026): Studio — ממאגר הלמידה (30 יום), Academy — מוני ה־AI היומיים, השרת — ההוצאה החודשית.
    נטען רק בכניסה למסך (adminAi); בלי נתונים — "—", לא ממציאים ---- */
 const ROLE = { main: () => t('admRoleMain'), tl: () => t('admRoleTl'), rv: () => t('admRoleRv'), jg: () => t('admRoleJg'), sub: () => t('admRoleSub') };
-const modeName = (m) => String(m || '').replace(/-/g, ' · ').replace(/^./, (c) => c.toUpperCase());
+/* 16/11/2026 (בקשת המשתמש): בקוד שהאתר מגיש אין שמות מודלים — המצבים הם קודים (std / perf / lab1–lab4, lib/modecode.js),
+   והשם האמיתי מגיע מהשרתון אחרי התחברות (mn בכל תשובה למנהל, api0) */
+let MN = null;
+const modeName = (m) => (MN && typeof MN[m] === 'string' ? MN[m] : String(m || '').replace(/-/g, ' · ').replace(/^./, (c) => c.toUpperCase()));
 async function needAi() {
   if (D.ai && Date.now() - D.aiAt < 60000) return;
   const r = await api('adminAi');
@@ -1249,7 +1253,7 @@ page('imp', { tab: 'imp', title: () => t('admTabImp'), render(p) {
    אומדן ואישור לפני; העבודות נוצרות ב־goldRun ומתחילות ב־start (כל השמירות הרגילות); הציון (chrF++, כיסוי זמן) — מהעובד ---- */
 // ניסוי המאמץ: pr = ההגהה והביקורת במאמץ בינוני; all = גם התרגום (פריט 8 בסבב הייעול)
 const GOLD_XES = { pr: { main: 'medium', rv: 'medium' }, all: { main: 'medium', tl: 'medium', rv: 'medium' } }, GOLD_MAX = 16;   // = S.GOLD_MAX_ADMIN בשרתון (מרכז הניהול — מנהל בלבד)
-const GOLD_MODES = ['haiku-medium', 'haiku-high', 'sonnet-low', 'sonnet-medium', 'sonnet-high', 'opus-medium'];
+const GOLD_MODES = ['std', 'perf', 'lab1', 'lab2', 'lab3', 'lab4'];   // קודים (16/11/2026), מהזול ליקר
 const jobUsd = (j) => (Array.isArray(j.use) ? j.use : []).reduce((a, r) => a + (r && typeof r.usd === 'number' ? r.usd : 0), 0);
 async function needGold(force) {
   if (D.gj && !force && Date.now() - D.gjAt < 30000) return;
@@ -1259,10 +1263,10 @@ async function needGold(force) {
 }
 /* PR 1.7 (10/11/2026): ניתוח — עלות לשעה לפי מצב ושפה [אנגלית, עברית] = VI_USD_H ב־studionet.js (5.4 בתוכנית; tests/learn-vi
    משווה). מחיר שעת התרגום (normA) ותוספת 0.05 לעבודה ניפחו את האומדן של גל ניתוח פי כמה */
-const VI_USD_H = { 'haiku-medium': [0.034, 0.051], 'haiku-high': [0.037, 0.054], 'sonnet-low': [0.45, 0.64], 'sonnet-medium': [0.58, 0.76], 'sonnet-high': [0.63, 0.82], 'opus-medium': [1.15, 1.52] };
+const VI_USD_H = { std: [0.034, 0.051], perf: [0.037, 0.054], lab1: [0.45, 0.64], lab2: [0.58, 0.76], lab3: [0.63, 0.82], lab4: [1.15, 1.52] };
 function goldEst(src, m) {
   const dur = (src && src.spec && +src.spec.dur) || 0;
-  if (isVi(src)) return dur ? (VI_USD_H[m] || VI_USD_H['haiku-medium'])[src.spec.from === 'en' ? 0 : 1] * dur / 3600 : null;
+  if (isVi(src)) return dur ? (VI_USD_H[m] || VI_USD_H.std)[src.spec.from === 'en' ? 0 : 1] * dur / 3600 : null;
   const ph = D.gj && D.gj.nA[m] && typeof D.gj.nA[m].ph === 'number' ? D.gj.nA[m].ph : null;
   return ph == null || !dur ? null : ph * dur / 3600 + 0.05;
 }
@@ -1273,7 +1277,7 @@ page('gold', { tab: 'imp', parent: 'imp', title: () => t('admGoldT'), render(p) 
   p.append(h('p', 'adm-sub', t('admGoldSub')));
   if (!srcs.length) { p.append(list(row({ c: 'gray', ic: '◎', t: t('admGoldNone'), s: t('admGoldNoneS') }))); return; }
   if (!srcs.some((j) => j.id === D.gSrc)) D.gSrc = srcs[0].id;
-  if (!D.gModes) D.gModes = new Set(['haiku-high']);
+  if (!D.gModes) D.gModes = new Set(['perf']);
   const src = srcs.find((j) => j.id === D.gSrc);
   p.append(grp(t('admGoldSrc')), list(...srcs.map((j) => row({ c: j.id === D.gSrc ? 'orange' : 'gray', ic: j.id === D.gSrc ? '●' : '○',
     t: (j.spec && j.spec.name) || j.id, s: modeName(j.spec && j.spec.mode) + (j.gq ? ' · chrF++ ' + j.gq.s : ''), on: () => { D.gSrc = j.id; paint(); } }))));
@@ -1315,9 +1319,9 @@ const XF_KEYS = ['smf', 'gq', 'qskip', 'rvs60', 'vwin'], GOLD_ARMS = 4;   // = S
 function paintWave(p, jobs, srcs, vi) {
   // PR 1.6: גם לניתוח (vi) — מצב נפרד, דגלי v… בלבד, והתוצאות רק של הגל מאותו סוג
   const W = vi ? (D.vwv || (D.vwv = {})) : (D.trw || (D.trw = {})), XK = XF_KEYS.filter((k) => (k[0] === 'v') === !!vi);
-  // PR 1.7: ניתוח — ארבע הזרועות של ה2 (6.6): א/א′ haiku-medium (A/A), ב haiku-high, ג haiku-medium + vwin. ‏rvs60 הוא דגל תרגום
-  if (!W.arms) W.arms = vi ? [{ m: 'haiku-medium', xf: [] }, { m: 'haiku-medium', xf: [] }, { m: 'haiku-high', xf: [] }, { m: 'haiku-medium', xf: ['vwin'] }]
-    : [{ m: 'haiku-medium', xf: [] }, { m: 'haiku-medium', xf: ['rvs60'] }];
+  // PR 1.7: ניתוח — ארבע הזרועות של ה2 (6.6): א/א′ "רגיל" (A/A), ב "ביצועים", ג "רגיל" + vwin. ‏rvs60 הוא דגל תרגום
+  if (!W.arms) W.arms = vi ? [{ m: 'std', xf: [] }, { m: 'std', xf: [] }, { m: 'perf', xf: [] }, { m: 'std', xf: ['vwin'] }]
+    : [{ m: 'std', xf: [] }, { m: 'std', xf: ['rvs60'] }];
   if (!W.src) W.src = new Set(srcs.map((j) => j.id));
   for (const id of Array.from(W.src)) if (!srcs.some((j) => j.id === id)) W.src.delete(id);
   const ss = srcs.filter((j) => W.src.has(j.id)), arms = W.arms;
@@ -1460,12 +1464,12 @@ function vrLines(r) {
     q: (r.qa || []).map((x) => x.q + ' | ' + x.a + ' | ' + vrTs(x.t) + ' | ' + (x.so ? 1 : 0)).join('\n'), s: (r.slides || []).map((x) => vrTs(x.t) + ' | ' + x.text).join('\n'),
     he: r.he || '', lic: m.lic || '', tier: m.tier || 'a', genre: m.genre || 'other' };
 }
-/* PR 1.6 (ה5): טיוטת ייחוס מהמודל — Sonnet, או Haiku הזול; ⛔ בתשלום — רק אחרי אישור המחיר. "טען" ממלא את העורך, והשמירה היא האישור */
+/* PR 1.6 (ה5): טיוטת ייחוס מהמודל — שלושה מצבים, מהמדויק לזול; ⛔ בתשלום — רק אחרי אישור המחיר. "טען" ממלא את העורך, והשמירה היא האישור */
 function vrDraftUi(p, job, e) {
-  // PR 1.8: ‏Opus (ברירת המחדל — הייחוס הוא הסרגל של כל הגלים) → Sonnet → Haiku
-  const dr = D.vrDr || { usd: {} }, dm = VR_DM.includes(D.vrDm) ? D.vrDm : 'o', mn = VR_DMN[dm], usd = (dr.usd || {})[dm];
+  // PR 1.8: המדויק ביותר (ברירת המחדל — הייחוס הוא הסרגל של כל הגלים) → האמצעי → הזול. 16/11/2026: קודי מצב; השרתון ממיר לאות (draftIn)
+  const dr = D.vrDr || { usd: {} }, dm = VR_DM.includes(D.vrDm) ? D.vrDm : VR_DM[0], mn = modeName(dm), usd = (dr.usd || {})[dm];
   const busy = ['new', 'queued', 'running'].includes(dr.st);
-  const rows = [row({ c: 'blue', ic: '⇄', t: t('admViDrModel'), v: mn, s: fmt(t(dm === 'o' ? 'admViDrO' : dm === 's' ? 'admViDrS' : 'admViDrH'), { usd }), on: () => { D.vrDm = VR_DM[(VR_DM.indexOf(dm) + 1) % VR_DM.length]; paint(); } })];
+  const rows = [row({ c: 'blue', ic: '⇄', t: t('admViDrModel'), v: mn, s: fmt(t(dm === VR_DM[0] ? 'admViDrO' : dm === VR_DM[1] ? 'admViDrS' : 'admViDrH'), { usd }), on: () => { D.vrDm = VR_DM[(VR_DM.indexOf(dm) + 1) % VR_DM.length]; paint(); } })];
   if (busy) rows.push(row({ c: 'gray', ic: '…', t: t('admViDrBusy') }));
   else if (dr.d) rows.push(row({ c: 'green', ic: '✓', t: t('admViDrReady'), s: fmt(t('admViDrN'), { b: dr.d.bounds.length, u: dr.d.units.length, q: dr.d.qa.length }),
     on: () => { D.vrEd = Object.assign(vrLines(dr.d), { he: e.he, lic: e.lic, tier: e.tier }); flash(t('admViDrLoaded')); paint(); } }));
@@ -1481,7 +1485,7 @@ function vrDraftUi(p, job, e) {
   }, { ok: t('admViDrRun') }));
   const br = h('div', 'btn-row'); br.append(b); p.append(br);
 }
-const VR_DM = ['o', 's', 'h'], VR_DMN = { o: 'Opus', s: 'Sonnet', h: 'Haiku' };   // = VP_MODES בשרתון
+const VR_DM = ['lab4', 'lab2', 'std'];   // = VP_MODES בשרתון (o / s / h), כקודים
 const VR_GENRES = ['academic_lecture', 'course_module', 'business_webinar', 'conference_talk', 'panel', 'interview_podcast', 'software_tutorial', 'product_demo', 'workshop', 'investor_presentation', 'other'];   // = VI_GENRES בשרתון
 page('viRef', { tab: 'imp', parent: 'viGold', title: () => t('admViRefT'), render(p) {
   const job = D.gj && !D.gj.err && D.gj.jobs.find((j) => j.id === D.vrJob);

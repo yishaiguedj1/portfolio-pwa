@@ -89,7 +89,10 @@ t('פס הפריסה: בדיקות → ניסוי → אישור → Pages → �
   assert.ok(/^permissions:\s*\n\s*contents: read/m.test(w), 'הרשאות מינימליות כברירת מחדל');
   for (const u of w.match(/uses: \S+/g)) assert.ok(/@[0-9a-f]{40}$/.test(u), 'מקובע ל־SHA: ' + u);
   // הניסוי: העלאה ישירה מ־Actions (לא החיבור ל־Git של Cloudflare) — רק קומיט שהבדיקות שלו ירוקות, רק הקבצים שב־git
-  assert.ok(/staging:[\s\S]*?npx --yes wrangler@\d+\.\d+\.\d+"[\s\S]*?git archive "\$SHA"[\s\S]*?pages deploy "\$site" --project-name thesnowball[\s\S]*?approve:/.test(w), 'העלאה לניסוי בתוך שלב staging, גרסת wrangler מקובעת');
+  assert.ok(/staging:[\s\S]*?npx --yes wrangler@\d+\.\d+\.\d+"[\s\S]*?node tools\/sitefiles\.js --out "\$site" --rev "\$SHA"[\s\S]*?pages deploy "\$site" --project-name thesnowball[\s\S]*?approve:/.test(w), 'העלאה לניסוי בתוך שלב staging, גרסת wrangler מקובעת');
+  // 16/11/2026: שלושת היעדים מקבלים רק את קבצי האפליקציה (tools/sitefiles.js) — לא את כל הריפו
+  assert.strictEqual((w.match(/node tools\/sitefiles\.js --out "\$(site|RUNNER_TEMP\/site)" --rev "\$SHA"/g) || []).length, 3, 'tools/sitefiles.js בשלושת היעדים');
+  assert.ok(!/git archive "\$SHA" \| tar/.test(w) && !/path: \.\s*$/m.test(w) && /upload-pages-artifact@[0-9a-f]{40}[^\n]*\n\s*with:\s*\n\s*path: \$\{\{ runner\.temp \}\}\/site/.test(w), 'בלי כל הריפו: לא git archive מלא ולא path: .');
   assert.ok(/CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_API_TOKEN \}\}/.test(w) && !/run:[^\n]*\$\{\{ secrets\./.test(w), 'הסוד רק דרך env');
   assert.ok(/if: steps\.cf\.outputs\.up == 'yes'[\s\S]*?swgen\.js --live "\$URL"/.test(w), 'אחרי ההעלאה — כל קובץ בניסוי מול הטביעה');
   assert.ok(!/--commit-message "\$\{\{/.test(w), 'בלי ביטוי בתוך פקודה');

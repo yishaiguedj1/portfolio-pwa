@@ -25,7 +25,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const row = { k: 'tl', m: 'claude-opus-5-5', n: 3, i: 1, o: 2, cr: 3, c5: 4, c1: 5, usd: 1.23456, op: 4, oc: 0.5 };
   ok(S.normUsage([row])[0].usd === 1.2346 && S.normUsage([Object.assign({}, row, { m: 'claude-x"><img' })]) === null
     && S.normUsage(Array(7).fill(row)) === null && S.normUsage([Object.assign({}, row, { n: '3' })]) === null, 'השרתון: normUsage — עד 6 שורות, מספרים בלבד, מודל claude-[a-z0-9-]+');
-  ok(/JSON_FIELDS = \[[^\]]*'use'/.test(lib) && /use: Array\.isArray\(job\.use\)/.test(lib), 'השרתון: נשמר בעבודה (JSON) ומוחזר ב־publicJob');
+  ok(/JSON_FIELDS = \[[^\]]*'use'/.test(lib) && /use: useOff\(Array\.isArray\(job\.use\)/.test(lib), 'השרתון: נשמר בעבודה (JSON) ומוחזר ב־publicJob');
   ok(/S\.normUsage\(body\.usage\)/.test(api) && /use: null,.*updated: now/.test(api), 'השרתון: מהדיווח של העובד; הפעלה חוזרת מאפסת');
 
   /* ---------- 3. הטלפון ---------- */
@@ -38,15 +38,18 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
     { k: 'tl', m: 'claude-opus-5-5', n: 12, i: 30, o: 52000, cr: 900000, c5: 130000, c1: 0, usd: 2.0, op: 126000, oc: 0.63 },
     { k: 'rv', m: 'claude-sonnet-5-5', n: 6, i: 10, o: 8000, cr: 400000, c5: 128000, c1: 0, usd: 0.5, op: 128000, oc: 0.32 },
   ];
-  const cv = M.costView(USE, 'opus-medium');
+  // 16/11/2026: "מודל אחר" — השרתון מסמן (of: 1, useOff); האזהרה והשמות — רק למנהל (mn מהשרתון). בלי שמות — בלי אזהרה
+  const NM = { lab4: 'Opus 5.5 · Medium', lab3: 'Sonnet 5.5 · High' };
+  const USE_OFF = [USE[0], USE[1], Object.assign({}, USE[2], { of: 1 })];
+  const cv = M.costView(USE_OFF, 'lab4', undefined, NM);
   ok(cv.rows.length === 3 && Math.abs(cv.total - 3.21) < 1e-9 && !cv.partial, 'טלפון: שורה לכל שלב וסכום כולל');
   ok(cv.rows[0].open === null && cv.rows[1].open.usd === 0.63 && cv.rows[1].open.tok === 126000, 'טלפון: עלות הפתיחה — רק לסוכני־המשנה');
-  ok(cv.warn.length === 1 && cv.warn[0].k === 'rv' && cv.warn[0].model === 'Sonnet 5.5' && cv.want === 'Opus 5.5', 'טלפון: אזהרה — הביקורת רצה על מודל אחר מהמצב שנבחר');
-  ok(M.costView(USE, 'sonnet-high').warn.map((w) => w.k).join() === 'tl', 'טלפון: במצב Sonnet — אזהרה על תרגום ב־Opus (התיאום לא נבדק)');
-  const cv2 = M.costView(USE.concat({ k: 'tl', m: 'claude-haiku-5-5', n: 1, i: 1, o: 1, cr: 0, c5: 10, c1: 0, usd: null, op: 10, oc: null }), 'opus-medium');
+  ok(cv.warn.length === 1 && cv.warn[0].k === 'rv' && cv.warn[0].model === 'Sonnet 5.5' && cv.want === 'Opus 5.5 · Medium' && M.costView(USE_OFF, 'lab4').warn.length === 0, 'טלפון: אזהרה — הביקורת רצה על מודל אחר מהמצב שנבחר (רק עם השמות)');
+  ok(M.costView([USE[0], Object.assign({}, USE[1], { of: 1 }), USE[2]], 'lab3', undefined, NM).warn.map((w) => w.k).join() === 'tl', 'טלפון: במצב Sonnet — אזהרה על תרגום ב־Opus (התיאום לא נבדק)');
+  const cv2 = M.costView(USE.concat({ k: 'tl', m: 'claude-haiku-5-5', n: 1, i: 1, o: 1, cr: 0, c5: 10, c1: 0, usd: null, op: 10, oc: null }), 'lab4');
   ok(cv2.partial && cv2.rows[1].nth === 1 && cv2.rows[3].nth === 2 && cv2.rows[0].nth === 0 && cv2.rows[3].usd === null, 'טלפון: מודל בלי מחירון — "+" בסכום; שני מתרגמים ממוספרים');
-  const cv3 = M.costView(USE, 'opus-medium', 3.5);   // 1/11/2026: מה שהמגדל מדד בזמן ריצה — שורה משלו, והסה״כ = התקציב
-  ok(cv3.rows.length === 4 && cv3.rows[3].meas && cv3.rows[3].usd === 0.29 && cv3.total === 3.5 && M.costView(USE, 'opus-medium', 3.2).rows.length === 3, 'טלפון: עלות בזמן ריצה — כמו יעד התקציב');
+  const cv3 = M.costView(USE, 'lab4', 3.5);   // 1/11/2026: מה שהמגדל מדד בזמן ריצה — שורה משלו, והסה״כ = התקציב
+  ok(cv3.rows.length === 4 && cv3.rows[3].meas && cv3.rows[3].usd === 0.29 && cv3.total === 3.5 && M.costView(USE, 'lab4', 3.2).rows.length === 3, 'טלפון: עלות בזמן ריצה — כמו יעד התקציב');
   ok(/live\(box,/.test(st) && /costMeas\(r\)/.test(st), 'טלפון: כרטיס העלות מתעדכן במקום (live)');
   ok(M.costView(null, 'opus-medium') === null && M.costView([{ k: 'main', m: 'gpt-4' }], 'opus-medium') === null, 'טלפון: בלי נתונים / נתון זר — בלי כרטיס');
   ok(M.normJob({ id: 'jAbCdEfGhIjKlMnOpQrSt', spec: {}, srv: { state: 'done', use: USE } }).srv.use.length === 3, 'טלפון: normJob שומר את העלות מהשרתון');

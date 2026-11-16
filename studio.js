@@ -23,33 +23,29 @@ import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItem
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
 export const LS_STUDIO = 'pwa_studio_v1';
 
-/* מצבי התרגום — המספרים מהמבחן מול המתרגם האנושי של TED (נספח ה׳ בתוכנית). q = איכות, u = שימוש במנוי (מתוך 5,
-   לפי הצפוי לשעה — NORM_DEF בשרתון), min = הערכת זמן לשעת ראיון בדקות.
-   10/10/2026 (בקשת המשתמש): נוסף Haiku 5.5 (עוד לא נבדק במבחן, לכן q = 1 עד שיימדד); Opus High/Max הוסרו.
-   15/10/2026 (בקשת המשתמש): לכל המשתמשים רק שני מצבים (tier) — "רגיל" = Haiku High (ברירת המחדל) ו"ביצועים" = Sonnet Medium.
-   כל השאר — רק למנהל ולמי שברשימת "כל המודלים" במרכז הניהול (ui.mf מהשרתון, שאוכף — modeOk). נוסף Sonnet Low לבדיקות */
+/* מצבי התרגום. 16/11/2026 (בקשת המשתמש): המשתמש יודע שהתרגום ב־Claude, אבל לא באיזה מודל — מוצג רק "רגיל" / "ביצועים", ובקוד
+   שהאתר מגיש אין שום שם של מודל. המזהים כאן הם קודים אטומים; השרתון ממפה אותם למזהים הפנימיים בשני הכיוונים (lib/modecode.js)
+   ושומר במאגר הלמידה את הכל. lab1–lab4 — רק למנהל ולמי שברשימת "כל המודלים" (ui.mf; השרתון אוכף — modeOk). את השם האמיתי
+   של כל קוד רואה רק המנהל, מהשרתון אחרי התחברות (ui.mn).
+   q = איכות, u = שימוש (מתוך 5, לפי הצפוי לשעה — NORM_DEF בשרתון), min = הערכת זמן לשעת ראיון בדקות */
 export const MODES = [
-  { id: 'opus-medium', fam: 'opus', effort: 'Medium', q: 4, u: 5, min: 105 },
-  { id: 'sonnet-medium', fam: 'sonnet', effort: 'Medium', q: 2, u: 3, min: 85 },
-  { id: 'sonnet-high', fam: 'sonnet', effort: 'High', q: 3, u: 4, min: 95 },
-  { id: 'sonnet-low', fam: 'sonnet', effort: 'Low', q: 1, u: 2, min: 80 },   // 15/10: עוד לא נבדק — הערכה עד שיימדד
-  // Haiku: min מהמדידות — זמן קבוע (תמלול, יישור, צריבה ‎~52 דק׳ לשעה) + חלק ה־LLM (Opus ‎~53) × המהירות היחסית
-  { id: 'haiku-high', fam: 'haiku', effort: 'High', q: 1, u: 1, min: 76, tier: 'perf' },
-  { id: 'haiku-medium', fam: 'haiku', effort: 'Medium', q: 1, u: 1, min: 74, tier: 'std' },   // 25/10/2026: "רגיל" — ברירת המחדל
+  { id: 'lab4', q: 4, u: 5, min: 105 },
+  { id: 'lab2', q: 2, u: 3, min: 85 },
+  { id: 'lab3', q: 3, u: 4, min: 95 },
+  { id: 'lab1', q: 1, u: 2, min: 80 },
+  { id: 'perf', q: 1, u: 1, min: 76, tier: 'perf' },   // "ביצועים"
+  { id: 'std', q: 1, u: 1, min: 74, tier: 'std' },     // "רגיל" — ברירת המחדל
 ];
-// 25/10/2026 (בקשת המשתמש): "רגיל" = Haiku Medium (ברירת המחדל), "ביצועים" = Haiku High
-export const DEFAULT_MODE = 'haiku-medium';
-export const PUBLIC_MODES = ['haiku-medium', 'haiku-high'];   // **= PUBLIC_MODES בשרתון** (lib/studio.js)
+export const DEFAULT_MODE = 'std';
+export const PUBLIC_MODES = ['std', 'perf'];   // **= PUBLIC_CODES ב־lib/modecode.js** (= PUBLIC_MODES בשרתון)
 export const modeOk = (id, full) => !!full || PUBLIC_MODES.includes(id);
 /* 25/10/2026 (בקשת המשתמש): למשתמשים רק "השרת של המערכת" — המנוי שלי והעתק־הדבק רק למנהל / "כל המודלים" (ui.mf).
    **= engOk בשרתון** — השרתון אוכף, כאן רק מה שמוצג ונשלח */
 export const connFor = (conn, full) => (full ? conn : 'api');
 /* המצב שהמשתמש יכול להשתמש בו: מצב סגור (טיוטה / הגדרה ישנה, או שהוסר מהרשימה) → ברירת המחדל */
 export const modeFor = (id, full) => { const k = modeNow(id); return modeOk(k, full) ? k : DEFAULT_MODE; };
-// מצבים שהוסרו → המצב הקיים הקרוב (= LEGACY_MODES בשרתון ובעובד): עבודה / טיוטה / חוק ישנים ממשיכים לעבוד
-// 11/10/2026 (בקשת המשתמש): Haiku Medium יצא — המחיר כמו High (‎$0.04 מול $0.045 לעבודה של 5 דק׳), אז נשאר רק High
-export const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium' };   // 20/10/2026: Haiku Medium חזר כמצב (לא ממופה יותר ל־High)
-export const modeNow = (id) => (MODES.some((m) => m.id === id) ? id : LEGACY_MODES[id] || DEFAULT_MODE);
+/* קוד לא מוכר (מזהה מלפני הקודים, מצב שהוסר) → ברירת המחדל. הגדרה שנשמרה לפני הקודים — השרתון ממיר פעם אחת (migrateSettings, lm) */
+export const modeNow = (id) => (MODES.some((m) => m.id === id) ? id : DEFAULT_MODE);
 /* שפות: התמלול (Parakeet v2/v3, ivrit.ai, Omnilingual) מכסה גם שפות שלא ברשימה — זו רשימת הבחירה המהירה */
 export const SOURCE_LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko'];
 /* הסקירה (10/10/2026): מה שהעובד יודע היום (= LANG_READY בשרתון). השאר מוצג "בקרוב" ולא נבחר — לא נכשלים אחרי ההעלאה */
@@ -99,6 +95,9 @@ export function normSettings(o) {
   const s = defaultSettings();
   if (!o || typeof o !== 'object') return s;
   if (typeof o.mode === 'string' && o.mode) s.mode = modeNow(o.mode);
+  // 16/11/2026: מצב שנשמר לפני הקודים — נשמר כמו שהוא (lm) עד שהשרתון ממיר אותו לקוד (status)
+  const lm = typeof o.lm === 'string' && o.lm ? o.lm : typeof o.mode === 'string' && o.mode && !MODES.some((m) => m.id === o.mode) ? o.mode : '';
+  if (/^[a-z]{3,12}-[a-z]{3,8}$/.test(lm)) { s.lm = lm; if (Number.isInteger(o.lmv) && o.lmv >= 0 && o.lmv < 9) s.lmv = o.lmv; }   // רק בצורה של מזהה ישן (משפחה-מאמץ)
   s.to = normTo(o.to);
   s.out = normOut(o.out);
   if (STYLES.includes(o.style)) s.style = o.style;
@@ -388,7 +387,7 @@ export function normGq(o) {
 }
 export const NORM_FIXED = 1.5;   // **זהה ל־NORM_FIXED בשרתון** (lib/studio.js) — העלות הקבועה של עבודה (פתיחה, מדריכים)
 // 11/10/2026: מצב השרת — בלי סשן מתזמר (**זהה ל־NORM_DEF_API / NORM_FIXED_API בשרתון**; tests/studio-v363 משווה)
-export const NORM_DEF_API = { 'sonnet-medium': 2.6, 'haiku-high': 0.55, 'haiku-medium': 0.5, 'sonnet-high': 4.2, 'opus-medium': 7.0, 'sonnet-low': 1.8 };
+export const NORM_DEF_API = { lab2: 2.6, perf: 0.55, std: 0.5, lab3: 4.2, lab4: 7.0, lab1: 1.8 };   // לפי קוד (16/11/2026)
 export const NORM_FIXED_API = 0.05;
 /* מ6 (כלל 2): אומדן לפני כל התחלה — זמן (דקות לשעת וידאו של המצב × האורך) ועלות ("הרגיל" שלך, אחרת ברירת המחדל).
    במצב השרת — גם כמה נשאר מהתקציב החודשי. טהור */
@@ -542,8 +541,8 @@ export function normRules(r) {
   const o = r && typeof r === 'object' ? r : {};
   const n = typeof o.b === 'number' ? o.b : NaN;   // הסקירה: כמו בשרתון — עיגול לחצי דולר, עד 500 (מה שמוצג = מה שנשמר)
   const b = Number.isFinite(n) && n >= 1 ? Math.min(500, Math.round(n * 2) / 2) : 0;
-  // v375: jx = שופט האיכות כבוי · 11/10: מקסימום במצב שהוסר → הקרוב (לא "בלי הגבלה")
-  return { b, mx: MODES.some((m) => m.id === o.mx) ? o.mx : LEGACY_MODES[o.mx] || '', ab: o.ab === true, jx: o.jx === true, am: o.am === true };   // סבב 10: am = בדיקת משמעות אוטומטית (עם אומדן ואישור)
+  // v375: jx = שופט האיכות כבוי · השרתון שולח את המקסימום כקוד (מצב שהוסר — כבר ממופה שם לקרוב)
+  return { b, mx: MODES.some((m) => m.id === o.mx) ? o.mx : '', ab: o.ab === true, jx: o.jx === true, am: o.am === true };   // סבב 10: am = בדיקת משמעות אוטומטית (עם אומדן ואישור)
 }
 /* v362: מגדל הפיקוח — אותה בדיקה כמו בשרתון (lib/studio.js normTower) */
 const TW_WHY = ['cost', 'cap', 'loop', 'calls', 'idle'];
@@ -607,7 +606,7 @@ export function normInc(o) {
   return { list, open: num(o.open, 0, 1e4), mi };
 }
 /* v379: דוח אחרי תקלה (lib/studiopir.js pirView) — מספרים, מזהה מודל, והסיכום (טקסט מ־Claude: רק מחרוזת, מוצג כטקסט בלבד) */
-const MODEL_ID_RE = /^claude-[a-z0-9-]{1,50}$/;
+const MODEL_ID_RE = /^claude(-[a-z0-9-]{1,50})?$/;   // 16/11/2026: 'claude' — בלי המודל (מי שאינו מנהל)
 export function normPir(o) {
   if (!o || typeof o !== 'object') return null;
   const n = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1e9 ? v : 0);
@@ -798,7 +797,7 @@ export function normNote(o) {
   const max = Math.max(1, Math.min(10, num(o.max) || 5));
   return p || h.length ? { p, h, n: Math.min(max, num(o.n) || h.length + (p ? 1 : 0)), max } : null;
 }
-/* v375: שופט האיכות (Haiku, על מדגם) — אותה בדיקה כמו בשרתון (lib/studio.js normJudge) */
+/* v375: שופט האיכות (Claude, על מדגם) — אותה בדיקה כמו בשרתון (lib/studio.js normJudge) */
 const JG_CODES = ['mean', 'omit', 'add', 'gram', 'flu', 'term'];
 export function normJudge(o) {
   if (!o || typeof o !== 'object') return null;
@@ -817,7 +816,7 @@ export function normAgents(o) {
   if (!o || typeof o !== 'object' || !Array.isArray(o.agents)) return null;
   const num = (v, hi) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(hi, v)) : 0);
   const agents = o.agents.filter((x) => x && ['main', 'tl', 'rv', 'jg'].includes(x.k)).slice(0, 4).map((x) => ({
-    k: x.k, m: /^claude-[a-z0-9-]{1,50}$/.test(String(x.m || '')) ? x.m : '', ef: ['low', 'medium', 'high', 'max'].includes(x.ef) ? x.ef : '',
+    k: x.k, m: /^claude(-[a-z0-9-]{1,50})?$/.test(String(x.m || '')) ? x.m : '', ef: ['low', 'medium', 'high', 'max'].includes(x.ef) ? x.ef : '',
     jobs: num(x.jobs, 1e4), usd: num(x.usd, 1e6), partial: x.partial === true, ok: typeof x.ok === 'number' ? num(x.ok, 100) : null,
     n: num(x.n, 1e8), e: num(x.e, 1e8), s: num(x.s, 1e9), pv: /^[0-9a-f]{8}$/.test(String(x.pv || '')) ? x.pv : '', pvs: num(x.pvs, 100), pvNew: x.pvNew === true, q: typeof x.q === 'number' ? num(x.q, 100) : null,
     ...normEval(x), vs: (Array.isArray(x.vs) ? x.vs : []).filter((v) => v && /^[0-9a-f]{8}$/.test(String(v.p || ''))).slice(0, 3)
@@ -909,18 +908,22 @@ export function normUse(a) {
   if (!Array.isArray(a) || !a.length || a.length > 6) return null;
   const out = [];
   for (const r of a) {
-    if (!r || typeof r !== 'object' || !USE_KINDS.includes(r.k) || !/^claude-[a-z0-9-]{1,50}$/.test(String(r.m || ''))) return null;
+    if (!r || typeof r !== 'object' || !USE_KINDS.includes(r.k) || !/^claude(-[a-z0-9-]{1,50})?$/.test(String(r.m || ''))) return null;   // 16/11/2026: 'claude' — בלי המודל (מי שאינו מנהל)
     const row = { k: r.k, m: r.m };
+    if (r.of === 1) row.of = 1;   // 16/11/2026: סוכן־משנה על מודל אחר מהמצב (השרתון מסמן)
     for (const f of ['n', 'i', 'o', 'cr', 'c5', 'c1', 'op', 'bn']) row[f] = num(r[f]);   // 4/11/2026: bn/bu — שולם בתור החיסכון
     for (const f of ['usd', 'oc', 'bu']) row[f] = r[f] == null ? null : (Number.isFinite(+r[f]) && +r[f] >= 0 ? +r[f] : null);
     out.push(row);
   }
   return out;
 }
-/* "claude-opus-5-5" → "Opus 5.5" (מזהה אחר — כמו שהוא) */
+/* מזהה מודל → שם תצוגה. 16/11/2026: לכל מי שאינו מנהל השרתון שולח 'claude' (בלי המודל) → "Claude"; למנהל — המזהה המלא,
+   "claude-<משפחה>-5-5" → "<משפחה> 5.5" (מזהה אחר — כמו שהוא) */
 export function modelLabel(id) {
-  const m = /^claude-([a-z]+)-(\d+)-(\d+)\b/.exec(String(id || ''));
-  return m ? m[1][0].toUpperCase() + m[1].slice(1) + ' ' + m[2] + '.' + m[3] : String(id || '');
+  const s = String(id || '');
+  if (/^claude$/i.test(s)) return 'Claude';
+  const m = /^claude-([a-z]+)-(\d+)-(\d+)\b/.exec(s);
+  return m ? m[1][0].toUpperCase() + m[1].slice(1) + ' ' + m[2] + '.' + m[3] : s;
 }
 /* 1234567 → "1.2M" · 85000 → "85K" · 900 → "900" */
 export function fmtTok(n) {
@@ -937,11 +940,12 @@ export function fmtUsd(v) {
   return '$' + v.toFixed(2);
 }
 /* כרטיס "עלות": שורה לכל שלב (תיאום / תרגום / ביקורת / סוכן־משנה אחר), סכום כולל, והאם סוכן־משנה רץ על מודל אחר מהמצב שנבחר.
-   מודל בלי מחירון — usd null: השורה בלי מחיר והסכום מסומן "לפחות" */
-export function costView(use, modeId, meas) {
+   מודל בלי מחירון — usd null: השורה בלי מחיר והסכום מסומן "לפחות".
+   16/11/2026: "מודל אחר" — השרתון מסמן את השורה (of: 1, lib/studio.js useOff); האזהרה רק למנהל (names = ui.mn — השמות האמיתיים) */
+export function costView(use, modeId, meas, names) {
   const rows = normUse(use);
   if (!rows) return null;
-  const fam = modeById(modeId).fam;
+  const nm = names && typeof names === 'object' ? names : null;
   const seen = {};
   let total = 0, partial = false, saved = 0;
   const out = rows.map((r) => {
@@ -949,7 +953,7 @@ export function costView(use, modeId, meas) {
     if (r.usd == null) partial = true; else total += r.usd;
     const sub = r.k !== 'main';
     const tok = r.i + r.o + r.cr + r.c5 + r.c1;
-    const off = (r.k === 'tl' || r.k === 'rv') && !new RegExp('^claude-' + fam + '-').test(r.m);
+    const off = !!nm && (r.k === 'tl' || r.k === 'rv') && r.of === 1;
     // 4/11/2026 (המשתמש: "איך חצי מחיר עלה כמו רגיל?"): אילו שלבים באמת שולמו בתור החיסכון — ו"חסכת" (= מה ששולם שם)
     if (r.bn > 0 && r.bu > 0) saved += r.bu;
     return { k: r.k, nth: seen[r.k], model: modelLabel(r.m), tok, n: r.n, usd: r.usd, open: sub && r.op ? { tok: r.op, usd: r.oc } : null, off, bt: r.bn > 0 ? { b: Math.min(r.bn, r.n), n: r.n } : null };
@@ -962,7 +966,7 @@ export function costView(use, modeId, meas) {
     out.push({ k: 'run', nth: 0, model: '', tok: 0, usd: Math.round((m - total) * 100) / 100, open: null, off: false, meas: true });
     total = m;
   }
-  return { rows: out, total, partial, saved: Math.round(saved * 1e4) / 1e4, want: modelLabel('claude-' + fam + '-5-5'), warn: out.filter((r) => r.off) };
+  return { rows: out, total, partial, saved: Math.round(saved * 1e4) / 1e4, want: nm ? String(nm[modeNow(modeId)] || '') : '', warn: out.filter((r) => r.off) };
 }
 export function normStore(o) {
   const src = o && typeof o === 'object' ? o : {};
@@ -994,18 +998,13 @@ function spkcSet(name, i) {
   delete o[name]; o[name] = i;   // לסוף — הקיצוץ שומר את האחרונים
   store.spkc = normSpkc(o); save();
 }
-/* 10/10/2026: ברירת המחדל עברה מ־Opus Medium ל־Sonnet Medium — הגדרות שנשמרו לפני כן (בלי mv) עם הברירה הישנה עוברות פעם אחת
-   לחדשה. בחירה אחרת שנשמרה (Sonnet High וכו׳) נשארת
-   15/10/2026: ברירת המחדל עברה ל־Haiku High ("רגיל") — מי שנשאר על הברירה הקודמת (Sonnet Medium) עובר פעם אחת (mv 3) */
+/* 16/11/2026: המצבים עברו לקודים אטומים. הגדרה שנשמרה לפני כן (מזהה שהטלפון כבר לא מכיר) נשמרת ב־lm, והשרתון ממיר אותה
+   פעם אחת לקוד (status → lm) — "ביצועים" שנבחר נשאר "ביצועים". עד שהשרתון ענה — ברירת המחדל */
 export function migrateSettings(o) {
-  const s = normSettings(o);
-  const mv = o && typeof o === 'object' ? o.mv : 0;
-  if (mv !== 2 && mv !== 3 && mv !== 4 && /^opus-(medium|high|max)$/.test(o && o.mode)) s.mode = DEFAULT_MODE;   // רק Opus
-  // 25/10/2026: "רגיל" = Haiku Medium ו"ביצועים" = Haiku High — מי שנשמר על "רגיל" הקודם (Haiku High) נשאר "רגיל", ומי שעל
-  // "ביצועים" הקודם (Sonnet Medium) נשאר "ביצועים". פעם אחת (mv 4)
-  if (mv !== 4 && o && o.mode === 'haiku-high') s.mode = DEFAULT_MODE;
-  else if (mv !== 4 && o && o.mode === 'sonnet-medium') s.mode = 'haiku-high';
-  s.mv = 4;
+  const s = normSettings(o);   // lm — מצב שנשמר לפני הקודים; השרתון ממיר (status)
+  // lmv — הגרסה של ההגדרה הישנה (mv), כדי שההמרה תהיה בדיוק כמו קודם ("רגיל"/"ביצועים" הקודמים, legacyMode בשרתון)
+  if (s.lm && s.lmv == null) s.lmv = o && Number.isInteger(o.mv) && o.mv >= 0 && o.mv < 5 ? o.mv : 0;
+  s.mv = 5;
   return s;
 }
 /* טיוטה מהטופס: רק פרטי הקובץ (שם, גודל, סוג) — הקובץ עצמו לא נשמר */
@@ -1034,8 +1033,22 @@ export function fmtHM(min) {
 /* מה מקבלים בפועל: הבחירות + SRT תמיד */
 export function outList(out) { return OUTS.filter((k) => out && out[k]).concat('srt'); }
 export function modeById(id) { const k = modeNow(id); return MODES.find((m) => m.id === k); }
-const FAM_NAME = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku' };
-export function modeName(m) { return FAM_NAME[m.fam] + ' 5.5 · ' + m.effort; }
+/* שם המצב (16/11/2026, בקשת המשתמש): "רגיל" / "ביצועים"; מצב בדיקות — "בדיקה 1–4". את השם האמיתי (המודל והמאמץ) רואה רק
+   המנהל, מהשרתון אחרי התחברות (ui.mn) — אף פעם לא מהקוד. modeName = השורה המלאה (פרטי עבודה, ברירות מחדל), modeShort = לשורות צרות */
+const tierLabel = (m) => (m.tier === 'std' ? T('studioTierStd') : m.tier === 'perf' ? T('studioTierPerf') : T('studioTierLab', { n: String(m.id).slice(3) }));
+const realName = (m) => (ui.mn && typeof ui.mn[m.id] === 'string' ? ui.mn[m.id] : '');
+export function modeName(m) {
+  if (!m) return '';
+  const r = realName(m);
+  return m.tier ? tierLabel(m) + (r ? ' · ' + r : '') : r || tierLabel(m);
+}
+/* השמות מהשרתון (רק למנהל): { קוד: "שם" } — רק קודים מוכרים ושם קצר */
+export function normNames(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  const out = {};
+  for (const m of MODES) if (typeof o[m.id] === 'string' && o[m.id] && o[m.id].length <= 60) out[m.id] = o[m.id];
+  return Object.keys(out).length ? out : null;
+}
 /* שם תצוגה לפרויקט מהקובץ: בלי סיומת, קווים תחתונים → רווחים ("Ackman_TKP_interview.mp4" → "Ackman TKP interview") */
 export function fileTitle(name) {
   const t = String(name || '').replace(/\.[A-Za-z0-9]{1,5}$/, '').replace(/_+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -1098,32 +1111,20 @@ export function upBlocked(b, fp, now) {
 /* ---------------- מחרוזות לפי מזהה (כל מפתח מילולי) ---------------- */
 function modeSub(id) {
   switch (id) {
-    case 'opus-medium': return T('studioMsOpusMed');
-    case 'sonnet-high': return T('studioMsSonHigh');
-    case 'haiku-high': return T('studioMsHaiHigh');
-    case 'sonnet-low': return T('studioMsSonLow');
-    case 'haiku-medium': return T('studioMsHaiMed');
-    default: return T('studioMsSonMed');
+    case 'lab4': return T('studioMsLab4');
+    case 'lab3': return T('studioMsLab3');
+    case 'perf': return T('studioMsPerf');
+    case 'lab1': return T('studioMsLab1');
+    case 'std': return T('studioMsStd');
+    default: return T('studioMsLab2');
   }
 }
-function effortSub(id) {
+function effortSub(id) {   // רק למצבי הבדיקות ("רגיל" / "ביצועים" — בלי שורה משנית)
   switch (id) {
-    case 'opus-medium': return T('studioEfOpusMed');
-    case 'sonnet-high': return T('studioEfSonHigh');
-    case 'haiku-high': return T('studioEfHaiHigh');
-    case 'sonnet-low': return T('studioEfSonLow');
-    case 'haiku-medium': return T('studioEfHaiMed');
-    default: return T('studioEfSonMed');
-  }
-}
-function modeSum(id) {
-  switch (id) {
-    case 'opus-medium': return T('studioSumOpusMed');
-    case 'sonnet-high': return T('studioSumSonHigh');
-    case 'haiku-high': return T('studioSumHaiHigh');
-    case 'sonnet-low': return T('studioSumSonLow');
-    case 'haiku-medium': return T('studioSumHaiMed');
-    default: return T('studioSumSonMed');
+    case 'lab4': return T('studioEfLab4');
+    case 'lab3': return T('studioEfLab3');
+    case 'lab1': return T('studioEfLab1');
+    default: return T('studioEfLab2');
   }
 }
 function outName(k) {
@@ -1154,7 +1155,7 @@ function outSub(k) {
   }
 }
 const outShort = (k) => (k === 'srt' ? 'SRT' : k === 'en' ? T('studioOutEnShort') : k === 'same' ? T('studioOutSameShort') : outName(k));
-const modeShort = (m) => FAM_NAME[m.fam] + ' ' + m.effort;   // לשורות צרות ("Opus Medium")
+const modeShort = (m) => (!m ? '' : m.tier ? tierLabel(m) : realName(m) || tierLabel(m));   // לשורות צרות
 function styleName(k) {
   switch (k) {
     case 'classic': return T('studioStyleClassic');
@@ -1409,9 +1410,10 @@ let statusAt = 0;
 async function refreshStatus(force) {
   if (!force && Date.now() - statusAt < 20000) return;
   statusAt = Date.now();
-  let j = await net.api('status');
+  const lm = store.settings.lm ? { lm: store.settings.lm, lmv: store.settings.lmv || 0 } : undefined;   // 16/11/2026: מצב שנשמר לפני הקודים — השרתון ממיר
+  let j = await net.api('status', lm);
   // 11/11/2026: תקלת רשת של רגע (מעבר בין Wi‑Fi לסלולר, השרת מתחלף) — עוד ניסיון אחד לפני הפס
-  if (!j.ok && j.error === 'net' && netUp()) { await sleep(2500); j = await net.api('status'); }
+  if (!j.ok && j.error === 'net' && netUp()) { await sleep(2500); j = await net.api('status', lm); }
   if (j.ok) {
     ui.access = 'ok'; ui.kinds = Array.isArray(j.kinds) ? j.kinds : [];
     store.conn = j.conn ? { hint: String(j.conn.hint || ''), ok: num(j.conn.ok), since: num(j.conn.since) } : null;
@@ -1440,6 +1442,10 @@ async function refreshStatus(force) {
     ui.url = j.url === true;                   // 22/10/2026: הורדה מקישור (כל מי שמורשה לסטודיו מ־30/10, הדגל, R2)
     ui.yc = j.yc === true;                     // 25/10/2026: יוטיוב לענן דרך חשבון ייעודי בשרת (הוגדר במרכז הניהול ולא נחסם)
     ui.mf = j.mf === true;                     // 15/10: כל מצבי התרגום (המנהל / רשימת "כל המודלים") — אחרת רק "רגיל" ו"ביצועים"
+    ui.mn = normNames(j.mn);                   // 16/11/2026: השמות האמיתיים של המודלים — רק למנהל (השרתון), לא בקוד
+    if (store.settings.lm && typeof j.lm === 'string') {   // 16/11/2026: ההגדרה הישנה הומרה לקוד — פעם אחת
+      store.settings.mode = modeNow(j.lm); delete store.settings.lm; delete store.settings.lmv; save();
+    }
     store.st = { api: ui.api || null, mf: ui.mf, r2: ui.r2 };   // 29/10/2026 (S1): לפתיחה הבאה · 10/11: גם R2 — עמוד הבית (stRoot) כבר בפתיחה
     if (rootFresh) {   // 10/11/2026: פתיחה ראשונה — עדיין על דף הבית הזמני ולא זזו ממנו: לניתוח, בלי רשומת היסטוריה חדשה
       rootFresh = false;
@@ -1880,6 +1886,8 @@ export function recFromSrv(sj) {
 }
 function adoptSrv(rec, sj) {
   rec.srv = normJob({ id: rec.id, srv: sj }).srv;
+  // 16/11/2026: עבודה שנשמרה בטלפון לפני הקודים — המצב מהשרתון (כבר קוד) מחליף את המזהה הישן
+  if (sj && sj.spec && rec.spec && MODES.some((m) => m.id === sj.spec.mode)) rec.spec.mode = sj.spec.mode;
   const fv = sj && sj.files && sj.files.v, run = runs.get(rec.id);
   if (!fv || !FID_RE.test(String(fv.id || '')) || fv.ext || rec.up.v.done || (run && run.active)) return;
   rec.up.v = { done: true, id: String(fv.id), size: num(fv.size) || rec.spec.size, uri: '', sent: num(fv.size) || rec.spec.size };
@@ -3023,7 +3031,6 @@ function copyBox(txt, label, k, prose) {
 /* בורר מצב התרגום — 25/10/2026 (בקשת המשתמש: נקי ומינימלי לפי ת־עיצוב): כרטיס אחד — בורר מקטעים "רגיל" / "ביצועים"
    (+ "כל המודלים" רק למנהל ולמי שברשימה — ui.mf), ומתחתיו שורה אחת על המצב שנבחר: השם, ומדדי איכות, עלות וזמן.
    עד 25/10 — כרטיס גדול עם סרט, שלושה אריחים, כרטיס בחירה נפרד ופסקת מבחן מתחתיו (אותו מידע שלוש פעמים) */
-const tierName = (m) => (m.tier === 'std' ? T('studioTierStd') : m.tier === 'perf' ? T('studioTierPerf') : modeShort(m));
 function modePicker(cur, onPick, o) {   // 10/11/2026: o.vi = שפת ההרצאה — בניתוח: עלות לשעה במקום זמן לשעה (5.1)
   const m = modeById(modeFor(cur, ui.mf));
   const card = h('div', 'st-modecard');
@@ -3032,19 +3039,22 @@ function modePicker(cur, onPick, o) {   // 10/11/2026: o.vi = שפת ההרצא�
     for (const x of ids.map(modeById)) {
       const b = btn(null, null, () => onPick(x.id), 'm:' + x.id);
       b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', x.id === m.id ? 'true' : 'false');
-      b.append(h('b', null, label(x)), h('small', null, label === tierName ? modeShort(x) : effortSub(x.id)));
+      // 16/11/2026: מתחת ל"רגיל" / "ביצועים" — למנהל השם האמיתי, לשאר כלום (ההסבר בשורה שמתחת לבורר); במצבי הבדיקות — במה הוא טוב
+      const sub = x.tier ? realName(x) : effortSub(x.id);
+      b.append(h('b', null, label(x)));
+      if (sub) b.append(h('small', null, sub));
       ef.append(b);
     }
     return ef;
   };
-  card.append(seg(PUBLIC_MODES, tierName, T('studioGrpMain')));
+  card.append(seg(PUBLIC_MODES, modeShort, T('studioGrpMain')));
   if (ui.mf) {
     const lab = h('div', 'st-modelab'); lab.append(h('small', null, T('studioGrpLab') + ' · ' + T('studioGrpLabS')));
     card.append(lab, seg(MODE_ORDER.filter((id) => !PUBLIC_MODES.includes(id)), modeShort, T('studioGrpLab'), true));
   }
   const bars = (n, cls) => { const b = h('span', 'st-bars' + (cls ? ' ' + cls : '')); for (let i = 0; i < 5; i++) b.append(h('i', i < n ? 'on' : null)); return b; };
   const info = h('div', 'st-modeinfo');
-  const nm = h('div', 'st-modenm'); nm.append(h('small', null, modeSub(m.id)));   // שם המודל כבר בבורר — כאן רק במה הוא טוב
+  const nm = h('div', 'st-modenm'); nm.append(h('small', null, modeSub(m.id)));   // רק במה המצב טוב — בלי שם המודל
   const stat = (lbl, val) => { const d = h('span', 'st-mstat'); d.append(h('small', null, lbl), val); return d; };
   const stats = h('div', 'st-mstats'); stats.setAttribute('aria-hidden', 'true');
   stats.append(...[stat(T('studioQuality'), bars(m.q)), o && o.vi ? null : stat(T('studioUsage'), bars(m.u, 'amber')), stat(T('studioHourEst'), h('b', null, o && o.vi ? fmtUsd(viUsd(m.id, o.vi, 3600)) : T('studioHrs', { t: fmtHM(m.min) })))].filter(Boolean));   // בניתוח — בלי "שימוש במנוי" (ה־API לפי בקשה)
@@ -6563,7 +6573,7 @@ function effortName(e) {
     default: return '';
   }
 }
-const agentModel = (a) => [a.m ? modelLabel(a.m) : '', effortName(a.ef)].filter(Boolean).join(' ');
+const agentModel = (a) => [a.m ? modelLabel(a.m) : '', ui.mn ? effortName(a.ef) : ''].filter(Boolean).join(' ');   // 16/11/2026: המאמץ — רק למנהל
 function agentTile(k) { const t = h('span', 'st-agt a-' + k, agentAbbr(k)); t.setAttribute('aria-hidden', 'true'); return t; }
 /* שורה לכל סוכן במגדל: מודל, עבודות, עלות; משמאל — אחוז ההצלחה. נגיעה → מסך המלאי */
 function recText(r) {
@@ -7433,7 +7443,7 @@ function haltBanner() {
   return b;
 }
 /* v367: "החוקים שלך" — סיכום בשורה אחת */
-const MODE_ORDER = ['haiku-medium', 'haiku-high', 'sonnet-low', 'sonnet-medium', 'sonnet-high', 'opus-medium'];   // לפי הצפוי לשעה (NORM_DEF בשרתון)
+const MODE_ORDER = ['std', 'perf', 'lab1', 'lab2', 'lab3', 'lab4'];   // לפי הצפוי לשעה (NORM_DEF בשרתון)
 export const modeOverMax = (id, mx) => !!mx && MODE_ORDER.indexOf(id) > MODE_ORDER.indexOf(mx);
 const ltr = (x) => '\u2066' + x + '\u2069';   // סכום בדולרים בתוך משפט בעברית — בידוד, כדי שלא יתהפך
 const budgetTxt = (b) => ltr('$' + (Number.isInteger(b) ? String(b) : b.toFixed(2)));
@@ -7485,7 +7495,7 @@ function pageRules(p) {
   p.append(navBar({ back: T('studioTwT') }), large(T('studioUtMore')));
   const ab = accessBanner(); if (ab) p.append(ab);
   const rl = ui.rl, off = blocked() || rulesBusy;
-  // v375: שופט האיכות (Haiku, 40 כתוביות לדוגמה בסוף כל עבודה) — פועל כברירת מחדל (החלטה 4 בתוכנית)
+  // v375: שופט האיכות (Claude, 40 כתוביות לדוגמה בסוף כל עבודה) — פועל כברירת מחדל (החלטה 4 בתוכנית)
   p.append(secT(T('studioRlJgT')), list(rowSwitch({ label: T('studioRlJg'), sub: T('studioRlJgS'), on: !rl.jx, onClick: () => { if (!off) setRules({ jx: !rl.jx }); }, k: 'rj' }),
     // סבב 10: אחרי השופט — בדיקת משמעות לכתוביות שסימן, אוטומטית כשנכנסים לעבודה (תמיד עם אומדן ואישור לפני שמתחילים)
     rowSwitch({ label: T('studioRlAm'), sub: T('studioRlAmS'), on: rl.am, onClick: () => { if (!off) setRules({ am: !rl.am }); }, k: 'ram' })));
@@ -8084,7 +8094,7 @@ function costCard(cv, tr, id, api) {
   box.style.display = 'contents';
   live(box, (el) => {
     const r = id ? jobRec(id) : null;
-    const v = r && r.srv && r.srv.use ? costView(r.srv.use, r.spec.mode, costMeas(r)) || cv : cv;
+    const v = r && r.srv && r.srv.use ? costView(r.srv.use, r.spec.mode, costMeas(r), ui.mn) || cv : cv;
     const sig = JSON.stringify(v.rows) + v.total + (v.partial ? 1 : 0) + '|' + v.saved;
     if (el.dataset.sig === sig) return;
     el.dataset.sig = sig;
@@ -8428,7 +8438,7 @@ function pageVi(p, rec) {
   p.append(...stagesSec(rec, 'done'));
   if (rec.srv.sla) p.append(...slaCard(rec));
   p.append(...anJobRows(rec));
-  const cv = rec.srv.use ? costView(rec.srv.use, rec.spec.mode) : null;
+  const cv = rec.srv.use ? costView(rec.srv.use, rec.spec.mode, undefined, ui.mn) : null;
   if (cv) p.append(...costCard(cv, rec.srv.tr, rec.id, rec.srv.eng === 'api' || rec.spec.eng === 'api'));
   p.append(...techSec(rec, 'done', outs));
 }
@@ -9711,7 +9721,7 @@ function pageJob(p) {
   p.append(...goldCard(rec));   // v387: סט הזהב — תרגום אנושי לייחוס, והציון מולו
   p.append(...orgRows(rec));   // 28/10/2026: מאיפה הגיע כל קובץ
   // v359: עלות — שורה לכל שלב, עלות הפתיחה של כל סוכן־משנה, סכום כולל
-  const cv = rec.srv && rec.srv.use ? costView(rec.srv.use, rec.spec.mode) : null;
+  const cv = rec.srv && rec.srv.use ? costView(rec.srv.use, rec.spec.mode, undefined, ui.mn) : null;
   if (cv) p.append(...costCard(cv, rec.srv.tr, rec.id, (rec.srv && rec.srv.eng) === 'api' || rec.spec.eng === 'api'));
 
   // הסרטון המלא — עולה ברקע אחרי הקול (Claude צריך אותו רק לצריבה)
@@ -10176,7 +10186,7 @@ async function addServer() {
 /* סבב 1: אחוז מהתקציב החודשי של השרת (מצב API) — העבודה מתוך התקרה החודשית. במנוי (Routine) Anthropic לא חושפת את מצב המכסה —
    לא ממציאים מספר. טהור */
 export function quotaPct(rec, api) {
-  const sv = rec && rec.srv, cv = sv ? costView(sv.use, rec.spec.mode) : null;
+  const sv = rec && rec.srv, cv = sv ? costView(sv.use, rec.spec.mode, undefined, ui.mn) : null;
   if (!sv || sv.eng !== 'api' || !cv || !(cv.total > 0) || !api || api.nc || !(api.cap > 0)) return null;
   const pct = cv.total / api.cap * 100;
   return { pct: pct < 1 ? Math.round(pct * 10) / 10 : Math.round(pct), cap: api.cap };
@@ -10184,7 +10194,7 @@ export function quotaPct(rec, api) {
 export function receiptText(rec, api) {
   const sv = rec && rec.srv;
   if (!sv || sv.state !== 'done') return '';
-  const m = modeById(rec.spec.mode), cv = costView(sv.use, rec.spec.mode);
+  const m = modeById(rec.spec.mode), cv = costView(sv.use, rec.spec.mode, undefined, ui.mn);
   const tok = cv ? cv.rows.reduce((a, r) => a + r.tok, 0) : 0;
   const wall = sv.ended && rec.created ? Math.max(0, (sv.ended - rec.created) / 1000) : 0;
   const L = [T('studioRcptHead'), fileTitle(rec.spec.name) || T('studioUntitled'), ''];
