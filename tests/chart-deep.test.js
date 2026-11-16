@@ -96,11 +96,42 @@ process.env.CHART_DEEP_BACKOFF = '5';
 
   /* ---------- summary.py: סיכום לפי סמל מקבצי ההשוואה ---------- */
   fs.mkdirSync(path.join(tmp, 'sum', 'cmp'), { recursive: true });
-  fs.writeFileSync(path.join(tmp, 'sum', 'cmp', 'X.json'), JSON.stringify({ sym: 'X', cls: 'us', xcal: { '1W': { n: 5, exp: 4 } }, tfs: {
+  fs.writeFileSync(path.join(tmp, 'sum', 'cmp', 'X.json'), JSON.stringify({ sym: 'X', cls: 'us', xcal: { '1W': { n: 5, exp: 4 }, '1M': { n: 3, exp: 3, miss: 2 } }, tfs: {
     '1D.0': { n: 10, src: { v: { V3: 7, V2: 1, MIX: 0, DIFF: 2, 'DIFF?': 0, NOSRC: 0 }, srcs: [['webull', '1d', 10]] }, align: { off: 0 }, inv: { dup: 0, jump: 1, unit: 1 } },
     '1W.0': { n: 5, src: { v: { V3: 0, V2: 5, MIX: 0, DIFF: 0, 'DIFF?': 0, NOSRC: 0 } }, align: { wday: 5 }, inv: {} } } }));
   const sm = execFileSync('python3', ['-I', path.join(T, 'summary.py'), '--out', path.join(tmp, 'sum')], { encoding: 'utf8' });
-  ok(/^X\s+us\s+n=15\s+V3=7 V2=6 MIX=0 DIFF=2/.test(sm) && /WD=5/.test(sm) && /UNIT=1/.test(sm) && /xcal 1W 4\/5/.test(sm) && /1D\.0:2/.test(sm), 'summary: סכום הפסיקות, WD, UNIT, xcal והמרווח עם DIFF');
+  ok(/^X\s+us\s+n=15\s+V3=7 V2=6 MIX=0 DIFF=2/.test(sm) && /WD=5/.test(sm) && /UNIT=1/.test(sm) && /xcal 1W 4\/5 1M 3\/3 חסרים 2/.test(sm) && /1D\.0:2/.test(sm), 'summary: סכום הפסיקות, WD, UNIT, xcal (כולל חסרים) והמרווח עם DIFF');
+
+  /* ---------- compare.py xcal: חודש שיש בו ימי מסחר ואין לו נר חודשי (חוזים: 46 חודשים חסרים) ---------- */
+  const xd = path.join(tmp, 'xc', 'disp', 'X');
+  fs.mkdirSync(xd, { recursive: true });
+  const ut = (m, d, h) => Date.UTC(2020, m, d, h) / 1000;
+  const dayBars = [];
+  for (let m = 0; m < 6; m++) for (const d of [2, 15]) dayBars.push([ut(m, d, 14), 10, 11, 9, 10, 1]);
+  const monBars = [0, 1, 3, 4, 5].map((m) => [ut(m, 1, 5), 10, 11, 9, 10, 2]);
+  fs.writeFileSync(path.join(xd, '1D.0.json'), JSON.stringify({ tz: 'America/New_York', at: Date.UTC(2026, 10, 16), bars: dayBars }));
+  fs.writeFileSync(path.join(xd, '1M.0.json'), JSON.stringify({ tz: 'America/New_York', at: Date.UTC(2026, 10, 16), bars: monBars }));
+  const xc = JSON.parse(execFileSync('python3', ['-I', '-c', [
+    'import sys, json', 'sys.path.insert(0, sys.argv[1])', 'import compare as C',
+    'r = C.xcal(sys.argv[2], "X", "us")', 'print(json.dumps(r["1M"]))',
+  ].join('\n'), T, path.join(tmp, 'xc')], { encoding: 'utf8' }));
+  ok(xc.miss === 1 && JSON.stringify(xc.ex_miss) === '["2020-03"]', 'compare: xcal — חודש עם ימי מסחר ובלי נר חודשי נספר כחסר');
+
+  /* ---------- compare.py xday: בחוזים יום המסחר מתחיל ב־18:00 של הערב הקודם ---------- */
+  const fd = path.join(tmp, 'xc', 'disp', 'Y=F');
+  fs.mkdirSync(fd, { recursive: true });
+  const nyt = (d, h, mi) => Date.UTC(2026, 10, d, h + 5, mi) / 1000;   // נובמבר אחרי שעון חורף: ניו יורק = UTC-5
+  const fm = [];
+  for (const [d, h0, h1] of [[15, 18, 23], [16, 0, 16], [16, 18, 23], [17, 0, 16]]) for (let h = h0; h <= h1; h++) fm.push([nyt(d, h, 0), 100 + h, 101 + h, 99 + h, 100.5 + h, 1]);
+  const fday = (a, b) => { const x = fm.filter((r) => r[0] >= a && r[0] < b); return [x[0][1], Math.max(...x.map((r) => r[2])), Math.min(...x.map((r) => r[3])), x[x.length - 1][4], x.length]; };
+  const fD = [[nyt(16, 0, 0), ...fday(nyt(15, 18, 0), nyt(16, 17, 0))], [nyt(17, 0, 0), ...fday(nyt(16, 18, 0), nyt(17, 17, 0))]];
+  fs.writeFileSync(path.join(fd, '1D.0.json'), JSON.stringify({ tz: 'America/New_York', at: Date.UTC(2026, 10, 19), bars: fD }));
+  fs.writeFileSync(path.join(fd, '1h.0.json'), JSON.stringify({ tz: 'America/New_York', at: Date.UTC(2026, 10, 19), bars: fm }));
+  const xf = JSON.parse(execFileSync('python3', ['-I', '-c', [
+    'import sys, json', 'sys.path.insert(0, sys.argv[1])', 'import compare as C',
+    'r = C.xday(sys.argv[2], "Y=F", "fut", "America/New_York")', 'print(json.dumps(r["1h"]))',
+  ].join('\n'), T, path.join(tmp, 'xc')], { encoding: 'utf8' }));
+  ok(xf.days === 2 && xf.o === 2 && xf.c === 2 && xf.only_i === 0, 'compare: xday בחוזים — יום המסחר 18:00–17:00 (לא יום קלנדרי)');
 
   /* ---------- היגיינה: בלי מפתחות, בלי שם מוצר הייחוס ---------- */
   const all = ['snap.js', 'model.js', 'sources.py', 'compare.py', 'live.js', 'livecheck.js', 'kcverify.js', 'ind.py', 'summary.py'].map((f) => fs.readFileSync(path.join(T, f), 'utf8')).join('\n');

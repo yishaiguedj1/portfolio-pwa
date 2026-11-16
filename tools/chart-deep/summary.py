@@ -38,7 +38,8 @@ def sym_row(out, r):
             worst.append((v['DIFF'], k))
     worst.sort(reverse=True)
     xc = r.get('xcal') or {}
-    tot['xcal'] = ' '.join('%s %d/%d' % (k, x.get('exp', 0), x.get('n', 0)) for k, x in xc.items() if x.get('exp', 0) != x.get('n', 0))
+    tot['xcal'] = ' '.join('%s %d/%d' % (k, x.get('exp', 0), x.get('n', 0)) + (' חסרים %d' % x['miss'] if x.get('miss') else '')
+                           for k, x in xc.items() if x.get('exp', 0) != x.get('n', 0) or x.get('miss'))
     tot['srcs'] = ','.join(sorted({s[0] for t in r['tfs'].values() for s in (t.get('src') or {}).get('srcs', [])})) or '—'
     tot['top'] = ' '.join('%s:%d' % (k, d) for d, k in worst[:3])
     tot['depth'] = '/'.join(first_day(out, r['sym'], tf) or '—' for tf in ('1D', '1W', '1M'))

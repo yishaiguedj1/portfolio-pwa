@@ -557,7 +557,8 @@ def check_fix(out, sym):
 
 
 def xday(out, sym, cls, tz):
-    """הנר היומי מול צבירת כל מרווח תוך־יומי (בלי מורחב) של אותו יום"""
+    """הנר היומי מול צבירת כל מרווח תוך־יומי (בלי מורחב) של אותו יום.
+       חוזים: יום מסחר של CME מתחיל ב־18:00 ניו יורק של הערב הקודם — המפתח הוא התאריך של t+6 שעות"""
     D = load_disp(out, sym, '1D', 0)
     if not D:
         return None
@@ -571,7 +572,8 @@ def xday(out, sym, cls, tz):
             continue
         sec = TFS[tf][1]
         icut = live_cut(I)
-        A = agg([b for b in I['bars'] if b[0] + sec <= icut], lambda t: dkey(t, '1D', tzd))
+        sh = 6 * 3600 if cls == 'fut' else 0
+        A = agg([b for b in I['bars'] if b[0] + sec <= icut], lambda t: dkey(t + sh, '1D', tzd))
         ks = [k for k in A if k in day]
         if len(ks) > 2:
             ks = ks[1:]   # היום הראשון בטווח עלול להיות חלקי
@@ -600,7 +602,8 @@ def xday(out, sym, cls, tz):
 
 def xcal(out, sym, cls):
     """שבועי/חודשי מול צבירה של היומי: (א) לפי התקופה הצפויה (שבוע שני–ראשון בשעון הבורסה, חודש קלנדרי) —
-    תופס קיבוץ שגוי (C-013: שבוע חמישי–רביעי); (ב) לפי הטווח של הנר עצמו (מהתווית עד התווית הבאה) — עקביות הנתונים"""
+    תופס קיבוץ שגוי (C-013: שבוע חמישי–רביעי); (ב) לפי הטווח של הנר עצמו (מהתווית עד התווית הבאה) — עקביות הנתונים;
+    (ג) miss — תקופות שיש בהן ימי מסחר ביומי ואין להן נר (חוזים: 46 חודשים חסרים בחודשי של Yahoo)"""
     D = load_disp(out, sym, '1D', 0)
     if not D:
         return None
@@ -616,6 +619,10 @@ def xcal(out, sym, cls):
             continue
         E = agg(days, lambda t: dkey(t, tf, tz))
         st = {'n': 0, 'exp': 0, 'span': 0, 'ex': []}
+        have = {dkey(b[0], tf, tz) for b in X['bars']}
+        lo, hi = dkey(xs[0][0], tf, tz), dkey(xs[-1][0], tf, tz)
+        gone = sorted(k for k in E if lo <= k <= hi and k not in have)
+        st['miss'], st['ex_miss'] = len(gone), gone[:8]
         same = lambda a, b: all(abs(a[f] - b[f]) <= ptol(b[f], f, cls, True) for f in (1, 2, 3, 4))
         for i, b in enumerate(xs[1:-1], 1):   # הראשון עלול להיות חלקי; האחרון — עד התווית הבאה שאין
             st['n'] += 1
@@ -675,7 +682,7 @@ def run_sym(out, sym, tfs, pres):
     rep['xday'] = xday(out, sym, cls, 'America/New_York')
     rep['xcal'] = xcal(out, sym, cls)
     for k, st in (rep['xcal'] or {}).items():
-        lines.append('  xcal %-3s n=%d לפי התקופה הצפויה=%d לפי טווח הנר=%d' % (k, st['n'], st['exp'], st['span']))
+        lines.append('  xcal %-3s n=%d לפי התקופה הצפויה=%d לפי טווח הנר=%d חסרים=%d %s' % (k, st['n'], st['exp'], st['span'], st.get('miss', 0), ' '.join(st.get('ex_miss') or [])))
     rep['fix'] = check_fix(out, sym)
     for k, st in (rep['fix'] or {}).items():
         lines.append('%-8s FIX %-9s n=%d מחוץ לטווח=%d %s' % (sym, k, st['n'], st['out'], st['ex'][:2]))
