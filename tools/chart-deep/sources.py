@@ -24,6 +24,7 @@
 import csv
 import io
 import json
+import re
 import os
 import sys
 import time
@@ -208,9 +209,10 @@ def wb_id(out, sym):
     ids = json.load(open(f)) if os.path.exists(f) else {}
     if sym in ids:
         return ids[sym]
-    want = sym.replace('-', '.')   # BRK-B → BRK.B
+    norm = lambda x: re.sub(r'[-. ]', ' ', x or '')   # BRK-B (Yahoo) = BRK.B = BRK B (כך Webull כותב)
+    want = norm(sym)
     j = json.loads(get(WB + '/search/pc/tickers?keyword=%s&pageIndex=1&pageSize=20' % urllib.parse.quote(want), pause=1.0))
-    hit = [x for x in j.get('data', []) if x.get('symbol') == want and x.get('regionCode') == 'US']
+    hit = [x for x in j.get('data', []) if norm(x.get('symbol')) == want and x.get('regionCode') == 'US']
     ids[sym] = hit[0]['tickerId'] if hit else None
     os.makedirs(os.path.dirname(f), exist_ok=True)
     json.dump(ids, open(f, 'w'))
