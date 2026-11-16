@@ -232,13 +232,31 @@ a.st-row { color: inherit; text-decoration: none; -webkit-tap-highlight-color: t
 /* מצב התרגום — 25/10/2026 (בקשת המשתמש: נקי ומינימלי לפי ת־עיצוב): כרטיס אחד — בורר מקטעים, ומתחתיו שורת המצב שנבחר.
    עד 25/10 — כרטיס עם סרט ושלושה אריחים, כרטיס בחירה נפרד ופסקה (אותו מידע שלוש פעמים) */
 .st-modecard { display: grid; gap: 12px; margin: 0 16px; padding: 12px; border-radius: var(--radius-sm); background: var(--st-card); }
-.st-seg2 { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; padding: 2px; border-radius: var(--radius-xs); background: var(--st-fill); }
-.st-seg2 button { display: grid; justify-items: center; gap: 0; min-width: 0; min-height: 50px; padding: 6px 4px; border-radius: 10px; color: var(--on-surface); transition: background .2s, box-shadow .2s; }
-.st-seg2 button b { max-width: 100%; font-size: 15.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.st-seg2 button small { max-width: 100%; font-size: 11.5px; font-weight: 600; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.st-seg2 button[aria-checked="true"] { background: var(--st-card); box-shadow: 0 1px 3px rgba(0, 0, 0, .12), 0 0 0 .5px rgba(0, 0, 0, .04); }
-[data-theme="dark"] .st-seg2 button[aria-checked="true"] { background: #636366; box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
-.st-seg2 button[aria-checked="true"] small { color: var(--on-surface); opacity: .75; }
+/* בוררי המקטעים של הסטודיו — זכוכית (16/11/2026, בקשת המשתמש: "ממורכזים ובסגנון הזכוכית העדכני, נקי וברור"), לפי ת־עיצוב:
+   מסילת גלולה שקופה עם קו אור דק, והנבחר — "עדשת" זכוכית בהירה בגלולה עם הבזק עליון וצל רך. אותו עיצוב ל־st-seg2 (בחירה) ול־st-seg (לשוניות).
+   מרכוז: הכפתור flex בעמודה, ממורכז בשני הצירים (עד היום grid בלי align-content — הטקסט ישב בראש הכפתור, לא באמצע) */
+.st-root { --sg-track: var(--st-fill);
+  --sg-track-sh: inset 0 0 0 .5px rgba(255, 255, 255, .55), inset 0 1px 1.5px rgba(0, 0, 0, .05);
+  --sg-thumb: linear-gradient(180deg, rgba(255, 255, 255, .98), rgba(255, 255, 255, .84));
+  --sg-thumb-sh: inset 0 0 0 .5px rgba(255, 255, 255, .9), inset 0 1px 0 #fff, 0 0 0 .5px rgba(0, 0, 0, .05), 0 1px 2px rgba(0, 0, 0, .06), 0 4px 12px -3px rgba(0, 0, 0, .16); }
+[data-theme="dark"] .st-root { --sg-track-sh: inset 0 0 0 .5px rgba(255, 255, 255, .1), inset 0 1px 1.5px rgba(0, 0, 0, .25);
+  --sg-thumb: linear-gradient(180deg, rgba(255, 255, 255, .3), rgba(255, 255, 255, .17));
+  --sg-thumb-sh: inset 0 0 0 .5px rgba(255, 255, 255, .22), inset 0 1px 0 rgba(255, 255, 255, .34), 0 0 0 .5px rgba(0, 0, 0, .4), 0 4px 12px -3px rgba(0, 0, 0, .55); }
+:is(.st-seg2, .st-seg) { padding: 3px; gap: 2px; border-radius: var(--pill); background: var(--sg-track); box-shadow: var(--sg-track-sh);
+  -webkit-backdrop-filter: blur(14px) saturate(160%); backdrop-filter: blur(14px) saturate(160%); }
+.st-seg2 { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+:is(.st-seg2 button, .st-seg-b) { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 0;
+  border-radius: var(--pill); text-align: center; color: var(--on-surface-var);
+  transition: background .25s, box-shadow .25s, color .2s, transform .18s cubic-bezier(.3, .7, .4, 1.4); }
+.st-seg2 button { min-height: 48px; padding: 6px 10px; }
+.st-seg2 button b { max-width: 100%; font-size: 15.5px; font-weight: 650; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-seg2 button small { max-width: 100%; font-size: 11.5px; font-weight: 600; line-height: 1.2; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:is(.st-seg2 button[aria-checked="true"], .st-seg-b.on) { background: var(--sg-thumb); box-shadow: var(--sg-thumb-sh); color: var(--on-surface); }
+.st-seg2 button[aria-checked="true"] b { font-weight: 750; }
+.st-seg2 button[aria-checked="true"] small { color: var(--on-surface); opacity: .7; }
+:is(.st-seg2 button, .st-seg-b):active { transform: scale(.96); }
+.cube-flat :is(.st-seg2, .st-seg), :is(.st-root):is(.cube-face, .cube-ghost) :is(.st-seg2, .st-seg) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+@media (prefers-reduced-motion: reduce) { :is(.st-seg2 button, .st-seg-b) { transition: none; } :is(.st-seg2 button, .st-seg-b):active { transform: none; } }
 .st-seg2.many button b { font-size: clamp(11px, 3.4vw, 13.5px); letter-spacing: -.1px; }
 .st-modelab small { font-size: 12px; font-weight: 600; color: var(--on-surface-var); }
 .st-modelab { margin: 2px 4px -6px; }
@@ -538,10 +556,9 @@ html.studio-open .dlg-veil { z-index: 1003; }
 .st-band > small { font-size: 12.5px; color: var(--on-surface-var); } .st-band > b { font-size: 20px; font-weight: 800; letter-spacing: -.2px; }
 .st-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .st-pills .st-pill { justify-self: auto; }
-.st-seg { margin: 12px 16px 0; padding: 2px; display: flex; border-radius: 9px; background: var(--st-fill); }
-.st-seg-b { flex: 1; min-width: 0; padding: 6px 4px; border-radius: 7px; font-size: 13.5px; font-weight: 600; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.st-seg-b.on { background: var(--st-card); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
-[data-theme="dark"] .st-seg-b.on { background: #636366; }
+.st-seg { margin: 12px 16px 0; display: flex; }   /* החומר והמרכוז — למעלה, עם st-seg2 */
+.st-seg .st-seg-b { display: block; flex: 1; padding: 8px 10px; line-height: 1.25; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-seg-b.on { font-weight: 700; }
 .st-twcard { margin: 12px 16px 0; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--st-card); }
 .st-kvg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
 .st-kvg > div { display: grid; gap: 2px; min-width: 0; }

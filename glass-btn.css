@@ -65,7 +65,7 @@
     .lib-chip, .pl-chip, .lib-sortbtn, .mg-pill, .mg-tok, .mg-ab, .mg-tb.p, .mg-ok56, .subpage-back, .lib-back, .st-back, .adm-back, .fx-pill,
     .appbar-sub > *, .chip-btn, .chip, .range-btn, .wl-tab, .mini-btn, .measure-btn, .measure-chip, .add-card, .an-chip, .tx-chip, .rd-backpos,
     .kc-btn, .kc-chip, .kc-mb, .kc-rg, .kc-sc, .kc-tb, .kc-tf, .kc-wid, .kc-ib, .kc-sb, .kc-pk, .kc-tcell,
-    :where(.adm-seg-b, .mg-seg-b, .st-seg-b, .kc-seg-b, .lang-opt, .theme-opt, .an-seg:not(.an-seg-main) > button, .fb-seg .mini-btn, .adm-seg .mini-btn):where(.on, .active, [aria-pressed="true"])) {
+    :where(.adm-seg-b, .mg-seg-b, .kc-seg-b, .lang-opt, .theme-opt, .an-seg:not(.an-seg-main) > button, .fb-seg .mini-btn, .adm-seg .mini-btn):where(.on, .active, [aria-pressed="true"])) {
   --gb-on: 1;
   background: var(--gb-body-cur, var(--gb-body)) !important;
   background-blend-mode: normal !important;
@@ -91,7 +91,7 @@
     .an-chip[aria-pressed="true"], .measure-btn.on, .mini-btn[aria-pressed="true"],
     .kc-btn.pri, .kc-fab.on, .kc-ib.on, .kc-mb.on, .kc-rg.on, .kc-sb.on, .kc-sc.on, .kc-tf.on, .kc-wid.on, .kc-chip.on, .kc-tcell.on,
     .adm-tab.on i,
-    :where(.adm-seg-b, .mg-seg-b, .st-seg-b, .kc-seg-b, .lang-opt, .theme-opt, .an-seg:not(.an-seg-main) > button):where(.on, .active, [aria-pressed="true"])) {
+    :where(.adm-seg-b, .mg-seg-b, .kc-seg-b, .lang-opt, .theme-opt, .an-seg:not(.an-seg-main) > button):where(.on, .active, [aria-pressed="true"])) {
   --gb-tone: var(--gb-force, var(--btn-c, var(--primary)));
   --gb-on: 1;
   background: linear-gradient(180deg, rgba(255, 255, 255, .28), rgba(255, 255, 255, .06) 50%, rgba(255, 255, 255, 0) 56%),
@@ -192,7 +192,8 @@ html[data-app="admin"] { --gb-force: #5E5CE6; --gb-ontx: #fff; }
    דוגמיות צבע, תגיות ואזורי מגע: st-ky-sch tr-dot kc-col kc-swatch st-sty kc-ctag kc-star rd-ribbon an-grab st-vl-main
    כפתורים צפים מעל קנבס (הציר בעורך — זכוכית משלהם): st-tl-zb
    מעטפות שהכדור שלהן הוא ילד (.tab → .tab-disc, .adm-tab → i): tab adm-tab
-   פריטי סגמנט שאינם נבחרים (המסילה): adm-seg-b mg-seg-b st-seg-b kc-seg-b lang-opt theme-opt (וכל כפתור לא נבחר בתוך an-seg / kc-seg / mg-seg / st-seg2 / adm-seg / fb-seg / rd-seg)
+   בוררי המקטעים של הסטודיו — זכוכית משלהם ב־studio.css (מסילה + עדשה, 16/11/2026): st-seg-b
+   פריטי סגמנט שאינם נבחרים (המסילה): adm-seg-b mg-seg-b kc-seg-b lang-opt theme-opt (וכל כפתור לא נבחר בתוך an-seg / kc-seg / mg-seg / st-seg2 / adm-seg / fb-seg / rd-seg)
    Cashflow (גל 2) — פעולות טקסט: cf-more cf-undo cf-back
    Cashflow — כפתור מתאר משני: cf-chk
    Cashflow — הבועה בהדר (הזכוכית שלה מ־.appbar-sub > *): cf-upd
