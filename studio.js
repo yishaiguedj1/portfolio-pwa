@@ -17,6 +17,7 @@ import { createPlayer, normCues, issuesList, fmtT, normLadder, normAlt, normPq, 
 import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, toStl, termIssues, flagIndex, noteIndex, normMeta, createTimeline, editDiff, editStats, importSubs, seriesOfName, smChanges, cuesReplace, cuesWith, fmtTc, toLectureMd } from './studiosubs.js';
 import { listTracks, extractTracks, cuesToFile, lang2 } from './studiotracks.js';
 import { normVi, renderVi, normPlaces, imgRange } from './studiovi.js';
+import { normVsp, vspSet, vspMove, LABEL_RE } from './studiospk.js';
 import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs, cutFillers, normOv, OV_T_MAX, OV_LG_MAX, OV_POS, previewEdl, PV_LEN } from './studioedl.js';
 import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, AI_NOTE_MAX, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges, parseChapters } from './studioai.js';
 
@@ -1017,7 +1018,7 @@ export function normStore(o) {
   // 29/10/2026 (S1 בסרטון): מצב השרת האחרון — הקפסולה בהדר נכונה כבר בציור הראשון ("שרת המערכת", לא "חיבור Claude" שמתחלף)
   const st = src.st && typeof src.st === 'object' ? { api: normApi(src.st.api), mf: src.st.mf === true, r2: src.st.r2 === true } : null;
   // 10/11/2026 (PR 1.5ב, V37): המקום בדף הניתוח לכל עבודה — מספרים ומזהי פרקים בלבד (studiovi.js)
-  return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d, sugx, amd, st, spkc: normSpkc(src.spkc), vip: normPlaces(src.vip) };
+  return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d, sugx, amd, st, spkc: normSpkc(src.spkc), vip: normPlaces(src.vip), vsp: normVsp(src.vsp) };
 }
 /* C3 (סבב 4 של השדרוג): הצבע שבחרת לכל שם דובר — { שם: 0–5 }, עד SPKC_MAX שמות (האחרונים) */
 export const SPKC_MAX = 100;
@@ -1032,6 +1033,18 @@ function spkcSet(name, i) {
   delete o[name]; o[name] = i;   // לסוף — הקיצוץ שומר את האחרונים
   store.spkc = normSpkc(o); save();
 }
+/* 16/11/2026 (דוברים בכל תמליל): הצבע לדובר — עם שם: לפי השם (spkc, אותו אדם בכל העבודות); בלי שם (S1): לעבודה הזו בלבד
+   (vsp). spkPrefs — שתיהן יחד, לעבודה אחת */
+function spkPrefs(id) {
+  const o = Object.assign({}, store.spkc || {});
+  for (const [k, d] of Object.entries((store.vsp || {})[id] || {})) if (LABEL_RE.test(k) && d.c != null) o[k] = d.c;
+  return o;
+}
+function spkColorSet(id, key, i) {
+  if (LABEL_RE.test(key)) { store.vsp = vspSet(store.vsp, id, key, { c: i }); save(); }
+  else spkcSet(key, i);
+}
+function spkSet(id, k, patch) { store.vsp = vspSet(store.vsp, id, k, patch); save(); }
 /* 16/11/2026: המצבים עברו לקודים אטומים. הגדרה שנשמרה לפני כן (מזהה שהטלפון כבר לא מכיר) נשמרת ב־lm, והשרתון ממיר אותה
    פעם אחת לקוד (status → lm) — "ביצועים" שנבחר נשאר "ביצועים". עד שהשרתון ענה — ברירת המחדל */
 export function migrateSettings(o) {
@@ -8512,7 +8525,9 @@ function viView(rec, me) {
     mkPlayer: () => viPlayer(rec, me), slideUrl: (s) => viSlideUrl(rec, me, s),
     draftAct: vvBtn(rec, me),   // PR 1.2ג: "אמת שוב" בפס הטיוטה
     onUx: (k, x) => uxAdd(rec, 'vi', k, x == null ? 1 : x), onVf: (id, why, sec) => vfAdd(rec, id, why, sec),
-    onPlace: (x) => { if (!x) return; store.vip = normPlaces(Object.assign({}, store.vip, { [rec.id]: x })); save(); } });
+    onPlace: (x) => { if (!x) return; store.vip = normPlaces(Object.assign({}, store.vip, { [rec.id]: x })); save(); },
+    spkOv: () => (store.vsp || {})[rec.id] || {}, spkc: () => spkPrefs(rec.id),   // 16/11/2026: דוברים בכל תמליל
+    onSpk: (k, patch) => spkSet(rec.id, k, patch), onSpkColor: (key, i) => spkColorSet(rec.id, key, i) });
 }
 /* PR 1.2ג — "אמת שוב" (התוכנית 3.5) בפס "טיוטה — לא אומתה": עבודת־בת שמריצה רק את האימות (op:'viVerify'; ~$0.004).
    בזמן שהיא רצה — "מאמתים…"; כשהיא מסתיימת, השרתון מחליף את ה־vi.json של הניתוח ו־vaSync טוען את החדש */
@@ -8678,7 +8693,9 @@ async function seLoad(rec) {
     const only = seOnly === rec.id; seOnly = '';
     me.at = -1;   // 21/10/2026: נפתח על נקודה מסוימת (רק לבדיקה) — הנגן מציג את הפריים שלה, לא את התמונה של העבודה
     me.ed = createSubsEditor({ cues, T, issueName, flash: flashSafe, onAi: () => go('ai', rec.id), flags: seFlags(rec, cues), only, notes: noteIndex(cues, nj), lang: uiLang(), shots: me.meta ? me.meta.sh : [],
-      meta: me.meta, spkOver: store.spkc || {}, onSpkColor: spkcSet,   // סבב 4 של השדרוג: מילים / נשימה, צבע לדובר
+      meta: me.meta, spkOver: spkPrefs(rec.id), onSpkColor: (key, i) => spkColorSet(rec.id, key, i),   // סבב 4 של השדרוג: מילים / נשימה, צבע לדובר
+      spkOv: () => (store.vsp || {})[rec.id] || {}, onSpk: (k, patch) => spkSet(rec.id, k, patch),   // 16/11/2026: דוברים — תפקיד ומגדר
+      onSpkMove: (from, to) => { store.vsp = vspMove(store.vsp, rec.id, from, to); save(); },
       dismissed: new Set(store.sugx || []), onDismiss: (key) => { store.sugx = (store.sugx || []).concat(key).slice(-500); save(); uxAdd(rec, 'sg', 'r'); },
       onSugFix: () => uxAdd(rec, 'sg', 'a'),
       getTime: () => (me.ctl ? me.ctl.video.currentTime || 0 : 0),

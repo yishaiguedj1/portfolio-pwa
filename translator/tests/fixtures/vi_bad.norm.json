@@ -38,6 +38,7 @@
    "t1": 622.4,
    "spk": "S1",
    "text": "Most of the consolidation happens in deep sleep.",
+   "lg": "he",
    "conf": 0.91,
    "w0": 900,
    "w1": 908
@@ -58,6 +59,38 @@
    "t1": 62,
    "spk": "S1",
    "text": "ctl <b>kept as text</b>"
+  }
+ ],
+ "speakers": [
+  {
+   "spk": "S1",
+   "sh": 0.712,
+   "t": 402.543,
+   "lg": [
+    {
+     "lg": "en",
+     "sh": 0.94
+    },
+    {
+     "lg": "he",
+     "sh": 0.06
+    }
+   ],
+   "g": "f",
+   "gs": "text",
+   "name": "Dana Levi",
+   "role": "מרצה"
+  },
+  {
+   "spk": "S2",
+   "sh": 0.288,
+   "g": "u"
+  },
+  {
+   "spk": "S5",
+   "sh": 0.05,
+   "g": "m",
+   "name": "Professor Maximilian Alexander Rosenberg"
   }
  ],
  "slides": [

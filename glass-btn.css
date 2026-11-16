@@ -189,7 +189,7 @@ html[data-app="admin"] { --gb-force: #5E5CE6; --gb-ontx: #fff; }
    סמלים בתוך שדה החיפוש: lib-qbtn
    כלים חכמים (גל 5): px-chip ai-xr-main ai-srcrow ai-cite — שורה/מספר מקור; ai-tts-b ai-tts-pp ai-tts-rate ai-tts-sl — נגן ההקראה (גלולה משלו)
    חיבורים (גל 6): cn-file — תווית של בחירת קובץ בעיצוב כפתור הפעולה הראשי
-   דוגמיות צבע, תגיות ואזורי מגע: st-ky-sch tr-dot kc-col kc-swatch st-sty kc-ctag kc-star rd-ribbon an-grab st-vl-main
+   דוגמיות צבע, תגיות ואזורי מגע: st-ky-sch tr-dot kc-col kc-swatch st-sty kc-ctag kc-star rd-ribbon an-grab st-vl-main st-spk-c
    כפתורים צפים מעל קנבס (הציר בעורך — זכוכית משלהם): st-tl-zb
    מעטפות שהכדור שלהן הוא ילד (.tab → .tab-disc, .adm-tab → i): tab adm-tab
    בוררי המקטעים של הסטודיו — זכוכית משלהם ב־studio.css (מסילה + עדשה, 16/11/2026): st-seg-b

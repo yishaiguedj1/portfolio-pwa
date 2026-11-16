@@ -48,6 +48,7 @@
    "t1": 622.4,
    "spk": "S1",
    "text": "Most of the consolidation happens in deep sleep.",
+   "lg": "he",
    "conf": 0.91,
    "w0": 900,
    "w1": 908
@@ -61,6 +62,39 @@
    "conf": 0.88,
    "w0": 1500,
    "w1": 1508
+  }
+ ],
+ "speakers": [
+  {
+   "spk": "S1",
+   "sh": 0.712,
+   "t": 402.5,
+   "lg": [
+    {
+     "lg": "en",
+     "sh": 0.94
+    },
+    {
+     "lg": "he",
+     "sh": 0.06
+    }
+   ],
+   "g": "f",
+   "gs": "text",
+   "name": "Dana Levi",
+   "role": "מרצה"
+  },
+  {
+   "spk": "S2",
+   "sh": 0.288,
+   "t": 162.8,
+   "lg": [
+    {
+     "lg": "en",
+     "sh": 1
+    }
+   ],
+   "g": "u"
   }
  ],
  "slides": [

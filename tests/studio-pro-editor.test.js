@@ -81,7 +81,7 @@ const cue = (s, e, text, x) => Object.assign({ i: Math.round(s * 10), s, e, line
   ok(SB.renameSpk(sk, 'S1', 'x'.repeat(30))[0].spk.length === SB.SPK_LEN && SB.SPK_LEN === 20 && /\[:20\]/.test(read('translator/rerender.py')), 'שם עד 20 תווים — כמו rerender.py');
   ok(SB.setSpk(sk, 1, 'S1')[1].spk === 'S1' && SB.setSpk(sk, 1, 'S2') === sk && SB.setSpk(sk, 9, 'S1') === null, 'setSpk: דובר לכתובית');
   const col = SB.spkColors(sk, { S2: 4 });
-  ok(col.get('S1') === SB.SPK_COLORS[0] && col.get('S2') === SB.SPK_COLORS[4] && SB.spkColors(sk, { S2: 9 }).get('S2') === SB.SPK_COLORS[1], 'spkColors: הצבע שבחרת לפי השם; מספר לא תקין — לפי הסדר');
+  ok(col.get('S1') === SB.SPK_COLORS[0] && col.get('S2') === SB.SPK_COLORS[4] && SB.spkColors(sk, { S2: 9 }).get('S2') === SB.SPK_COLORS[2], 'spkColors: הצבע שבחרת לפי השם; מספר לא תקין — לפי הסדר (SPK_ORDER)');
 
   /* ---------- 7. C4: גרסאות ---------- */
   const v = S.view ? S.view({ id: 'j1', vh: [{ c: 'A'.repeat(20), s: 'B'.repeat(20), at: 5 }, { c: 'bad id!', at: 6 }] }) : null;
@@ -94,7 +94,7 @@ const cue = (s, e, text, x) => Object.assign({ i: Math.round(s * 10), s, e, line
   /* ---------- 8. החיבור בעורך ---------- */
   const ss = read('studiosubs.js');
   ok(/edge: \(k, e, t\) => me\.ed\.edge\(k, e, t\)/.test(sj) && /hist\.push\(nx, 'edge:' \+ k \+ e, Date\.now\(\)\)/.test(ss), 'C1: גרירת קצה בציר → העורך; גרירה רצופה = צעד ביטול אחד');
-  ok(/meta: me\.meta, spkOver: store\.spkc \|\| \{\}, onSpkColor: spkcSet/.test(sj) && /spkc: normSpkc\(src\.spkc\)/.test(sj), 'C3: הצבעים נשמרים בחשבון (pwa_studio_v1) ומנורמלים');
+  ok(/meta: me\.meta, spkOver: spkPrefs\(rec\.id\), onSpkColor: \(key, i\) => spkColorSet\(rec\.id, key, i\)/.test(sj) && /spkc: normSpkc\(src\.spkc\)/.test(sj), 'C3: הצבעים נשמרים בחשבון (pwa_studio_v1) ומנורמלים');
   ok(/'cue-breath:' \+ k/.test(ss) && /qcEl\.hidden = !only/.test(ss) && /st-src-u/.test(ss), 'B4 / B1 / C2 — בממשק');
   ok(/if \(se\.meta\.wd\) se\.tl\.el\.classList\.add\('w'\)/.test(sj) && /\.st-tlw\.w \.st-tl \{ height: 92px; \}/.test(read('studio.css')), 'פס המילים רק כשיש מילים');
   console.log('# ' + n + ' בדיקות עברו');

@@ -50,9 +50,10 @@ const VI_GENRES = ['academic_lecture', 'course_module', 'business_webinar', 'con
 const VI_ASRQ = ['high', 'med', 'low'];
 /* תקרות: מספר רשומות לכל רשימה ואורך טקסט לכל שדה (הרצאה של 90 דק׳ ≈ 1,000 יחידות דיבור) */
 const VI_CAP = { evidence: 20000, slides: 3000, ocr: 30000, segments: 2000, chapters: 400, items: 3000, ledger: 40000, states: 40, refs: 24, take: 7, warn: 16 };
-const VI_TXT = { text: 2000, q: 600, title: 300, sum: 3000, adds: 2000, vtitle: 300 };
+const VI_TXT = { text: 2000, q: 600, title: 300, sum: 3000, adds: 2000, vtitle: 300, spk: 40 };
+const SPK_MAX = 20;   // 16/11/2026: דוברים (speakers) — עד 20
 const ID = { e: /^e\d{1,6}$/, s: /^s\d{1,5}$/, o: /^o\d{1,5}\.\d{1,4}$/, c: /^c\d{1,4}$/, n: /^n\d{1,5}$/ };
-const VI_KEYS = ['v', 'pv', 'lang', 'genre', 'video', 'evidence', 'slides', 'ocr', 'segments', 'chapters', 'items', 'briefing', 'thesis', 'big', 'ledger', 'quality'];
+const VI_KEYS = ['v', 'pv', 'lang', 'genre', 'video', 'evidence', 'speakers', 'slides', 'ocr', 'segments', 'chapters', 'items', 'briefing', 'thesis', 'big', 'ledger', 'quality'];
 const SPK_RE = /^S\d{1,2}$/, KIND_RE = /^[a-z][a-z_]{0,15}$/, LANG_RE = /^[a-z]{2,3}$/, VSRC_RE = /^[a-z]{1,8}$/;
 
 const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
@@ -89,10 +90,26 @@ function normVi(o) {
     const sp = isObj(e) && ID.e.test(String(e.id || '')) && span(e), t = isObj(e) && txt(e.text, VI_TXT.text);
     if (!sp || t == null) continue;
     const x = Object.assign({ id: e.id }, sp, { spk: SPK_RE.test(String(e.spk || '')) ? e.spk : 'S1', text: t });
+    if (LANG_RE.test(String(e.lg || ''))) x.lg = e.lg;   // 16/11/2026: יחידה בשפה אחרת משפת התמלול (ציר השפות)
     if (fin(e.conf, 0, 1)) x.conf = r3(e.conf);
     if (Number.isInteger(e.w0) && Number.isInteger(e.w1) && e.w0 >= 0 && e.w1 >= e.w0) { x.w0 = e.w0; x.w1 = e.w1; }
     out.evidence.push(x);
   }
+  /* 16/11/2026 (דוברים בתמליל): [{spk, sh, t, lg: [{lg, sh}], g: m|f|u, gs, name, role}] — תווית אחת פעם אחת, עד SPK_MAX */
+  const sps = [];
+  for (const d of list(o.speakers, SPK_MAX)) {
+    if (!isObj(d) || !SPK_RE.test(String(d.spk || '')) || !fin(d.sh, 0, 1) || sps.some((y) => y.spk === d.spk)) continue;
+    const x = { spk: d.spk, sh: r3(d.sh) };
+    if (fin(d.t, 0, 86400)) x.t = r3(d.t);
+    const lgs = [];
+    for (const z of list(d.lg, 8)) if (isObj(z) && LANG_RE.test(String(z.lg || '')) && fin(z.sh, 0, 1) && z.sh > 0 && !lgs.some((y) => y.lg === z.lg)) lgs.push({ lg: z.lg, sh: r3(z.sh) });
+    if (lgs.length) x.lg = lgs.slice(0, 4);
+    x.g = d.g === 'm' || d.g === 'f' ? d.g : 'u';
+    if (x.g !== 'u' && (d.gs === 'text' || d.gs === 'voice')) x.gs = d.gs;
+    for (const k of ['name', 'role']) { const v = txt(d[k], VI_TXT.spk); if (v) x[k] = v; }
+    sps.push(x);
+  }
+  if (sps.length) out.speakers = sps;
   out.ocr = [];
   for (const r of list(o.ocr, VI_CAP.ocr)) {
     const t = isObj(r) && ID.o.test(String(r.id || '')) && txt(r.text, VI_TXT.text);

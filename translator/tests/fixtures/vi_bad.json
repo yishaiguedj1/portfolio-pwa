@@ -4,8 +4,47 @@
  "lang": {
   "src": "fr",
   "out": "en",
-  "sp": [{"lg": "he", "sh": 0.6}, {"lg": "he", "sh": 0.3}, {"lg": "EN", "sh": 0.2}, {"lg": "en", "sh": 1.5}, {"lg": "ar", "sh": 0},
-         {"lg": ["ru"], "sh": 0.1}, {"lg": "ru", "sh": 0.12345}, "x", {"lg": "fr", "sh": 0.05}, {"lg": "es", "sh": 0.05}],
+  "sp": [
+   {
+    "lg": "he",
+    "sh": 0.6
+   },
+   {
+    "lg": "he",
+    "sh": 0.3
+   },
+   {
+    "lg": "EN",
+    "sh": 0.2
+   },
+   {
+    "lg": "en",
+    "sh": 1.5
+   },
+   {
+    "lg": "ar",
+    "sh": 0
+   },
+   {
+    "lg": [
+     "ru"
+    ],
+    "sh": 0.1
+   },
+   {
+    "lg": "ru",
+    "sh": 0.12345
+   },
+   "x",
+   {
+    "lg": "fr",
+    "sh": 0.05
+   },
+   {
+    "lg": "es",
+    "sh": 0.05
+   }
+  ],
   "scr": "en"
  },
  "genre": "sermon",
@@ -22,6 +61,7 @@
    "t1": 20.25,
    "spk": "S1",
    "text": "Memory forms in two stages.",
+   "lg": "english",
    "conf": 0.93,
    "w0": 0,
    "w1": 5
@@ -32,6 +72,7 @@
    "t1": 622.4,
    "spk": "S1",
    "text": "Most of the consolidation happens in deep sleep.",
+   "lg": "he",
    "conf": 0.91,
    "w0": 900,
    "w1": 908
@@ -67,6 +108,71 @@
    "text": "ctl\u0007 <b>kept as text</b>",
    "conf": 3
   }
+ ],
+ "speakers": [
+  {
+   "spk": "S1",
+   "sh": 0.71234,
+   "t": 402.54321,
+   "lg": [
+    {
+     "lg": "en",
+     "sh": 0.94
+    },
+    {
+     "lg": "EN",
+     "sh": 0.5
+    },
+    {
+     "lg": "he",
+     "sh": 0
+    },
+    {
+     "lg": "en",
+     "sh": 0.2
+    },
+    {
+     "lg": "he",
+     "sh": 0.06
+    },
+    "x"
+   ],
+   "g": "f",
+   "gs": "text",
+   "name": "Dana Levi\u0007",
+   "role": "מרצה",
+   "x": 1
+  },
+  {
+   "spk": "S1",
+   "sh": 0.2,
+   "g": "m"
+  },
+  {
+   "spk": "S2",
+   "sh": 0.288,
+   "t": -3,
+   "g": "x",
+   "gs": "voice",
+   "name": "",
+   "role": 5
+  },
+  {
+   "spk": "A3",
+   "sh": 0.1
+  },
+  {
+   "spk": "S4",
+   "sh": 1.5
+  },
+  {
+   "spk": "S5",
+   "sh": 0.05,
+   "g": "m",
+   "gs": "guess",
+   "name": "Professor Maximilian Alexander Rosenberg-Whitfield"
+  },
+  "junk"
  ],
  "slides": [
   {
@@ -177,14 +283,27 @@
    "text": "שלום hello привет",
    "conf": 70,
    "lang": "mix",
-   "lgs": ["he", "HE", "en", "he", 5, "x", "ru", "ar", "fr"]
+   "lgs": [
+    "he",
+    "HE",
+    "en",
+    "he",
+    5,
+    "x",
+    "ru",
+    "ar",
+    "fr"
+   ]
   },
   {
    "id": "o3.3",
    "text": "רק עברית",
    "conf": 80,
    "lang": "mix",
-   "lgs": ["he", "he"]
+   "lgs": [
+    "he",
+    "he"
+   ]
   }
  ],
  "segments": [

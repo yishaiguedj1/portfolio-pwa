@@ -59,7 +59,7 @@ json.dump({'shots': [{'t': 2.5, 'score': 30}, {'t': 1.25}, {'t': 1.25}, {'t': 'x
 
   /* ---------- 4. דוברים ---------- */
   const col = SB.spkColors([{ spk: 'S1' }, { spk: 'S2' }, { spk: 'S1' }, { spk: '' }]);
-  ok(col.size === 2 && col.get('S1') === SB.SPK_COLORS[0] && col.get('S2') === SB.SPK_COLORS[1], 'spkColors: צבע לפי סדר ההופעה');
+  ok(col.size === 2 && col.get('S1') === SB.SPK_COLORS[0] && col.get('S2') === SB.SPK_COLORS[2], 'spkColors: צבע לפי סדר ההופעה (16/11/2026: SPK_ORDER — כחול, כתום, …)');
   ok(SB.spkColors([{ spk: 'S1' }, { spk: 'S1' }]).size === 0, 'דובר אחד — בלי צבעים (אין מה להבדיל)');
 
   /* ---------- 5. החיבורים ---------- */
