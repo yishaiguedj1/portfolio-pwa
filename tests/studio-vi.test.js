@@ -99,7 +99,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   ok(/job\.spec\.src === 'subs' \|\| job\.spec\.vi === 1/.test(api) && /job\.spec\.vi === 1 && \(!job\.uid \|\| job\.uid !== \(await adminUid\(deps/.test(api) && /if \(sp\.vi === 1\) return job\.kind === 'tr' \? learnViRec\(/.test(read('ibkr-proxy/lib/studiolearn.js')), 'סוף העבודה: לא מלמד את "הרגיל"; במאגר — רשומה משלו (k:vi), ורק של המנהל (PR 1.3)');
   ok(/v: sp\.ka \? 'ka' : sp\.vi === 1 \? 'vi'/.test(api), 'התראת השלב: vi');
   const agent = read('translator/agent.py');
-  ok(/'vi': 1\}/.test(agent) && /if jb\.get\('vi'\) == 1/.test(agent), 'הסוכן מצהיר (hb.vi) ומעביר את vi לעבודה');
+  ok(/'vi': 1[,}]/.test(agent) && /if jb\.get\('vi'\) == 1/.test(agent), 'הסוכן מצהיר (hb.vi) ומעביר את vi לעבודה');
 
   /* ---------- 7. הצפי — זהה בשרתון ובטלפון ---------- */
   ok(same(ETA.VI_STG, N.VI_STG) && same(ETA.VI_DRY_RV, N.VI_DRY_RV), 'VI_STG ו־VI_DRY_RV זהים');

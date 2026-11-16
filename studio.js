@@ -1487,7 +1487,7 @@ async function refreshJobs(force) {
     if (sj.spec && (sj.spec.vj === 1 || sj.spec.vp === 1)) continue;   // PR 1.6: השופט בזוגות וטיוטת הייחוס (מרכז הניהול) — לא ברשימה
     if (sj.spec && sj.spec.vo === 1) { if (JOB_RE.test(String(sj.rp || ''))) vv.set(sj.rp, String(sj.state || '')); continue; }   // PR 1.2ג: "אמת שוב" — לא ברשימה
     if (sj.sm === 1) continue;   // פריט 13: עבודת הבדיקה אחרי עדכון של העובד — רק במרכז הניהול ובהתראות, לא ברשימה
-    if (sj.kind === 'dx' || sj.kind === 'ai') continue;   // 26/10/2026: עבודות משנה (שמירה ב־Drive, גיליון ה־AI) — נעקבות לפי המזהה, לא ברשימה
+    if (sj.kind === 'dx' || sj.kind === 'ai' || sj.kind === 'lb') continue;   // 26/10/2026: עבודות משנה (שמירה ב־Drive, גיליון ה־AI) — נעקבות לפי המזהה, לא ברשימה
     if (sj.kind === 'rr') { const x = normJob({ id: sj.id, srv: sj }); if (x && x.srv.rp) (sj.spec && sj.spec.prv === 1 ? pv : rr).set(x.srv.rp, x); continue; }   // מ2; סבב 10: צריבה לבדיקה — בנפרד
     ids.add(sj.id);
     const loc = have.get(sj.id);

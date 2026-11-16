@@ -344,7 +344,7 @@ const { fakeR2, ACC } = require('./_r2fake');
   const src = fs.readFileSync(path.join(root, 'ibkr-proxy/api/studio.js'), 'utf8');
   ok(/if \(op === 'url' && Array\.isArray\(body\.ks\)\) \{[\s\S]{0,200}slice\(0, R2URL_KS\)[\s\S]{0,120}ks\.length !== body\.ks\.length \|\| !ks\.every\(\(k\) => SR\.inFolder\(k, folder\)\)/.test(src), 'r2url ks: עד R2URL_KS, כולם בתיקיית העבודה, כפילות/זר — הכל נדחה');
   ok(/const LRN_VV = 5;/.test(src) && /async function viCorpusPull[\s\S]{0,2500}await viLog\(deps, by, 'pull', opened, now\);/.test(src), 'LRN_VV = 5; כל משיכה שפותחת פריטים — ביומן');
-  ok(/job\.spec && job\.spec\.vi === 1\) \|\| !LC\.MEDIA_KINDS/.test(src) && /job\.spec && job\.spec\.vi === 1\) \|\| !sess/.test(src), 'הקול/240p והעריכות של התרגום — לא בעבודת ניתוח');
+  ok(/job\.spec && job\.spec\.vi === 1\) \|\| !\(?LC\.MEDIA_KINDS/.test(src) && /job\.spec && job\.spec\.vi === 1\) \|\| !sess/.test(src), 'הקול/240p והעריכות של התרגום — לא בעבודת ניתוח');
   ok(VI.VI_ERR.length > 0, 'studiovi נטען');
   // PR 1.6: הקריטריון (6.7) — viDecide = vimetrics.decide בעובד, על אותה פיקסטורה (אותו LCG ואותו סדר חיבור)
   const vdf = require('./fixtures/vi-decide.json');

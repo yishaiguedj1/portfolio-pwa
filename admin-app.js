@@ -2775,6 +2775,7 @@ page('labRecent', { tab: 'imp', parent: 'lab', title: () => t('admLabRecent'), r
     t: day(x.at) + ' · ' + modeTxt(x.mode), s: [stTxt(x.st), x.err ? ltr(x.err) : '', durTxt(x.dur), nz(x.jd) ? fmt(t('admModeJd'), { v: numTxt(x.jd) }) : nz(x.q) ? fmt(t('admModeQ'), { v: numTxt(x.q) }) : ''].filter(Boolean).join(' · '),
     v: usdTxt(x.usd, 2), on: () => { D.labJ = i; go('labRec'); } }))));
 } });
+const BURN_MSG = { start: 'admBurn_start', have: 'admBurn_have', run: 'admBurn_run', none: 'admBurn_none', big: 'admBurn_big', gone: 'admBurn_gone', consent: 'admBurn_consent', learn_off: 'admBurn_learn_off' };   // = הקודים של learnBurn בשרתון
 page('labRec', { tab: 'imp', parent: 'labRecent', title: () => t('admLabRec'), render(p) {
   const v = needLab(p); if (!v) return;
   const x = (v.recent || [])[D.labJ || 0];
@@ -2784,6 +2785,19 @@ page('labRec', { tab: 'imp', parent: 'labRecent', title: () => t('admLabRec'), r
     kv(t('admRState'), stTxt(x.st)), kv(t('admFCode'), x.err ? ltr(x.err) : ''), kv(t('admRMode'), modeTxt(x.mode)),
     kv(t('admREng'), x.eng === 'api' ? t('admEngApi') : x.eng ? t('admEngSub') : ''), kv(t('admRDur'), durTxt(x.dur)), kv(t('admRRun'), durTxt(x.run)),
     kv(t('admFUsd'), usdTxt(x.usd, 3)), kv(t('admKch'), pcTxt(x.ch)), kv(t('admKq'), numTxt(x.q)), kv(t('admKjd'), numTxt(x.jd)), kv(t('admRFires'), numTxt(x.fires))));
+  // 16/11/2026: הסרטון הצרוב כמו שהלקוח קיבל → מאגר הלמידה (op learnBurn; ההעתקה ברקע בשרת). נמשך ב־tools/learn-pull.js --burned
+  if (x.st === 'done' && /^[0-9a-f]{20}$/.test(String(x.lid || ''))) {
+    const br = h('div', 'btn-row');
+    const b = h('button', 'btn secondary-btn', t('admBurnBtn')); b.type = 'button';
+    b.addEventListener('click', async () => {
+      b.disabled = true;
+      const r = await api('learnBurn', { lid: x.lid });
+      b.disabled = false;
+      flash(r.ok ? t(Object.hasOwn(BURN_MSG, r.code) ? BURN_MSG[r.code] : 'admBurn_err') : r.error === 'learn_remote' ? t('admBurn_not_here') : t('admErr'));
+    });
+    br.append(b);
+    p.append(br, h('p', 'adm-foot', t('admBurnFoot')));
+  }
   p.append(h('p', 'adm-foot', t('admRecFoot')));
 } });
 page('labData', { tab: 'imp', parent: 'lab', title: () => t('admLabData'), render(p) {

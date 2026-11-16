@@ -221,31 +221,36 @@ function parseKey(k) {
   if (m) return { kind: m[1], month: '', lid: m[2] };
   m = /^(c|e)\/(\d{4}-\d{2})\/([0-9a-f]{20})\.bin$/.exec(String(k || ''));
   if (m) return { kind: m[1], month: m[2], lid: m[3] };
-  m = /^m\/(\d{4}-\d{2})\/([0-9a-f]{20})\.(a|v)\.(mp4|key)$/.exec(String(k || ''));   // מ׳4: הקול וה־240p + המפתח העטוף
+  m = /^m\/(\d{4}-\d{2})\/([0-9a-f]{20})\.(a|v|s)\.(mp4|key)$/.exec(String(k || ''));   // מ׳4: הקול וה־240p + המפתח העטוף · s = הסרטון הצרוב (16/11/2026, lib/learnburn.js)
   return m ? { kind: 'm', month: m[1], lid: m[2], mk: m[3], part: m[4] } : null;
 }
 /* מ׳4 (15/10/2026): הקול (Opus 32kbps) והעותק ב־240p — מוצפנים ב־ffmpeg (CENC, AES-CTR) במפתח שהשרתון נותן לעבודה;
    המפתח עצמו נשמר עטוף בכספת (vault) ליד הקובץ. בלי תור: החודש בנתיב = חודש ההעלאה (העתקה של קובץ גדול באצווה עולה כסף) */
 const MEDIA_KINDS = ['a', 'v'];
-const MEDIA_MAX = { a: 80 * 1024 * 1024, v: 600 * 1024 * 1024 };   // ~5 שעות קול / ~4 שעות 240p — מעבר לזה לא נשמר
+const MEDIA_MAX = { a: 80 * 1024 * 1024, v: 600 * 1024 * 1024, s: 3 * 1024 * 1024 * 1024 };   // ~5 שעות קול / ~4 שעות 240p — מעבר לזה לא נשמר · s: הסרטון הצרוב עד 3GB
+/* 16/11/2026: s = התוצר הצרוב כמו שהלקוח קיבל (lib/learnburn.js) — לא מהעובד (לא ב־MEDIA_KINDS), רק כשיש חשד או
+   לחיצה של המנהל. הקובץ גדול (כגודל המקור) ונועד לבירור תלונה — נשמר חצי שנה, לא 24 חודשים */
+const BURN_KIND = 's', BURN_KEEP_MONTHS = 6;
 const mKey = (month, lid, k, part) => 'm/' + month + '/' + lid + '.' + k + '.' + part;
 /* החודש האחרון שעוד נשמר: היום פחות 24 חודשים */
-function oldestMonth(now) {
+function oldestMonth(now, keep = KEEP_MONTHS) {
   const d = new Date(now);
-  const y = d.getUTCFullYear(), mo = d.getUTCMonth() - KEEP_MONTHS;
+  const y = d.getUTCFullYear(), mo = d.getUTCMonth() - keep;
   const t = new Date(Date.UTC(y, mo, 1));
   return t.toISOString().slice(0, 7);
 }
-const expired = (month, now) => MONTH_RE.test(month) && month < oldestMonth(now);
+const expired = (month, now, keep) => MONTH_RE.test(month) && month < oldestMonth(now, keep);
+/* תפוגה של פריט לפי המפתח שלו: הסרטון הצרוב — חצי שנה, כל השאר — 24 חודשים */
+const expiredKey = (p, now) => !!p && expired(p.month, now, p.kind === 'm' && p.mk === BURN_KIND ? BURN_KEEP_MONTHS : KEEP_MONTHS);
 
 /* סטטיסטיקה למנהל מתוך רשימת המפתחות (בלי לפתוח קובץ) */
 function corpusStats(items) {
-  const out = { n: 0, q: 0, ne: 0, qe: 0, na: 0, nv: 0, mb: 0, bytes: 0, months: {} };
+  const out = { n: 0, q: 0, ne: 0, qe: 0, na: 0, nv: 0, ns: 0, mb: 0, bytes: 0, months: {} };   // ns = סרטונים צרובים
   for (const it of items || []) {
     const p = parseKey(it.key);
     if (!p) continue;
     out.bytes += it.size || 0;
-    if (p.kind === 'm') { if (p.part === 'mp4') { out[p.mk === 'a' ? 'na' : 'nv']++; out.mb += it.size || 0; } continue; }
+    if (p.kind === 'm') { if (p.part === 'mp4') { out[p.mk === 'a' ? 'na' : p.mk === BURN_KIND ? 'ns' : 'nv']++; out.mb += it.size || 0; } continue; }
     if (p.kind === 'q') out.q++;
     else if (p.kind === 'qe') out.qe++;
     else if (p.kind === 'e') out.ne++;
@@ -254,4 +259,4 @@ function corpusStats(items) {
   return out;
 }
 
-module.exports = { CK_STAGES, REJ_W, LC_V, KEEP_MONTHS, LID_RE, scrub, normCorpus, normTx, normEditSession, addEdits, ED_SS, ED_CH, monthOf, qKey, cKey, expMark, normDual, PAGE_MAX, pageArgs, pageOrder, qeKey, eKey, mKey, MEDIA_KINDS, MEDIA_MAX, parseKey, oldestMonth, expired, corpusStats };
+module.exports = { CK_STAGES, REJ_W, LC_V, KEEP_MONTHS, LID_RE, scrub, normCorpus, normTx, normEditSession, addEdits, ED_SS, ED_CH, monthOf, qKey, cKey, expMark, normDual, PAGE_MAX, pageArgs, pageOrder, qeKey, eKey, mKey, MEDIA_KINDS, MEDIA_MAX, BURN_KIND, BURN_KEEP_MONTHS, parseKey, oldestMonth, expired, expiredKey, corpusStats };

@@ -6,7 +6,7 @@
      view.json     — הניתוח המלא של לוח הבקרה
      checks.json   — התשובות של המנהל לבדיקות בטלפון (עובד / לא עובד + הערה)
      media/<מזהה>.a.mka — 22/10/2026: עם --media <מזהה,מזהה> (עד 4) — הקול של העבודות, מפוענח ב־ffmpeg (CENC). תוכן אמיתי:
-                     לתיקייה זמנית בלבד, לעולם לא לריפו. --video — גם ה־240p
+                     לתיקייה זמנית בלבד, לעולם לא לריפו. --video — גם ה־240p · --burned — גם העותק הצרוב (s, 16/11/2026)
      corpus.json   — מ׳2: עם --corpus N — עד 20 פריטים מקורפוס הטקסט (כתוביות לכל שלב, זמני מילים). תוכן אמיתי:
                      לתיקייה זמנית בלבד, לעולם לא לריפו
      ids.json      — 02/11/2026 (PR1 1.3): עם --all — רשימת כל המזהים בקורפוס (id, q = בתור, m = חודש)
@@ -26,7 +26,7 @@ const API = { prod: ['https://api.thesnowball.app', 'https://ibkr-proxy-wine.ver
 const LID = /^[0-9a-f]{20}$/;
 const PAGE = 20, PAGE_VERCEL = 3, GAP_MS = 11000, WAIT_429_MS = 61000;
 function args(argv) {
-  const o = { out: '', api: '', env: 'prod', token: process.env.SNB_LEARN_TOKEN || '', ci: 0, mi: [], mv: false, all: false, cl: [], idsFile: '', cs: 0, page: 0, since: '' };
+  const o = { out: '', api: '', env: 'prod', token: process.env.SNB_LEARN_TOKEN || '', ci: 0, mi: [], mv: false, ms: false, all: false, cl: [], idsFile: '', cs: 0, page: 0, since: '' };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--out') o.out = argv[++i] || '';
@@ -35,6 +35,7 @@ function args(argv) {
     else if (a === '--token') o.token = argv[++i] || '';
     else if (a === '--media') o.mi = String(argv[++i] || '').split(',').filter((x) => /^[0-9a-f]{20}$/.test(x)).slice(0, 4);
     else if (a === '--video') o.mv = true;
+    else if (a === '--burned') o.ms = true;
     else if (a === '--corpus') o.ci = Math.max(0, Math.min(20, parseInt(argv[++i], 10) || 0));
     else if (a === '--all') o.all = true;
     else if (a === '--ids') o.cl = String(argv[++i] || '').split(',').filter((x) => LID.test(x));
@@ -46,7 +47,7 @@ function args(argv) {
   return o;
 }
 
-/* extra = { ci, cs, cl, cx, co, mi, mv } (או מספר = ci — הצורה הישנה, עם mi, mv אחריו) */
+/* extra = { ci, cs, cl, cx, co, mi, mv, ms } (או מספר = ci — הצורה הישנה, עם mi, mv אחריו) */
 async function pull(base, token, fetchFn, extra, mi, mv) {
   const x = typeof extra === 'object' && extra ? extra : { ci: extra || 0, mi, mv };
   const body = { op: 'learnPull', at: token, ci: x.ci || 0 };
@@ -54,7 +55,7 @@ async function pull(base, token, fetchFn, extra, mi, mv) {
   if (Array.isArray(x.cl) && x.cl.length) body.cl = x.cl;
   if (x.cx) body.cx = true;
   if (x.co) body.co = true;
-  if (x.mi && x.mi.length) { body.mi = x.mi; body.mv = !!x.mv; }
+  if (x.mi && x.mi.length) { body.mi = x.mi; body.mv = !!x.mv; if (x.ms) body.ms = true; }
   const r = await (fetchFn || fetch)(base.replace(/\/+$/, '') + '/api/studio', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
@@ -100,7 +101,7 @@ async function main() {
   const bases = o.api ? [o.api] : API[o.env];
   let j = null, last = null, base = '';
   for (const b of bases) {
-    try { j = await pull(b, o.token, null, many ? { cx: true, ci: 0, mi: o.mi, mv: o.mv } : { ci: o.ci, cs: o.cs, mi: o.mi, mv: o.mv }); } catch (e) { last = e; if (/bad_token|rate_limited/.test(e.message)) break; continue; }
+    try { j = await pull(b, o.token, null, many ? { cx: true, ci: 0, mi: o.mi, mv: o.mv, ms: o.ms } : { ci: o.ci, cs: o.cs, mi: o.mi, mv: o.mv, ms: o.ms }); } catch (e) { last = e; if (/bad_token|rate_limited/.test(e.message)) break; continue; }
     // 24/10/2026: השרת המאוחד הוקם בלי R2L_* — שם הקורפוס "לא מוגדר"; כשביקשו קורפוס/קול — הכתובת הבאה (כמו dev-pull)
     if ((o.ci || o.mi.length || many) && !(j.corpus && j.corpus.on) && b !== bases[bases.length - 1]) continue;
     base = b;
@@ -123,7 +124,7 @@ async function main() {
   // הקול: ffmpeg קורא ישירות מהקישור החתום ומפענח (המפתח רק בזיכרון — לא נכתב לקובץ). שם הקובץ — רק ממזהה תקין
   for (const [lid, m] of Object.entries(j.media || {})) {
     if (!/^[0-9a-f]{20}$/.test(lid)) continue;
-    for (const k of ['a', 'v']) {
+    for (const k of ['a', 'v', 's']) {
       const x = m && m[k];
       if (!x || !/^https:\/\//.test(String(x.url)) || !/^[0-9a-f]{32}$/.test(String(x.key))) continue;
       const dir = path.join(out, 'media'); fs.mkdirSync(dir, { recursive: true });

@@ -29,9 +29,9 @@ const CLAIM_WAIT = { ping: 6 * 60e3, tr: 30 * 60e3 };   // הופעל ולא נ�
 const STAGES = ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'];
 const FINAL = ['done', 'failed', 'cancelled'];
 const ACTIVE = ['new', 'queued', 'running'];
-const KINDS = ['ping', 'tr', 'rr', 'ai', 'dx'];   // 26/10/2026: dx = שמירת התוצרים מ־R2 בתיקייה ב־Drive (בשרת, בלי הטלפון)   // מ2: rr = הפקה מחדש (כתוביות ערוכות / רשימת עריכות → צריבה; בלי טוקנים)
+const KINDS = ['ping', 'tr', 'rr', 'ai', 'dx', 'lb'];   // 16/11/2026: lb = עותק 240p של הסרטון הצרוב למאגר הלמידה (lbJob)   // 26/10/2026: dx = שמירת התוצרים מ־R2 בתיקייה ב־Drive (בשרת, בלי הטלפון)   // מ2: rr = הפקה מחדש (כתוביות ערוכות / רשימת עריכות → צריבה; בלי טוקנים)
 /* מה העובד בענן יודע לבצע. שלב 2: רק "בדיקת חיבור"; התרגום עצמו מגיע בשלב 3 — אז 'tr' נכנס לכאן, והאפליקציה לא משתנה */
-const WORKER_KINDS = ['ping', 'tr', 'rr', 'ai', 'dx'];   // v358: העובד מתרגם (שלב 3); מ2: הפקה מחדש
+const WORKER_KINDS = ['ping', 'tr', 'rr', 'ai', 'dx', 'lb'];   // v358: העובד מתרגם (שלב 3); מ2: הפקה מחדש
 // 10/10/2026 (בקשת המשתמש): Haiku 5.5 נכנס, Opus High/Max יצאו. 15/10: נוסף Sonnet Low (לבדיקות — איך הוא וכמה עולה).
 const MODES = ['sonnet-medium', 'haiku-high', 'sonnet-high', 'opus-medium', 'sonnet-low', 'haiku-medium'];   // 20/10/2026: Haiku Medium חזר — רק למנהל / לרשימת "כל המודלים"
 /* 15/10/2026 (בקשת המשתמש): לכל המשתמשים רק שני מצבים — "רגיל" (Haiku High, ברירת המחדל) ו"ביצועים" (Sonnet Medium).
@@ -1025,6 +1025,18 @@ function dxJob(parent, dx, id, uid, now) {
     spec: { name: sp.name || '', size: 0, type: '', dur: 0, from: sp.from || 'auto', to: sp.to || ['he'], mode: modeNow(sp.mode || DEFAULT_MODE), out: [], style: STYLES[0], terms: '',
       eng: 'api', cap: CAP_MIN_JOB, dx } };
 }
+/* 16/11/2026 (משתמשת: "רק חלק מהסרטון תורגם" — ובמאגר היה רק המקור ב־240p, בלי הכתוביות): עבודת־עזר שהשרתון יוצר
+   (לא הטלפון) — העובד מוריד את התוצר הצרוב ("same", כמו שהלקוח קיבל), מקודד 240p ומצפין כמו העותק של המקור (learn_media,
+   סוג s), והעותק נרשם בעבודת ההורה (lm). רק בחשד (👎 / כתוביות שסומנו בנגן) או בלחיצה של המנהל. נכנסת ישר לתור, בלי
+   Claude ובלי עלות; לא ברשימה בטלפון, לא בהתראות ולא בשימוש. dur 0 — בלי צפי ובלי הזמנת זיכרון של סרטון */
+const burnSuspect = (urt) => !!(urt && (urt.r === -1 || (Array.isArray(urt.c) && urt.c.length > 0)));
+function lbJob(parent, fo, id, now) {
+  const sp = parent.spec || {};
+  return { id, uid: parent.uid, kind: 'lb', state: 'queued', created: now, updated: now, folder: parent.folder, rp: parent.id,
+    eng: 'api', sid: '', pk: 0, fired: now, fires: 1,
+    spec: { name: '', size: 0, type: '', dur: 0, from: sp.from || 'auto', to: sp.to || ['he'], mode: modeNow(sp.mode || DEFAULT_MODE), out: [], style: STYLES[0], terms: '',
+      eng: 'api', cap: CAP_MIN_JOB, lb: { id: String(fo.id), s: Math.max(0, Math.floor(+fo.size || 0)) } } };
+}
 /* PR 1.2ג (10/11/2026) — "אמת שוב" (התוכנית 3.5): ניתוח שהסתיים כ"טיוטה — לא אומתה" (vi_unver) → עבודת־בת שמריצה רק את
    האימות (vv) על ה־vi.json שלו. kind 'tr' עם spec.vi = 1 ו־vo = 1 — כך ההתחלה, הלקיחה, הקבלה והעובד עובדים כרגיל (העובד:
    analyze.vi_reverify); fvi = ה־vi.json של ההורה (באותה תיקייה), dur 0 (בלי צפי ובלי הזמנת זיכרון של סרטון).
@@ -1744,6 +1756,7 @@ function normHb(h) {
     // bp = בקשות שעוד לא נשלחו, bf = batches בדרך, bo = מתי נשלח הוותיק שבהם (שניות)
     be: BT_ERRS.includes(h.be) ? h.be : '', bn: n(h.bn, 0, 1e6), bp: n(h.bp, 0, 1e6), bf: n(h.bf, 0, 1e4), bo: n(h.bo, 0, 4e9),
     vi: h.vi === 1 ? 1 : 0,   // 9/11/2026: העובד מכיר עבודת ניתוח (analyze.py) — רק לו היא נמסרת; עובד ישן היה מריץ אותה כתרגום (עם Claude)
+    lb: h.lb === 1 ? 1 : 0,   // 16/11/2026: העובד מכיר את עבודת־העזר lb (עותק צרוב למאגר) — רק לו היא נמסרת
     vx: h.vx === 1 ? 1 : 0,   // 10/11/2026: הניתוח עם Claude סגור בעובד (SNB_VI_LIVE) — viCreateErr דוחה ניתוח לא יבש לפני ההעלאה
     dl: h.dl === 1 ? 1 : 0,   // 26/10/2026: פחות מ־8GB פנויים — העובד לא לוקח עבודה חדשה (translator/agent.py — disk_low)
     ev: normEv(h.ev) };   // ת7: יומן השרת — האירועים האחרונים (קודים מקטלוג קבוע + זמן)
@@ -1767,7 +1780,7 @@ function normFit(f) {
    עבודה בשרת תאט מעבר לתקרה (הסוכן מריץ קדימה את מה שרץ). בלי dm — בלי הגבלה. גיליון AI / העתקה / קובץ כתוביות — בלי מעבד */
 function perfBlock(job, fit) {
   if (!fit || !job) return false;
-  if (job.kind === 'ai' || job.kind === 'dx' || (job.spec && job.spec.src === 'subs')) return false;
+  if (job.kind === 'ai' || job.kind === 'dx' || job.kind === 'lb' || (job.spec && job.spec.src === 'subs')) return false;
   const lim = job.spec && job.spec.vi === 1 && fit.dv != null ? fit.dv : fit.dm;   // 9/11/2026: ניתוח — הקבלה החזויה שלו (perf.dmax kind='vi')
   if (lim == null) return false;
   return ((job.spec && job.spec.dur) || 3600) / 60 > lim;
@@ -1775,7 +1788,7 @@ function perfBlock(job, fit) {
 /* השיא הצפוי של עבודה (MB) לפי המודל של השרת: תרגום / הפקה מחדש לפי האורך, גיליון AI — קבוע */
 function peakNeed(job, fit) {
   const m = ((job && job.spec && job.spec.dur) || 3600) / 60;
-  if (job && (job.kind === 'ai' || job.kind === 'dx' || (job.spec && job.spec.src === 'subs'))) return fit.ai;   // 26/10/2026: dx — רק העתקה   // 22/10/2026: קובץ כתוביות — בלי מודלים כבדים
+  if (job && (job.kind === 'ai' || job.kind === 'dx' || job.kind === 'lb' || (job.spec && job.spec.src === 'subs'))) return fit.ai;   // lb — הורדה וקידוד 240p   // 26/10/2026: dx — רק העתקה   // 22/10/2026: קובץ כתוביות — בלי מודלים כבדים
   if (job && job.kind === 'rr') return fit.ra + fit.rb * m;
   if (job && job.spec && job.spec.vi === 1 && fit.va != null) return fit.va + fit.vb * m;   // 9/11/2026: ניתוח (סוכן ישן — כמו תרגום)
   return fit.a + fit.b * m;
@@ -1871,7 +1884,7 @@ function fromFields(f) {
 module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, smAlias, smResolve, smRowsMerge, smEvict, smIsName, chKey, jobSeries, SM_BYTES, SM_READ, SM_GL, SM_CH, SM_NEW, SM_DONE, SM_LOCK, SM_UNSURE, SM_FIX, SM_WORKER, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
-  GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, isGold, isViGold, goldClone, normXe, XF_KEYS, XF_MAX, normXf, GOLD_ARMS, normArms, waveOrder, waveClone, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, cuesSwap, rrSpec, rrJob, VV_MAX, viOut, isVv, canViVerify, vvJob, vvAdopt, isVj, VJ_USD, isVp, VP_MODES, VP_USD, vpJob, viWave, vjPairs, normVjp, vjJob, vjRows, vjDecide,
+  GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, isGold, isViGold, goldClone, normXe, XF_KEYS, XF_MAX, normXf, GOLD_ARMS, normArms, waveOrder, waveClone, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, burnSuspect, lbJob, cuesSwap, rrSpec, rrJob, VV_MAX, viOut, isVv, canViVerify, vvJob, vvAdopt, isVj, VJ_USD, isVp, VP_MODES, VP_USD, vpJob, viWave, vjPairs, normVjp, vjJob, vjRows, vjDecide,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
