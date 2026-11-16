@@ -261,15 +261,16 @@ async function touchDrag(cdp, x0, y, dx, steps, gap) {
 
 /* 16/11/2026 (הקלטת Invest: "החיפוש והמיון עדיין נעלמים"): שכבה "דחוסה" (Overlap) בתוך הדף שנחת. בטלפון נעלמו בדיוק הקבוצות שהדפדפן
    שלף לשכבות כאלה — הן נבנות מחדש בכל שינוי בעץ השכבות (גרירה, הדף השכן, מחיר), ושכבה חדשה ריקה עד שהיא נצבעת.
-   מותר: תוכן של שורה נגללת (שכבת הגלילה שלה) והמקרא שצף מעל הגרף. ישן: 2–5 בכל אחת מהלשוניות מניות/עסקאות/מעקב, חדש: 0 */
-const SQUASH_KIND = "function () { let e = this.nodeType === 1 ? this : this.parentElement; if (!e || !e.closest || !e.closest('.tabpage.active')) return ''; const cs = getComputedStyle(e); if (/auto|scroll/.test(cs.overflowX + cs.overflowY)) return ''; if (e.closest('.pf-key')) return ''; return e.id || String(e.className).split(' ')[0] || e.tagName; }";
+   הקלטה שנייה (אותו יום): גם שורת גלילה לרוחב (OverflowScrolling) נעלמה עד שתי שניות אחרי נחיתה — גם היא נספרת.
+   מותר רק המקרא שצף מעל הגרף. ישן: בכל נחיתה על מניות/מעקב/עסקאות, חדש: 0 */
+const SQUASH_KIND = "function () { let e = this.nodeType === 1 ? this : this.parentElement; if (!e || !e.closest || !e.closest('.tabpage.active')) return ''; if (e.closest('.pf-key')) return ''; return e.id || String(e.className).split(' ')[0] || e.tagName; }";
 async function squashOf(S) {
   const out = [];
   for (const l of (S.lt && S.lt.last) || []) {
     if (!l.drawsContent || !l.backendNodeId) continue;
     try {
       const r = await S.cdp.send('LayerTree.compositingReasons', { layerId: l.layerId });
-      if (!(r.compositingReasonIds || []).some((x) => /^(Overlap|AssumedOverlap|Squash)/i.test(x))) continue;
+      if (!(r.compositingReasonIds || []).some((x) => /^(Overlap|AssumedOverlap|Squash)|OverflowScroll/i.test(x))) continue;   // 16/11: גם שורת גלילה — שכבה שנבנית מחדש בנחיתה
       const o = await S.cdp.send('DOM.resolveNode', { backendNodeId: l.backendNodeId });
       const v = await S.cdp.send('Runtime.callFunctionOn', { objectId: o.object.objectId, functionDeclaration: SQUASH_KIND, returnByValue: true });
       if (v.result && v.result.value) out.push(v.result.value + ' ' + Math.round(l.width) + 'x' + Math.round(l.height));
@@ -315,7 +316,7 @@ async function check(app, S, step, want) {
     if ((worst >= 1 || dock) && process.env.KEEP) { const d = path.join(process.env.KEEP, app + '-' + step.replace(/[^\w\u0590-\u05ff]+/g, '_')); fs.mkdirSync(d, { recursive: true }); fr.forEach((x, i) => { try { fs.copyFileSync(x.f, path.join(d, String(i).padStart(3, '0') + '-' + sd[i][0] + '.jpg')); } catch (e) {} }); }
     for (const x of fr) { try { fs.unlinkSync(x.f); } catch (e) {} }
   }
-  if (app === 'invest') { const sq = await squashOf(S); if (sq.length) bad(app, step, 'בדף שנחת יש ' + sq.length + ' שכבות דחוסות (בטלפון — נבנות מחדש בכל שינוי ונעלמות עד שהן נצבעות): ' + sq.slice(0, 4).join(' ')); }
+  if (app === 'invest') { const sq = await squashOf(S); if (sq.length) bad(app, step, 'בדף שנחת יש ' + sq.length + ' שכבות נפרדות — דחוסות או שורות גלילה (בטלפון — נבנות מחדש בכל שינוי ונעלמות עד שהן נצבעות): ' + sq.slice(0, 4).join(' ')); }
   if (S.errs.length) { bad(app, step, 'שגיאות: ' + S.errs.join(' | ')); S.errs.length = 0; }
   return st;
 }
