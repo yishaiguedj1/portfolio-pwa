@@ -6030,8 +6030,9 @@ function towerWhy(tw) {
 }
 const fmtX = (x) => (Math.round(x * 10) / 10).toLocaleString(uiLang() === 'en' ? 'en-US' : 'he-IL', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 /* 16/11/2026 (בקשת המשתמש): כתוביות צרובות במקור — כרטיס בלי סגירה: מתחילת העבודה (הבדיקה המהירה) ועד שהקובץ מוכן, ובתוצאות */
-const HS_TXT = { ask: ['studioHsT', 'studioHsS'], on: ['studioHsOnT', 'studioHsOnS'], late: ['studioHsT', 'studioHsLate'], rr: ['studioHsT', 'studioHsRrS'],
-  gone: ['studioHsT', 'studioHsGone'], rrrun: ['studioHsRrRun', 'studioHsOnS'], ok: ['studioHsDone', 'studioHsChk'], bad: ['studioHsBadT', 'studioHsBad'], nochk: ['studioHsDone', 'studioHsNoChk'] };
+const hsTxt = (k, n) => (k === 'ask' ? [T('studioHsT'), T('studioHsS')] : k === 'on' ? [T('studioHsOnT'), T('studioHsOnS')] : k === 'late' ? [T('studioHsT'), T('studioHsLate')]
+  : k === 'rr' ? [T('studioHsT'), T('studioHsRrS')] : k === 'gone' ? [T('studioHsT'), T('studioHsGone')] : k === 'rrrun' ? [T('studioHsRrRun'), T('studioHsOnS')]
+  : k === 'ok' ? [T('studioHsDone'), T('studioHsChk', { n })] : k === 'bad' ? [T('studioHsBadT'), T('studioHsBad', { n })] : [T('studioHsDone'), T('studioHsNoChk')]);
 const hsSig = (rec) => { const s = hsState(rec, rrJobs.get(rec.id), styEditable(rec) && canEdit(rec)); return s ? s.k + s.n : ''; };
 function hsCard(rec) {
   const s = hsState(rec, rrJobs.get(rec.id), styEditable(rec) && canEdit(rec));
@@ -6040,8 +6041,9 @@ function hsCard(rec) {
   const c = h('div', 'st-hs' + (good ? ' ok' : ''));
   c.dataset.k = 'hs';
   const hd = h('div', 'st-hs-h');
-  hd.append(ico(good ? 'check' : 'cc'), h('b', null, T(HS_TXT[s.k][0])));
-  c.append(hd, h('span', 'st-hs-s', T(HS_TXT[s.k][1], { n: s.n })));
+  const [tt, ts] = hsTxt(s.k, s.n);
+  hd.append(ico(good ? 'check' : 'cc'), h('b', null, tt));
+  c.append(hd, h('span', 'st-hs-s', ts));
   if (s.k === 'ask') c.append(btn('st-btn wide', T('studioHsGo'), () => jobStySet(rec, { bx: 1 }), 'hs-go'));
   else if (s.k === 'rr' && canEdit(rec)) c.append(btn('st-btn wide', T('studioHsRr'), () => { rrOpt.sty = normSty(Object.assign({}, rrSty() || {}, { bx: 1 })); go('rr', rec.id); }, 'hs-rr'));
   return c;
