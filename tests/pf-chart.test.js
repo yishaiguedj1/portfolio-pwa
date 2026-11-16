@@ -21,12 +21,19 @@ const document = {
   createElement: () => ({}),
 };
 let fetchCalls = 0;
+let histApi = null; // מדמה את /api/history של השרתון (null = השרתון לא עונה)
+const histReqs = [];
 const sandbox = {
   localStorage, document,
   window: {}, navigator: {}, location: {},
   AbortController,
-  fetch: async (url) => {
+  fetch: async (url, opts) => {
     fetchCalls++;
+    if (String(url).includes('/api/history') && histApi) {
+      const body = JSON.parse(opts.body);
+      histReqs.push(body);
+      return { ok: true, json: async () => histApi(body) };
+    }
     if (String(url).includes('stooq.com')) {
       let csv = 'Date,Open,High,Low,Close,Volume\n';
       for (let i = 40; i >= 1; i--) {
@@ -41,7 +48,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { filterRange, sliceFromDate, retPct, normalize100, getBenchHist, closeOnOrBefore, todayISO };';
+  '\n;globalThis.__t = { filterRange, sliceFromDate, retPct, normalize100, getBenchHist, closeOnOrBefore, todayISO, benchRangeFor, benchRowsForDates, benchStore, addDaysISO };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
@@ -122,6 +129,55 @@ function dailyRows(nDays, endISO) {
   ok(T.closeOnOrBefore(hist, '2025-01-04') === 110, 'סוף שבוע נצמד לאחור');
   ok(T.closeOnOrBefore(hist, '2025-01-01') === null, 'לפני ההתחלה — null');
   ok(T.closeOnOrBefore([], '2025-01-01') === null, 'היסטוריה ריקה');
+
+  /* ---------- 16/11/2026: המדדים ב־5Y ובמקסימום ---------- */
+  const today = T.todayISO();
+  ok(T.benchRangeFor(null, today) === '5y', 'בלי תאריך — 5 שנים כמו קודם');
+  ok(T.benchRangeFor(T.addDaysISO(today, -3 * 366), today) === '5y', '3Y — מספיק 5 שנים');
+  ok(T.benchRangeFor(T.addDaysISO(today, -1826 - 17), today) === '10y', '5Y (יום הבסיס לפני הנר הראשון של 5y) — 10 שנים');
+  ok(T.benchRangeFor('2005-11-01', today) === 'max', 'תיק מ־2005 — מתחילת המסחר');
+
+  // שרתון מדומה: SPY מ־1993, QQQ מ־1999 (ימים מאז 1970)
+  const series = (fromIso) => {
+    const t = [], c = [];
+    const d0 = Math.floor(Date.parse(fromIso + 'T00:00:00Z') / 86400000), d1 = Math.floor(Date.now() / 86400000);
+    for (let d = d0; d <= d1; d++) { const wd = new Date(d * 86400000).getUTCDay(); if (wd && wd !== 6) { t.push(d); c.push(50 + (d - d0) / 100); } }
+    return { t, c };
+  };
+  histApi = (b) => {
+    const data = {};
+    for (const s of b.syms) data[s] = series(b.range === 'max' ? (s === 'SPY' ? '1993-01-29' : '1999-03-10') : T.addDaysISO(today, -3653));
+    return { ok: true, data };
+  };
+  const from05 = '2005-12-01';
+  const [spyL, qqqL] = await Promise.all([T.getBenchHist('SPY', from05), T.getBenchHist('QQQ', from05)]);
+  ok(histReqs.length === 1 && histReqs[0].range === 'max' && histReqs[0].syms.join() === 'SPY,QQQ', 'מקסימום: בקשה אחת לשני המדדים, range=max');
+  ok(spyL[0].date <= T.addDaysISO(from05, -14) && spyL[0].date >= T.addDaysISO(from05, -24), 'SPY מכסה את תחילת התיק (נחתך לשבועיים לפני — לא שומרים מ־1993)');
+  ok(qqqL[0].date <= from05, 'QQQ מכסה את 2005');
+  const pfDates = ['2005-12-01', '2006-06-01', today];
+  ok(T.benchRowsForDates(spyL, pfDates) && T.benchRowsForDates(qqqL, pfDates), 'הקווים מתיישרים לכל תאריכי התיק — לא null');
+  const before = histReqs.length;
+  await T.getBenchHist('SPY', '2010-01-04');
+  ok(histReqs.length === before, 'טווח קצר יותר — מהמטמון, בלי בקשה');
+
+  // QQQ התחיל ב־1999: בקשה מ־1995 נשמרת כ"שלמה" ולא נמשכת שוב בכל ציור
+  const r95 = await T.getBenchHist('QQQ', '1995-06-01');
+  const afterQ = histReqs.length;
+  ok(r95[0].date >= '1999-03-10', 'QQQ מתחילת המסחר שלו');
+  await T.getBenchHist('QQQ', '1995-06-01');
+  ok(histReqs.length === afterQ, 'מדד שהתחיל אחרי תחילת התיק — לא נמשך שוב');
+
+  // 5Y: יום הבסיס של התיק לפני הנר הראשון של '5y' — עכשיו 10y
+  const base5 = T.addDaysISO(today, -1829);
+  const spy5 = await T.getBenchHist('SPY', base5);
+  ok(T.benchRowsForDates(spy5, [base5, today]) !== null, '5Y: יש מחיר גם ליום הבסיס');
+
+  // השרתון נופל ביום חדש — נשאר המטמון הארוך, לא נדרס ב־5 השנים הקצרות
+  histApi = (b) => ({ ok: false, error: 'down' });
+  T.benchStore().SPY.updated = '2000-01-01';
+  const st = await T.getBenchHist('SPY', from05);
+  ok(st.length > 1000 && st[0].date <= from05, 'שרתון לא עונה — ההיסטוריה הארוכה מהמטמון');
+  ok(T.benchStore().SPY.rows[0][0] <= from05, 'המטמון הארוך לא נדרס');
 
   console.log('\nכל ' + n + ' הבדיקות עברו.');
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });

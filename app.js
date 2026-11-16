@@ -8148,8 +8148,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.156.0';
-const APP_VERSION = 'v787';
+const APP_RELEASE = '2.157.1';
+const APP_VERSION = 'v789';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -13287,7 +13287,7 @@ function addPensionFund(name, kind) {
 }
 
 /* ---------------- בנצ'מרקים לגרף הביצועים (S&P 500 / Nasdaq 100) ----------------
-   היסטוריה יומית מ־Stooq (חינם, בלי מפתח), נשמרת במטמון. כל קו מנורמל ל־100
+   היסטוריה יומית (Yahoo דרך השרתון, גיבוי Stooq), נשמרת במטמון ליום. כל קו מנורמל ל־100
    בתחילת הטווח — כמו התיק — כדי שההשוואה תהיה הוגנת. */
 const LS_BENCH = 'pwa_bench_v1';
 const BENCH_SYMS = [['SPY', 'benchSP', '#1A73E8'], ['QQQ', 'benchNasdaq', '#9334E6']];
@@ -13300,30 +13300,64 @@ function benchStore() {
   return benchCache;
 }
 
-/* היסטוריית מדד: [{date, close}] ישן -> חדש. נשמר עד 6 שנים אחורה.
-   עובר דרך getDailyFast — אותו מטמון ואותו מרוץ מקבילי מהיר כמו שאר הגרף. */
-async function getBenchHist(sym) {
+/* 16/11/2026 (המשתמש: "למה לא מוצג S&P ונאסדק ב־5 שנים ומקסימום"): המדדים הגיעו רק מ־getDailyFast — 5 שנים מ־Yahoo
+   (בדמו 7), חתוכים ל־6. ב־5Y יום הבסיס של התיק (השורה שלפני תחילת הטווח) נפל לפני הנר הראשון, benchRowsForDates
+   החזיר null על תאריך אחד וכל הקו נעלם; ב־MAX (תיק הדמו מ־2005) לא היה בכלל. עכשיו ההיסטוריה מכסה את תחילת הגרף:
+   עד 5 שנים — כמו קודם (מטמון משותף); יותר — 10y או max מהשרתון, בבקשה אחת לשני המדדים.
+   איזה טווח צריך כדי לכסות את need (טהורה, נבדקת). '5y' של Yahoo מתחיל לפני 1826–1827 ימים, '10y' לפני 3652–3653. */
+function benchRangeFor(need, today) {
+  if (!need) return '5y';
+  if (need >= addDaysISO(today, -1821)) return '5y';
+  if (need >= addDaysISO(today, -3647)) return '10y';
+  return 'max';
+}
+const benchLongInflight = {}, benchLongFailAt = {};
+function benchLongFetch(range) {
+  // נכשל ב־10 הדקות האחרונות — לא שולחים שוב בכל ציור (המטמון/5 השנים בינתיים)
+  if (Date.now() - (benchLongFailAt[range] || 0) < 10 * 60 * 1000) return Promise.resolve({});
+  if (!benchLongInflight[range]) {
+    const p = proxyHistory(BENCH_SYMS.map(([s]) => s), range, 20000).catch(() => ({}));
+    benchLongInflight[range] = p;
+    p.then((got) => {
+      delete benchLongInflight[range];
+      if (!got || !Object.keys(got).length) benchLongFailAt[range] = Date.now();
+    });
+  }
+  return benchLongInflight[range];
+}
+
+/* היסטוריית מדד: [{date, close}] ישן -> חדש, שמכסה את fromIso (התאריך הראשון בגרף).
+   במטמון: cover = התאריך שממנו ההיסטוריה שלמה (ב־max — גם כשהמדד עצמו התחיל אחריו, למשל QQQ ב־1999). */
+async function getBenchHist(sym, fromIso) {
   // רק הסימולים המוכרים — כל השאר null (לא שולחים בקשות מיותרות)
   if (!BENCH_SYMS.some(([s]) => s === sym)) return null;
   const store = benchStore();
   const today = todayISO();
+  // שבועיים לפני התאריך הראשון — סופ"ש/חג לפני יום הבסיס
+  const need = /^\d{4}-\d{2}-\d{2}$/.test(fromIso || '') ? addDaysISO(fromIso, -14) : null;
   const cached = store[sym];
-  if (cached && cached.updated === today && cached.rows && cached.rows.length > 30) {
-    return cached.rows.map(([d, c]) => ({ date: d, close: c }));
-  }
-  const stale = (cached && cached.rows && cached.rows.length > 30)
-    ? cached.rows.map(([d, c]) => ({ date: d, close: c })) : null;
-  let out = [];
+  const has = !!(cached && cached.rows && cached.rows.length > 30);
+  const coversNeed = has && (!need || (cached.cover || cached.rows[0][0]) <= need);
+  const asRows = (c) => c.rows.map(([d, x]) => ({ date: d, close: x }));
+  if (coversNeed && cached.updated === today) return asRows(cached);
+  const range = benchRangeFor(need, today);
+  let out = [], longOk = false;
   try {
-    const rows = await getDailyFast(sym, false);
-    out = rows.filter((r) => r.date >= addDaysISO(today, -6 * 365))
-              .map((r) => ({ date: r.date, close: r.close }));
+    if (range !== '5y') {
+      const got = await benchLongFetch(range);
+      out = (got && got[sym]) || [];
+      longOk = out.length > 30;
+    }
+    if (!longOk) out = await getDailyFast(sym, false); // השרתון לא ענה — לפחות 5 שנים (המרוץ הרגיל)
   } catch (e) { /* נופל למטמון ישן */ }
-  if (!out.length) return stale || [];
-  if (out.length > 30) {
-    store[sym] = { updated: today, rows: out.map((r) => [r.date, r.close]) };
-    try { localStorage.setItem(LS_BENCH, JSON.stringify(store)); } catch (e) {}
-  }
+  out = (out || []).filter((r) => r && r.close > 0).map((r) => ({ date: r.date, close: r.close }));
+  if (longOk) { const cut = addDaysISO(need, -10); out = out.filter((r) => r.date >= cut); }
+  if (out.length <= 30) return has ? asRows(cached) : out;
+  const cover = longOk && range === 'max' ? need : out[0].date;
+  // הטרי לא מגיע אחורה והישן כן (השרתון נכשל) — עדיף הישן השלם; לא דורסים אותו
+  if (need && cover > need && coversNeed) return asRows(cached);
+  store[sym] = { updated: today, cover: cover, rows: out.map((r) => [r.date, r.close]) };
+  try { localStorage.setItem(LS_BENCH, JSON.stringify(store)); } catch (e) {}
   return out;
 }
 
@@ -14088,7 +14122,7 @@ async function drawPfChart() {
   if (loading) { loading.textContent = t('loadingData'); loading.classList.remove('hidden'); }
   try {
     const wantBench = BENCH_SYMS.filter(([s]) => pfBenchOn(s)); // לא מושכים מדד כבוי
-    const hists = await Promise.all(wantBench.map(([s]) => getBenchHist(s)));
+    const hists = await Promise.all(wantBench.map(([s]) => getBenchHist(s, pfRows[0].date)));
     if (my !== pfChartToken) return;
     // המדדים נמדדים בדולרים — בדיוק כמו ש־IBKR מודד. אין שום התאמה לשקלים.
     wantBench.forEach(([sym, labelKey, color], bi) => {
