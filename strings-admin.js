@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1685 מפתחות מתוך 6959) */
+/* המחרוזות של admin (1685 מפתחות מתוך 6967) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -860,7 +860,7 @@ he: {
   "admModelsMeRow": "אתה (מנהל) — תמיד",
   "admModelsN": "אתה ועוד {n} עם כל המודלים",
   "admModelsPh": "מייל של משתמש",
-  "admModelsSub": "לכולם: רגיל (Haiku 5.5 · High) וביצועים (Sonnet 5.5 · Medium). מי שברשימה מקבל גם את כל השאר — Sonnet Low/High ו־Opus Medium — לבדיקות.",
+  "admModelsSub": "לכולם: רגיל וביצועים. מי שברשימה מקבל גם את ארבעת מצבי הבדיקה (בדיקה 1–4). את שמות המודלים רואה רק אתה.",
   "admModesG": "מצבי התרגום · 90 יום",
   "admMonApk": "אפליקציית הניהול (APK)",
   "admMonApkS": "אפליקציה נפרדת שפותחת את הניהול ישירות, עם הווידג׳ט",
@@ -2547,7 +2547,7 @@ en: {
   "admModelsMeRow": "You (admin) — always",
   "admModelsN": "You and {n} more with all models",
   "admModelsPh": "User email",
-  "admModelsSub": "Everyone gets Standard (Haiku 5.5 · High) and Performance (Sonnet 5.5 · Medium). People on the list also get the rest — Sonnet Low/High and Opus Medium — for testing.",
+  "admModelsSub": "Everyone gets Standard and Performance. People on the list also get the four test modes (Test 1–4). Only you see the model names.",
   "admModesG": "Translation modes · 90 days",
   "admMonApk": "Admin app (APK)",
   "admMonApkS": "A separate app that opens the admin directly, with the widget",

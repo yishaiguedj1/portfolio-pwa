@@ -39,9 +39,11 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
   /* ---------- 3. הטלפון ---------- */
   const st = await import(path.join(root, 'studio.js'));
-  ok(JSON.stringify(st.normRules({ b: 12.5, mx: 'sonnet-high', ab: true, x: 1 })) === '{"b":12.5,"mx":"sonnet-high","ab":true,"jx":false,"am":false}' && st.normRules({ b: 900, mx: 'evil' }).b === 500 && st.normRules({ b: 7.3 }).b === 7.5 && st.normRules({ b: 0.5 }).b === 0
+  ok(JSON.stringify(st.normRules({ b: 12.5, mx: 'lab3', ab: true, x: 1 })) === '{"b":12.5,"mx":"lab3","ab":true,"jx":false,"am":false}' && st.normRules({ b: 900, mx: 'evil' }).b === 500 && st.normRules({ b: 7.3 }).b === 7.5 && st.normRules({ b: 0.5 }).b === 0
     && [900, 7.3, 0.5, 12.5].every((b) => st.normRules({ b }).b === S.normRules({ b }).b), 'normRules בטלפון — כמו בשרתון (עיגול לחצי דולר, עד 500)');
-  ok(order.slice(0, -1).every((id, i) => st.modeOverMax(order[i + 1], id) && !st.modeOverMax(id, order[i + 1])) && !st.modeOverMax('opus-max', ''), 'modeOverMax — אותו סדר כמו בשרתון');
+  const MC = require(path.join(root, 'ibkr-proxy/lib/modecode.js'));   // 16/11/2026: הטלפון — לפי קוד המצב
+  const oc = order.map(MC.codeOf);
+  ok(oc.slice(0, -1).every((id, i) => st.modeOverMax(oc[i + 1], id) && !st.modeOverMax(id, oc[i + 1])) && !st.modeOverMax('lab9', '') && oc.join() === st.cheaperModes('lab4').reverse().concat('lab4').join(), 'modeOverMax — אותו סדר כמו בשרתון');
   const q = st.normQa({ id: 'g000000000001', g: 'b', q: '<b>evil</b>', o: ['go', 'stop'], d: 1, w: 1800, n: { usd: 10.27, cap: 10 } });
   ok(q && q.g === 'b' && q.q === '' && q.n.cap === 10, 'normQa: שער תקציב (בלי טקסט חופשי)');
   const r = st.normQa({ id: 'g000000000002', g: 'r', o: ['go', 'stop'], d: 1, n: { cnt: 9, cues: [{ t: 'x', x: 'שלום' }, { x: 5 }, ...Array(9).fill({ t: '0:01', x: 'א'.repeat(300) })] } });

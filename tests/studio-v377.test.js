@@ -21,7 +21,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
     ok(L.STAGES.every((s) => a[s] === b[s]), 'יעד הזמן לכל שלב = מסך ההתקדמות (' + mode + ')');
   }
   const st = await import(path.join(root, 'studio.js'));
-  ok(st.MODES.every((m) => L.MODE_MIN[m.id] === m.min), 'MODE_MIN בשרתון = min של MODES בטלפון');
+  ok(st.MODES.every((m) => L.MODE_MIN[require(path.join(root, 'ibkr-proxy/lib/modecode.js')).CODE_MODE[m.id]] === m.min), 'MODE_MIN בשרתון = min של MODES בטלפון (16/11/2026: הטלפון לפי קוד — CODE_MODE)');
   ok(L.MARKS.join() === '0.5,0.75' && L.HP_DEF === 5, 'סימונים ב־50%/75%; מחיר מתרגם ברירת מחדל $5 (החלטה 5)');
   const ops = require(path.join(root, 'ibkr-proxy/lib/studioops.js'));
   ok(ops.KINDS['claude:sla_time'] === 3 && ops.KINDS['claude:sla_cost'] === 3, 'הפרה = P3 (בסיכום היומי)');

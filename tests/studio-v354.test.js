@@ -23,36 +23,37 @@ const body = st.replace(/^export (const|function) /gm, '$1 ').replace(/^import \
 const S = new Function('t', '__stubs', body + '\nreturn { defaultSettings, normSettings, migrateSettings, normDraft, normStore, newDraft, fmtSize, fmtHM, outList, modeById, modeName, langName, fileTitle, fileExt, chainFor, MODES, DEFAULT_MODE, PUBLIC_MODES, modeOk, modeFor, SOURCE_LANGS, TARGET_LANGS, STYLES, OUTS, LS_STUDIO, openStudio };')(undefined, STUBS);
 ok(S.LS_STUDIO === 'pwa_studio_v1', 'מפתח האחסון: pwa_studio_v1');
 const def = S.defaultSettings();
-ok(def.mode === 'haiku-medium' && S.DEFAULT_MODE === 'haiku-medium', 'ברירת המחדל: Haiku 5.5 · Medium — "רגיל" (מ־25/10/2026)');
-ok(S.MODES.filter((m) => m.tier).map((m) => m.id + ':' + m.tier).sort().join() === 'haiku-high:perf,haiku-medium:std', '25/10: "רגיל" = Haiku Medium, "ביצועים" = Haiku High');
-ok(S.MODES.map((m) => m.id).sort().join() === 'haiku-high,haiku-medium,opus-medium,sonnet-high,sonnet-low,sonnet-medium', 'ששת המצבים (15/10: נוסף Sonnet Low; 20/10: Haiku Medium חזר לבדיקות)');
-ok(S.PUBLIC_MODES.join() === 'haiku-medium,haiku-high' && !S.modeOk('sonnet-medium', false) && S.modeOk('sonnet-medium', true) && S.modeFor('sonnet-medium', false) === 'haiku-medium', '25/10: לכולם רק Haiku (Medium/High); Sonnet ו־Opus — רק למנהל ולרשימת "כל המודלים"');
+ok(def.mode === 'std' && S.DEFAULT_MODE === 'std', 'ברירת המחדל: "רגיל" (std — 16/11/2026: הטלפון מכיר רק קודים, lib/modecode.js)');
+ok(S.MODES.filter((m) => m.tier).map((m) => m.id + ':' + m.tier).sort().join() === 'perf:perf,std:std', '"רגיל" ו"ביצועים" — std, perf');
+ok(S.MODES.map((m) => m.id).sort().join() === 'lab1,lab2,lab3,lab4,perf,std', 'ששת המצבים — קודים, בלי שם של מודל');
+ok(S.PUBLIC_MODES.join() === 'std,perf' && !S.modeOk('lab2', false) && S.modeOk('lab2', true) && S.modeFor('lab2', false) === 'std', '25/10: לכולם רק "רגיל"/"ביצועים"; מצבי הבדיקה — רק למנהל ולרשימת "כל המודלים"');
 ok(def.out.same === true && def.out.compact === false && def.out.mkv === false, 'ברירת המחדל לפלט: זהה למקור (+SRT תמיד)');
 ok(S.outList(def.out).join() === 'same,srt' && S.outList({ compact: true, mkv: true }).join() === 'compact,mkv,srt', 'SRT תמיד בסוף רשימת הפלטים');
 ok(def.to.join() === 'he' && def.style === 'bold' && def.conn === 'sub', 'ברירות מחדל: עברית, מודגש, המנוי שלי');
 const bad = S.normSettings({ mode: 'gpt', to: ['xx', 'en', 'en', 'he'], out: { same: 'yes', compact: true }, style: 'neon', conn: 'hack' });
-ok(bad.mode === 'haiku-medium' && bad.to.join() === 'en,he' && bad.out.same === true && bad.out.compact === true && bad.style === 'bold' && bad.conn === 'sub',
+ok(bad.mode === 'std' && !('lm' in bad) && bad.to.join() === 'en,he' && bad.out.same === true && bad.out.compact === true && bad.style === 'bold' && bad.conn === 'sub',
   'נרמול הגדרות: ערכים לא מוכרים חוזרים לברירת המחדל, שפות בלי כפילויות');
 // 10/10/2026: Opus High/Max הוסרו → Opus Medium; ברירת המחדל הישנה (Opus Medium בלי mv) עוברת פעם אחת ל־Sonnet Medium; 15/10: ל־Haiku High
 // 25/10/2026: ברירת המחדל = Haiku Medium (mv 4)
-ok(S.normSettings({ mode: 'opus-max' }).mode === 'opus-medium' && S.migrateSettings({ mode: 'opus-medium' }).mode === 'haiku-medium'
-  && S.migrateSettings({ mode: 'opus-medium', mv: 2 }).mode === 'opus-medium' && S.migrateSettings({ mode: 'sonnet-high' }).mode === 'sonnet-high'
-  && S.migrateSettings({ mode: 'opus-high' }).mode === 'haiku-medium' && S.migrateSettings(null).mv === 4 && S.modeById('opus-high').id === 'opus-medium',
-  'מצבים שהוסרו → Opus Medium; ברירת המחדל הישנה עוברת פעם אחת לחדשה, בחירה אחרת נשמרת');
+// 16/11/2026: מזהה ישן — נשמר ב־lm עם הגרסה (lmv) עד שהשרתון ממיר (legacyMode, status); בינתיים — ברירת המחדל
+const m1 = S.migrateSettings({ mode: 'opus-medium', mv: 2 }), m2 = S.migrateSettings({ mode: 'lab3', mv: 5 });
+ok(m1.mode === 'std' && m1.lm === 'opus-medium' && m1.lmv === 2 && m1.mv === 5 && m2.mode === 'lab3' && !('lm' in m2) && S.migrateSettings(null).mv === 5
+  && S.normSettings(m1).lm === 'opus-medium' && S.normSettings(m1).lmv === 2 && S.modeById('opus-high').id === 'std',
+  'הגדרה ישנה: המזהה והגרסה נשמרים עד ההמרה בשרתון; קוד — כמו שהוא');
 ok(S.normSettings({ to: [] }).to.join() === 'he', 'תמיד לפחות שפת יעד אחת');
 ok(S.normDraft({ id: '../x' }) === null && S.normDraft({ id: '<b>' }) === null && S.normDraft(null) === null, 'מזהה טיוטה לא תקין — נדחה');
-const d = S.normDraft({ id: 'dabc123', name: 'x'.repeat(500), size: '3447000000', from: 'zz', terms: 'y'.repeat(5000), mode: 'sonnet-high', created: 5 });
-ok(d && d.name.length === 200 && d.size === 3447000000 && d.from === 'auto' && d.terms.length === 1000 && d.mode === 'sonnet-high', 'נרמול טיוטה: אורכים מוגבלים, שפה לא מוכרת = זיהוי אוטומטי');
+const d = S.normDraft({ id: 'dabc123', name: 'x'.repeat(500), size: '3447000000', from: 'zz', terms: 'y'.repeat(5000), mode: 'lab3', created: 5 });
+ok(d && d.name.length === 200 && d.size === 3447000000 && d.from === 'auto' && d.terms.length === 1000 && d.mode === 'lab3', 'נרמול טיוטה: אורכים מוגבלים, שפה לא מוכרת = זיהוי אוטומטי');
 const store = S.normStore({ drafts: [{ id: 'd1aaaa' }, { id: 'd1aaaa' }, { id: 'bad id' }, 7], settings: null });
-ok(store.drafts.length === 1 && store.settings.mode === 'haiku-medium', 'נרמול אחסון: בלי כפילויות ובלי זבל');
+ok(store.drafts.length === 1 && store.settings.mode === 'std', 'נרמול אחסון: בלי כפילויות ובלי זבל');
 ok(S.normStore(null).drafts.length === 0 && S.normStore('x').drafts.length === 0, 'אחסון ריק/פגום — ריק');
-const nd = S.newDraft({ file: { name: 'a.mp4', size: 1024, type: 'video/mp4' }, from: 'en', to: ['he', 'ar'], mode: 'haiku-high', out: { same: false, compact: true }, style: 'karaoke', terms: 'Ackman' }, 9, 'dnew01');
-ok(nd.name === 'a.mp4' && nd.size === 1024 && nd.to.join() === 'he,ar' && nd.mode === 'haiku-high' && nd.out.compact && !nd.out.same && nd.style === 'karaoke' && nd.created === 9,
+const nd = S.newDraft({ file: { name: 'a.mp4', size: 1024, type: 'video/mp4' }, from: 'en', to: ['he', 'ar'], mode: 'perf', out: { same: false, compact: true }, style: 'karaoke', terms: 'Ackman' }, 9, 'dnew01');
+ok(nd.name === 'a.mp4' && nd.size === 1024 && nd.to.join() === 'he,ar' && nd.mode === 'perf' && nd.out.compact && !nd.out.same && nd.style === 'karaoke' && nd.created === 9,
   'טיוטה מהטופס — רק פרטי הקובץ והבחירות');
 ok(!('blob' in nd) && !('file' in nd) && Object.keys(nd).every((k) => typeof nd[k] !== 'object' || Array.isArray(nd[k]) || k === 'out'), 'הקובץ עצמו לא נשמר בטיוטה');
 ok(S.fmtSize(3447000000) === '3.2GB' && S.fmtSize(150 * 1048576) === '150MB' && S.fmtSize(2048) === '2KB' && S.fmtSize(12 * 1073741824) === '12GB', 'גדלים: GB/MB/KB');
 ok(S.fmtHM(105) === '1:45' && S.fmtHM(85) === '1:25' && S.fmtHM(160) === '2:40', 'זמן לשעת ראיון: שעות:דקות');
-ok(S.modeName(S.modeById('opus-medium')) === 'Opus 5.5 · Medium' && S.modeName(S.modeById('haiku-high')) === 'Haiku 5.5 · High' && S.modeById('nope').id === 'haiku-medium' && S.modeName(S.modeById('sonnet-low')) === 'Sonnet 5.5 · Low', 'שם מצב + נפילה לברירת המחדל');
+ok(S.modeName(S.modeById('lab4')) === 'studioTierLab' && S.modeName(S.modeById('perf')) === 'studioTierPerf' && S.modeById('nope').id === 'std' && S.modeName(S.modeById('std')) === 'studioTierStd', 'שם מצב (התווית בלבד — 16/11/2026) + נפילה לברירת המחדל');
 ok(S.langName('he', 'he') === 'עברית' && S.langName('en', 'en') === 'English', 'שמות שפות מ־Intl (בלי רשת)');
 ok(S.fileTitle('Ackman_TKP_interview.mp4') === 'Ackman TKP interview' && S.fileTitle('הרצאה.mkv') === 'הרצאה' && S.fileTitle('.mp4') === '.mp4' && S.fileExt('a.MkV') === 'MKV' && S.fileExt('noext') === '', 'שם תצוגה וסוג מהקובץ');
 ok(S.TARGET_LANGS.includes('he') && S.TARGET_LANGS.includes('en') && S.SOURCE_LANGS.includes('en'), 'רשימות השפות');
@@ -79,7 +80,7 @@ const dyn = [...code.matchAll(/(?<![A-Za-z0-9_$])T\(\s*([^'\s)][^,)]*)/g)].map((
 ok(dyn.length === 0, 'אין קריאות T() דינמיות — כל מפתח מילולי' + (dyn.length ? ': ' + dyn.join(',') : ''));
 for (const k of ['menuStudio', 'menuStudioSub', 'studioOpenErr']) ok(STR.he[k] && STR.en[k], 'מחרוזת האפליקציה ' + k + ' בשתי השפות');
 ok(STR.he.studioRibbonStd.includes('רגיל') && STR.he.studioRibbonStd.includes('ברירת מחדל') && STR.he.studioTierPerf === 'ביצועים', '15/10: הסרט של ברירת המחדל: "רגיל · ברירת מחדל"; השני — "ביצועים"');
-ok(STR.he.studioApprox.includes('{v}') && STR.en.studioApprox.includes('{v}') && STR.he.studioMoreN.includes('{n}') && STR.en.studioMoreN.includes('{n}') && STR.he.studioHrs.includes('{t}') && !!STR.en.studioSumSonLow && !!STR.he.studioSumSonLow, 'משתנים במחרוזות — בשתי השפות');
+ok(STR.he.studioApprox.includes('{v}') && STR.en.studioApprox.includes('{v}') && STR.he.studioMoreN.includes('{n}') && STR.en.studioMoreN.includes('{n}') && STR.he.studioHrs.includes('{t}') && STR.he.studioTierLab.includes('{n}') && STR.en.studioTierLab.includes('{n}'), 'משתנים במחרוזות — בשתי השפות');
 ok(!/~/.test(STR.he.studioApprox + STR.he.studioHrs) && !/\+/.test(STR.he.studioMoreN), 'בעברית "כ־" ו"ועוד" — בלי טילדה ופלוס שמתהפכים ב־RTL');
 const enHeb = Object.keys(STR.en).filter((k) => /^studio|^menuStudio/.test(k) && /[֐-׿]/.test(STR.en[k]));
 ok(enHeb.length === 0, 'אין עברית במחרוזות האנגליות של הסטודיו' + (enHeb.length ? ': ' + enHeb.join(',') : ''));

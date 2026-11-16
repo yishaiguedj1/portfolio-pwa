@@ -46,6 +46,16 @@ const engOk = (spec, full) => !!full || !!(spec && spec.eng === 'api' && spec.cp
 // מצבים שהוסרו → המצב הקיים הקרוב (עבודה / טיוטה / חוק שנשמרו לפני ההחלפה ממשיכים לעבוד, לא נופלים)
 const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium' };   // 11/10: Haiku Medium יצא (= המחיר של High)
 const modeNow = (m) => (MODES.includes(m) ? m : LEGACY_MODES[m] || DEFAULT_MODE);
+/* 16/11/2026 (הסתרת המודלים): הטלפון מכיר רק קודים, ולכן הגדרה שנשמרה לפני כן עם מזהה (lm) והגרסה שלה (lmv) מומרת כאן — status.
+   = migrateSettings בטלפון עד 2.153.0: בלי mv 2–4 — Opus → ברירת המחדל; עד mv 4 — "רגיל" הקודם (haiku-high) → "רגיל" החדש,
+   ו"ביצועים" הקודם (sonnet-medium) → "ביצועים" החדש (haiku-high); mv 4 — הבחירה נשארת */
+function legacyMode(lm, mv) {
+  const m = String(lm || '').slice(0, 40);
+  if (mv !== 2 && mv !== 3 && mv !== 4 && /^opus-(medium|high|max)$/.test(m)) return DEFAULT_MODE;
+  if (mv !== 4 && m === 'haiku-high') return DEFAULT_MODE;
+  if (mv !== 4 && m === 'sonnet-medium') return 'haiku-high';
+  return modeNow(m);
+}
 /* הסקירה (10/10/2026): מה שהעובד יודע היום — מקור אנגלית (או "אוטומטי"), יעד עברית. השאר נדחה כבר ביצירה (לפני העלאה
    של כמה GB והפעלת Claude), לא בעובד. **= LANG_READY בטלפון** (tests/studio-review.test.js). שפה חדשה = כאן + בטלפון + בעובד */
 const LANG_READY = { from: ['auto', 'en'], to: ['he'] };
@@ -858,6 +868,13 @@ function extVideoOk(meta) {
   return /^video\//.test(mt) || ((mt === 'application/octet-stream' || mt === '') && EXT_VIDEO_RE.test(String(meta.name || '')));
 }
 /* מה הטלפון רואה — בלי המפתח (גם לא ה־hash) */
+/* 16/11/2026: "סוכן־משנה רץ על מודל אחר מהמצב שבחרת" — עד היום הטלפון השווה את משפחת המודל לשם המצב; עכשיו הטלפון מכיר רק
+   קודים (lib/modecode.js), אז השרתון מסמן את השורה (of: 1). הטלפון מציג את האזהרה רק למנהל */
+function useOff(use, mode) {
+  if (!Array.isArray(use)) return null;
+  const fam = MODES.includes(mode) ? mode.split('-')[0] : '';
+  return use.map((r) => (fam && r && (r.k === 'tl' || r.k === 'rv') && typeof r.m === 'string' && r.m.indexOf('claude-' + fam + '-') !== 0 ? Object.assign({}, r, { of: 1 }) : r));
+}
 function publicJob(job, now) {
   const e = effState(job, now);
   return {
@@ -868,7 +885,7 @@ function publicJob(job, now) {
     rp: job.rp || '', ev: job.ev || 0, vh: Array.isArray(job.vh) ? job.vh.map((x) => (x && x.at) || 0) : [], vc: Array.isArray(job.vh) ? job.vh.map((x) => (x && FILE_ID_RE.test(String(x.c || '')) ? x.c : '')) : [],   /* C4 (2/11/2026): קובץ הכתוביות של כל גרסה — להשוואה בטלפון */   // מ2: הפקה מחדש (העבודה המקורית), גרסת הכתוביות, מתי נשמרה כל גרסה קודמת
     sess: job.sess && job.sess.url ? { url: job.sess.url } : null,
     prog: job.prog || null, ed: job.ed || '',
-    use: Array.isArray(job.use) ? job.use : Array.isArray(job.use0) ? job.use0 : null,   // v359: טוקנים ועלות (v361: כולל סשנים קודמים)
+    use: useOff(Array.isArray(job.use) ? job.use : Array.isArray(job.use0) ? job.use0 : null, job.spec && job.spec.mode),   // v359: טוקנים ועלות (v361: כולל סשנים קודמים)
     qa: job.qa && job.qa.id ? job.qa : null,        // שאלה מ־Claude (והתשובה, אם כבר ענית)
     cp: cpView(job.cp),                             // סבב 10: העתק־הדבק — בקשה שמחכה לתשובה שלך
     ck: lastCk(job.ck) ? { s: lastCk(job.ck).s, at: lastCk(job.ck).at || 0 } : null,   // v361: נקודת השמירה האחרונה
@@ -890,6 +907,7 @@ function publicJob(job, now) {
     q: normQuality(job.q), ij: normInj(job.ij),     // v374: מדד האיכות ושומר ההזרקות
     jd: normJudge(job.jd),                          // v375: שופט האיכות
     rvf: normRvf(job.rvf), fil: normFil(job.fil),   // סבב 4: סימונים מהביקורת, מילות מילוי
+    hs: normHs(job.hs),                             // 16/11/2026: כתוביות צרובות במקור (האזור, ואחרי ההסתרה — הבדיקה)
     ep: ETA.normEp(job.ep),                         // 10/10/2026: צפי הזמנים של העבודה (נקבע בלקיחה)
     gl: normGl(job.gl),                             // v380: מונחים מהמילון שלך שימשו + מונחים חדשים להצעה
     nt: noteView(job),                              // v382: הערה לעובד — מחכה לנקודת השמירה הבאה / נקראה
@@ -978,6 +996,23 @@ function normSty(o) {
   if (Number.isFinite(y) && y > 0 && y <= 40) out.y = y;
   return Object.keys(out).length ? out : null;
 }
+/* 16/11/2026 (בקשת המשתמש): כתוביות צרובות בסרטון המקורי — מהעובד (translator/vt/burnin.hardsub). z = האזור [x1, y1, x2, y2]
+   (חלק מהפריים), sh = חלק הפריימים שבהם הן נראות; v = הבדיקה אחרי ההסתרה (רקע כהה): n פריימים שנבדקו, lk דליפות שכוסו,
+   ok = נקי, full = פס רציף. רק מספרים. הטלפון מציע רקע כהה כבר בתחילת העבודה ומציג "✓ הוסתרו — נבדק" */
+function normHs(o) {
+  if (!o || typeof o !== 'object' || !Array.isArray(o.z) || o.z.length !== 4) return null;
+  const z = o.z.map((x) => (typeof x === 'number' ? x : NaN));
+  if (!z.every((x) => Number.isFinite(x) && x >= 0 && x <= 1) || z[2] - z[0] < 0.02 || z[3] - z[1] < 0.01) return null;
+  const r3 = (x) => Math.round(x * 1000) / 1000;
+  const sh = typeof o.sh === 'number' && Number.isFinite(o.sh) ? Math.max(0, Math.min(1, r3(o.sh))) : 0;
+  const out = { z: z.map(r3), sh };
+  const v = o.v;
+  if (v && typeof v === 'object' && !Array.isArray(v)) {
+    const cnt = (x) => (Number.isInteger(x) && x >= 0 ? Math.min(x, 1e6) : 0);
+    out.v = { n: cnt(v.n), lk: cnt(v.lk), ok: v.ok === 1 || v.ok === true ? 1 : 0, ...(v.full === 1 || v.full === true ? { full: 1 } : {}) };
+  }
+  return out;
+}
 function rrSpec(parent, body) {
   const out = uniq(Array.isArray(body && body.out) ? body.out : [], (k) => RR_OUTS.includes(k));
   const sp = parent.spec || {};
@@ -987,6 +1022,7 @@ function rrSpec(parent, body) {
     ...(normEdl(body && body.edl, sp.dur) ? { edl: normEdl(body.edl, sp.dur) } : {}),   // מ5: חיתוך אחרי התרגום (על ציר הזמן של הכתוביות)
     ...(normSty(body && body.sty) ? { sty: normSty(body.sty) } : {}),                  // סבב 5: עיצוב הכתוביות
     ...(normOv(body && body.ov) ? { ov: normOv(body.ov) } : {}),                       // סבב 7: כותרת ולוגו
+    ...(normHs(parent.hs) ? { hz: normHs(parent.hs).z } : {}),                         // 16/11/2026: כתוביות צרובות במקור — רקע כהה מסתיר אותן
     ...(body && body.prv === true ? { prv: 1 } : {}),                                  // סבב 10: צריבה לבדיקה (קטע קצר) — נשמרת לצד ההפקה המלאה
     ...(sp.eng === 'api' ? { eng: 'api', cap: CAP_MIN_JOB } : {}) };   // באותו מנוע כמו המקור; במצב השרת — בלי טוקנים, התקרה המינימלית
 }
@@ -1854,7 +1890,7 @@ function normUtl(o) {
   for (const k of UTL_KEYS) { const v = Number(o[k]); if (Number.isFinite(v) && v >= 0 && v <= 1e11) out[k] = Math.round(v); }
   return Object.keys(out).length ? out : null;
 }
-const JSON_FIELDS = ['mon', 'bq', 'btx', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr', 'urt', 'fsr', 'vst', 'vcp', 'vsm', 'fvi', 'vrf', 'vq', 'fvj', 'vjd', 'vref', 'vpd'];   // PR 1.6: fvj = הזוגות של עבודת השופט, vjd = מה שהשופט מצא, vref = עותק הייחוס לשופט, vpd = טיוטת הייחוס (ה5); vrf = חבילת הייחוס של ניתוח בסט הזהב, vq = הציון מולה   // PR 1.2ג: fvi = ה־vi.json של ההורה לעבודת "אמת שוב"   // 9/11/2026: vsm = סיכום הניתוח (מספרים)   // 29/10/2026: vst = כמה מהסרטון ב־R2 בפעם האחרונה שזז (העלאה תקועה — upStallStep)   // 26/10/2026: fsr = רצועת הכתוביות שבקובץ, עזר להגהה   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['mon', 'bq', 'btx', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr', 'urt', 'fsr', 'vst', 'vcp', 'vsm', 'fvi', 'vrf', 'vq', 'fvj', 'vjd', 'vref', 'vpd', 'hs'];   // 16/11/2026: hs = כתוביות צרובות במקור   // PR 1.6: fvj = הזוגות של עבודת השופט, vjd = מה שהשופט מצא, vref = עותק הייחוס לשופט, vpd = טיוטת הייחוס (ה5); vrf = חבילת הייחוס של ניתוח בסט הזהב, vq = הציון מולה   // PR 1.2ג: fvi = ה־vi.json של ההורה לעבודת "אמת שוב"   // 9/11/2026: vsm = סיכום הניתוח (מספרים)   // 29/10/2026: vst = כמה מהסרטון ב־R2 בפעם האחרונה שזז (העלאה תקועה — upStallStep)   // 26/10/2026: fsr = רצועת הכתוביות שבקובץ, עזר להגהה   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -1882,10 +1918,10 @@ function fromFields(f) {
 }
 
 module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, smAlias, smResolve, smRowsMerge, smEvict, smIsName, chKey, jobSeries, SM_BYTES, SM_READ, SM_GL, SM_CH, SM_NEW, SM_DONE, SM_LOCK, SM_UNSURE, SM_FIX, SM_WORKER, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
-  MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
+  MODES, LEGACY_MODES, modeNow, legacyMode, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, isGold, isViGold, goldClone, normXe, XF_KEYS, XF_MAX, normXf, GOLD_ARMS, normArms, waveOrder, waveClone, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, burnSuspect, lbJob, cuesSwap, rrSpec, rrJob, VV_MAX, viOut, isVv, canViVerify, vvJob, vvAdopt, isVj, VJ_USD, isVp, VP_MODES, VP_USD, vpJob, viWave, vjPairs, normVjp, vjJob, vjRows, vjDecide,
-  normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,
+  normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normHs, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
   normRoutine, hintOf, normSpec, normLyr, normKy, KY_DEF, KA_LYR_MAX, KA_OUTS, KA_AL, normFile, normOut, OUT_KINDS, OUT_MAX, normHl, normHla, HL_MAX, pickerCfg, extVideoOk, normUsage, normAsk, normAnswer, ASK_MAX,

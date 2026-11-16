@@ -33,7 +33,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(u.length === 2 && u[0].n === 2 && u[0].o === 6 && u[0].usd === 0.75 && u[1].usd === null && u[1].op === 9 && S.mergeUse(null, null) === null,
     'השרתון: mergeUse — סכום לפי סוג ומודל; מודל בלי מחיר נשאר בלי מחיר');
   const pj = S.publicJob({ id: 'j', kind: 'tr', state: 'failed', ck: L, use0: u, use: null }, 10);
-  ok(pj.ck.s === 'al' && pj.ck.at === 7 && !('id' in pj.ck) && pj.use === u && pj.stale === false, 'השרתון: הטלפון רואה אחרי איזה שלב נשמר (בלי מזהי קבצים), והעלות של סשנים קודמים');
+  ok(pj.ck.s === 'al' && pj.ck.at === 7 && !('id' in pj.ck) && JSON.stringify(pj.use) === JSON.stringify(u) && pj.stale === false, 'השרתון: הטלפון רואה אחרי איזה שלב נשמר (בלי מזהי קבצים), והעלות של סשנים קודמים');
   ok(S.workerJob({ id: 'j', kind: 'tr', ck: L }).ck.length === 2 && S.workerJob({ id: 'j', kind: 'tr' }).ck.length === 0, 'השרתון: העובד מקבל את רשימת נקודות השמירה');
   const api = read('ibkr-proxy/api/studio.js');
   ok(/op === 'resume'/.test(api) && /S\.canResume\(job, now\)/.test(api) && /fireJob\(deps, uid, v, job, now, true\)/.test(api) && /error: 'ck_bad'/.test(api)

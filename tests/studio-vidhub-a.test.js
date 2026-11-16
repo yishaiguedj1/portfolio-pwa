@@ -36,7 +36,7 @@ const VPY = fs.existsSync('/tmp/vtv/bin/python') ? '/tmp/vtv/bin/python' : 'pyth
   ok(/def sty_refresh\(ctx\):[\s\S]{0,500}ctx\.c\.call\('qa'\)[\s\S]{0,200}except \(SystemExit, Exception\):\s+return[\s\S]{0,120}if not isinstance\(j, dict\) or 'sty' not in j:\s+return/.test(jp),
     'sty_refresh: תקלה / שרתון ישן = מה שנשמר בלקיחה');
   ok(!/\['--style', sty\] if cmd == 'build'/.test(pl) && (pl.match(/self\.build_args\(sty\) if cmd == 'build'/g) || []).length === 3, 'pipeline.py: שלוש הבניות דרך build_args');
-  ok(/p\.add_argument\("--sty"/.test(cli) && /style = apply_sty\(_style\(meta, style_name\), sty\)/.test(cli) && /fix\(write_ass\(final/.test(cli) && /fix\(write_ass_compat\(final/.test(cli),
+  ok(/p\.add_argument\("--sty"/.test(cli) && /style = apply_sty\(_style\(meta, style_name\), sty(, hide=bool\(hs\))?\)/.test(cli) && /fix\(write_ass\(final/.test(cli) && /fix\(write_ass_compat\(final/.test(cli),
     'vt build --sty: הסגנון לפני המדידה (שבירת השורות לפי הגודל), והרקע בשני קובצי ה־ASS');
   ok(/from vt\.sty import STY_ASS, norm_sty, apply_sty, box_ass/.test(read('translator/rerender.py')) && !/def norm_sty/.test(read('translator/rerender.py')),
     'rerender.py משתמש באותו קוד (vt/sty.py) — מקום אחד');
