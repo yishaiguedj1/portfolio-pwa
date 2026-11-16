@@ -14,12 +14,28 @@ ok(mat > 0 && at > mat, 'הכלל אחרי החומר');
 const rule = layer.slice(at, layer.indexOf('}', at));
 ok(/-webkit-backdrop-filter: none !important; backdrop-filter: none !important/.test(rule), 'הכלל מכבה backdrop-filter');
 // מה שצף מעל תוכן — נשאר עם טשטוש
-for (const c of ['.src-pop', '.menu-drop', '.stock-search-results', '.pf-pick-bubble', '.pf-key']) ok(rule.includes(c), 'מה שצף נשאר עם טשטוש: ' + c);
+for (const c of ['.src-pop', '.menu-drop', '.stock-search-results', '.pf-pick-bubble']) ok(rule.includes(c), 'מה שצף ונפתח בלחיצה נשאר עם טשטוש: ' + c);
+ok(!rule.includes('.pf-key'), 'המקרא הקבוע בגרף — בלי טשטוש (נכבה בכל מעבר = שכבה חדשה)');
 // 2. העמודים באמת בתוך <main> (אחרת הכלל לא חל)
 const main = html.slice(html.indexOf('<main'), html.indexOf('</main>'));
 for (const t of ['overview', 'stocks', 'trades', 'wishlist', 'deposits', 'pension']) ok(main.includes('id="tab-' + t + '" class="tabpage'), 'העמוד בתוך main: ' + t);
 // 3. הגלאי ב־qa-sweep פעיל גם ל־Invest
 ok(/app === 'academy' \|\| app === 'invest'\) \? S\.lt\.glass\.slice\(\)/.test(qa), 'qa-sweep: שכבת טשטוש חדשה בתוך הדף — גם ב־Invest');
+
+// 4. (16/11/2026) הדף = שכבה אחת, בלי שכבות דחוסות: הקופסה ברוחב המסך עם חיתוך אופקי, והשורות הנגללות בסוף סדר הציור
+const css = R('styles.css'), dk = R('desktop.css'), app = R('app.js');
+ok(/main \.tabpage \{ margin-inline: -16px; padding-inline: 16px; overflow-x: clip; \}/.test(css), 'styles.css: הדף ברוחב המסך + overflow-x: clip');
+ok(!/main \.tabpage \{[^}]*overflow-y/.test(css), 'בלי חיתוך אנכי (תפריטים נפתחים ותוצאות חיפוש)');
+const zr = css.match(/main \.tabpage :is\(([^)]*)\) \{ position: relative; z-index: 1; \}/);
+ok(!!zr, 'styles.css: השורות הנגללות ב־z-index: 1');
+for (const c of ['.ranges', '.chip-row', '.stock-sort-row', '.wl-tabs', '.tx-years']) ok(zr && zr[1].includes(c), 'שורה נגללת: ' + c);
+// כל שורה נגללת לרוחב בתוך דפי Invest — ברשימה (שורה חדשה בלי z-index תחזיר את השכבות הדחוסות)
+const scrollers = [...css.matchAll(/(^|\n)([^{}\n]+)\{[^}]*overflow-x: (auto|scroll)/g)].map((m) => m[2].trim()).filter((sel) => /^\.(ranges|chip-row|stock-sort-row|wl-tabs|tx-years)\b/.test(sel));
+ok(scrollers.length >= 4, 'נמצאו השורות הנגללות ב־styles.css (' + scrollers.length + ')');
+ok(/html\.dk main \.tabpage \{ margin-inline: -24px; padding-inline: 24px; \}/.test(dk), 'desktop.css: אותו דבר עם הריפוד של המחשב');
+ok(/px;margin:0;visibility:hidden;pointer-events:none/.test(app), 'tabPrewarm: margin:0 בדף המחומם (מוצמד לפי הקופסה)');
+const ts = R('tools/qa-sweep.js');
+ok(/async function squashOf\(S\)/.test(ts) && /שכבות דחוסות/.test(ts), 'qa-sweep: גלאי שכבות דחוסות בדף שנחת');
 
 console.log('\n' + (n - bad) + '/' + n + ' passed');
 if (bad) process.exit(1);
