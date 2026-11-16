@@ -109,19 +109,37 @@ function dailyRows(nDays, endISO) {
   ok(T.normalize100([]).length === 0, 'ריק');
 }
 
-/* ---------- getBenchHist (עם fetch מדומה) ---------- */
+/* ---------- getBenchHist (עם שרתון מדומה) ---------- */
 (async () => {
-  const spy = await T.getBenchHist('SPY');
-  ok(Array.isArray(spy) && spy.length === 40, 'SPY נטען מ־Stooq המדומה (40 שורות)');
-  ok(/^\d{4}-\d{2}-\d{2}$/.test(spy[0].date) && spy[0].close === 100, 'שורה ראשונה תקינה');
-  ok(spy[39].close === 139, 'שורה אחרונה תקינה');
-  const callsAfterFirst = fetchCalls;
-  const spy2 = await T.getBenchHist('SPY');
-  ok(spy2.length === 40 && fetchCalls === callsAfterFirst, 'קריאה שנייה מהמטמון — בלי fetch');
-  const qqq = await T.getBenchHist('QQQ');
-  ok(qqq.length === 40 && qqq[0].close === 100, 'QQQ נטען (אותו סטאב)');
+  const today = T.todayISO();
+  // שרתון מדומה: ימי מסחר מתאריך עד היום (ימים מאז 1970). ^SP500TR מ־1988, ^XNDX מ־1999 — כמו אצל המפרסמים
+  const series = (fromIso) => {
+    const t = [], c = [];
+    const d0 = Math.floor(Date.parse(fromIso + 'T00:00:00Z') / 86400000), d1 = Math.floor(Date.now() / 86400000);
+    for (let d = d0; d <= d1; d++) { const wd = new Date(d * 86400000).getUTCDay(); if (wd && wd !== 6) { t.push(d); c.push(50 + (d - d0) / 100); } }
+    return { t, c };
+  };
+  const startOf = { '^SP500TR': '1988-01-04', '^XNDX': '1999-03-04' };
+  histApi = (b) => {
+    const data = {};
+    for (const s of b.syms) {
+      const from = b.range === 'max' ? startOf[s] : T.addDaysISO(today, b.range === '10y' ? -3653 : -1826);
+      data[s] = series(from > startOf[s] ? from : startOf[s]);
+    }
+    return { ok: true, data };
+  };
+  // מטמון ישן עם SPY/QQQ (מחיר בלבד, עד 2.157.1) — לא נשאר
+  store.pwa_bench_v1 = JSON.stringify({ SPY: { updated: today, rows: [['2026-01-02', 1]] }, QQQ: { updated: today, rows: [] } });
+  const sp = await T.getBenchHist('^SP500TR');
+  ok(!T.benchStore().SPY && !T.benchStore().QQQ, 'SPY/QQQ הישנים נמחקו מהמטמון');
+  ok(sp.length > 1000 && histReqs[0].range === '5y' && histReqs[0].syms.join() === '^SP500TR,^XNDX', 'בלי תאריך: 5 שנים מהשרתון, בקשה אחת לשני מדדי התשואה הכוללת');
+  ok(/^\d{4}-\d{2}-\d{2}$/.test(sp[0].date) && sp[0].close > 0, 'שורה ראשונה תקינה');
+  const calls = histReqs.length;
+  await T.getBenchHist('^SP500TR');
+  ok(histReqs.length === calls, 'קריאה שנייה מהמטמון — בלי בקשה');
+  ok((await T.getBenchHist('SPY')) === null, 'SPY (מחיר בלבד) כבר לא מדד השוואה');
   ok((await T.getBenchHist('XXX')) === null, 'סימול לא מוכר מחזיר null');
-  ok((await T.getBenchHist('spy')) === null, 'אותיות קטנות לא מתקבלות');
+  ok((await T.getBenchHist('^sp500tr')) === null, 'אותיות קטנות לא מתקבלות');
 
   /* ---------- closeOnOrBefore ---------- */
   const hist = [{ date: '2025-01-02', close: 100 }, { date: '2025-01-03', close: 110 }];
@@ -131,53 +149,56 @@ function dailyRows(nDays, endISO) {
   ok(T.closeOnOrBefore([], '2025-01-01') === null, 'היסטוריה ריקה');
 
   /* ---------- 16/11/2026: המדדים ב־5Y ובמקסימום ---------- */
-  const today = T.todayISO();
-  ok(T.benchRangeFor(null, today) === '5y', 'בלי תאריך — 5 שנים כמו קודם');
+  ok(T.benchRangeFor(null, today) === '5y', 'בלי תאריך — 5 שנים');
   ok(T.benchRangeFor(T.addDaysISO(today, -3 * 366), today) === '5y', '3Y — מספיק 5 שנים');
   ok(T.benchRangeFor(T.addDaysISO(today, -1826 - 17), today) === '10y', '5Y (יום הבסיס לפני הנר הראשון של 5y) — 10 שנים');
-  ok(T.benchRangeFor('2005-11-01', today) === 'max', 'תיק מ־2005 — מתחילת המסחר');
+  ok(T.benchRangeFor('2005-11-01', today) === 'max', 'תיק מ־2005 — מתחילת המדד');
 
-  // שרתון מדומה: SPY מ־1993, QQQ מ־1999 (ימים מאז 1970)
-  const series = (fromIso) => {
-    const t = [], c = [];
-    const d0 = Math.floor(Date.parse(fromIso + 'T00:00:00Z') / 86400000), d1 = Math.floor(Date.now() / 86400000);
-    for (let d = d0; d <= d1; d++) { const wd = new Date(d * 86400000).getUTCDay(); if (wd && wd !== 6) { t.push(d); c.push(50 + (d - d0) / 100); } }
-    return { t, c };
-  };
-  histApi = (b) => {
-    const data = {};
-    for (const s of b.syms) data[s] = series(b.range === 'max' ? (s === 'SPY' ? '1993-01-29' : '1999-03-10') : T.addDaysISO(today, -3653));
-    return { ok: true, data };
-  };
   const from05 = '2005-12-01';
-  const [spyL, qqqL] = await Promise.all([T.getBenchHist('SPY', from05), T.getBenchHist('QQQ', from05)]);
-  ok(histReqs.length === 1 && histReqs[0].range === 'max' && histReqs[0].syms.join() === 'SPY,QQQ', 'מקסימום: בקשה אחת לשני המדדים, range=max');
-  ok(spyL[0].date <= T.addDaysISO(from05, -14) && spyL[0].date >= T.addDaysISO(from05, -24), 'SPY מכסה את תחילת התיק (נחתך לשבועיים לפני — לא שומרים מ־1993)');
-  ok(qqqL[0].date <= from05, 'QQQ מכסה את 2005');
+  const r0 = histReqs.length;
+  const [spL, ndL] = await Promise.all([T.getBenchHist('^SP500TR', from05), T.getBenchHist('^XNDX', from05)]);
+  ok(histReqs.length === r0 + 1 && histReqs[r0].range === 'max' && histReqs[r0].syms.join() === '^SP500TR,^XNDX', 'מקסימום: בקשה אחת לשני המדדים, range=max');
+  ok(spL[0].date <= T.addDaysISO(from05, -14) && spL[0].date >= T.addDaysISO(from05, -24), 'S&P 500 TR מכסה את תחילת התיק (נחתך לשבועיים לפני — לא שומרים מ־1988)');
+  ok(ndL[0].date <= from05, 'Nasdaq-100 TR מכסה את 2005');
   const pfDates = ['2005-12-01', '2006-06-01', today];
-  ok(T.benchRowsForDates(spyL, pfDates) && T.benchRowsForDates(qqqL, pfDates), 'הקווים מתיישרים לכל תאריכי התיק — לא null');
+  ok(T.benchRowsForDates(spL, pfDates) && T.benchRowsForDates(ndL, pfDates), 'הקווים מתיישרים לכל תאריכי התיק — לא null');
   const before = histReqs.length;
-  await T.getBenchHist('SPY', '2010-01-04');
+  await T.getBenchHist('^SP500TR', '2010-01-04');
   ok(histReqs.length === before, 'טווח קצר יותר — מהמטמון, בלי בקשה');
 
-  // QQQ התחיל ב־1999: בקשה מ־1995 נשמרת כ"שלמה" ולא נמשכת שוב בכל ציור
-  const r95 = await T.getBenchHist('QQQ', '1995-06-01');
+  // Nasdaq-100 TR מתחיל ב־1999: בקשה מ־1995 נשמרת כ"שלמה" ולא נמשכת שוב בכל ציור
+  const r95 = await T.getBenchHist('^XNDX', '1995-06-01');
   const afterQ = histReqs.length;
-  ok(r95[0].date >= '1999-03-10', 'QQQ מתחילת המסחר שלו');
-  await T.getBenchHist('QQQ', '1995-06-01');
+  ok(r95[0].date >= '1999-03-04', 'Nasdaq-100 TR מתחילת המדד');
+  await T.getBenchHist('^XNDX', '1995-06-01');
   ok(histReqs.length === afterQ, 'מדד שהתחיל אחרי תחילת התיק — לא נמשך שוב');
 
   // 5Y: יום הבסיס של התיק לפני הנר הראשון של '5y' — עכשיו 10y
   const base5 = T.addDaysISO(today, -1829);
-  const spy5 = await T.getBenchHist('SPY', base5);
-  ok(T.benchRowsForDates(spy5, [base5, today]) !== null, '5Y: יש מחיר גם ליום הבסיס');
+  const sp5 = await T.getBenchHist('^SP500TR', base5);
+  ok(T.benchRowsForDates(sp5, [base5, today]) !== null, '5Y: יש ערך גם ליום הבסיס');
 
-  // השרתון נופל ביום חדש — נשאר המטמון הארוך, לא נדרס ב־5 השנים הקצרות
+  // השרתון נופל ביום חדש — נשאר המטמון הארוך, לא נדרס
   histApi = (b) => ({ ok: false, error: 'down' });
-  T.benchStore().SPY.updated = '2000-01-01';
-  const st = await T.getBenchHist('SPY', from05);
+  T.benchStore()['^SP500TR'].updated = '2000-01-01';
+  const st = await T.getBenchHist('^SP500TR', from05);
   ok(st.length > 1000 && st[0].date <= from05, 'שרתון לא עונה — ההיסטוריה הארוכה מהמטמון');
-  ok(T.benchStore().SPY.rows[0][0] <= from05, 'המטמון הארוך לא נדרס');
+  ok(T.benchStore()['^SP500TR'].rows[0][0] <= from05, 'המטמון הארוך לא נדרס');
+
+  /* ---------- השרתון: Nasdaq-100 TR מהמפרסם (parseNasdaqIdx) ---------- */
+  const H = require('../ibkr-proxy/api/history.js');
+  const pv = H._parseNasdaqIdx({ aaData: [
+    { TimeStamp: '/Date(1794805200000)/', Value: null },          // היום — עוד בלי סגירה
+    { TimeStamp: '/Date(1794546000000)/', Value: 34167.37830030993 },
+    { TimeStamp: '/Date(1794459600000)/', Value: 34587.75772939639 },
+    { TimeStamp: '/Date(920523600000)/', Value: 1933.03 },
+  ] });
+  const iso = (d) => new Date(d * 86400000).toISOString().slice(0, 10);
+  ok(pv && pv.t.map(iso).join() === '1999-03-04,2026-11-12,2026-11-13', 'Nasdaq: תאריכי מסחר נכונים (חצות ניו־יורק), ישן → חדש, בלי היום הריק');
+  ok(pv.c[2] === 34167.3783 && pv.c[0] === 1933.03, 'Nasdaq: ערכים מעוגלים כמו parseChart');
+  ok(H._parseNasdaqIdx({ aaData: [] }) === null && H._parseNasdaqIdx(null) === null, 'Nasdaq: תשובה ריקה → null');
+  const hsrc = fs.readFileSync(path.join(__dirname, '..', 'ibkr-proxy', 'api', 'history.js'), 'utf8');
+  ok(/NQ_IDX\[sym\] && !INTRA\[range\]/.test(hsrc), 'השרתון: ^XNDX יומי מ־Nasdaq (ב־Yahoo רק מחיר נוכחי), תוך־יומי — Yahoo');
 
   console.log('\nכל ' + n + ' הבדיקות עברו.');
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });
