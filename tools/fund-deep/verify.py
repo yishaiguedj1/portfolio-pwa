@@ -116,7 +116,12 @@ DEBT_NC = ['LongTermDebtNoncurrent', 'LongTermDebtAndCapitalLeaseObligationsNonc
 DEBT_C = ['LongTermDebtCurrent', 'LongTermDebtAndCapitalLeaseObligationsCurrent', 'DebtCurrent', 'OtherLongTermDebtCurrent',
           'ConvertibleNotesPayableCurrent', 'SeniorNotesCurrent']
 DEBT_ST = ['CommercialPaper', 'ShortTermBorrowings', 'OtherShortTermBorrowings', 'ShortTermBankLoansAndNotesPayable', 'BankOverdrafts']
-DEBT_RE = re.compile(r'borrowing|commercial paper|notes payable|\bdebt\b|loans? payable|bank loans?|credit facilit|senior (unsecured )?notes|convertible (senior )?notes|debentures|bonds payable|term loan|current (portion|maturities) of long|LongTermDebt|ShortTermBorrowings|CommercialPaper|NotesPayable|Debt(Current|Noncurrent)', re.I)
+DEBT_RE = re.compile(r'borrowing|commercial paper|notes? payable|\bdebt\b|loans? payable|bank loans?|credit facilit|senior (unsecured )?notes|convertible (senior )?notes|debentures|bonds payable|term loan|current (portion|maturities) of long|mortgages? (payable|notes|loans)|lines? of credit|revolving|LongTermDebt|ShortTermBorrowings|CommercialPaper|NotesPayable|LinesOfCredit|LineOfCredit|Debt(Current|Noncurrent)', re.I)
+# תגיות שאינן חוב גם כשהשם או התווית נשמעים כך (16/11/2026): "סך התחייבויות לא שוטפות חוץ מחוב" (Con Edison — נספר כחוב
+# ו"הצפוי" יצא כפול), סך ההון והחוב, רכיב ההון של אג"ח להמרה, ריבית לשלם, הנחות/עלויות הנפקה, חובות לחברות קשורות, נכסים
+NOT_DEBT_TAG = re.compile(r'OtherThanLong|^Capitalization|^EquityAndLongTermDebt|^TemporaryEquity|^ReserveForEsop|^DebtInstrumentInterestRate|'
+                          r'UnamortizedLossReacquiredDebt|UnamortizedDebtIssuance|DebtInstrumentUnamortized|DebtFairValueAdjustment|^ConvertibleDebtEquity|'
+                          r'^InterestPayable|^DueTo(Affiliate|RelatedParties)|Receivable|Investments?\b|Investments?[A-Z]|^MarketableSecurities|^AllowanceFor')
 DEBT_EXCL = re.compile(r'operating lease|interest payable|accrued|accounts payable|deferred|debt securities|held.for.sale|derivative|due to (related|affiliat)|guarantee|total liabilities|liabilities of|customer|deposits|payable to|insurance|policy|unearned|pension|tax|dividend|issuance cost', re.I)
 LEASE_RE = re.compile(r'finance lease|capital lease', re.I)
 ST_RE = re.compile(r'short.?term (borrowings|debt|notes|loans)|commercial paper|notes payable|bank (loans|overdraft)|loans payable|(?<!long.term )borrowings(?! .*long)', re.I)
@@ -620,7 +625,7 @@ class Co:
             if a0 and pos <= a0:
                 continue
             txt = tag + ' ' + lab
-            if DEBT_EXCL.search(txt) and tag not in DEBT_ALL:
+            if NOT_DEBT_TAG.search(tag) or (DEBT_EXCL.search(txt) and tag not in DEBT_ALL):
                 continue
             if tag in LEASE_FIN or (LEASE_RE.search(lab) and not DEBT_RE.search(re.sub(LEASE_RE, '', lab))):
                 kind = 'lease'
