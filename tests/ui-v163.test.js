@@ -15,8 +15,9 @@ function grab(name) {
 const rows = new Function(grab('proxyHistoryRows') + 'return proxyHistoryRows;')();
 const r = rows({ SPY: { t: [20000, 20001], c: [100.5, 0] }, BAD: { t: 'x' } });
 ok(r.SPY.length === 1 && r.SPY[0].date === '2024-10-04' && r.SPY[0].close === 100.5 && !r.BAD, 'המרת תשובת השרת לשורות (יום מ־1970 → תאריך, בלי ריקים)');
-ok(/const got = await proxyHistory\(part, '7y', 25000\);/.test(src) && /i \+= 40\) parts\.push\(syms\.slice\(i, i \+ 40\)\)/.test(src), 'דמו: הסימבולים לשרת בבקשות של עד 40 (v168: ~57 סימבולים)');
-ok(/const missing = syms\.filter\(\(s\) => !hist\[s\]\);/.test(src) && /histProxyOff = true;/.test(src), 'רק מה שחסר — ישירות, בלי לשאול את השרת שוב על כל מניה');
+const demoBody = grab('demoCreate');
+ok(/ackFetch\('', 45000\)/.test(demoBody) && /body: JSON\.stringify\(\{ op: 'ackman', v: v \|\| '' \}\)/.test(src), 'דמו (v783): הספר כולו מהשרתון בבקשה אחת (op:ackman)');
+ok(!/proxyHistory|pool\(/.test(demoBody), 'דמו: בלי בקשת היסטוריה לכל מניה מהטלפון');
 ok(/const px = await proxyHistQueued\(sym\);/.test(src), 'גרפים רגילים: גיבוי דרך השרת כש־Yahoo ו־Stooq לא עונים');
 ok(/proxyHistQ\.timer = setTimeout\(async \(\) => \{/.test(src) && /slice\(0, 40\)/.test(src), 'גיבוי: כמה מניות באותו רגע = בקשה אחת (עד 40)');
 ok(/method: 'POST', headers: ibkrProxyHeaders\(\)/.test(src), 'אותה שמירת גישה כמו IBKR');

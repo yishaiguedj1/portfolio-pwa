@@ -69,7 +69,7 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
           <div class="menu-section menu-demo">
             <button id="menuDemoBtn" class="row-link menu-row" type="button">
               <span class="row-link-ic demo-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 2.5l1.7 5.1a3 3 0 0 0 1.9 1.9L18.7 11.2l-5.1 1.7a3 3 0 0 0-1.9 1.9L10 19.9l-1.7-5.1a3 3 0 0 0-1.9-1.9L1.3 11.2l5.1-1.7a3 3 0 0 0 1.9-1.9z"/><path d="M19 1.5l.8 2.2a1.5 1.5 0 0 0 .9.9l2.3.8-2.3.8a1.5 1.5 0 0 0-.9.9L19 9.3l-.8-2.2a1.5 1.5 0 0 0-.9-.9L15 5.4l2.3-.8a1.5 1.5 0 0 0 .9-.9z"/></svg></span>
-              <span class="row-link-txt"><span class="menu-row-t" id="menuDemoLbl" data-i18n="demoBtn">טען תיק דמו</span><span class="menu-row-s" id="menuDemoSub" data-i18n="menuDemoSub">האפליקציה במלואה</span></span>
+              <span class="row-link-txt"><span class="menu-row-t" id="menuDemoLbl" data-i18n="demoBtn">התיק של ביל אקמן</span><span class="menu-row-s" id="menuDemoSub" data-i18n="menuDemoSub">תיק דמו מהדיווחים ל־SEC</span></span>
               <span class="row-link-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 6 9 12 15 18"/></svg></span>
             </button>
           </div>
@@ -135,17 +135,24 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
 <main>
   <!-- v146: מצב דמו -->
   <div class="demo-banner hidden" id="demoBanner" role="status">
-    <span data-i18n="demoBanner">מצב דמו — נתונים לדוגמה</span>
+    <span id="demoBannerTxt" data-i18n="demoBanner">מצב דמו — נתונים לדוגמה</span>
     <button type="button" class="link-btn" id="demoBannerExit" data-i18n="demoExitBtn">יציאה מהדמו</button>
   </div>
   <!-- סקירה -->
   <section id="tab-overview" class="tabpage active no-in" role="tabpanel">
     <!-- v146→v291: הצעת תיק הדמו — בראש הסקירה, רק כשהחשבון ריק לגמרי (renderDemoUi); תמיד זמין גם בתפריט ההמבורגר -->
+    <!-- 16/11/2026: תיק הדמו = התיק של ביל אקמן (פרשינג סקוור) מהדיווחים ל־SEC — הכרטיס הקטן מראה של מי התיק -->
     <div class="card demo-card" id="demoOffer">
-      <div class="demo-card-icon" aria-hidden="true">✨</div>
-      <h2 data-i18n="demoTitle">רוצה לראות את האפליקציה במלואה?</h2>
-      <button id="demoCreateBtn" class="btn demo-btn" type="button" data-i18n="demoBtn">טען תיק דמו</button>
+      <div class="ack-card ack-mini" aria-hidden="true">
+        <div class="ack-top"><span class="ack-fund" dir="ltr">PERSHING SQUARE</span><span class="ack-chip"><span dir="ltr">13F</span> · SEC</span></div>
+        <div class="ack-name" data-i18n="ackName">ביל אקמן</div>
+        <div class="ack-bar"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      </div>
+      <h2 data-i18n="demoTitle">רוצה לראות את האפליקציה עם תיק אמיתי?</h2>
+      <button id="demoCreateBtn" class="btn demo-btn" type="button" data-i18n="demoOpenBtn">פתח את התיק</button>
     </div>
+    <!-- 16/11/2026: במצב דמו — כרטיס הזהות של התיק של אקמן (renderAckHero); נגיעה → "מה השתנה" והסיפור -->
+    <div class="ack-hero hidden" id="ackHero" role="button" tabindex="0"></div>
     <div class="cards-3 ov-stats card">
       <div class="stat">
         <div class="stat-label" data-i18n="ovStocksValue">שווי התיק</div>

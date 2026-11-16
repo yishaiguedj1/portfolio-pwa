@@ -181,6 +181,7 @@ function buildBook(input) {
       else if (a.type === 'spinoff' && q0 > 0) sim[a.to] = (sim[a.to] || 0) + Math.floor(q0 * a.ratio);
       else if (a.type === 'merger' && q0 > 0) { if (a.to) sim[a.to] = (sim[a.to] || 0) + Math.floor(q0 * (a.ratio || 0)); sim[a.sym] = 0; }
     }
+    const simCa = Object.assign({}, sim);   // הרבעון הקודם אחרי פעולות תאגידיות — הבסיס ל"מה השתנה" (ספליט/ספינאוף הם לא קנייה)
     const exQ = exact.filter((x) => x.date > from && x.date <= to);
     for (const x of exQ) sim[x.sym] = (sim[x.sym] || 0) + x.qty * splitF(x.sym, x.date, to);
     for (const x of exQ) pushTrade({ date: tday(x.date), sym: x.sym, qty: x.qty, price: x.price, est: !!x.est, src: x.src || 'SEC', url: x.url || '', note: x.note || '' });
@@ -224,7 +225,15 @@ function buildBook(input) {
       if (rem) { const dl = tday(to), pl = markOn(sym, dl); if (pl > 0) pushTrade({ date: dl, sym, qty: rem, price: r6(pl), est: true, how: 'close', src: '13F', period: to }); }
     }
     held = target;
-    qMeta.push(Object.assign({ period: q.period, filed: q.filed, acc: q.acc || [], total: q.rows.reduce((t, r) => t + r.value, 0), n: q.rows.length },
+    // h — האחזקות כפי שדווחו ([סימבול, מניות, שווי $]); d — מה השתנה מול הרבעון הקודם ([סימבול, מ־, ל־], אחרי פעולות
+    // תאגידיות, ביחידות של היום) — לחלונות "מה השתנה" ו"הסיפור" באפליקציה
+    const d = [];
+    if (qi > 0) for (const sym of new Set([...Object.keys(simCa), ...Object.keys(target)])) {
+      const a = Math.round(simCa[sym] || 0), b = target[sym] || 0;
+      if (a !== b) d.push([sym, a, b]);
+    }
+    qMeta.push(Object.assign({ period: q.period, filed: q.filed, acc: q.acc || [], total: q.rows.reduce((t, r) => t + r.value, 0), n: q.rows.length,
+      h: q.rows.map((r) => [r.sym, r.shares, r.value]).sort((a, b) => b[2] - a[2]), d },
       (q.calls || []).length ? { calls: q.calls } : {}, (q.puts || []).length ? { puts: q.puts } : {}, q.co ? { co: 1 } : {}));
     prevPeriod = to;
     ev.push({ k: 'sweep', date: tday(to), period: to, ord: 9 });

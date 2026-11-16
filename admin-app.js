@@ -180,7 +180,6 @@ function itemRow(x) {
     case 'pr_open': { const s = h('bdi', null, v.t || ''); return row({ c: 'orange', ic: '⇄', t: fmt(t('admItPr'), { n: v.n }), s, on: open(gh + '/pull/' + v.n) }); }
     case 'pr_dep': return row({ c: 'gray', ic: '⇡', t: fmt(t('admItDep'), { n: v.n }), on: open(gh + '/pulls') });
     case 'date_ant_key': return row({ c, ic: '⧗', t: t('admItAnt'), s: fmt(t('admItDate'), { d: v.d }), v: v.left, tr: t('admDays') });
-    case 'date_brk13f': return row({ c, ic: '⧗', t: t('admItBrk'), s: fmt(t('admItDate'), { d: v.d }), v: v.left, tr: t('admDays') });
     case 'date_sec_txt': return row({ c, ic: '⧗', t: t('admItSec'), s: fmt(t('admItDate'), { d: v.d }), v: v.left, tr: t('admDays') });
     case 'date_drill': return row({ c, ic: '⧗', t: t('admItDrill'), s: fmt(t('admItDate'), { d: v.d }), v: v.left, tr: t('admDays') });
     case 'gold_due': return row({ c: 'orange', ic: '◎', t: t('admItGold'), s: v.r === 'ver' ? t('admItGoldVer') : v.at ? fmt(t('admItLast'), { a: ago(v.at) }) : t('admItGoldNever'), on: () => go('gold') });
@@ -1180,7 +1179,7 @@ async function needReady(fresh) {
   const r = await api('adminReady', fresh ? { fresh: 1 } : {});
   if (r.ok) { D.rd = r.rd; D.rdAt = Date.now(); if (['ready', 'sys'].includes(cur)) paint(); }
 }
-const RD_DN = { ant_key: () => t('admItAnt'), brk13f: () => t('admItBrk'), sec_txt: () => t('admItSec'), drill: () => t('admItDrill') };
+const RD_DN = { ant_key: () => t('admItAnt'), sec_txt: () => t('admItSec'), drill: () => t('admItDrill') };
 function readyRow(x) {
   const v = x.v || {};
   const T = { cache: [t('admRdCache'), t('admRdCacheOk'), fmt(t('admRdCacheBad'), { h: [...(v.bad || []), ...(v.miss || [])].join(' · ') }), t('admRdCacheFix')],
@@ -1222,7 +1221,7 @@ page('push', { tab: 'sys', parent: 'sys', title: () => t('admPushT'), render(p) 
 page('quota', { tab: 'sys', parent: 'sys', title: () => t('admQuota'), render(p) {
   const ai = D.ai, o = D.ov;
   if (!ai) needAi();
-  const DN = { ant_key: () => t('admItAnt'), brk13f: () => t('admItBrk'), sec_txt: () => t('admItSec'), drill: () => t('admItDrill') };
+  const DN = { ant_key: () => t('admItAnt'), sec_txt: () => t('admItSec'), drill: () => t('admItDrill') };
   if (o && o.dates) p.append(grp(t('admSecDates')), list(...o.dates.map((d) => row({ c: d.left <= 7 ? 'red' : d.left <= 30 ? 'orange' : 'gray', ic: '⧗', t: (DN[d.k] || (() => d.k))(), s: d.d, v: d.left, tr: t('admDays') }))));
   if (ai) {
     const L = ai.lim, rows = [];
