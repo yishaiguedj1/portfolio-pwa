@@ -375,6 +375,13 @@ def run(args):
             print('✓ שמירה ב־Drive נלקחה.')
             print('הצעד הבא: python3 translator/job.py auto')
             return 0
+        if job.get('kind') == 'lb':
+            # 16/11/2026: עותק צרוב 240p למאגר הלמידה (השרתון יוצר, רק בהסכמה) — בלי מודל, בלי טוקנים
+            save_state({'job': args.job, 'key': args.key, 'server': args.server, 'drive_api': args.drive_api, 'kind': 'lb',
+                        'folder': job.get('folder') or '', 'spec': job.get('spec') or {}, 'files': {}})
+            print('✓ עותק למאגר נלקח.')
+            print('הצעד הבא: python3 translator/job.py auto')
+            return 0
         if job.get('kind') != 'tr':
             c.call('report', fail=True, err='worker_unknown_kind')
             print('✗ סוג עבודה לא מוכר — סומן בשרתון.')
@@ -1468,6 +1475,8 @@ def learn_put(ctx):
 LM_ENC = {
     'a': ['-vn', '-ac', '1', '-c:a', 'libopus', '-b:a', '32k'],
     'v': ['-vf', 'scale=-2:240', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '30', '-ac', '1', '-c:a', 'libopus', '-b:a', '32k'],
+    # 16/11/2026: s = הסרטון הצרוב כמו שהלקוח קיבל (עבודת־העזר lb) — 240p כמו v (ההסכמה: "עותק קטן"), CRF 28 כדי שהכתוביות ייקראו
+    's': ['-map', '0:v:0', '-map', '0:a:0?', '-vf', 'scale=-2:240', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28', '-ac', '1', '-c:a', 'libopus', '-b:a', '32k'],
 }
 # 21/10/2026 (מהיומנים של הייצור): הקידוד ל־240p של סרטון של שעה וחצי לקח כ־6 דק׳ בסוף העבודה (91% מעבד, אחרי שהתוצרים כבר עלו).
 # כשאיכויות הצפייה כבר בנו 240p (אותו x264 veryfast, CRF 30) — מעתיקים את הווידאו כמו שהוא ומקודדים רק את הקול (שניות)
@@ -1475,7 +1484,7 @@ LM_COPY_V = ['-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'copy', '-ac', '1', '-c:
 # 30/10/2026: קריוקי — השיר נשמר לסט הבדיקה של היישור (docs/studio-karaoke-he.md). מונו ב־32k פוגע בהפרדה, ולכן סטריאו
 # 128k (שיר של 4 דק׳ ≈ 4MB, הרבה מתחת ל־MEDIA_MAX.a)
 LM_ENC_KA = ['-vn', '-ac', '2', '-c:a', 'libopus', '-b:a', '128k']
-LM_TIMEOUT = {'a': 900, 'v': 2400}
+LM_TIMEOUT = {'a': 900, 'v': 2400, 's': 3600}
 LM_VIDEO_EXT = ('.mp4', '.mov', '.mkv', '.webm', '.m4v', '.avi')
 _LM_HEX = re.compile(r'^[0-9a-f]{32}$')
 
@@ -1595,9 +1604,10 @@ def _lm_put(url, path):
 
 def learn_media(ctx, src=None, kinds=None, work=None):
     """src/kinds/work — לקריוקי (learn_ka): השיר עצמו, רק הקול, ובאיכות של שיר (LM_ENC_KA)."""
-    if os.environ.get('SNB_LEARNMEDIA') == 'off' or ctx.st.get('kind', 'tr') != 'tr':
-        return []
-    ka = src is not None
+    kind = ctx.st.get('kind', 'tr')
+    if os.environ.get('SNB_LEARNMEDIA') == 'off' or kind not in ('tr', 'lb') or (kind == 'lb') != (tuple(kinds or ()) == ('s',)):
+        return []                                    # lb — רק s, ו־s — רק מ־lb (16/11/2026)
+    ka = src is not None and kind == 'tr'
     src = src or _lm_source(ctx.pdir)
     if not src:
         return []
@@ -1632,7 +1642,7 @@ def learn_media(ctx, src=None, kinds=None, work=None):
                     out.append(k)
             dst.unlink(missing_ok=True)
         if out:
-            print('· מאגר הלמידה: ' + ' + '.join({'a': 'הקול', 'v': 'עותק 240p'}[k] for k in out) + ' (מוצפן)')
+            print('· מאגר הלמידה: ' + ' + '.join({'a': 'הקול', 'v': 'עותק 240p', 's': 'עותק צרוב 240p'}[k] for k in out) + ' (מוצפן)')
         return out
     except Stop:
         raise
@@ -4601,6 +4611,8 @@ def auto(args):
             return ai_auto(args)
         if load_state().get('kind') == 'dx':      # 26/10/2026: התוצרים ל־Drive
             return dx_auto(args)
+        if load_state().get('kind') == 'lb':      # 16/11/2026: עותק צרוב למאגר הלמידה
+            return lb_auto(args)
         if (load_state().get('spec') or {}).get('ka') == 1:   # 26/10/2026: קריוקי משיר רגיל — בלי Claude
             return karaoke(args)
         if (load_state().get('spec') or {}).get('vi') == 1:   # 9/11/2026 (גל 0, PR 0.2): ניתוח סרטונים — analyze.py
@@ -4866,6 +4878,34 @@ def dx_auto(args):
             base[0] += sz
         ctx.report(done=True, msg='נשמר ב־Drive', force=True)
         print('✓ %d קבצים נשמרו ב־Drive.' % len(it))
+        return 0
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def lb_auto(args):
+    """16/11/2026: עותק צרוב (240p, מוצפן) של תרגום שהסתיים, למאגר הלמידה — לבירור תקלה ("רק חלק תורגם"). השרתון יוצר
+    את העבודה רק בהסכמה (lrm) ובחשד / בלחיצה של המנהל, ובודק שוב ב־learnMedia. הורדה של התוצר מ־R2 → learn_media(s) → מחיקה"""
+    ctx = Ctx(load_state())
+    lb = (ctx.st.get('spec') or {}).get('lb') or {}
+    fid = str(lb.get('id') or '') if isinstance(lb, dict) else ''
+    if not fid.startswith('R2_'):
+        ctx.report(fail=True, err='lb_bad', force=True)
+        print('✗ אין סרטון.')
+        return 1
+    d = DX_DIR / ('lb-' + ctx.name)
+    d.mkdir(parents=True, exist_ok=True)
+    try:
+        ctx.report('sv', 0, 'עותק למאגר', force=True)
+        p = d / 'in.mp4'
+        fetch_input(ctx, fid, p, int(lb.get('s') or 0), lambda f: ctx.report('sv', f * 0.6, 'עותק למאגר'))
+        out = learn_media(ctx, src=p, kinds=('s',), work=d / '_learn')
+        if 's' not in out:
+            ctx.report(fail=True, err='lb_skip', force=True)   # השרתון לא ביקש (הסכמה / כבר יש) או שהקידוד נכשל
+            print('✗ העותק לא נשמר.')
+            return 1
+        ctx.report(done=True, msg='נשמר במאגר', force=True)
+        print('✓ עותק צרוב 240p נשמר במאגר (מוצפן).')
         return 0
     finally:
         shutil.rmtree(d, ignore_errors=True)

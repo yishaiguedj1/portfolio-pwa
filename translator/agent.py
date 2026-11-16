@@ -103,7 +103,7 @@ def net_rate() -> dict:
 def host_info(busy: str = '') -> dict:
     """מצב השרת למסך השרת באפליקציה — מספרים בלבד (בלי שמות קבצים, בלי תוכן). כל ערך שלא נמדד — לא נשלח."""
     hb = {'v': os.environ.get('SNB_VERSION', 'dev')[:12], 'busy': busy,
-          'vi': 1}                     # 9/11/2026: מכיר עבודת ניתוח (analyze.py) — השרתון מוסר אותה רק למי שמצהיר
+          'vi': 1, 'lb': 1}            # 16/11/2026: lb — עותק צרוב 240p למאגר הלמידה (job.py lb_auto)   # 9/11/2026: מכיר עבודת ניתוח (analyze.py) — השרתון מוסר אותה רק למי שמצהיר
     if os.environ.get('SNB_VI_LIVE') != '1':   # 10/11/2026: הניתוח עם Claude סגור (= not analyze.live_ok) — השרתון דוחה
         hb['vx'] = 1                           # ניתוח לא יבש כבר ביצירה (vi_off), לפני שהטלפון מעלה את כל הסרטון
     if busy:                          # 15/10/2026: הדופק עם השלב הנוכחי (מ־prog.json של job.py)
@@ -782,7 +782,7 @@ def end_code(rc: int) -> str:
     return {'job_timeout': 'timeout', 'worker_oom': 'oom'}.get(crash_code(rc), 'crash')
 
 
-AUTO_KINDS = ('tr', 'rr', 'ai', 'dx')     # 26/10/2026: dx = שמירה ב־Drive; = WORKER_KINDS בשרתון חוץ מ־ping — job.py auto מטפל בכולם
+AUTO_KINDS = ('tr', 'rr', 'ai', 'dx', 'lb')     # 16/11/2026: lb = עותק צרוב למאגר · 26/10/2026: dx = שמירה ב־Drive; = WORKER_KINDS בשרתון חוץ מ־ping — job.py auto מטפל בכולם
 
 
 def handle(jb: dict, server: str, tok: str = '') -> int:
@@ -848,7 +848,7 @@ MEM_DB = Path(os.environ.get('SNB_MEM_DB', '/cache/snb-mem.json'))
 # השיא הצפוי לפי סוג העבודה: [קבוע MB, MB לדקת סרטון]. תרגום: היישור ב־ONNX תחת gVisor 4.2GB ל־5 דק׳ (נמדד 10/10),
 # ‏CTC לפני השחרור 5.3GB לשעה ועשרים (20/10) — לכן קבוע גבוה ושיפוע מתון. הפקה מחדש = צריבה; גיליון AI = קריאות בלבד.
 # vi (9/11/2026, ניתוח סרטונים — גל 0): כמו tr, כי היישור הוא השיא (התוכנית 3.3); = MEM_VI ב־analyze.py. ה־0.4 מכייל מהמדידה
-MEM_PRIOR = {'tr': (4600, 22), 'rr': (2200, 6), 'ai': (700, 0), 'dx': (400, 0), 'vi': (4600, 22)}   # dx — רק העתקה
+MEM_PRIOR = {'tr': (4600, 22), 'rr': (2200, 6), 'ai': (700, 0), 'dx': (400, 0), 'vi': (4600, 22), 'lb': (700, 0)}   # dx — רק העתקה · lb — הורדה וקידוד 240p (= fit.ai בשרתון)
 
 
 def perf_kind(jb: dict) -> str:
