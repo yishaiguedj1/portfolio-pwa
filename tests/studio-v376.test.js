@@ -31,7 +31,9 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
     { no: 4, fp: 'bad', why: 'loop', state: 'w' }, { no: 5, fp: 'bbbbbbbbbbbb', why: 'evil', state: 'n' }, { no: 6, fp: 'cccccccccccc', why: 'cost', state: 'zz' }] });
   ok(pb.list.length === 1 && pb.list[0].fix.length === 160 && pb.list[0].inc.join() === '7,8' && pb.open === 1, 'normPb: רק רשומות תקינות, תיקון מקוצר');
   ok(st.normRb([{ k: 'net', r: 's', n: 2 }, { k: 'evil', r: 's', n: 1 }, { k: 'cheap', r: 'x' }]).length === 1 && st.normRb('x') === null, 'normRb: רק ספרים מהקטלוג');
-  ok(st.cheaperModes('opus-medium').join() === 'sonnet-high,sonnet-medium,sonnet-low,haiku-high,haiku-medium' && st.cheaperModes('sonnet-medium').join() === 'sonnet-low,haiku-high,haiku-medium' && st.cheaperModes('haiku-high').join() === 'haiku-medium' && !st.cheaperModes('haiku-medium').length && st.cheaperModes('opus-max').join() === st.cheaperModes('opus-medium').join(), 'cheaperModes בטלפון = בשרתון');
+  const MC = require(path.join(root, 'ibkr-proxy/lib/modecode.js'));   // 16/11/2026: הטלפון — לפי קוד המצב
+  ok(st.cheaperModes('lab4').join() === 'lab3,lab2,lab1,perf,std' && st.cheaperModes('lab2').join() === 'lab1,perf,std' && st.cheaperModes('perf').join() === 'std' && !st.cheaperModes('std').length && !st.cheaperModes('lab9').length
+    && ['opus-medium', 'sonnet-high', 'sonnet-medium', 'haiku-high'].every((m) => st.cheaperModes(MC.codeOf(m)).join() === S.cheaperModes(m).map(MC.codeOf).join()), 'cheaperModes בטלפון = בשרתון (בקודים)');
   ok(st.costStop({ err: 'tower_stop', tw: { why: 'cap' } }) && !st.costStop({ err: 'tower_stop', tw: { why: 'idle' } }) && !st.costStop(null), 'costStop בטלפון = בשרתון');
   ok(st.chainFor('prob', 3).map((x) => x.v).join() === 'home,tower,towerx,probs,prob', 'רענון בדף בעיה — חוזר דרך המגדל ו"בעיות ותיקונים"');
   const sj = read('studio.js');

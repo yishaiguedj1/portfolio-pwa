@@ -162,7 +162,7 @@ export function applyItems(cues, base, items, accepted) {
   }
   return { cues: n ? out : cues, n, skipped };
 }
-/* אומדן לבקשה בהפעלה (Routine / שרת): טוקנים ≈ תווים / 3.5, Sonnet ‎$2/$10 למיליון. מעוגל למעלה לסנט */
+/* אומדן לבקשה בהפעלה (Routine / שרת): טוקנים ≈ תווים / 3.5, ‎$2/$10 למיליון (Claude). מעוגל למעלה לסנט */
 export function aiEstimate(queue) {
   const p = aiPrompt(queue).length, n = normQueue(queue).reduce((t, r) => t + r.rows.length, 0);
   const tin = p / 3.5 + 2500, tout = isTextQ(queue) ? 1500 : n * 30 + 400;   // רעיון — תשובה קצרה

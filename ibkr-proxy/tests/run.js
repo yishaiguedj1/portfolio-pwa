@@ -5,6 +5,7 @@ const flexStatement = require('../api/flex-statement');
 const flexRequest = require('../api/flex-request');
 const history = require('../api/history');
 const quotes = require('../api/quotes');
+const MC = require('../lib/modecode');   // 16/11/2026: תשובות לטלפון ולמרכז הניהול — בקודים (std/perf/lab1–4)
 
 let n = 0;
 process.env.AI_ANON_DAILY = process.env.AI_ANON_DAILY || '1000000';   // v339: בבדיקות הישנות — בלי מגבלה יומית לכתובת
@@ -2078,7 +2079,7 @@ function stubFetch(text, status = 200) {
 
     // v363: "הרגיל" נלמד מהעבודות של המשתמש — דגימה לכל עבודה שהסתיימה בהפעלה אחת; החציון לשעת סרטון מ־3 עבודות
     r = await run({ op: 'status', idToken: OWNER });
-    ok(r.payload.norm && r.payload.norm['opus-medium'].d === true && r.payload.norm['opus-medium'].ph === 6 && r.payload.norm['sonnet-high'].ph === 4.2,
+    ok(r.payload.norm && r.payload.norm.lab4.d === true && r.payload.norm.lab4.ph === 6 && r.payload.norm.lab3.ph === 4.2 && !r.payload.norm['opus-medium'],
       'סטודיו: בלי היסטוריה — "הרגיל" = המדידות שלנו (לכל מצב)');
     const nmJob = async (usd) => {
       const c = await run({ op: 'create', idToken: OWNER, spec: SPEC });
@@ -2094,8 +2095,8 @@ function stubFetch(text, status = 200) {
     ok(w1.nm === null, 'סטודיו: העובד לא מקבל "רגיל" לפני שיש 3 עבודות במצב הזה');
     await nmJob(12.83); await nmJob(7.7);                              // 10$ ו־6$ לשעה
     r = await run({ op: 'status', idToken: OWNER });
-    const NM = r.payload.norm['opus-medium'];
-    ok(NM.ph === 6 && NM.mx === 10 && NM.n === 3 && !NM.d && r.payload.norm['sonnet-high'].d === true && r.payload.norm['haiku-high'].d === true && !r.payload.norm['opus-max'] && r.payload.norm['haiku-medium'].d === true, 'סטודיו: אחרי 3 עבודות — החציון לשעת סרטון והכבדה ביותר (רק למצב שלהן)');
+    const NM = r.payload.norm.lab4;
+    ok(NM.ph === 6 && NM.mx === 10 && NM.n === 3 && !NM.d && r.payload.norm.lab3.d === true && r.payload.norm.perf.d === true && !r.payload.norm['opus-max'] && r.payload.norm.std.d === true, 'סטודיו: אחרי 3 עבודות — החציון לשעת סרטון והכבדה ביותר (רק למצב שלהן)');
     const sdoc = db.get('studioStats/ownerUid0001');
     ok(sdoc && !/Ackman|aud1234567890|fold/.test(JSON.stringify(sdoc)), 'סטודיו: ההיסטוריה — רק מצב, אורך ועלות (בלי שמות קבצים)');
     const w4 = await nmJob(30);
@@ -2241,7 +2242,7 @@ function stubFetch(text, status = 200) {
       const B = await mk();
       ok(B.c.sh && B.c.sh.n === 3 && B.c.sh.old === null && B.c.nm && B.c.nm.ph === 5, 'סטודיו: מצב צל — "הרגיל" נלמד: העבודה מקבלת צל (האכיפה במדידות שלנו)');
       rr = await run({ op: 'status', idToken: OWNER });
-      ok(rr.payload.sh['sonnet-high'] === 2, 'סטודיו: מצב צל — בטלפון: עוד 2 עבודות עד אכיפה');
+      ok(rr.payload.sh.lab3 === 2, 'סטודיו: מצב צל — בטלפון: עוד 2 עבודות עד אכיפה');
       // הדיווח של המגדל במצב צל נשמר (sh, shn)
       await wrk({ op: 'report', job: B.id, key: B.k, tower: { lv: 'warn', x: 2.4, usd: 8, exp: 3.2, sh: 1, shn: 3 } });
       ok((await run({ op: 'job', idToken: OWNER, job: B.id })).payload.job.tw.sh === 1, 'סטודיו: מצב צל — "בספים החדשים היה נעצר" מגיע לטלפון');
@@ -2328,7 +2329,7 @@ function stubFetch(text, status = 200) {
       ok(rr.statusCode === 400 && rr.payload.error === 'bad_params', 'סטודיו: ריצת מבחן — מצבים בלי עבודת מקור נדחים');
       rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, src: JGD, modes: ['haiku-high', 'sonnet-low', 'haiku-high', 'nope'] });
       const mm = (rr.payload.jobs || []).map((j) => j.spec.mode);
-      ok(rr.payload.ok && mm.join() === 'haiku-high,sonnet-low' && rr.payload.jobs.every((j) => j.gs === JGD && j.state === 'new'), 'סטודיו: ריצת מבחן — עבודה לכל מצב (בלי כפולים ובלי מצב לא מוכר), "חדשות"');
+      ok(rr.payload.ok && mm.join() === 'perf,lab1' && rr.payload.jobs.every((j) => j.gs === JGD && j.state === 'new'), 'סטודיו: ריצת מבחן — עבודה לכל מצב (בלי כפולים ובלי מצב לא מוכר), "חדשות"');
       const runs = rr.payload.jobs.map((j) => j.id);
       // 24/10/2026: ניסוי המאמץ — לכל מצב הרצה רגילה + הרצה בניסוי (both), רק מפתחות ומאמצים מוכרים
       for (const id of runs.splice(0)) await run({ op: 'remove', idToken: OWNER, job: id });
@@ -2336,7 +2337,7 @@ function stubFetch(text, status = 200) {
       ok(rr.statusCode === 400 && rr.payload.error === 'bad_params', 'סטודיו: ניסוי המאמץ — תפקיד לא מוכר נדחה');
       rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, src: JGD, modes: ['haiku-high', 'sonnet-low'], xe: { main: 'medium', rv: 'medium', jg: 'low' }, both: true });
       const xv = (rr.payload.jobs || []).map((j) => j.spec.mode + ':' + JSON.stringify(j.spec.xe || null));
-      ok(rr.payload.ok && xv.join() === 'haiku-high:null,haiku-high:{"main":"medium","rv":"medium"},sonnet-low:null,sonnet-low:{"main":"medium","rv":"medium"}',
+      ok(rr.payload.ok && xv.join() === 'perf:null,perf:{"main":"medium","rv":"medium"},lab1:null,lab1:{"main":"medium","rv":"medium"}',
         'סטודיו: ניסוי המאמץ — לכל מצב רגילה + ניסוי, רק התפקידים המוכרים');
       runs.push(...rr.payload.jobs.map((j) => j.id));
       // 02/11/2026 (איכות התרגום, PR1 1.8): "הרץ גל" — 12 מקורות × 2 זרועות בקריאה אחת, בסדר משולב; רק SRT; xf לזרועה
@@ -2351,7 +2352,7 @@ function stubFetch(text, status = 200) {
       ok(rr.statusCode === 400, 'סטודיו: הרץ גל — עד 4 זרועות');
       rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, arms: [{ mode: 'haiku-medium' }, { mode: 'haiku-high', xf: ['smf', 'zzz', 'smf'] }] });
       const wj = rr.payload.jobs || [];
-      ok(rr.payload.ok && wj.length === 24 && wj.every((j, i) => j.wa === i % 2 && j.spec.mode === (i % 2 ? 'haiku-high' : 'haiku-medium') && j.state === 'new')
+      ok(rr.payload.ok && wj.length === 24 && wj.every((j, i) => j.wa === i % 2 && j.spec.mode === (i % 2 ? 'perf' : 'std') && j.state === 'new')
         && wj.every((j, i) => i % 2 === 0 || j.gs === wj[i - 1].gs) && new Set(wj.map((j) => j.gs)).size === 12,
         'סטודיו: הרץ גל — 12 מקורות × 2 זרועות = 24 עבודות בקריאה אחת, בסדר משולב, מצב לכל זרועה');
       ok(wj.every((j) => j.spec.out.join() === 'srt') && wj.every((j, i) => i % 2 ? JSON.stringify(j.spec.xf) === '["smf"]' : !j.spec.xf), 'סטודיו: הרץ גל — רק SRT, ו־xf (רשימה סגורה) רק בזרועה שלו');
@@ -2450,7 +2451,7 @@ function stubFetch(text, status = 200) {
       ok(rr.statusCode === 400, 'סטודיו: גיליון AI — קובץ בקשה שלא בתיקיית העבודה נדחה');
       rr = await run({ op: 'aiRun', idToken: OWNER, job: JP, q: 'aiq1234567890' });
       const A1 = rr.payload.job;
-      ok(rr.payload.ok && A1.kind === 'ai' && A1.state === 'new' && A1.rp === JP && A1.files.q.id === 'aiq1234567890' && A1.spec.mode === 'haiku-medium', 'סטודיו: גיליון AI — עבודה "חדשה" (Haiku Medium כברירת מחדל — 25/10)');
+      ok(rr.payload.ok && A1.kind === 'ai' && A1.state === 'new' && A1.rp === JP && A1.files.q.id === 'aiq1234567890' && A1.spec.mode === 'std', 'סטודיו: גיליון AI — עבודה "חדשה" (Haiku Medium כברירת מחדל — 25/10)');
       ok((await run({ op: 'aiRun', idToken: OWNER, job: JP, q: 'aiq1234567890' })).payload.error === 'ai_busy', 'סטודיו: גיליון AI — אחד בכל פעם לכל עבודה');
       const f2 = fires.length;
       rr = await run({ op: 'start', idToken: OWNER, job: A1.id });
@@ -2952,7 +2953,7 @@ function stubFetch(text, status = 200) {
       rr = await run({ op: 'resume', idToken: OWNER, job: JC, mode: 'opus-medium' });
       ok(rr.statusCode === 409 && rr.payload.error === 'mode', 'סטודיו: "מצב זול יותר" — מצב יקר יותר נדחה');
       rr = await run({ op: 'resume', idToken: OWNER, job: JC, mode: 'sonnet-high' });
-      ok(rr.payload.ok && rr.payload.job.spec.mode === 'sonnet-high' && rr.payload.job.spec.dm === SPEC.mode, 'סטודיו: המשך במצב זול יותר — המצב החדש נשמר, והישן נרשם');
+      ok(rr.payload.ok && rr.payload.job.spec.mode === 'lab3' && rr.payload.job.spec.dm === MC.codeOf(SPEC.mode), 'סטודיו: המשך במצב זול יותר — המצב החדש נשמר, והישן נרשם');
       KC = keyOf(fires[fires.length - 1]);
       rr = await wrk({ op: 'claim', job: JC, key: KC });
       ok(rr.payload.job.spec.mode === 'sonnet-high', 'סטודיו: העובד מקבל את המצב הזול');
@@ -3042,6 +3043,30 @@ function stubFetch(text, status = 200) {
       rr = await run({ op: 'job', idToken: OWNER, job: JR2 });
       ok(rr.payload.job.state === 'done' && rr.payload.job.rvf === null && rr.payload.job.fil === null, 'סטודיו: סימונים לא תקינים — נזרקים בשקט, העבודה מסתיימת');
       await run({ op: 'remove', idToken: OWNER, job: JR2 });
+      // 16/11/2026: כתוביות צרובות במקור — האזור באמצע העבודה, הבדיקה אחרי ההסתרה (נשמרת), רק מספרים
+      ok(JSON.stringify(S5.normHs({ z: [0.17, 0.8642, 0.833, 0.936], sh: 0.8891 })) === '{"z":[0.17,0.864,0.833,0.936],"sh":0.889}', 'סטודיו: כתוביות צרובות — האזור מעוגל');
+      ok(S5.normHs({ z: [0.2, 0.8, 0.8] }) === null && S5.normHs({ z: [0.5, 0.8, 0.5, 0.9] }) === null && S5.normHs({ z: [-0.1, 0.8, 0.8, 0.9] }) === null
+        && S5.normHs({ z: ['0.2', 0.8, 0.8, 0.9] }) === null && S5.normHs('x') === null && S5.normHs(null) === null, 'סטודיו: כתוביות צרובות — אזור לא תקין נזרק');
+      ok(JSON.stringify(S5.normHs({ z: [0.2, 0.8, 0.8, 0.9], v: { n: 120, lk: 2, ok: 1, full: 1, x: 'evil' } }).v) === '{"n":120,"lk":2,"ok":1,"full":1}'
+        && JSON.stringify(S5.normHs({ z: [0.2, 0.8, 0.8, 0.9], v: { n: -1, lk: 1.5, ok: 'yes' } }).v) === '{"n":0,"lk":0,"ok":0}', 'סטודיו: הבדיקה אחרי ההסתרה — רק מספרים');
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const JH = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JH, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JH });
+      const KH = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: JH, key: KH });
+      await wrk({ op: 'report', job: JH, key: KH, hs: { z: [0.17, 0.86, 0.83, 0.94], sh: 0.5 } });
+      rr = await run({ op: 'job', idToken: OWNER, job: JH });
+      ok(rr.payload.job.state !== 'done' && JSON.stringify(rr.payload.job.hs) === '{"z":[0.17,0.86,0.83,0.94],"sh":0.5}', 'סטודיו: כתוביות צרובות — מגיע לטלפון באמצע העבודה');
+      await wrk({ op: 'report', job: JH, key: KH, hs: { z: [0.17, 0.86, 0.83, 0.94], sh: 0.5, v: { n: 90, lk: 0, ok: 1 } } });
+      await wrk({ op: 'report', job: JH, key: KH, hs: { z: [0.16, 0.86, 0.84, 0.94], sh: 0.5 } });
+      await wrk({ op: 'report', job: JH, key: KH, done: true, hs: 'evil' });
+      rr = await run({ op: 'job', idToken: OWNER, job: JH });
+      ok(rr.payload.job.state === 'done' && JSON.stringify(rr.payload.job.hs) === '{"z":[0.16,0.86,0.84,0.94],"sh":0.5,"v":{"n":90,"lk":0,"ok":1}}',
+        'סטודיו: כתוביות צרובות — הבדיקה נשמרת כשמגיע אזור בלעדיה, ולא תקין נזרק בשקט');
+      ok(JSON.stringify(S5.rrSpec({ spec: SPEC, hs: { z: [0.16, 0.86, 0.84, 0.94], sh: 0.5 } }, { sty: { bx: 1 } }).hz) === '[0.16,0.86,0.84,0.94]'
+        && S5.rrSpec({ spec: SPEC }, {}).hz === undefined, 'סטודיו: הפקה מחדש — האזור מהעבודה (רקע כהה מסתיר)');
+      await run({ op: 'remove', idToken: OWNER, job: JH });
     }
     now += 3600e3 + 1;
     studio._reset();
@@ -3455,7 +3480,7 @@ function stubFetch(text, status = 200) {
     ok(S.modeOver('opus-medium', 'sonnet-high') && S.modeOver('sonnet-medium', 'haiku-high') && !S.modeOver('haiku-high', 'sonnet-medium') && !S.modeOver('opus-medium', '') && !S.modeOver('sonnet-high', 'sonnet-high'),
       'סטודיו: חוקים — "מצב מקסימלי" לפי המחיר הצפוי לשעה (Sonnet < Opus Medium < High < Max)');
     rr = await run({ op: 'rules', idToken: OWNER, rl: { b: 10, mx: 'sonnet-high', ab: true, evil: 1 } });
-    ok(rr.payload.ok && JSON.stringify(rr.payload.rl) === '{"b":10,"mx":"sonnet-high","ab":true,"jx":false,"am":false}', 'סטודיו: חוקים — נשמרים בחשבון (רק השדות המוכרים)');
+    ok(rr.payload.ok && JSON.stringify(rr.payload.rl) === '{"b":10,"mx":"lab3","ab":true,"jx":false,"am":false}', 'סטודיו: חוקים — נשמרים בחשבון (רק השדות המוכרים)');
     rr = await run({ op: 'status', idToken: OWNER });
     ok(rr.payload.rl.b === 10 && rr.payload.halt === 0, 'סטודיו: חוקים — הטלפון רואה אותם (ומתג החירום כבוי)');
     // מצב מעל המקסימום — ההפעלה מחכה לאישור שלך (ov)
@@ -3464,12 +3489,12 @@ function stubFetch(text, status = 200) {
     await run({ op: 'file', idToken: OWNER, job: JR, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
     let nf = fires.length;
     rr = await run({ op: 'start', idToken: OWNER, job: JR });
-    ok(rr.statusCode === 409 && rr.payload.error === 'rule_mode' && rr.payload.mx === 'sonnet-high' && fires.length === nf && rr.payload.job.state === 'new',
+    ok(rr.statusCode === 409 && rr.payload.error === 'rule_mode' && rr.payload.mx === 'lab3' && fires.length === nf && rr.payload.job.state === 'new',
       'סטודיו: חוקים — מצב מעל המקסימום: לא מפעילים, העבודה מחכה לאישור שלך');
     rr = await run({ op: 'start', idToken: OWNER, job: JR, ov: true });
     ok(rr.payload.ok && fires.length === nf + 1, 'סטודיו: חוקים — "להתחיל בכל זאת" (ov) מפעיל');
     let Kr = keyOf(fires[fires.length - 1]);
-    rr = await wrk({ op: 'claim', job: JR, key: Kr });
+    rr = await wrk({ op: 'claim', job: JR, key: Kr });   // העובד — לפני העטיפה: המזהה הפנימי
     ok(JSON.stringify(rr.payload.job.rl) === '{"b":10,"mx":"sonnet-high","ab":true,"jx":false,"am":false}' && rr.payload.job.bx === 0 && rr.payload.job.u0 === 0,
       'סטודיו: חוקים — העובד מקבל את התקציב והאישור לפני צריבה (ומה שכבר עלה: 0)');
     // שער תקציב — Claude הגיע ל־10$: העבודה מחכה לך; "להמשיך" מגדיל את התקציב

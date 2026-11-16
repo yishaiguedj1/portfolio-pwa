@@ -29,6 +29,7 @@ const gbrowse = require('../lib/gdrive').browse;   // 26/10/2026: רשימת ה�
    והטלפון שולח את אותה בקשה ל־Vercel (installFailover ב־firebase-config.js), כמו במאגר הלמידה */
 const gbRemote = () => !gbrowse.configured() && process.env.SNB_RELAY_HUB_ON === '1';   // v357: לקוח OAuth נפרד לסטודיו — לא רואה את גיבוי הספרייה
 const S = require('../lib/studio');
+const MC = require('../lib/modecode');   // 16/11/2026: המצבים כקודים אטומים והסתרת שמות המודלים מול הטלפון ומרכז הניהול
 const O = require('../lib/studioops');
 const I = require('../lib/studioinc');
 const P = require('../lib/studioprob');   // v376: בעיות וספרי הפעלה
@@ -2985,6 +2986,7 @@ async function worker(req, res, body, deps) {
     if (body.gq != null && (job.gs || S.normGd(job.gd))) { const gq = S.normGq(Object.assign({}, body.gq, { at: now })); if (gq) up.gq = gq; }   // פריט 15: הציון מול הייחוס — מהעובד
     if (body.gl != null) { const gl = S.normGl(body.gl); if (gl) up.gl = gl; }            // v380: זיכרון המונחים
     if (body.rvf != null) { const v = S.normRvf(body.rvf); if (v) up.rvf = v; }          // סבב 4: סימונים מהביקורת
+    if (body.hs != null) { const v = S.normHs(body.hs); if (v) up.hs = v.v || !(job.hs && job.hs.v) ? v : Object.assign(v, { v: job.hs.v }); }   // 16/11/2026: כתוביות צרובות (הבדיקה נשמרת)
     if (body.fil != null) { const v = S.normFil(body.fil); if (v) up.fil = v; }          // סבב 4: מילות מילוי
     if (body.lx != null) { const lx = job.spec && job.spec.vi === 1 ? LR.normViLx(body.lx) : LR.normLx(body.lx); if (lx) up.lx = lx; }   // 14/10/2026: עובדות למאגר הלמידה (מספרים וקודים בלבד) · 10/11: ניתוח — normViLx
     if (body.trace != null) {
@@ -3167,10 +3169,15 @@ async function handler(req, res, deps = {}) {
   if (RELAY_OPS.has(String(body.op || ''))) return relayOp(req, res, body, deps);
   if (WORKER_OPS.has(String(body.op || ''))) return worker(req, res, body, deps);
   if (SERVER_OPS.has(String(body.op || ''))) return server(req, res, body, deps);
-  if (PHONE_OPS.has(String(body.op || ''))) return phoneOp(req, res, body, deps);
   if (body.op === 'learnPull') return learnPull(req, res, body, deps);   // 14/10/2026: טוקן ניתוח (Claude Code)
   if (body.op === 'devPull') return devPull(req, res, body, deps);   // 15/10/2026: האיסוף המלא — לוגים, קריאות, מדדים, שגיאות (קריאה בלבד)
   if (body.op === 'dmPull') return dmPull(req, res, body, deps);   // שלב ג׳: יומני DM לניתוח (טוקן הניתוח, קריאה בלבד)
+  // 16/11/2026 (בקשת המשתמש): מכאן — הטלפון, מרכז הניהול והאפליקציות. העובד, השרתים והמאגר (למעלה) רואים הכל כמו קודם;
+  // כאן כל מצב יוצא כקוד אטום ונכנס בחזרה למזהה הפנימי, ולמי שאינו מנהל — בלי מזהי מודל ובלי שמות בטקסט המערכת (lib/modecode.js)
+  const pub = { admin: false };
+  res = MC.wrapRes(res, () => pub.admin);
+  MC.inModes(body, S.VP_MODES);
+  if (PHONE_OPS.has(String(body.op || ''))) return phoneOp(req, res, body, deps);
   if (body.op === 'dmLog' || body.op === 'dmForget') return dmOps(req, res, body, deps);   // 24/10/2026: Studio DM — אפליקציה נייטיב, בלי Origin
   if (body.op === 'brKey') return brKey(req, res, body, deps);   // 27/10/2026: Studio Browser — מפתח ההצפנה של הסנכרון בין המכשירים
   // 25/10/2026: adminYt = קובץ cookies.txt (קובץ אמיתי 5–30KB) — עד 64KB; כל השאר 4KB כמו תמיד
@@ -3199,6 +3206,7 @@ async function handler(req, res, deps = {}) {
     try { user = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) { return res.status(401).json({ ok: false, error: 'no_auth' }); }
   }
   if (user.mon !== true && !UID_RE.test(String(user.uid || ''))) return res.status(401).json({ ok: false, error: 'no_auth' });   // 22/10/2026: טוקן הניטור (mon) בלי uid — רק ל־adminMon (נאכף בבלוק)
+  pub.admin = user.mon !== true && isAdmin(user);   // 16/11/2026: השמות האמיתיים של המודלים — רק למנהל (טוקן הניטור — לא)
   if (body.op === 'fbSend') {   // 15/10/2026: משוב מההגדרות של כל אפליקציה — כל משתמש מחובר (לא רק של Studio)
     if (limited('fb|' + user.uid, 3)) return res.status(429).json({ ok: false, error: 'rate_limited' });
     const now = deps.now || Date.now();
@@ -3762,7 +3770,7 @@ async function handler(req, res, deps = {}) {
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.filter((k) => k !== 'lb'),
         norm: S.normsView(st.ns, 'r'), normA: S.normsView(st.ns, 'a') /* 11/10: הרגיל לפי המנוע */, sh: S.thView(st.thr) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now, gEta.et, gEta.ka) /* 31/10: k — קריוקי */,
-        pk: S.pickerCfg(process.env, gdrive.cfg().id), gb: gbrowse.configured() || (gbRemote() ? 'r' : false) /* 26/10: רשימת הקבצים ב־Drive — 'r' = אולי ב־Vercel (gbConfig) */, lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lrm: +st.lrm || 0 /* מ׳4 */, mf: await fullModes() /* 15/10: כל מצבי התרגום (המנהל / הרשימה) */, url: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok /* 22/10: הורדה מקישור */, yc: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok && YT.ytCloud(await ytDoc(deps, now)) /* 25/10: יוטיוב לענן דרך החשבון הייעודי */, lrf: +st.lrf || 0 /* האיסוף המלא — הנוסח נקרא */, lat: +st.lat || 0, lam: +st.lam || 0, lau: +st.lau || 0 /* 10/11: ההסכמות של הניתוח */, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, kt: { s: SC.SRC_TTL, j: SC.jobTtl(PROJECT()) } /* 26/10: כמה זמן נשמר — באומדן שלפני ההתחלה */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
+        pk: S.pickerCfg(process.env, gdrive.cfg().id), gb: gbrowse.configured() || (gbRemote() ? 'r' : false) /* 26/10: רשימת הקבצים ב־Drive — 'r' = אולי ב־Vercel (gbConfig) */, lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lrm: +st.lrm || 0 /* מ׳4 */, mf: await fullModes() /* 15/10: כל מצבי התרגום (המנהל / הרשימה) */, lm: typeof body.lm === 'string' && body.lm ? S.legacyMode(body.lm, Number.isInteger(body.lmv) ? body.lmv : 0) : undefined /* 16/11: מצב שנשמר בטלפון לפני הקודים → הקוד שלו (pubOut) */, url: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok /* 22/10: הורדה מקישור */, yc: (await urlAllowed()) && (await flagOn(deps, 'st_url', now)) && !!R2.config().ok && YT.ytCloud(await ytDoc(deps, now)) /* 25/10: יוטיוב לענן דרך החשבון הייעודי */, lrf: +st.lrf || 0 /* האיסוף המלא — הנוסח נקרא */, lat: +st.lat || 0, lam: +st.lam || 0, lau: +st.lau || 0 /* 10/11: ההסכמות של הניתוח */, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, kt: { s: SC.SRC_TTL, j: SC.jobTtl(PROJECT()) } /* 26/10: כמה זמן נשמר — באומדן שלפני ההתחלה */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
     }
     if (op === 'push') {
       // שלב 4: התראות — key (המפתח הציבורי, ל־subscribe בטלפון) / on (מנוי של המכשיר) / off / test
@@ -4201,7 +4209,8 @@ async function handler(req, res, deps = {}) {
       if (job.kind !== 'tr' || !job.spec || job.spec.vi !== 1 || job.spec.dry === 1 || S.isVv(job) || S.isVj(job) || S.isVp(job) || job.gs || st !== 'done') return res.status(409).json({ ok: false, error: 'state' });
       if (body.get === true) {   // + הטיוטה האחרונה (ה5) ומצבה
         const dj = (await listJobs(deps, uid)).filter((j) => S.isVp(j) && j.rp === job.id).sort((a, b) => (a.created || 0) - (b.created || 0)).pop();
-        return res.status(200).json({ ok: true, ref: VI.normViRef(job.vrf), job: view(job), draft: dj ? VI.normViRef(dj.vpd) : null, dst: dj ? S.effState(dj, now).state : null, usd: S.VP_USD });
+        return res.status(200).json({ ok: true, ref: VI.normViRef(job.vrf), job: view(job), draft: dj ? VI.normViRef(dj.vpd) : null, dst: dj ? S.effState(dj, now).state : null,
+          usd: Object.fromEntries(Object.entries(S.VP_USD).map(([k, v]) => [S.VP_MODES[k], v])) /* 16/11/2026: לפי המצב (יוצא כקוד), לא לפי האות */ });
       }
       if (body.draft != null) {
         // PR 1.6 (ה5): טיוטת ייחוס — עבודת־בת על ה־vi.json (Sonnet, או Haiku הזול). ⛔ בתשלום: רק אחרי אישור המחיר (ok: true)

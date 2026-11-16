@@ -71,6 +71,57 @@ def norm_cues(raw, dur=0.0, pos=False):
     return out
 
 
+def hide_burned(cues, src, hz, style, W, H, ass_path=None, base=None, crop=False):
+    """16/11/2026: מצב הסתרה בהפקה מחדש. קובץ הטקסט שעל המסך של העבודה המקורית לא כאן — סורקים את הסרטון (אחרי
+    החיתוך, כך שהזמנים כמו של הכתוביות). ההרמות מהבנייה (מעל הכתוביות הצרובות) כבר לא נחוצות — מחשבים מחדש מול שאר
+    הטקסט שעל המסך. אחר כך base() = ה־ASS בלי הכיסוי, ו־vt/burnin.hide: כיסוי → כתיבה → בדיקה על פריימים → תיקון.
+    בלי סריקה (אין מודלים / תקלה) — האזור מהעבודה בזמן הכתוביות, בלי בדיקה. → (ev, תוצאת הבדיקה)."""
+    import os
+    from vt import burnin, media
+    from vt import config as C
+    from vt.hebrew import Measurer
+    from vt.util import write_text
+    st = style.scaled(W, H)
+    meas = Measurer(C.FONTS_DIR / style.font_file, st.size, st.spacing, st.outline)
+    bd = None
+    print('סורקים את הכתוביות הצרובות כדי להסתיר אותן', flush=True)
+    try:
+        bd = media.burn_scan(Path(src))
+    except Exception as e:                       # noqa: BLE001 — בלי סריקה: האזור מהעבודה
+        print('הסריקה נכשלה (%s) — מסתירים לפי האזור מהעבודה' % type(e).__name__, flush=True)
+    z = hz
+    if not bd and crop:                          # חיתוך מסגרת (יחס אחר) — האזור מהעבודה כבר לא במקום; בלי כיסוי שגוי
+        if ass_path:
+            write_text(Path(ass_path), base() if callable(base) else (base or ''))
+        print('כתוביות צרובות: הסריקה לא רצה והמסגרת נחתכה — בלי הסתרה', flush=True)
+        return [], {'n': 0, 'lk': 0, 'ok': 0}
+    if bd:
+        hs = burnin.hardsub(bd, W, H)
+        z = hs['z'] if hs else hz
+        for c in cues:
+            c.pop('lift', None)
+        burnin.place(cues, burnin.without_subs(bd, W, H, z), st, meas, W, H)
+    burnin.zone_lift(cues, z, st, H)
+    text = base() if callable(base) else (base or '')
+
+    def write(ev):
+        if ass_path:
+            write_text(Path(ass_path), burnin.cover_ass(text, ev, W, H))
+
+    def check():
+        if not ass_path or not bd or os.environ.get('SNB_HS_CHECK') == 'off':
+            return None
+        try:
+            return media.hide_check(Path(src), Path(ass_path))
+        except Exception as e:                   # noqa: BLE001 — הכיסוי נשאר, רק לא נבדק
+            print('בדיקת ההסתרה נכשלה (%s)' % type(e).__name__, flush=True)
+            return None
+    ev, res = burnin.hide(cues, bd, z, st, meas, W, H, write, check)
+    print('כתוביות צרובות: %d מלבנים מסתירים אותן · נבדקו %d פריימים%s%s' % (
+        len(ev), res['n'], ' · %d דליפות כוסו' % res['lk'] if res['lk'] else '', '' if res['ok'] else ' · לא נבדק'), flush=True)
+    return ev, res
+
+
 PORTRAIT_SCALE = 1.35     # מ5: וידאו אנכי (9:16 / 4:5) — כתוביות גדולות יותר, בשורות קצרות
 PORTRAIT_LINE = 24
 
@@ -149,6 +200,7 @@ def main(argv=None):
     p.add_argument('--sty', default='')          # סבב 5: עיצוב הכתוביות (JSON — מספרים וקודים בלבד)
     p.add_argument('--ov', default='')           # סבב 7: כותרת (בלי הלוגו עצמו) — JSON
     p.add_argument('--logo', default='')         # סבב 7: קובץ הלוגו (job.py כתב אותו)
+    p.add_argument('--hz', default='')           # 16/11/2026: אזור הכתוביות הצרובות במקור (מהעבודה) — רקע כהה מסתיר אותן
     a = p.parse_args(argv)
     import edl as E
     def _e(s):
@@ -190,7 +242,14 @@ def main(argv=None):
         sty = norm_sty(json.loads(a.sty)) if a.sty else None
     except ValueError:
         sty = None
-    style = apply_sty(style, sty)
+    from vt import burnin
+    hz = None
+    if sty and sty.get('bx') and a.hz:           # כתוביות צרובות + רקע כהה = מצב הסתרה (vt/burnin.py — cover)
+        try:
+            hz = burnin.norm_hz(json.loads(a.hz))
+        except ValueError:
+            hz = None
+    style = apply_sty(style, sty, hide=bool(hz))
     portrait = W < H
     try:
         raw = json.loads(Path(a.cues).read_text(encoding='utf-8-sig'))
@@ -220,7 +279,13 @@ def main(argv=None):
         tl = title_event(ov, style, W, H, float(info.get('duration') or 0) or 3600.0)
         fix0 = fix
         fix = lambda t: fix0(t).rstrip('\n') + '\n' + tl + '\n'
-    write_text(od / 'he.ass', fix(write_ass(cues, style, W, H, a.name)))
+    if hz:                                       # הסתרה: מלבנים מעל הצרובות, ובדיקה שבאמת לא רואים אותן
+        ev, res = hide_burned(cues, src, hz, style, W, H, od / 'he.ass', lambda: fix(write_ass(cues, style, W, H, a.name)),
+                              crop=bool(ec and ec.get('ar', 'src') != 'src'))
+        if ev:                                   # בלי מלבנים (מסגרת חתוכה) — אין מה לדווח כ"הוסתרו"
+            write_text(od / 'hide.json', json.dumps(dict(res, z=hz)))   # העובד מדווח לטלפון (job.hs_built)
+    else:
+        write_text(od / 'he.ass', fix(write_ass(cues, style, W, H, a.name)))
     write_text(od / 'he.player.ass', fix(write_ass_compat(cues, style, W, H, a.name)))
     th = ec.get('th') if ec else None
     if th is not None:                           # סבב 7: תמונה ממוזערת — פריים מהתוצאה (לפני הכתוביות)
