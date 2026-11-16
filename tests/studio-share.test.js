@@ -320,7 +320,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   }
   ok(P.playPlan('tr', { src: 'S', fb: 'B' }, true).src === 'S' && P.playPlan('tr', { src: 'S', fb: 'B' }, false).burned && P.playPlan('ka', { src: 'S', fb: 'B' }, true).src === 'B' && P.playPlan('vi', { src: 'S', fb: '' }).src === 'S' && P.playPlan('tr', { src: '', fb: '' }, true) === null, 'הנגן: תרגום — המקור עם הכתוביות (כמו אצלך), אחרת הצרוב; קריוקי — הצרוב; ניתוח — המקור');
   const cg = require(path.join(root, 'tools/coregen.js'));
-  ok(cg.APPS.share && cg.APPS.share.join() === 'share.js,studioplay.js,studiovi.js' && fs.existsSync(path.join(root, 'strings-share.js')), 'coregen: strings-share.js (רק מה שהדף צריך)');
+  ok(cg.APPS.share && cg.APPS.share.join() === 'share.js,studioplay.js,studiovi.js,studiospk.js' && fs.existsSync(path.join(root, 'strings-share.js')), 'coregen: strings-share.js (רק מה שהדף צריך)');
   const SS = require('vm').runInNewContext(read('strings-share.js') + ';STRINGS');
   ok(Object.keys(SS.he).length < 400 && SS.he.studioSvGone && SS.en.studioSvGone && !SS.he.accAddGoogle, 'strings-share.js קטן — בלי המחרוזות של הליבה');
 

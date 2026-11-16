@@ -21,6 +21,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import subprocess
 import threading
 import time
@@ -436,18 +437,36 @@ def align(tr: dict, wav: str) -> dict:
         _release_memory()
     st["coarse"] = sum(1 for w in words if w.get("c"))
     st["align_s"] = round(time.time() - t0, 1)
+    voice: dict = {}
     if words:
         try:
             from . import diarize
             ds = diarize.diarize(words, wav)
             if isinstance(ds, dict):
                 st.update({"spk_" + k: v for k, v in ds.items() if isinstance(v, (int, float)) and not isinstance(v, bool)})
+                voice = voice_doc(ds.get("voice"))
         except Exception as e:  # noqa: BLE001 — בלי דוברים
             log(f"זיהוי דוברים נכשל: {type(e).__name__}")
         _release_memory()
     n = len(words)
     ts = "none" if not n else ("word" if st["coarse"] <= 0.2 * n else "seg")
-    return {"v": V, "lang": lang, "aligner": aligner, "ts": ts, "words": words, "stats": st}
+    out = {"v": V, "lang": lang, "aligner": aligner, "ts": ts, "words": words, "stats": st}
+    if voice:
+        out["voice"] = voice
+    return out
+
+
+def voice_doc(vg) -> dict:
+    """16/11/2026 (דוברים בתמליל): רמז המגדר מגובה הקול לכל תווית (diarize.voice_gender) — {S1: {g: m|f|?, hz}}, עד 20.
+    עד היום הניתוח זרק אותו (רק מספרים נכנסו ל־stats)."""
+    out: dict = {}
+    for k, x in list((vg or {}).items())[:20] if isinstance(vg, dict) else []:
+        if not isinstance(k, str) or not re.fullmatch(r"S\d{1,2}", k) or not isinstance(x, dict):
+            continue
+        g = x.get("g") if x.get("g") in ("m", "f") else "?"
+        hz = x.get("hz")
+        out[k] = dict({"g": g}, **({"hz": int(round(float(hz)))} if isinstance(hz, (int, float)) and not isinstance(hz, bool) else {}))
+    return out
 
 
 # ---------------------------------------------------------------- מסך

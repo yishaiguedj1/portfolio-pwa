@@ -276,7 +276,7 @@ function mkDoc() {
   ok(!/(?:^|[;{\s])(?:left|right)\s*:|text-align:\s*(?:left|right)|margin-(?:left|right)|padding-(?:left|right)/.test(viCss), 'יישור לוגי בלבד');
   ok(!/border-radius:\s*\d+px[^;]*;/.test(viCss.replace(/border-radius: 2px;|border-radius: 4px;/g, '')), 'עיגולי פינות — משתנים');
   ok(/\.st-vi-ev \{[^}]*min-height: 26px; min-width: 24px/.test(css), 'שבב — יעד מגע של 24×24 לפחות');
-  ok((src.match(/ctx\.ico\('chev', 'st-chev'\)/g) || []).length === 2 && (src.match(/chv\.classList\.toggle\('open', d\.open\)/g) || []).length === 2 && !/st-vi-chv/.test(css), 'חץ הפרק — .st-chev של הסטודיו (סגור הצידה, פתוח למטה)');
+  ok((src.match(/ctx\.ico\('chev', 'st-chev'\)/g) || []).length === 3 && (src.match(/chv\.classList\.toggle\('open', d\.open\)/g) || []).length === 2 && !/st-vi-chv/.test(css), 'חץ הפרק — .st-chev של הסטודיו (סגור הצידה, פתוח למטה; 16/11/2026: גם שורת הדובר — קדימה)');
 
   // תמונת שקף — קטע בתים דרך studionet.js בלבד (הממשק לא פונה לרשת בעצמו)
   const N = await import(path.join(root, 'studionet.js'));
@@ -333,6 +333,97 @@ function mkDoc() {
     ok(/if \(k && k\.fid === fid\) \{ vaKeep\.delete\(rec\.id\); Object\.assign\(va, \{ st: 'ok', v: k\.v, cues: k\.cues, urls: k\.urls \}\); \}/.test(sj)
       && /const v = await viFetch\(outOf\(rec, 'vi'\)\.id\);/.test(sj) && /^\s*viWarm\(\);/m.test(sj.slice(sj.indexOf('function render('), sj.indexOf('function render(') + 400)), 'pageVi מצייר מהזיכרון כשהקובץ זהה; render מחמם');
     ok(/if \(va\.st === 'load'\) \{ p\.append\(h\('div', 'st-empty st-empty-sm', T\('studioPlLoading'\)\)\)/.test(sj), 'טעינה ראשונה — שורה בהירה, לא מלבן נגן שחור');
+  }
+
+  /* ---------- 5. דוברים בכל תמליל (16/11/2026) ----------
+     vi_ok: ‏S1 — Dana Levi, מרצה, אישה (מהתוכן), אנגלית 94% ועברית 6% (היחידה e2 בעברית); ‏S2 — בלי שם ובלי מגדר */
+  {
+    let ov = {}, prefs = {}, vidS = null;
+    const calls = [];
+    const pgS = P.renderVi(ctx(P.normVi(good), {
+      spkOv: () => ov, spkc: () => prefs,
+      onSpk: (k, patch) => { calls.push([k, patch]); ov = Object.assign({}, ov, { [k]: Object.assign({}, ov[k], patch) }); },
+      onSpkColor: (key, i) => { prefs = Object.assign({}, prefs, { [key]: i }); },
+      mkPlayer: () => { const video = h('video'); video.currentTime = 0; vidS = video; return { el: h('div', 'st-pl'), video, seek: (t) => { video.currentTime = t; }, play() {}, destroy() {} }; } }));
+    const rows = () => pgS.el.byCls('st-spk-row');
+    ok(rows().length === 2 && rows()[0].textContent.includes('Dana Levi') && rows()[1].textContent.includes('studioSpkN{"n":2}') && pgS.el.byCls('st-spk-list').length === 1,
+      'כרטיס הדוברים: שורה לכל דובר; בלי שם — "דובר 2"');
+    ok(rows()[0].textContent.includes('מרצה · studioSpkF · en, he') && rows()[0].textContent.includes('71%') && rows()[1].textContent.includes('studioSpkGU · en') && rows()[1].textContent.includes('29%'),
+      'תפקיד · מגדר · שפות, והחלק מהדיבור');
+    ok(rows()[0].dataset.spk === '0' && rows()[1].dataset.spk === '2' && rows()[0].byCls('st-spk-av')[0].textContent === 'DL' && rows()[1].byCls('st-spk-av')[0].textContent === '2',
+      'צבע לכל דובר (כחול, כתום) וראשי תיבות');
+    const tx = pgS.el.byCls('st-vi-tx')[0];
+    tx.open = true;
+    const turns = tx.byCls('st-spk-turn');
+    ok(turns.length === 2 && turns[0].dataset.spk === '0' && turns[1].dataset.spk === '2' && turns[0].byCls('st-vi-txr').length === 2 && turns[0].byCls('st-spk-nm')[0].textContent === 'Dana Levi',
+      'התמליל: תור לכל דובר — העיגול והשם בראש, בצבע שלו');
+    const tags = tx.byCls('st-spk-lg');
+    ok(tags.length === 1 && tags[0].textContent === 'he' && turns[0].byCls('st-vi-txr')[1].byCls('st-spk-lg').length === 1, 'תג שפה — רק בשורה בשפה שאינה העיקרית של הדובר');
+    pgS.el.byK('tx:e3').click();
+    vidS.currentTime = 1105; vidS.fire('timeupdate');
+    const now = pgS.el.byCls('st-vi-nowsp')[0];
+    ok(!now.hidden && now.textContent.includes('studioSpkN{"n":2}') && pgS.el.byCls('st-vi-now')[0].dataset.spk === '2', 'המיני־נגן: מי מדבר עכשיו');
+    vidS.currentTime = 13; vidS.fire('timeupdate');
+    ok(now.textContent.includes('Dana Levi') && pgS.el.byCls('st-vi-now')[0].dataset.spk === '0', 'והדובר מתחלף עם הזמן');
+    rows()[1].click();
+    let sheet = doc.body.byCls('st-spk-sh').pop();
+    ok(sheet && sheet.byCls('st-rs-t')[0].textContent === 'studioSpkN{"n":2}' && sheet.byK('spk-nm').value === '' && sheet.byK('spk-nm').placeholder === 'studioSpkN{"n":2}' && pgS.sheetOpen(),
+      'נגיעה בדובר — הגיליון שלו (בלי שם: השדה ריק, "דובר 2" כרמז)');
+    ok(sheet.byCls('st-spk-sub')[0].textContent === 'studioSpkShare{"p":29,"n":3}' && sheet.byCls('st-spk-note')[0].hidden && sheet.byK('spk-g:u').getAttribute('aria-checked') === 'true',
+      'החלק מהדיבור; מגדר לא ידוע — בלי מקור');
+    const nmIn = sheet.byK('spk-nm');
+    nmIn.value = '  Yossi   Cohen '; nmIn.fire('change');
+    ok(calls.length === 1 && calls[0][0] === 'S2' && calls[0][1].n === 'Yossi Cohen', 'שם — נשמר לדובר (onSpk)');
+    ok(sheet.byCls('st-rs-t')[0].textContent === 'Yossi Cohen' && rows()[1].textContent.includes('Yossi Cohen') && tx.byCls('st-spk-nm')[1].textContent === 'Yossi Cohen' && now.textContent.includes('Dana Levi'),
+      'השם החדש — בגיליון, בכרטיס ובתמליל');
+    nmIn.fire('change');
+    ok(calls.length === 1, 'אותו שם — בלי שמירה');
+    sheet.byK('spk-g:m').click();
+    ok(calls[1][1].g === 'm' && sheet.byCls('st-spk-note')[0].textContent === 'studioSpkGM' && sheet.byK('spk-g:m').getAttribute('aria-checked') === 'true' && rows()[1].textContent.includes('studioSpkM'),
+      'מגדר — נשמר, "נקבע על ידך", ובכרטיס');
+    sheet.byK('spk-c:0').click();
+    ok(prefs['Yossi Cohen'] === 0 && prefs['Dana Levi'] === 2 && rows()[0].dataset.spk === '2' && rows()[1].dataset.spk === '0' && sheet.byK('spk-c:0').getAttribute('aria-checked') === 'true',
+      'צבע תפוס — הדוברים מתחלפים (כל דובר בצבע אחר)');
+    nmIn.value = 'Yosef'; nmIn.fire('change');
+    ok(prefs.Yosef === 0 && rows()[1].dataset.spk === '0', 'שינוי שם — הצבע שבחרת עובר איתו');
+    sheet.byK('spk-act').click();
+    const box = tx.byCls('st-vi-txb')[0];
+    ok(!sheet.isConnected && box.byCls('st-vi-txr').length === 1 && box.byCls('st-spk-only').length === 1 && !box.byCls('st-spk-turn').length && box.byCls('st-spk-only')[0].textContent.includes('Yosef'),
+      '"רק X בתמליל" — רק השורות שלו, עם שבב לניקוי');
+    box.byCls('st-spk-only')[0].click();
+    ok(tx.byCls('st-vi-txb')[0].byCls('st-vi-txr').length === 3 && tx.byCls('st-spk-turn').length === 2, 'השבב מחזיר את כל הדוברים');
+    rows()[0].click();
+    sheet = doc.body.byCls('st-spk-sh').pop();
+    ok(sheet.byCls('st-spk-note')[0].textContent === 'studioSpkGT' && sheet.byCls('st-spk-lgs')[0].byCls('st-row').length === 2 && sheet.byK('spk-role').value === 'מרצה',
+      'דובר שנאמר בסרטון: "לפי מה שנאמר בסרטון", השפות עם פס, התפקיד');
+    const xs = sheet.byK('spk-nm');
+    xs.value = '<img src=x onerror=alert(1)>'; xs.fire('change');
+    ok(rows()[0].textContent.includes('<img src=x') && !pgS.el.all((x) => x.tagName === 'IMG').length && !doc.body.all((x) => x.tagName === 'IMG').length, 'שם עם HTML — טקסט בלבד');
+    ok(pgS.closeSheet() && !doc.body.byCls('st-spk-sh').some((x) => x.isConnected), '"חזור" סוגר את גיליון הדובר');
+    pgS.destroy();
+
+    /* דף השיתוף — לקריאה; ניתוח ישן — הדוברים מהיחידות; דובר אחד — בלי תורות */
+    const pgR = P.renderVi(ctx(P.normVi(good), { ro: true }));
+    pgR.el.byCls('st-spk-row')[0].click();
+    const shR = doc.body.byCls('st-spk-sh').pop();
+    ok(shR.byK('spk-nm').readOnly === true && !shR.byCls('st-spk-sws').length && shR.byK('spk-g:f').disabled && shR.byK('spk-act'), 'דף השיתוף — לקריאה בלבד: בלי עריכה ובלי צבע ("רק X" נשאר)');
+    pgR.destroy();
+    const old = P.normVi(good); delete old.speakers;
+    const so = P.spkOf(old);
+    ok(so.length === 2 && so[0].spk === 'S1' && so[0].lg[0].lg === 'he' && so[0].lg[0].sh === 0.615 && so[0].lg.some((x) => x.lg === 'en') && Math.abs(so[0].sh + so[1].sh - 1) < 0.01 && so[0].g === 'u' && !so[0].name,
+      'ניתוח ישן (בלי speakers) — הדוברים מהיחידות: סדר, חלק, שפות');
+    ok(P.spkOf(P.normVi(good)) === P.normVi(good).speakers || same(P.spkOf(P.normVi(good)), P.normVi(good).speakers), 'עם speakers — מהעובד');
+    const one = P.normVi(good);
+    one.evidence = one.evidence.map((e) => Object.assign({}, e, { spk: 'S1' }));
+    one.speakers = [one.speakers[0]];
+    const pg1 = P.renderVi(ctx(one));
+    const tx1 = pg1.el.byCls('st-vi-tx')[0];
+    tx1.open = true;
+    ok(pg1.el.byCls('st-spk-row').length === 1 && !tx1.byCls('st-spk-turn').length && tx1.byCls('st-spk-lg').length === 1 && !pg1.el.byCls('st-spk-row')[0].byK('spk-act'),
+      'דובר אחד — הכרטיס כן, תורות לא (תג השפה נשאר)');
+    pg1.el.byCls('st-spk-row')[0].click();
+    ok(!doc.body.byCls('st-spk-sh').pop().byK('spk-act'), 'דובר אחד — בלי "רק X"');
+    pg1.destroy();
   }
 
   console.log(`\n${n} בדיקות עברו`);

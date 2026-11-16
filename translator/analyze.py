@@ -74,6 +74,10 @@ HEB = re.compile(r'[֐-׿]')
 NIQQUD = re.compile(r'[֑-ׇ]')
 TOKEN_RE = re.compile(r"[\w֐-׿][\w֐-׿'’.\-]*", re.UNICODE)
 SENT_END = re.compile(r'[.?!…]["\'”’)\]]*$')
+LG_RE = re.compile(r'[a-z]{2,3}')
+SPK_LG_MIN = 0.05                # דוברים (16/11/2026): שפה של דובר — לפחות 5% מהדיבור שלו ולפחות SPK_LG_MIN_S
+SPK_LG_MIN_S = 2.0
+SPK_MAX = 20
 HE_PREFIX = 'והבלמשכ'
 STOP = frozenset('the a an of to in and or is are was were be it this that for on with as at by from we you i'
                  ' של את על עם זה זו לא כן הוא היא הם אני אנחנו גם או כי אם יש אין מה'.split())
@@ -131,6 +135,9 @@ def evidence(words: list[dict]) -> list[dict]:
         spk = ws[0].get('spk')
         if spk and spk != 'S?':
             u['spk'] = str(spk)[:8]
+        lg = ws[0].get('lg')   # 16/11/2026: קטע בשפה אחרת (ציר השפות) — היחידה נסגרת במעבר שפה, ושומרת את השפה שלה
+        if isinstance(lg, str) and LG_RE.fullmatch(lg):
+            u['lg'] = lg
         ps = [w['p'] for w in ws if isinstance(w.get('p'), (int, float))]
         if ps:
             u['conf'] = round(sum(ps) / len(ps), 2)
@@ -145,7 +152,7 @@ def evidence(words: list[dict]) -> list[dict]:
             dur = float(w['e']) - float(words[cur[0]]['s'])
             gap = float(w['s']) - float(prev['e'])
             sent = SENT_END.search(str(prev['w'])) and float(prev['e']) - float(words[cur[0]]['s']) >= UNIT_MIN_S
-            spk = (w.get('spk') or '') != (prev.get('spk') or '')
+            spk = (w.get('spk') or '') != (prev.get('spk') or '') or (w.get('lg') or '') != (prev.get('lg') or '')
             if sent or gap >= PAUSE_S or dur > UNIT_MAX_S or spk:
                 close()
         cur.append(i)
@@ -528,12 +535,13 @@ def merge_map(wins: list[dict], outs: list[dict], ix, bnd: list[dict], slides: l
     import vicheck
     import visheet
     cands = sorted(float(b['t']) for b in bnd)
-    chs, segs, items, drops, genres = [], [], [], {}, []
+    chs, segs, items, drops, genres, spv = [], [], [], {}, [], []
     for k, (w, o) in enumerate(zip(wins, outs)):
         d = o['d']
         if d is None:
             continue
         genres.append(d['genre'])
+        spv.append(d.get('speakers') or [])
         lo, hi = w['t0'] - vicheck.WIN_PAD, w['t1'] + vicheck.WIN_PAD
         firsts = True
         for c in sorted(d['chapters'], key=lambda c: ix.t0(c.get('from')) if ix.t0(c.get('from')) is not None else 1e12):
@@ -621,7 +629,8 @@ def merge_map(wins: list[dict], outs: list[dict], ix, bnd: list[dict], slides: l
     hang = vicheck.dangling(led, {x['id'] for x in out_it})
     genre = max(set(genres), key=lambda g: (genres.count(g), g != 'other')) if genres else 'other'
     return {'genre': genre, 'segments': [{'t0': g['t0'], 't1': g['t1'], 'type': g['type']} for g in sg],
-            'chapters': out_ch, 'items': out_it, 'ledger': led, 'miss': miss, 'used': used, 'hang': hang}
+            'chapters': out_ch, 'items': out_it, 'ledger': led, 'miss': miss, 'used': used, 'hang': hang,
+            'speakers': visheet.merge_speakers(spv)}
 
 
 def vi_index(ev: list[dict], slides: list[dict], ocr: list[dict], words: list[dict], inv: dict):
@@ -1093,8 +1102,46 @@ def lang_extra(tr: dict, ocr: list[dict]) -> dict:
     return out
 
 
+def speakers_doc(ev: list[dict], lang: str, voice: dict | None = None, named: dict | None = None) -> list[dict]:
+    """16/11/2026 (בקשת המשתמש: "לכל דובר מי הדובר, המגדר שלו ובאיזו שפה הוא מדבר") — לכל תווית, בסדר ההופעה:
+    sh — החלק מזמן הדיבור (לפי יחידות התמליל), ‏t — שניות; ‏lg — השפות שלו ([{lg, sh}]: לפחות SPK_LG_MIN מהדיבור שלו וגם
+    SPK_LG_MIN_S שנ׳, עד 4; יחידה בלי lg — בשפת התמלול); ‏g — m / f / u, ו־gs — מאיפה: text (התוכן — Claude: איך הוא מדבר
+    על עצמו ואיך פונים אליו) קודם, voice (גובה הקול, diarize.voice_gender) אחריו; ‏name / ‏role — רק כשנאמרו בסרטון (Claude)."""
+    tot, by = 0.0, {}
+    for u in ev or []:
+        k = u.get('spk')
+        if not k or (k not in by and len(by) >= SPK_MAX):
+            continue
+        d = max(0.0, float(u.get('t1') or 0) - float(u.get('t0') or 0))
+        x = by.setdefault(k, {'t': 0.0, 'lg': {}})
+        x['t'] += d
+        lg = u.get('lg') or lang
+        x['lg'][lg] = x['lg'].get(lg, 0.0) + d
+        tot += d
+    out = []
+    for k, x in by.items():
+        if x['t'] <= 0:
+            continue
+        lgs = sorted(((g, s) for g, s in x['lg'].items() if s >= SPK_LG_MIN_S and s / x['t'] >= SPK_LG_MIN), key=lambda p: -p[1])[:4]
+        lgs = lgs or [max(x['lg'].items(), key=lambda p: p[1])]
+        lt = sum(s for _, s in lgs)
+        s = {'spk': k, 'sh': round(x['t'] / tot, 3), 't': round(x['t'], 1), 'lg': [{'lg': g, 'sh': round(v / lt, 3)} for g, v in lgs]}
+        nm, vc = (named or {}).get(k) or {}, (voice or {}).get(k) or {}
+        if nm.get('g') in ('m', 'f'):
+            s['g'], s['gs'] = nm['g'], 'text'
+        elif vc.get('g') in ('m', 'f'):
+            s['g'], s['gs'] = vc['g'], 'voice'
+        else:
+            s['g'] = 'u'
+        for f in ('name', 'role'):
+            if nm.get(f):
+                s[f] = nm[f]
+        out.append(s)
+    return out
+
+
 def build_vi_live(lang: str, dur: float, src_kind: str, title: str, m: dict, ev: list[dict], slides: list[dict],
-                  ocr: list[dict], asr_q: str, warn: list[str], lx: dict | None = None) -> dict:
+                  ocr: list[dict], asr_q: str, warn: list[str], lx: dict | None = None, spk: list | None = None) -> dict:
     """vi.json (19.1) — כבר מנורמל (vicheck.norm_vi = מה שהטלפון יציג). ‏vi_unver — כשהאימות לא רץ או לא הושלם
     (3.5: "טיוטה — לא אומתה"); ‏vi_partial — חלון שנכשל או סינתזה שנכשלה. ‏sup = הפריטים שאומתו במלואם.
     ‏cov = חלק השקפים ושורות "רק על המסך" שנוצלו או נדחו בכוונה (V79)."""
@@ -1109,7 +1156,7 @@ def build_vi_live(lang: str, dur: float, src_kind: str, title: str, m: dict, ev:
         w.append('vi_ledger')
     vi = {'v': VI_V, 'pv': visheet.PV, 'lang': dict({'src': lang, 'out': 'he'}, **(lx or {})), 'genre': m['genre'],
           'video': {'dur': round(dur, 2), 'src': src_kind, 'title': title[:200]},
-          'evidence': [{k: v for k, v in u.items() if k != 'ts'} for u in ev],
+          'evidence': [{k: v for k, v in u.items() if k != 'ts'} for u in ev], **({'speakers': spk} if spk else {}),
           'slides': slides, 'ocr': ocr, 'segments': m['segments'], 'chapters': m['chapters'], 'items': m['items'],
           'briefing': m.get('briefing') or {'take': []}, 'thesis': m.get('thesis'), 'big': m.get('big'), 'ledger': m['ledger'],
           'quality': {'items': len(m['items']), 'sup': sum(1 for x in m['items'] if x.get('ver') == 'sup'),
@@ -1123,7 +1170,7 @@ def build_vi_live(lang: str, dur: float, src_kind: str, title: str, m: dict, ev:
 
 def build_vi(lang: str, dur: float, src_kind: str, title: str, wd: dict, screen: dict, ev: list[dict], slides: list[dict],
              ocr: list[dict], inv: dict, bnd: list[dict], n_so: int, asr_q: str, tok: dict, warn: list[str],
-             lx: dict | None = None) -> dict:
+             lx: dict | None = None, spk: list | None = None) -> dict:
     """vi.json בלי Claude (נספח 19.1, תת־קבוצה): הראיות, השקפים, ה־OCR, המלאים ומועמדי הגבול. הפרקים והפריטים ריקים —
     הם של Claude (גל 1). dry = מה שנמדד ונספר."""
     words = wd.get('words') or []
@@ -1131,7 +1178,7 @@ def build_vi(lang: str, dur: float, src_kind: str, title: str, wd: dict, screen:
         'v': VI_V, 'pv': 0, 'dry': 1, 'lang': dict({'src': lang, 'out': 'he'}, **(lx or {})), 'genre': 'other',
         'video': {'dur': round(dur, 2), 'src': src_kind, 'title': title[:200], 'w': screen.get('w') or 0, 'h': screen.get('h') or 0},
         'wd': [[str(w['w']), round(float(w['s']), 2), round(float(w['e']), 2)] for w in words],
-        'evidence': ev, 'slides': slides, 'ocr': ocr, 'inv': inv, 'bounds': bnd,
+        'evidence': ev, **({'speakers': spk} if spk else {}), 'slides': slides, 'ocr': ocr, 'inv': inv, 'bounds': bnd,
         'segments': [], 'chapters': [], 'items': [], 'briefing': None, 'ledger': [],
         'quality': {'items': 0, 'sup': 0, 'cov': 0, 'asr': asr_q, 'ts': wd.get('ts') or 'none', 'so': n_so,
                     'img': screen.get('img') or '', 'warn': [x for x in warn if x in VI_WARN]},
@@ -1485,7 +1532,8 @@ def vi_rebuild(old: dict, m: dict) -> dict:
     base = [w for w in q.get('warn') or [] if w not in VO_KEEP]
     return build_vi_live((old.get('lang') or {}).get('src') or 'en', float(vd.get('dur') or 0), vd.get('src') or 'file',
                          vd.get('title') or '', m, old.get('evidence') or [], old.get('slides') or [], old.get('ocr') or [],
-                         q.get('asr') or 'med', base, {k: v for k, v in (old.get('lang') or {}).items() if k in ('sp', 'scr')})
+                         q.get('asr') or 'med', base, {k: v for k, v in (old.get('lang') or {}).items() if k in ('sp', 'scr')},
+                         old.get('speakers'))
 
 
 def vi_reverify(J, ctx, engine=None) -> int:
@@ -1826,11 +1874,12 @@ def vi_run(J, args, engine=None) -> int:
         print('⚠ המקור קטוע: בקובץ יש רק %d שנ׳, אבל הוא מצהיר על %d שנ׳ — הניתוח רק על מה שיש.' % (round(real), round(decl)))
     title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
     src_kind = 'yt' if spec.get('src') == 'url' and 'youtu' in str(spec.get('url') or '') else 'url' if spec.get('src') == 'url' else 'file'
+    spk = speakers_doc(ev, lang, wd.get('voice'), (m or {}).get('speakers'))
     if dry:
         vi = build_vi(lang, dur, src_kind, title, wd, screen, ev, slides, ocr, inv, bnd, n_so, tr.get('quality') or 'ok', tok, warn,
-                      lang_extra(tr, ocr))
+                      lang_extra(tr, ocr), spk)
     else:
-        vi = build_vi_live(lang, dur, src_kind, title, m, ev, slides, ocr, tr.get('quality') or 'ok', warn, lang_extra(tr, ocr))
+        vi = build_vi_live(lang, dur, src_kind, title, m, ev, slides, ocr, tr.get('quality') or 'ok', warn, lang_extra(tr, ocr), spk)
     if trunc:
         vi['video']['decl'] = round(decl, 2)
     (pd / 'vi.json').write_text(json.dumps(vi, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')

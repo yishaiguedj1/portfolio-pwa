@@ -39,10 +39,11 @@ VI_GENRES = ('academic_lecture', 'course_module', 'business_webinar', 'conferenc
 VI_ASRQ = ('high', 'med', 'low')
 VI_CAP = {'evidence': 20000, 'slides': 3000, 'ocr': 30000, 'segments': 2000, 'chapters': 400, 'items': 3000, 'ledger': 40000,
           'states': 40, 'refs': 24, 'take': 7, 'warn': 16}
-VI_TXT = {'text': 2000, 'q': 600, 'title': 300, 'sum': 3000, 'adds': 2000, 'vtitle': 300}
+VI_TXT = {'text': 2000, 'q': 600, 'title': 300, 'sum': 3000, 'adds': 2000, 'vtitle': 300, 'spk': 40}
+SPK_MAX = 20                    # 16/11/2026: דוברים (speakers) — עד 20
 ID = {'e': re.compile(r'^e\d{1,6}$'), 's': re.compile(r'^s\d{1,5}$'), 'o': re.compile(r'^o\d{1,5}\.\d{1,4}$'),
       'c': re.compile(r'^c\d{1,4}$'), 'n': re.compile(r'^n\d{1,5}$')}
-VI_KEYS = ('v', 'pv', 'lang', 'genre', 'video', 'evidence', 'slides', 'ocr', 'segments', 'chapters', 'items', 'briefing',
+VI_KEYS = ('v', 'pv', 'lang', 'genre', 'video', 'evidence', 'speakers', 'slides', 'ocr', 'segments', 'chapters', 'items', 'briefing',
            'thesis', 'big', 'ledger', 'quality')
 SPK_RE = re.compile(r'^S\d{1,2}$')
 KIND_RE = re.compile(r'^[a-z][a-z_]{0,15}$')
@@ -144,12 +145,40 @@ def norm_vi(o):
         x = dict({'id': e['id']}, **sp)
         x['spk'] = e['spk'] if SPK_RE.match(_s(e.get('spk'))) else 'S1'
         x['text'] = t
+        if LANG_RE.match(_s(e.get('lg'))):   # 16/11/2026: יחידה בשפה אחרת משפת התמלול (ציר השפות)
+            x['lg'] = e['lg']
         if _fin(e.get('conf'), 0, 1):
             x['conf'] = _r3(e['conf'])
         w0, w1 = e.get('w0'), e.get('w1')
         if _isint(w0) and _isint(w1) and w0 >= 0 and w1 >= w0:
             x['w0'], x['w1'] = int(w0), int(w1)
         out['evidence'].append(x)
+    # 16/11/2026 (דוברים בתמליל): [{spk, sh, t, lg: [{lg, sh}], g: m|f|u, gs, name, role}] — תווית אחת פעם אחת, עד SPK_MAX
+    sps: list[dict] = []
+    for d in _list(o.get('speakers'), SPK_MAX):
+        if (not isinstance(d, dict) or not SPK_RE.match(_s(d.get('spk'))) or not _fin(d.get('sh'), 0, 1)
+                or any(y['spk'] == d['spk'] for y in sps)):
+            continue
+        x = {'spk': d['spk'], 'sh': _r3(d['sh'])}
+        if _fin(d.get('t'), 0, 86400):
+            x['t'] = _r3(d['t'])
+        lgs: list[dict] = []
+        for z in _list(d.get('lg'), 8):
+            if (isinstance(z, dict) and LANG_RE.match(_s(z.get('lg'))) and _fin(z.get('sh'), 0, 1) and z['sh'] > 0
+                    and all(y['lg'] != z['lg'] for y in lgs)):
+                lgs.append({'lg': z['lg'], 'sh': _r3(z['sh'])})
+        if lgs:
+            x['lg'] = lgs[:4]
+        x['g'] = d['g'] if d.get('g') in ('m', 'f') else 'u'
+        if x['g'] != 'u' and d.get('gs') in ('text', 'voice'):
+            x['gs'] = d['gs']
+        for k in ('name', 'role'):
+            v = _txt(d.get(k), VI_TXT['spk'])
+            if v:
+                x[k] = v
+        sps.append(x)
+    if sps:
+        out['speakers'] = sps
     out['ocr'] = []
     for r in _list(o.get('ocr'), VI_CAP['ocr']):
         if not isinstance(r, dict) or not ID['o'].match(_s(r.get('id'))):
