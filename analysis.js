@@ -17,7 +17,7 @@ function short(v, d) {
   const a = Math.abs(v);
   if (a >= 1e12) return (v / 1e12).toFixed(d ?? 2) + 'T';
   if (a >= 1e9) return (v / 1e9).toFixed(d ?? (a >= 1e11 ? 0 : a >= 1e10 ? 1 : 2)) + 'B';
-  if (a >= 1e6) return (v / 1e6).toFixed(d ?? (a >= 1e8 ? 0 : 1)) + 'M';
+  if (a >= 1e6) return (v / 1e6).toFixed(d ?? (a >= 1e8 ? 0 : a >= 1e7 ? 1 : 2)) + 'M';   // 16/11/2026: 3 ספרות משמעותיות, כמו בשאר האפליקציה
   if (a >= 1e3) return (v / 1e3).toFixed(1) + 'K';
   return v.toFixed(d ?? 2);
 }
