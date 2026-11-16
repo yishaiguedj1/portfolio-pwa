@@ -557,6 +557,46 @@ def build(pr: Project, style_name: str | None = None, sty: dict | None = None) -
         set_break_chooser(None)
 
 
+def hide_burned(pr, final, burned_d, hs, st, meas, W, H, od, base_ass, dur, warns):
+    """16/11/2026: מצב הסתרה — מלבנים אטומים מעל הכתוביות הצרובות, ובדיקה שבאמת לא רואים אותן (vt/burnin.hide:
+    מציירים על פריימים של המקור ומחפשים טקסט של המקור שמבצבץ; דליפה → מכסים ובודקים שוב; בסוף — פס רציף).
+    התוצאה ב־out/hide.json — העובד מדווח אותה לטלפון ("✓ נבדק")."""
+    from . import burnin, media
+    src = pr.source_path()
+    if not isinstance(burned_d, dict) and src and os.environ.get("SNB_BURN") != "off":
+        try:
+            burned_d = media.burn_scan(src)           # אין burned.json (השוטים בלי הזיהוי) — סורקים עכשיו
+        except Exception as e:                        # noqa: BLE001
+            log(f"סריקת הכתוביות הצרובות נכשלה ({type(e).__name__}) — לפי האזור בלבד")
+            burned_d = None
+
+    def write(ev):
+        write_text(od / "he.ass", burnin.cover_ass(base_ass, ev, W, H))
+
+    def check():
+        if not src or os.environ.get("SNB_HS_CHECK") == "off":
+            return None
+        try:
+            return media.hide_check(src, od / "he.ass")
+        except Exception as e:                        # noqa: BLE001 — הבדיקה עצמה נכשלה: הכיסוי נשאר, ok=0
+            log(f"בדיקת ההסתרה נכשלה ({type(e).__name__})")
+            return None
+    try:
+        ev, res = burnin.hide(final, burned_d if isinstance(burned_d, dict) else None, hs["z"], st, meas, W, H,
+                              write, check, dur=dur)
+    except (ValueError, KeyError, TypeError) as e:
+        log(f"הסתרת הכתוביות הצרובות נכשלה ({type(e).__name__}) — רק הרקע האטום")
+        return None
+    res = dict(res, ev=len(ev), z=hs["z"])
+    write_json(od / "hide.json", res)
+    msg = (f"כתוביות צרובות במקור: {len(ev)} מלבנים אטומים מעליהן · נבדקו {res['n']} פריימים"
+           + (f" · {res['lk']} דליפות כוסו" if res["lk"] else "") + (" · פס רציף" if res.get("full") else "")
+           + ("" if res["ok"] else " · ⚠ לא נבדק עד הסוף"))
+    log(msg)
+    warns.append(msg)
+    return res
+
+
 def _build(pr: Project, style_name: str | None, chooser, sty: dict | None = None) -> dict:
     from .hebrew import layout_lines, Measurer, visible_len
     from . import linebreak as LB
@@ -572,7 +612,27 @@ def _build(pr: Project, style_name: str | None, chooser, sty: dict | None = None
     W, H = int(v["width"]), int(v["height"])
     # 26/10/2026: העיצוב שנבחר בטופס (או בזמן העבודה) כבר בבנייה — גם המדידה ושבירת השורות לפי הגודל החדש
     from .sty import apply_sty, box_ass
-    style = apply_sty(_style(meta, style_name), sty)
+    from . import burnin
+    burned_d = None
+    if pr.p("burned.json").exists() and os.environ.get("SNB_BURN") != "off":
+        try:
+            burned_d = read_json(pr.p("burned.json"))
+        except (OSError, ValueError):
+            burned_d = None
+    # 16/11/2026: כתוביות צרובות במקור + רקע כהה = מצב הסתרה — רקע אטום, מלבן מעל הצרובות, ושלנו לא עוקפות אותן
+    hs = None
+    if sty and sty.get("bx"):
+        try:
+            hs = burnin.hardsub(burned_d, W, H) if isinstance(burned_d, dict) else None
+        except (ValueError, KeyError, TypeError):
+            hs = None
+        if not hs and pr.p("hardsub.json").exists():     # הבדיקה המהירה בתחילת העבודה (הטלפון הציע לפיה)
+            try:
+                hz = burnin.norm_hz((read_json(pr.p("hardsub.json")) or {}).get("z"))
+            except (OSError, ValueError, AttributeError):
+                hz = None
+            hs = {"z": hz} if hz else None
+    style = apply_sty(_style(meta, style_name), sty, hide=bool(hs))
     st = style.scaled(W, H)
     fix = box_ass if sty and sty.get("bx") else (lambda t: t)
     tr = C.timing_rules(meta["settings"].get("timing"))
@@ -617,19 +677,26 @@ def _build(pr: Project, style_name: str | None, chooser, sty: dict | None = None
     bad_fit = [c["id"] for c in final if not c.pop("_fits", True)]
     issues = frame_check(final, grid)
     # 25/10/2026: טקסט שעל המסך (burned.json מ־vt shots) — הכתובית מורמת מעליו או עוברת לראש המסך (vt/burnin.py)
-    if pr.p("burned.json").exists() and os.environ.get("SNB_BURN") != "off":
-        from . import burnin
+    if isinstance(burned_d, dict):
         try:
-            bst = burnin.place(final, read_json(pr.p("burned.json")), st, meas, W, H)
+            bst = burnin.place(final, burnin.without_subs(burned_d, W, H, hs["z"]) if hs else burned_d, st, meas, W, H)
             if bst["lift"] or bst["top"]:
                 log(f"טקסט על המסך: {bst['lift']} כתוביות הורמו מעליו · {bst['top']} בראש המסך")
                 warns.append(f"טקסט על המסך: {bst['lift']} כתוביות הורמו מעליו, {bst['top']} עברו לראש המסך")
         except (ValueError, KeyError, TypeError) as e:
             log(f"קובץ הטקסט שעל המסך לא תקין ({type(e).__name__}) — הכתוביות במקומן")
+    if hs:
+        nz = burnin.zone_lift(final, hs["z"], st, H)
+        if nz:
+            log(f"כתוביות צרובות: {nz} כתוביות עלו לגובה שלהן (מלבן אחד לשתיהן)")
     od = pr.out_dir
     od.mkdir(parents=True, exist_ok=True)
     title = meta.get("title", pr.name)
-    write_text(od / "he.ass", fix(write_ass(final, style, W, H, title)))
+    base_ass = fix(write_ass(final, style, W, H, title))
+    write_text(od / "he.ass", base_ass)
+    (od / "hide.json").unlink(missing_ok=True)
+    if hs:
+        hide_burned(pr, final, burned_d, hs, st, meas, W, H, od, base_ass, float(info.get("duration") or 0), warns)
     write_text(od / "he.srt", write_srt(final), bom=True)
     write_text(od / "he.vtt", write_vtt(final))
     write_text(od / "he.player.ass", fix(write_ass_compat(final, style, W, H, title)))   # לרצועה הרכה ב־MKV

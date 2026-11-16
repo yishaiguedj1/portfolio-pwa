@@ -294,6 +294,7 @@ export function normJob(j) {
     q: normQuality(s.q), ij: normInj(s.ij),   // v374: מדד האיכות ושומר ההזרקות
     jd: normJudge(s.jd),                      // v375: שופט האיכות
     rvf: normRvf(s.rvf), fil: normFil(s.fil), // סבב 4: סימונים מהביקורת, מילות מילוי
+    hs: normHs(s.hs),                         // 16/11/2026: כתוביות צרובות במקור — האזור, ומה בדיקת ההסתרה מצאה
     gl: normGl(s.gl),                         // v380: זיכרון המונחים
     nt: normNote(s.nt),                       // v382: הערה לעובד
     sla: normSla(s.sla),                      // v377: יעדי זמן ותקציב
@@ -484,6 +485,39 @@ export function normFil(o) {
   }
   return out;
 }
+/* 16/11/2026: כתוביות צרובות במקור — אותה בדיקה כמו בשרתון (lib/studio.js normHs): z = האזור (0–1), sh = חלק הסרטון,
+   v = מה בדיקת ההסתרה מצאה (n פריימים, lk דליפות שכוסו, ok נקי). לא תקין — null */
+export function normHs(o) {
+  if (!o || typeof o !== 'object' || !Array.isArray(o.z) || o.z.length !== 4) return null;
+  const z = o.z.map((x) => (typeof x === 'number' ? x : NaN));
+  if (!z.every((x) => Number.isFinite(x) && x >= 0 && x <= 1) || z[2] - z[0] < 0.02 || z[3] - z[1] < 0.01) return null;
+  const r3 = (x) => Math.round(x * 1000) / 1000;
+  const sh = typeof o.sh === 'number' && Number.isFinite(o.sh) ? Math.max(0, Math.min(1, r3(o.sh))) : 0;
+  const out = { z: z.map(r3), sh };
+  const v = o.v;
+  if (v && typeof v === 'object' && !Array.isArray(v)) {
+    const cnt = (x) => (Number.isInteger(x) && x >= 0 ? Math.min(x, 1e6) : 0);
+    out.v = { n: cnt(v.n), lk: cnt(v.lk), ok: v.ok === 1 || v.ok === true ? 1 : 0, ...(v.full === 1 || v.full === true ? { full: 1 } : {}) };
+  }
+  return out;
+}
+/* 16/11/2026 (בקשת המשתמש): מה כרטיס הכתוביות הצרובות אומר. טהור. rr = ההפקה מחדש האחרונה, ed = אפשר עוד לשנות את העיצוב.
+   ask = להציע רקע כהה (אין סגירה — עד שהקובץ מוכן) · on = נבחר, יוסתרו · late = הצריבה כבר התחילה · rr = בתוצאה הן מבצבצות — הפקה מחדש ·
+   gone = כנ״ל, והמקור נמחק · rrrun = מפיקים מחדש עם רקע כהה · ok / bad / nochk = מה הבדיקה של הקובץ מצאה (n פריימים) */
+export function hsState(rec, rr, ed) {
+  const sv = rec && rec.srv, sp = (rec && rec.spec) || {};
+  if (!sv || !sv.hs || sv.kind === 'rr' || sp.ka || sp.ph || sp.src === 'subs' || sv.state === 'failed' || sv.state === 'cancelled') return null;
+  const bx = !!(sp.sty && sp.sty.bx);
+  if (sv.state !== 'done') return { k: bx ? 'on' : ed ? 'ask' : 'late', n: 0 };
+  const ver = (v) => (v.n > 0 ? { k: v.ok ? 'ok' : 'bad', n: v.n } : { k: 'nochk', n: 0 });
+  const rs = rr && rr.srv;
+  if (rs && rs.state === 'done' && rs.hs && rs.hs.v) return ver(rs.hs.v);   // ההפקה האחרונה — היא מה שיש לך עכשיו
+  if (rs && ['new', 'queued', 'running'].includes(rs.state) && rr.spec && rr.spec.sty && rr.spec.sty.bx) return { k: 'rrrun', n: 0 };
+  if (bx) return sv.hs.v ? ver(sv.hs.v) : null;
+  return { k: sv.sx > 0 ? 'gone' : 'rr', n: 0 };
+}
+/* הנגן: הכתוביות הצרובות הוסתרו בקובץ — מנגנים אותו (מעל המקור הן היו מבצבצות). אחרי עריכה — המקור, כי בצרוב הנוסח הישן */
+export const hsPlayBurned = (rec) => !!(rec && rec.srv && rec.srv.hs && rec.srv.hs.v && rec.spec && rec.spec.sty && rec.spec.sty.bx && !(rec.srv.ev > 0));
 export function afterAdvice(rec, o) {
   const out = [], sv = rec && rec.srv, x = o || {};
   if (!sv || sv.state !== 'done' || sv.kind === 'rr') return out;
@@ -5995,6 +6029,25 @@ function towerWhy(tw) {
   }
 }
 const fmtX = (x) => (Math.round(x * 10) / 10).toLocaleString(uiLang() === 'en' ? 'en-US' : 'he-IL', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+/* 16/11/2026 (בקשת המשתמש): כתוביות צרובות במקור — כרטיס בלי סגירה: מתחילת העבודה (הבדיקה המהירה) ועד שהקובץ מוכן, ובתוצאות */
+const hsTxt = (k, n) => (k === 'ask' ? [T('studioHsT'), T('studioHsS')] : k === 'on' ? [T('studioHsOnT'), T('studioHsOnS')] : k === 'late' ? [T('studioHsT'), T('studioHsLate')]
+  : k === 'rr' ? [T('studioHsT'), T('studioHsRrS')] : k === 'gone' ? [T('studioHsT'), T('studioHsGone')] : k === 'rrrun' ? [T('studioHsRrRun'), T('studioHsOnS')]
+  : k === 'ok' ? [T('studioHsDone'), T('studioHsChk', { n })] : k === 'bad' ? [T('studioHsBadT'), T('studioHsBad', { n })] : [T('studioHsDone'), T('studioHsNoChk')]);
+const hsSig = (rec) => { const s = hsState(rec, rrJobs.get(rec.id), styEditable(rec) && canEdit(rec)); return s ? s.k + s.n : ''; };
+function hsCard(rec) {
+  const s = hsState(rec, rrJobs.get(rec.id), styEditable(rec) && canEdit(rec));
+  if (!s) return null;
+  const good = ['on', 'rrrun', 'ok', 'nochk'].includes(s.k);
+  const c = h('div', 'st-hs' + (good ? ' ok' : ''));
+  c.dataset.k = 'hs';
+  const hd = h('div', 'st-hs-h');
+  const [tt, ts] = hsTxt(s.k, s.n);
+  hd.append(ico(good ? 'check' : 'cc'), h('b', null, tt));
+  c.append(hd, h('span', 'st-hs-s', ts));
+  if (s.k === 'ask') c.append(btn('st-btn wide', T('studioHsGo'), () => jobStySet(rec, { bx: 1 }), 'hs-go'));
+  else if (s.k === 'rr' && canEdit(rec)) c.append(btn('st-btn wide', T('studioHsRr'), () => { rrOpt.sty = normSty(Object.assign({}, rrSty() || {}, { bx: 1 })); go('rr', rec.id); }, 'hs-rr'));
+  return c;
+}
 function towerLine(rec) {
   const s = rec.srv, tw = s && s.tw;
   if (!tw || tw.lv === 'red' || !(s.state === 'running' || s.state === 'queued')) return null;
@@ -8268,7 +8321,8 @@ async function playLoad(rec, phFile) {
       me.wt = bothTrack(watchTrack(rec, me.ctl.video), playStats(rec, me.ctl));
       me.st = 'ok'; plPaint(); return;
     }
-    const src = srcId ? net.mediaUrl(srcId) : '', fb = bo ? net.mediaUrl(bo.id) : '';
+    const hid = !!bo && hsPlayBurned(rec);   // 16/11/2026: הכתוביות הצרובות הוסתרו בקובץ שנבדק — הוא, לא המקור עם שכבה מעליו
+    const src = srcId && !hid ? net.mediaUrl(srcId) : '', fb = bo ? net.mediaUrl(bo.id) : '';
     if (!src && !fb) { me.st = 'err'; me.err = 'nosw'; plPaint(); return; }
     me.cues = cues; me.iss = issuesList(cues);
     me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: me.iss, chapters: rec.chap || [], T,
@@ -9165,6 +9219,8 @@ function pageRr(p) {
     if (!rrBusy) p.append(btn('st-btn danger wide', T('studioRrCancel'), () => rrCancel(r), 'rr-cancel'));   // 20/10/2026: אפשר לעצור הפקה (ממתינה / רצה)
   } else if (r && st === 'done' && r.srv.out.length) {
     p.append(secT(T('studioRrReady')), list(...r.srv.out.map((o) => rowOut(rec, o))));   // 22/10/2026: הורדה / שמירה ב־Drive (לא קישור ל־Drive — הקבצים ב־R2)
+    const hsc = hsCard(rec);   // 16/11/2026: הכתוביות הצרובות במקור — מה הבדיקה של הקובץ החדש מצאה
+    if (hsc) p.append(hsc);
   } else if (r && (st === 'failed' || st === 'cancelled' && r.srv.err)) p.append(banner('warn', T('studioRrFailedL', { e: errText(r.srv.err) })));   // ביטול ביד — בלי באנר כישלון
   const active = r && ['new', 'queued', 'running'].includes(st);
   if (active) return;
@@ -9611,6 +9667,8 @@ function pageJob(p) {
   if (ask) p.append(ask);
   if (rec.spec.ph) p.append(phCard(rec));   // 24/10/2026: תרגום בטלפון — הסרטון, המדידות והצריבה בטלפון
   else if (rec.spec.nu && !(rec.srv && rec.srv.fv && rec.srv.state === 'done')) p.append(nuCard(rec));   // 1/11/2026: האפליקציה מעלה את הסרטון
+  const hsc = hsCard(rec);   // 16/11/2026: כתוביות צרובות במקור — רקע כהה יסתיר אותן (נשאר עד שהקובץ מוכן, ובתוצאות)
+  if (hsc) p.append(hsc);
   const cpc = cpCard(rec);   // סבב 10: העתק־הדבק — בקשה שמחכה לתשובה מ־Claude שלך
   if (cpc) p.append(cpc);
   const tstop = towerStopCard(rec);   // v362: מגדל הפיקוח עצר — מה קרה, מה זה אומר, המספרים
@@ -10453,7 +10511,7 @@ function shapeKey() {
     + (rec.spec.nu && rec.srv ? 'U' + (rec.srv.fv ? 1 : rec.srv.vcp && rec.srv.vcp.e ? 'e' : '') + (nuStuck(rec, Date.now()) ? 's' : '') + (phKeys.has(rec.id) ? 'k' : '') : ''); };   // 24/10/2026: תרגום בטלפון — המדידות והצריבה   // v382: הערה שנקראה / ממתינה; סבב 10: העתק־הדבק
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
   if (ui.view === 'job' && va && va.id === ui.param) return 'vi|' + va.id + '|' + va.st + '|' + ui.access;   // PR 1.5ב: דף הניתוח לא נבנה מחדש (הנגן והגלילה)
-  if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param) + '|' + (r && r.up.dx ? r.up.dx.st + Math.round(r.up.dx.p * 20) + r.up.dx.n : '') + (dxBusy === ui.param ? 'X' : ''); }   // 26/10/2026: השמירה ב־Drive
+  if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) + hsSig(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param) + '|' + (r && r.up.dx ? r.up.dx.st + Math.round(r.up.dx.p * 20) + r.up.dx.n : '') + (dxBusy === ui.param ? 'X' : ''); }   // 26/10/2026: השמירה ב־Drive
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');
   if (ui.view === 'tower' || ui.view === 'towerx' || TW_SUBS.includes(ui.view)) return ui.view + '|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(curNorm()) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag) + JSON.stringify(ui.pb) + (ui.pbAll ? 1 : 0) + JSON.stringify(ui.rb) + JSON.stringify(ui.sc) + JSON.stringify(ui.va) + JSON.stringify(ui.slo) + JSON.stringify(ui.sh) + JSON.stringify(ui.an);   // v383 · v384
   if (ui.view === 'alert') return 'alert|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.ops) + (ui.alTab || 'd') + ui.muPick + ackBusy + JSON.stringify(ui.fb) + store.jobs.map((r) => r.id + (r.srv && r.srv.fr ? r.srv.fr.s : '')).join();

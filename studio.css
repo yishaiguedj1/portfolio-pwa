@@ -447,6 +447,14 @@ html.studio-open .dlg-veil { z-index: 1003; }
 .st-tstop-r .v { font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; }
 .st-tstop .st-link { padding: 0; justify-self: start; text-align: start; cursor: pointer; }
 .st-btn.ghost { background: var(--st-fill); color: var(--on-surface); }
+/* 16/11/2026: כתוביות צרובות במקור — כרטיס בלי סגירה (המלצה: ענבר, בולט; נבחר/נבדק: ירוק) */
+.st-hs { margin: 12px 16px 0; padding: 14px; border-radius: var(--radius-sm); background: var(--st-card); box-shadow: 0 0 0 2px var(--st-amber) inset; display: grid; gap: 6px; }
+.st-hs.ok { box-shadow: 0 0 0 2px var(--st-ok) inset; }
+.st-hs-h { display: flex; align-items: center; gap: 8px; font-size: 16px; }
+.st-hs-h svg { width: 22px; height: 22px; flex: none; color: var(--st-amber); }
+.st-hs.ok .st-hs-h svg { color: var(--st-ok); }
+.st-hs-s { color: var(--on-surface-var); font-size: 14.5px; line-height: 1.45; }
+.st-hs .st-btn.wide { width: 100%; margin-inline: 0; margin-top: 6px; }
 
 /* v365: מגדל הפיקוח 2.0 — כרטיס הבריאות, מפת השירות והתראות */
 .st-smap { margin: 0 16px; padding: 12px; border-radius: var(--radius-sm); background: var(--st-card); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }

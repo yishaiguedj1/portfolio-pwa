@@ -218,3 +218,118 @@ def frame_png(src: Path, t: float, out: Path, vf: str | None = None) -> None:
         cmd += ["-vf", vf]
     cmd += ["-frames:v", "1", str(out)]
     run(cmd, quiet=True)
+
+
+def hardsub_probe(src: Path, n: int | None = None) -> dict | None:
+    """16/11/2026: בדיקה מהירה בתחילת העבודה — יש בסרטון כתוביות צרובות? n פריימים מפוזרים (קפיצה לכל אחד, בלי
+    לפענח את כל הסרטון — שניות ספורות גם בפרק ארוך) → burnin.hardsub. None = אין / אי אפשר לבדוק."""
+    import numpy as np
+    from . import burnin
+    if not burnin.available():
+        return None
+    info = probe(src)
+    v = info.get("video") or {}
+    vw, vh = int(v.get("width") or 1920), int(v.get("height") or 1080)
+    dur = float(info.get("duration") or 0)
+    if dur <= 0:
+        return None
+    n = int(n or burnin.HS_PROBE)
+    fh = burnin.frame_height(vw, vh)
+    det = burnin.Detector()
+    frames, k = [], 0
+    for i in range(n):
+        t = dur * (i + 0.5) / n
+        p = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-ss", f"{t:.2f}", "-i", str(src),
+                            "-frames:v", "1", "-an", "-vf", f"scale={burnin.W}:{fh},format=rgb24", "-f", "rawvideo", "pipe:1"],
+                           capture_output=True, stdin=subprocess.DEVNULL, timeout=60)
+        if len(p.stdout) < burnin.W * fh * 3:
+            continue
+        k += 1
+        bs = det.frame(np.frombuffer(p.stdout[:burnin.W * fh * 3], np.uint8).reshape(fh, burnin.W, 3))
+        if bs:
+            frames.append([round(t, 3), bs])
+    return burnin.hardsub({"n": k, "frames": frames}, vw, vh)
+
+
+def burn_scan(src: Path) -> dict | None:
+    """16/11/2026: הטקסט שעל המסך (כמו burned.json) בלי חילופי השוטים — להפקה מחדש במצב הסתרה, כשאין את קובץ
+    העבודה המקורית. 2 פריימים לשנייה ברוחב 640. None = אי אפשר."""
+    import threading
+    import numpy as np
+    from . import burnin
+    if not burnin.available():
+        return None
+    info = probe(src)
+    v = info.get("video") or {}
+    fh = burnin.frame_height(int(v.get("width") or 1920), int(v.get("height") or 1080))
+    t0 = float(v.get("start") or 0.0)
+    cmd = ["ffmpeg", "-hide_banner", "-nostats", "-loglevel", "error", "-i", str(src), "-an",
+           "-vf", f"fps={burnin.FPS},scale={burnin.W}:{fh},format=rgb24", "-f", "rawvideo", "pipe:1"]
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL)
+    th = threading.Thread(target=p.stderr.read, daemon=True)
+    th.start()
+    det, frames, k, n = burnin.Detector(), [], 0, burnin.W * fh * 3
+    try:
+        while True:
+            buf = p.stdout.read(n)
+            if len(buf) < n:
+                break
+            t = round(t0 + k / burnin.FPS, 3)
+            bs = det.frame(np.frombuffer(buf, np.uint8).reshape(fh, burnin.W, 3), t)
+            if bs:
+                frames.append([t, bs])
+            k += 1
+    finally:
+        p.stdout.close()
+        p.wait()
+        th.join()
+        p.stderr.close()
+    return {"v": burnin.V, "fps": burnin.FPS, "w": burnin.W, "fh": fh, "n": k, "frames": frames}
+
+
+def hide_check(src: Path, ass: Path, off: float | None = None) -> dict | None:
+    """16/11/2026: "בודקים ומוודאים" — מצב הסתרה. מציירים את ה־ASS (אותו libass של הצריבה) על פריימים של המקור, 2 לשנייה
+    באמצע בין הדגימות של הסריקה, ובאותו מעבר גם הפריים של המקור עצמו (זה לצד זה). הגלאי רץ על שניהם (שני מופעים —
+    המטמון של כל אחד לפי מקום). → {"n": פריימים, "frames": [[t, תיבות אחרי הכתוביות, תיבות במקור]]} או None."""
+    import threading
+    import numpy as np
+    from . import burnin
+    from .render import sub_filter
+    if not burnin.available():
+        return None
+    info = probe(src)
+    v = info.get("video") or {}
+    fh = burnin.frame_height(int(v.get("width") or 1920), int(v.get("height") or 1080))
+    base = float(info.get("timeline_base") or 0.0)   # כמו בצריבה (render.burn): ציר הזמן של הכתוביות מתחיל ב־0
+    off = burnin.HS_OFF if off is None else off
+    fc = (f"[0:v:0]setpts=PTS-{base}/TB,fps=fps={burnin.FPS}:start_time={off:.3f},split[a][b];"
+          f"[a]{sub_filter(ass)},scale={burnin.W}:{fh},format=rgb24[s];[b]scale={burnin.W}:{fh},format=rgb24[o];[s][o]hstack")
+    cmd = ["ffmpeg", "-hide_banner", "-nostats", "-loglevel", "error", "-i", str(src), "-an",
+           "-filter_complex", fc, "-f", "rawvideo", "pipe:1"]
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL)
+    err: list[bytes] = []
+    th = threading.Thread(target=lambda: err.append(p.stderr.read()), daemon=True)
+    th.start()
+    dc, do = burnin.Detector(), burnin.Detector()
+    frames, k, n = [], 0, 2 * burnin.W * fh * 3
+    try:
+        while True:
+            buf = p.stdout.read(n)
+            if len(buf) < n:
+                break
+            img = np.frombuffer(buf, np.uint8).reshape(fh, 2 * burnin.W, 3)
+            t = round(off + k / burnin.FPS, 3)
+            bc = dc.frame(np.ascontiguousarray(img[:, :burnin.W]), t)
+            bo = do.frame(np.ascontiguousarray(img[:, burnin.W:]), t) if bc else []
+            if bc:
+                frames.append([t, bc, bo])
+            k += 1
+    finally:
+        p.stdout.close()
+        p.wait()
+        th.join()
+        p.stderr.close()
+    if p.returncode != 0 or k == 0:
+        log(f"בדיקת ההסתרה לא רצה ({b''.join(err).decode('utf-8', 'replace').strip()[-200:]})")
+        return None
+    return {"n": k, "fh": fh, "frames": frames}
