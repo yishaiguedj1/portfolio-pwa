@@ -46,6 +46,16 @@ const engOk = (spec, full) => !!full || !!(spec && spec.eng === 'api' && spec.cp
 // מצבים שהוסרו → המצב הקיים הקרוב (עבודה / טיוטה / חוק שנשמרו לפני ההחלפה ממשיכים לעבוד, לא נופלים)
 const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium' };   // 11/10: Haiku Medium יצא (= המחיר של High)
 const modeNow = (m) => (MODES.includes(m) ? m : LEGACY_MODES[m] || DEFAULT_MODE);
+/* 16/11/2026 (הסתרת המודלים): הטלפון מכיר רק קודים, ולכן הגדרה שנשמרה לפני כן עם מזהה (lm) והגרסה שלה (lmv) מומרת כאן — status.
+   = migrateSettings בטלפון עד 2.153.0: בלי mv 2–4 — Opus → ברירת המחדל; עד mv 4 — "רגיל" הקודם (haiku-high) → "רגיל" החדש,
+   ו"ביצועים" הקודם (sonnet-medium) → "ביצועים" החדש (haiku-high); mv 4 — הבחירה נשארת */
+function legacyMode(lm, mv) {
+  const m = String(lm || '').slice(0, 40);
+  if (mv !== 2 && mv !== 3 && mv !== 4 && /^opus-(medium|high|max)$/.test(m)) return DEFAULT_MODE;
+  if (mv !== 4 && m === 'haiku-high') return DEFAULT_MODE;
+  if (mv !== 4 && m === 'sonnet-medium') return 'haiku-high';
+  return modeNow(m);
+}
 /* הסקירה (10/10/2026): מה שהעובד יודע היום — מקור אנגלית (או "אוטומטי"), יעד עברית. השאר נדחה כבר ביצירה (לפני העלאה
    של כמה GB והפעלת Claude), לא בעובד. **= LANG_READY בטלפון** (tests/studio-review.test.js). שפה חדשה = כאן + בטלפון + בעובד */
 const LANG_READY = { from: ['auto', 'en'], to: ['he'] };
@@ -1889,7 +1899,7 @@ function fromFields(f) {
 }
 
 module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, smAlias, smResolve, smRowsMerge, smEvict, smIsName, chKey, jobSeries, SM_BYTES, SM_READ, SM_GL, SM_CH, SM_NEW, SM_DONE, SM_LOCK, SM_UNSURE, SM_FIX, SM_WORKER, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
-  MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
+  MODES, LEGACY_MODES, modeNow, legacyMode, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, isGold, isViGold, goldClone, normXe, XF_KEYS, XF_MAX, normXf, GOLD_ARMS, normArms, waveOrder, waveClone, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, burnSuspect, lbJob, cuesSwap, rrSpec, rrJob, VV_MAX, viOut, isVv, canViVerify, vvJob, vvAdopt, isVj, VJ_USD, isVp, VP_MODES, VP_USD, vpJob, viWave, vjPairs, normVjp, vjJob, vjRows, vjDecide,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,

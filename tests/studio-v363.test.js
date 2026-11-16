@@ -37,8 +37,11 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const order = (o) => Object.keys(o).sort((a, b) => o[a] - o[b]).join();
   ok(order(S.NORM_DEF_API) === order(S.NORM_DEF), 'הסדר בין המצבים זהה בשני המנועים (MODE_ORDER בטלפון, cheaperModes, "מצב מקסימלי")');
   const ST = read('studio.js');
-  const pick = (re) => { const m = ST.match(re); return m && JSON.parse(m[1].replace(/'/g, '"')); };
-  ok(JSON.stringify(pick(/export const NORM_DEF_API = (\{[^}]+\})/)) === JSON.stringify(S.NORM_DEF_API) && new RegExp('export const NORM_FIXED_API = ' + S.NORM_FIXED_API + ';').test(ST),
+  // 16/11/2026: בטלפון — לפי קוד המצב (std/perf/lab1–4, lib/modecode.js), בשרתון — לפי המזהה הפנימי
+  const MC = require(path.join(root, 'ibkr-proxy/lib/modecode.js'));
+  const pick = (re) => { const m = ST.match(re); return m && JSON.parse(m[1].replace(/'/g, '"').replace(/([{,]\s*)([a-z][a-z0-9]*)\s*:/g, '$1"$2":')); };
+  const srt = (o) => JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]]));
+  ok(srt(pick(/export const NORM_DEF_API = (\{[^}]+\})/)) === srt(Object.fromEntries(Object.entries(S.NORM_DEF_API).map(([k, v]) => [MC.codeOf(k), v]))) && new RegExp('export const NORM_FIXED_API = ' + S.NORM_FIXED_API + ';').test(ST),
     'הטלפון: ערכי השרת זהים לשרתון');
   ok(S.workerJob({ id: 'j', kind: 'tr' }, nm).nm === nm && S.workerJob({ id: 'j', kind: 'tr' }).nm === null, 'העובד מקבל את "הרגיל" בלקיחה');
   const api = read('ibkr-proxy/api/studio.js');
@@ -52,8 +55,9 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   /* ---------- 4. הטלפון ---------- */
   const M = await import(path.join(root, 'studio.js'));
   ok(M.normTw({ lv: 'ok', x: 1, b: 'u', nj: 4 }).nj === 4 && M.normTw({ lv: 'ok', x: 1, nj: 4 }).nj === 0, 'טלפון: normTw — "לפי N העבודות שלך" רק כשנלמד');
-  const NN = M.normNorms({ 'opus-medium': { ph: 6, mx: 9, n: 3 }, 'sonnet-high': { ph: 4.2, n: 1, d: true }, evil: { ph: 1 }, 'opus-max': { ph: -1 } });
-  ok(NN['opus-medium'].ph === 6 && NN['sonnet-high'].d === true && !NN.evil && !NN['opus-max'] && M.normNorms('x') === null, 'טלפון: normNorms — מצבים מוכרים ומספרים תקינים בלבד');
+  // 16/11/2026: המפתחות מהשרתון — קודים (wrapRes); מזהה פנימי שהגיע בכל זאת — נזרק
+  const NN = M.normNorms({ lab4: { ph: 6, mx: 9, n: 3 }, lab3: { ph: 4.2, n: 1, d: true }, evil: { ph: 1 }, lab1: { ph: -1 }, 'opus-medium': { ph: 6 } });
+  ok(NN.lab4.ph === 6 && NN.lab3.d === true && !NN.evil && !NN.lab1 && !NN['opus-medium'] && M.normNorms('x') === null, 'טלפון: normNorms — מצבים מוכרים ומספרים תקינים בלבד');
   ok(M.chainFor('tower', null).map((x) => x.v).join() === 'home,tower', 'טלפון: רענון במסך המגדל — חוזר אליו (אח בחוגה, מתחת לבית)');
   const st = read('studio.js');
   ok(/function pageTower\(p\)/.test(st) && /ui\.view === 'tower'\) pageTower\(p\)/.test(st) && /go\('tower'\)/.test(st), 'טלפון: מסך "מגדל הפיקוח" — מההגדרות, משורת המגדל ומכרטיס העצירה');

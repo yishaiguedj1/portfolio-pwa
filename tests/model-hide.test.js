@@ -75,7 +75,11 @@ const leakIn = (s) => { for (const re of LEAK) { const m = re.exec(s); if (m) re
     assert.strictEqual(st.modelLabel('claude'), 'Claude');
     // הגדרה ישנה: המזהה נשמר ב־lm עד שהשרתון ממיר (status)
     const s1 = st.migrateSettings({ mode: 'haiku-high', mv: 4 });
-    assert.ok(s1.mode === 'std' && s1.lm === 'haiku-high' && s1.mv === 5, 'מזהה ישן → lm + ברירת המחדל עד ההמרה');
+    assert.ok(s1.mode === 'std' && s1.lm === 'haiku-high' && s1.lmv === 4 && s1.mv === 5, 'מזהה ישן → lm (+ הגרסה, lmv) וברירת המחדל עד ההמרה');
+    assert.strictEqual(MC.codeOf(S.legacyMode(s1.lm, s1.lmv)), 'perf', 'השרתון ממיר: mv 4 — הבחירה נשארת');
+    assert.strictEqual(MC.codeOf(S.legacyMode('haiku-high', 3)), 'std', 'mv 3 — "רגיל" הקודם → "רגיל"');
+    assert.strictEqual(MC.codeOf(S.legacyMode('sonnet-medium', 0)), 'perf', '"ביצועים" הקודם → "ביצועים"');
+    assert.ok(!('lm' in st.normSettings({ mode: 'gpt' })), 'ערך שאינו בצורה של מזהה ישן — לא נשלח לשרתון');
     const s2 = st.migrateSettings({ mode: 'perf', mv: 5 });
     assert.ok(s2.mode === 'perf' && !('lm' in s2), 'קוד — כמו שהוא');
     assert.strictEqual(st.normSettings(s1).lm, 'haiku-high', 'lm שורד שמירה ונרמול חוזר');
@@ -134,6 +138,7 @@ const leakIn = (s) => { for (const re of LEAK) { const m = re.exec(s); if (m) re
     assert.ok(i > 0 && j > i && k > j, 'העובד, השרתים ומשיכת המאגר — לפני העטיפה (רואים הכל); הטלפון — אחריה');
     for (const op of ['WORKER_OPS', 'SERVER_OPS', 'RELAY_OPS']) assert.ok(run.indexOf('if (' + op + '.has(') < j, op + ' לפני העטיפה');
     assert.ok(/pub\.admin = user\.mon !== true && isAdmin\(user\)/.test(run), 'השמות — רק למנהל');
+    assert.ok(/S\.legacyMode\(body\.lm, Number\.isInteger\(body\.lmv\) \? body\.lmv : 0\)/.test(run), 'status: הגדרה ישנה (lm, lmv) → קוד');
     const L = require('../ibkr-proxy/lib/studiolearn.js');
     assert.ok(/tier: require\('\.\/modecode'\)\.codeOf\(sp\.mode\)/.test(read('ibkr-proxy/lib/studiolearn.js')), 'רשומת הלמידה: גם הקוד שהמשתמש ראה');
     assert.ok(typeof L === 'object');

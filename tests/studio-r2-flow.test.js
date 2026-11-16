@@ -410,7 +410,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   Object.assign(db.get('studioJobs/' + VPJ.id).fields, { kh: { stringValue: crypto.createHash('sha256').update(KP).digest('hex') }, kx: iv(R.now + 3600e3), state: { stringValue: 'running' } });
   await call({ op: 'report', job: VPJ.id, key: KP, done: true, vpd: { bounds: [{ t0: 0, lv: 1, title: 'פתיחה' }], units: [{ w: 9, text: 'יחידה' }], qa: [], slides: [], meta: { genre: 'nope' }, junk: 1 } }, true);
   const gd2 = await api('viRef', { job: gv.id, get: true });
-  ok(gd2.ok && gd2.dst === 'done' && gd2.draft && gd2.draft.units[0].w === 1 && gd2.draft.meta.genre === 'other' && !('junk' in gd2.draft) && gd2.ref.units.length === 2 && gd2.usd.s === S.VP_USD.s,
+  ok(gd2.ok && gd2.dst === 'done' && gd2.draft && gd2.draft.units[0].w === 1 && gd2.draft.meta.genre === 'other' && !('junk' in gd2.draft) && gd2.ref.units.length === 2 && gd2.usd.lab2 === S.VP_USD.s && gd2.usd.lab4 === S.VP_USD.o && !('s' in gd2.usd),   // 16/11/2026: לפי קוד המצב (מרכז הניהול, VR_DM)
     'טיוטת ייחוס: הטיוטה נשמרת מנורמלת (JSON) וחוזרת ב־get לצד הייחוס המאושר — לא מחליפה אותו');
   ok(require('../ibkr-proxy/lib/studiolearn').learnRec(jobOf(VPJ.id), R.now, S.effState) === null, 'טיוטת ייחוס: לא נכנסת למאגר הלמידה');
   db.delete('studioJobs/' + VPJ.id);

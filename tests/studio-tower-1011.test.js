@@ -30,7 +30,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const tower = sj.slice(sj.indexOf('function pageNorm(p) {'), sj.indexOf("const rule = (txt) => h('div', 'st-row st-rule'"));
   ok(/MODE_ORDER\.slice\(\)\.reverse\(\)\.filter\(\(id\) => nm\[id\] && \(modeOk\(id, ui\.mf\) \|\| nm\[id\]\.n\)\)/.test(tower), 'המגדל: כל המצבים ב"הרגיל" (גם מצב שהעבודה שלו לא נלמדה — Haiku Medium)');
   ok(/const curNorm = \(\) => \(apiMode\(\) \? ui\.normA \|\| ui\.normR : ui\.normR\)/.test(sj) && !/ui\.norm\b(?!R|A)/.test(sj), '"הרגיל" של המנוע שבשימוש — בכל מקום (מגדל, אומדן, סט הזהב)');
-  const est = (apiOn) => st.startEstimate('haiku-high', 300, null, apiOn ? { cap: 30, month: 1 } : null, apiOn);
+  const est = (apiOn) => st.startEstimate('perf', 300, null, apiOn ? { cap: 30, month: 1 } : null, apiOn);
   ok(est(true).usd < est(false).usd && est(true).usd <= 0.35 && est(false).usd >= 1.5, 'אומדן לפני התחלה: בשרת בלי עלות הפתיחה של ה־Routine');
 
   /* ---------- 4. קריסה ≠ זיכרון ---------- */
@@ -40,16 +40,20 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   /* ---------- 5. Haiku Medium: יצא ב־11/10, חזר ב־20/10 כמצב לבדיקות (בקשת המשתמש) — רק למנהל / "כל המודלים" ---------- */
   const srv = require(path.join(root, 'ibkr-proxy/lib/studio.js'));
   // 25/10/2026 (בקשת המשתמש): Haiku Medium = "רגיל" (ברירת המחדל) ו־Haiku High = "ביצועים" — רק Haiku פתוח לכולם
-  ok(st.MODES.some((m) => m.id === 'haiku-medium') && srv.MODES.includes('haiku-medium') && srv.PUBLIC_MODES.join() === 'haiku-medium,haiku-high' && st.PUBLIC_MODES.join() === srv.PUBLIC_MODES.join(), 'הפתוחים לכולם — Haiku Medium ו־Haiku High, זהה בטלפון ובשרתון');
-  ok(st.modeNow('haiku-medium') === 'haiku-medium' && srv.modeNow('haiku-medium') === 'haiku-medium' && srv.modeOk('haiku-medium', false) && !srv.modeOk('sonnet-medium', false) && srv.modeOk('sonnet-medium', true), 'כבר לא ממופה ל־High; השרתון אוכף מי רשאי (Sonnet — רק לרשימה)');
-  ok(st.normRules({ mx: 'haiku-medium' }).mx === 'haiku-medium' && srv.normRules({ mx: 'haiku-medium' }).mx === 'haiku-medium', 'חוק "מצב מקסימלי" ב־Haiku Medium נשמר');
+  // 16/11/2026: הטלפון מכיר רק קודים (std/perf/lab1–4) — lib/modecode.js ממפה
+  const MC = require(path.join(root, 'ibkr-proxy/lib/modecode.js'));
+  ok(st.MODES.some((m) => m.id === 'std') && srv.MODES.includes('haiku-medium') && srv.PUBLIC_MODES.join() === 'haiku-medium,haiku-high' && st.PUBLIC_MODES.join() === srv.PUBLIC_MODES.map(MC.codeOf).join(), 'הפתוחים לכולם — Haiku Medium ו־Haiku High, זהה בטלפון (std, perf) ובשרתון');
+  ok(st.modeNow('std') === 'std' && srv.modeNow('haiku-medium') === 'haiku-medium' && srv.modeOk('haiku-medium', false) && !srv.modeOk('sonnet-medium', false) && srv.modeOk('sonnet-medium', true), 'כבר לא ממופה ל־High; השרתון אוכף מי רשאי (Sonnet — רק לרשימה)');
+  ok(st.normRules({ mx: 'std' }).mx === 'std' && srv.normRules({ mx: 'haiku-medium' }).mx === 'haiku-medium', 'חוק "מצב מקסימלי" ב־Haiku Medium נשמר');
   // 25/10/2026 (mv 4): "רגיל" הקודם (Haiku High) → "רגיל" החדש (Haiku Medium); "ביצועים" הקודם (Sonnet Medium) → Haiku High; פעם אחת
-  ok(st.migrateSettings({ mode: 'opus-high' }).mode === 'haiku-medium' && st.migrateSettings({ mode: 'haiku-high', mv: 3 }).mode === 'haiku-medium' && st.migrateSettings({ mode: 'sonnet-medium', mv: 3 }).mode === 'haiku-high'
-    && st.migrateSettings({ mode: 'haiku-high', mv: 4 }).mode === 'haiku-high' && st.migrateSettings({ mode: 'sonnet-medium', mv: 4 }).mode === 'sonnet-medium' && st.migrateSettings({ mode: 'opus-medium', mv: 2 }).mode === 'opus-medium',
+  // 16/11/2026: הטלפון שומר את המזהה הישן (lm) ואת הגרסה (lmv), והשרתון ממיר (legacyMode, status) — אותה תוצאה כמו קודם
+  const mig = (o) => { const s = st.migrateSettings(o); return s.lm ? MC.codeOf(srv.legacyMode(s.lm, s.lmv)) : s.mode; };
+  ok(mig({ mode: 'opus-high' }) === 'std' && mig({ mode: 'haiku-high', mv: 3 }) === 'std' && mig({ mode: 'sonnet-medium', mv: 3 }) === 'perf'
+    && mig({ mode: 'haiku-high', mv: 4 }) === 'perf' && mig({ mode: 'sonnet-medium', mv: 4 }) === 'lab2' && mig({ mode: 'opus-medium', mv: 2 }) === 'lab4' && mig({ mode: 'opus-max', mv: 4 }) === 'lab4',
     'הגדרה ישנה: "רגיל"/"ביצועים" הקודמים → המקבילים החדשים (פעם אחת, mv 4); בחירה אחרי המעבר נשארת');
   const llm = read('translator/llm.py'), tw = read('translator/tower.py'), rb = read('translator/RUNBOOK.md');
   ok(/'haiku-medium': \('anthropic', 'claude-haiku-5-5', 'medium'\)/.test(llm) && !/'haiku-medium': 'haiku-high'/.test(llm) && /'haiku-medium': 0\.7/.test(tw) && /\| `haiku-medium` \| haiku \| medium \|/.test(rb), 'בעובד: במצבים (מאמץ medium), במגדל ובטבלת ה־RUNBOOK');
-  ok(/studioMsHaiMed/.test(app) && /studioMsHaiMed/.test(sj), 'המחרוזות של Haiku Medium');
+  ok(/studioMsStd: "/.test(app) && /studioMsStd/.test(sj), 'המחרוזות של "רגיל" (studioMsStd — 16/11/2026: לפי הקוד, לא לפי המודל)');
 
   console.log('\n' + n + ' passed');
 })().catch((e) => { console.error(e); process.exit(1); });

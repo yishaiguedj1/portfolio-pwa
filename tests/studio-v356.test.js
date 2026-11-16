@@ -25,7 +25,7 @@ const wiz = (o) => KEYS.map((k) => o[k]).join(' | ');
 ok(!/Limited/.test(wiz(HE) + wiz(EN)), 'בלי "Limited" — ב־claude.ai יש רק None / Trusted / Full / Custom');
 ok(/Custom/.test(HE.studioW1b) && /Allowed domains/.test(HE.studioW1b) && /Also include default list/.test(HE.studioW1b), 'שלב 1: Custom, ‏Allowed domains והתיבה של רשימת ברירת המחדל');
 ok(/Setup script/.test(HE.studioW1c) && /Add cloud environment/.test(HE.studioW1a), 'שלב 1: איך פותחים סביבה חדשה, ואיפה מדביקים את השורה');
-ok(/New routine/.test(HE.studioW2a) && /Sonnet 5\.5/.test(HE.studioW2b) && /portfolio-pwa/.test(HE.studioW2b), 'שלב 2: משימה חדשה, המודל והריפו');
+ok(/New routine/.test(HE.studioW2a) && !/sonnet|haiku|opus/i.test(HE.studioW2b + EN.studioW2b) && /portfolio-pwa/.test(HE.studioW2b), 'שלב 2: משימה חדשה, המודל והריפו');
 for (const [o, lang] of [[HE, 'he'], [EN, 'en']]) {
   const s = o.studioW2c;
   ok(/Select a trigger/.test(s) && /API/.test(s) && /Create/.test(s) && s.indexOf('API') < s.lastIndexOf('Create'), lang + ': מסמנים API לפני Create (בלעדיו הכפתור אפור)');

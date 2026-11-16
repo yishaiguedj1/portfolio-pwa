@@ -97,7 +97,7 @@ export function normSettings(o) {
   if (typeof o.mode === 'string' && o.mode) s.mode = modeNow(o.mode);
   // 16/11/2026: מצב שנשמר לפני הקודים — נשמר כמו שהוא (lm) עד שהשרתון ממיר אותו לקוד (status)
   const lm = typeof o.lm === 'string' && o.lm ? o.lm : typeof o.mode === 'string' && o.mode && !MODES.some((m) => m.id === o.mode) ? o.mode : '';
-  if (lm) s.lm = lm.slice(0, 40);
+  if (/^[a-z]{3,12}-[a-z]{3,8}$/.test(lm)) { s.lm = lm; if (Number.isInteger(o.lmv) && o.lmv >= 0 && o.lmv < 9) s.lmv = o.lmv; }   // רק בצורה של מזהה ישן (משפחה-מאמץ)
   s.to = normTo(o.to);
   s.out = normOut(o.out);
   if (STYLES.includes(o.style)) s.style = o.style;
@@ -1001,7 +1001,9 @@ function spkcSet(name, i) {
 /* 16/11/2026: המצבים עברו לקודים אטומים. הגדרה שנשמרה לפני כן (מזהה שהטלפון כבר לא מכיר) נשמרת ב־lm, והשרתון ממיר אותה
    פעם אחת לקוד (status → lm) — "ביצועים" שנבחר נשאר "ביצועים". עד שהשרתון ענה — ברירת המחדל */
 export function migrateSettings(o) {
-  const s = normSettings(o);   // lm — שם
+  const s = normSettings(o);   // lm — מצב שנשמר לפני הקודים; השרתון ממיר (status)
+  // lmv — הגרסה של ההגדרה הישנה (mv), כדי שההמרה תהיה בדיוק כמו קודם ("רגיל"/"ביצועים" הקודמים, legacyMode בשרתון)
+  if (s.lm && s.lmv == null) s.lmv = o && Number.isInteger(o.mv) && o.mv >= 0 && o.mv < 5 ? o.mv : 0;
   s.mv = 5;
   return s;
 }
@@ -1408,7 +1410,7 @@ let statusAt = 0;
 async function refreshStatus(force) {
   if (!force && Date.now() - statusAt < 20000) return;
   statusAt = Date.now();
-  const lm = store.settings.lm ? { lm: store.settings.lm } : undefined;   // 16/11/2026: מצב שנשמר לפני הקודים — השרתון ממיר
+  const lm = store.settings.lm ? { lm: store.settings.lm, lmv: store.settings.lmv || 0 } : undefined;   // 16/11/2026: מצב שנשמר לפני הקודים — השרתון ממיר
   let j = await net.api('status', lm);
   // 11/11/2026: תקלת רשת של רגע (מעבר בין Wi‑Fi לסלולר, השרת מתחלף) — עוד ניסיון אחד לפני הפס
   if (!j.ok && j.error === 'net' && netUp()) { await sleep(2500); j = await net.api('status', lm); }
@@ -1442,7 +1444,7 @@ async function refreshStatus(force) {
     ui.mf = j.mf === true;                     // 15/10: כל מצבי התרגום (המנהל / רשימת "כל המודלים") — אחרת רק "רגיל" ו"ביצועים"
     ui.mn = normNames(j.mn);                   // 16/11/2026: השמות האמיתיים של המודלים — רק למנהל (השרתון), לא בקוד
     if (store.settings.lm && typeof j.lm === 'string') {   // 16/11/2026: ההגדרה הישנה הומרה לקוד — פעם אחת
-      store.settings.mode = modeNow(j.lm); delete store.settings.lm; save();
+      store.settings.mode = modeNow(j.lm); delete store.settings.lm; delete store.settings.lmv; save();
     }
     store.st = { api: ui.api || null, mf: ui.mf, r2: ui.r2 };   // 29/10/2026 (S1): לפתיחה הבאה · 10/11: גם R2 — עמוד הבית (stRoot) כבר בפתיחה
     if (rootFresh) {   // 10/11/2026: פתיחה ראשונה — עדיין על דף הבית הזמני ולא זזו ממנו: לניתוח, בלי רשומת היסטוריה חדשה

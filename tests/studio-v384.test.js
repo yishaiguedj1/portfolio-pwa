@@ -27,7 +27,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
   /* ---------- 2. הטלפון ---------- */
   const st = await import(path.join(root, 'studio.js'));
-  ok(JSON.stringify(st.normSh({ 'opus-medium': 2, 'opus-high': 0, evil: 1, 'sonnet-high': 7 })) === '{"opus-medium":2}' && JSON.stringify(st.normSh(null)) === '{}', 'normSh: רק מצבים מוכרים, 1–3');
+  ok(JSON.stringify(st.normSh({ lab4: 2, 'opus-medium': 2, evil: 1, lab3: 7 })) === '{"lab4":2}' && JSON.stringify(st.normSh(null)) === '{}', 'normSh: רק מצבים מוכרים, 1–3');
   const tw = st.normTw({ lv: 'warn', x: 2.5, sh: 1, shn: 2 });
   ok(tw.sh === true && tw.shn === 2 && st.normTw({ lv: 'ok', x: 1, sh: 1 }).sh === false, 'normTw: "בספים החדשים היה נעצר" רק באזהרה');
   const sj = read('studio.js');

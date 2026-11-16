@@ -184,13 +184,13 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   ok(/const stDialJob|function stDialJob\(\) \{[\s\S]{0,200}store\.jobs\.find\(\(r\) => r && r\.srv && !FINAL/.test(stj), '"העבודה" — הפעילה מכל הסוגים (גם ניתוח)');
   ok(/go1\.disabled = !\(f\.fileObj \|\| f\.drive \|\| \(f\.link && f\.linkOk\)\) \|\| ui\.starting;/.test(stj) && !/T\('studioViRights'\)/.test(stj), '16/11/2026: "נתח" פתוח בלי הצהרת זכויות בטופס (viSpecOf שולח vr לבד)');
   ok(/if \(f\.vi\) \{ viForm\(p, f\); return; \}/.test(stj) && !/T\('studioViT'\), sub: T\('studioViS'\), on: !!f\.vi,/.test(stj), 'טופס התרגום — בלי מתג הניתוח (עבר ללשונית)');
-  { const nj2 = P.normJob({ id: 'j' + 'c'.repeat(20), spec: { name: 'x', size: 1, from: 'en', to: ['he'], vi: 1, vr: 1, mode: 'haiku-high', out: [] } });
+  { const nj2 = P.normJob({ id: 'j' + 'c'.repeat(20), spec: { name: 'x', size: 1, from: 'en', to: ['he'], vi: 1, vr: 1, mode: 'perf', out: [] } });
     ok(nj2 && nj2.spec.vi === 1 && nj2.spec.vr === 1 && !nj2.spec.dry, 'normJob: הצהרת הזכויות נשמרת'); }
   // העלות לשעה (5.4) — כל המצבים, ואותו סדר כמו MODE_ORDER
   const mo = JSON.parse(stj.match(/const MODE_ORDER = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
-  ok(same(Object.keys(N.VI_USD_H), mo) && N.VI_USD_H['haiku-medium'][0] === 0.034 && N.VI_USD_H['opus-medium'][1] === 1.52, 'VI_USD_H — כל המצבים (5.4)');
-  ok(Math.abs(N.viUsd('haiku-medium', 'he', 3600) - 0.051) < 1e-9 && Math.abs(N.viUsd('sonnet-low', 'en', 1800) - 0.225) < 1e-9 && N.viUsd('nope', 'en', 3600) === 0.034 && N.viUsd('haiku-high', 'he', -5) === 0, 'viUsd — לפי משך, שפה ומצב');
-  ok(N.viUsd('haiku-medium', 'auto', 3600) === N.viUsd('haiku-medium', 'he', 3600), '1.2א: "אוטומטי" — לפי עברית (היקרה)');
+  ok(same(Object.keys(N.VI_USD_H), mo) && N.VI_USD_H.std[0] === 0.034 && N.VI_USD_H.lab4[1] === 1.52, 'VI_USD_H — כל המצבים (5.4; 16/11/2026: לפי קוד)');
+  ok(Math.abs(N.viUsd('std', 'he', 3600) - 0.051) < 1e-9 && Math.abs(N.viUsd('lab1', 'en', 1800) - 0.225) < 1e-9 && N.viUsd('nope', 'en', 3600) === 0.034 && N.viUsd('perf', 'he', -5) === 0, 'viUsd — לפי משך, שפה ומצב');
+  ok(N.viUsd('std', 'auto', 3600) === N.viUsd('std', 'he', 3600), '1.2א: "אוטומטי" — לפי עברית (היקרה)');
   ok(/fmtUsd\(viUsd\(m\.id, o\.vi, 3600\)\)/.test(stj), 'הבורר: עלות לשעה בניתוח, במקום זמן לשעה');
   // ההסכמות (LRN_VV) — זהה לשרתון, רק lat/lam/lau
   const apiSt = read('ibkr-proxy/api/studio.js');
