@@ -286,8 +286,10 @@ def cmd_stocks(a):
                 if tid:
                     for iv in ('1d', '1wk', '1mo'):
                         for rt, name in ((0, 'webull'), (1, 'webull-adj')):
-                            if rt and iv != '1d':
+                            if rt and (iv != '1d' or a.get('noadj')):   # --noadj 1: בלי המותאם (גל 3 — חצי בקשות)
                                 continue
+                            if a.get('skip') and os.path.exists(os.path.join(out, 'src', name, sym, iv + '.json')):
+                                continue   # --skip 1: המשך אחרי עצירה
                             n = save(out, name, sym, iv, webull(tid, iv, rt), tz='America/New_York', conv='date', adj='none' if rt == 0 else 'split+div',
                                      vol='consolidated', ext='rth')
                             print(name, sym, iv, n)

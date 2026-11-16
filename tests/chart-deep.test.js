@@ -61,8 +61,23 @@ process.env.CHART_DEEP_BACKOFF = '5';
   ok(dt === Date.UTC(2026, 10, 16) / 1000, 'sources: day_t = חצות UTC של התאריך');
   ok(ny === '2026-11-15', 'sources: nyd — התאריך בניו יורק (03:00 UTC = הערב הקודם)');
 
+  /* ---------- live.js + livecheck.js: הקלטה חיה מורצת דרך onQuote/applyTick/mergeBars ---------- */
+  const LV = require(path.join(T, 'live.js'));
+  const sq = LV.slimQuote({ chart: { result: [{ meta: { regularMarketPrice: 10, regularMarketTime: 1030, regularMarketVolume: 100, currency: 'USD' } }] }, x: { state: 'REGULAR', reg: { p: 10, t: 1030 } } });
+  ok(sq.m.v === 100 && sq.x.st === 'REGULAR' && sq.x.reg.p === 10 && sq.x.pre === null, 'live: הרשומה המצומצמת שומרת את מה ש־parseQuote קורא');
+  const LC = require(path.join(T, 'livecheck.js'));
+  const snap = (at, t, v) => ({ at: at * 1000, tz: 'UTC', t, o: t.map(() => 10), h: t.map(() => 11), l: t.map(() => 9), c: t.map(() => 10), v });
+  const quote = (at, p, vol) => ({ at: at * 1000, d: { X: { m: { p, t: at, v: vol, cur: 'USD' }, x: { st: 'REGULAR', reg: { p, t: at } } } } });
+  const snaps = [snap(1030, [960, 1020], [50, 0]), snap(1055, [960, 1020], [50, 0]), snap(1130, [1020, 1080], [70, 0])];
+  const qs = [quote(1031, 10.5, 100), quote(1040, 10.6, 130), quote(1050, 10.7, 150), quote(1060, 10.8, 160), quote(1085, 10.2, 200), quote(1090, 10.1, 210)];
+  const sim = LC.simulate(lib.L, qs, snaps, 'X', '1m', 0);
+  ok(sim.kinds.added === 1 && sim.resets === 0, 'livecheck: נר חדש מ־applyTick בגבול הדקה, בלי איפוס');
+  ok(sim.fixAtReconcile.n === 2 && sim.fixAtReconcile.v0 === 2, 'livecheck: נפח 0 של הדקה החיה בשרתון מזוהה (C-014)');
+  const off = LC.simulate(lib.L, qs, [snap(1030, [960, 1020], [50, 0]), snap(1100, [990, 1050], [50, 40])], 'X', '1m', 0);
+  ok(off.resets === 1, 'livecheck: רענון עם רשת אחרת = איפוס (resetData)');
+
   /* ---------- היגיינה: בלי מפתחות, בלי שם מוצר הייחוס ---------- */
-  const all = ['snap.js', 'model.js', 'sources.py', 'compare.py'].map((f) => fs.readFileSync(path.join(T, f), 'utf8')).join('\n');
+  const all = ['snap.js', 'model.js', 'sources.py', 'compare.py', 'live.js', 'livecheck.js'].map((f) => fs.readFileSync(path.join(T, f), 'utf8')).join('\n');
   ok(!/api_token=(?!demo)[A-Za-z0-9]{6,}|apikey=(?!demo)[A-Za-z0-9]{6,}/.test(all), 'אין מפתח אמיתי בכלים (רק מפתחות ההדגמה הציבוריים)');
 
   fs.rmSync(tmp, { recursive: true, force: true });

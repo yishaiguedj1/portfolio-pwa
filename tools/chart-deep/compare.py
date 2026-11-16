@@ -154,21 +154,27 @@ def ptol(x, f, cls, tick=False):
     return (0.0051 if abs(x) >= 1 else 0.000051) * k - (0.0001 if tick and abs(x) >= 1 else 0)
 
 
+def FF(*xs):
+    """השדות שיש בכל הנרות (פתיחה None = המקור לא יודע את הפתיחה — Webull עד ~1991: פתיחה = סגירה)"""
+    return [f for f in (1, 2, 3, 4) if all(x[f] is not None for x in xs)]
+
+
 def pmatch(a, b, cls):
     """(סוג, קנה מידה למקור): 'eq' עד חצי טיק · 'tick' עד טיק · 'split' ביחס פיצול נקי (עד טיק במחיר המקור) · None"""
-    if all(abs(a[f] - b[f]) <= ptol(a[f], f, cls) for f in (1, 2, 3, 4)):
+    F = FF(a, b)
+    if all(abs(a[f] - b[f]) <= ptol(a[f], f, cls) for f in F):
         return 'eq', 1.0
-    if all(abs(a[f] - b[f]) <= ptol(a[f], f, cls, True) for f in (1, 2, 3, 4)):
+    if all(abs(a[f] - b[f]) <= ptol(a[f], f, cls, True) for f in F):
         return 'tick', 1.0
-    rs = sorted(a[f] / b[f] for f in (1, 2, 3, 4) if b[f] > 0 and a[f] > 0)
-    if len(rs) == 4:
-        R = (rs[1] + rs[2]) / 2
+    rs = sorted(a[f] / b[f] for f in F if b[f] > 0 and a[f] > 0)
+    if len(rs) >= 3:
+        R = statistics.median(rs)
         for q in (1, 2, 3, 4):
             for r, inv in ((R, False), (1 / R, True)):
                 rr = round(r * q) / q
                 if rr >= 1.25 and abs(r - rr) / r < 0.003:
                     sc = 1 / rr if inv else rr   # מחיר המקור × sc = מחיר המסך
-                    if all(abs(a[f] / sc - b[f]) <= ptol(b[f], f, cls, True) for f in (1, 2, 3, 4)):
+                    if all(abs(a[f] / sc - b[f]) <= ptol(b[f], f, cls, True) for f in F):
                         return 'split', sc
                     return None, sc
     return None, 1.0
@@ -189,7 +195,7 @@ def lt(t, tz):
 
 
 def rnd(b):
-    return [b[0]] + [round(x, 6) for x in b[1:5]] + [b[5]]
+    return [b[0]] + [None if x is None else round(x, 6) for x in b[1:5]] + [b[5]]
 
 
 # ---------------------------------------------------------------- טעינה
@@ -266,6 +272,7 @@ def check_align(S, B, tf, cls, pre, tz):
         for b in S:
             keyS[dkey(b[0], tf, tz)] = b
     off, aggd = [], []
+    wday = [b for b in S if tf == '1W' and datetime.fromtimestamp(b[0], Z(tz)).weekday() != 0]   # ת־גרף: שבוע מתחיל ביום שני
     for k, b in keyS.items():
         e = E.get(k)
         if e is None:
@@ -279,9 +286,22 @@ def check_align(S, B, tf, cls, pre, tz):
     lo = min(keyS) if keyS else None
     hi = max(keyS) if keyS else None
     gone = [k for k in E if lo is not None and lo <= k <= hi and k not in keyS]
-    return {'n': len(keyS), 'off': len(off), 'agg': len(aggd), 'gone': len(gone),
+    return {'n': len(keyS), 'off': len(off), 'agg': len(aggd), 'gone': len(gone), 'wday': len(wday),
+            'ex_wday': [lt(b[0], tz) for b in wday[:3]],
             'ex_off': [lt(b[0], tz) for b in off[:6]], 'ex_agg': aggd[:3],
             'ex_gone': [lt(k, tz) if isinstance(k, int) else k for k in gone[:4]]}
+
+
+def synth_open_years(r):
+    """שנים שבהן ≥80% מהנרות היומיים של המקור עם פתיחה = סגירה — הפתיחה לא אמיתית (Webull לפני ~1991)"""
+    if not r or not r.get('bars'):
+        return set()
+    n, e = {}, {}
+    for b in r['bars']:
+        y = datetime.fromtimestamp(b[0], timezone.utc).year
+        n[y] = n.get(y, 0) + 1
+        e[y] = e.get(y, 0) + (b[1] == b[4])
+    return {y for y in n if n[y] >= 20 and e[y] >= 0.8 * n[y]}
 
 
 def src_series(srcs, tf, cls, pre, tz):
@@ -319,6 +339,7 @@ def src_series(srcs, tf, cls, pre, tz):
                 break
         else:
             ktz = lambda r: 'UTC' if r.get('conv') == 'date' else (r.get('tz') or 'UTC')
+            noopen = synth_open_years(ivs.get('1d'))
             for iv in NATIVE.get(tf, []):
                 r = ivs.get(iv)
                 if r and r.get('bars'):
@@ -334,9 +355,41 @@ def src_series(srcs, tf, cls, pre, tz):
                         rec, note = r, '~' + iv
                         bars = agg(r['bars'], lambda t, r=r: dkey(t, tf, ktz(r)))
                         break
+        if rec is not None and bars and not INTRA(tf) and noopen:
+            bars = {k: (b if datetime.fromtimestamp(b[0], timezone.utc).year not in noopen else [b[0], None] + list(b[2:])) for k, b in bars.items()}
+            note += ' בלי פתיחה:' + ','.join(str(y) for y in (min(noopen), max(noopen)))
         if rec is not None and bars:
             out.append((name, bars, int(rec.get('at') or 0) or 10 ** 12, note))
     return out
+
+
+def adj_segments(S, bars, keyf, minlen=5):
+    """קטעים של יחס קבוע בין המקור למסך (לפי הסגירה): פיצולים, וגם התאמות של Yahoo ליחס לא נקי (ספין־אוף, חלוקה מיוחדת).
+    מחזיר ({מפתח: קנה מידה}, [[מפתח, יחס, 'split'|'adj']]) — קנה מידה: מחיר המקור × sc = מחיר המסך.
+    נר בודד שסוטה לא שובר קטע (הוא נשאר הפרש); אירוע = מעבר בין שני קטעים ארוכים ביחס שונה."""
+    rs = [(keyf(b[0]), bars[keyf(b[0])][4] / b[4]) for b in S if keyf(b[0]) in bars and bars[keyf(b[0])][4] > 0 and b[4] > 0]
+    runs = []
+    for k, r in rs:
+        if runs and abs(r / runs[-1][1] - 1) < 0.002:
+            runs[-1][2].append(k)
+        else:
+            runs.append([k, r, [k]])
+    big = [x for x in runs if len(x[2]) >= minlen]
+    if not big:
+        return {}, []
+    sc, ev, cur = {}, [], None
+    for x in runs:
+        if len(x[2]) >= minlen:
+            if cur is not None and abs(x[1] / cur - 1) >= 0.002:
+                f = cur / x[1]
+                g = f if f >= 1 else 1 / f
+                nice = any(abs(g - round(g * q) / q) / g < 0.003 and round(g * q) / q >= 1.25 for q in (1, 2, 3, 4))
+                ev.append([x[0], round(f, 5), 'split' if nice else 'adj'])
+            cur = x[1]
+        r = cur if cur is not None else big[0][1]
+        for k in x[2]:
+            sc[k] = 1 / r
+    return sc, ev
 
 
 def check_src(S, tf, cls, pre, tz, ser, cut):
@@ -345,11 +398,13 @@ def check_src(S, tf, cls, pre, tz, ser, cut):
     V = {k: 0 for k in ('V3', 'V2', 'MIX', 'DIFF', 'DIFF?', 'NOSRC')}
     ex = {k: [] for k in ('DIFF', 'DIFF?', 'MIX', 'VOLSCOPE', 'MISS', 'MISS1', 'EXTRA')}
     nsplit = nvol = nvolchk = ntick = 0
-    hist = {'when': {}, 'size': {}}
+    hist = {'when': {}, 'size': {}, 'when?': {}, 'size?': {}}
     worst = []
     FN = ('o', 'h', 'l', 'c', 'v')
     fs = {n: {f: [0, 0, []] for f in FN} for n, _, _, _ in ser}   # לכל מקור ושדה: [נבדקו, תואמים, [(הפרש, זמן)]]
     rng = {n: (min(b), max(b)) for n, b, _, _ in ser}
+    segs = {n: adj_segments(S, bars, keyf) for n, bars, _, _ in ser}
+    nadj = 0
     Skeys = set()
     for b in S:
         k = keyf(b[0])
@@ -360,9 +415,15 @@ def check_src(S, tf, cls, pre, tz, ser, cut):
             if x is None or is_live(b[0], tf, min(cut, scut), tz):
                 continue
             z, sc = pmatch(b, x, cls)
+            g = segs[n][0].get(k)
+            if not z and g and abs(g - 1) > 1e-9:   # התאמה של Yahoo ביחס הקטע (עד טיק, או 0.02% — עיגול של נתונים ישנים)
+                if all(abs(b[f] - x[f] * g) <= max(ptol(b[f], f, cls, True), 0.0002 * b[f]) for f in FF(b, x)):
+                    z, sc = 'adj', g
             present.append((n, x, sc))
             kinds.append(z)
             for i, f in enumerate(FN, 1):   # כל שדה מול המקור אחרי קנה המידה של הפיצול
+                if x[i] is None:
+                    continue
                 st = fs[n][f]
                 st[0] += 1
                 xi = x[i] * sc if i < 5 else x[i]
@@ -383,19 +444,22 @@ def check_src(S, tf, cls, pre, tz, ser, cut):
         V[v] += 1
         if 'split' in kinds:
             nsplit += 1
+        elif 'adj' in kinds:
+            nadj += 1
         if 'tick' in kinds and 'eq' not in kinds:
             ntick += 1
         if v in ex and len(ex[v]) < 6:
             ex[v].append([lt(b[0], tz) if not daily else k, rnd(b)] + [[n, rnd(x), z] for (n, x, _), z in zip(present, kinds)])
         if v in ('DIFF', 'DIFF?', 'MIX'):
-            d = max(abs(b[f] - x[f] * sc) for _, x, sc in present for f in (1, 2, 3, 4))
+            d = max(abs(b[f] - x[f] * sc) for _, x, sc in present for f in FF(b, x))
             worst.append((d, lt(b[0], tz) if not daily else k))
-            if v == 'DIFF':   # התפלגות: שעה ביום (תוך־יומי) / שנה (יומי ומעלה), וגודל ההפרש ביחס למחיר
+            if v in ('DIFF', 'DIFF?'):   # התפלגות: שעה ביום (תוך־יומי) / שנה (יומי ומעלה), וגודל ההפרש ביחס למחיר
+                q = '' if v == 'DIFF' else '?'
                 w = k[:4] if daily else lt(b[0], tz)[11:]
-                hist['when'][w] = hist['when'].get(w, 0) + 1
+                hist['when' + q][w] = hist['when' + q].get(w, 0) + 1
                 rel = d / (b[4] or 1)
                 sz = '≤2טיק' if d <= 0.0201 else '≤0.1%' if rel <= 0.001 else '≤1%' if rel <= 0.01 else '>1%'
-                hist['size'][sz] = hist['size'].get(sz, 0) + 1
+                hist['size' + q][sz] = hist['size' + q].get(sz, 0) + 1
         if cls != 'crypto':
             eqs = [(x, sc) for (n, x, sc), z in zip(present, kinds) if z]
             if eqs:
@@ -434,19 +498,56 @@ def check_src(S, tf, cls, pre, tz, ser, cut):
             bad.sort(reverse=True)
             fstat[n][f] = [k, ok, [[round(x, 6), lt(t, tz) if not daily else dkey(t, tf, tz)] for x, t in bad[:3]],
                            round(statistics.median([x for x, _ in bad]), 6) if bad else 0]
-    hist['when'] = sorted(hist['when'].items(), key=lambda x: -x[1])[:6]
-    return {'v': V, 'hist': hist, 'fields': fstat, 'split': nsplit, 'tick': ntick, 'volscope': nvol, 'volchk': nvolchk, 'miss': nm, 'miss1': nm1, 'extra': nx,
+    for q in ('', '?'):
+        hist['when' + q] = sorted(hist['when' + q].items(), key=lambda x: -x[1])[:8]
+    return {'v': V, 'hist': hist, 'fields': fstat, 'split': nsplit, 'adj': nadj, 'adjev': {n: e[1] for n, e in segs.items() if e[1]}, 'tick': ntick, 'volscope': nvol, 'volchk': nvolchk, 'miss': nm, 'miss1': nm1, 'extra': nx,
             'worst': [[round(d, 6), k] for d, k in worst[:5]], 'ex': {k: x for k, x in ex.items() if x},
             'srcs': [[n, note, len(bars)] for n, bars, _, note in ser]}
 
 
-def check_fix(S, srcs, sym, tz):
-    """שער ייחוס יומי (ECB/בנק ישראל) — צריך ליפול בתוך טווח הנר היומי"""
-    want = {'EURUSD=X': ('ecb', 'EURUSD', False), 'ILS=X': ('boi', 'USDILS', False), 'EURILS=X': ('ecb', 'EURILS', False)}
+def check_fix(out, sym):
+    """שער ייחוס (ECB ב־14:10 שעון פרנקפורט, בנק ישראל — שער יציג) — צריך ליפול בתוך טווח הנר היומי של אותו תאריך,
+    ושער ה־ECB גם בתוך הנר השעתי שמכיל את 14:10 בפרנקפורט. בדיקת הכלה (חסם), לא אימות OHLC."""
+    want = {'EURUSD=X': [('ecb', 'EURUSD')], 'ILS=X': [('boi', 'USDILS')], 'EURILS=X': [('ecb', 'EURILS')]}
     if sym not in want:
         return None
-    src, key, inv = want[sym]
-    return {'src': src, 'key': key}
+    res = {}
+    for src, key in want[sym]:
+        f = os.path.join(out, 'src', src, key, '1d.json')
+        if not os.path.exists(f):
+            continue
+        fx = {datetime.fromtimestamp(b[0], timezone.utc).strftime('%Y-%m-%d'): b[4] for b in json.load(open(f))['bars']}
+        for tf in ('1D', '1h'):
+            D = load_disp(out, sym, tf, 0)
+            if not D:
+                continue
+            tz, cut = D.get('tz') or 'UTC', live_cut(D)
+            if tf == '1D':
+                bars = {dkey(b[0], '1D', tz): b for b in D['bars'] if not is_live(b[0], '1D', cut, tz)}
+                look = lambda d: bars.get(d)
+            else:
+                if src != 'ecb':
+                    continue
+                hb = {b[0]: b for b in D['bars'] if b[0] + 3600 <= cut}
+                def look(d, hb=hb):
+                    y, m, dd = map(int, d.split('-'))
+                    t = int(datetime(y, m, dd, 14, 10, tzinfo=Z('Europe/Berlin')).timestamp())
+                    return hb.get(t - t % 3600)
+            st = {'n': 0, 'out': 0, 'ex': [], 'years': {}}
+            for d, v in sorted(fx.items()):
+                b = look(d)
+                if not b:
+                    continue
+                st['n'] += 1
+                tol = 0.0005 * v
+                if b[3] - tol <= v <= b[2] + tol:
+                    continue
+                st['out'] += 1
+                st['years'][d[:4]] = st['years'].get(d[:4], 0) + 1
+                if len(st['ex']) < 5:
+                    st['ex'].append([d, v, round(b[3], 5), round(b[2], 5)])
+            res['%s:%s' % (src, tf)] = st
+    return res
 
 
 def xday(out, sym, cls, tz):
@@ -470,7 +571,11 @@ def xday(out, sym, cls, tz):
             ks = ks[1:]   # היום הראשון בטווח עלול להיות חלקי
         if not ks:
             continue
-        st = {'days': len(ks), 'o': 0, 'h': 0, 'l': 0, 'c': 0, 'vr': [], 'ex_c': [], 'ex_o': []}
+        ak = sorted(A)
+        only_i = [k for k in ak[1:] if k not in day]                     # יום שיש בתוך־יומי ואין ביומי
+        only_d = [k for k in day if ak[1] <= k <= ak[-1] and k not in A]  # יום שיש ביומי ואין בתוך־יומי
+        st = {'days': len(ks), 'o': 0, 'h': 0, 'l': 0, 'c': 0, 'vr': [], 'ex_c': [], 'ex_o': [],
+              'only_i': len(only_i), 'only_d': len(only_d), 'ex_only': only_i[:3] + only_d[:3]}
         for k in ks:
             a, d = A[k], day[k]
             for f, nm in ((1, 'o'), (2, 'h'), (3, 'l'), (4, 'c')):
@@ -483,6 +588,41 @@ def xday(out, sym, cls, tz):
             if d[5]:
                 st['vr'].append(a[5] / d[5])
         st['vr'] = round(statistics.median(st['vr']), 4) if st['vr'] else None
+        res[tf] = st
+    return res
+
+
+def xcal(out, sym, cls):
+    """שבועי/חודשי מול צבירה של היומי: (א) לפי התקופה הצפויה (שבוע שני–ראשון בשעון הבורסה, חודש קלנדרי) —
+    תופס קיבוץ שגוי (C-013: שבוע חמישי–רביעי); (ב) לפי הטווח של הנר עצמו (מהתווית עד התווית הבאה) — עקביות הנתונים"""
+    D = load_disp(out, sym, '1D', 0)
+    if not D:
+        return None
+    tz = D.get('tz') or 'America/New_York'
+    days = [b for b in D['bars'] if not is_live(b[0], '1D', live_cut(D), tz)]
+    res = {}
+    for tf in ('1W', '1M'):
+        X = load_disp(out, sym, tf, 0)
+        if not X:
+            continue
+        xs = [b for b in X['bars'] if not is_live(b[0], tf, live_cut(X), tz) and b[0] >= days[0][0]]
+        if len(xs) < 3:
+            continue
+        E = agg(days, lambda t: dkey(t, tf, tz))
+        st = {'n': 0, 'exp': 0, 'span': 0, 'ex': []}
+        same = lambda a, b: all(abs(a[f] - b[f]) <= ptol(b[f], f, cls, True) for f in (1, 2, 3, 4))
+        for i, b in enumerate(xs[1:-1], 1):   # הראשון עלול להיות חלקי; האחרון — עד התווית הבאה שאין
+            st['n'] += 1
+            e = E.get(dkey(b[0], tf, tz))
+            if e and same(e, b):
+                st['exp'] += 1
+            sp = [d for d in days if b[0] <= d[0] < xs[i + 1][0]]
+            if sp:
+                a = [sp[0][0], sp[0][1], max(d[2] for d in sp), min(d[3] for d in sp), sp[-1][4], sum(d[5] for d in sp)]
+                if same(a, b):
+                    st['span'] += 1
+                elif len(st['ex']) < 3:
+                    st['ex'].append([lt(b[0], tz), rnd(b), rnd(a)])
         res[tf] = st
     return res
 
@@ -519,10 +659,19 @@ def run_sym(out, sym, tfs, pres):
             v, a = r['src']['v'], r.get('align', {})
             lines.append('%-8s %-4s %d n=%-6d live=%d | V3=%d V2=%d MIX=%d DIFF=%d DIFF?=%d NOSRC=%d | split=%d tick=%d vol=%d/%d | MISS=%d MISS1=%d EXTRA=%d | ALIGN=%s AGG=%s gone=%s | inv=%d/%d/%d%s%s' % (
                 sym, tf, pre, len(bars), r['live'], v['V3'], v['V2'], v['MIX'], v['DIFF'], v['DIFF?'], v['NOSRC'],
-                r['src']['split'], r['src']['tick'], r['src']['volscope'], r['src']['volchk'], r['src']['miss'], r['src']['miss1'], r['src']['extra'],
+                r['src']['split'] + r['src']['adj'], r['src']['tick'], r['src']['volscope'], r['src']['volchk'], r['src']['miss'], r['src']['miss1'], r['src']['extra'],
                 a.get('off', '-'), a.get('agg', '-'), a.get('gone', '-'), r['inv']['bad'], r['inv']['dup'], r['inv']['jump'],
-                ' gap=%d' % r['gap']['slots'] if r.get('gap') else '', ' END=' + r['endErr'] if r.get('endErr') else ''))
+                ' gap=%d' % r['gap']['slots'] if r.get('gap') else '', ' END=' + r['endErr'] if r.get('endErr') else '')
+                + (' WD=%d' % a['wday'] if a.get('wday') else '')
+                + (' ADJ=%s' % ';'.join('%s:%s×%s' % (n, e[0], e[1]) for n, es in r['src']['adjev'].items() for e in es if e[2] == 'adj')[:160]
+                   if any(e[2] == 'adj' for es in r['src']['adjev'].values() for e in es) else ''))
     rep['xday'] = xday(out, sym, cls, 'America/New_York')
+    rep['xcal'] = xcal(out, sym, cls)
+    for k, st in (rep['xcal'] or {}).items():
+        lines.append('  xcal %-3s n=%d לפי התקופה הצפויה=%d לפי טווח הנר=%d' % (k, st['n'], st['exp'], st['span']))
+    rep['fix'] = check_fix(out, sym)
+    for k, st in (rep['fix'] or {}).items():
+        lines.append('%-8s FIX %-9s n=%d מחוץ לטווח=%d %s' % (sym, k, st['n'], st['out'], st['ex'][:2]))
     os.makedirs(os.path.join(out, 'cmp'), exist_ok=True)
     json.dump(rep, open(os.path.join(out, 'cmp', sym + '.json'), 'w'), ensure_ascii=False)
     return lines, rep
@@ -577,6 +726,26 @@ def selftest():
     # כפילות חודש (שני נרות לנובמבר)
     m = [[int(datetime(2026, 11, 2, 14, 30, tzinfo=UTC).timestamp()), 1, 2, 1, 2, 5], [int(datetime(2026, 11, 16, 14, 30, tzinfo=UTC).timestamp()), 2, 3, 2, 3, 1]]
     assert check_inv(m, '1M', 'America/New_York')['dup'] == 1
+    # שבועי שמתחיל ביום חמישי (C-013: period1=0 = חמישי 1/1/1970) — מסומן WD
+    thu = int(datetime(2026, 11, 12, tzinfo=NY).timestamp())
+    mon = int(datetime(2026, 11, 9, tzinfo=NY).timestamp())
+    dd = [[mon + i * 86400 + 34200, 10, 11, 9, 10, 100] for i in range(5)]
+    assert check_align([[thu, 10, 11, 9, 10, 300]], dd, '1W', 'us', 0, 'America/New_York')['wday'] == 1
+    assert check_align([[mon, 10, 11, 9, 10, 500]], dd, '1W', 'us', 0, 'America/New_York')['wday'] == 0
+    # שער ייחוס: בתוך הטווח היומי / מחוצה לו
+    import tempfile
+    tmp = tempfile.mkdtemp()
+    os.makedirs(os.path.join(tmp, 'disp', 'EURUSD=X'))
+    os.makedirs(os.path.join(tmp, 'src', 'ecb', 'EURUSD'))
+    d1 = int(datetime(2026, 11, 2, tzinfo=Z('Europe/London')).timestamp())
+    json.dump({'tz': 'Europe/London', 'at': (d1 + 9 * 86400) * 1000, 'bars': [[d1, 1.10, 1.11, 1.09, 1.10, 0], [d1 + 86400, 1.10, 1.11, 1.09, 1.10, 0]]},
+              open(os.path.join(tmp, 'disp', 'EURUSD=X', '1D.0.json'), 'w'))
+    json.dump({'bars': [[1793577600, 1.1, 1.1, 1.1, 1.105, 0], [1793664000, 1.1, 1.1, 1.1, 1.13, 0]]},
+              open(os.path.join(tmp, 'src', 'ecb', 'EURUSD', '1d.json'), 'w'))
+    fx = check_fix(tmp, 'EURUSD=X')['ecb:1D']
+    assert fx['n'] == 2 and fx['out'] == 1 and fx['ex'][0][0] == '2026-11-03', fx
+    assert pmatch([0, 10, 11, 9, 10.5, 0], [0, None, 11, 9, 10.5, 0], 'us')[0] == 'eq'
+    assert synth_open_years({'bars': [[86400 * 365 * 13 + i * 86400, 5, 6, 4, 5, 0] for i in range(30)]}) == {1983}
     print('selftest: תקין')
 
 
@@ -596,7 +765,7 @@ def main(argv):
         print('\n'.join(lines))
         if rep.get('xday'):
             for tf, st in rep['xday'].items():
-                print('  xday %-4s ימים=%d פ=%d ג=%d נ=%d ס=%d נפח(תוך/יומי)=%s' % (tf, st['days'], st['o'], st['h'], st['l'], st['c'], st['vr']))
+                print('  xday %-4s ימים=%d פ=%d ג=%d נ=%d ס=%d נפח(תוך/יומי)=%s רק־תוך=%d רק־יומי=%d' % (tf, st['days'], st['o'], st['h'], st['l'], st['c'], st['vr'], st['only_i'], st['only_d']))
 
 
 if __name__ == '__main__':
