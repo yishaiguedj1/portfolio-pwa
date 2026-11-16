@@ -2986,6 +2986,7 @@ async function worker(req, res, body, deps) {
     if (body.gq != null && (job.gs || S.normGd(job.gd))) { const gq = S.normGq(Object.assign({}, body.gq, { at: now })); if (gq) up.gq = gq; }   // פריט 15: הציון מול הייחוס — מהעובד
     if (body.gl != null) { const gl = S.normGl(body.gl); if (gl) up.gl = gl; }            // v380: זיכרון המונחים
     if (body.rvf != null) { const v = S.normRvf(body.rvf); if (v) up.rvf = v; }          // סבב 4: סימונים מהביקורת
+    if (body.hs != null) { const v = S.normHs(body.hs); if (v) up.hs = v.v || !(job.hs && job.hs.v) ? v : Object.assign(v, { v: job.hs.v }); }   // 16/11/2026: כתוביות צרובות (הבדיקה נשמרת)
     if (body.fil != null) { const v = S.normFil(body.fil); if (v) up.fil = v; }          // סבב 4: מילות מילוי
     if (body.lx != null) { const lx = job.spec && job.spec.vi === 1 ? LR.normViLx(body.lx) : LR.normLx(body.lx); if (lx) up.lx = lx; }   // 14/10/2026: עובדות למאגר הלמידה (מספרים וקודים בלבד) · 10/11: ניתוח — normViLx
     if (body.trace != null) {

@@ -1846,7 +1846,7 @@ class QuietCtx(Ctx):
     בזמן ההגהה לא מחכים לאף אחד). כישלון ושאלות כן עוברים."""
 
     def report(self, st=None, p=None, msg=None, force=False, **extra):
-        if extra.get('fail') or extra.get('ask') or extra.get('askTimeout') or extra.get('askUsed'):
+        if extra.get('fail') or extra.get('ask') or extra.get('askTimeout') or extra.get('askUsed') or extra.get('hs'):   # hs: כתוביות צרובות (16/11/2026)
             return Ctx.report(self, st, p, msg, force, **extra)
         return None
 
@@ -2722,6 +2722,7 @@ def prepare(args):
         ctx.report('tr', 0, 'מוריד את הסרטון', force=True)
         fetch_input(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('tr', 0.1 * f, 'מוריד את הסרטון'))
         ladder_start(ctx, src)                   # איכויות הצפייה — ברקע, במקביל לכל השאר
+        hs_probe_bg(ctx, src)                    # 16/11/2026: כתוביות צרובות (פעם אחת לעבודה)
         src = edl_src(ctx, src, 'v')
         return src
     if a:
@@ -2887,6 +2888,7 @@ def attach_video(ctx):
     ctx.report('al', 0, 'מוריד את הסרטון', force=True)
     fetch_input(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('al', 0.05 * f, 'מוריד את הסרטון'))
     ladder_start(ctx, src)                       # איכויות הצפייה — ברקע, במקביל ליישור ולתרגום
+    hs_probe_bg(ctx, src)                    # 16/11/2026: כתוביות צרובות (פעם אחת לעבודה)
     src = edl_src(ctx, src, 'v')
     pd = ctx.pdir
     first = pd / 'audio16k.first.wav'
@@ -2954,6 +2956,7 @@ def video_prefetch(ctx, stop):
             fetch_input(q, v['id'], in_path(q, v, 'v'), int(v.get('size') or 0))
             note_timing(q, 'prefetch', t0, time.time())     # 21/10/2026: מתי ההורדה ברקע רצה (מול היישור) וכמה זמן לקחה
             early_shots_start(q, in_path(q, v, 'v'))
+            hs_probe_bg(q, in_path(q, v, 'v'))     # 16/11/2026: כתוביות צרובות — הטלפון מציע רקע כהה
             return v
         stop.wait(poll)
         if stop.is_set():
@@ -2977,6 +2980,7 @@ def attach_late(ctx):
     ctx.report('rv', 0, 'מצרפים את הסרטון', force=True)
     fetch_input(ctx, v['id'], src, int(v.get('size') or 0))     # אחרי video_prefetch — כבר כאן (או ממשיכים מאותו בייט)
     ladder_start(ctx, src)                       # אחרי היישור — בלי סכנת זיכרון
+    hs_probe_bg(ctx, src)                    # 16/11/2026: כתוביות צרובות (פעם אחת לעבודה)
     src = edl_src(ctx, src, 'v')
     pd = ctx.pdir
     first = pd / 'audio16k.first.wav'
@@ -3428,6 +3432,104 @@ def early_shots_take(ctx):
     return True
 
 
+# 16/11/2026 (בקשת המשתמש): כתוביות צרובות בסרטון המקורי — הטלפון מציע כבר בתחילת העבודה "רקע כהה" שמסתיר אותן.
+# בדיקה מהירה (vt/media.hardsub_probe: ‏36 פריימים מפוזרים, שניות ספורות) מרגע שהסרטון ירד → hardsub.json ודיווח hs;
+# הסריקה המלאה (burned.json של השוטים) — גיבוי לפני הבנייה אם הבדיקה המהירה לא רצה. הבנייה: vt/cli.py (מצב הסתרה).
+HS_PROBE_PY = ('import json,sys,pathlib\n'
+               'from vt import media\n'
+               'print(json.dumps(media.hardsub_probe(pathlib.Path(sys.argv[1]))))\n')
+HS_VIDEO_OUTS = ('compact', 'same', 'mkv', 'small')
+_HS_LOCK = threading.Lock()
+_HS_RUN = set()
+
+
+def hs_wanted(st):
+    spec = st.get('spec') or {}
+    return (os.environ.get('SNB_BURN') != 'off' and os.environ.get('SNB_HS') != 'off' and st.get('kind', 'tr') == 'tr'
+            and not spec.get('ka') and spec.get('src') != 'subs' and not ph_mode(st)
+            and any(k in HS_VIDEO_OUTS for k in spec.get('out') or []))
+
+
+def hs_save(ctx, d):
+    """התוצאה לקובץ (גם "אין" — לא בודקים שוב) ודיווח לטלפון כשיש. תקלה בדיווח לא עוצרת את העבודה."""
+    try:
+        ctx.pdir.mkdir(parents=True, exist_ok=True)
+        (ctx.pdir / 'hardsub.json').write_text(json.dumps(d or {}, ensure_ascii=False), encoding='utf-8')
+    except OSError:
+        pass
+    if isinstance(d, dict) and d.get('z'):
+        print('✓ כתוביות צרובות בסרטון (%d%% מהפריימים) — הטלפון מציע רקע כהה שמסתיר אותן' % round(100 * (d.get('sh') or 0)))
+        try:
+            ctx.report(hs={'z': d['z'], 'sh': d.get('sh') or 0})
+        except (Stop, SystemExit, Exception):     # noqa: BLE001
+            pass
+
+
+def hs_probe_bg(ctx, src):
+    """ברקע (תהליכון): הבדיקה המהירה, פעם אחת לעבודה. ctx יכול להיות QuietCtx — hs עובר בו."""
+    if not hs_wanted(ctx.st) or not Path(src).exists():
+        return False
+    with _HS_LOCK:
+        if ctx.name in _HS_RUN or (ctx.pdir / 'hardsub.json').exists():
+            return False
+        _HS_RUN.add(ctx.name)
+
+    def run():
+        try:
+            r = subprocess.run([VT_PY, '-c', HS_PROBE_PY, str(src)], cwd=str(HERE), env=vt_env(), capture_output=True,
+                               text=True, stdin=subprocess.DEVNULL, timeout=600)
+            out = (r.stdout or '').strip().splitlines()
+            if r.returncode != 0 or not out:
+                return                            # לא נבדק (תקלה) — הסריקה המלאה לפני הבנייה תשלים (hs_full)
+            d = json.loads(out[-1])
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            return
+        hs_save(ctx, d if isinstance(d, dict) else None)
+    threading.Thread(target=run, name='hs', daemon=True).start()
+    return True
+
+
+def hs_full(ctx):
+    """לפני הבנייה: הבדיקה המהירה לא רצה (או נכשלה) — מהסריקה המלאה (burned.json)."""
+    if not hs_wanted(ctx.st) or (ctx.pdir / 'hardsub.json').exists() or not (ctx.pdir / 'burned.json').exists():
+        return None
+    try:
+        from vt import burnin, media as vtm
+        info = vtm.probe(next(ctx.pdir.glob('source.*')))
+        v = info.get('video') or {}
+        d = burnin.hardsub(json.loads((ctx.pdir / 'burned.json').read_text(encoding='utf-8')),
+                           int(v.get('width') or 1920), int(v.get('height') or 1080))
+    except (OSError, ValueError, KeyError, TypeError, StopIteration, ImportError):
+        return None
+    hs_save(ctx, d)
+    return d
+
+
+def hs_built(ctx, p=None):
+    """אחרי הבנייה הסופית: מצב הסתרה (רקע כהה + כתוביות צרובות) — מה הבדיקה מצאה (vt/cli.py → out/hide.json;
+    בהפקה מחדש rerender.py → p): כמה פריימים נבדקו, כמה דליפות כוסו, נקי או לא. הטלפון מציג "✓ הוסתרו — נבדק"."""
+    p = Path(p) if p else ctx.pdir / 'out' / 'hide.json'
+    if not p.exists():
+        return None
+    try:
+        r = json.loads(p.read_text(encoding='utf-8'))
+        h = json.loads((ctx.pdir / 'hardsub.json').read_text(encoding='utf-8')) if (ctx.pdir / 'hardsub.json').exists() else {}
+    except (OSError, ValueError):
+        return None
+    if not isinstance(r, dict) or not isinstance(h, dict):
+        return None
+    v = {'n': int(r.get('n') or 0), 'lk': int(r.get('lk') or 0), 'ok': 1 if r.get('ok') else 0}
+    if r.get('full'):
+        v['full'] = 1
+    print('%s כתוביות צרובות הוסתרו — נבדקו %d פריימים%s' % ('✓' if v['ok'] else '⚠', v['n'],
+                                                            ' · %d דליפות כוסו' % v['lk'] if v['lk'] else ''))
+    try:
+        ctx.report(hs={'z': r.get('z') or h.get('z'), 'sh': h.get('sh') or 0, 'v': v})
+    except (Stop, SystemExit, Exception):         # noqa: BLE001
+        pass
+    return v
+
+
 def shots_bg(ctx):
     if os.environ.get('SNB_SHOTS_BG') == 'off' or not hasattr(ctx, 'quiet'):
         if not early_shots_take(ctx):
@@ -3448,7 +3550,13 @@ def shots_bg(ctx):
 
 
 def shots_join(ctx):
-    """לפני הבנייה הסופית: מחכים לזיהוי שרץ ברקע. נכשל ברקע / לא רץ בתהליך הזה (המשך מנקודת שמירה לפני שהסתיים) — עכשיו."""
+    """לפני הבנייה הסופית: מחכים לזיהוי שרץ ברקע. נכשל ברקע / לא רץ בתהליך הזה (המשך מנקודת שמירה לפני שהסתיים) — עכשיו.
+    16/11/2026: ואחריו — כתוביות צרובות מהסריקה המלאה, אם הבדיקה המהירה לא רצה (hs_full)."""
+    _shots_join(ctx)
+    hs_full(ctx)
+
+
+def _shots_join(ctx):
     bg = _SHOTS_BG.pop(ctx.name, None)
     if bg:
         th, box = bg
@@ -4981,6 +5089,9 @@ def render(args):
             eds += ['--' + k, json.dumps(e, separators=(',', ':'))]
     if isinstance(spec.get('sty'), dict):        # סבב 5: עיצוב הכתוביות (rerender.py מנרמל שוב — מספרים וקודים בלבד)
         eds += ['--sty', json.dumps(spec['sty'], separators=(',', ':'))]
+    hz = spec.get('hz')                          # 16/11/2026: כתוביות צרובות בעבודה המקורית — רקע כהה מסתיר אותן
+    if isinstance(hz, list) and len(hz) == 4 and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in hz):
+        eds += ['--hz', json.dumps(hz, separators=(',', ':'))]
     ov = spec.get('ov') if isinstance(spec.get('ov'), dict) else None
     if ov:                                       # סבב 7: כותרת ולוגו — הלוגו לקובץ, השאר (בלי התמונה) ל־rerender.py
         lg = ov.get('lg')
@@ -4995,6 +5106,7 @@ def render(args):
     script(ctx, 'rerender.py', ['--src', str(src), '--cues', str(cues), '--out', str(od), '--name', ctx.name,
                                 '--style', style, '--want', ','.join(want), '--work', str(work / 'overlay')] + eds, 'bn',
            prog=RenderProg(rr_render_flags(want)))
+    hs_built(ctx, od / 'hide.json')                # 16/11/2026: הסתרת הכתוביות הצרובות — תוצאת הבדיקה לטלפון
     ctx.report('sv', 0, 'שומרים', force=True)
     title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120] + (' — קטע לבדיקה' if spec.get('prv') == 1 else '')   # סבב 10
     out = []
@@ -5541,6 +5653,7 @@ def finish(args):
     save_ck(ctx, 'rv')                           # התרגום אחרי הביקורת — אם הצריבה או ההעלאה נקטעות, ממשיכים מכאן
     vt(ctx, ['tr-merge', ctx.name])
     vt(ctx, ['build', ctx.name] + build_args(ctx))
+    hs_built(ctx)                                # 16/11/2026: הסתרת הכתוביות הצרובות — תוצאת הבדיקה לטלפון
     if want and (ctx.st.get('rl') or {}).get('ab') and not approve_render(ctx):
         print('· בלי צריבה (המשתמש בחר רק קובץ כתוביות, או לא ענה בזמן) — מעלים את קובץ הכתוביות.')
         want = []

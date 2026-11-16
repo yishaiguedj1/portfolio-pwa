@@ -3043,6 +3043,30 @@ function stubFetch(text, status = 200) {
       rr = await run({ op: 'job', idToken: OWNER, job: JR2 });
       ok(rr.payload.job.state === 'done' && rr.payload.job.rvf === null && rr.payload.job.fil === null, 'סטודיו: סימונים לא תקינים — נזרקים בשקט, העבודה מסתיימת');
       await run({ op: 'remove', idToken: OWNER, job: JR2 });
+      // 16/11/2026: כתוביות צרובות במקור — האזור באמצע העבודה, הבדיקה אחרי ההסתרה (נשמרת), רק מספרים
+      ok(JSON.stringify(S5.normHs({ z: [0.17, 0.8642, 0.833, 0.936], sh: 0.8891 })) === '{"z":[0.17,0.864,0.833,0.936],"sh":0.889}', 'סטודיו: כתוביות צרובות — האזור מעוגל');
+      ok(S5.normHs({ z: [0.2, 0.8, 0.8] }) === null && S5.normHs({ z: [0.5, 0.8, 0.5, 0.9] }) === null && S5.normHs({ z: [-0.1, 0.8, 0.8, 0.9] }) === null
+        && S5.normHs({ z: ['0.2', 0.8, 0.8, 0.9] }) === null && S5.normHs('x') === null && S5.normHs(null) === null, 'סטודיו: כתוביות צרובות — אזור לא תקין נזרק');
+      ok(JSON.stringify(S5.normHs({ z: [0.2, 0.8, 0.8, 0.9], v: { n: 120, lk: 2, ok: 1, full: 1, x: 'evil' } }).v) === '{"n":120,"lk":2,"ok":1,"full":1}'
+        && JSON.stringify(S5.normHs({ z: [0.2, 0.8, 0.8, 0.9], v: { n: -1, lk: 1.5, ok: 'yes' } }).v) === '{"n":0,"lk":0,"ok":0}', 'סטודיו: הבדיקה אחרי ההסתרה — רק מספרים');
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const JH = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JH, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JH });
+      const KH = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: JH, key: KH });
+      await wrk({ op: 'report', job: JH, key: KH, hs: { z: [0.17, 0.86, 0.83, 0.94], sh: 0.5 } });
+      rr = await run({ op: 'job', idToken: OWNER, job: JH });
+      ok(rr.payload.job.state !== 'done' && JSON.stringify(rr.payload.job.hs) === '{"z":[0.17,0.86,0.83,0.94],"sh":0.5}', 'סטודיו: כתוביות צרובות — מגיע לטלפון באמצע העבודה');
+      await wrk({ op: 'report', job: JH, key: KH, hs: { z: [0.17, 0.86, 0.83, 0.94], sh: 0.5, v: { n: 90, lk: 0, ok: 1 } } });
+      await wrk({ op: 'report', job: JH, key: KH, hs: { z: [0.16, 0.86, 0.84, 0.94], sh: 0.5 } });
+      await wrk({ op: 'report', job: JH, key: KH, done: true, hs: 'evil' });
+      rr = await run({ op: 'job', idToken: OWNER, job: JH });
+      ok(rr.payload.job.state === 'done' && JSON.stringify(rr.payload.job.hs) === '{"z":[0.16,0.86,0.84,0.94],"sh":0.5,"v":{"n":90,"lk":0,"ok":1}}',
+        'סטודיו: כתוביות צרובות — הבדיקה נשמרת כשמגיע אזור בלעדיה, ולא תקין נזרק בשקט');
+      ok(JSON.stringify(S5.rrSpec({ spec: SPEC, hs: { z: [0.16, 0.86, 0.84, 0.94], sh: 0.5 } }, { sty: { bx: 1 } }).hz) === '[0.16,0.86,0.84,0.94]'
+        && S5.rrSpec({ spec: SPEC }, {}).hz === undefined, 'סטודיו: הפקה מחדש — האזור מהעבודה (רקע כהה מסתיר)');
+      await run({ op: 'remove', idToken: OWNER, job: JH });
     }
     now += 3600e3 + 1;
     studio._reset();
