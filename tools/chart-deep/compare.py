@@ -226,11 +226,12 @@ def is_live(t, tf, cut, tz):
 # ---------------------------------------------------------------- הבדיקות
 def check_inv(bars, tf, tz):
     """+ JUMP: סגירה פי 3 ומעלה (או שליש) מהנר הקודם — ערבוב יחידות (אגורות/שקלים ×100) או פיצול לא מותאם
-       + UNIT: נר שבתוכו שדה אחד פי 50–200 משדה אחר (TEVA.TA שבועי 2010: פ 239, ג 23800) — אגורות ושקלים באותו נר"""
+       + UNIT: נר שבתוכו שדה אחד פי 50 ומעלה משדה אחר — אגורות ושקלים באותו נר (TEVA.TA שבועי 2010: פ 239, ג 23800)
+         או גבוה שגוי לגמרי (NICE.TA יומי 31/07/2007: פ 140.5, ג 66200.855)"""
     bad, dup, prev, seen, jump, unit = [], [], None, {}, [], []
     for i, b in enumerate(bars):
         px = [x for x in b[1:5] if x and x > 0]
-        if px and 50 <= max(px) / min(px) <= 200:
+        if px and max(px) / min(px) >= 50:
             unit.append([lt(b[0], tz)] + [round(x, 6) for x in b[1:5]])
         if i and bars[i - 1][4] > 0 and not (1 / 3 < b[4] / bars[i - 1][4] < 3):
             jump.append([lt(b[0], tz), round(bars[i - 1][4], 6), round(b[4], 6)])
@@ -734,6 +735,7 @@ def selftest():
     assert check_inv(m, '1M', 'America/New_York')['dup'] == 1
     u = check_inv([[1269212400, 239, 23800, 236.5, 23800, 0], [1269817200, 236.5, 237.1, 234.9, 237.1, 0]], '1W', 'Asia/Jerusalem')
     assert u['unit'] == 1 and u['jump'] == 1, u   # נר באגורות בתוך סדרה בשקלים
+    assert check_inv([[1185829200, 140.5, 66200.855, 140.5, 143.7, 2800]], '1D', 'Asia/Jerusalem')['unit'] == 1   # גבוה שגוי לגמרי (פי 470)
     # שבועי שמתחיל ביום חמישי (C-013: period1=0 = חמישי 1/1/1970) — מסומן WD
     thu = int(datetime(2026, 11, 12, tzinfo=NY).timestamp())
     mon = int(datetime(2026, 11, 9, tzinfo=NY).timestamp())
