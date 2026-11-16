@@ -137,7 +137,12 @@ HH(n)/LL(n) = הגבוה/הנמוך של n הנרות האחרונים כולל 
   שבירת 3 קווים     על סגירות: קו חדש בכיוון כשהסגירה עוברת את קצה הקו האחרון; היפוך כשהסגירה שוברת את
                     הקיצון של 3 הקווים האחרונים; קו ההיפוך מתחיל מהקצה הנגדי של הקו האחרון.
   קאגי (4%)         על סגירות: קו ממשיך כל עוד המחיר בכיוונו; היפוך כשהמחיר זז 4% נגד הקיצון (מהשיא: ≤ שיא·0.96;
-                    מהשפל: ≥ שפל·1.04). הקו הראשון נקבע כשהמחיר זז 4% מהסגירה הראשונה.
+                    מהשפל: ≥ שפל·1.04). הקו הראשון נקבע כשהמחיר זז 4% מהסגירה הראשונה; חלופה (הבנייה הקלאסית):
+                    הקו הראשון בכיוון השינוי הראשון, בכל גודל — סף ההיפוך חל רק על היפוכים. שתיהן נבדקות.
+
+גרסאות "שחזור" (נוספו אחרי שנמצא הפרש ונקרא הקוד — מאשרות את השורש, לא הגדרה): HMA ‏(Math.round(n/2)),
+ZIGZAG (שוויון → הנר המאוחר + קו רציף), FISHER (חסימה פשוטה), RS (מילוי מהקודם), ובמובנים של KLineChart:
+SMA ‏(α=M/(N+1)), SAR, AVP, DMI, BRAR, EMV.
 """
 import argparse
 import json
@@ -397,9 +402,10 @@ def i_wma(B, P, X):
     return {'wma': wma(B['c'], P[0])}
 
 
-def i_hma(B, P, X, sq='round'):
+def i_hma(B, P, X, sq='round', half='floor'):
     n = int(P[0])
-    d = zipmap(lambda a, b: 2 * a - b, wma(B['c'], n // 2), wma(B['c'], n))
+    h2 = n // 2 if half == 'floor' else int(math.floor(n / 2.0 + 0.5))   # 'round' — כמו Math.round ב־JS (10.5 → 11)
+    d = zipmap(lambda a, b: 2 * a - b, wma(B['c'], h2), wma(B['c'], n))
     m = int(round(math.sqrt(n))) if sq == 'round' else int(math.floor(math.sqrt(n)))
     return {'hma': wma(d, m)}
 
@@ -567,7 +573,9 @@ def i_linreg(B, P, X, mode='last', sd='resid1'):
     return f
 
 
-def zigzag_pivots(h, l, p):
+def zigzag_pivots(h, l, p, tie='first'):
+    """tie='first' — קיצון שווה לא מזיז את נקודת המפנה; tie='later' — עובר לנר המאוחר (שחזור)."""
+    ge = (lambda a, b: a >= b) if tie == 'later' else (lambda a, b: a > b)
     N = len(h)
     piv = []
     trend, hi, lo, ext = 0, 0, 0, 0
@@ -584,13 +592,13 @@ def zigzag_pivots(h, l, p):
                 piv.append((hi, h[hi]))
                 trend, ext = -1, lo
         elif trend == 1:
-            if h[i] > h[ext]:
+            if ge(h[i], h[ext]):
                 ext = i
             elif l[i] <= h[ext] * (1 - p):
                 piv.append((ext, h[ext]))
                 trend, ext = -1, i
         else:
-            if l[i] < l[ext]:
+            if ge(-l[i], -l[ext]):
                 ext = i
             elif h[i] >= l[ext] * (1 + p):
                 piv.append((ext, l[ext]))
@@ -600,11 +608,16 @@ def zigzag_pivots(h, l, p):
     return piv
 
 
-def i_zigzag(B, P, X, src='hl'):
+def i_zigzag(B, P, X, src='hl', tie='first', line=False):
     h, l = (B['h'], B['l']) if src == 'hl' else (B['c'], B['c'])
     zz = [None] * len(h)
-    for i, v in zigzag_pivots(h, l, P[0] / 100.0):
+    piv = zigzag_pivots(h, l, P[0] / 100.0, tie)
+    for i, v in piv:
         zz[i] = v
+    if line:   # קו רציף: אינטרפולציה בין נקודות המפנה
+        for (a, pa), (b, pb) in zip(piv, piv[1:]):
+            for i in range(a, b + 1):
+                zz[i] = pa + (pb - pa) * (i - a) / ((b - a) or 1)
     return {'zz': zz}
 
 
@@ -717,7 +730,8 @@ def i_coppock(B, P, X):
     return {'cop': wma(zipmap(lambda a, b: a + b, roc(B['c'], lo), roc(B['c'], sh)), w)}
 
 
-def i_fisher(B, P, X):
+def i_fisher(B, P, X, clamp='ehlers'):
+    """clamp='ehlers' — מעל 0.99 קופץ ל־0.999 (המקור); clamp='minmax' — חסימה פשוטה ל־±0.999 (שחזור)."""
     n = int(P[0])
     m = hl2(B)
     hh, ll = highest(m, n), lowest(m, n)
@@ -729,10 +743,14 @@ def i_fisher(B, P, X):
             continue
         rng = hh[i] - ll[i]
         x = 0.66 * (((m[i] - ll[i]) / rng if rng else 0.0) - 0.5) + 0.67 * xv
-        x = 0.999 if x > 0.99 else (-0.999 if x < -0.99 else x)
+        if clamp == 'ehlers':
+            x = 0.999 if x > 0.99 else (-0.999 if x < -0.99 else x)
+        else:
+            x = max(-0.999, min(0.999, x))
+        pf = fv
         fv = 0.5 * math.log((1 + x) / (1 - x)) + 0.5 * fv
         xv = x
-        fish[i], trig[i], prev = fv, prev, fv
+        fish[i], trig[i], prev = fv, (prev if clamp == 'ehlers' else pf), fv
     return {'fish': fish, 'trig': trig}
 
 
@@ -871,7 +889,14 @@ def i_rs(B, P, X, mode='ratio'):
     N = len(B['c'])
     if not bench:
         return {'rs': [None] * N, 'ma': [None] * N}
-    rs = [B['c'][i] / bench[t] if bench.get(t) else None for i, t in enumerate(B['t'])]
+    if mode == 'norm-asof':
+        last, rs = None, []
+        for i, t in enumerate(B['t']):
+            last = bench.get(t, last)
+            rs.append(B['c'][i] / last if last else None)
+        mode = 'norm'
+    else:
+        rs = [B['c'][i] / bench[t] if bench.get(t) else None for i, t in enumerate(B['t'])]
     if mode == 'ratio100':
         rs = [None if v is None else 100.0 * v for v in rs]
     elif mode == 'norm':
@@ -894,6 +919,10 @@ def k_ema(B, P, seed='sma'):
 
 def k_sma(B, P, mode='cn-first'):
     n, m = int(P[0]), P[1]
+    if mode == 'klc':   # שחזור: α=M/(N+1), אתחול SMA
+        return {'sma': ema(B['c'], n, 'sma', float(m) / (n + 1))}
+    if mode == 'rma':   # "ממוצע נע מוחלק" במובן המערבי (SMMA = RMA)
+        return {'sma': rma(B['c'], n)}
     if mode == 'cn-first':
         return {'sma': csma(B['c'], n, m, 'first')}
     if mode == 'cn-sma':
@@ -941,7 +970,37 @@ def sar(B, start=0.02, step=0.02, mx=0.2, order='wilder'):
     return out
 
 
+def sar_klc(B, start, step, mx):
+    """שחזור של SAR ב־KLineChart 10.1 (נכתב אחרי קריאת הקוד — לאישור השורש בלבד)."""
+    h, l = B['h'], B['l']
+    af, ep, up, s, out = start, -100.0, False, 0.0, []
+    for i in range(len(h)):
+        pre, hi, lo = s, h[i], l[i]
+        if up:
+            if ep == -100 or ep < hi:
+                ep, af = hi, min(af + step, mx)
+            s = pre + af * (ep - pre)
+            p = min(l[max(1, i) - 1], lo)
+            if s > lo:
+                s, af, ep, up = ep, start, -100.0, False
+            elif s > p:
+                s = p
+        else:
+            if ep == -100 or ep > lo:
+                ep, af = lo, min(af + step, mx)
+            s = pre + af * (ep - pre)
+            g = max(h[max(1, i) - 1], hi)
+            if s < hi:
+                s, af, ep, up = ep, start, -100.0, True
+            elif s < g:
+                s = g
+        out.append(s)
+    return out
+
+
 def k_sar(B, P, order='wilder'):
+    if order == 'klc':
+        return {'sar': sar_klc(B, P[0] / 100.0, P[1] / 100.0, P[2] / 100.0)}
     return {'sar': sar(B, P[0] / 100.0, P[1] / 100.0, P[2] / 100.0, order)}
 
 
@@ -951,6 +1010,12 @@ def k_bbi(B, P):
 
 
 def k_avp(B, P, src='hlc3'):
+    if src == 'klc':   # שחזור: Σturnover/ΣV כשאין שדה turnover בנרות → 0
+        out, sv = [], 0.0
+        for v in B['v']:
+            sv += v
+            out.append(0.0 if sv else None)
+        return {'avp': out}
     px = hlc3(B) if src == 'hlc3' else B['c']
     sv = spv = 0.0
     out = []
@@ -1022,6 +1087,17 @@ def k_dmi(B, P, mode='cn'):
     n, mm = int(P[0]), int(P[1])
     pdm, mdm = dmi_parts(B)
     tr = true_range(B, False)
+    if mode == 'klc':   # שחזור: נר 0 נכנס לסכום הפתיחה (TR=H−L, DM=0), ‏ADX=RMA(DX,n), ‏ADXR מול ADX של mm−1 נרות קודם
+        tr, pdm, mdm = true_range(B, True), [0.0] + pdm[1:], [0.0] + mdm[1:]
+        st, sp, sm = rma(tr, n), rma(pdm, n), rma(mdm, n)
+        pdi = zipmap(lambda a, t: 100.0 * a / t if t else 0.0, sp, st)
+        mdi = zipmap(lambda a, t: 100.0 * a / t if t else 0.0, sm, st)
+        dx = zipmap(lambda a, b: 0.0 if a + b == 0 else 100.0 * abs(a - b) / (a + b), pdi, mdi)
+        adx = rma(dx, n)
+        adxr = [None] * len(adx)
+        for i in range(2 * n + mm - 3, len(adx)):
+            adxr[i] = ((adx[i - (mm - 1)] or 0.0) + adx[i]) / 2.0
+        return {'pdi': pdi, 'mdi': mdi, 'adx': adx, 'adxr': adxr}
     if mode == 'cn':
         st, sp, sm = msum(tr, n), msum(pdm, n), msum(mdm, n)
     else:
@@ -1072,8 +1148,14 @@ def k_bias(B, P):
     return {'bias%d' % (j + 1): zipmap(lambda c, m: 100.0 * (c - m) / m if m else None, B['c'], sma(B['c'], int(p))) for j, p in enumerate(P)}
 
 
-def k_brar(B, P):
+def k_brar(B, P, mode='std'):
     n = int(P[0])
+    if mode == 'klc':   # שחזור: BR בלי max(0,·), ונר 0 מול עצמו
+        o, h, l, c = B['o'], B['h'], B['l'], B['c']
+        cp = [c[0]] + c[:-1]
+        ar = zipmap(lambda a, b: 100.0 * a / b if b else 0.0, msum([x - y for x, y in zip(h, o)], n), msum([x - y for x, y in zip(o, l)], n))
+        br = zipmap(lambda a, b: 100.0 * a / b if b else 0.0, msum([x - y for x, y in zip(h, cp)], n), msum([y - x for x, y in zip(l, cp)], n))
+        return {'br': br, 'ar': ar}
     o, h, l, c = B['o'], B['h'], B['l'], B['c']
     N = len(c)
     ar = zipmap(lambda a, b: 100.0 * a / b if b else None, msum([x - y for x, y in zip(h, o)], n), msum([x - y for x, y in zip(o, l)], n))
@@ -1107,6 +1189,9 @@ def k_emv(B, P, mode='cn'):
     n, m = int(P[0]), int(P[1])
     h, l, v = B['h'], B['l'], B['v']
     N = len(h)
+    if mode == 'klc':   # שחזור: emv = EMV של נר אחד (בלי החלקה), maEmv = SMA(n); הפרמטר השני לא בשימוש
+        raw = [None] + [(((h[i] + l[i]) / 2.0 - (h[i - 1] + l[i - 1]) / 2.0) / ((v[i] / 1e8) / (h[i] - l[i]))) if v[i] and h[i] != l[i] else 0.0 for i in range(1, N)]
+        return {'emv': raw, 'maEmv': sma(raw, n)}
     if mode == 'cn':
         volr = zipmap(lambda a, b: a / b if b else None, sma(v, n), v)
         mid = [None] + [100.0 * (h[i] + l[i] - (h[i - 1] + l[i - 1])) / (h[i] + l[i]) if h[i] + l[i] else None for i in range(1, N)]
@@ -1240,15 +1325,21 @@ def t_line_break(o, c, n=3, first='bar', run_only=False):
     return lines
 
 
-def t_kagi(c, r=0.04):
-    """מחזיר רשימת קטעים [התחלה, סוף, אינדקס הנר שפתח את הקטע]."""
+def t_kagi(c, r=0.04, start='threshold'):
+    """מחזיר רשימת קטעים [התחלה, סוף, אינדקס הנר שפתח את הקטע].
+    start='threshold' — הקו הראשון רק אחרי תנועה של r מהסגירה הראשונה; start='first-move' — הקו הראשון בכיוון
+    השינוי הראשון, בכל גודל (הבנייה הקלאסית: סף ההיפוך חל רק על היפוכים)."""
     segs = []
     if not c:
         return segs
     base, d, ext = c[0], 0, c[0]
     for i in range(1, len(c)):
         x = c[i]
-        if d == 0:
+        if d == 0 and start == 'first-move':
+            if x != base:
+                d, ext = (1 if x > base else -1), x
+                segs.append([base, x, i])
+        elif d == 0:
             if x >= base * (1 + r):
                 d, ext = 1, x
                 segs.append([base, x, i])
@@ -1283,7 +1374,8 @@ OURS = {
              ('שבוע', lambda B, P, X: i_vwap(B, P, X, 'week')), ('חודש', lambda B, P, X: i_vwap(B, P, X, 'month')),
              ('שנה', lambda B, P, X: i_vwap(B, P, X, 'year')), ('מצטבר מתחילת הנתונים', lambda B, P, X: i_vwap(B, P, X, 'all'))],
     'WMA': [('מקובל', i_wma)],
-    'HMA': [('√n מעוגל (מקובל)', i_hma), ('√n נחתך', lambda B, P, X: i_hma(B, P, X, 'floor'))],
+    'HMA': [('n/2 נחתך, √n מעוגל (מקובל)', i_hma), ('√n נחתך', lambda B, P, X: i_hma(B, P, X, 'floor')),
+            ('שחזור: n/2 מעוגל (Math.round)', lambda B, P, X: i_hma(B, P, X, 'round', 'round'))],
     'DEMA': [('מקובל', i_dema)],
     'TEMA': [('מקובל', i_tema)],
     'VWMA': [('מקובל', i_vwma)],
@@ -1305,7 +1397,8 @@ OURS = {
                ('מתגלגל, σ שאריות n−1', lambda B, P, X: i_linreg(B, P, X, 'rolling', 'resid1')),
                ('מתגלגל, σ שאריות n', lambda B, P, X: i_linreg(B, P, X, 'rolling', 'resid')),
                ('מתגלגל, σ מחיר', lambda B, P, X: i_linreg(B, P, X, 'rolling', 'price'))],
-    'ZIGZAG': [('H/L (מקובל)', i_zigzag), ('סגירות', lambda B, P, X: i_zigzag(B, P, X, 'c'))],
+    'ZIGZAG': [('H/L (מקובל)', i_zigzag), ('סגירות', lambda B, P, X: i_zigzag(B, P, X, 'c')),
+               ('שחזור: שוויון → המאוחר + קו רציף', lambda B, P, X: i_zigzag(B, P, X, 'hl', 'later', True))],
     'ATR': [('מקובל', i_atr)],
     'ADX': [('Wilder (מקובל)', i_adx), ('Wilder, TR כולל נר 0', lambda B, P, X: i_adx(B, P, X, True))],
     'STOCH': [('14/3/3 (מקובל)', i_stoch), ('14/1/3', lambda B, P, X: i_stoch(B, P, X, 1))],
@@ -1318,7 +1411,7 @@ OURS = {
     'ULTOSC': [('מקובל', i_ultosc)],
     'TSI': [('מקובל', i_tsi)],
     'COPPOCK': [('מקובל', i_coppock)],
-    'FISHER': [('מקובל', i_fisher)],
+    'FISHER': [('Ehlers (מקובל)', i_fisher), ('שחזור: חסימה פשוטה ±0.999', lambda B, P, X: i_fisher(B, P, X, 'minmax'))],
     'CHOP': [('מקובל', i_chop)],
     'HV': [('σ מדגמית, 252 (מקובל)', i_hv), ('σ אוכלוסייה, 252', lambda B, P, X: i_hv(B, P, X, 0)),
            ('σ אוכלוסייה, 365', lambda B, P, X: i_hv(B, P, X, 0, 365))],
@@ -1337,18 +1430,22 @@ OURS = {
     'FORCE': [('מקובל', i_force)],
     'RVOL': [('מול 20 הקודמים (מקובל)', i_rvol), ('כולל הנוכחי', lambda B, P, X: i_rvol(B, P, X, 'incl'))],
     'ZSCORE': [('σ אוכלוסייה (מקובל)', i_zscore), ('σ מדגמית', lambda B, P, X: i_zscore(B, P, X, 1))],
-    'RS': [('יחס (מקובל)', i_rs), ('יחס×100', lambda B, P, X: i_rs(B, P, X, 'ratio100')), ('מנורמל לנר הראשון', lambda B, P, X: i_rs(B, P, X, 'norm'))],
+    'RS': [('יחס (מקובל)', i_rs), ('יחס×100', lambda B, P, X: i_rs(B, P, X, 'ratio100')), ('מנורמל לנר הראשון', lambda B, P, X: i_rs(B, P, X, 'norm')),
+           ('שחזור: מנורמל לנר הראשון, מילוי מהקודם', lambda B, P, X: i_rs(B, P, X, 'norm-asof'))],
 }
 
 KLC = {
     'MA': [('מקובל', k_ma)],
     'EMA': [('אתחול SMA (מקובל)', k_ema), ('אתחול מהערך הראשון', lambda B, P: k_ema(B, P, 'first'))],
     'SMA': [('סיני: (M·X+(N−M)·Y)/N, Y₀=X₀ (מקובל)', k_sma), ('סיני, אתחול SMA', lambda B, P: k_sma(B, P, 'cn-sma')),
-            ('EMA(N)', lambda B, P: k_sma(B, P, 'ema'))],
+            ('EMA(N)', lambda B, P: k_sma(B, P, 'ema')), ('ממוצע מוחלק מערבי SMMA=RMA(N)', lambda B, P: k_sma(B, P, 'rma')),
+            ('שחזור: α=M/(N+1)', lambda B, P: k_sma(B, P, 'klc'))],
     'BOLL': [('מקובל', k_boll)],
-    'SAR': [('Wilder (מקובל)', k_sar), ('חסימה אחרי בדיקת החצייה', lambda B, P: k_sar(B, P, 'late'))],
+    'SAR': [('Wilder (מקובל)', k_sar), ('חסימה אחרי בדיקת החצייה', lambda B, P: k_sar(B, P, 'late')),
+            ('שחזור: EP של הנר הנוכחי, AF מתחיל ב־0.04', lambda B, P: k_sar(B, P, 'klc'))],
     'BBI': [('מקובל', k_bbi)],
-    'AVP': [('Σ(hlc3·V)/ΣV (קירוב למחזור/נפח)', k_avp), ('Σ(C·V)/ΣV', lambda B, P: k_avp(B, P, 'c'))],
+    'AVP': [('Σ(hlc3·V)/ΣV (קירוב למחזור/נפח)', k_avp), ('Σ(C·V)/ΣV', lambda B, P: k_avp(B, P, 'c')),
+            ('שחזור: אין turnover → 0', lambda B, P: k_avp(B, P, 'klc'))],
     'VOL': [('מקובל', k_vol)],
     'MACD': [('היסטוגרמה = DIF−DEA (מקובל)', k_macd), ('היסטוגרמה = 2·(DIF−DEA) (סיני)', lambda B, P: k_macd(B, P, 2.0))],
     'RSI': [('Wilder (מקובל)', k_rsi), ('Cutler (סכומים פשוטים)', lambda B, P: k_rsi(B, P, 'cutler'))],
@@ -1356,17 +1453,19 @@ KLC = {
     'OBV': [('מתחיל ב־0 (מקובל)', k_obv), ('מתחיל בנפח הנר הראשון', lambda B, P: k_obv(B, P, 'v0'))],
     'CCI': [('מקובל', k_cci)],
     'DMI': [('סיני: סכומים, ADX=SMA6 (מקובל לפרמטרים)', k_dmi), ('Wilder, ADX=RMA6', lambda B, P: k_dmi(B, P, 'wilder')),
-            ('Wilder 14/14 (מוצר הייחוס)', lambda B, P: k_dmi(B, P, 'wilder14'))],
+            ('Wilder 14/14 (מוצר הייחוס)', lambda B, P: k_dmi(B, P, 'wilder14')),
+            ('שחזור: Wilder 14/14, ‏ADXR מול mm−1', lambda B, P: k_dmi(B, P, 'klc'))],
     'WR': [('−100..0 (מקובל)', k_wr), ('0..100 (סיני)', lambda B, P: k_wr(B, P, 1.0))],
     'AO': [('מקובל', k_ao)],
     'TRIX': [('מקובל', k_trix), ('אתחול מהערך הראשון', lambda B, P: k_trix(B, P, 'first'))],
     'ROC': [('מקובל', k_roc)],
     'MTM': [('מקובל', k_mtm)],
     'BIAS': [('מקובל', k_bias)],
-    'BRAR': [('מקובל', k_brar)],
+    'BRAR': [('מקובל', k_brar), ('שחזור: BR בלי max(0,·)', lambda B, P: k_brar(B, P, 'klc'))],
     'CR': [('מקובל', k_cr)],
     'DMA': [('מקובל', k_dma)],
-    'EMV': [('סיני (מקובל)', k_emv), ('Arms (מערבי)', lambda B, P: k_emv(B, P, 'arms'))],
+    'EMV': [('סיני (מקובל)', k_emv), ('Arms (מערבי)', lambda B, P: k_emv(B, P, 'arms')),
+            ('שחזור: emv בלי החלקה, maEmv=SMA14', lambda B, P: k_emv(B, P, 'klc'))],
     'PSY': [('מקובל', k_psy)],
     'PVT': [('מקובל', k_pvt)],
     'VR': [('מקובל', k_vr)],
@@ -1404,8 +1503,10 @@ def series_stats(prod, mine, warm):
     s = s or 1.0
     st = dict(n=0, only_p=0, only_m=0, only_p_post=0, only_m_post=0, nonfinite=0, bad=0, bad_post=0,
               max_abs=0.0, max_rel=0.0, max_abs_post=0.0, max_rel_post=0.0, first_bad=None, last_bad=None,
-              first_p=None, first_m=None, const_off=None, len_p=len(prod), len_m=len(mine))
-    diffs_post = []
+              first_p=None, first_m=None, const_off=None, const_ratio=None, len_p=len(prod), len_m=len(mine),
+              p50_rel_post=None, p95_rel_post=None, max_rel_recent=0.0, frac_bad_post=None)
+    diffs_post, rels_post, ratios = [], [], []
+    recent = N - 500
     for i in range(N):
         p, m = to_num(prod[i]), mine[i]
         if isinstance(p, str):
@@ -1432,6 +1533,11 @@ def series_stats(prod, mine, warm):
             st['max_abs_post'] = max(st['max_abs_post'], d)
             st['max_rel_post'] = max(st['max_rel_post'], rel)
             diffs_post.append(p - m)
+            rels_post.append(rel)
+            if abs(m) > 1e-9 * s:
+                ratios.append(p / m)
+        if i >= recent:
+            st['max_rel_recent'] = max(st['max_rel_recent'], rel)
         if rel > TOL:
             st['bad'] += 1
             if i >= warm:
@@ -1439,10 +1545,17 @@ def series_stats(prod, mine, warm):
             if st['first_bad'] is None:
                 st['first_bad'] = i
             st['last_bad'] = i
+    if rels_post:
+        rs_ = sorted(rels_post)
+        st['p50_rel_post'] = rs_[len(rs_) // 2]
+        st['p95_rel_post'] = rs_[int(len(rs_) * 0.95)]
+        st['frac_bad_post'] = st['bad_post'] / float(len(rs_))
     if st['bad_post'] and diffs_post:
         lo, hi = min(diffs_post), max(diffs_post)
         if hi - lo <= TOL * (abs(hi) + s):
             st['const_off'] = (lo + hi) / 2.0
+        if ratios and max(ratios) - min(ratios) <= 1e-9 * abs(max(ratios)):
+            st['const_ratio'] = (max(ratios) + min(ratios)) / 2.0
     return st
 
 
@@ -1489,7 +1602,7 @@ def judge(name, variants, prod_fields, B, P, X, warm, kind='ours'):
         out['verdict'] = conv['verdict']
         out['match'] = conv['name']
     elif ok:
-        out['verdict'] = 'הגדרה שונה'
+        out['verdict'] = 'שונה — השורש שוחזר' if ok[0]['name'].startswith('שחזור') else 'הגדרה שונה'
         out['match'] = ok[0]['name']
     else:
         out['verdict'] = 'לא תואם'
@@ -1585,6 +1698,7 @@ const keysOf = (r) => { const s = new Set(); for (const x of r) if (x && typeof 
   const H = { sma: () => L.sma(C, 20), ema: () => L.ema(C, 20), rma: () => L.rma(C, 14), wma: () => L.wma(C, 20), hma: () => L.hma(C, 21),
     dema: () => L.dema(C, 21), tema: () => L.tema(C, 21), stdev: () => L.stdev(C, 20), atr: () => L.atr(bars, 14), rsi: () => L.rsi(C, 14),
     tr: () => L.trueRange(bars), linreg: () => C.map((_, i) => { const v = L.linreg(C, 20, i); return typeof v === 'number' ? v : (v && typeof v === 'object' ? JSON.stringify(v) : null); }) };
+  try { res['Z.zigzag'] = L.zigzag(bars, 0.05).map((s) => [s.i, s.price]); } catch (e) { res['Z.zigzag'] = { error: String(e) }; }
   for (const k of Object.keys(H)) { try { res['H.' + k] = H[k]().map((v) => (typeof v === 'string' ? v : enc(v))); } catch (e) { res['H.' + k] = { error: String(e) }; } }
   const K = loadK(), M = K.__indMap();
   res.meta.klc = K.version();
@@ -1671,6 +1785,8 @@ def compare_tf(out_dir, data_dir, sym, tf, bench_sym):
     for k, mv in mineH.items():
         pk = 'H.' + k.split('_')[0]
         pv = prod.get(pk)
+        if isinstance(pv, list) and k == 'linreg':
+            pv = [json.loads(v).get('end') if isinstance(v, str) and v.startswith('{') else v for v in pv]
         if not isinstance(pv, list):
             rep['helpers'][k] = {'verdict': 'שגיאה', 'error': str(pv)[:300]}
             continue
@@ -1701,7 +1817,30 @@ def compare_tf(out_dir, data_dir, sym, tf, bench_sym):
         }
     kg = prod.get('T.kagi', {})
     if 'error' not in kg and kg.get('o'):
-        rep['transforms']['kagi'] = seq_compare(list(zip(kg['o'], kg['c'])), [(a, b) for a, b, _ in t_kagi(C, 0.04)])
+        pk = list(zip(kg['o'], kg['c']))
+        rep['transforms']['kagi'] = {'threshold': seq_compare(pk, [(a, b) for a, b, _ in t_kagi(C, 0.04)]),
+                                     'first-move': seq_compare(pk, [(a, b) for a, b, _ in t_kagi(C, 0.04, 'first-move')])}
+    zp = prod.get('Z.zigzag')
+    if isinstance(zp, list):
+        zz = {}
+        for tie in ('first', 'later'):
+            mine = zigzag_pivots(B['h'], B['l'], 0.05, tie)
+            same = sum(1 for a, b in zip(zp, mine) if a[0] == b[0] and abs(a[1] - b[1]) <= 1e-12 * abs(b[1]))
+            zz[tie] = {'len_p': len(zp), 'len_m': len(mine), 'same': same,
+                       'same_price_seq': sum(1 for a, b in zip(zp, mine) if abs(a[1] - b[1]) <= 1e-12 * abs(b[1]))}
+        rep['zigzag_pivots'] = zz
+    ks = prod.get('K.SAR', {}).get('fields', {}).get('sar')
+    if ks:
+        conv = sar(B, 0.02, 0.02, 0.2)
+        n_side = n_cmp = 0
+        for i in range(warm, N):
+            if num(ks[i]) and conv[i] is not None:
+                n_cmp += 1
+                if (C[i] > ks[i]) != (C[i] > conv[i]):
+                    n_side += 1
+        flips_p = sum(1 for i in range(warm + 1, N) if num(ks[i]) and num(ks[i - 1]) and (C[i] > ks[i]) != (C[i - 1] > ks[i - 1]))
+        flips_m = sum(1 for i in range(warm + 1, N) if conv[i] is not None and conv[i - 1] is not None and (C[i] > conv[i]) != (C[i - 1] > conv[i - 1]))
+        rep['sar_side'] = {'bars': n_cmp, 'side_differs': n_side, 'flips_prod': flips_p, 'flips_wilder': flips_m}
     with open(os.path.join(out_dir, 'cmp-%s.json' % tag), 'w', encoding='utf-8') as fh:
         json.dump(rep, fh, ensure_ascii=False, indent=1)
     return rep
@@ -1710,7 +1849,7 @@ def compare_tf(out_dir, data_dir, sym, tf, bench_sym):
 def summary_lines(rep):
     m = rep['meta']
     out = ['## %s %s — %d נרות, חימום %d' % (m['sym'], m['tf'], m['n'], m['warm']), '',
-           '| מחוון | פסיקה | גרסה תואמת | הפרש יחסי מרבי אחרי החימום (מקובל) | נר ראשון שונה (מקובל) | פרמטרים | מקובל |',
+           '| מחוון | פסיקה | גרסה תואמת | הפרש יחסי מרבי / חציון / 500 אחרונים (מול המקובל) | נר ראשון שונה | פרמטרים | מקובל |',
            '|---|---|---|---|---|---|---|']
     for grp in ('ours', 'klc'):
         for k, r in rep[grp].items():
@@ -1720,14 +1859,26 @@ def summary_lines(rep):
             cv = r['variants'][0]
             fl = cv.get('fields', {})
             mr = max((f.get('max_rel_post', 0.0) for f in fl.values() if isinstance(f, dict)), default=None)
+            md = max((f.get('p50_rel_post') or 0.0 for f in fl.values() if isinstance(f, dict)), default=None)
+            mrr = max((f.get('max_rel_recent') or 0.0 for f in fl.values() if isinstance(f, dict)), default=None)
             fb = min((f['first_bad'] for f in fl.values() if isinstance(f, dict) and f.get('first_bad') is not None), default=None)
-            out.append('| %s%s | %s | %s | %s | %s | %s | %s |' % ('K.' if grp == 'klc' else '', k, r['verdict'], r.get('match') or '—',
-                                                                fmt(mr), fmt(fb), r.get('params'), r.get('conv_params')))
+            out.append('| %s%s | %s | %s | %s / %s / %s | %s | %s | %s |' % ('K.' if grp == 'klc' else '', k, r['verdict'], r.get('match') or '—',
+                                                                          fmt(mr), fmt(md), fmt(mrr), fmt(fb), r.get('params'), r.get('conv_params')))
     out.append('')
     for k, st in rep['helpers'].items():
         out.append('- עזר `%s`: %s (הפרש יחסי מרבי %s, נר ראשון שונה %s)' % (k, st.get('verdict'), fmt(st.get('max_rel')), fmt(st.get('first_bad'))))
     out.append('')
-    out.append('- טרנספורמציות: `' + json.dumps(rep['transforms'], ensure_ascii=False, default=str)[:3000] + '`')
+    tr = rep['transforms']
+    if 'ha' in tr:
+        out.append('- Heikin-Ashi: ' + ', '.join('%s %s' % (k, tr['ha'][k]['verdict']) for k in 'ohlc') + ', זמנים זהים: %s' % tr['ha']['t_same'])
+    for k in ('renko', 'kagi'):
+        if k in tr:
+            out.append('- %s: %s' % (k, json.dumps(tr[k], ensure_ascii=False)))
+    if 'lb' in tr:
+        out.append('- שבירת 3 קווים: ' + json.dumps(tr['lb'], ensure_ascii=False))
+    for k in ('zigzag_pivots', 'sar_side'):
+        if k in rep:
+            out.append('- %s: %s' % (k, json.dumps(rep[k], ensure_ascii=False)))
     out.append('')
     return out
 
@@ -1791,6 +1942,8 @@ def selftest():
     assert [(a, b) for a, b, _ in lb] == [(10, 11), (11, 12), (12, 13), (12, 9.5)]
     # קאגי 4%: ‏100,103,105 (קו 100→105),100.5 (היפוך: ≤100.8),100,99 (המשך),104 (היפוך: ≥102.96)
     assert [(a, b) for a, b, _ in t_kagi([100, 103, 105, 100.5, 100, 99, 104], 0.04)] == [(100, 105), (105, 99), (99, 104)]
+    # קאגי בהתחלה מהשינוי הראשון: ‏100→99 (קו יורד בלי סף), 104 (היפוך: ≥ 99·1.04=102.96), 100 (≤ 104·0.96=99.84? לא) → [(100,99),(99,104)]
+    assert [(a, b) for a, b, _ in t_kagi([100, 99, 104, 100], 0.04, 'first-move')] == [(100, 99), (99, 104)]
     # SAR על סדרה עולה: H=2..6, L=1..5 → 1, 1, 1.12, 1.3528 (Wilder, AF 0.02/0.02/0.2)
     Bu = {'h': [2, 3, 4, 5, 6], 'l': [1, 2, 3, 4, 5], 'c': [1.5, 2.5, 3.5, 4.5, 5.5]}
     assert eqlist(sar(Bu), [None, 1, 1, 1.12, 1.3528])

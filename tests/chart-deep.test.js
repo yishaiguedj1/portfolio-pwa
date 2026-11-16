@@ -76,8 +76,22 @@ process.env.CHART_DEEP_BACKOFF = '5';
   const off = LC.simulate(lib.L, qs, [snap(1030, [960, 1020], [50, 0]), snap(1100, [990, 1050], [50, 40])], 'X', '1m', 0);
   ok(off.resets === 1, 'livecheck: רענון עם רשת אחרת = איפוס (resetData)');
 
+  /* ---------- kcverify.js: המודל מאותן תשובות כמו הגרף (fetchInit מאפס, fetchOlder לפי to) ---------- */
+  const KV = require(path.join(T, 'kcverify.js'));
+  const cols = (t) => ({ ok: true, t, o: t.map(() => 1), h: t.map(() => 2), l: t.map(() => 0.5), c: t.map(() => 1.5), v: t.map(() => 10) });
+  const klog = [
+    { body: { sym: 'X', iv: '1m' }, res: cols([1200, 1260]) },
+    { body: { sym: 'X', iv: '1m', to: 1200 }, res: cols([1080, 1140, 1200]) },
+    { body: { sym: 'X', iv: '1m' }, res: cols([1260, 1320]) },          // מרווח חדש — מתחילים מחדש
+    { body: { sym: 'X', iv: '1m', to: 1080 }, res: cols([1020]) },        // לא שייך לסדרה הנוכחית — מדולג
+  ];
+  const km = KV.model(lib.L, lib.TF, klog, 'X', '1m');
+  ok(JSON.stringify(km.map((b) => b.timestamp / 1000)) === '[1260,1320]', 'kcverify: fetchInit חדש מאפס, עמוד ישן רק לפי הנר הראשון');
+  const kc = KV.compare([{ timestamp: 1260e3, open: 1, high: 2, low: 0.5, close: 1.5, volume: 10 }, { timestamp: 1290e3, open: 1, high: 2, low: 0.5, close: 1.5, volume: 10 }], km);
+  ok(kc.same === 1 && kc.onlyShown === 1 && kc.onlyModel === 1 && kc.near.shown.length === 2, 'kcverify: השוואה — זהים, רק במסך, רק במודל, וסביבת ההבדל');
+
   /* ---------- היגיינה: בלי מפתחות, בלי שם מוצר הייחוס ---------- */
-  const all = ['snap.js', 'model.js', 'sources.py', 'compare.py', 'live.js', 'livecheck.js'].map((f) => fs.readFileSync(path.join(T, f), 'utf8')).join('\n');
+  const all = ['snap.js', 'model.js', 'sources.py', 'compare.py', 'live.js', 'livecheck.js', 'kcverify.js'].map((f) => fs.readFileSync(path.join(T, f), 'utf8')).join('\n');
   ok(!/api_token=(?!demo)[A-Za-z0-9]{6,}|apikey=(?!demo)[A-Za-z0-9]{6,}/.test(all), 'אין מפתח אמיתי בכלים (רק מפתחות ההדגמה הציבוריים)');
 
   fs.rmSync(tmp, { recursive: true, force: true });
