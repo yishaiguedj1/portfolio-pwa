@@ -8040,8 +8040,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.152.5';
-const APP_VERSION = 'v779';
+const APP_RELEASE = '2.152.6';
+const APP_VERSION = 'v780';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -11475,7 +11475,7 @@ const DESK_HELP = {
 function deskHRow(el) {
   for (let n = el, i = 0; n && n.nodeType === 1 && i < 6; n = n.parentElement, i++) {
     if (n === document.body || n === document.documentElement) return null;
-    if (n.scrollWidth > n.clientWidth + 1 && n.scrollHeight <= n.clientHeight + 1 && /^(auto|scroll)$/.test(getComputedStyle(n).overflowX)) return n;
+    if (n.scrollWidth > n.clientWidth + 1 && n.scrollHeight <= n.clientHeight + 1 && (/^(auto|scroll)$/.test(getComputedStyle(n).overflowX) || hsRow(n))) return n;
   }
   return null;
 }
@@ -16768,7 +16768,7 @@ function snbSwipe(o) {
     const ns = tg.closest('.no-swipe');
     if (ns && ns !== root) return true;
     for (let el = tg; el && el !== root && el.nodeType === 1; el = el.parentElement) {   // פס גלילה אופקי
-      if (el.scrollWidth > el.clientWidth + 2) { const ox = getComputedStyle(el).overflowX; if (ox === 'auto' || ox === 'scroll') return true; }
+      if (el.scrollWidth > el.clientWidth + 2) { const ox = getComputedStyle(el).overflowX; if (ox === 'auto' || ox === 'scroll' || hsRow(el)) return true; }
     }
     return false;
   };
@@ -16937,13 +16937,70 @@ function pageSwipeTarget(cur, next) { // next=true → העמוד הבא (שמא
   if (i < 0) return null;
   return (next ? PAGE_SWIPE_MAIN[i + 1] : PAGE_SWIPE_MAIN[i - 1]) || null;
 }
+/* 16/11/2026 (בקשת המשתמש, שתי הקלטות: "הסרגל עדיין נעלם — לפתור אחת ולתמיד"): שורות שנגללות לרוחב בתוך דף של Invest
+   (מיון, רשימות, שנים, טווחים, צ'יפים) הן overflow: hidden (styles.css): בלי שכבה משלהן, חלק מציור הדף.
+   שורה שהדפדפן גולל (overflow: auto) היא תמיד שכבה נפרדת. בטלפון היא נבנתה מחדש בכל נחיתה, והייתה ריקה עד שנצבעה (עד שתי שניות).
+   כאן הגלילה באצבע: גרירה לרוחב מזיזה את scrollLeft, ובשחרור — תנופה שדועכת. גרירה אנכית נשארת של הדף (touch-action: pan-y).
+   hsRow(el): השורה עצמה, רק כשיש לה מה לגלול */
+const HS_ROWS = 'main .tabpage :is(.ranges, .chip-row, .stock-sort-row, .wl-tabs, .tx-years):not(.stock-chips)';
+function hsRow(el) {
+  const r = el && el.closest ? el.closest(HS_ROWS) : null;
+  return r && r.scrollWidth > r.clientWidth + 2 ? r : null;
+}
+/* התנועה עצמה — טהורה (נבדקת): dx מאז ההתחלה → scrollLeft; תנופה: מהירות (px/ms) דועכת לפי הזמן */
+function hsFling(v, dt) { return v * Math.pow(0.996, dt); }
+function initHScroll() {
+  if (typeof document === 'undefined' || !document.addEventListener) return;
+  let s = null, raf = 0, eat = 0;
+  const stop = () => { if (raf) cancelAnimationFrame(raf); raf = 0; };
+  document.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' || !e.isPrimary) return;
+    const row = hsRow(e.target);
+    stop(); s = null;
+    if (row) s = { row, id: e.pointerId, x: e.clientX, y: e.clientY, x0: row.scrollLeft, on: false, t: e.timeStamp, lx: e.clientX, v: 0 };
+  }, { passive: true });
+  document.addEventListener('pointermove', (e) => {
+    if (!s || e.pointerId !== s.id) return;
+    if (!s.on) {
+      const dx = e.clientX - s.x, dy = e.clientY - s.y;
+      if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { s = null; return; }   // אנכי — של הדף
+      if (Math.abs(dx) < 8) return;
+      s.on = true; s.x = e.clientX; s.x0 = s.row.scrollLeft;
+    }
+    s.row.scrollLeft = s.x0 - (e.clientX - s.x);
+    const dt = e.timeStamp - s.t;
+    if (dt > 0) { s.v = 0.7 * ((e.clientX - s.lx) / dt) + 0.3 * s.v; s.t = e.timeStamp; s.lx = e.clientX; }
+  }, { passive: true });
+  const end = (e) => {
+    if (!s || e.pointerId !== s.id) return;
+    const g = s; s = null;
+    if (!g.on || e.type === 'pointercancel') return;
+    eat = e.timeStamp;                       // הלחיצה שאחרי גרירה — לא בחירה בצ'יפ
+    let v = e.timeStamp - g.t > 80 ? 0 : g.v, last = performance.now();
+    if (Math.abs(v) < 0.05 || typeof requestAnimationFrame !== 'function') return;
+    const step = (now) => {
+      const dt = Math.min(48, now - last); last = now;
+      const was = g.row.scrollLeft;
+      g.row.scrollLeft = was - v * dt;
+      v = hsFling(v, dt);
+      raf = (Math.abs(v) > 0.02 && g.row.scrollLeft !== was && g.row.isConnected) ? requestAnimationFrame(step) : 0;
+    };
+    raf = requestAnimationFrame(step);
+  };
+  document.addEventListener('pointerup', end, { passive: true });
+  document.addEventListener('pointercancel', end, { passive: true });
+  document.addEventListener('click', (e) => {
+    if (eat && e.timeStamp - eat < 400 && hsRow(e.target)) { e.preventDefault(); e.stopPropagation(); }
+    eat = 0;
+  }, true);
+}
 function pageSwipeBlocked(tg, root) {
   if (!tg || !tg.closest) return true;
   if (tg.closest('canvas, .sc-ov, input, textarea, select, [contenteditable="true"], .wl-tabs, .item-acts, .no-swipe, .stock.dragging')) return true;
   for (let el = tg; el && el !== root && el.nodeType === 1; el = el.parentElement) { // פס גלילה אופקי (צ'יפים וכו')
     if (el.scrollWidth > el.clientWidth + 2) {
       const ox = getComputedStyle(el).overflowX;
-      if (ox === 'auto' || ox === 'scroll') return true;
+      if (ox === 'auto' || ox === 'scroll' || hsRow(el)) return true;
     }
   }
   return false;
@@ -20298,6 +20355,7 @@ function init() {
   // v87: חיפוש מניות להוספה — זמין בשני המצבים
   try { initStockSearch(); } catch (e) {}
   try { initStockSort(); } catch (e) {}
+  try { initHScroll(); } catch (e) {}       // 16/11/2026: גלילה לרוחב בשורות של Invest — בלי שכבה (hsRow)
   // v240: רשימת המעקב — אותו חיפוש ואותו מיון כמו בטאב המניות
   try { initStockSearch('wlSearch', () => new Set(wlItems().map((w) => w.sym)), wlAddPicked, { indices: true }); } catch (e) {} // v245: רק מה שכבר ברשימה הפתוחה מוסתר
   try { wirePageSwipe(); } catch (e) {} // v279: החלקה בין העמודים

@@ -26,16 +26,26 @@ ok(/app === 'academy' \|\| app === 'invest'\) \? S\.lt\.glass\.slice\(\)/.test(q
 const css = R('styles.css'), dk = R('desktop.css'), app = R('app.js');
 ok(/main \.tabpage \{ margin-inline: -16px; padding-inline: 16px; overflow-x: clip; \}/.test(css), 'styles.css: הדף ברוחב המסך + overflow-x: clip');
 ok(!/main \.tabpage \{[^}]*overflow-y/.test(css), 'בלי חיתוך אנכי (תפריטים נפתחים ותוצאות חיפוש)');
-const zr = css.match(/main \.tabpage :is\(([^)]*)\) \{ position: relative; z-index: 1; \}/);
-ok(!!zr, 'styles.css: השורות הנגללות ב־z-index: 1');
-for (const c of ['.ranges', '.chip-row', '.stock-sort-row', '.wl-tabs', '.tx-years']) ok(zr && zr[1].includes(c), 'שורה נגללת: ' + c);
-// כל שורה נגללת לרוחב בתוך דפי Invest — ברשימה (שורה חדשה בלי z-index תחזיר את השכבות הדחוסות)
+// 5. (16/11/2026, הקלטה שנייה) השורות שנגללות לרוחב — overflow: hidden (בלי שכבה משלהן), הגלילה באצבע ב־JS
+const hr = css.match(/main \.tabpage :is\(([^)]*)\):not\(\.stock-chips\) \{ overflow: hidden; touch-action: pan-y; \}/);
+ok(!!hr, 'styles.css: השורות הנגללות — overflow: hidden + touch-action: pan-y');
+for (const c of ['.ranges', '.chip-row', '.stock-sort-row', '.wl-tabs', '.tx-years']) ok(hr && hr[1].includes(c), 'שורה נגללת: ' + c);
+ok(!/position: relative; z-index: 1; \}/.test(css.slice(css.indexOf('main .tabpage {'), css.indexOf('main .tabpage {') + 600)), 'בלי z-index לשורות (אין להן שכבה)');
+// כל שורה נגללת לרוחב בתוך דפי Invest — ברשימה (שורה חדשה שלא ברשימה = שכבה שנעלמת בנחיתה)
 const scrollers = [...css.matchAll(/(^|\n)([^{}\n]+)\{[^}]*overflow-x: (auto|scroll)/g)].map((m) => m[2].trim()).filter((sel) => /^\.(ranges|chip-row|stock-sort-row|wl-tabs|tx-years)\b/.test(sel));
 ok(scrollers.length >= 4, 'נמצאו השורות הנגללות ב־styles.css (' + scrollers.length + ')');
+// אותה רשימה ב־JS (HS_ROWS) וב־CSS
+const hs = app.match(/const HS_ROWS = '([^']*)'/);
+ok(hs && hr && hs[1] === 'main .tabpage :is(' + hr[1] + '):not(.stock-chips)', 'HS_ROWS ב־app.js = הבורר ב־styles.css');
+ok(/try \{ initHScroll\(\); \} catch/.test(app), 'initHScroll נקרא באתחול');
+ok((app.match(/\|\| hsRow\((el|n)\)/g) || []).length >= 3, 'החלקת הלשוניות (שני המנועים) וגלגלת המחשב מכירות את השורות');
+const fl = app.match(/function hsFling\(v, dt\) \{[^}]*\}/);
+const hsFling = fl && new Function(fl[0] + '; return hsFling;')();
+ok(hsFling && hsFling(1, 0) === 1 && hsFling(1, 16) < 1 && hsFling(1, 16) > 0.9 && hsFling(-1, 500) > -0.2, 'תנופה דועכת לפי הזמן, בשני הכיוונים');
 ok(/html\.dk main \.tabpage \{ margin-inline: -24px; padding-inline: 24px; \}/.test(dk), 'desktop.css: אותו דבר עם הריפוד של המחשב');
 ok(/px;margin:0;visibility:hidden;pointer-events:none/.test(app), 'tabPrewarm: margin:0 בדף המחומם (מוצמד לפי הקופסה)');
 const ts = R('tools/qa-sweep.js');
-ok(/async function squashOf\(S\)/.test(ts) && /שכבות דחוסות/.test(ts), 'qa-sweep: גלאי שכבות דחוסות בדף שנחת');
+ok(/async function squashOf\(S\)/.test(ts) && /OverflowScroll/.test(ts), 'qa-sweep: גלאי שכבות נפרדות בדף שנחת (דחוסות ושורות גלילה)');
 
 console.log('\n' + (n - bad) + '/' + n + ' passed');
 if (bad) process.exit(1);
