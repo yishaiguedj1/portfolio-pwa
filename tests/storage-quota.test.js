@@ -62,6 +62,6 @@ H.saveDBto({ v: 1, positions: [], deposits: [], pad: 'p'.repeat(2000) });
 ok(flashes.length === 1 && flashes[0] === 'storageFull', 'הודעה גלויה פעם אחת (לא בליעה בשקט, לא הצפה)');
 
 // 4. בקוד: IBKR באותו מסלול, והמחרוזת בשתי השפות
-ok(/lsPutCritical\(LS_IBKR, JSON\.stringify\(c\)\)/.test(app), 'IBKR (כולל הדוחות השמורים) — לפני המטמונים');
+ok(/lsPutCritical\(ibkrCfgKey\(\), JSON\.stringify\(c\)\)/.test(app) && /function ibkrCfgKey\(\) \{ try \{ return \(DB && DB\.demo\) \? LS_DEMO_IBKR : LS_IBKR; \}/.test(app), 'IBKR (כולל הדוחות השמורים) — לפני המטמונים; בדמו במפתח נפרד (v783)');
 ok((app.match(/storageFull: "/g) || []).length === 2 && /flash\(t\('storageFull'\)\)/.test(app), 'ההודעה בשתי השפות');
 console.log('# ' + n + ' בדיקות עברו');

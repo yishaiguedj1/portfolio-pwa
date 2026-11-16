@@ -28,6 +28,9 @@ const ils = (v, d) => {
   const a = Math.abs(v), s = v < -0.004 ? MINUS : '';
   return LRI + s + '₪' + a.toLocaleString('en-US', { maximumFractionDigits: d == null ? 0 : d, minimumFractionDigits: d == null ? 0 : d }) + PDI;
 };
+/* 16/11/2026: הכותרת והאריחים לפי כללי התצוגה של האפליקציה — ממיליון מקוצר ("₪1.23M", numShort מהאפליקציה דרך env);
+   השורות שמתחת נשארות מדויקות עד השקל — הן אלה שמעתיקים לטופס */
+const ilsBig = (v) => (E && E.numShort && v != null && isFinite(v) && Math.abs(v) >= 999999.5 ? LRI + (v < -0.004 ? MINUS : '') + '₪' + E.numShort(Math.abs(v)) + PDI : ils(v));
 const money = (v, cur) => (cur === 'ILS' ? ils(v, 2) : LRI + (v < 0 ? MINUS : '') + (cur === 'USD' ? '$' : cur + ' ') + Math.abs(v).toLocaleString('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 }) + PDI);
 const dmy = (iso) => (iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '');
 const qtyTxt = (q) => LRI + (Math.round(q * 1e4) / 1e4).toLocaleString('en-US') + PDI;
@@ -263,7 +266,7 @@ function paintYear(wrap, C) {
   // המס
   const c1 = h('div', { class: 'tx-card' }, [
     h('span', { class: 'tx-hero-k', text: T(cur ? 'txDueNow' : 'txDue', { y: S.year }) }),
-    h('span', { class: 'tx-hero-v', text: ils(Y.due) }),
+    h('span', { class: 'tx-hero-v', text: ilsBig(Y.due) }),
   ]);
   c1.appendChild(row(T('txGains'), ils(Y.gains)));
   if (Y.losses > 0) c1.appendChild(row(T('txLosses'), ils(-Y.losses)));
@@ -454,8 +457,8 @@ function paintToday(wrap, C) {
   const miss = new Set(C.unreal.filter((u) => u.missing).map((u) => u.sym)).size;
   const none = !ok.length;
   const c1 = h('div', { class: 'tx-card' }, [h('div', { class: 'tx-two' }, [
-    h('div', { class: 'tx-tile' }, [h('span', { class: 'tx-k', text: T('txValue') }), h('span', { class: 'tx-v', text: none ? '—' : ils(val) })]),
-    h('div', { class: 'tx-tile' }, [h('span', { class: 'tx-k', text: T('txTaxAll') }), h('span', { class: 'tx-v', text: none ? '—' : ils(extra) })]),
+    h('div', { class: 'tx-tile' }, [h('span', { class: 'tx-k', text: T('txValue') }), h('span', { class: 'tx-v', text: none ? '—' : ilsBig(val) })]),
+    h('div', { class: 'tx-tile' }, [h('span', { class: 'tx-k', text: T('txTaxAll') }), h('span', { class: 'tx-v', text: none ? '—' : ilsBig(extra) })]),
   ]), none ? null : h('p', { class: 'tx-sub', text: T('txNet', { v: ils(val - extra), fx: ils(fxPart) }) }),
   miss ? h('p', { class: 'tx-sub', text: T('txMissing', { n: miss }) }) : null]);
   // ד3: מכירת הכל חוצה את תקרת מס היסף — פריסה לשנה הבאה עשויה לחסוך אותו
