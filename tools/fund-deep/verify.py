@@ -47,7 +47,9 @@ MET = {
         'ElectricUtilityRevenue', 'RealEstateRevenueNet', 'OperatingLeasesIncomeStatementLeaseRevenue', 'SalesRevenueGoodsNet',
         'SalesRevenueServicesNet', 'RevenueMineralSales', 'HealthCareOrganizationRevenue', 'FinancialServicesRevenue',
         'InterestAndDividendIncomeOperating', 'RevenuesExcludingInterestAndDividends', 'OilAndGasRevenue', 'Revenue'],
-        lab=r'^(total )?(net )?(operating )?(revenues?|sales)\b|^total (net )?(revenues?|sales)|^net (sales|revenues?)|revenues?,? net\b|^total revenues? and other income'),
+        lab=r'^(total )?(net )?(operating )?(revenues?|sales)\b|^total (net )?(revenues?|sales)|^net (sales|revenues?)|revenues?,? net\b|^total revenues? and other income',
+        # "Sales and marketing" / "Selling, general…" הן הוצאות, לא הכנסות (AppLovin: נתפסה כהכנסה ורווח גולמי שגוי)
+        nolab=r'marketing|administrative|selling|expense|commission|\bcosts?\b'),
     'cogs': dict(st=('IS',), kind='flow', u='money', tags=[
         'CostOfRevenue', 'CostOfGoodsAndServicesSold', 'CostOfGoodsSold', 'CostOfServices', 'CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization',
         'CostOfGoodsSoldExcludingDepreciationDepletionAndAmortization', 'CostOfServicesExcludingDepreciationDepletionAndAmortization', 'CostDirectMaterial'],
@@ -150,6 +152,8 @@ def same(a, b, u):
 
 def lab_ok(m, plabel):
     t = (plabel or '').strip().lower().replace('\u2019', "'").replace('\u2018', "'")
+    if MET[m].get('nolab') and re.search(MET[m]['nolab'], t):
+        return False
     return bool(MET[m].get('lab')) and re.search(MET[m]['lab'], t) is not None
 
 
@@ -449,7 +453,10 @@ class Co:
     def gp_cands(self, mode, j, e, qtrs):
         """רווח גולמי = הכנסות − עלות המכר: מאותה הגשה (אותה תקופה), וברבעון — גם מהמצטברים של שתיהן"""
         out = []
-        R = {c[1]: c for c in self.pr.cands('rev', me(e), qtrs, self.cur)}
+        # לכל הגשה — השורה הטובה ביותר (התגית הראשונה ברשימה), לא האחרונה שנמצאה
+        R = {}
+        for c in sorted(self.pr.cands('rev', me(e), qtrs, self.cur), key=lambda c: c[0]):
+            R.setdefault(c[1], c)
         for c in self.pr.cands('cogs', me(e), qtrs, self.cur):
             if c[1] in R:
                 out.append((round(R[c[1]][6] - c[6], 6), 'הכנסות − עלות המכר (%s %s)' % (c[2], c[3])))
