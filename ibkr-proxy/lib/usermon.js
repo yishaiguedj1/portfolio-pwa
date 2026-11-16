@@ -108,7 +108,7 @@ function byAgent(use) {
 }
 /* 01/11/2026 (המשתמש: "עבודה מהצהריים מופיעה פעילה במרכז הניהול, אבל בסטודיו היא לא"): לפי המצב שהטלפון רואה
    (effState — נכשלה לפי הזמן) ובלי עבודה שנתקעה (isStale — "רצה" בלי דיווח שעתיים), לא רק לפי השדה state במסמך */
-const isLive = (j, now) => !!j && j.kind !== 'ping' && !j.rdy && ['queued', 'running'].includes(j.state)
+const isLive = (j, now) => !!j && j.kind !== 'ping' && j.kind !== 'lb' && !j.rdy && ['queued', 'running'].includes(j.state)
   && (!now || (['queued', 'running'].includes(S.effState(j, now).state) && !S.isStale(j, now)));
 
 /* משתמשים: שורה לכל מי שיש לו studioStats או עבודה ב־30 יום. stats = [{id, nm, em, ls, fs, mu, mc, ps, tt}] */
@@ -271,7 +271,7 @@ const U_REC = { wait: 600, util: 0.5, fail: 0.15, grow: 0.5 };   // ספי הה�
 /* jobs = עבודות 30 יום; stats = studioStats (סכום החודש); o = { max: גבול השאילתה } */
 function usage(jobs, stats, now, o) {
   const opt = o || {}, from = now - TL_DAYS * 86400000;
-  const L = (jobs || []).filter((j) => j && j.kind !== 'ping' && n0(j.created) >= from);
+  const L = (jobs || []).filter((j) => j && j.kind !== 'ping' && j.kind !== 'lb' && n0(j.created) >= from);
   const days = [];
   for (let i = TL_DAYS - 1; i >= 0; i--) days.push({ d: ilParts(now - i * 86400000).d, n: 0, usd: 0, sec: 0, f: 0, pk: 0, t: {} });
   const dIx = new Map(days.map((x, i) => [x.d, i]));

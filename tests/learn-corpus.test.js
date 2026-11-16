@@ -220,6 +220,60 @@ const { fakeR2, ACC } = require('./_r2fake');
   await api('learnForget', {});
   ok((await keysIn('m/')).length === 0, '"מחק את התרומות שלי" — גם הקול וה־240p');
 
+  /* 16/11/2026: העותק הצרוב (s) — עבודת־עזר lb שהשרתון יוצר (חשד / המנהל), רק בהסכמה (lrm); נרשם בעבודת ההורה; חצי שנה */
+  {
+    const S = require(path.join(root, 'ibkr-proxy/lib/studio.js'));
+    NOW = Date.UTC(2026, 9, 24, 12); R.now = NOW;
+    for (const [k, v] of db) if (k.startsWith('studioJobs/')) v.fields.state = { stringValue: 'done' };
+    await api('learnPref', { ack: true, tv: 3 });
+    const mkParent = async (fo) => {
+      const pj = await newJob(), F = 'R2_' + pj.id;
+      Object.assign(db.get('studioJobs/' + pj.id).fields, { state: { stringValue: 'done' } },
+        S.toFields({ folder: F, spec: Object.assign({}, spec, { eng: 'api', cap: 1 }), fo: fo(F) }));
+      return pj;
+    };
+    const pj = await mkParent((F) => [{ k: 'srt', id: F + '_aaaaaaaaaaaa', size: 10 }, { k: 'compact', id: F + '_cccccccccccc', size: 900 }, { k: 'same', id: F + '_bbbbbbbbbbbb', size: 5000 }]);
+    const lidB = LR.lid(pj.id);
+    ok(!(await call({ op: 'learnMedia', job: pj.id, key: pj.key, k: 's' }, true)).j.url, 'עבודת תרגום לא מקבלת קישור ל־s — רק עבודת־העזר');
+    const lbs = () => [...db.entries()].filter(([k, v]) => k.startsWith('studioJobs/') && v.fields.kind && v.fields.kind.stringValue === 'lb').map(([k, v]) => Object.assign(S.fromFields(v.fields), { id: k.split('/')[1] }));
+    ok((await api('rate', { job: pj.id, r: 1 })).ok && lbs().length === 0, '👍 — בלי עותק');
+    ok((await api('rate', { job: pj.id, r: -1 })).ok, '👎 נשמר');
+    const lb = lbs();
+    ok(lb.length === 1 && lb[0].rp === pj.id && lb[0].state === 'queued' && lb[0].uid === 'ownerUid0001' && lb[0].folder === 'R2_' + pj.id && lb[0].spec.eng === 'api'
+      && lb[0].spec.lb.id === 'R2_' + pj.id + '_bbbbbbbbbbbb' && lb[0].spec.lb.s === 5000, '👎 → עבודת־עזר lb בתור: התוצר "same" של ההורה, באותה תיקייה');
+    ok(!JSON.stringify((await api('jobs', {})).jobs || []).includes(lb[0].id), 'עבודת־העזר לא ברשימה של המשתמש');
+    ok((await api('learnBurn', { lid: lidB })).code === 'run', 'המנהל: כבר בעבודה — לא כפול');
+    ok((await api('learnBurn', { lid: 'zz' })).error === 'bad_params' && (await api('learnBurn', { lid: 'f'.repeat(20) })).code === 'gone', 'מזהה לא תקין / לא קיים');
+    // העובד: lb מבקש s בשם ההורה; לא a/v
+    const lk = crypto.randomBytes(32).toString('base64url');
+    Object.assign(db.get('studioJobs/' + lb[0].id).fields, { kh: { stringValue: crypto.createHash('sha256').update(lk).digest('hex') }, kx: { integerValue: String(NOW + 3600e3) }, state: { stringValue: 'running' } });
+    const lcall = (op, k) => call({ op, job: lb[0].id, key: lk, k }, true).then((r) => r.j);
+    ok((await lcall('learnMedia', 'a')).skip === true && (await lcall('learnMedia', 'v')).skip === true, 'עבודת־העזר — רק s');
+    const ms = await lcall('learnMedia', 's');
+    ok(ms.url && ms.url.includes('/m/2026-10/' + lidB + '.s.mp4') && /^[0-9a-f]{32}$/.test(ms.key) && ms.max === LC.MEDIA_MAX.s, 'קישור PUT ל־m/<חודש>/<מזהה ההורה>.s.mp4 ומפתח משלו');
+    await R.fetch(ms.url, { method: 'PUT', body: Buffer.alloc(3000, 3), headers: { 'content-length': '3000' } });
+    ok((await lcall('learnMediaDone', 's')).saved === true && /s/.test(S.fromFields(db.get('studioJobs/' + pj.id).fields).lm || ''), 'נרשם בעבודת ההורה (lm)');
+    ok((await lcall('learnMedia', 's')).skip === true, 'פעם אחת');
+    ok((await api('learnBurn', { lid: lidB })).code === 'have', 'המנהל: כבר במאגר');
+    const lps = await call({ op: 'learnPull', at: tokA, mi: [lidB], ms: true }, true);
+    ok(lps.j.media[lidB].s && lps.j.media[lidB].s.key === ms.key && !((await call({ op: 'learnPull', at: tokA, mi: [lidB] }, true)).j.media || {})[lidB], 'learnPull: s רק עם ms');
+    ok(lps.j.corpus.ns === 1, 'בלוח: כמה עותקים צרובים');
+    // בלי הסכמה / בלי סרטון צרוב
+    const p2 = await mkParent((F) => [{ k: 'srt', id: F + '_aaaaaaaaaaaa', size: 10 }]);
+    ok((await api('learnBurn', { lid: LR.lid(p2.id) })).code === 'none', 'אין סרטון צרוב — none');
+    await api('learnPref', { on: false });
+    const p3 = await mkParent((F) => [{ k: 'same', id: F + '_bbbbbbbbbbbb', size: 50 }]);
+    ok((await api('learnBurn', { lid: LR.lid(p3.id) })).code === 'consent' && lbs().length === 1, 'המתג כבוי — consent, בלי עבודה');
+    ok((await api('rate', { job: p3.id, r: -1 })).ok && lbs().length === 1, '👎 עם המתג כבוי — בלי עותק');
+    await api('learnPref', { on: true });
+    // חצי שנה (ולא 24 חודשים)
+    NOW = Date.UTC(2027, 2, 2, 12); R.now = NOW; await call({}, false, true);
+    ok((await keysIn('m/')).some((k) => k.includes('.s.')), 'אחרי 5 חודשים — עוד שם');
+    NOW = Date.UTC(2027, 4, 2, 12); R.now = NOW; await call({}, false, true);
+    ok(!(await keysIn('m/')).some((k) => k.includes('.s.')), 'אחרי חצי שנה — נמחק');
+    NOW = Date.UTC(2026, 9, 25, 12); R.now = NOW;
+  }
+
   /* 15/10/2026: שרת שהוקם בלי המפתחות (SNB_LEARN_REMOTE) — 421 לפני כל שינוי, והטלפון שולח ל־Vercel */
   const keepB = process.env.R2L_BUCKET;
   delete process.env.R2L_BUCKET; process.env.SNB_LEARN_REMOTE = '1'; R2._reset();
