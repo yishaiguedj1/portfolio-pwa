@@ -48,7 +48,7 @@ process.env.CHART_DEEP_BACKOFF = '5';
   const st = execFileSync('python3', ['-I', path.join(T, 'compare.py'), '--selftest'], { encoding: 'utf8' });
   ok(/selftest: תקין/.test(st), 'compare: בדיקה עצמית');
   const lb = execFileSync('python3', ['-I', path.join(T, 'layerb.py'), '--selftest'], { encoding: 'utf8' });
-  ok(/selftest: תקין/.test(lb), 'layerb: בדיקה עצמית (יומי מול Webull לפי סוג, עקביות שבועי/חודשי מול היומי, יום תחילת השבוע)');
+  ok(/selftest: תקין/.test(lb), 'layerb: בדיקה עצמית (יומי מול Webull לפי סוג, שיוך לסוג הפגם ופתיחה↔סגירה הפוכות, עקביות שבועי/חודשי מול היומי, יום תחילת השבוע)');
 
   /* ---------- ind.py (גל 5): המחוונים לפי ההגדרות המקובלות — בדיקה עצמית על דוגמאות שחושבו ביד ---------- */
   const it = execFileSync('python3', ['-I', path.join(T, 'ind.py'), '--selftest'], { encoding: 'utf8' });
