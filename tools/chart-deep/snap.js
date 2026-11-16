@@ -19,6 +19,7 @@ const INTRA = (iv) => /m$/.test(iv);
 const argv = process.argv.slice(2);
 const arg = (k, d) => { const i = argv.indexOf('--' + k); return i < 0 ? d : argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : true; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const BO = +process.env.CHART_DEEP_BACKOFF || 0;   // בבדיקות: המתנות קצרות (tests/chart-deep.test.js)
 
 /* קצב: מרווח מינימלי בין בקשות (60/rate שניות) — 80 לדקה = 750ms */
 let lastAt = 0;
@@ -28,19 +29,23 @@ async function pace(rate) {
   lastAt = Date.now();
 }
 
-async function post(body, rate) {
-  for (let i = 0; i < 5; i++) {
+/* tries: עמוד 0 — 5 ניסיונות; עמוד היסטוריה — 2, ואז 502 נרשם כתשובה (ממצא C-001: חלון ריק בקצה ההיסטוריה = 502, לא חסימה) */
+async function post(body, rate, tries = 5) {
+  for (let i = 0; i < tries; i++) {
     await pace(rate);
     try {
       const r = await fetch(API, { method: 'POST', headers: { Origin: ORIGIN, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const t = await r.text();
-      if (r.status === 429) { process.stderr.write('429 — ממתין דקה\n'); await sleep(65000); continue; }
-      if (r.status === 502) { process.stderr.write('502 — הפסקה\n'); await sleep(30000 * (i + 1)); continue; }   // upstream חסום — מרווח גדל
+      if (r.status === 429) { process.stderr.write('429 — ממתין דקה\n'); await sleep(BO || 65000); continue; }
+      if (r.status === 502) {
+        if (i === tries - 1) return { ok: false, error: 'upstream', status: 502 };
+        process.stderr.write('502 — הפסקה\n'); await sleep((BO || 30000) * (i + 1)); continue;   // מרווח גדל
+      }
       if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + t.slice(0, 200));
       return JSON.parse(t);
     } catch (e) {
-      if (i === 4) throw e;
-      await sleep(4000 * (i + 1));
+      if (i === tries - 1) throw e;
+      await sleep((BO || 4000) * (i + 1));
     }
   }
   throw new Error('נכשל אחרי 5 ניסיונות');
@@ -57,7 +62,7 @@ async function snapSeries(out, sym, iv, pre, opt) {
     if (!opt.refresh && fs.existsSync(f)) rec = JSON.parse(fs.readFileSync(f, 'utf8'));
     else {
       const req = { op: 'candles', sym, iv, to: to || undefined, pre: !!pre };
-      const res = await post(req, opt.rate);
+      const res = await post(req, opt.rate, k ? 2 : 5);
       rec = { req, at: Date.now(), res };
       fs.writeFileSync(f, JSON.stringify(rec));
     }

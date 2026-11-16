@@ -5,7 +5,7 @@
      → aggregate(raw, tf) לכל אחד מ־18 המרווחים שהבסיס שלהם צולם (display() ב־chart.js).
    הפלט נקרא ב־compare.py (קוד אחר, שפה אחרת) מול המקורות.
    שימוש: node tools/chart-deep/model.js --out <dir> [--syms AAPL,NVDA]
-   קלט: <out>/snap/<SYM>/<iv>.<pre>.p<k>.json · פלט: <out>/disp/<SYM>/<tf>.<pre>.json = { tf, base, pre, tz, cur, ex, pages, bars:[[t,o,h,l,c,v]] } */
+   קלט: <out>/snap/<SYM>/<iv>.<pre>.p<k>.json · פלט: <out>/disp/<SYM>/<tf>.<pre>.json = { tf, base, pre, tz, cur, ex, pages, at (זמן הצילום, ms), endErr?, bars:[[t,o,h,l,c,v]] } */
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
@@ -27,9 +27,9 @@ function buildRaw(L, dir, iv, pre) {
   for (; ; k++) {
     const f = path.join(dir, iv + '.' + pre + '.p' + k + '.json');
     if (!fs.existsSync(f)) break;
-    const r = JSON.parse(fs.readFileSync(f, 'utf8')).res;
-    if (!r || !r.ok) break;
-    if (k === 0) { raw = L.fromColumns(r); meta = { tz: r.tz, cur: r.cur, ex: r.ex, name: r.name, more: r.more }; continue; }
+    const rec = JSON.parse(fs.readFileSync(f, 'utf8')), r = rec.res;
+    if (!r || !r.ok) { if (k > 0 && meta) meta.endErr = (r && r.error) || 'fail'; break; }   // עמוד היסטוריה שנכשל — כמו c.err בטלפון
+    if (k === 0) { raw = L.fromColumns(r); meta = { tz: r.tz, cur: r.cur, ex: r.ex, name: r.name, more: r.more, at: rec.at }; continue; }
     if (!raw.length) break;
     const b = L.fromColumns(r).filter((x) => x.timestamp < raw[0].timestamp);
     raw = b.concat(raw);

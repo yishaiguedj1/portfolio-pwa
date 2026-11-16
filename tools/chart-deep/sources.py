@@ -6,15 +6,19 @@
   t = תחילת הנר בשניות UTC (גם ביומי ומעלה: תחילת היום/השבוע/החודש לפי מוסכמת המקור, ראו conv).
   conv = 'start' (תווית = תחילת הנר); adj = 'split' / 'none' / 'split+div'; vol = 'venue' (בורסה אחת) / 'consolidated'.
 
-רק מקורות שתנאי השימוש שלהם מתירים גישה תכנותית לבדיקה פנימית (סעיף 4 במסמך):
-  קריפטו — הממשקים הציבוריים של Coinbase Exchange, Bitstamp, Kraken ו־Binance (data-api.binance.vision);
+רק מקורות בלי הרשמה ובלי תשלום (החלטת המשתמש 16/11/2026: "מקורות כמו Yahoo שלא דורשים טוקנים או תשלום"),
+ורק כאלה שתנאי השימוש שלהם לא אוסרים גישה תכנותית לבדיקה פנימית (סעיף 4 במסמך). קצב נמוך, הפלט לא מוצג ולא נשמר בריפו:
+  קריפטו — הממשקים הציבוריים של Coinbase Exchange, Bitstamp ו־Binance (data-api.binance.vision, מול USDT);
   מט"ח — ECB (שער ייחוס) ובנק ישראל (שער יציג) — שפיות יומית בלבד;
-  מניות — Massive/Polygon, Twelve Data ו־Tiingo — רק עם מפתח של המשתמש, שהפרוקסי מזריק (request_credential), אף פעם לא בקוד.
-Nasdaq.com ו־Cboe לא כאן: התנאים שלהם אוסרים לכידה אוטומטית / שימוש לאימות מידע אחר (נבדק 16/11/2026).
-
+  מניות — Webull (בלי מפתח: יומי/שבועי/חודשי בלבד — בתוך־יומי בלי התחברות מחזיר נר אחד; גולמי ומותאם פיצול+דיבידנד);
+          מפתחות ההדגמה הציבוריים (apikey=demo, מתפרסמים בתיעוד של הספקים): Twelve Data — AAPL בלבד, כל המרווחים כולל
+          45 דק׳/שעתיים/4 שעות שהספק מצרף בעצמו; EODHD — AAPL/TSLA/AMZN/VTI/BTC/EURUSD, דקה (כולל טרום/אחרי, עם נפח), 5 דק׳, שעה, יומי גולמי.
+לא כאן: Nasdaq.com ו־Cboe (התנאים אוסרים לכידה אוטומטית / שימוש לאימות מידע אחר, נבדק 16/11/2026);
+  אתר הבורסה בת"א (הממשק חסום מהקונטיינר, ולא עוקפים חסימות) — ת"א נבדקת מול Yahoo עצמו בין מרווחים ומול צילומים.
 שימוש:
   python3 -I tools/chart-deep/sources.py crypto --sym BTC-USD --out <dir> [--ivs 1m,5m,1h,1d] [--days 30]
   python3 -I tools/chart-deep/sources.py fx --out <dir>
+  python3 -I tools/chart-deep/sources.py stocks --syms AAPL,NVDA --out <dir> [--src webull,twelvedata,eodhd]
 הפלט (מחירים ציבוריים) נשאר מחוץ לריפו.
 """
 import csv
@@ -25,6 +29,7 @@ import sys
 import time
 import urllib.request
 import urllib.error
+import urllib.parse
 from datetime import datetime, timezone, timedelta
 
 UA = 'Mozilla/5.0 (X11; Linux x86_64) chart-deep-audit/1.0'
@@ -182,6 +187,132 @@ def cmd_fx(a):
     print('boi USDILS', save(out, 'boi', 'USDILS', '1d', bars, tz='Asia/Jerusalem', conv='fix-rep', adj='none', vol='none', ext=''))
 
 
+# ---------------------------------------------------------------- מניות
+def nyd(t):
+    """תאריך הנר (YYYY-MM-DD) לפי ניו יורק — מפתח ההשוואה ביומי ומעלה"""
+    from zoneinfo import ZoneInfo
+    return datetime.fromtimestamp(t, ZoneInfo('America/New_York')).strftime('%Y-%m-%d')
+
+
+def day_t(ds):
+    """'YYYY-MM-DD' → חצות UTC של התאריך (conv='date': התווית היא התאריך, לא רגע)"""
+    return int(datetime.strptime(ds[:10], '%Y-%m-%d').replace(tzinfo=timezone.utc).timestamp())
+
+
+WB = 'https://quotes-gw.webullfintech.com/api'
+WB_TYPE = {'1d': 'd1', '1wk': 'w1', '1mo': 'mth1'}
+
+
+def wb_id(out, sym):
+    f = os.path.join(out, 'src', 'webull', 'ids.json')
+    ids = json.load(open(f)) if os.path.exists(f) else {}
+    if sym in ids:
+        return ids[sym]
+    want = sym.replace('-', '.')   # BRK-B → BRK.B
+    j = json.loads(get(WB + '/search/pc/tickers?keyword=%s&pageIndex=1&pageSize=20' % urllib.parse.quote(want), pause=1.0))
+    hit = [x for x in j.get('data', []) if x.get('symbol') == want and x.get('regionCode') == 'US']
+    ids[sym] = hit[0]['tickerId'] if hit else None
+    os.makedirs(os.path.dirname(f), exist_ok=True)
+    json.dump(ids, open(f, 'w'))
+    return ids[sym]
+
+
+def webull(tid, iv, rt, pages=14):
+    """rt=0 גולמי, rt=1 מותאם פיצול+דיבידנד. שורה: t,o,c,h,l,סגירה_קודמת,v,vwap; מהחדש לישן; t = חצות ניו יורק של היום"""
+    out, ts = [], int(time.time())
+    for _ in range(pages):
+        u = WB + '/quote/charts/query?tickerIds=%s&type=%s&count=800&restorationType=%d&loadFactor=1&extendTrading=0&timestamp=%d' % (tid, WB_TYPE[iv], rt, ts)
+        j = json.loads(get(u, pause=1.2))
+        rows = (j[0].get('data') if j else None) or []
+        n0 = len(out)
+        for r in rows:
+            f = r.split(',')
+            if 'null' in f[:5]:
+                continue
+            t = int(f[0])
+            out.append([day_t(nyd(t)), float(f[1]), float(f[3]), float(f[4]), float(f[2]), float(f[6]) if f[6] != 'null' else 0.0])
+        if not rows or len(out) == n0 or not (j[0].get('hasMore')):
+            break
+        ts = min(int(r.split(',')[0]) for r in rows) - 1
+    return out
+
+
+TD_IV = {'1m': '1min', '5m': '5min', '15m': '15min', '30m': '30min', '45m': '45min', '1h': '1h', '2h': '2h', '4h': '4h',
+         '1d': '1day', '1wk': '1week', '1mo': '1month'}
+
+
+def twelvedata(sym, iv, pages):
+    """מפתח ההדגמה (AAPL בלבד): עד 5000 נרות לבקשה, 8 בקשות לדקה. timezone=UTC → תוך־יומי = תחילת הנר ב־UTC; יומי ומעלה = תאריך"""
+    out, end = [], None
+    for _ in range(pages):
+        u = 'https://api.twelvedata.com/time_series?symbol=%s&interval=%s&outputsize=5000&apikey=demo&timezone=UTC&order=DESC' % (sym, TD_IV[iv])
+        if end:
+            u += '&end_date=' + urllib.parse.quote(end)
+        j = json.loads(get(u, pause=8.6))
+        if j.get('status') != 'ok':
+            raise RuntimeError(str(j.get('message', j))[:160])
+        vals = j.get('values') or []
+        for x in vals:
+            d = x['datetime']
+            t = day_t(d) if len(d) == 10 else int(datetime.strptime(d, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc).timestamp())
+            out.append([t, float(x['open']), float(x['high']), float(x['low']), float(x['close']), float(x.get('volume') or 0)])
+        if len(vals) < 5000:
+            break
+        end = vals[-1]['datetime']
+    return out
+
+
+EOD_SYM = {'AAPL': 'AAPL.US', 'TSLA': 'TSLA.US', 'AMZN': 'AMZN.US', 'VTI': 'VTI.US', 'BTC-USD': 'BTC-USD.CC', 'EURUSD=X': 'EURUSD.FOREX'}
+
+
+def eodhd(sym, iv, days):
+    """מפתח ההדגמה. תוך־יומי: datetime ב־UTC = תחילת הנר (דקה כולל טרום/אחרי). יומי: מחיר גולמי, נפח מותאם פיצול, adjusted_close בנפרד"""
+    s = EOD_SYM[sym]
+    now = int(time.time())
+    if iv == '1d':
+        j = json.loads(get('https://eodhd.com/api/eod/%s?from=1980-01-01&api_token=demo&fmt=json' % s, pause=1.0))
+        return [[day_t(x['date']), x['open'], x['high'], x['low'], x['close'], x.get('volume') or 0] for x in j if x.get('close')]
+    j = json.loads(get('https://eodhd.com/api/intraday/%s?interval=%s&from=%d&to=%d&api_token=demo&fmt=json' % (s, iv, now - days * DAY, now), pause=1.0))
+    return [[int(x['timestamp']), x['open'], x['high'], x['low'], x['close'], x.get('volume') or 0] for x in j if x.get('close') is not None]
+
+
+def cmd_stocks(a):
+    out = a['out']
+    srcs = a.get('src', 'webull,twelvedata,eodhd').split(',')
+    for sym in a['syms'].split(','):
+        if 'webull' in srcs and not sym.startswith('^') and '.' not in sym and '=' not in sym:
+            try:
+                tid = wb_id(out, sym)
+                if tid:
+                    for iv in ('1d', '1wk', '1mo'):
+                        for rt, name in ((0, 'webull'), (1, 'webull-adj')):
+                            if rt and iv != '1d':
+                                continue
+                            n = save(out, name, sym, iv, webull(tid, iv, rt), tz='America/New_York', conv='date', adj='none' if rt == 0 else 'split+div',
+                                     vol='consolidated', ext='rth')
+                            print(name, sym, iv, n)
+                else:
+                    print('webull', sym, 'לא נמצא')
+            except Exception as e:
+                print('webull', sym, 'שגיאה:', e)
+        if 'twelvedata' in srcs and sym == 'AAPL':
+            for iv, pages in (('1m', 3), ('5m', 1), ('15m', 1), ('30m', 1), ('45m', 1), ('1h', 1), ('2h', 1), ('4h', 1), ('1d', 2), ('1wk', 1), ('1mo', 1)):
+                try:
+                    n = save(out, 'twelvedata', sym, iv, twelvedata(sym, iv, pages), tz='UTC', conv='date' if iv in ('1d', '1wk', '1mo') else 'start',
+                             adj='split', vol='?', ext='rth')
+                    print('twelvedata', sym, iv, n)
+                except Exception as e:
+                    print('twelvedata', sym, iv, 'שגיאה:', e)
+        if 'eodhd' in srcs and sym in EOD_SYM:
+            for iv, days in (('1m', 30), ('5m', 60), ('1h', 730), ('1d', 0)):
+                try:
+                    n = save(out, 'eodhd', sym, iv, eodhd(sym, iv, days), tz='UTC', conv='date' if iv == '1d' else 'start',
+                             adj='none' if iv == '1d' else 'split', vol='?', ext='ext' if iv == '1m' else '?')
+                    print('eodhd', sym, iv, n)
+                except Exception as e:
+                    print('eodhd', sym, iv, 'שגיאה:', e)
+
+
 def parse_args(argv):
     a = {'cmd': argv[0] if argv else ''}
     i = 1
@@ -194,4 +325,4 @@ def parse_args(argv):
 
 if __name__ == '__main__':
     A = parse_args(sys.argv[1:])
-    {'crypto': cmd_crypto, 'fx': cmd_fx}[A['cmd']](A)
+    {'crypto': cmd_crypto, 'fx': cmd_fx, 'stocks': cmd_stocks}[A['cmd']](A)
