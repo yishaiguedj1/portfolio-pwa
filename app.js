@@ -6610,7 +6610,7 @@ function ackMoney(v, signed) {
   return ltrNum((v < 0 ? '−' : signed && v > 0 ? '+' : '') + fmtUSD(Math.abs(v)));
 }
 /* 16/11/2026: שורות שאינן מניה ברשימות של הדמו — זכויות/כתבי אופציה (SEG-RT) ונייר בלי סימבול (CUSIP-) */
-function ackSkip(sym) { return /^CUSIP-|-(RT|WS|WT)$/.test(String(sym || '')); }
+function ackSkip(sym) { const s = String(sym || ''); return /^CUSIP-/.test(s) || /-(?:RT|WS|WT)$/.test(s); }
 function ackShares(n) { return ltrNum(fmtQty(Math.round(Math.abs(+n || 0)))); }
 
 /* מה השתנה ברבעון (d של הספר: [סימבול, לפני, אחרי] — אחרי ספליטים וספינאופים, כך שהם לא נראים כקנייה). טהורה, נבדקת.
