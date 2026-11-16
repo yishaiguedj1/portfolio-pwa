@@ -666,6 +666,7 @@ he: {
   anSources: 'מקורות: {s} · {d}',
   anFillNote: 'הושלם מ־Yahoo: {k}',
   anFxNote: 'המחיר הומר ל־{c} (מטבע הדוחות)',
+  anFxMix: 'הדוחות ב־{c} והמחיר בדולר — בלי מכפילים ושווי שוק (עדיין אין המרה)',
   anIndustry: 'ענף',
   anIndMarket: 'השוק כולו',
   anSrcBaseNorm: 'מנורמל: {m} מההכנסות, החציון של {n} שנים (12 החודשים האחרונים חריגים)',
@@ -2559,6 +2560,7 @@ en: {
   anSources: 'Sources: {s} · {d}',
   anFillNote: 'Filled from Yahoo: {k}',
   anFxNote: 'Price converted to {c} (the reporting currency)',
+  anFxMix: 'Reports in {c}, price in USD — no multiples or market cap (no conversion yet)',
   anIndustry: 'Industry',
   anIndMarket: 'Whole market',
   anSrcBaseNorm: 'Normalized: {m} of revenue, the median of {n} years (the last 12 months are unusual)',
@@ -8149,7 +8151,7 @@ function stripLegacyDemo(db) {
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
 const APP_RELEASE = '2.157.0';
-const APP_VERSION = 'v788';
+const APP_VERSION = 'v789';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
