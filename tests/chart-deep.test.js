@@ -48,6 +48,10 @@ process.env.CHART_DEEP_BACKOFF = '5';
   const st = execFileSync('python3', ['-I', path.join(T, 'compare.py'), '--selftest'], { encoding: 'utf8' });
   ok(/selftest: תקין/.test(st), 'compare: בדיקה עצמית');
 
+  /* ---------- ind.py (גל 5): המחוונים לפי ההגדרות המקובלות — בדיקה עצמית על דוגמאות שחושבו ביד ---------- */
+  const it = execFileSync('python3', ['-I', path.join(T, 'ind.py'), '--selftest'], { encoding: 'utf8' });
+  ok(/selftest: כל הבדיקות עברו/.test(it), 'ind: בדיקה עצמית');
+
   /* ---------- sources.py: מפתח יומי ושמירה בלי כפילויות ---------- */
   const py = execFileSync('python3', ['-I', '-c', [
     'import sys, json, os', 'sys.path.insert(0, sys.argv[1])', 'import sources as S',
@@ -91,7 +95,7 @@ process.env.CHART_DEEP_BACKOFF = '5';
   ok(kc.same === 1 && kc.onlyShown === 1 && kc.onlyModel === 1 && kc.near.shown.length === 2, 'kcverify: השוואה — זהים, רק במסך, רק במודל, וסביבת ההבדל');
 
   /* ---------- היגיינה: בלי מפתחות, בלי שם מוצר הייחוס ---------- */
-  const all = ['snap.js', 'model.js', 'sources.py', 'compare.py', 'live.js', 'livecheck.js', 'kcverify.js'].map((f) => fs.readFileSync(path.join(T, f), 'utf8')).join('\n');
+  const all = ['snap.js', 'model.js', 'sources.py', 'compare.py', 'live.js', 'livecheck.js', 'kcverify.js', 'ind.py'].map((f) => fs.readFileSync(path.join(T, f), 'utf8')).join('\n');
   ok(!/api_token=(?!demo)[A-Za-z0-9]{6,}|apikey=(?!demo)[A-Za-z0-9]{6,}/.test(all), 'אין מפתח אמיתי בכלים (רק מפתחות ההדגמה הציבוריים)');
 
   fs.rmSync(tmp, { recursive: true, force: true });
