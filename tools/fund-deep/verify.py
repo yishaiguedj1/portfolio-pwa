@@ -78,8 +78,9 @@ MET = {
                 lab=r'net cash.{0,30}operating activities|cash (generated|provided) by operating'),
     'capex': dict(st=('CF',), kind='flow', u='money', tags=[
         'PaymentsToAcquirePropertyPlantAndEquipment', 'PaymentsToAcquireProductiveAssets', 'PaymentsForCapitalImprovements',
-        'PaymentsToAcquireOtherPropertyPlantAndEquipment', 'PaymentsToAcquireAndDevelopRealEstate', 'PaymentsToDevelopRealEstateAssets'],
-        lab=r'(purchases?|acquisitions?|additions?|payments?) (of|to|for) (property|plant|premises|fixed assets)|capital expenditures'),
+        'PaymentsToAcquireOtherPropertyPlantAndEquipment', 'PaymentsToAcquireAndDevelopRealEstate', 'PaymentsToDevelopRealEstateAssets',
+        'PaymentsForConstructionInProcess'],  # AEP: "Construction Expenditures"
+        lab=r'(purchases?|acquisitions?|additions?|payments?) (of|to|for) (property|plant|premises|fixed assets)|capital expenditures|construction expenditures'),
     'sbc': dict(st=('CF',), kind='flow', u='money', tags=['ShareBasedCompensation', 'AllocatedShareBasedCompensationExpense'],
                 lab=r'(share|stock|equity)[- ]based (compensation|awards)'),
     'dep': dict(st=('CF',), kind='flow', u='money', tags=['DepreciationDepletionAndAmortization', 'DepreciationAmortizationAndAccretionNet',
@@ -168,7 +169,10 @@ def unit_ok(m, uom, cur):
 
 
 # ---------------------------------------------------------------- פיצולים — מתוך הדוחות עצמם (בלתי תלוי ב־Yahoo)
-SIMPLE = sorted({a / b for a in range(1, 41) for b in range(1, 41) if 0.02 <= a / b <= 50 and abs(a / b - 1) > 0.3})
+# יחסי פיצול אמיתיים בלבד: שלמים (2:1 … 50:1), איחוד (1:k) ושברים נפוצים (3:2, 5:4, 4:3). עד 16/11/2026 — כל שבר a/b עד 40,
+# והצגה מחדש (רווח למניה אחרי פעילות שנמכרה, תקן חדש) זוהתה כ"פיצול": Salesforce 2018 ‏9/28, ‏GE ‏7/5 ו־29/17 — פערים מדומים
+_K = (2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 25, 30, 40, 50)
+SIMPLE = sorted({float(k) for k in _K} | {1 / k for k in _K} | {1.5, 2 / 3, 1.25, 0.8, 4 / 3, 0.75})
 
 
 def near_simple(r):
@@ -194,17 +198,21 @@ def splits_from(rows):
             r = v2 / v1 if tag in SH_TAGS else v1 / v2
             k = near_simple(r) if (r > 1.3 or r < 0.77) else None
             if k:
-                obs.append((f1, f2, k))
+                obs.append((f1, f2, k, tag in SH_TAGS))
     # אשכול: אותו k, חלונות חופפים
     out = []
-    for f1, f2, k in sorted(obs, key=lambda x: (x[1], x[0])):
+    for f1, f2, k, sh in sorted(obs, key=lambda x: (x[1], x[0])):
         hit = next((o for o in out if o[2] == k and f1 < o[1] and f2 > o[0]), None)
         if hit:
             hit[0], hit[1] = max(hit[0], f1), min(hit[1], f2)
             hit[3] += 1
+            hit[4] += sh
         else:
-            out.append([f1, f2, k, 1])
-    return [tuple(o) for o in out if o[3] >= 2 or len(obs) <= 2]
+            out.append([f1, f2, k, 1, int(sh)])
+    # מספר המניות — שתי תצפיות; רק מרווח למניה (GE: המניות לא בדוח הרווח) — שלוש, ויחס שלם בלבד: רווח למניה משתנה גם בהצגה
+    # מחדש (פעילות שנמכרה, תקן חדש) ביחסים כמו 1/3 (Salesforce 2018) או 7/5 (GE)
+    whole = {float(k) for k in _K} | {1 / k for k in _K}
+    return [tuple(o[:4]) for o in out if o[4] >= 2 or (o[3] >= 3 and o[2] in whole)]
 
 
 def factor_after(splits, filed):
@@ -417,6 +425,21 @@ class Co:
                         out.setdefault(round(self.pr.adj(m, f, v), 6), []).append(f)
         return out
 
+    def capex_sums(self, ddate, qtrs):
+        """השקעה הונית = כל שורות ההשקעה בתזרים של אותה הגשה (Mastercard: רכוש קבוע + תוכנה מהוונת; Deere/Caterpillar: + ציוד
+        להשכרה) — כמו בשרתון. שורת "Acquisitions of …" (רכישת נכסים קיימים — AEP) רק כשאין שורה אחרת. [(filed, סכום, תגיות)]"""
+        by = {}
+        for c in self.pr.cands('capex', ddate, qtrs, self.cur):
+            by.setdefault(c[1], {})[c[4]] = (c[3], abs(c[6]), c[5])
+        out = []
+        for adsh, d in by.items():
+            if len(d) < 2:
+                continue
+            keep = {t: x for t, x in d.items() if not re.match(r'^\s*acquisitions?\s+of\b', x[2] or '', re.I)} or d
+            for dd in ([keep, d] if len(keep) < len(d) else [d]):
+                out.append((max(x[0] for x in dd.values()), sum(x[1] for x in dd.values()), '+'.join(sorted(dd))))
+        return out
+
     def prev_q(self, j):
         """הרבעון הקודם ברשימה — רק כשהוא באמת 75–105 יום לפני"""
         q = self.ends['q']
@@ -513,6 +536,19 @@ class Co:
             rec['verdict'] = 'OLD' if (exp and a[0] == exp[0] and exp[3] > a[3]) else 'ALT'
             rec['why'] = 'שווה ל־%s "%s" (%s %s)%s' % (a[4], a[5], a[2], a[3], '; המועדף: %s %s %s = %s' % (exp[4], exp[2], exp[3], exp[6]) if exp else '')
             return self.add(**rec)
+        if m == 'capex':
+            sm = self.capex_sums(ddate, qtrs)
+            hit = next((w for f, x, w in sm if same(abs(ours), x, u)), None)
+            if not hit and mode == 'q':
+                pe = self.prev_q(j)
+                for k in (2, 3, 4):
+                    if hit or not pe:
+                        break
+                    A, B = self.capex_sums(ddate, k), self.capex_sums(me(pe), k - 1)
+                    hit = next(('מצטבר %d − %d של %s' % (k, k - 1, wa) for fa, a, wa in A for fb, b, wb in B if wa == wb and same(abs(ours), a - b, u)), None)
+            if hit:
+                rec['verdict'], rec['why'] = 'DER', 'סכום שורות ההשקעה ההונית בתזרים: ' + hit
+                return self.add(**rec)
         if mode == 'q' and kind == 'flow':
             for src, tagv in (('fs', 'DER'), ('cf', 'DERCF')):
                 y = self.ytd(m, j, src)
