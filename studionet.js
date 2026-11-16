@@ -70,7 +70,7 @@ export function glUpsert(rows, add) {
   return out;
 }
 
-/* זמן משוער לכל שלב, בשניות. מהתוכנית: ראיון של 77 דק׳ ב־Opus 5.5 · Medium = תמלול 8, יישור 5, תרגום 50, בדיקה 12,
+/* זמן משוער לכל שלב, בשניות. מהתוכנית: ראיון של 77 דק׳ במצב הבדיקה היקר (lab4) = תמלול 8, יישור 5, תרגום 50, בדיקה 12,
    צריבה 23, שמירה 3 דקות. כלומר דקות עבודה לכל דקת סרטון. התרגום והבדיקה גדלים/קטנים לפי המצב (min של המצב מול 105 של
    המומלץ); השאר לא תלוי במצב. ההעלאה נמדדת בטלפון. כשהעבודות האמיתיות יצטברו — הקצב יכויל מהן (שלב 3). */
 const RATE = { tr: 8 / 77, al: 5 / 77, tl: 50 / 77, rv: 12 / 77, bn: 23 / 77, sv: 3 / 77 };
@@ -168,9 +168,9 @@ export function viPlan(pl, durSec, dry) {
 }
 /* 10/11/2026 (PR 1.5א): עלות Claude לשעת הרצאה לפי מצב ושפה [אנגלית, עברית] — 5.4 בתוכנית (מחקר 3.5, מיידי). הערכה עד שיש
    20 רשומות למידה של vi (5.1 — אז השרתון יחשב מהחציון). לאומדן בטופס ובבורר בלבד; התקרה — cap ו־SNB_JOB_CAP_USD בשרתון */
-export const VI_USD_H = { 'haiku-medium': [0.034, 0.051], 'haiku-high': [0.037, 0.054], 'sonnet-low': [0.45, 0.64], 'sonnet-medium': [0.58, 0.76], 'sonnet-high': [0.63, 0.82], 'opus-medium': [1.15, 1.52] };
+export const VI_USD_H = { std: [0.034, 0.051], perf: [0.037, 0.054], lab1: [0.45, 0.64], lab2: [0.58, 0.76], lab3: [0.63, 0.82], lab4: [1.15, 1.52] };   // לפי קוד (16/11/2026)
 // 10/11/2026 (PR 1.2א): "אוטומטי" (או שפה לא ידועה) — לפי עברית, היקרה מבין השתיים
-export const viUsd = (mode, lang, durSec) => (VI_USD_H[mode] || VI_USD_H['haiku-medium'])[lang === 'en' ? 0 : 1] * Math.max(0, Number(durSec) || 0) / 3600;
+export const viUsd = (mode, lang, durSec) => (VI_USD_H[mode] || VI_USD_H.std)[lang === 'en' ? 0 : 1] * Math.max(0, Number(durSec) || 0) / 3600;
 export function progressModel(job, est, up, now, q) {
   const prog = (job && job.prog) || {};
   const stg = prog.stg || {};

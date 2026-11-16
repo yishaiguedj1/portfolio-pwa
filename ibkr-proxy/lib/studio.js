@@ -858,6 +858,13 @@ function extVideoOk(meta) {
   return /^video\//.test(mt) || ((mt === 'application/octet-stream' || mt === '') && EXT_VIDEO_RE.test(String(meta.name || '')));
 }
 /* מה הטלפון רואה — בלי המפתח (גם לא ה־hash) */
+/* 16/11/2026: "סוכן־משנה רץ על מודל אחר מהמצב שבחרת" — עד היום הטלפון השווה את משפחת המודל לשם המצב; עכשיו הטלפון מכיר רק
+   קודים (lib/modecode.js), אז השרתון מסמן את השורה (of: 1). הטלפון מציג את האזהרה רק למנהל */
+function useOff(use, mode) {
+  if (!Array.isArray(use)) return null;
+  const fam = MODES.includes(mode) ? mode.split('-')[0] : '';
+  return use.map((r) => (fam && r && (r.k === 'tl' || r.k === 'rv') && typeof r.m === 'string' && r.m.indexOf('claude-' + fam + '-') !== 0 ? Object.assign({}, r, { of: 1 }) : r));
+}
 function publicJob(job, now) {
   const e = effState(job, now);
   return {
@@ -868,7 +875,7 @@ function publicJob(job, now) {
     rp: job.rp || '', ev: job.ev || 0, vh: Array.isArray(job.vh) ? job.vh.map((x) => (x && x.at) || 0) : [], vc: Array.isArray(job.vh) ? job.vh.map((x) => (x && FILE_ID_RE.test(String(x.c || '')) ? x.c : '')) : [],   /* C4 (2/11/2026): קובץ הכתוביות של כל גרסה — להשוואה בטלפון */   // מ2: הפקה מחדש (העבודה המקורית), גרסת הכתוביות, מתי נשמרה כל גרסה קודמת
     sess: job.sess && job.sess.url ? { url: job.sess.url } : null,
     prog: job.prog || null, ed: job.ed || '',
-    use: Array.isArray(job.use) ? job.use : Array.isArray(job.use0) ? job.use0 : null,   // v359: טוקנים ועלות (v361: כולל סשנים קודמים)
+    use: useOff(Array.isArray(job.use) ? job.use : Array.isArray(job.use0) ? job.use0 : null, job.spec && job.spec.mode),   // v359: טוקנים ועלות (v361: כולל סשנים קודמים)
     qa: job.qa && job.qa.id ? job.qa : null,        // שאלה מ־Claude (והתשובה, אם כבר ענית)
     cp: cpView(job.cp),                             // סבב 10: העתק־הדבק — בקשה שמחכה לתשובה שלך
     ck: lastCk(job.ck) ? { s: lastCk(job.ck).s, at: lastCk(job.ck).at || 0 } : null,   // v361: נקודת השמירה האחרונה

@@ -246,6 +246,7 @@ function learnRec(job, now, effState) {
     st: e.st, err: e.err,
     eng: job.eng === 'api' || sp.eng === 'api' ? 'api' : 'sub', cp: sp.cp === 1 ? 1 : 0,
     mode: MODES.includes(sp.mode) ? sp.mode : String(sp.mode || '').replace(/[^a-z0-9-]/g, '').slice(0, 20),
+    tier: require('./modecode').codeOf(sp.mode),   // 16/11/2026: מה המשתמש ראה ("רגיל" std / "ביצועים" perf / lab…) — המיפוי לפנימי נשמר גם אם ישתנה
     from: /^[a-z]{2,4}$/.test(String(sp.from || '')) ? sp.from : 'auto', to: Array.isArray(sp.to) ? sp.to.filter((x) => /^[a-z]{2,3}$/.test(x)).slice(0, 12) : [],
     dur, mb: isNum(sp.size) ? Math.round(sp.size / 1048576) : 0, type: /^[a-z0-9.+/-]{1,40}$/.test(String(sp.type || '')) ? sp.type : '',
     out: Array.isArray(sp.out) ? sp.out.filter((x) => /^[a-z]{2,10}$/.test(x)).slice(0, 6) : [], style: /^[a-z]{2,12}$/.test(String(sp.style || '')) ? sp.style : '',
@@ -410,7 +411,8 @@ function learnViRec(job, now, effState) {
   const vq = job.gs ? viC().normVq(job.vq) : null;
   const gx = job.gs ? Object.assign(Number.isInteger(job.wa) && job.wa >= 0 && job.wa < 8 ? { wa: job.wa } : {}, vq ? { vq } : {}) : {};
   return Object.assign({ v: LR_V, k: 'vi', id, at: dayOf(job.created), m: monthOf(job.created), st: e.st, err: e.err, eng: 'api',
-    dur: isNum(f.dur_s) ? f.dur_s : 0, pr: priced(use) ? 1 : 0 }, f, gx, { ux: normUx(job.ux) });
+    dur: isNum(f.dur_s) ? f.dur_s : 0, pr: priced(use) ? 1 : 0 }, f, gx, { ux: normUx(job.ux) },
+    sp.mode ? { tier: require('./modecode').codeOf(sp.mode) } : {});   // 16/11/2026: הקוד שהמשתמש ראה, לצד המצב הפנימי
 }
 /* טביעה — כתיבה רק כשמשהו השתנה */
 const recHash = (rec) => crypto.createHash('sha1').update(JSON.stringify(rec)).digest('hex').slice(0, 16);
