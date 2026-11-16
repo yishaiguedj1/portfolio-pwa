@@ -22,6 +22,7 @@
 """
 import argparse
 import calendar
+import csv
 import datetime as dt
 import gzip
 import json
@@ -112,6 +113,11 @@ DEBT_NC = ['LongTermDebtNoncurrent', 'LongTermDebtAndCapitalLeaseObligationsNonc
 DEBT_C = ['LongTermDebtCurrent', 'LongTermDebtAndCapitalLeaseObligationsCurrent', 'DebtCurrent', 'OtherLongTermDebtCurrent',
           'ConvertibleNotesPayableCurrent', 'SeniorNotesCurrent']
 DEBT_ST = ['CommercialPaper', 'ShortTermBorrowings', 'OtherShortTermBorrowings', 'ShortTermBankLoansAndNotesPayable', 'BankOverdrafts']
+DEBT_RE = re.compile(r'borrowing|commercial paper|notes payable|\bdebt\b|loans? payable|bank loans?|credit facilit|senior (unsecured )?notes|convertible (senior )?notes|debentures|bonds payable|term loan|current (portion|maturities) of long|LongTermDebt|ShortTermBorrowings|CommercialPaper|NotesPayable|Debt(Current|Noncurrent)', re.I)
+DEBT_EXCL = re.compile(r'operating lease|interest payable|accrued|accounts payable|deferred|debt securities|held.for.sale|derivative|due to (related|affiliat)|guarantee|total liabilities|liabilities of|customer|deposits|payable to|insurance|policy|unearned|pension|tax|dividend|issuance cost', re.I)
+LEASE_RE = re.compile(r'finance lease|capital lease', re.I)
+ST_RE = re.compile(r'short.?term (borrowings|debt|notes|loans)|commercial paper|notes payable|bank (loans|overdraft)|loans payable|(?<!long.term )borrowings(?! .*long)', re.I)
+CUR_RE = re.compile(r'current (portion|maturities)|due within one year|currently due|current$|, current', re.I)
 LEASE_FIN = ['FinanceLeaseLiabilityNoncurrent', 'FinanceLeaseLiabilityCurrent', 'FinanceLeaseLiability', 'CapitalLeaseObligationsNoncurrent', 'CapitalLeaseObligationsCurrent']
 
 TOL_PS = 0.0051
@@ -374,6 +380,7 @@ def nq_same(a, b):
 
 
 # ---------------------------------------------------------------- האימות עצמו
+DEBT_ALL = set(DEBT_TOTAL + DEBT_NC + DEBT_C + DEBT_ST)
 LTD_NC_LAB = re.compile(r'less current|net of current|non-?current|excluding current|long-term portion', re.I)
 
 
@@ -384,6 +391,12 @@ class Co:
         self.cur = disp.get('cur') or 'USD'
         self.ends = {'fy': disp['raw']['fyE'], 'q': disp['raw']['q']}
         self.res = []
+        # מה שהשרתון עצמו סימן לכל ערך (checks): cx0 = אין שורת השקעות הוניות בדוח (0 במכוון); qsh/qeps = רבעון שלא הודפס
+        # ב־10-Q/10-K והוחלף במה שהחברה פרסמה (דרך Yahoo); fill = השלמה שנתית מ־Yahoo (כל המדד)
+        self.flag = {}
+        for c in (snap or {}).get('checks') or []:
+            self.flag.setdefault((c.get('m'), c.get('p')), set()).add(c.get('k'))
+        self.fill = set((snap or {}).get('fill') or [])
 
     def add(self, **k):
         self.res.append(k)
@@ -409,26 +422,28 @@ class Co:
         return q[j - 1] if 75 <= d <= 125 else None  # רבעון של 12–17 שבועות (Costco: רבעון רביעי של 16; Kroger: ראשון של 16)
 
     def ytd(self, m, j, src):
-        """רבעון מתוך מצטברים: כל הזוגות (מצטבר k של הרבעון) − (מצטבר k−1 של הרבעון הקודם). [(ערך, הסבר)]"""
+        """רבעון מתוך מצטברים: כל הזוגות (מצטבר k של הרבעון) − (מצטבר k−1 של הרבעון הקודם). [(ערך, הסבר)]
+        סוף הרבעון הקודם: מהרשימה במסך, ואם אין (הרבעון הראשון בחלון / רבעון חסר) — סופי חודש 3–4 חודשים לפני (12–17 שבועות)"""
         e, pe = self.ends['q'][j], self.prev_q(j)
-        if not pe:
-            return []
+        ed = dt.date.fromisoformat(e)
+        pes = [me(pe)] if pe else sorted({me((ed - dt.timedelta(days=d)).isoformat()) for d in (84, 91, 112, 119)})
         for k in (2, 3, 4):
-            if src == 'fs':
-                A = [(c[3], c[6], c[2]) for c in self.pr.cands(m, me(e), k, self.cur)]
-                B = [(c[3], c[6], c[2]) for c in self.pr.cands(m, me(pe), k - 1, self.cur)]
-            else:
-                A = [(f, v, 'cf') for v, fl in self.cf_vals(m, me(e), k).items() for f in fl]
-                B = [(f, v, 'cf') for v, fl in self.cf_vals(m, me(pe), k - 1).items() for f in fl]
-            if A and B:
-                out, seen = [], set()
-                for fa, va, ta in A:
-                    for fb, vb, tb in B:
-                        x = round(va - vb, 6)
-                        if x not in seen:
-                            seen.add(x)
-                            out.append((x, 'מצטבר %d − %d (%s %s / %s %s)' % (k, k - 1, ta, fa, tb, fb)))
-                return out
+            for pm in pes:
+                if src == 'fs':
+                    A = [(c[3], c[6], c[2]) for c in self.pr.cands(m, me(e), k, self.cur)]
+                    B = [(c[3], c[6], c[2]) for c in self.pr.cands(m, pm, k - 1, self.cur)]
+                else:
+                    A = [(f, v, 'cf') for v, fl in self.cf_vals(m, me(e), k).items() for f in fl]
+                    B = [(f, v, 'cf') for v, fl in self.cf_vals(m, pm, k - 1).items() for f in fl]
+                if A and B:
+                    out, seen = [], set()
+                    for fa, va, ta in A:
+                        for fb, vb, tb in B:
+                            x = round(va - vb, 6)
+                            if x not in seen:
+                                seen.add(x)
+                                out.append((x, 'מצטבר %d − %d (%s %s / %s %s)' % (k, k - 1, ta, fa, tb, fb)))
+                    return out
         return []
 
     def gp_cands(self, mode, j, e, qtrs):
@@ -522,6 +537,15 @@ class Co:
             rec['verdict'] = 'ALTCF' if c else 'NOFACE'
             rec['why'] = ('בדוח מודפס %s; שלנו = companyfacts (ביאור)' % (sorted({(x[4], x[6]) for x in c})[:3],)) if c else 'לא בדוחות עצמם; שווה ל־companyfacts'
             return self.add(**rec)
+        fl = self.flag.get((m, e), set())
+        if m == 'capex' and ours == 0 and 'cx0' in fl and not c:
+            rec['verdict'], rec['why'] = 'CX0', 'השרתון: אין שורת השקעות הוניות בדוח (cx0) — ואכן אין בדוח המודפס'
+            return self.add(**rec)
+        if fl & {'qsh', 'qeps'} and not c:
+            rec['verdict'], rec['why'] = 'PUB', 'רבעון שלא הודפס בדוח: הערך שהחברה פרסמה (השרתון, דרך Yahoo; %s) — לאימות מול ההודעה לעיתונות' % ','.join(sorted(fl))
+            return self.add(**rec)
+        if m in self.fill and mode == 'fy':
+            rec['fill'] = 1  # השלמה שנתית מ־Yahoo
         if not c and not cfv and not rec.get('ytd'):
             rec['verdict'] = 'EXTRA'
             return self.add(**rec)
@@ -538,32 +562,68 @@ class Co:
             for j, e in enumerate(self.ends[mode]):
                 self.judge(m, mode, j, e, vals[j] if j < len(vals) else None)
 
+    def face_debt(self, rows):
+        """החוב כפי שהוא במאזן המודפס של הגשה אחת — לפי השורות עצמן (גם תגיות של החברה: Caterpillar מפרידה מכונות/מימון).
+        חוב = הלוואות קצרות / ניירות ערך מסחריים (st) + חלויות שוטפות (cur) + חוב לזמן ארוך (nc); חכירה מימונית בנפרד (lease).
+        השורות: רק בצד ההתחייבויות (אחרי שורת סך הנכסים); שוטף/לא שוטף — לפי המיקום מול "סך התחייבויות שוטפות";
+        שורת סכום־ביניים (שווה לסכום השורות שלפניה) — לא נספרת פעמיים. מחזיר (סכום, {סוג: סכום}, [(סוג, תווית, ערך)])"""
+        rows = sorted(rows, key=lambda r: (r[14] or 0, r[5]))
+        ln = {r[6]: (r[14] or 0, r[5]) for r in rows}
+        a0 = ln.get('Assets')
+        lc = ln.get('LiabilitiesCurrent')
+        parts, used = [], []
+        for r in rows:
+            tag, lab, val, pos = r[6], (r[7] or ''), r[11], (r[14] or 0, r[5])
+            if a0 and pos <= a0:
+                continue
+            txt = tag + ' ' + lab
+            if DEBT_EXCL.search(txt) and tag not in DEBT_ALL:
+                continue
+            if tag in LEASE_FIN or (LEASE_RE.search(lab) and not DEBT_RE.search(re.sub(LEASE_RE, '', lab))):
+                kind = 'lease'
+            elif tag in DEBT_ALL or DEBT_RE.search(txt):
+                if tag in DEBT_ST or ST_RE.search(lab):
+                    kind = 'st'
+                elif tag in DEBT_C or CUR_RE.search(lab):
+                    kind = 'cur'
+                elif lc and pos < lc:
+                    kind = 'cur'  # בתוך ההתחייבויות השוטפות
+                else:
+                    kind = 'nc'
+            else:
+                continue
+            # סכום־ביניים: שווה לסכום 2+ השורות האחרונות שנספרו
+            acc, sub = 0, False
+            for k in range(len(used) - 1, -1, -1):
+                acc += used[k][2]
+                if len(used) - k >= 2 and abs(acc - val) <= max(1e6, 1e-4 * abs(val)):
+                    sub = True
+                    break
+            if sub:
+                continue
+            used.append((kind, lab, val))
+        S = {}
+        for kind, lab, val in used:
+            S[kind] = S.get(kind, 0) + val
+        tot = S.get('st', 0) + S.get('cur', 0) + S.get('nc', 0)
+        return (tot if any(k in S for k in ('st', 'cur', 'nc')) else None), S, used
+
     def check_debt(self, mode):
-        """חוב: מורכב משורות — מחושב מחדש מהמאזן המודפס של כל הגשה בנפרד, לפי ההגדרה של המסך"""
+        """חוב: מורכב משורות — מחושב מחדש מהמאזן המודפס של כל הגשה בנפרד (face_debt), ומאובחן: איזה צירוף של הרכיבים = שלנו"""
         arr = (self.d['raw']['A'] if mode == 'fy' else self.d['raw']['Q']).get('debt') or []
-        ALL = DEBT_TOTAL + DEBT_NC + DEBT_C + DEBT_ST + LEASE_FIN
         for j, e in enumerate(self.ends[mode]):
             ours = arr[j] if j < len(arr) else None
             ddate = me(e)
             byf = {}
             for r in self.pr.by.get((ddate, 0), []):
-                if r[3] == 'BS' and r[6] in ALL and not r[4] and r[10] == self.cur:
-                    byf.setdefault(r[0], [r[1], fdate(r[2]), {}])[2][r[6]] = (r[11], r[7])
+                if r[3] == 'BS' and not r[4] and r[10] == self.cur:
+                    byf.setdefault(r[0], [r[1], fdate(r[2]), []])[2].append(r)
             tots = []
-            for adsh, (form, filed, P) in byf.items():
-                v = {t: x[0] for t, x in P.items()}
-                ltd = v.get('LongTermDebt')
-                if ltd is not None and LTD_NC_LAB.search(P['LongTermDebt'][1] or ''):
-                    v['LongTermDebtNoncurrent'] = v.pop('LongTermDebt')  # "חוב לזמן ארוך בניכוי חלויות" שתויג כסך
-                tot = next((v[t] for t in DEBT_TOTAL if t in v), None)
-                ncs = [v[t] for t in DEBT_NC if t in v]
-                cus = [v[t] for t in DEBT_C if t in v]
-                base = tot if tot is not None else (sum(ncs) + sum(cus) if ncs or cus else None)
-                st = 0 if 'DebtCurrent' in v else sum(v[t] for t in DEBT_ST if t in v)
-                lease = sum(v[t] for t in LEASE_FIN if t in v)
-                if base is None and not st:
+            for adsh, (form, filed, rows) in byf.items():
+                tot, S, used = self.face_debt(rows)
+                if tot is None and 'lease' not in S:
                     continue
-                tots.append(dict(form=form, filed=filed, total=(base or 0) + st, lease=lease, parts=v))
+                tots.append(dict(form=form, filed=filed, total=tot or 0, S=S, used=used))
             rec = dict(m='debt', mode=mode, end=e, me=ddate, ours=ours)
             if not tots:
                 if ours:
@@ -573,18 +633,28 @@ class Co:
                 continue
             ann = [t for t in tots if not t['form'].startswith('10-Q')]
             exp = max(ann or tots, key=lambda t: t['filed'])
-            rec['exp'], rec['parts'], rec['filings'] = exp['total'], exp['parts'], [(t['form'], t['filed'], t['total']) for t in tots]
+            rec['exp'] = exp['total']
+            rec['parts'] = [(k, l[:60], v) for k, l, v in exp['used']]
+            rec['filings'] = [(t['form'], t['filed'], t['total']) for t in tots]
             if ours is None:
                 rec['verdict'] = 'MISS' if exp['total'] else 'NONE'
             elif same(ours, exp['total'], 'money'):
                 rec['verdict'] = 'DER'
             elif any(same(ours, t['total'], 'money') for t in tots):
                 rec['verdict'] = 'OLD'
-            elif any(same(ours, t['total'] + t['lease'], 'money') for t in tots):
-                rec['verdict'], rec['why'] = 'ALT', 'כולל חכירה מימונית'
             else:
-                rec['verdict'] = 'DIFF'
-                rec['why'] = 'שלנו %s מול המאזן %s (%s %s; פער %s)' % (ours, exp['total'], exp['form'], exp['filed'], ours - exp['total'])
+                S = exp['S']
+                combos = {'בלי חלויות שוטפות': S.get('st', 0) + S.get('nc', 0), 'בלי הלוואות קצרות': S.get('cur', 0) + S.get('nc', 0),
+                          'רק לזמן ארוך': S.get('nc', 0), 'כולל חכירה מימונית': exp['total'] + S.get('lease', 0),
+                          'בלי הלוואות קצרות, כולל חכירה': S.get('cur', 0) + S.get('nc', 0) + S.get('lease', 0)}
+                hit = next((k for k, v in combos.items() if v and same(ours, v, 'money')), None)
+                rel = ours / exp['total'] - 1 if exp['total'] else None
+                if hit == 'כולל חכירה מימונית':
+                    rec['verdict'], rec['why'] = 'ALT', hit
+                else:
+                    rec['verdict'] = 'DIFF'
+                    rec['why'] = '%sשלנו %s מול המאזן %s (%s %s; %s)' % ('[%s] ' % hit if hit else '', ours, exp['total'], exp['form'], exp['filed'],
+                                                                      '%+.1f%%' % (rel * 100) if rel is not None else '')
             self.add(**rec)
 
     def run(self):
@@ -957,9 +1027,47 @@ def check_growth(co):
 
 
 # ---------------------------------------------------------------- תמונת מצב: שווי שוק, מכפיל, תשואת תזרים, מזומן נטו
-def check_facts(co):
+_FX = {}
+
+
+def fx_per_usd(cache):
+    """שערי הייחוס של ה־ECB (יום העסקים האחרון) → כמה יחידות מטבע לדולר אחד. TWD לא מתפרסם שם (מ־2020) — חסר."""
+    if _FX:
+        return _FX
+    path = os.path.join(cache, '_ecb.csv')
+    if not os.path.exists(path) or time.time() - os.path.getmtime(path) > 86400:
+        req = urllib.request.Request('https://data-api.ecb.europa.eu/service/data/EXR/D..EUR.SP00.A?lastNObservations=1&format=csvdata',
+                                     headers={'User-Agent': UA_SEC})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            open(path, 'wb').write(r.read())
+    per_eur = {'EUR': 1.0}
+    rows = list(csv.reader(open(path, encoding='utf-8')))
+    h = {k: i for i, k in enumerate(rows[0])}
+    for r in rows[1:]:
+        if r[h['TIME_PERIOD']] >= (dt.date.today() - dt.timedelta(days=30)).isoformat():
+            per_eur[r[h['CURRENCY']]] = float(r[h['OBS_VALUE']])
+    usd = per_eur.get('USD')
+    if usd:
+        for k, v in per_eur.items():
+            _FX[k] = v / usd
+    return _FX
+
+
+def check_facts(co, cache=None):
     d = co.d
     out = []
+    # מטבע הדיווח ≠ מטבע המחיר (חברה זרה שמדווחת ב־DKK/EUR/CNY/TWD ונסחרת בדולר): המסך ממיר רק דולר↔שקל (prep)
+    f0 = d.get('facts') or {}
+    if d.get('cur') and d.get('pxCur') and d['cur'] != d['pxCur'] and not d.get('fxNote') and f0.get('pe'):
+        rate = None
+        try:
+            rate = fx_per_usd(cache).get(d['cur']) if cache and d['pxCur'] == 'USD' else None
+        except Exception as e:
+            rate = None
+        eps = d['price'] / f0['pe'] if d.get('price') else None
+        out.append(dict(layer='def', k='fx_mix', cur=d['cur'], pxCur=d['pxCur'], screen=f0['pe'], rate=rate,
+                        fixed=(d['price'] * rate / eps) if rate and eps else None,
+                        note='מחיר ב־%s מחולק ברווח למניה ב־%s; בלי המרה ובלי יחס ADR' % (d['pxCur'], d['cur'])))
     f = d.get('facts') or {}
     price, sh = d.get('price'), d.get('sharesOut')
     # הגדרה: שווי שוק = מחיר × ממוצע המניות המדולל של הרבעון האחרון. החלופה המקובלת: המניות בפועל מעמוד השער (dei)
@@ -1033,7 +1141,7 @@ def main():
                 print('%s: Nasdaq נכשל: %s' % (s, e))
         co = Co(s, disp, snap, pr, cfi, na, nqq)
         res = co.run()
-        der = check_derived(co) + check_growth(co) + check_facts(co) + check_prices_mult(co, cache, not o.no_net)
+        der = check_derived(co) + check_growth(co) + check_facts(co, cache) + check_prices_mult(co, cache, not o.no_net)
         json.dump(res, open(os.path.join(outd, s + '.json'), 'w'), ensure_ascii=False)
         json.dump(der, open(os.path.join(outd, s + '.der.json'), 'w'), ensure_ascii=False)
         json.dump(dict(splits=pr.splits, snap_splits=snap.get('splits'), used=snap.get('splitsUsed')), open(os.path.join(outd, s + '.meta.json'), 'w'))

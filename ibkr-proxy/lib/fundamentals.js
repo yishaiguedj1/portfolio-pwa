@@ -70,7 +70,9 @@ const INST = {
   // (סך תזרים המזומנים — כולל מזומן של פעילות שנמכרה / מוחזקת למכירה) רק כשאין שורת מאזן לאותו תאריך (cashMerge)
   cash: ['CashAndCashEquivalentsAtCarryingValue', 'CashAndCashEquivalentsAtCarryingValueIncludingDiscontinuedOperations', 'Cash',
     'CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents'],
-  msec: ['MarketableSecuritiesCurrent', 'AvailableForSaleSecuritiesDebtSecuritiesCurrent', 'ShortTermInvestments'],
+  // AvailableForSaleSecuritiesCurrent — התגית לפני ASU 2016-01 (Apple 2015–2017: ‏"Short-term marketable securities" ‏$20.5B–$53.9B
+  // יצאו ריקות והמזומן נטו ירד בהתאם; בדיקת העומק 16/11/2026)
+  msec: ['MarketableSecuritiesCurrent', 'AvailableForSaleSecuritiesDebtSecuritiesCurrent', 'AvailableForSaleSecuritiesCurrent', 'ShortTermInvestments'],
   debt: ['LongTermDebt'],
   debtNc: ['LongTermDebtNoncurrent'], debtC: ['LongTermDebtCurrent'], stb: ['ShortTermBorrowings', 'CommercialPaper'],
   eq: ['StockholdersEquity', 'StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest'],
@@ -98,6 +100,9 @@ const IFRS = {
 const FORMS = /^(10-K|10-Q|20-F|40-F)(\/A)?$/;
 const NONNEG = ['rev', 'ta', 'tl', 'ca', 'cl', 'cash', 'sh', 'ppe'];
 const day = (s) => Date.parse(s + 'T00:00:00Z') / 864e5;
+// אורך של רבעון (בימים, סוף פחות התחלה): 12–14 שבועות, או רבעון של 16/17 שבועות בשנה של 52/53 שבועות (16/11/2026, בדיקת
+// העומק: Kroger — הרבעון הראשון 16 שבועות, ‏111 יום, לא נכנס אף פעם; Costco, PepsiCo, Domino's, AutoZone — הרביעי)
+const qLen = (d) => (d >= 80 && d <= 100) || (d >= 110 && d <= 119);
 const PER_SHARE = new Set(['eps', 'dps']);
 // זרימות שבהן אפשר לבדוק שהרבעונים מאותו בסיס כמו השנה (qmix)
 const QPOS = ['cogs', 'dep', 'sbc', 'int']; // הכנסות, מחקר והשקעות הוניות — יכולים להיות מרוכזים ברבעון אחד בצדק
@@ -345,7 +350,7 @@ function mergeTags(fs, lock, qclash, best) {
       for (const k2 of f.dur.keys()) {
         const [s2, e2] = k2.split('|'); if (e2 !== e || day(s) - day(s2) < 60) continue; // מצטבר מתחילת השנה עד סוף הרבעון
         if (diff(k2)) return true;
-        for (const k1 of f.dur.keys()) { const [s1, e1] = k1.split('|'), g = day(e) - day(e1); if (s1 === s2 && g >= 80 && g <= 100 && diff(k1)) return true; }
+        for (const k1 of f.dur.keys()) { const [s1, e1] = k1.split('|'), g = day(e) - day(e1); if (s1 === s2 && qLen(g) && diff(k1)) return true; }
       }
       // הרבעון הישיר מול המצטברים של הסדרה באותו דוח: כשהמצטבר עד סוף הרבעון הוגש באותו דוח כמו הרבעון הישיר, והוא עדיין
       // הערך הראשון שדווח (אין הצגה מחדש בדרך — המצטבר הקודם מאותו בסיס), ההפרש ביניהם הוא הרבעון שבתזרים. Republic Services:
@@ -648,6 +653,38 @@ function normalizeSec(facts, splits = [], face = null) {
       }
     }
   }
+  // רווח למניה מפעילות נמשכת (16/11/2026, בדיקת העומק): אצל חלק מהחברות שורת ה־"Diluted" בדוח מתויגת
+  // IncomeLossFromContinuingOperationsPerDilutedShare גם כשאין שום פעילות שהופסקה (Airbnb, Monster, VeriSign, Halliburton,
+  // Freeport, Kimco, Regency, Exelon). עד היום התקופות האלה יצאו ריקות (Monster: מ־2011; VeriSign, Halliburton, Freeport,
+  // Exelon: מ־2022), או הושלמו מ־Yahoo בלי בדיקה (Airbnb 2025: ‏1.03 במקום 4.03 שהודפס). משלימים רק תקופה שאין לה רווח
+  // למניה: השורה מפעילות נמשכת + השורה מפעילות שהופסקה מאותו דוח (Exelon 2022: ‏2.08 + 0.12 — אין שורת סך), ורק כשהסכום
+  // = הרווח לבעלי המניות / המניות המדוללות של אותה תקופה (עד 3%, ועיגול לסנט)
+  if (merged.eps) {
+    const CO = isIfrs ? ['DilutedEarningsLossPerShareFromContinuingOperations', 'BasicEarningsLossPerShareFromContinuingOperations']
+      : ['IncomeLossFromContinuingOperationsPerDilutedShare', 'IncomeLossFromContinuingOperationsPerBasicAndDilutedShare', 'IncomeLossFromContinuingOperationsPerBasicShare'];
+    const DISC = isIfrs ? ['DilutedEarningsLossPerShareFromDiscontinuedOperations', 'BasicEarningsLossPerShareFromDiscontinuedOperations']
+      : ['IncomeLossFromDiscontinuedOperationsNetOfTaxPerDilutedShare', 'IncomeLossFromDiscontinuedOperationsNetOfTaxPerBasicAndDilutedShare', 'IncomeLossFromDiscontinuedOperationsNetOfTaxPerBasicShare'];
+    const inFiling = (h, filed) => (!h ? null : h.filed === filed ? h.v : h.all && h.all.has(filed) ? h.all.get(filed) : null);
+    let used = null;
+    CO.forEach((t, i) => {
+      const cf = tagFacts(tax[t], unitOf('eps')), df = tagFacts(tax[DISC[i]], unitOf('eps'));
+      for (const [kk, h] of cf.dur) {
+        if (merged.eps.dur.has(kk)) continue;
+        const num = (merged.nic && merged.nic.dur.get(kk)) || (merged.ni && merged.ni.dur.get(kk)), sh = merged.sh && merged.sh.dur.get(kk);
+        if (!num || !sh || !(sh.v > 0)) continue;
+        // השורה מפעילות שהופסקה קיימת לתקופה רק בדוח אחר — לא יודעים מה הסכום בדוח הזה, לא משלימים
+        const dh = df.dur.get(kk), d = inFiling(dh, h.filed);
+        if (dh && d == null) continue;
+        const v = Math.round((h.v + (d || 0)) * 1e4) / 1e4;
+        // המניות מאותו דוח כשאפשר (פיצול בין שני הדוחות — אחד מותאם והשני לא)
+        const s = inFiling(sh, h.filed) || sh.v;
+        if (Math.abs(v * s - num.v) > 0.03 * Math.abs(num.v) + 0.006 * s) continue;
+        merged.eps.dur.set(kk, { ...h, v, all: new Map([[h.filed, v]]) });
+        used = used || t;
+      }
+    });
+    if (used && merged.eps.spine == null) tags.eps = used;
+  }
   // פיצולים לפי תאריך ההגשה (26/10/2026): ערך למניה / ממוצע מניות שהוגש לפני הפיצול — מותאם; שהוגש אחריו — החברה
   // כבר הציגה אותו מחדש (ASC 260: כל התקופות בדוח שהוגש אחרי הפיצול), גם כשהתקופה שלו לפני הפיצול. עד היום ההתאמה
   // הייתה לפי תאריך התקופה, וערך שהוצג מחדש (רבעון של שנה קודמת כהשוואה ב־10-Q שאחרי הפיצול — ServiceNow, Carvana,
@@ -659,7 +696,7 @@ function normalizeSec(facts, splits = [], face = null) {
   // ממוצע המניות הבסיסי — לרבעון הרביעי כשיש הפסד (q4Shares)
   const shB = { A: {}, Q: {} };
   { const fb = splitAdj(tagFacts(tax[isIfrs ? 'WeightedAverageShares' : 'WeightedAverageNumberOfSharesOutstandingBasic'], 'shares'), splitsUsed, true);
-    for (const [kk, h] of fb.dur) { const [s0, e0] = kk.split('|'), L = day(e0) - day(s0); if (L >= 350 && L <= 380) shB.A[e0] = h.v; else if (L >= 80 && L <= 100) shB.Q[e0] = h.v; } }
+    for (const [kk, h] of fb.dur) { const [s0, e0] = kk.split('|'), L = day(e0) - day(s0); if (L >= 350 && L <= 380) shB.A[e0] = h.v; else if (qLen(L)) shB.Q[e0] = h.v; } }
   // שנים פיסקליות: תקופות של ~שנה בהכנסות או ברווח הנקי (52/53 שבועות נכללים) — רק מדוח שנתי.
   // Amazon מדפיסה ב־10-Q גם עמודה של 12 החודשים האחרונים: בלי התנאי כל רבעון נעשה "סוף שנה" והטבלה השנתית התערבבה
   const yearOf = new Map(); // end → start
@@ -737,7 +774,7 @@ function normalizeSec(facts, splits = [], face = null) {
     // רבעונים ישירים (~3 חודשים)
     for (const [kk, h] of dur) {
       const [s, e] = kk.split('|'), d = day(e) - day(s);
-      if (d >= 80 && d <= 100) {
+      if (qLen(d)) {
         // "רבעון" שערכו הוא השנה כולה, כשבאותה שנה יש כבר רבעונים / מצטבר — תיוג שגוי של החברה (Tractor Supply 2025: ההקשר
         // של הרבעון הרביעי ב־10-K קיבל את הרווח השנתי, ‏$1,096M במקום ‏$227M). לא נכנס — הרבעון מחושב משנה פחות תשעה חודשים
         const y0 = yearOf.get(e), av = A[k][e];
@@ -754,7 +791,7 @@ function normalizeSec(facts, splits = [], face = null) {
       cum.sort((a, b) => (a[0] < b[0] ? -1 : 1));
       for (let i = 1; i < cum.length; i++) {
         const [e2, h2, k2] = cum[i], [e1, h1, k1] = cum[i - 1], gap = day(e2) - day(e1);
-        if (gap >= 80 && gap <= 100 && Q[k][e2] == null) {
+        if (qLen(gap) && Q[k][e2] == null) {
           // השנה כפי שדווחה מול אותם תשעה חודשים — לא אחרי הצגה מחדש מאוחרת (AppLovin: 2023 אחרי ההצגה מחדש ‏$1.84B
           // פחות תשעה חודשים כפי שדווחו אז ‏$2.33B = רבעון שלילי). הדוח השנתי הראשון שהוגש אחרי החלק הקודם
           const pk = subPick(merged[k], k2, h2, [[h1, k1]]), v0 = pk && pk.v, v = pk && nonNegQ(k, h2, h1, v0);
@@ -774,7 +811,7 @@ function normalizeSec(facts, splits = [], face = null) {
       const s0 = yearOf.get(e), qs = Object.keys(Q[k]).filter((q) => q > s0 && q < e && day(e) - day(q) < 300);
       if (qs.length === 3) {
         // רבעונים ישירים — אותו כלל של בסיס אחד כמו במצטבר (subPick); רבעון שחושב בעצמו (אין לו תקופה ישירה) — כמו קודם
-        const dur = merged[k].dur, ka = s0 + '|' + e, hs = qs.map((q) => { for (const [kk, h] of dur) { const [a, b] = kk.split('|'), L = day(b) - day(a); if (b === q && L >= 80 && L <= 100) return [h, kk]; } return null; });
+        const dur = merged[k].dur, ka = s0 + '|' + e, hs = qs.map((q) => { for (const [kk, h] of dur) { const [a, b] = kk.split('|'), L = day(b) - day(a); if (b === q && qLen(L)) return [h, kk]; } return null; });
         const pk = dur.has(ka) && hs.every((x, i) => x && x[0].v === Q[k][qs[i]]) ? subPick(merged[k], ka, dur.get(ka), hs) : { v: A[k][e] - qs.reduce((t, q) => t + Q[k][q], 0) };
         if (!pk) { if (!qneg.some((x) => x.m === k && x.p === e)) qneg.push({ k: 'qmix', m: k, p: e, x: 'rst' }); continue; }
         const v = pk.v;
@@ -789,14 +826,14 @@ function normalizeSec(facts, splits = [], face = null) {
   // השגוי (רבעון ישיר = השנה שלה): "רבעון" גדול מתשעת החודשים שלפניו, בשורה בלי שנה, הוא השנה — והרבעון = השנה פחות תשעה חודשים
   {
     const KS = FLOWK.filter((k) => k !== 'eps' && k !== 'sh');
-    const q4dir = (k, e) => [...merged[k].dur].find(([kk, h]) => { const [s0, e0] = kk.split('|'); return e0 === e && day(e) - day(s0) >= 80 && day(e) - day(s0) <= 100 && h.ann !== false; });
+    const q4dir = (k, e) => [...merged[k].dur].find(([kk, h]) => { const [s0, e0] = kk.split('|'); return e0 === e && qLen(day(e) - day(s0)) && h.ann !== false; });
     for (const e of fyEnds) {
       const y0 = yearOf.get(e);
       if (!KS.some((k) => { const a = A[k][e], x = q4dir(k, e); return a && x && Math.abs(x[1].v - a) <= 1e-3 * Math.abs(a); })) continue;
       for (const k of KS) {
         const x = q4dir(k, e); if (A[k][e] != null || !x || Q[k][e] !== x[1].v) continue;
         let c9 = null;
-        for (const [kk, h] of merged[k].dur) { const [s2, e2] = kk.split('|'), g = day(e) - day(e2); if (s2 === y0 && g >= 80 && g <= 100) c9 = h.v; }
+        for (const [kk, h] of merged[k].dur) { const [s2, e2] = kk.split('|'), g = day(e) - day(e2); if (s2 === y0 && qLen(g)) c9 = h.v; }
         if (!(c9 > 0 && x[1].v > c9)) continue;
         A[k][e] = x[1].v; Q[k][e] = x[1].v - c9; (derived[k] = derived[k] || []).push(e);
       }
@@ -914,7 +951,11 @@ function normalizeSec(facts, splits = [], face = null) {
       if (qs3.length === 3 && qs3.every(okQ)) {
         const e3 = qs3.reduce((t, q) => t + Q.eps[q] * Q.sh[q], 0), e4 = A.eps[e] * A.sh[e] - e3, err = 0.005 * (A.sh[e] + qs3.reduce((t, q) => t + Q.sh[q], 0));
         const n3 = niOf(A, e) != null && niOf(Q, e) != null ? niOf(A, e) - niOf(Q, e) : null, s3 = qs3.reduce((t, q) => t + niOf(Q, q), 0);
-        if (Math.abs(e4) >= 20 * err && n3 != null && Math.abs(s3 - n3) <= 0.005 * Math.max(Math.abs(n3), Math.abs(s3))) niq = e4;
+        // רק כשהיחס של השנה לא מסביר את שלושת הרבעונים שהודפסו (TransDigm). כשהוא מסביר את כולם (כל אחד עד סנט) — הרווח × היחס
+        // מדויק יותר: החיסור צובר את העיגול לסנט של ארבעה ערכים, עד ‎±0.02 (בדיקת העומק 16/11/2026: Apple רבעון 4 2021 ‎1.22
+        // במקום ‎1.24 שפורסם; Airbnb רבעון 4 2024 ‎0.72 במקום ‎0.73)
+        const fit = qs3.every((q) => Math.abs(Math.round(niOf(Q, q) * yr / Q.sh[q] * 100) / 100 - Q.eps[q]) <= 0.0101);
+        if (!fit && Math.abs(e4) >= 20 * err && n3 != null && Math.abs(s3 - n3) <= 0.005 * Math.max(Math.abs(n3), Math.abs(s3))) niq = e4;
       }
     }
     if (Q.eps[e] == null && niq != null && Q.sh[e]) { Q.eps[e] = Math.round(niq / Q.sh[e] * 100) / 100; (derived.eps = derived.eps || []).push(e); epsNum[e] = niq; }
@@ -951,7 +992,7 @@ function normalizeSec(facts, splits = [], face = null) {
   // כשכל השלוש מאותה הגשה ולא שוות (Altria — מס בלו, ‏LITE) — הגדרה של החברה, לא נוגעים
   const durOf = (k, e, ann) => { const d = merged[k] && merged[k].dur; if (!d) return null;
     if (ann) return d.get(yearOf.get(e) + '|' + e) || null;
-    for (const [kk, h] of d) { const [s, e2] = kk.split('|'); if (e2 === e && day(e) - day(s) >= 80 && day(e) - day(s) <= 100) return h; } return null; };
+    for (const [kk, h] of d) { const [s, e2] = kk.split('|'); if (e2 === e && qLen(day(e) - day(s))) return h; } return null; };
   const inB = (h, B) => (!h ? null : h.filed === B ? h.v : h.all && h.all.has(B) ? h.all.get(B) : null);
   if (tags.gp && tags.cogs && Object.keys(A.gp).length && Object.keys(A.cogs).length) for (const [D, ends, ann] of [[A, fyEnds, true], [Q, qEnds, false]]) for (const e of ends) {
     const rv = D.rev[e], hr = durOf('rev', e, ann); if (rv == null || D.gp[e] == null || D.cogs[e] == null || !hr || hr.v !== rv) continue;
@@ -1004,7 +1045,7 @@ function normalizeSec(facts, splits = [], face = null) {
     for (const e of fyEnds) { const r = cmpRatio(dur, yearOf.get(e) + '|' + e); if (r != null) (GA[k] = GA[k] || {})[e] = r; }
     for (const kk of dur.keys()) {
       const [s0, e0] = kk.split('|'), d0 = day(e0) - day(s0);
-      if (d0 >= 80 && d0 <= 100 && Q[k][e0] != null) { const r = cmpRatio(dur, kk); if (r != null) (GQ[k] = GQ[k] || {})[e0] = r; }
+      if (qLen(d0) && Q[k][e0] != null) { const r = cmpRatio(dur, kk); if (r != null) (GQ[k] = GQ[k] || {})[e0] = r; }
     }
     // רבעון מחושב (שנה − תשעה חודשים): גם הרבעון של שנה קודם צריך להיות על אותו בסיס. מחשבים מהדוח השנתי שממנו
     // נלקחה השנה (שמציג גם את השנה הקודמת) ומהדוח הרבעוני של תשעת החודשים; אי אפשר ויש הצגה מחדש — 0 = לא ידוע
@@ -1635,6 +1676,12 @@ async function fundamentals(sym0) {
     if (sec.A[k] || !y.A[k]) continue;
     if ((k === 'gp' || k === 'cogs') && sec.gpx !== 'fin' && (sec.gpx === 'part' || !grossOnFace)) continue; // 'off' עם שורת "Cost of…" בדוח (Thermo Fisher, Deere: לפי מוצרים ושירותים) — כן
     const a = sec.fy.map((e) => { const j = y.fy.findIndex((x) => Math.abs(day(x) - day(e)) < 20); return j >= 0 ? y.A[k][j] : null; });
+    // רווח למניה מ־Yahoo — רק שנה שמתאימה לרווח לבעלי המניות / המניות המדוללות מ־SEC (עד 5%; Airbnb 2025 ב־Yahoo: ‏1.03 מול
+    // 4.03 שהודפס, 16/11/2026). שנה בלי רווח או מניות מ־SEC — כמו שהיא
+    if (k === 'eps') a.forEach((v, i) => {
+      const n0 = sec.A.nic && sec.A.nic[i] != null ? sec.A.nic[i] : sec.A.ni ? sec.A.ni[i] : null, s0 = sec.A.sh ? sec.A.sh[i] : null;
+      if (v != null && n0 != null && s0 > 0 && Math.abs(v - n0 / s0) > 0.05 * Math.abs(n0 / s0) + 0.01) a[i] = null;
+    });
     if (a.some((v) => v != null)) { sec.A[k] = a; fill.push(k); }
   }
   // רבעון ש־SEC לא מאפשר לחשב מאותו בסיס (שנה שהוצגה מחדש מול תשעה חודשים ישנים — Bank of America; רבעונים שאינם מאותו בסיס

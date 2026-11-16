@@ -61,6 +61,15 @@ const live = A.prep(D, { close: 440, prev: 430 }, 3.7);
 ok(live.price === 440 && live.prev === 430, 'מחיר חי מהאפליקציה גובר על המחיר של השרתון');
 const ta = A.prep({ ...D, sym: 'SYN.TA', cur: 'USD' }, { close: 1480 }, 3.7);
 ok(Math.abs(ta.price - 400) < 1e-9 && ta.fxNote, 'מניה בת״א שמדווחת בדולרים — המחיר בשקלים מומר לדולר');
+// דוחות במטבע שאין אליו המרה (16/11/2026, בדיקת העומק: Novo ב־DKK — P/E ‎1.8): בלי מכפילים, בלי היסטוריית מכפילים ובלי בדיקות מחיר
+{
+  const dk = A.indFix(A.prep({ ...D, sym: 'NVOX', cur: 'DKK' }, { close: 60 }, 3.7), MAC);
+  const ck = A.checks(dk, MAC), H = A.multHist(dk);
+  ok(dk.fxMix && !co.fxMix && !ta.fxMix && dk.price === 60, 'דוחות ב־DKK ומחיר בדולר — fxMix (המחיר עצמו נשאר לתצוגה)');
+  ok(H.t.length === 0 && H.pe.length === 0 && A.multHist(co).t.length > 0, 'בלי המרה — בלי היסטוריית מכפילים');
+  ok(ck && !JSON.stringify(ck).includes('NaN'), 'הבדיקות רצות בלי מחיר במטבע הדוחות');
+  ok(/anFxMix: 'הדוחות ב־\{c\}/.test(app) && /anFxMix: 'Reports in \{c\}/.test(app), 'הערה בשתי השפות');
+}
 const many = A.prep({ ...D, fy: Array.from({ length: 15 }, (_, i) => (2011 + i) + '-12-31'), A: Object.fromEntries(Object.keys(A0).map((k) => [k, Array(15).fill(1)])) }, null, 3.7);
 ok(many.years.length === 12 && many.years[0] === 2014, 'עד 12 שנים מוצגות');
 ok(A.prep({ ...D, sic: 6021 }, null, 3.7).fin && A.prep({ ...D, ind: 'Bank (Money Center)' }, null, 3.7).fin && !co.fin, 'בנקים וביטוח מזוהים (קוד SIC או ענף)');
@@ -225,6 +234,14 @@ ok(/z-index: 900/.test(css) && /\.an-sheet \{[^}]*z-index: 941/.test(css), 'שכ
   const G = { ...D, q: drop(q, jx), Q: Object.fromEntries(Object.keys(Q).map((k) => [k, drop(Q[k], jx)])) };
   const c = A.prep(G, null, 3.7), last = c.q.length - 1;
   ok(!A.qRun(c, last - 3, last) && A.qRun(co, co.q.length - 4, co.q.length - 1), 'רבעון חסר ברשימה = לא רצף של 12 חודשים');
+  // שנה של 52/53 שבועות (16/11/2026, בדיקת העומק): רבעון של 16 או 17 שבועות (Kroger — הראשון, Costco/PepsiCo — הרביעי) הוא
+  // רבעון, לא חור; חצי שנה (‏~182 יום) — עדיין חור
+  const wk = { q: ['2024-05-25', '2024-08-17', '2024-11-09', '2025-02-01', '2025-05-24', '2025-08-16', '2025-11-08', '2026-02-28'] };
+  ok(A.qRun(wk, 0, 3) && A.qRun(wk, 4, 7) && A.qRun(wk, 1, 4), 'רבעון של 16/17 שבועות (111/119 יום) — רצף');
+  ok(!A.qRun({ q: ['2024-03-31', '2024-09-30', '2024-12-31', '2025-03-31'] }, 0, 3), 'פער של חצי שנה — עדיין לא רצף');
+  // תווית הרבעון: שנה של 52/53 שבועות שנגמרת ב־1 בינואר — רבעון 4 של השנה הקודמת, לא תווית כפולה
+  const lb = A.periodList({ q: ['2022-10-02', '2023-01-01', '2023-04-02', '2023-07-02', '2023-10-01', '2023-12-31'] }, 'q').map((p) => p.label);
+  ok(lb.join(' ') === 'Q3·22 Q4·22 Q1·23 Q2·23 Q3·23 Q4·23' && new Set(lb).size === lb.length, 'תווית רבעון לפי הסוף פחות 14 יום — בלי כפילות');
   const pt = A.periodList(c, 'fy').pop(), tt = { kind: 'ttm', i: last, end: c.q[last] };
   ok(!A.hasTTM(c) && pt.kind === 'fy' && A.ctx(c, pt).rev === rev[5], 'ארבעת הרבעונים האחרונים לא רצופים — "עכשיו" = השנה האחרונה (לא מסך ריק)');
   ok(A.raw(c, 'rev', tt) === null && A.raw(c, 'debt', tt) === 20e9, 'TTM עם רבעון חסר — בלי סכום מומצא (מאזן — הרבעון האחרון כרגיל)');

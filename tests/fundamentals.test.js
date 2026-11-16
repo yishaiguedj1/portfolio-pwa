@@ -767,6 +767,13 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     ['WeightedAverageNumberOfDilutedSharesOutstanding', 'shares', [...yrs([57.8e6, 58.2e6], 2024), ...TDq([58.3e6, 58.1e6, 58.1e6])]]]);
   const dtd = F.normalizeSec(TD, []);
   ok(dtd.Q.eps[dtd.q.indexOf('2025-12-31')] === 7.75 && dtd.derived.eps.includes('2025-12-31'), 'רווח למניה ברבעון הרביעי מהרווח הגלום בשנה (‎7.75, לא ‎9.42)');
+  // (16/11/2026, בדיקת העומק) כשהיחס של השנה מסביר את שלושת הרבעונים שהודפסו — הרווח × היחס, לא החיסור: השנה ‎10.01 מעוגלת
+  // (‎1000.6 ÷ 100) והחיסור נותן ‎2.51; הרווח של הרבעון ÷ המניות — ‎2.50. מבחן לאחור על 135 רבעונים רביעיים שהודפסו: 80 → 99 נכונים
+  const FT = facts([['NetIncomeLoss', 'USD', [...yrs([1000.6e6], 2025), ...TDq([250.4e6, 249.6e6, 250.4e6])]],
+    ['EarningsPerShareDiluted', 'USD/shares', [...yrs([10.01], 2025), ...TDq([2.5, 2.5, 2.5])]],
+    ['WeightedAverageNumberOfDilutedSharesOutstanding', 'shares', [...yrs([100e6], 2025), ...TDq([100e6, 100e6, 100e6])]]]);
+  const dft = F.normalizeSec(FT, []);
+  ok(dft.Q.eps[dft.q.indexOf('2025-12-31')] === 2.5, 'רווח למניה ברבעון הרביעי: היחס של השנה מסביר את הרבעונים — ‎2.50, לא ‎2.51 מהחיסור');
   // ממוצע המניות ברבעון הרביעי — מה שפורסם (Yahoo) גובר על ההערכה כשהוא קרוב; ערך ש־Yahoo חישב בעצמו — לא; הרווח למניה מחושב מחדש
   const BY = facts([['NetIncomeLoss', 'USD', [...yrs([380e6, 400e6], 2024), ...TDq([100e6, 100e6, 100e6])]],
     ['WeightedAverageNumberOfDilutedSharesOutstanding', 'shares', [...yrs([110e6, 102.5e6], 2024), ...TDq([110e6, 105e6, 100e6])]]]);
@@ -1018,5 +1025,24 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
   ok(pg.last === '2026-08-17', 'parseMonthly — יום המסחר האחרון');
   const now = Date.parse('2026-10-26');
   ok(F.goneSince('2026-08-17', now) === '2026-08-17' && F.goneSince('2026-10-23', now) === null && F.goneSince(null, now) === null, 'goneSince — רק מעל 3 שבועות (סופ״ש וחג — לא)');
+  // רווח למניה מפעילות נמשכת (16/11/2026, בדיקת העומק): שורת ה־"Diluted" מתויגת IncomeLossFromContinuingOperationsPerDilutedShare.
+  // 2019–2020 בתגית הרגילה; 2021 רק מפעילות נמשכת (אין פעילות שהופסקה); 2022 — נמשכת + שהופסקה מאותו דוח (אין שורת סך);
+  // 2023 — נמשכת בלבד אבל הרווח כולל פעילות שהופסקה שהשורה שלה בדוח אחר — לא משלימים
+  {
+    const CO = facts([
+      ['Revenues', 'USD', [2019, 2020, 2021, 2022, 2023].map((y) => [...Y(y), 1000, '10-K', (y + 1) + '-02-01'])],
+      ['NetIncomeLoss', 'USD', [[...Y(2019), 200, '10-K', '2020-02-01'], [...Y(2020), 210, '10-K', '2021-02-01'], [...Y(2021), 300, '10-K', '2022-02-01'],
+        [...Y(2022), 220, '10-K', '2023-02-01'], [...Y(2023), 250, '10-K', '2024-02-01']]],
+      ['WeightedAverageNumberOfDilutedSharesOutstanding', 'shares', [2019, 2020, 2021, 2022, 2023].map((y) => [...Y(y), 100, '10-K', (y + 1) + '-02-01'])],
+      ['EarningsPerShareDiluted', 'USD/shares', [[...Y(2019), 2.0, '10-K', '2020-02-01'], [...Y(2020), 2.1, '10-K', '2021-02-01']]],
+      ['IncomeLossFromContinuingOperationsPerDilutedShare', 'USD/shares', [[...Y(2021), 3.0, '10-K', '2022-02-01'], [...Y(2022), 2.08, '10-K', '2023-02-01'], [...Y(2023), 2.0, '10-K', '2024-02-01']]],
+      ['IncomeLossFromDiscontinuedOperationsNetOfTaxPerDilutedShare', 'USD/shares', [[...Y(2022), 0.12, '10-K', '2023-02-01'], [...Y(2023), 0.5, '10-K', '2023-02-01']]],
+    ]);
+    const dc = F.normalizeSec(CO, []), ec = (y) => dc.A.eps && dc.A.eps[dc.fy.indexOf(y + '-12-31')];
+    ok(ec(2019) === 2.0 && ec(2020) === 2.1, 'EPS מפעילות נמשכת: השנים בתגית הרגילה — כמו שהן');
+    ok(ec(2021) === 3.0, 'EPS מפעילות נמשכת: שנה בלי פעילות שהופסקה — מהשורה שבדוח (תואם לרווח/מניות)');
+    ok(near(ec(2022), 2.2), 'EPS מפעילות נמשכת: נמשכת + שהופסקה מאותו דוח (2.08 + 0.12)');
+    ok(ec(2023) == null, 'EPS מפעילות נמשכת: שורת הפעילות שהופסקה רק בדוח אחר — לא משלימים');
+  }
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });

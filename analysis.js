@@ -70,6 +70,10 @@ function prep(d, q, fx) {
     if (co.px) co.px = { t: co.px.t, c: co.px.c.map((x) => (x == null ? null : x * r)) };
     co.fxNote = true;
   }
+  // דוחות במטבע שאין לנו שער אליו (Novo Nordisk ב־DKK, TSMC ב־TWD, Alibaba ב־CNY, SAP ו־ASML ב־EUR — המחיר בדולר, ולפעמים
+  // ל־ADR יש כמה מניות): עד 16/11/2026 המכפילים חילקו דולר בקרונות (P/E של Novo ‎1.8, של TSMC ‎8.9). בלי המרה — בלי מכפילים
+  // ובלי שווי שוק (pxF), עדיף ריק משגוי; ההמרה המלאה (שער לכל חודש ויחס ה־ADR מהשרתון) — משימה פתוחה
+  co.fxMix = !!co.cur && co.cur !== pxCur && !co.fxNote;
   const keep = new Set(co.fyE);
   co.flags = (d.checks || []).filter((c) => keep.has(c.p));
   // ריט (SIC 6798) — לפי FFO; בנקים, ביטוח והשקעות — לפי ההון והתשואה עליו (עודף תשואה), לא לפי תזרים חופשי
@@ -93,12 +97,15 @@ const INST = new Set(['cash', 'msec', 'debt', 'eq', 'ta', 'tl', 'ca', 'cl', 're'
 const SUMQ = (k) => !INST.has(k) && k !== 'sh'; // זרימה (כולל רווח למניה) = סכום 4 רבעונים; מאזן ומניות = הרבעון האחרון
 const hasTTM = (co) => co.q.length >= 4 && co.q[co.q.length - 1] > co.fyE[co.fyE.length - 1] && qRun(co, co.q.length - 4, co.q.length - 1); // בלי רצף — "עכשיו" = השנה האחרונה
 /* רבעונים רצופים (26/10/2026): רבעון שחסר ברשימה (דוח שלא הוגש ב־XBRL / בלי הכנסות) לא נבלע — ארבע נקודות סמוכות ברשימה
-   עם חור ביניהן הן 15 חודשים, לא 12. כל רבעון 75–105 יום אחרי הקודם; "שנה קודם" = הרבעון שמסתיים 365±15 יום לפני
+   עם חור ביניהן הן 15 חודשים, לא 12. כל רבעון 75–105 יום אחרי הקודם, או 110–120 (רבעון של 16/17 שבועות בשנה של 52/53
+   שבועות — Kroger, Costco, PepsiCo; עד 16/11/2026 שבר את הרצף וה־TTM חסר בשלושה רבעונים מכל ארבעה); "שנה קודם" = הרבעון שמסתיים 365±15 יום לפני
    (בדרך כלל 4 מקומות אחורה — כשחסר רבעון ביניהם, לפי התאריך) */
 const qDays = (a, b) => (Date.parse(b) - Date.parse(a)) / 864e5;
+// המחיר במטבע הדוחות — לכל חישוב מול נתוני הדוחות (מכפילים, שווי שוק, מחשבון). null כשהמטבעות שונים ואין המרה (fxMix)
+const pxF = (co) => (co && !co.fxMix && co.price > 0 ? co.price : null);
 function qRun(co, a, b) {
   if (a < 0) return false;
-  for (let j = a + 1; j <= b; j++) { const d = qDays(co.q[j - 1], co.q[j]); if (!(d >= 75 && d <= 105)) return false; }
+  for (let j = a + 1; j <= b; j++) { const d = qDays(co.q[j - 1], co.q[j]); if (!((d >= 75 && d <= 105) || (d >= 110 && d <= 120))) return false; }
   return true;
 }
 function qBack(co, i, n = 1) {
@@ -141,7 +148,10 @@ function raw(co, k, p, back = 0, cmp = false) {
   let s = 0; for (let j = end - 3; j <= end; j++) { if (Q[j] == null) return null; s += Q[j]; }
   return s;
 }
-const qLabel = (e) => 'Q' + Math.ceil(+e.slice(5, 7) / 3) + '·' + e.slice(2, 4);
+/* הרבעון הקלנדרי של סוף התקופה — לפי התאריך פחות 14 יום (16/11/2026, בדיקת העומק): שנה של 52/53 שבועות מסתיימת לפעמים
+   ב־1–3 בחודש ("Q4" שנגמר ב־1 בינואר 2023 יצא Q1·23, ושוב Q4·23 בסוף השנה — שתי תוויות זהות ברשימה) */
+const qOf = (e) => { const d = new Date(Date.parse(e.slice(0, 10) + 'T00:00:00Z') - 14 * 864e5); return { q: Math.floor(d.getUTCMonth() / 3) + 1, y: d.getUTCFullYear() }; };
+const qLabel = (e) => { const o = qOf(e); return 'Q' + o.q + '·' + String(o.y).slice(2); };
 function periodList(co, mode) {
   if (mode === 'q') return co.q.map((e, i) => ({ kind: 'q', i, label: qLabel(e), end: e }));
   const l = co.fyE.map((e, i) => ({ kind: 'fy', i, label: String(co.years[i]), end: e }));
@@ -229,7 +239,7 @@ function atMonth(pts, ym) { // מה שכבר פורסם באותו חודש (ה�
 function multHist(co) {
   if (co._mh) return co._mh;
   const out = { t: [], pe: [], pfcf: [], pofcf: [], ps: [], evebit: [], pb: [], pffo: [] };
-  if (!co.px || !co.px.t || !co.px.t.length) return (co._mh = out);
+  if (co.fxMix || !co.px || !co.px.t || !co.px.t.length) return (co._mh = out);
   const P = {}; for (const k of ['eps', 'rev', 'ocf', 'capex', 'sbc', 'op', 'sh', 'cash', 'msec', 'debt', 'eq', 'ni', 'dep']) P[k] = ttmPoints(co, k);
   const last = co.px.t[co.px.t.length - 1], first = addMonths(last, -120);
   co.px.t.forEach((ym, i) => {
@@ -285,8 +295,8 @@ function autoInputs(co, mac) {
     src.g1 = T('anSrcCons', { n: e0.rn }); src.g2 = e1 && e1.rev ? T('anSrcCons', { n: e1.rn || e0.rn }) : src.g1;
   } else { val.g1 = val.g2 = hist; src.g1 = src.g2 = T('anSrcHist', { n: n5 }); }
   // מחיר ההון: CAPM עם בטא ענפית ממונפת מחדש (Damodaran), בין 0.8 ל־2
-  const mcap = co.price * co.sharesOut, t = il ? (mac.taxIL || 0.23) : 0.25;
-  const bu = ind.bu ?? 1, bl = clamp(bu * (1 + (1 - t) * (c.debt || 0) / (mcap || 1)), 0.8, 2);
+  const mcap = (pxF(co) || 0) * (co.sharesOut || 0), t = il ? (mac.taxIL || 0.23) : 0.25;
+  const bu = ind.bu ?? 1, bl = clamp(mcap > 0 ? bu * (1 + (1 - t) * (c.debt || 0) / mcap) : bu, 0.8, 2);
   const rf = il ? (mac.rfIL || 0.0407) : (mac.rf || DEF_RF), erp = mac.erp || DEF_ERP, crp = il ? (mac.crpIL || 0) : 0;
   val.capm = rf + bl * erp + crp;
   [val.ke, src.ke] = hurdleKe(val.capm, il ? T('anSrcKeIL', { rf: strip(pct(rf, 2)), b: bl.toFixed(2), erp: strip(pct(erp, 1)), crp: strip(pct(crp, 2)) })
@@ -337,7 +347,7 @@ function reverseG(inp, target) { // צמיחה בשנתיים הראשונות (
 }
 function multModel(co, inp, scen) {
   const { eps0, fy0, pts } = inp.epsPath, H = 5;
-  if (!(eps0 > 0) || !(inp.peMid > 0) || !(co.price > 0)) return null;
+  if (!(eps0 > 0) || !(inp.peMid > 0) || !(pxF(co) > 0)) return null;
   const k = { lo: 0.75, mid: 1, hi: 1.2 }[scen];
   let prev = eps0, lastG = inp.g2;
   const path = [];
@@ -351,8 +361,8 @@ function multModel(co, inp, scen) {
   const tgt = eps5 * pe;
   const fyEnd = new Date(co.fyE[co.fyE.length - 1]); fyEnd.setUTCFullYear(fyEnd.getUTCFullYear() + H);
   const yrs = Math.max(0.5, (fyEnd - new Date(co.asOf)) / 31557600000);
-  const cNow = ctx(co, nowP(co)), dy = cNow.dps ? cNow.dps / co.price : 0;
-  return { eps5, pe, tgt, yrs, ret: tgt > 0 ? (tgt / co.price) ** (1 / yrs) - 1 + dy : null, year: fy0 + H };
+  const cNow = ctx(co, nowP(co)), dy = cNow.dps ? cNow.dps / pxF(co) : 0;
+  return { eps5, pe, tgt, yrs, ret: tgt > 0 ? (tgt / pxF(co)) ** (1 / yrs) - 1 + dy : null, year: fy0 + H };
 }
 function uncertainty(co) {
   // בנק/ביטוח — תנודתיות ה־ROE (אין להם "שולי רווח תפעולי"), והחוב הוא חומר הגלם ולא מינוף
@@ -403,7 +413,7 @@ function reitInputs(co) {
   const fy = fyList(co), fps = fy.map((p) => { const x = ctx(co, p); return x.ffo != null && x.sh ? x.ffo / x.sh : null; });
   const nf = Math.min(5, fps.length - 1), g = nf > 0 ? cagr(fps[fps.length - 1 - nf], fps[fps.length - 1], nf) : null;
   return { ffops, m: a.length >= 36 ? [quant(a, 0.25), quant(a, 0.5), quant(a, 0.75)] : null, years: Math.round(a.length / 12),
-    pay: ffops && c.dps ? c.dps / ffops : null, g, nf, now: ffops && co.price ? co.price / ffops : null };
+    pay: ffops && c.dps ? c.dps / ffops : null, g, nf, now: ffops && pxF(co) ? pxF(co) / ffops : null };
 }
 
 /* --- השווי לפי סוג החברה: DCF / עודף תשואה / FFO — אותם שלושה תרחישים בכל המסכים --- */
@@ -450,8 +460,8 @@ function altman(co) {
 }
 function checks(co, mac) {
   const P = nowP(co), c = ctx(co, P), fy = fyList(co), ind = co.ind || {}, H = multHist(co), I = autoInputs(co, mac), V = I.val;
-  const mcap = co.price * co.sharesOut, ev = mcap + c.debt - (c.cashT || 0);
-  const pe = c.eps > 0 ? co.price / c.eps : null, pfcf = c.fcf > 0 ? mcap / c.fcf : null;
+  const mcap = pxF(co) && co.sharesOut ? pxF(co) * co.sharesOut : null, ev = mcap ? mcap + c.debt - (c.cashT || 0) : null;
+  const pe = c.eps > 0 && pxF(co) ? pxF(co) / c.eps : null, pfcf = c.fcf > 0 && mcap ? mcap / c.fcf : null;
   const peMed = median(H.pe.filter((x) => x > 0 && x < 150)), pfMed = median(H.pfcf.filter((x) => x > 0 && x < 300));
   const ey = c.op > 0 && ev > 0 ? c.op / ev : null;
   const e1 = (co.est || []).find((e) => e.p === '+1y'), e0 = (co.est || []).find((e) => e.p === '0y');
@@ -705,7 +715,7 @@ function seriesFor(co, def, st) {
     return v;
   }) }));
   const unit = st.view !== 'v' ? 'pct' : M[def.s[0]].u;
-  const tipLabels = per.map((p) => (p.kind === 'ttm' ? T('anTtm') : p.kind === 'q' ? T('anQuarterOf', { q: Math.ceil(+p.end.slice(5, 7) / 3), y: p.end.slice(0, 4) }) : T('anYearOf', { y: p.label })));
+  const tipLabels = per.map((p) => (p.kind === 'ttm' ? T('anTtm') : p.kind === 'q' ? T('anQuarterOf', qOf(p.end)) : T('anYearOf', { y: p.label })));
   return { per, series, unit, labels: per.map((p) => p.label), tipLabels };
 }
 const rowHint = (def) => (def.line ? T(def.line[3]) : def.s.length === 1 && M[def.s[0]].q ? T(M[def.s[0]].q) : '');
@@ -1085,6 +1095,7 @@ function footer(co) {
   const extra = [];
   if (co.fill && co.fill.length) extra.push(T('anFillNote', { k: [...new Set(co.fill.map(rawName))].join(', ') }));
   if (co.fxNote) extra.push(T('anFxNote', { c: co.cur }));
+  if (co.fxMix) extra.push(T('anFxMix', { c: co.cur }));
   return h('p', { class: 'an-src' }, T('anSources', { s: src, d: dmy(co.asOf) }), extra.length ? h('br') : null, extra.join(' · '));
 }
 
@@ -1099,7 +1110,7 @@ const ICONS = {
 const multClean = (a, k) => a.map((x) => (x > 0 && x < (k === 'pe' ? 150 : 300) ? x : null));
 const icon = (k) => { const s0 = sv('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }); sv('path', { d: ICONS[k], fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, s0); return s0; };
 function keyTiles(co) {
-  const c = ctx(co, nowP(co)), H = multHist(co), pe = c.eps > 0 ? co.price / c.eps : null, peMed = multAvg(H.pe.filter((x) => x < 150));
+  const c = ctx(co, nowP(co)), H = multHist(co), pe = c.eps > 0 && pxF(co) ? pxF(co) / c.eps : null, peMed = multAvg(H.pe.filter((x) => x < 150));
   const fyl = fyList(co).slice(-10), yr = fyl.length ? [fyl[0].label, fyl[fyl.length - 1].label] : null, ht = H.t.slice(-120), pyr = ht.length ? [ht[0].slice(0, 4), T('anToday')] : null;
   const [g5, n5] = cagrN(co, 'rev', 5), lev = c.ebitda > 0 && c.netcash != null ? -c.netcash / c.ebitda : null, cs = curSym(co.cur);
   return [
@@ -1111,7 +1122,7 @@ function keyTiles(co) {
   ];
 }
 function factsEl(co) {
-  const c = ctx(co, nowP(co)), mcap = co.price * co.sharesOut, pe = c.eps > 0 ? co.price / c.eps : null, fy = c.fcf != null && mcap ? c.fcf / mcap : null;
+  const c = ctx(co, nowP(co)), mcap = pxF(co) && co.sharesOut ? pxF(co) * co.sharesOut : null, pe = c.eps > 0 && pxF(co) ? pxF(co) / c.eps : null, fy = c.fcf != null && mcap ? c.fcf / mcap : null;
   const fact = (tt, v, hint, key) => h('button', { class: 'an-fact', type: 'button', on: { click: () => factSheet(key) } }, h('span', {}, tt), h('b', {}, v), h('small', {}, hint));
   return h('div', { class: 'an-facts' }, fact(T('anFMcap'), fmt(mcap, 'money', co), T('anHMcap'), 'mcap'), fact(T('anFPe'), fmt(pe, 'x', co, 1), T('anHPe'), 'pe'),
     fact(T('anFFpe'), fmt(co.fpe, 'x', co, 1), T('anHFpe'), 'fpe'), fact(T('anFFy'), pct(fy), T('anHFy'), 'fy'),
@@ -1400,6 +1411,7 @@ function pageVal(co, pg) {
   const res = h('div', { class: 'an-cres' }), rows = h('div', { class: 'an-cin-list' });
   const resetBtn = h('button', { class: 'an-link', type: 'button', hidden: Object.keys(ed).length ? null : true, on: { click: () => { for (const k in ed) delete ed[k]; render(); } } }, T('anCReset'));
   const paint = () => {
+    if (co.fxMix) { res.textContent = ''; res.append(h('p', { class: 'an-cnow' }, T('anFxMix', { c: co.cur }))); return; }
     const v = V(), R = calcRun(v, D.shares, co.price), cs = (x) => h('td', {}, x);
     const mcNow = co.price * D.shares;
     res.textContent = '';
@@ -1472,9 +1484,9 @@ function pickPeers(co, list, added) {
   return { list: rows.slice(0, PEER_MAX).map((x) => x.p), loose: rows.length < 2 };
 }
 function peerRow(c) {
-  const x = ctx(c, nowP(c)), mc = c.price * c.sharesOut, [g] = cagrN(c, 'rev', 5);
+  const x = ctx(c, nowP(c)), mc = pxF(c) && c.sharesOut ? pxF(c) * c.sharesOut : null, [g] = cagrN(c, 'rev', 5);
   const fy = fyList(c), old = fy.length > 3 ? ctx(c, fy[fy.length - 4]).sh : null;
-  return { sym: c.sym, g, om: x.om, roic: x.roic, fy: x.fcf != null && mc ? x.fcf / mc : null, pe: x.eps > 0 ? c.price / x.eps : null, fpe: c.fpe,
+  return { sym: c.sym, g, om: x.om, roic: x.roic, fy: x.fcf != null && mc ? x.fcf / mc : null, pe: x.eps > 0 && pxF(c) ? pxF(c) / x.eps : null, fpe: c.fpe,
     sh3: old && x.sh ? x.sh / old - 1 : null };
 }
 async function loadPeers() {
@@ -1483,7 +1495,7 @@ async function loadPeers() {
   const seq = S.seq, want = [...(S.co.peers || []), ...S.peerAdd].filter((x, i, a) => a.indexOf(x) === i && x !== S.sym && !S.peerDrop.has(x));
   const got = await Promise.all(want.map((x) => load(x).then(prepFor).catch(() => null)));
   if (seq !== S.seq) return;
-  S.peers = got.filter((c) => c && c.price > 0 && c.sharesOut > 0);
+  S.peers = got.filter((c) => c && pxF(c) > 0 && c.sharesOut > 0);
   S.peerBusy = false;
   if (S.tab === 'cmp') render();
 }

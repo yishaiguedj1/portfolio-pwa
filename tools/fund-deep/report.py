@@ -16,9 +16,9 @@ import json
 import os
 
 OK_V = ('V3', 'V2', 'V1')                 # שווה לערך המודפס האחרון (+ אישורים)
-OK_D = ('DER', 'DERCF', 'DERX')           # נגזר ממספרים מודפסים (מצטבר, רבעון רביעי) ושווה
+OK_D = ('DER', 'DERCF', 'DERX', 'CX0')    # נגזר ממספרים מודפסים (מצטבר, רבעון רביעי) ושווה; CX0 = אין השקעות הוניות בדוח
 EMPTY = ('NONE',)                         # אין ערך אצלנו ואין במקורות — אין מה להציג
-SOFT = ('NOFACE', 'ALTCF', 'ALT')         # לא בדוחות עצמם / שורה אחרת בדוח — הגדרה, לא בהכרח טעות
+SOFT = ('NOFACE', 'ALTCF', 'ALT', 'PUB')  # לא בדוחות עצמם / שורה אחרת / פורסם בהודעה לעיתונות — לאימות נוסף
 BAD = ('DIFF', 'MISS', 'EXTRA', 'OLD')    # טעות או חוסר — כל אחד עד השורש
 MONEY_PS = ('eps', 'dps')
 SHARES = ('sh',)
@@ -136,6 +136,10 @@ def company_md(sym, raw, der, meta):
     if df:
         out += ['', '## הגדרות (לא טעות — לבדיקה)', '']
         for x in df:
+            if x['k'] == 'fx_mix':
+                out.append('- **ערבוב מטבעות**: %s — מכפיל הרווח במסך %s; אחרי המרה בשער ECB (%s %s לדולר, בלי יחס ADR): %s' % (
+                    x['note'], '%.2f' % x['screen'], '%.4f' % x['rate'] if x.get('rate') else '—', x['cur'],
+                    '%.2f' % x['fixed'] if x.get('fixed') else 'אין שער'))
             if x['k'] == 'mcap_shares':
                 out.append('- שווי שוק: המסך מכפיל ב־%s מניות (ממוצע מדולל של הרבעון האחרון); בעמוד השער %s מניות בפועל (%s) — הפרש %s' % (
                     fmt('sh', x['screen']), fmt('sh', x['cover']), x['cover_date'], pct(x['diff'])))

@@ -59,7 +59,7 @@ def get(url, binary=False):
 def stmt_of(name):
     n = name.lower()
     par = 1 if 'parenthetical' in n else 0
-    if re.search(r'comprehensive (income|loss)', n) and not re.search(r'operations and comprehensive|income and comprehensive|earnings and comprehensive', n):
+    if re.search(r'comprehensive (income|loss|earnings)', n) and not re.search(r'operations and comprehensive|income and comprehensive|earnings and comprehensive', n):
         return 'CI', par
     if re.search(r'balance sheet|financial (position|condition)|statements? of condition|assets and liabilities', n):
         return 'BS', par
@@ -157,7 +157,8 @@ def parse_r(page, title_hint=''):
             continue
         line += 1
         ns, tag, lab = pl.group(1), pl.group(2), txt(pl.group(3))
-        cells = re.findall(r'<td class="(nump|num|text|th)"[^>]*>(.*?)</td>', tr, re.S)
+        # עמודת הערות שוליים (<td class="th"><sup>) — לא עמודת ערך: כותרת הטבלה מכסה אותה (colspan=2), ובלעדיה כל הערכים זזים בעמודה
+        cells = re.findall(r'<td class="(nump|num|text)"[^>]*>(.*?)</td>', tr, re.S)
         vals = [num_cell(c) if k in ('nump', 'num') else None for k, c in cells]
         is_ps = bool(PS_TAG.search(tag) or re.search(r'per (common |ordinary |diluted |basic )?(share|unit)|\(in [a-z$ ]+ per share\)', lab, re.I))
         is_sh = not is_ps and bool(SH_TAG.search(tag) or re.search(r'\(in shares\)|\bshares\b.*\(in (millions|thousands)\)', lab, re.I))
@@ -184,14 +185,31 @@ def filings(cik, since):
     return j.get('name', ''), j.get('sic'), out
 
 
+PAGES = [None]  # תיקיית המטמון של הדפים (נקבעת ב־main)
+
+
+def cget(url, key):
+    """get עם מטמון בדיסק: <PAGES>/<adsh>/<file>"""
+    if PAGES[0]:
+        path = os.path.join(PAGES[0], key)
+        if os.path.exists(path):
+            return open(path, encoding='utf-8').read()
+    b = get(url)
+    if b and PAGES[0]:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        open(path, 'w', encoding='utf-8').write(b)
+    return b
+
+
 def ingest(db, cik, name, sic, f):
     acc = f['acc']
     base = 'https://www.sec.gov/Archives/edgar/data/%d/%s/' % (cik, acc.replace('-', ''))
-    fs = get(base + 'FilingSummary.xml')
+    fs = cget(base + 'FilingSummary.xml', acc + '/FilingSummary.xml')
     if not fs:
         return 0, 0
     reps = re.findall(r'<Report[^>]*>(.*?)</Report>', fs, re.S)
     n_pre = n_num = 0
+    taken, skipped = set(), []
     db.execute('DELETE FROM pre WHERE adsh=?', (acc,))
     db.execute('DELETE FROM num WHERE adsh=?', (acc,))
     db.execute('INSERT OR REPLACE INTO sub VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
@@ -204,13 +222,19 @@ def ingest(db, cik, name, sic, f):
         pos = re.search(r'<Position>(\d+)</Position>', rp)
         if not cat or cat.group(1) != 'Statements' or not fn:
             continue
-        page = get(base + fn.group(1))
+        page = cget(base + fn.group(1), acc + '/' + fn.group(1))
         if not page:
             continue
         res = parse_r(page, html.unescape(ln.group(1)) if ln else '')
         if not res or not res[0]:
             continue
         st, par, cur, rows = res
+        # הגשה משולבת (AEP, Duke, Southern…): אחרי הדוחות של חברת האם באים דוחות של כל חברת בת, באותן תגיות ובלי סימון —
+        # רק הדף הראשון מכל סוג (חברת האם) נשמר
+        if (st, par) in taken:
+            skipped.append(html.unescape(ln.group(1))[:80] if ln else fn.group(1))
+            continue
+        taken.add((st, par))
         rep = int(pos.group(1)) if pos else 0
         seen = set()
         for line, ns, tag, lab, ddate, qtrs, uom, val, neg in rows:
@@ -222,6 +246,8 @@ def ingest(db, cik, name, sic, f):
             db.execute('INSERT INTO num VALUES (?,?,?,?,?,?,?)', (acc, tag, ver, ddate, qtrs, uom, val))
             n_num += 1
     db.commit()
+    if skipped:
+        print('  %s: %d דוחות של חברות בת לא נשמרו (למשל: %s)' % (acc, len(skipped), skipped[0]), flush=True)
     return n_pre, n_num
 
 
@@ -233,16 +259,12 @@ def fix_from_cf(db, cache):
     by = {}
     for a, c in subs:
         by.setdefault(c, set()).add(a)
-    fixed = kept = 0
+    fixed = kept = skipped = 0
     for cik, adset in sorted(by.items()):
         path = os.path.join(cache, 'cf_%d.json' % cik)
-        if not os.path.exists(path):
-            try:
-                b = get('https://data.sec.gov/api/xbrl/companyfacts/CIK%010d.json' % cik)
-            except Exception as e:
-                print('CIK %d: companyfacts נכשל: %s' % (cik, e), flush=True)
-                continue
-            open(path, 'w', encoding='utf-8').write(b)
+        if not os.path.exists(path):  # רק חברות שכבר במטמון של verify.py (שם הוא מוריד) — לא 500 קבצים גדולים בבת אחת
+            skipped += 1
+            continue
         j = json.load(open(path, encoding='utf-8'))
         idx = {}
         for tax in ('us-gaap', 'ifrs-full', 'dei', 'srt'):
@@ -271,7 +293,7 @@ def fix_from_cf(db, cache):
                 db.execute('UPDATE num SET value=?, uom=? WHERE rowid=?', (float(f['val']), u2, rowid))
                 fixed += 1
         db.commit()
-    print('תיקון מ־companyfacts: %d ערכים הוחלפו בערך המדויק · %d נשארו מהטבלה (תגית של החברה)' % (fixed, kept), flush=True)
+    print('תיקון מ־companyfacts: %d ערכים הוחלפו בערך המדויק · %d נשארו מהטבלה (תגית של החברה) · %d חברות בלי מטמון' % (fixed, kept, skipped), flush=True)
 
 
 def main():
@@ -280,6 +302,7 @@ def main():
     ap.add_argument('--ciks', required=True)
     ap.add_argument('--since', default='2026-10-01')
     ap.add_argument('--syms', default='')
+    ap.add_argument('--redo', action='store_true', help='למחוק את כל מה שנקרא מדפי R ולקרוא מחדש')
     ap.add_argument('--fix', default='', help='רק מעבר התיקון מ־companyfacts; התיקייה של cf_<cik>.json (המטמון של verify.py)')
     o = ap.parse_args()
     want = {s.strip().upper().replace('.', '-') for s in o.syms.split(',') if s.strip()}
@@ -292,6 +315,16 @@ def main():
     db.execute('PRAGMA synchronous=OFF')
     if o.fix:
         return fix_from_cf(db, o.fix)
+    PAGES[0] = os.path.join(os.path.dirname(os.path.abspath(o.db)), 'rpages')
+    if o.redo:  # מחיקת כל מה שנקרא מדפי R — וקריאה מחדש (מהמטמון כשיש)
+        old = [r[0] for r in db.execute("SELECT adsh FROM sub WHERE q='rpage'")]
+        for i in range(0, len(old), 500):
+            ch = old[i:i + 500]
+            qm = ','.join('?' * len(ch))
+            for t in ('pre', 'num', 'sub'):
+                db.execute('DELETE FROM %s WHERE adsh IN (%s)' % (t, qm), ch)
+        db.commit()
+        print('נמחקו %d הגשות מדפי R' % len(old), flush=True)
     done = {r[0] for r in db.execute("SELECT adsh FROM sub WHERE q='rpage'")}
     seen = set()
     for sym, cik in ciks:
