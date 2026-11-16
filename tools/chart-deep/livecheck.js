@@ -56,7 +56,7 @@ const cp = (b) => b && { t: b.timestamp / 1000, o: b.open, h: b.high, l: b.low, 
 const rel = (a, b) => (b ? Math.abs(a - b) / Math.abs(b) : 0);
 const q = (arr, p) => { if (!arr.length) return null; const s = arr.slice().sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(p * s.length))]; };
 
-function simulate(L, quotes, snaps, sym, iv, pre) {
+function simulate(L, quotes, snaps, sym, iv, pre, tr) {   // tr = { from, to } (ms) — מעקב אחרי הנר האחרון אירוע־אירוע
   if (!snaps.length) return null;
   const tz = snaps[0].tz || 'America/New_York';
   const c = { base: iv, pre, tz, raw: L.fromColumns(snaps[0]), lastVol: null };
@@ -64,11 +64,13 @@ function simulate(L, quotes, snaps, sym, iv, pre) {
   for (const x of quotes) if (x.at > snaps[0].at && x.d[sym]) ev.push({ at: x.at, q: parseQuote(x.d[sym]) });
   for (const s of snaps.slice(1)) ev.push({ at: s.at, snap: s });
   ev.sort((a, b) => a.at - b.at);
-  const st = { kinds: {}, resets: [], fix: { c: [], h: [], l: [], v: [], v0: 0 }, dvByBar: new Map(), liveBars: new Map() };
+  const st = { kinds: {}, resets: [], fix: { c: [], h: [], l: [], v: [], v0: 0 }, dvByBar: new Map(), liveBars: new Map(), trace: [] };
+  const mark = (e, ev) => { if (!tr || e.at < tr.from || e.at > tr.to) return; const b = c.raw[c.raw.length - 1]; st.trace.push(Object.assign({ at: e.at, ev }, cp(b), e.q ? { st: e.q.st, rp: e.q.reg && e.q.reg.p, rt: e.q.reg && e.q.reg.t } : {})); };
   for (const e of ev) {
     if (e.q) {
       const [k, dv] = onQuote(L, c, e.q);
       st.kinds[k] = (st.kinds[k] || 0) + 1;
+      mark(e, k);
       const last = c.raw[c.raw.length - 1];
       if (last && (k === 'tick' || k === 'added')) {
         st.dvByBar.set(last.timestamp, (st.dvByBar.get(last.timestamp) || 0) + dv);
@@ -89,6 +91,7 @@ function simulate(L, quotes, snaps, sym, iv, pre) {
       else if (before.volume > 0) st.fix.v0++;   // C-014: בשרתון לנר החי נפח 0 — עמודת הנפח נמחקת בכל רענון
     }
     c.raw = merged;
+    mark(e, same ? 'refresh' : 'refresh-reset');
   }
   // הנר הסופי: מה שנבנה חי (נר שנפתח מהמחירים) מול הצילום האחרון
   const fin = new Map(c.raw.map((b) => [b.timestamp, b]));
@@ -113,6 +116,7 @@ function simulate(L, quotes, snaps, sym, iv, pre) {
     fixAtReconcile: { n: st.fix.c.length, c50: med(st.fix.c), c95: st.fix.c.length ? +q(st.fix.c, 0.95).toFixed(5) : null, h95: st.fix.h.length ? +q(st.fix.h, 0.95).toFixed(5) : null, v50: med(st.fix.v), v95: st.fix.v.length ? +q(st.fix.v, 0.95).toFixed(3) : null, v0: st.fix.v0 },
     final: { n: cmp.n, o: cmp.o, h: cmp.h, l: cmp.l, c: cmp.c, v50: med(cmp.vr), ex: cmp.ex },
     dvVsBar: { n: vr.length, p50: med(vr), p10: vr.length ? +q(vr, 0.1).toFixed(3) : null, p90: vr.length ? +q(vr, 0.9).toFixed(3) : null },
+    trace: st.trace,
   };
 }
 
@@ -126,7 +130,8 @@ function main() {
   const argv = process.argv.slice(2);
   const arg = (k, d) => { const i = argv.indexOf('--' + k); return i < 0 ? d : argv[i + 1]; };
   const out = arg('out');
-  if (!out) { console.error('שימוש: livecheck.js --out <dir> [--syms AAPL,SPY]'); process.exit(2); }
+  if (!out) { console.error('שימוש: livecheck.js --out <dir> [--syms AAPL,SPY] [--trace AAPL|1m|0 --from <epoch> --to <epoch>]'); process.exit(2); }
+  const trk = arg('trace'), tr = trk ? { from: +arg('from', 0) * 1000, to: +arg('to', 9e9) * 1000 } : null;
   const { L } = loadLib();
   const { quotes, candles } = load(out);
   const want = arg('syms') ? arg('syms').split(',') : null;
@@ -135,9 +140,10 @@ function main() {
   const res = [];
   for (const [k, snaps] of groups) {
     const [sym, iv, pre] = k.split('|');
-    const r = simulate(L, quotes, snaps, sym, iv, +pre);
+    const r = simulate(L, quotes, snaps, sym, iv, +pre, k === trk ? tr : null);
     if (!r) continue;
     res.push(r);
+    for (const x of r.trace) console.log(`  ${k} ${new Date(x.at).toISOString().slice(11, 19)} ${x.ev.padEnd(13)} נר ${new Date(x.t * 1000).toISOString().slice(11, 16)} פ=${x.o} ג=${x.h} נ=${x.l} ס=${x.c} נפח=${x.v}${x.st ? ` | ${x.st} reg=${x.rp}@${new Date(x.rt * 1000).toISOString().slice(11, 19)}` : ''}`);
     console.log(`${sym.padEnd(8)} ${iv.padEnd(4)} ${pre} מחירים=${r.quotes} צילומים=${r.snaps} | איפוסים=${r.resets} | תיקון ברענון: סגירה50=${r.fixAtReconcile.c50} סגירה95=${r.fixAtReconcile.c95} נפח50=${r.fixAtReconcile.v50} נפח→0=${r.fixAtReconcile.v0} | סופי n=${r.final.n} פ=${r.final.o} ג=${r.final.h} נ=${r.final.l} ס=${r.final.c} נפח50=${r.final.v50} | dv/נר=${r.dvVsBar.p50} (${r.dvVsBar.p10}–${r.dvVsBar.p90})`);
   }
   fs.writeFileSync(path.join(out, 'live', 'check.json'), JSON.stringify(res, null, 1));

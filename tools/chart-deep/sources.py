@@ -144,7 +144,9 @@ def cmd_crypto(a):
     for iv in ivs:
         # עומק: כמו השרתון (1m — 29 יום; 2m–30m — 59; 60m — 729; יומי ומעלה — הכל מ־2014)
         days = {'1m': 30, '3m': 30, '5m': 60, '15m': 60, '30m': 60, '1h': 730, '2h': 730, '4h': 730}.get(iv, 4500)
-        t0 = now - days * DAY
+        if a.get('days'):   # --days 1: רק היום האחרון (גל 4 — הנרות של ההקלטה החיה)
+            days = min(days, float(a['days']))
+        t0 = int(now - days * DAY)
         t0 -= t0 % 60
         for name, fn, ok in (('coinbase', coinbase, CB_GRAN), ('bitstamp', bitstamp, BS_STEP), ('binance', binance, BN_IV)):
             if iv not in ok:

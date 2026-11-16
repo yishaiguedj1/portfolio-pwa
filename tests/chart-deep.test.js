@@ -79,6 +79,14 @@ process.env.CHART_DEEP_BACKOFF = '5';
   ok(sim.fixAtReconcile.n === 2 && sim.fixAtReconcile.v0 === 2, 'livecheck: נפח 0 של הדקה החיה בשרתון מזוהה (C-014)');
   const off = LC.simulate(lib.L, qs, [snap(1030, [960, 1020], [50, 0]), snap(1100, [990, 1050], [50, 40])], 'X', '1m', 0);
   ok(off.resets === 1, 'livecheck: רענון עם רשת אחרת = איפוס (resetData)');
+  // C-025: רענון בשניות הראשונות של דקה חדשה — Yahoo עוד לא החזיר אותה, mergeBars מוחק את הנר החי → איפוס
+  const lag = LC.simulate(lib.L, [quote(1085, 10.2, 200)], [snap(1030, [960, 1020], [50, 0]), snap(1086, [960, 1020], [50, 40])], 'X', '1m', 0, { from: 1084e3, to: 1090e3 });
+  ok(lag.kinds.added === 1 && lag.resets === 1 && lag.trace.map((x) => x.ev).join() === 'added,refresh-reset', 'livecheck: נר חי שנמחק ברענון (C-025) + מעקב אירועים');
+  // C-008 בזמן אמת: הסגירה הרשמית בחותמת 1 שנייה אחרי סוף הנר האחרון — onQuote לא מחיל אותה
+  const qp = (at, p, t) => ({ at: at * 1000, d: { X: { m: { p, t, v: 0, cur: 'USD' }, x: { st: 'POST', reg: { p, t } } } } });
+  const one = [snap(1030, [960, 1020], [50, 0])];
+  ok(LC.simulate(lib.L, [qp(1082, 10.4, 1080)], one, 'X', '1m', 0).kinds['close-fix'] === 1 && LC.simulate(lib.L, [qp(1082, 10.4, 1081)], [snap(1030, [960, 1020], [50, 0])], 'X', '1m', 0).kinds.idle === 1,
+    'livecheck: תיקון הסגירה חל רק עד סוף הנר (16:00:00), לא על חותמת 16:00:01');
 
   /* ---------- kcverify.js: המודל מאותן תשובות כמו הגרף (fetchInit מאפס, fetchOlder לפי to) ---------- */
   const KV = require(path.join(T, 'kcverify.js'));
