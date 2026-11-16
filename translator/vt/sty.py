@@ -34,8 +34,9 @@ def norm_sty(o):
     return out or None
 
 
-def apply_sty(style, sty):
-    """הסגנון של vt + העיצוב → סגנון חדש (dataclass)."""
+def apply_sty(style, sty, hide=False):
+    """הסגנון של vt + העיצוב → סגנון חדש (dataclass). hide (16/11/2026): בסרטון יש כתוביות צרובות — הרקע הכהה אטום
+    לגמרי ומסתיר אותן (vt/burnin.py — cover), במקום שקוף למחצה."""
     if not sty:
         return style
     f = (sty.get('k') or 100) / 100
@@ -45,7 +46,7 @@ def apply_sty(style, sty):
         ch['bottom_y'] = style.bottom_y - 1080 * sty['y'] / 100
     if sty.get('bx'):
         # רקע: BorderStyle 3 — המסגרת הופכת לקופסה בצבע OutlineColour (שחור שקוף למחצה), והעובי = הריפוד סביב הטקסט
-        ch.update(outline=style.size * f * 0.07, outline_colour='&H60000000', faux_bold=0.0, shadow=0.0, blur=0.0,
+        ch.update(outline=style.size * f * 0.07, outline_colour='&H00000000' if hide else '&H60000000', faux_bold=0.0, shadow=0.0, blur=0.0,
                   line_pitch=max(style.line_pitch, style.size * 1.22) * f)   # שורות בלי חפיפה של הקופסאות
     return dataclasses.replace(style, **ch)
 
