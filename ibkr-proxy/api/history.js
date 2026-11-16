@@ -1,12 +1,13 @@
 /* POST /api/history  { syms: ['SPY','LUMI.TA',…] (עד 40), range: '1y'|'5y'|'7y'|'10y' | '1d'|'5d' (תוך־יומי, v228) }
    או { op:'candles', sym, iv, to?, pre? } — נרות OHLCV לגרף הנרות (lib/candles.js)
    או { op:'fund', sym } / { op:'macro' } — דוחות כספיים ונתוני מקרו לניתוח חברה (lib/fundamentals.js)
+   או { op:'ackman', v? } — תיק אקמן לדמו (lib/ackmanjob.js); GET ?job=ackman — העדכון האוטומטי (רק בשרת שלנו)
    -> { ok, data: { SYM: { t: [ימים מאז 1970], c: [סגירות] } }, failed: [...] }
    מחירי סגירה יומיים מ־Yahoo (מידע ציבורי) — מהשרת, בבקשה אחת לכל הסימבולים.
    למה: בטלפון Yahoo חוסם לפעמים (429 לכתובת של הספק הסלולרי), ולמניות ת"א אין מקור אחר.
    מניות ת"א (ILA = אגורות) מוחזרות בשקלים. אין כאן שום מידע של המשתמש.
    מאובטח כמו שאר השרתון: Origin מאושר בלבד, POST בלבד, גוף קטן, הגבלת קצב. */
-const { guard, rateLimited } = require('../lib/ibkr');
+const { guard, rateLimited, safeEqual } = require('../lib/ibkr');
 
 const SYM_RE = /^\^?[A-Z0-9][A-Z0-9.\-=^]{0,15}$/; // v255: ^ בהתחלה = מדד (^GSPC); v274: עד 16 תווים (PEPE24478-USD)
 const RANGES = new Set(['1y', '5y', '7y', '10y', 'max', '1d', '5d']); // v229: max = מתחילת המסחר (period1=0; range=max של Yahoo מחזיר נרות חודשיים) // 7y = 10y מ־Yahoo, חתוך ל־7 (תיק הדמו)
@@ -96,6 +97,15 @@ async function fetchOne(sym, range, deadline) {
 }
 
 module.exports = async (req, res) => {
+  /* 16/11/2026: העדכון האוטומטי של תיק אקמן (lib/ackmanjob.js) — GET ?job=ackman, כל 10 דק׳ מהשרת שלנו (server.js — startAckman).
+     ב־Vercel לא רץ בכלל (אין שם קרון לדקות, ואף אחד מבחוץ לא יכול להפעיל אותו) */
+  if (req.method === 'GET' && String((req.query && req.query.job) || '') === 'ackman') {
+    if (process.env.VERCEL) return res.status(404).json({ ok: false, error: 'not_here' });
+    const secret = process.env.CRON_SECRET;
+    if (secret && !safeEqual(String(req.headers.authorization || ''), 'Bearer ' + secret)) return res.status(401).json({ ok: false });
+    try { return res.status(200).json(await require('../lib/ackmanjob').tick()); }
+    catch (e) { return res.status(502).json({ ok: false, error: String((e && e.message) || 'failed').slice(0, 30) }); }
+  }
   if (guard(req, res)) return;
   const ip = (req.headers['x-forwarded-for'] || '').split(',')[0] || (req.socket && req.socket.remoteAddress) || 'unknown';
   let body = req.body;
@@ -110,6 +120,8 @@ module.exports = async (req, res) => {
   if (body && body.op === 'boifx') return require('../lib/boifx').handle(body, res);
   /* 15/11/2026: צפי לדוח הקרוב — קונצנזוס האנליסטים (Yahoo) וצפי ההנהלה מהודעת הדוחות הקודמת (SEC), lib/earnprev.js */
   if (body && body.op === 'earnPrev') return require('../lib/earnprev').handle(body, res);
+  /* 16/11/2026: תיק אקמן לדמו של Invest — הספר המוכן מ־R2 (lib/ackmanjob.js), {v} = הגרסה שכבר בטלפון → {same:true}. מידע ציבורי */
+  if (body && body.op === 'ackman') return require('../lib/ackmanjob').serve(req, body, res);
   const range = RANGES.has(body && body.range) ? body.range : '5y';
   const raw = Array.isArray(body && body.syms) ? body.syms : [];
   const syms = [...new Set(raw.map((s) => String(s || '').trim().toUpperCase()))].filter((s) => SYM_RE.test(s));
