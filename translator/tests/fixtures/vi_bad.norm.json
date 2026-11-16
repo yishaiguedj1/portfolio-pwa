@@ -3,7 +3,17 @@
  "pv": 1,
  "lang": {
   "src": "en",
-  "out": "he"
+  "out": "he",
+  "sp": [
+   {
+    "lg": "he",
+    "sh": 0.6
+   },
+   {
+    "lg": "ru",
+    "sh": 0.123
+   }
+  ]
  },
  "genre": "other",
  "video": {
@@ -137,6 +147,24 @@
    "text": "free text",
    "conf": 0,
    "lang": "und"
+  },
+  {
+   "id": "o3.2",
+   "text": "שלום hello привет",
+   "conf": 70,
+   "lang": "mix",
+   "lgs": [
+    "he",
+    "en",
+    "ru",
+    "ar"
+   ]
+  },
+  {
+   "id": "o3.3",
+   "text": "רק עברית",
+   "conf": 80,
+   "lang": "mix"
   }
  ],
  "segments": [

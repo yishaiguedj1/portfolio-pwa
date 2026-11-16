@@ -55,6 +55,18 @@ function mkDoc() {
   const good = fx('vi_ok.json'), bad = fx('vi_bad.json'), badN = fx('vi_bad.norm.json');
   ok(same(P.normVi(good), good) && same(P.normVi(good), VI.normVi(good)), 'vi_ok: יוצא כמו שנכנס, כמו בשרתון');
   ok(same(P.normVi(bad), badN) && same(P.normVi(bad), VI.normVi(bad)), 'vi_bad → vi_bad.norm, כמו בשרתון');
+  {   // 16/11/2026: שורת השפות בראש הדף — רק כשמדברים בכמה שפות, ו"בשקפים" רק כשיש מה להוסיף
+    const Tl = (k, o) => ({ studioViInHe: 'בעברית', studioViInEn: 'באנגלית', studioViLang2: o && o.a + ' ו' + o.b,
+      studioViLang3: o && o.a + ', ' + o.b + ' ו' + o.c, studioViScr: o && 'בשקפים: ' + o.l })[k];
+    const mk = (lang) => ({ lang: Object.assign({ src: 'en', out: 'he' }, lang) });
+    ok(P.langLine(mk({}), Tl, 'he') === 'באנגלית', 'בלי sp/scr — כמו קודם');
+    ok(P.langLine(mk({ sp: [{ lg: 'en', sh: 0.97 }, { lg: 'he', sh: 0.03 }] }), Tl, 'he') === 'באנגלית', 'שפה שנייה מתחת ל־5% — לא נספרת');
+    ok(P.langLine(mk({ sp: [{ lg: 'en', sh: 0.8 }, { lg: 'he', sh: 0.2 }] }), Tl, 'he') === 'אנגלית ועברית', 'שתי שפות מדוברות — לפי הסדר');
+    ok(P.langLine(mk({ sp: [{ lg: 'en', sh: 1 }], scr: [{ lg: 'en', sh: 1 }] }), Tl, 'he') === 'באנגלית', 'שקפים בשפת הדיבור — בלי תוספת');
+    ok(P.langLine(mk({ src: 'he', scr: [{ lg: 'en', sh: 1 }] }), Tl, 'he') === 'בעברית · בשקפים: אנגלית', 'הרצאה בעברית, שקפים באנגלית');
+    ok(P.langLine(mk({ scr: [{ lg: 'en', sh: 0.6 }, { lg: 'he', sh: 0.4 }] }), Tl, 'en') === 'באנגלית · בשקפים: English ו' + 'Hebrew', 'שקפים דו־לשוניים, שמות השפות בשפת הממשק');
+    ok(P.lgName('xx-bad!', 'he') === 'xx-bad!' || typeof P.lgName('xx-bad!', 'he') === 'string', 'קוד לא תקין — לא זורק');
+  }
   const muts = [null, {}, { v: 'x' }, Object.assign({}, good, { v: 'snb.video-analysis/2' }), Object.assign({}, good, { items: 'x', chapters: [{ id: 'c1' }] }),
     Object.assign({}, good, { quality: { warn: ['vi_unver', 'zzz', 'vi_unver'], asr: 'bad', items: -1 } }), Object.assign({}, good, { lang: { src: 'fr' }, genre: 'x', pv: 0 })];
   ok(muts.every((m) => same(P.normVi(m), VI.normVi(m))), 'קלטים פגומים — אותו פלט בטלפון ובשרתון (' + muts.length + ')');

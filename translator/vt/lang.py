@@ -13,6 +13,10 @@ Parakeet מתמלל אנגלית בלבד: על משפט בספרדית הוא �
   - cue_lang: הכתוביות שבתוך קטע כזה מקבלות lg ו־src (המקור בשפה שלו, בזמני הכתובית) — הטלפון מציג אותו במקום הניחוש באנגלית.
   - detect_spans + transcribe_spans + merge_words: למסלול שבו התמלול הראשי לא באנגלית (ניתוח של סרטון בעברית) —
     זיהוי שפה בכל קטע של ivrit, וקטע בשפה אחרת מתומלל במנוע שלה (אנגלית — Parakeet; אחרת — whisper-small בשפה שזוהתה).
+
+16/11/2026 — ציר השפות (vt/lid.py, ‏ECAPA VoxLingua107): כשהמודל בתמונה, הקטעים בשפה אחרת באים מהציר — על **כל** הדיבור,
+לא רק על מילים בביטחון נמוך (candidates דילג על עברית שנשמעה "בטוחה", ובסרטון עם יותר מ־30 מועמדים החזיר כלום).
+foreign_regions → transcribe_spans (עברית — ivrit, אנגלית — Parakeet, אחרת — whisper-small). בלי המודל — הדרך הישנה.
 """
 
 from __future__ import annotations
@@ -38,6 +42,9 @@ SRC_MAX = 600           # המקור של כתובית אחת (כמו en בטל�
 P_SPAN = 0.8            # זיהוי על כל קטע (בלי סינון ביטחון של התמלול) — סף מחמיר יותר
 IVRIT_DIR = os.environ.get("SNB_VI_IVRIT") or os.environ.get("SNB_KA_IVRIT") or "/opt/karaoke-he/ivrit"
 LG_ALIAS = {"iw": "he", "jw": "jv"}     # קודים ישנים של whisper
+TL_MIN_S = 1.0          # 16/11/2026 (ציר השפות, vt/lid.py): אזור בשפה אחרת קצר מזה — לא מתמללים מחדש (מילה בודדת, שם)
+PIECE_S = 28.0          # אזור ארוך — בחלקים של עד 28 שנ׳ (בנקודה שקטה), כל חלק קטע משלו (עד WD_MAX מילים לקטע)
+TL_PAD_S = 0.15         # ריפוד לכל צד כשמתמללים אזור
 
 
 def ready() -> bool:
@@ -235,10 +242,24 @@ def parakeet_spans(audio, spans: list, run=None) -> list[list]:
     return out
 
 
-def transcribe_spans(audio, found: list[dict], model=None, en_run=None) -> list[dict]:
-    """הקטעים שזוהו (detect_spans) → אותם קטעים עם tx ו־wd: אנגלית ב־Parakeet (כולם יחד), אחרת whisper-small בשפה שזוהתה.
+def transcribe_spans(audio, found: list[dict], model=None, en_run=None, he_model=None) -> list[dict]:
+    """הקטעים שזוהו (detect_spans / foreign_regions) → אותם קטעים עם tx ו־wd: אנגלית ב־Parakeet (כולם יחד), עברית ב־ivrit
+    (16/11/2026; בלי ivrit — whisper-small), אחרת whisper-small בשפה שזוהתה.
     קטע שלא יצאו לו מילים — נזרק (המילים של התמלול הראשי נשארות)."""
     out = []
+    he = [g for g in found if g["lg"] == "he"]
+    if he and (he_model is not None or ivrit_ready()):
+        try:
+            hm = he_model or _ivrit()
+            for g in he:
+                clip = audio[int(g["s"] * SR):int(g["e"] * SR)]
+                tx, wd = _collect(hm.transcribe(clip, language="he", beam_size=5, condition_on_previous_text=False,
+                                                vad_filter=False, word_timestamps=True)[0], g["s"])
+                if wd:
+                    out.append(dict(g, tx=tx, wd=wd))
+            found = [g for g in found if g["lg"] != "he"]
+        except Exception:  # noqa: BLE001 — בלי ivrit: whisper-small בעברית
+            out = []
     en = [g for g in found if g["lg"] == "en"]
     if en:
         try:
@@ -259,6 +280,35 @@ def transcribe_spans(audio, found: list[dict], model=None, en_run=None) -> list[
         if wd:
             out.append(dict(g, tx=tx, wd=wd))
     return sorted(out, key=lambda g: g["s"])
+
+
+def foreign_regions(tl: dict, primary: str, audio=None, min_s: float = TL_MIN_S, piece_s: float = PIECE_S,
+                    pad_s: float = TL_PAD_S) -> list[dict]:
+    """16/11/2026: ציר השפות (vt/lid.timeline) → הקטעים בשפה שאינה primary, לתמלול מחדש: [{s, e, lg, p}].
+    אזור קצר מ־min_s — לא; ארוך מ־piece_s — חלקים שווים, כל חיתוך בנקודה השקטה ביותר עד 1.5 שנ׳ ממנו (audio)."""
+    out = []
+    dur = len(audio) / SR if audio is not None else None
+    for g in (tl or {}).get("regions") or []:
+        lg = norm_lg(g.get("lg"))
+        s, e = float(g.get("s") or 0), float(g.get("e") or 0)
+        if not lg or lg == primary or e - s < min_s:
+            continue
+        s, e = max(0.0, s - pad_s), e + pad_s
+        if dur is not None:
+            e = min(e, dur)
+        n = max(1, int(-(-(e - s) // piece_s)))
+        cuts = [s]
+        for k in range(1, n):
+            t = s + (e - s) * k / n
+            if audio is not None:
+                from .asr_he import quiet_cut
+                t = quiet_cut(audio, t, max(cuts[-1] + 1.0, t - 1.5), min(e - 1.0, t + 1.5))
+            cuts.append(t)
+        cuts.append(e)
+        for a, b in zip(cuts, cuts[1:]):
+            if b - a >= min_s:
+                out.append({"s": round(a, 3), "e": round(b, 3), "lg": lg, "p": float(g.get("p") or 0)})
+    return out
 
 
 def merge_words(words: list[dict], seg: list[dict]) -> list[dict]:

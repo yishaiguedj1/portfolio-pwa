@@ -3,7 +3,27 @@
  "pv": 1,
  "lang": {
   "src": "en",
-  "out": "he"
+  "out": "he",
+  "sp": [
+   {
+    "lg": "en",
+    "sh": 0.82
+   },
+   {
+    "lg": "he",
+    "sh": 0.18
+   }
+  ],
+  "scr": [
+   {
+    "lg": "en",
+    "sh": 0.7
+   },
+   {
+    "lg": "he",
+    "sh": 0.3
+   }
+  ]
  },
  "genre": "academic_lecture",
  "video": {
@@ -85,7 +105,8 @@
     "h": 720
    },
    "ocr": [
-    "o2.1"
+    "o2.1",
+    "o2.2"
    ]
   },
   {
@@ -115,6 +136,17 @@
    "text": "Recall after 12h",
    "conf": 90,
    "lang": "en"
+  },
+  {
+   "id": "o2.2",
+   "text": "זכירה אחרי 12h — Recall",
+   "conf": 86,
+   "lang": "mix",
+   "dir": "rtl",
+   "lgs": [
+    "he",
+    "en"
+   ]
   }
  ],
  "segments": [

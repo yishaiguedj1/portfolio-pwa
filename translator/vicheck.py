@@ -116,6 +116,15 @@ def norm_vi(o):
     out = {'v': VI_V, 'pv': int(pv) if _isint(pv) and 1 <= pv <= 999 else 1}
     lg = o.get('lang') if isinstance(o.get('lang'), dict) else {}
     out['lang'] = {'src': lg.get('src') if lg.get('src') in VI_LANGS else 'en', 'out': 'he'}
+    # 16/11/2026: השפות המדוברות (sp, ציר השפות — vt/lid.py) ושפות הטקסט על המסך (scr) — [{lg, sh}], עד 4, בלי כפילות
+    for k in ('sp', 'scr'):
+        xs: list[dict] = []
+        for x in _list(lg.get(k), 8):
+            if (isinstance(x, dict) and isinstance(x.get('lg'), str) and LANG_RE.match(x['lg']) and _fin(x.get('sh'), 0, 1)
+                    and x['sh'] > 0 and all(y['lg'] != x['lg'] for y in xs)):
+                xs.append({'lg': x['lg'], 'sh': _r3(x['sh'])})
+        if xs:
+            out['lang'][k] = xs[:4]
     out['genre'] = o.get('genre') if o.get('genre') in VI_GENRES else 'other'
     vd = o.get('video') if isinstance(o.get('video'), dict) else {}
     out['video'] = {'dur': _r3(vd['dur']) if _fin(vd.get('dur'), 0, 86400) else 0}
@@ -152,6 +161,11 @@ def norm_vi(o):
              'lang': r['lang'] if LANG_RE.match(_s(r.get('lang'))) else 'und'}
         if r.get('dir') in ('rtl', 'ltr'):
             x['dir'] = r['dir']
+        # 16/11/2026: שורה מעורבת — השפות שבה לפי הסדר (2–4, בלי כפילות; "mix" בלבד לא אומר אילו)
+        lg = list(dict.fromkeys(v for v in (r.get('lgs')[:8] if isinstance(r.get('lgs'), list) else [])
+                                if isinstance(v, str) and LANG_RE.match(v)))[:4]
+        if len(lg) >= 2:
+            x['lgs'] = lg
         out['ocr'].append(x)
     ocr_ids = {x['id'] for x in out['ocr']}
     out['slides'] = []

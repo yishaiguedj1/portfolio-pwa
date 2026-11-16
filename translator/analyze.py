@@ -174,8 +174,12 @@ def slides_doc(screen: dict) -> tuple[list[dict], list[dict]]:
             d['oerr'] = 1
         for k, ln in enumerate(o.get('lines') or [], 1):
             oid = '%s.%d' % ('o%d' % n, k)
-            ocr.append({'id': oid, 'text': norm(ln.get('text')), 'conf': int(ln.get('conf') or 0), 'lang': ln.get('lang') or 'other',
-                        'dir': ln.get('dir') or 'ltr', 'box': ln.get('box') or [0, 0, 0, 0]})
+            x = {'id': oid, 'text': norm(ln.get('text')), 'conf': int(ln.get('conf') or 0), 'lang': ln.get('lang') or 'other',
+                 'dir': ln.get('dir') or 'ltr', 'box': ln.get('box') or [0, 0, 0, 0]}
+            lgs = list(dict.fromkeys(lg for _, lg in ln.get('segs') or [] if lg not in ('other', 'mix')))
+            if x['lang'] == 'mix' and len(lgs) >= 2:
+                x['lgs'] = lgs[:4]                      # 16/11/2026: אילו שפות בשורה המעורבת, לפי הסדר
+            ocr.append(x)
             d['ocr'].append(oid)
         slides.append(d)
     return slides, ocr
@@ -630,7 +634,7 @@ def vi_index(ev: list[dict], slides: list[dict], ocr: list[dict], words: list[di
 
 
 def vi_map(eng, mode: str, lang: str, ev: list[dict], slides: list[dict], ocr: list[dict], inv: dict, bnd: list[dict],
-           dur: float, words: list[dict], on_progress=None, win_tok: int = 0) -> dict:
+           dur: float, words: list[dict], on_progress=None, win_tok: int = 0, sp: dict | None = None) -> dict:
     """המיפוי כולו (rv): השלד, החלונות (מתחת לכרטיס — V36), קריאה לכל חלון והאיחוד. כישלון של כל החלונות → vi_schema;
     חלון שלא נכנס לכרטיס גם בשורה אחת → vi_card; תקרת העלות → cap (LLMError budget_cap)."""
     import llm
@@ -638,7 +642,7 @@ def vi_map(eng, mode: str, lang: str, ev: list[dict], slides: list[dict], ocr: l
     llm.REFUSAL_BY_ROLE['vm'] = visheet.REFUSAL_VI          # 5.8: נוסח הסירוב של הניתוח (llm.refusal_text)
     t0 = time.time()
     ix, inv_nums = vi_index(ev, slides, ocr, words, inv)
-    fixed = visheet.system_fixed(visheet.skeleton(lang, bnd, inv, slides, ocr))
+    fixed = visheet.system_fixed(visheet.skeleton(lang, bnd, inv, slides, ocr, sp=sp))
     queue = win_plan(ev, slides, ocr, win_tok or VI_WIN_TOK)
     wins: list[dict] = []
     while queue:                                             # 5.5: חלון שלא נכנס לכרטיס — חוצים לשניים
@@ -1073,8 +1077,24 @@ def facts_safe(*a, **k) -> dict | None:
         return None
 
 
+def lang_extra(tr: dict, ocr: list[dict]) -> dict:
+    """16/11/2026: ל־lang של vi.json — sp: השפות המדוברות (חלק מזמן הדיבור, ציר השפות של vi.asr) ו־scr: שפות הטקסט על
+    המסך (visheet.screen_langs). עד 4 כל אחד; בלי ציר / בלי שקפים — בלי השדה."""
+    import visheet
+    out: dict = {}
+    sh = ((tr or {}).get('langs') or {}).get('share') or {}
+    sp = [{'lg': k, 'sh': round(float(v), 3)} for k, v in sh.items()
+          if isinstance(k, str) and isinstance(v, (int, float)) and not isinstance(v, bool) and 0.01 <= v <= 1][:4]
+    if sp:
+        out['sp'] = sp
+    sl, _ = visheet.screen_langs(ocr)
+    if sl:
+        out['scr'] = [{'lg': k, 'sh': v} for k, v in sl[:4]]
+    return out
+
+
 def build_vi_live(lang: str, dur: float, src_kind: str, title: str, m: dict, ev: list[dict], slides: list[dict],
-                  ocr: list[dict], asr_q: str, warn: list[str]) -> dict:
+                  ocr: list[dict], asr_q: str, warn: list[str], lx: dict | None = None) -> dict:
     """vi.json (19.1) — כבר מנורמל (vicheck.norm_vi = מה שהטלפון יציג). ‏vi_unver — כשהאימות לא רץ או לא הושלם
     (3.5: "טיוטה — לא אומתה"); ‏vi_partial — חלון שנכשל או סינתזה שנכשלה. ‏sup = הפריטים שאומתו במלואם.
     ‏cov = חלק השקפים ושורות "רק על המסך" שנוצלו או נדחו בכוונה (V79)."""
@@ -1087,7 +1107,7 @@ def build_vi_live(lang: str, dur: float, src_kind: str, title: str, m: dict, ev:
         w.append('vi_partial')
     if m['hang']:
         w.append('vi_ledger')
-    vi = {'v': VI_V, 'pv': visheet.PV, 'lang': {'src': lang, 'out': 'he'}, 'genre': m['genre'],
+    vi = {'v': VI_V, 'pv': visheet.PV, 'lang': dict({'src': lang, 'out': 'he'}, **(lx or {})), 'genre': m['genre'],
           'video': {'dur': round(dur, 2), 'src': src_kind, 'title': title[:200]},
           'evidence': [{k: v for k, v in u.items() if k != 'ts'} for u in ev],
           'slides': slides, 'ocr': ocr, 'segments': m['segments'], 'chapters': m['chapters'], 'items': m['items'],
@@ -1102,12 +1122,13 @@ def build_vi_live(lang: str, dur: float, src_kind: str, title: str, m: dict, ev:
 # ---------------------------------------------------------------- vi.json
 
 def build_vi(lang: str, dur: float, src_kind: str, title: str, wd: dict, screen: dict, ev: list[dict], slides: list[dict],
-             ocr: list[dict], inv: dict, bnd: list[dict], n_so: int, asr_q: str, tok: dict, warn: list[str]) -> dict:
+             ocr: list[dict], inv: dict, bnd: list[dict], n_so: int, asr_q: str, tok: dict, warn: list[str],
+             lx: dict | None = None) -> dict:
     """vi.json בלי Claude (נספח 19.1, תת־קבוצה): הראיות, השקפים, ה־OCR, המלאים ומועמדי הגבול. הפרקים והפריטים ריקים —
     הם של Claude (גל 1). dry = מה שנמדד ונספר."""
     words = wd.get('words') or []
     return {
-        'v': VI_V, 'pv': 0, 'dry': 1, 'lang': {'src': lang, 'out': 'he'}, 'genre': 'other',
+        'v': VI_V, 'pv': 0, 'dry': 1, 'lang': dict({'src': lang, 'out': 'he'}, **(lx or {})), 'genre': 'other',
         'video': {'dur': round(dur, 2), 'src': src_kind, 'title': title[:200], 'w': screen.get('w') or 0, 'h': screen.get('h') or 0},
         'wd': [[str(w['w']), round(float(w['s']), 2), round(float(w['e']), 2)] for w in words],
         'evidence': ev, 'slides': slides, 'ocr': ocr, 'inv': inv, 'bounds': bnd,
@@ -1464,7 +1485,7 @@ def vi_rebuild(old: dict, m: dict) -> dict:
     base = [w for w in q.get('warn') or [] if w not in VO_KEEP]
     return build_vi_live((old.get('lang') or {}).get('src') or 'en', float(vd.get('dur') or 0), vd.get('src') or 'file',
                          vd.get('title') or '', m, old.get('evidence') or [], old.get('slides') or [], old.get('ocr') or [],
-                         q.get('asr') or 'med', base)
+                         q.get('asr') or 'med', base, {k: v for k, v in (old.get('lang') or {}).items() if k in ('sp', 'scr')})
 
 
 def vi_reverify(J, ctx, engine=None) -> int:
@@ -1729,6 +1750,9 @@ def vi_run(J, args, engine=None) -> int:
         if lang not in VI_LANGS:
             ctx.report(fail=True, err='vi_lang', msg='כרגע עברית ואנגלית', force=True)
             raise SystemExit('✗ ניתוח: השפה שזוהתה (%s) לא נתמכת.' % str(lang)[:8])
+    elif tr.get('lang') in VI_LANGS and tr['lang'] != lang:   # 16/11/2026: נבחרה שפה, ורוב הדיבור בשפה האחרת (vi.asr)
+        print('· נבחרה %s, אבל רוב הדיבור ב־%s — הניתוח בשפה של הקול' % (lang, tr['lang']))
+        lang = tr['lang']
     sync = (0.0, 0.0)                                 # 12/11/2026: היסט הקול שעלה ראשון מול הסרטון (av_offset)
     # 3. מסך ויישור
     S.go('al', 'מזהים שקפים ומיישרים')
@@ -1775,7 +1799,8 @@ def vi_run(J, args, engine=None) -> int:
         S.go('rv', 'ממפים את ההרצאה')
         try:
             m = vi_map(eng, str(spec.get('mode') or ''), lang, ev, slides, ocr, inv, bnd, dur, words,
-                       on_progress=lambda x: ctx.report('rv', 0.7 * x), win_tok=VI_WIN_TOK_X if xflags.on(spec, 'vwin') else 0)
+                       on_progress=lambda x: ctx.report('rv', 0.7 * x), win_tok=VI_WIN_TOK_X if xflags.on(spec, 'vwin') else 0,
+                       sp=(tr.get('langs') or {}).get('share'))
         except VIFail as e:
             S.end()
             lx = facts_safe(spec, lang, dur, None, None, eng, None, S.out, tr, words, screen, n_so, len(ocr), st='failed', err=e.code)
@@ -1802,9 +1827,10 @@ def vi_run(J, args, engine=None) -> int:
     title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
     src_kind = 'yt' if spec.get('src') == 'url' and 'youtu' in str(spec.get('url') or '') else 'url' if spec.get('src') == 'url' else 'file'
     if dry:
-        vi = build_vi(lang, dur, src_kind, title, wd, screen, ev, slides, ocr, inv, bnd, n_so, tr.get('quality') or 'ok', tok, warn)
+        vi = build_vi(lang, dur, src_kind, title, wd, screen, ev, slides, ocr, inv, bnd, n_so, tr.get('quality') or 'ok', tok, warn,
+                      lang_extra(tr, ocr))
     else:
-        vi = build_vi_live(lang, dur, src_kind, title, m, ev, slides, ocr, tr.get('quality') or 'ok', warn)
+        vi = build_vi_live(lang, dur, src_kind, title, m, ev, slides, ocr, tr.get('quality') or 'ok', warn, lang_extra(tr, ocr))
     if trunc:
         vi['video']['decl'] = round(decl, 2)
     (pd / 'vi.json').write_text(json.dumps(vi, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
