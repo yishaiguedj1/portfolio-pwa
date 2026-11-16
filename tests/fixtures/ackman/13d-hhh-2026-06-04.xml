@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Schedule 13D/A מס׳ 33 על Howard Hughes Holdings (הוגש 8/6/2026, EDGAR 0001140361-26-024479) — מקוצר: רק השער ושורות המדווחים -->
+<edgarSubmission xmlns="http://www.sec.gov/edgar/schedule13D" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>SCHEDULE 13D/A</submissionType>
+  </headerData>
+  <formData>
+    <coverPageHeader>
+      <securitiesClassTitle>Common Stock, par value $0.01 per share</securitiesClassTitle>
+      <dateOfEvent>06/04/2026</dateOfEvent>
+      <issuerInfo>
+        <issuerCIK> 0001981792</issuerCIK>
+        <issuerCusips>
+          <issuerCusipNumber>44267T102</issuerCusipNumber>
+        </issuerCusips>
+        <issuerName>Howard Hughes Holdings Inc.</issuerName>
+      </issuerInfo>
+    </coverPageHeader>
+    <reportingPersons>
+      <reportingPersonInfo>
+        <reportingPersonName>Pershing Square Capital Management, L.P.</reportingPersonName>
+        <aggregateAmountOwned>27852064.00</aggregateAmountOwned>
+        <percentOfClass>46.7</percentOfClass>
+      </reportingPersonInfo>
+      <reportingPersonInfo>
+        <reportingPersonName>Pershing Square HHH Holdings, LLC</reportingPersonName>
+        <aggregateAmountOwned>9000000.00</aggregateAmountOwned>
+        <percentOfClass>15.1</percentOfClass>
+      </reportingPersonInfo>
+      <reportingPersonInfo>
+        <reportingPersonName>Pershing Square Inc.</reportingPersonName>
+        <aggregateAmountOwned>27852064.00</aggregateAmountOwned>
+        <percentOfClass>46.7</percentOfClass>
+      </reportingPersonInfo>
+      <reportingPersonInfo>
+        <reportingPersonName>Pershing Square Partner Group, LLC</reportingPersonName>
+        <aggregateAmountOwned>27852064.00</aggregateAmountOwned>
+        <percentOfClass>46.7</percentOfClass>
+      </reportingPersonInfo>
+      <reportingPersonInfo>
+        <reportingPersonName>Pershing Square Management, LLC</reportingPersonName>
+        <aggregateAmountOwned>27852064.00</aggregateAmountOwned>
+        <percentOfClass>46.7</percentOfClass>
+      </reportingPersonInfo>
+      <reportingPersonInfo>
+        <reportingPersonName>William A. Ackman</reportingPersonName>
+        <aggregateAmountOwned>27852064.00</aggregateAmountOwned>
+        <percentOfClass>46.7</percentOfClass>
+      </reportingPersonInfo>
+    </reportingPersons>
+  </formData>
+</edgarSubmission>

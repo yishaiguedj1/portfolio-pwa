@@ -261,7 +261,27 @@ function startFsWatch(server, opts = {}) {
   return { tick, stop: () => clearInterval(iv) };
 }
 
-module.exports = { createServer, startCron, cronOn, loadCrons, startPx, startFsWatch, SERVER_ONLY, parseBody, parseCron, cronDue, maxDuration, decorate, unpackEnv };
+/* 16/11/2026: העדכון האוטומטי של תיק אקמן (GET /api/history?job=ackman, lib/ackmanjob.js) — כל 10 דק׳ ודקה אחרי העלייה,
+   רק כאן. בודק הגשות חדשות ב־SEC (13F, Form 4, 13D) ובונה מחדש את הספר; פעם ביום אחרי הסגירה בניו יורק. SNB_ACKMAN=off — כבוי */
+const ACKMAN_EVERY = 10 * 60e3;
+function startAckman(server, opts = {}) {
+  if (!server.names.has('history')) return null;
+  const tick = () => {
+    const headers = { 'user-agent': 'snb-ackman/1.0' };
+    if (process.env.CRON_SECRET) headers.authorization = 'Bearer ' + process.env.CRON_SECRET;
+    const req = { method: 'GET', url: '/api/history?job=ackman', headers, query: { job: 'ackman' }, body: undefined, socket: { remoteAddress: '127.0.0.1' } };
+    const res = decorate(new http.ServerResponse(req));
+    res.assignSocket(new (require('stream').PassThrough)());
+    return server.invoke('history', req, res).catch((e) => console.error('[ackman]', e && e.message));
+  };
+  const iv = setInterval(tick, opts.every || ACKMAN_EVERY);
+  iv.unref();
+  const first = setTimeout(tick, opts.first == null ? 60e3 : opts.first);
+  first.unref();
+  return { tick, stop: () => { clearInterval(iv); clearTimeout(first); } };
+}
+
+module.exports = { createServer, startCron, cronOn, loadCrons, startPx, startFsWatch, startAckman, SERVER_ONLY, parseBody, parseCron, cronDue, maxDuration, decorate, unpackEnv };
 
 if (require.main === module) {
   const unpacked = unpackEnv(process.env);
@@ -280,6 +300,7 @@ if (require.main === module) {
   if (cronOn(process.env, unpacked)) startCron(server, loadCrons(__dirname));
   if (process.env.SNB_PXA !== 'off') startPx(server);
   if (process.env.SNB_FSW !== 'off') startFsWatch(server);
+  if (process.env.SNB_ACKMAN !== 'off') startAckman(server);
   // לפני יציאה: מה שעוד לא נשלח לעותק ב־Firestore (עד 8 שנ׳)
   const stop = () => Promise.race([LDB.flush(), new Promise((r) => setTimeout(r, 15000))]).finally(() => server.close(() => process.exit(0)));
   process.on('SIGTERM', stop);

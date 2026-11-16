@@ -22,5 +22,6 @@ ctx.ibkr = { positions: [1] }; ok(ctx.f() === false, 'נתוני IBKR → ההצ
 ok(ctx.f() === true, 'אחרי איפוס (שוב ריק) → חוזרת');
 ok(/tog\('demoOffer', !on && \(building \|\| accountIsEmpty\(\)\)\)/.test(fn('renderDemoUi')), 'renderDemoUi: ריק או בזמן בנייה, לא במצב דמו');
 ok(/if \(isDemoMode\(\)\) \{ demoExit\(\); return; \}/.test(app) && /menuDemoExitSub/.test(fn('renderDemoUi')), 'במצב דמו השורה בתפריט = יציאה מהדמו');
-ok(/menuDemoSub: 'האפליקציה במלואה'/.test(app) && /menuDemoSub: 'See the full app'/.test(app), 'מחרוזות בעברית ובאנגלית');
+// 16/11/2026: הדמו = התיק של ביל אקמן מהדיווחים ל־SEC
+ok(/menuDemoSub: 'תיק דמו מהדיווחים ל־SEC'/.test(app) && /menuDemoSub: 'A demo from SEC filings'/.test(app), 'מחרוזות בעברית ובאנגלית');
 console.log('# ' + n + ' בדיקות עברו');

@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1685 מפתחות מתוך 6967) */
+/* המחרוזות של admin (1684 מפתחות מתוך 6992) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -644,7 +644,6 @@ he: {
   "admItBkErr": "הגיבוי נכשל",
   "admItBkNone": "אין גיבוי אצל ספק שני",
   "admItBkStale": "הגיבוי לא רץ יותר מיומיים",
-  "admItBrk": "דוח 13F — לעדכן את תיק הדמו",
   "admItDate": "{d}",
   "admItDep": "{n} עדכוני Dependabot",
   "admItDeploy": "שחרור מחכה לאישור שלך",
@@ -2331,7 +2330,6 @@ en: {
   "admItBkErr": "Backup failed",
   "admItBkNone": "No off-site backup",
   "admItBkStale": "Backup hasn't run for 2+ days",
-  "admItBrk": "13F report — update the demo portfolio",
   "admItDate": "{d}",
   "admItDep": "{n} Dependabot updates",
   "admItDeploy": "A release is waiting for your approval",
