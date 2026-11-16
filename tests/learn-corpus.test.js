@@ -220,7 +220,7 @@ const { fakeR2, ACC } = require('./_r2fake');
   await api('learnForget', {});
   ok((await keysIn('m/')).length === 0, '"מחק את התרומות שלי" — גם הקול וה־240p');
 
-  /* 16/11/2026: העותק הצרוב (s) — עבודת־עזר lb שהשרתון יוצר (חשד / המנהל), רק בהסכמה (lrm); נרשם בעבודת ההורה; חצי שנה */
+  /* 16/11/2026: העותק הצרוב (s) — עבודת־עזר lb שהשרתון יוצר רק בכפתור של המנהל (לא אוטומטית), רק בהסכמה (lrm); נרשם בעבודת ההורה; חצי שנה */
   {
     const S = require(path.join(root, 'ibkr-proxy/lib/studio.js'));
     NOW = Date.UTC(2026, 9, 24, 12); R.now = NOW;
@@ -236,11 +236,14 @@ const { fakeR2, ACC } = require('./_r2fake');
     const lidB = LR.lid(pj.id);
     ok(!(await call({ op: 'learnMedia', job: pj.id, key: pj.key, k: 's' }, true)).j.url, 'עבודת תרגום לא מקבלת קישור ל־s — רק עבודת־העזר');
     const lbs = () => [...db.entries()].filter(([k, v]) => k.startsWith('studioJobs/') && v.fields.kind && v.fields.kind.stringValue === 'lb').map(([k, v]) => Object.assign(S.fromFields(v.fields), { id: k.split('/')[1] }));
-    ok((await api('rate', { job: pj.id, r: 1 })).ok && lbs().length === 0, '👍 — בלי עותק');
-    ok((await api('rate', { job: pj.id, r: -1 })).ok, '👎 נשמר');
+    ok((await api('rate', { job: pj.id, r: -1 })).ok && (await api('rate', { job: pj.id, c: [3] })).ok && lbs().length === 0, '👎 וכתובית שסומנה — בלי עותק (אף פעם לא אוטומטית)');
+    const OTHER = tok('otherUid0002', 'other@example.com');
+    const no = await call({ op: 'learnBurn', lid: lidB, idToken: OTHER });
+    ok(no.code === 403 && lbs().length === 0, 'משתמש שאינו המנהל — 403');
+    ok((await api('learnBurn', { lid: lidB })).code === 'start', 'המנהל לוחץ — מתחיל');
     const lb = lbs();
     ok(lb.length === 1 && lb[0].rp === pj.id && lb[0].state === 'queued' && lb[0].uid === 'ownerUid0001' && lb[0].folder === 'R2_' + pj.id && lb[0].spec.eng === 'api'
-      && lb[0].spec.lb.id === 'R2_' + pj.id + '_bbbbbbbbbbbb' && lb[0].spec.lb.s === 5000, '👎 → עבודת־עזר lb בתור: התוצר "same" של ההורה, באותה תיקייה');
+      && lb[0].spec.lb.id === 'R2_' + pj.id + '_bbbbbbbbbbbb' && lb[0].spec.lb.s === 5000, 'הכפתור → עבודת־עזר lb בתור: התוצר "same" של ההורה, באותה תיקייה');
     ok(!JSON.stringify((await api('jobs', {})).jobs || []).includes(lb[0].id), 'עבודת־העזר לא ברשימה של המשתמש');
     ok((await api('learnBurn', { lid: lidB })).code === 'run', 'המנהל: כבר בעבודה — לא כפול');
     ok((await api('learnBurn', { lid: 'zz' })).error === 'bad_params' && (await api('learnBurn', { lid: 'f'.repeat(20) })).code === 'gone', 'מזהה לא תקין / לא קיים');
@@ -264,7 +267,6 @@ const { fakeR2, ACC } = require('./_r2fake');
     await api('learnPref', { on: false });
     const p3 = await mkParent((F) => [{ k: 'same', id: F + '_bbbbbbbbbbbb', size: 50 }]);
     ok((await api('learnBurn', { lid: LR.lid(p3.id) })).code === 'consent' && lbs().length === 1, 'המתג כבוי — consent, בלי עבודה');
-    ok((await api('rate', { job: p3.id, r: -1 })).ok && lbs().length === 1, '👎 עם המתג כבוי — בלי עותק');
     await api('learnPref', { on: true });
     // חצי שנה (ולא 24 חודשים)
     NOW = Date.UTC(2027, 2, 2, 12); R.now = NOW; await call({}, false, true);

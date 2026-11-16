@@ -589,7 +589,8 @@ async function learnMediaDone(deps, job0, k) {
     return true;
   } catch (e) { return false; }
 }
-/* 16/11/2026: עותק צרוב (240p, מוצפן) של תרגום שהסתיים — עבודת־עזר lb בתור (S.lbJob). רק בהסכמה לשמירת הקול והעותק הקטן
+/* 16/11/2026: עותק צרוב (240p, מוצפן) של תרגום שהסתיים — עבודת־עזר lb בתור (S.lbJob). **רק בכפתור של המנהל** (op learnBurn) —
+   אף פעם לא אוטומטית (בקשת המשתמש: לא ב־👎 ולא בכתובית שסומנה). רק בהסכמה לשמירת הקול והעותק הקטן
    (lrm), בלי מתג כבוי / תרומות שנמחקו, לא בטלפון ולא בניתוח. הסרטון: "same" (כמו שהלקוח קיבל), ואם אין — compact / small.
    מחזיר קוד למרכז הניהול: start · have (כבר יש) · run (בעבודה) · none (אין סרטון צרוב) · big · consent · learn_off */
 const LB_SRC = ['same', 'compact', 'small'], LB_IN_MAX = 8 * 1024 ** 3;
@@ -4374,7 +4375,6 @@ async function handler(req, res, deps = {}) {
       await patchJob(deps, job.id, { urt });
       job.urt = urt;
       await learnSave(deps, job, now);
-      if (S.burnSuspect(urt)) await learnBurn(deps, Object.assign({}, job, { state: st }), now).catch(() => {});   // 16/11/2026: חשד → עותק צרוב למאגר (בהסכמה בלבד)
       return res.status(200).json({ ok: true, urt });
     }
     if (op === 'learnUx') {

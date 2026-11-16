@@ -11,7 +11,7 @@ const HASHES = {
   "./styles.css": "a14fc0365a311d4ab115d011ddc9f0ba",
   "./glass-btn.css": "9cf85613af2982f006ad109ccee43bcb",
   "./desktop.css": "5fc5ca732c2adee5d4a9b83054dc696c",
-  "./app.js": "e8a7116c68fdf158ae5c0c2defdc65cb",
+  "./app.js": "57c3dfec608d806f032d4bd675e82993",
   "./returns.js": "afe0d262348852fd10982ef2d0239545",
   "./cloud.js": "d403f6c76884375dc9999b80660f1ddf",
   "./firebase-config.js": "a4adfadcd5fe3b79a29e9fa0eeb94df0",

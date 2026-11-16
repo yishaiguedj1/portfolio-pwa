@@ -1027,9 +1027,8 @@ function dxJob(parent, dx, id, uid, now) {
 }
 /* 16/11/2026 (משתמשת: "רק חלק מהסרטון תורגם" — ובמאגר היה רק המקור ב־240p, בלי הכתוביות): עבודת־עזר שהשרתון יוצר
    (לא הטלפון) — העובד מוריד את התוצר הצרוב ("same", כמו שהלקוח קיבל), מקודד 240p ומצפין כמו העותק של המקור (learn_media,
-   סוג s), והעותק נרשם בעבודת ההורה (lm). רק בחשד (👎 / כתוביות שסומנו בנגן) או בלחיצה של המנהל. נכנסת ישר לתור, בלי
+   סוג s), והעותק נרשם בעבודת ההורה (lm). רק בלחיצה של המנהל במרכז הניהול — אף פעם לא אוטומטית. נכנסת ישר לתור, בלי
    Claude ובלי עלות; לא ברשימה בטלפון, לא בהתראות ולא בשימוש. dur 0 — בלי צפי ובלי הזמנת זיכרון של סרטון */
-const burnSuspect = (urt) => !!(urt && (urt.r === -1 || (Array.isArray(urt.c) && urt.c.length > 0)));
 function lbJob(parent, fo, id, now) {
   const sp = parent.spec || {};
   return { id, uid: parent.uid, kind: 'lb', state: 'queued', created: now, updated: now, folder: parent.folder, rp: parent.id,
@@ -1884,7 +1883,7 @@ function fromFields(f) {
 module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, smAlias, smResolve, smRowsMerge, smEvict, smIsName, chKey, jobSeries, SM_BYTES, SM_READ, SM_GL, SM_CH, SM_NEW, SM_DONE, SM_LOCK, SM_UNSURE, SM_FIX, SM_WORKER, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
-  GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, isGold, isViGold, goldClone, normXe, XF_KEYS, XF_MAX, normXf, GOLD_ARMS, normArms, waveOrder, waveClone, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, burnSuspect, lbJob, cuesSwap, rrSpec, rrJob, VV_MAX, viOut, isVv, canViVerify, vvJob, vvAdopt, isVj, VJ_USD, isVp, VP_MODES, VP_USD, vpJob, viWave, vjPairs, normVjp, vjJob, vjRows, vjDecide,
+  GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, isGold, isViGold, goldClone, normXe, XF_KEYS, XF_MAX, normXf, GOLD_ARMS, normArms, waveOrder, waveClone, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, lbJob, cuesSwap, rrSpec, rrJob, VV_MAX, viOut, isVv, canViVerify, vvJob, vvAdopt, isVj, VJ_USD, isVp, VP_MODES, VP_USD, vpJob, viWave, vjPairs, normVjp, vjJob, vjRows, vjDecide,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
