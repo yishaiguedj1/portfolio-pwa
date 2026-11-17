@@ -30,6 +30,7 @@ const E = require(path.join(__dirname, '..', 'ibkr-proxy/lib/earnprev.js'));
   ok(!a.fy, 'רבעון שלא סוגר את שנת הכספים — לא דוח שנתי');
   const qs2 = JSON.parse(JSON.stringify(qs));
   qs2.quoteSummary.result[0].earningsTrend.trend[1].endDate = '2026-10-31';
+  ok(a.la && a.la.e === 2 && a.la.d === null, 'הרווח בפועל האחרון ("של הרחוב") — לדגל מותאם/GAAP');
   ok(E.parseAnalysts(qs2).fy === 1, 'הרבעון והשנה נגמרים באותו חודש — דוח שנתי');
   ok(E.parseAnalysts({ quoteSummary: { result: [{ calendarEvents: { earnings: { earningsDate: [R(1794949200)] } }, earningsTrend: { trend: [] } }] } }).q === undefined, 'בלי כיסוי אנליסטים — בלי q');
   ok(E.parseAnalysts({}) === null, 'תשובה ריקה → null');
@@ -88,6 +89,21 @@ const E = require(path.join(__dirname, '..', 'ibkr-proxy/lib/earnprev.js'));
   const hist = fs.readFileSync(path.join(__dirname, '..', 'ibkr-proxy/api/history.js'), 'utf8');
   ok(/op === 'earnPrev'\) return require\('\.\.\/lib\/earnprev'\)\.handle/.test(hist), 'השרתון: op:\'earnPrev\' ב־api/history.js (בלי פונקציה חדשה ב־Vercel)');
 
+  /* ---------- השרתון: מצב העסק (parseBiz) ---------- */
+  const ts = (type, rows) => ({ meta: { type: [type] }, [type]: rows.map(([d, v]) => ({ asOfDate: d, reportedValue: { raw: v } })) });
+  const bz = E.parseBiz({ timeseries: { result: [
+    ts('quarterlyTotalRevenue', [['2025-06-30', 10e9], ['2025-09-30', 11e9], ['2025-12-31', 12e9], ['2026-03-31', 12.5e9], ['2026-06-30', 13e9], ['2026-09-30', 14e9]]),
+    ts('quarterlyOperatingIncome', [['2025-09-30', 2e9], ['2026-09-30', 3.1e9]]),
+    ts('quarterlyDilutedEPS', [['2026-09-30', 1.23456]]),
+    ts('quarterlyCapitalExpenditure', [['2026-09-30', -5e8]]),
+    { meta: { type: ['quarterlyGoodwill'] }, quarterlyGoodwill: [null, { asOfDate: '2026-09-30' }] },
+  ] } });
+  ok(bz.q.length === 5 && bz.q[0] === '2025-09-30' && bz.q[4] === '2026-09-30', 'parseBiz: 5 הרבעונים האחרונים לפי ההכנסות');
+  ok(bz.rev[4] === 14e9 && bz.op[0] === 2e9 && bz.op[1] === null && bz.eps[4] === 1.2346 && bz.capex[4] === -5e8, 'parseBiz: ערכים לפי תאריך, חסר = null, רווח למניה 4 ספרות, השקעות בסימן המקורי');
+  ok(!('gw' in bz) && !('ni' in bz), 'parseBiz: סדרה ריקה או פגומה — לא נשלחת');
+  ok(E.parseBiz({ timeseries: { result: [ts('quarterlyTotalRevenue', [['2026-09-30', 1]])] } }) === null && E.parseBiz(null) === null, 'parseBiz: פחות משני רבעונים — null');
+  ok(/biz\(s\)/.test(fs.readFileSync(path.join(__dirname, '..', 'ibkr-proxy/lib/earnprev.js'), 'utf8')), 'השרתון שולף את מצב העסק לכל סימבול');
+
   /* ---------- הטלפון (app.js) ---------- */
   const store = {};
   const elStub = () => ({ value: '', textContent: '', innerHTML: '', classList: { add() {}, remove() {}, toggle() {} }, addEventListener() {}, appendChild() {}, dataset: {}, style: {}, setAttribute() {} });
@@ -99,7 +115,7 @@ const E = require(path.join(__dirname, '..', 'ibkr-proxy/lib/earnprev.js'));
   };
   vm.createContext(sandbox);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-    '\n;globalThis.__t = { earnXFor, earnXTone, earnEpsTxt, earnRevTxt, earnRangeTxt, earnXRowHTML, earnXSheetHTML, LS_CACHE_PREFIXES, earnWinRows };', sandbox, { filename: 'app.js' });
+    '\n;globalThis.__t = { earnXFor, earnXTone, earnEpsTxt, earnRevTxt, earnRangeTxt, earnXRowHTML, earnXSheetHTML, LS_CACHE_PREFIXES, hsSnapTarget, earnXExp, earnXBiz, earnXFlags, earnXSigHTML };', sandbox, { filename: 'app.js' });
   const T = sandbox.__t;
   const x = { at: 1, a: { d: '2026-11-17', q: { eps: 2.4712, rev: 108731903900, n: 43, yEps: 1.3, yRev: 57e9, epsLo: 2.26, epsHi: 2.7 }, cur: 'USD' }, g: { fd: '2026-08-26', q: { rev: [105840000000, 110160000000] } } };
   const m = T.earnXFor(x, '2026-11-17');
@@ -119,23 +135,81 @@ const E = require(path.join(__dirname, '..', 'ibkr-proxy/lib/earnprev.js'));
   ok(T.earnXRowHTML({ a: null, g: { fd: '2026-10-29', y: { rev: [1995e6, 2020e6] } } }).includes('הנהלה · שנתי'), 'בלי אנליסטים — צפי ההנהלה (השנתי מסומן)');
   ok(T.earnXRowHTML(null) === '', 'בלי צפי — בלי שורה');
   const fyx = { a: { fy: 1, q: { eps: 4.86, rev: 96.69e9, e90: 4.85, e30: 4.86, up: 1, dn: 1 }, y: { eps: 20.01, rev: 396e9 }, cur: 'USD', h: { b: 4, n: 4, s: 5.6 } }, g: { fd: '2026-10-29', q: { rev: [95e9, 97e9] }, y: { rev: [390e9, 398e9] } } };
-  ok(!/earn-tone-ic/.test(T.earnXRowHTML(fyx)), 'מגמה ניטרלית — בלי סימן בכרטיס');
-  const upRow = T.earnXRowHTML({ a: { q: { eps: 2.47, ec: 2.47, e30: 2.47, e90: 2.35, up: 0, dn: 1, rev: 1e11 }, cur: 'USD' } });
-  ok(/earn-tone-ic pos/.test(upRow) && /aria-label="מגמה חיובית"/.test(upRow), 'מגמה חיובית — חץ ירוק עם תיאור לקורא מסך');
-  const fySh = T.earnXSheetHTML(fyx);
-  ok(/דוח שנתי/.test(fySh) && /רבעון/.test(fySh) && /שנה מלאה/.test(fySh) && /עקפה את הצפי ב־4 מ־4/.test(fySh) && /לא תחזית ולא המלצה/.test(fySh), 'הגיליון: רבעון + שנה מלאה, עקיפת הצפי והבהרה');
-  ok(T.earnXRowHTML(null) === '', 'בלי צפי — בלי שורות');
+  // 17/11/2026 (בקשת המשתמש — הערכה אמיתית לפי השקעות ערך): שני אותות ודגל. הפיקסטורות — מספרים פומביים מעוגלים
+  // (מיליארדים) מ־Yahoo, באותה צורה שהשרתון מחזיר
+  const B = (o) => Object.assign({ q: ['2025-09-30', '2025-12-31', '2026-03-31', '2026-06-30', '2026-09-30'] }, o);
+  const G = 1e9;
+  // רבעון אשתקד עם רווח חד־פעמי גדול (שערוך השקעות), והרחוב לפי GAAP — הרווח לא בר השוואה
+  const uber = B({ rev: [13.47, 14.37, 13.2, 14.4, 14.7].map((v) => v * G), op: [1.11, 1.79, 1.6, 1.9, 1.95].map((v) => v * G), pretax: [2.6, 1.9, 1.7, 2.0, 2.1].map((v) => v * G),
+    ni: [6.63, 0.3, 1.5, 1.8, 1.9].map((v) => v * G), norm: [5.56, 0.3, 1.5, 1.8, 1.9].map((v) => v * G), unus: [1.44, 1.66, 0.1, 0.1, 0.1].map((v) => v * G),
+    ocf: [2.3, 2.6, 2.5, 2.9, 2.6].map((v) => v * G), capex: [-0.06, -0.06, -0.07, -0.07, -0.07].map((v) => v * G), sbc: [0.5, 0.5, 0.5, 0.5, 0.5].map((v) => v * G),
+    sh: [2.17, 2.15, 2.12, 2.1, 2.09].map((v) => v * G), eps: [3.11, 0.13, 0.7, 0.86, 0.9] });
+  const ua = { q: { eps: 0.97, yEps: 0.13, rev: 15.66 * G, yRev: 14.37 * G, end: '2026-12-31' }, la: { e: 0.9, d: '2026-09-30' } };
+  const ue = T.earnXExp(ua, uber);
+  ok(ue.k === 'up' && ue.eps === null && ue.nc && Math.abs(ue.rev - 0.0898) < 0.001, 'ציפיות: חד־פעמי ברבעון אשתקד והרחוב כלל אותו — הרווח מוחרג, לפי ההכנסות (+9%)');
+  ok(T.earnXFlags(ua, uber).some((f) => f.k === 'one'), 'דגל: חד־פעמי');
+  // ORCL: המותאם אשתקד כלל רווח הון — קרוב יותר ל־GAAP מאשר למנורמל
+  const orcl = B({ eps: [1.01, 2.1, 1.27, 1.45, 1.56], sh: [2.91, 2.92, 2.91, 2.92, 3].map((v) => v * G), norm: [3.35, 4.16, 3.92, 4.68, 4.81].map((v) => v * G),
+    op: [4.69, 5.16, 5.64, 6.96, 6.82].map((v) => v * G), unus: [-0.5, 2.04, -0.23, -0.47, -0.06].map((v) => v * G), rev: [14.93, 16.06, 17.19, 19.18, 19.34].map((v) => v * G) });
+  orcl.q = ['2025-08-31', '2025-11-30', '2026-02-28', '2026-05-31', '2026-08-31'];
+  ok(T.earnXExp({ q: { eps: 1.89, yEps: 2.26, rev: 21.33 * G, yRev: 16.06 * G, end: '2026-11-30' } }, orcl).nc, 'ציפיות: גם רווח מותאם שכלל את החד־פעמי — מוחרג');
+  // PFE: החריגה ב־GAAP בלבד, הרחוב (מותאם) רחוק ממנה — ההשוואה נקייה
+  const pfe = B({ eps: [0.62, -0.29, 0.5, 0.6, 0.56], sh: [5.7, 5.7, 5.7, 5.7, 5.7].map((v) => v * G), norm: [4.4, 3.6, 3.9, 4.2, 4.1].map((v) => v * G),
+    op: [4.5, 2.0, 4.0, 4.2, 4.0].map((v) => v * G), unus: [-0.5, -3.5, -0.4, -0.3, -1.6].map((v) => v * G), rev: [16.65, 17.76, 13.7, 14.7, 16.3].map((v) => v * G) });
+  const pa = { q: { eps: 0.69, yEps: 0.66, rev: 17.22 * G, yRev: 17.56 * G, end: '2026-12-31' }, la: { e: 0.87, d: '2026-09-30' } };
+  const pe = T.earnXExp(pa, pfe);
+  ok(pe.eps != null && !pe.nc && pe.k === 'up', 'ציפיות: חריגה שהרחוב כבר החריג — הרווח נשאר בהשוואה');
+  const pfl = T.earnXFlags(pa, pfe).find((f) => f.k === 'adj');
+  ok(pfl && pfl.a === 0.87 && pfl.g === 0.56, 'דגל: פער מותאם/GAAP ברבעון האחרון');
+  // מצבים
+  ok(T.earnXExp({ q: { eps: 1.8, yEps: 2.1, rev: 90, yRev: 100 } }).k === 'down' && T.earnXExp({ q: { eps: 1.8, yEps: 2.1, rev: 110, yRev: 100 } }).k === 'mix', 'ציפיות: ירידה / מעורב');
+  ok(T.earnXExp({ q: { eps: 2.01, yEps: 2, rev: 101, yRev: 100 } }).k === 'flat' && T.earnXExp({ q: { eps: 1 } }) === null && T.earnXExp(null) === null, 'ציפיות: עד 2% יציב; בלי אשתקד — בלי');
+  ok(T.earnXExp({ q: { eps: -0.2, yEps: -0.5 } }).k === 'up', 'ציפיות: הפסד קטן מאשתקד — צמיחה');
+  // מצב העסק
+  const ub = T.earnXBiz(uber);
+  ok(ub.k === 'up' && ub.n === 5 && ub.sh < 0 && ub.cc > 1, 'העסק: הכנסות, שוליים, תזרים חופשי, רכישה חוזרת והמרת מזומן — משתפר');
+  const weak = B({ rev: [100, 100, 100, 100, 90], op: [20, 20, 20, 20, 12], ocf: [20, 10, 10, 8, 8], ni: [15, 15, 15, 15, 15], sh: [10, 10, 10, 10, 10.5], capex: [-5, -5, -5, -5, -5] });
+  ok(T.earnXBiz(weak).k === 'down', 'העסק: הכנסות ושוליים יורדים, דילול, רווח בלי מזומן — נחלש');
+  ok(T.earnXBiz(null) === null && T.earnXBiz(B({ rev: [1, 1, 1, 1, 1] })) === null, 'העסק: פחות משני רכיבים — בלי');
+  ok(T.earnXFlags(ua, weak).some((f) => f.k === 'cash'), 'דגל: רווח בלי מזומן');
+  // רכישה (NVDA: 13.2B ברבעון אחד, המוניטין קפץ)
+  const nv = B({ rev: [46.7, 57, 68.1, 81.6, 96.2].map((v) => v * G), acq: [-0.29, -0.69, -13.16, -0.09, -0.21].map((v) => v * G), gw: [5.75, 6.26, 20.83, 20.89, 21.13].map((v) => v * G) });
+  ok(T.earnXFlags({ q: {} }, nv).some((f) => f.k === 'acq') && !T.earnXFlags({ q: {} }, B({ rev: [10, 10, 10, 10, 10], acq: [-0.1, 0, 0, 0, 0], gw: [5, 5, 5, 5, 5] })).length, 'דגל: רכישה משמעותית; רכישה זניחה — בלי');
+  // הכרטיס
+  const uex = { a: Object.assign({ cur: 'USD', h: { b: 4, n: 4 } }, ua), g: null, b: uber };
+  const urow = T.earnXSigHTML(uex);
+  ok(/^<span class="earn-sigs">/.test(urow) && !/earn-sig/.test(T.earnXRowHTML(uex)), 'האותות — תחתית ברוחב הכרטיס, לא בתוך שורת הצפי');
+  ok(/earn-tone pos[^>]*><span aria-hidden="true">▲<\/span> ציפיות: צמיחה/.test(urow) && /class="earn-fc-v">הכנסות ⁦\+9\.0%⁩</.test(urow), 'בכרטיס: "ציפיות: צמיחה · הכנסות +9%" (בלי "לא בר השוואה" — בגיליון)');
+  ok(/העסק: משתפר/.test(urow) && /class="earn-flag"[^>]*>.*יש חריגה/.test(urow), 'בכרטיס: "העסק: משתפר" ו"יש חריגה"');
+  ok(!/עקפה/.test(urow) && !/מגמה/.test(urow), 'עקיפת הצפי ומגמת הצפי — רק בגיליון');
+  ok(urow.indexOf('ציפיות') < urow.indexOf('העסק'), 'הסדר: ציפיות, ואחריהן העסק');
+  ok(/earn-tone neg/.test(T.earnXSigHTML({ a: { q: { eps: 1.8, yEps: 2.1, rev: 9e8, yRev: 1e9 }, cur: 'USD' } })) && T.earnXSigHTML({ a: { q: { eps: 2, rev: 1e9 }, cur: 'USD' } }) === '', 'ירידה — אדומה; בלי אשתקד ובלי נתוני עסק — בלי תחתית');
+  ok(T.earnXSigHTML({ a: null, g: { fd: '2026-10-29', y: { rev: [1995e6, 2020e6] } } }) === '' && T.earnXSigHTML(null) === '', 'צפי הנהלה בלבד — בלי אותות');
+  ok(/earnXSigHTML\(exr\)/.test(fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')), 'הכרטיס מחבר את התחתית');
+  ok(/\.earn-sigs \{ flex: 1 0 100%;/.test(fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8')), 'התחתית ברוחב מלא');
+  // הגיליון
+  const ush = T.earnXSheetHTML(uex);
+  ok(/ציפיות לרבעון/.test(ush) && /מצב העסק/.test(ush) && /שולי רווח תפעולי/.test(ush) && /המרת מזומן/.test(ush) && /לא בר השוואה/.test(ush), 'הגיליון: שני הסעיפים עם הרכיבים, ו"לא בר השוואה"');
+  ok(/class="esx-flag"[^>]*>.*רווח חד־פעמי/.test(ush) && /לא תחזית ולא המלצה/.test(ush) && /רוב החברות עוקפות/.test(ush), 'הגיליון: הדגל במילים, ההסתייגות, וההערה על עקיפת הצפי');
+  ok(/esx-flag[^<]*<span aria-hidden="true">⚠<\/span> הרווח ״של הרחוב״ ברבעון האחרון ⁦\$0\.87⁩ מול ⁦\$0\.56⁩/.test(T.earnXSheetHTML({ a: Object.assign({ cur: 'USD' }, pa), g: null, b: pfe })), 'הגיליון: פער מותאם/GAAP עם שני המספרים');
   const sh = T.earnXSheetHTML(m);
   ok(/צפי לדוח/.test(sh) && /רווח למניה/.test(sh) && /הכנסות/.test(sh) && /43 אנליסטים/.test(sh) && /לפני שנה/.test(sh) && /26\/08\/2026/.test(sh), 'הגיליון: טבלה, מספר אנליסטים, לפני שנה ומקור צפי ההנהלה');
   ok(!/<img/i.test(T.earnXSheetHTML({ a: { q: { eps: 1 }, cur: '<img onerror=x>' } })), 'מטבע מוזר לא מוזרק כ־HTML');
   ok(T.LS_CACHE_PREFIXES.includes('pwa_earnx_v1') && fs.readFileSync(path.join(__dirname, '..', 'move.js'), 'utf8').includes("'pwa_earnx_v1'"), 'המטמון ב־LS_CACHE_PREFIXES וב־move.js');
   const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
   ok(['.earn-x', '.es-x', '.esx-grid', '.esx-v'].every((c) => css.includes(c)), 'הסגנונות קיימים');
-  // 15/11/2026: הכרטיס לא לוכד את גלילת העמוד — בלי contain על הרשימה; שלוש שורות במסך גדול, שתיים בקטן
-  const scr = (css.match(/\.earn-list\.earn-scroll \{[^}]*\}/) || [''])[0];
-  ok(scr && !/overscroll-behavior/.test(scr) && !/mandatory/.test(scr), 'רשימת הדוחות לא חוסמת את גלילת העמוד בקצה');
-  ok(T.earnWinRows(832) === 3 && T.earnWinRows(915) === 3 && T.earnWinRows(1080) === 3, 'מסך גדול (טלפון גדול / מחשב) — שלושה דוחות');
-  ok(T.earnWinRows(780) === 2 && T.earnWinRows(667) === 2, 'מסך קטן — שני דוחות');
+  // 17/11/2026 (בקשת המשתמש): קרוסלה אופקית — העמוד נגלל למעלה/למטה, הדוחות לצדדים; בלי גלילה פנימית אנכית
+  const appSrc = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  ok(!/\.earn-list\.earn-scroll/.test(css) && !/overflow-y: auto/.test((css.match(/\.earn-list \{[^}]*\}/) || [''])[0]), 'אין יותר רשימה שנגללת למעלה/למטה בתוך הכרטיס');
+  ok(/\.earn-list \{ display: flex;/.test(css) && /\.earn-list > \.earn-row \{ flex: 0 0 86%;/.test(css), 'קרוסלה: כרטיס 86% — הבא מציץ בקצה');
+  ok(/HS_ROWS = '[^']*\.earn-list[^']*'/.test(appSrc), 'הגרירה דרך initHScroll (בלי שכבה שנעלמת בנחיתה) — וגם חוסמת החלקת עמוד');
+  ok(!/id="earnMore"/.test(html) && !/earnMoreUpdate|sizeEarnWindow|earnWinRows/.test(appSrc), '"עוד N דוחות" והחלון האנכי הוסרו');
+  ok(/id="earnCnt"/.test(html) && /<span data-i18n-html="earnTitle">/.test(html), 'מספר הדוחות ליד הכותרת (מחוץ לתרגום)');
+  const st = [0, -300, -600, -900];
+  ok(T.hsSnapTarget(st, 0, -40) === 0 && T.hsSnapTarget(st, 0, -200) === -300, 'נעצרת על הכרטיס הקרוב');
+  ok(T.hsSnapTarget(st, -300, -2000) === -600 && T.hsSnapTarget(st, -300, 900) === 0, 'תנופה חזקה — לכל היותר כרטיס אחד');
+  ok(T.hsSnapTarget([], 0, -55) === -55, 'בלי כרטיסים — בלי עצירה');
 
   console.log('\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ' + n + ')');
 })().catch((e) => { console.error(e); process.exit(1); });

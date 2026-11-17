@@ -67,7 +67,8 @@ export function normVi(o) {
     if (Number.isInteger(e.w0) && Number.isInteger(e.w1) && e.w0 >= 0 && e.w1 >= e.w0) { x.w0 = e.w0; x.w1 = e.w1; }
     out.evidence.push(x);
   }
-  /* 16/11/2026 (דוברים בתמליל): [{spk, sh, t, lg: [{lg, sh}], g: m|f|u, gs, name, role}] — תווית אחת פעם אחת, עד SPK_MAX */
+  /* 16/11/2026 (דוברים בתמליל): [{spk, sh, t, lg: [{lg, sh}], g: m|f|u, gs, name, role}] — תווית אחת פעם אחת, עד SPK_MAX;
+     17/11/2026 (מי מדבר): + orig, ttl, act, kb (1 — מהידע הכללי של המודל) */
   const sps = [];
   for (const d of lst(o.speakers, SPK_MAX)) {
     if (!isObj(d) || !SPK_RE.test(String(d.spk || '')) || !fin(d.sh, 0, 1) || sps.some((y) => y.spk === d.spk)) continue;
@@ -78,7 +79,8 @@ export function normVi(o) {
     if (lgs.length) x.lg = lgs.slice(0, 4);
     x.g = d.g === 'm' || d.g === 'f' ? d.g : 'u';
     if (x.g !== 'u' && (d.gs === 'text' || d.gs === 'voice')) x.gs = d.gs;
-    for (const k of ['name', 'role']) { const v = txt(d[k], VI_TXT.spk); if (v) x[k] = v; }
+    for (const k of ['name', 'role', 'orig', 'ttl', 'act']) { const v = txt(d[k], VI_TXT.spk); if (v) x[k] = v; }   // 17/11/2026: מי מדבר — המקור, התואר והשחקן
+    if (d.kb === 1 && (x.name || x.ttl || x.act)) x.kb = 1;
     sps.push(x);
   }
   if (sps.length) out.speakers = sps;
@@ -313,7 +315,10 @@ export function renderVi(ctx) {
     const ov = (ctx.spkOv && ctx.spkOv()) || {};
     const base = sp0.map((d) => {
       const o = ov[d.spk] || {};
-      return { k: d.spk, name: 'n' in o ? o.n : d.name || '', role: 'r' in o ? o.r : d.role || '', g: o.g || d.g, gs: o.g ? 'me' : d.gs, sh: d.sh, t: d.t, lg: d.lg };
+      /* 17/11/2026 (מי מדבר): התואר, השחקן והשם המקורי — של מי שהעובד מצא; שינית את השם — הם כבר לא שלו */
+      const mine = 'n' in o && o.n !== (d.name || '');
+      return { k: d.spk, name: 'n' in o ? o.n : d.name || '', role: 'r' in o ? o.r : d.role || '', g: o.g || d.g, gs: o.g ? 'me' : d.gs, sh: d.sh, t: d.t, lg: d.lg,
+        ...(mine ? {} : { ttl: d.ttl, act: d.act, orig: d.orig, kb: d.kb }) };
     });
     const idx = spkIdx(base.map((d) => spkKey(d.name, d.k)), (ctx.spkc && ctx.spkc()) || {});
     spk = base.map((d, i) => spkView(T, d, i + 1, idx.get(spkKey(d.name, d.k))));
@@ -437,6 +442,22 @@ export function renderVi(ctx) {
     el.append(rb);
   }
 
+  /* 16/11/2026: הדוברים — מי, התפקיד, והחלק מהדיבור; נגיעה = גיליון הדובר (המגדר, השפות, הצבע).
+     17/11/2026 (המשתמש: "בתחילת הניתוח — מי הוא בדיוק, שהמשתמש תמיד יבין במי מדובר"): כשידוע מי מישהו (שם, תואר או
+     תפקיד) — "מי מדבר" בראש הדף, לפני השורה האחת; אחרת — "דוברים" בסוף כמו קודם */
+  const spkSec = h('div', 'st-spk-sec0');
+  const spkTop = spk.some((s) => s.named || s.ttl || s.role || s.act);
+  function paintCard() {
+    spkSec.textContent = '';
+    if (!spk.length) return;
+    spkSec.append(sec(spkTop ? T('studioSpkWho') : T('studioSpkT')));
+    const ls = h('div', 'st-list st-spk-list');
+    for (const s of spk) ls.append(spkRow({ T, h, btn, s, nm, k: 'spk:' + s.k, chev: ctx.ico('chev', 'st-chev'), onOpen: () => openSpk(s.k) }));
+    spkSec.append(ls);
+  }
+  paintCard();
+  if (spkTop) el.append(spkSec);
+
   /* השורה האחת והנקודות */
   if (br.one || br.pts.length) {
     const g = h('div', 'st-vi-card st-vi-gist');   // כמו .st-jhero (זכוכית, --gl-card-sh)
@@ -527,18 +548,7 @@ export function renderVi(ctx) {
     el.append(ul);
   }
 
-  /* 16/11/2026: הדוברים — מי, המגדר, השפות והחלק מהדיבור; נגיעה = גיליון הדובר */
-  const spkSec = h('div', 'st-spk-sec0');
-  function paintCard() {
-    spkSec.textContent = '';
-    if (!spk.length) return;
-    spkSec.append(sec(T('studioSpkT')));
-    const ls = h('div', 'st-list st-spk-list');
-    for (const s of spk) ls.append(spkRow({ T, h, btn, s, nm, k: 'spk:' + s.k, chev: ctx.ico('chev', 'st-chev'), onOpen: () => openSpk(s.k) }));
-    spkSec.append(ls);
-  }
-  paintCard();
-  el.append(spkSec);
+  if (!spkTop) el.append(spkSec);   // הדוברים — בסוף, כשלא ידוע עליהם כלום (למעלה — "מי מדבר")
 
   /* התמליל המלא — מקופל; השורות נבנות בפתיחה הראשונה. נגיעה בשורה = ניגון ממנה.
      16/11/2026: כשמדברים כמה — תור לכל דובר (העיגול והשם בראש, קו בצבע שלו לאורך השורות); שורה בשפה שאינה השפה

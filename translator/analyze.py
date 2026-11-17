@@ -642,8 +642,92 @@ def vi_index(ev: list[dict], slides: list[dict], ocr: list[dict], words: list[di
     return vicheck.Index(ev, slides, ocr, words), inv_nums
 
 
+CAST_MAX_OUT = 3000              # תשובת "מי מדבר" (עד 20 דוברים)
+
+
+def vi_cast(eng, title: str, up: str, desc: str, ocr: list[dict], ev: list[dict]) -> dict:
+    """17/11/2026 — "מי מדבר" (visheet.CAST_SYS) לפני המיפוי: קריאה אחת קטנה בתפקיד vm + ניסיון תיקון אחד.
+    {fmt, people, st}. אין דיבור / תקלה / תקרה — people ריק והניתוח ממשיך כמו קודם (התקרה תיעצר במיפוי)."""
+    import llm
+    import visheet
+    st = {'ok': 0, 'retry': 0, 'n': 0, 'named': 0, 'ms': 0}
+    out = {'fmt': 'other', 'people': [], 'st': st}
+    if not ev:
+        return out
+    llm.REFUSAL_BY_ROLE['vm'] = visheet.REFUSAL_VI
+    structured, fb, t0 = bool(getattr(eng, 'structured', False)), '', time.time()
+    try:
+        for _ in range(2):
+            res = eng.complete('vm', visheet.CAST_SYS, visheet.cast_prompt(title, up, desc, ocr, ev, structured, fb),
+                               max_tokens=CAST_MAX_OUT, fmt=visheet.CAST_SCHEMA if structured else None)
+            try:
+                d = visheet.parse_cast(res.text)
+            except visheet.SchemaError as e:
+                fb = 'Your previous answer was invalid: %s. Answer again, following the schema exactly.' % e
+                st['retry'] += 1
+                continue
+            out.update(fmt=d['fmt'], people=d['people'])
+            st.update(ok=1, n=len(d['people']), named=sum(1 for p in d['people'] if p['name']), fmt=d['fmt'])
+            break
+    except llm.LLMError as e:
+        st['err'] = e.code
+    st['ms'] = int((time.time() - t0) * 1000)
+    return out
+
+
+def cast_ctx(pd: Path, spec: dict) -> tuple[str, str]:
+    """(המעלה, תחילת התיאור) לבקשת "מי מדבר" — מ־ref/desc.json (job.learn_refs_start, מקישור). אין — ריקים."""
+    d = _read_json(pd / 'ref' / 'desc.json')
+    if not isinstance(d, dict):
+        return '', ''
+    return str(d.get('up') or '')[:100], str(d.get('desc') or '')[:2000]
+
+
+NAME_DOM = 0.85                 # בלי יחידות דיבור בראיות (שקף, סיכום פרק) — השם רק כשדובר אחד מחזיק לפחות כך מהדיבור
+
+
+def name_refs(m: dict, ix) -> int:
+    """17/11/2026 — רשת ביטחון: "הדובר" / "הדוברת" / "המרצה" שנשאר בטקסט (הערות, הסינתזה, סיכומי הפרקים) → השם,
+    כשברור על מי מדובר: כל יחידות הדיבור בראיות של אותה תווית עם שם; בלי יחידות דיבור (או סיכום פרק בלי תווית אחת) —
+    רק כשדובר אחד עם שם מחזיק NAME_DOM מהדיבור. מחזיר כמה הוחלפו (st.cast.fix)."""
+    import visheet
+    names = {k: v['name'] for k, v in (m.get('speakers') or {}).items() if (v or {}).get('name')}
+    if not names:
+        return 0
+    evs = list(ix.ev.values())
+    labeled = any(u.get('spk') for u in evs)
+    lab = (lambda u: u.get('spk')) if labeled else (lambda u: 'S1')
+    tot, by = 0.0, {}
+    for u in evs:
+        d = max(0.0, float(u.get('t1') or 0) - float(u.get('t0') or 0))
+        by[lab(u)] = by.get(lab(u), 0.0) + d
+        tot += d
+    dom = next((names[k] for k, v in by.items() if k in names and tot > 0 and v / tot >= NAME_DOM), '')
+
+    def who(refs) -> str:
+        ls = {lab(ix.ev[r]) for r in refs if r in ix.ev}
+        if len(ls) == 1:
+            return names.get(next(iter(ls)) or '', '')
+        return dom if not ls else ''
+    n = 0
+    by_id = {}
+    for it in m.get('items') or []:
+        by_id[it['id']] = it
+        it['text'], k = visheet.name_fix(it.get('text') or '', who(it.get('ev') or []))
+        n += k
+    for c in m.get('chapters') or []:
+        refs = [r for i in c.get('items') or [] for r in (by_id.get(i) or {}).get('ev') or []]
+        nm = who(refs)
+        for f in ('title', 'sum', 'adds'):
+            if c.get(f):
+                c[f], k = visheet.name_fix(c[f], nm)
+                n += k
+    return n
+
+
 def vi_map(eng, mode: str, lang: str, ev: list[dict], slides: list[dict], ocr: list[dict], inv: dict, bnd: list[dict],
-           dur: float, words: list[dict], on_progress=None, win_tok: int = 0, sp: dict | None = None) -> dict:
+           dur: float, words: list[dict], on_progress=None, win_tok: int = 0, sp: dict | None = None,
+           cast: dict | None = None) -> dict:
     """המיפוי כולו (rv): השלד, החלונות (מתחת לכרטיס — V36), קריאה לכל חלון והאיחוד. כישלון של כל החלונות → vi_schema;
     חלון שלא נכנס לכרטיס גם בשורה אחת → vi_card; תקרת העלות → cap (LLMError budget_cap)."""
     import llm
@@ -651,7 +735,8 @@ def vi_map(eng, mode: str, lang: str, ev: list[dict], slides: list[dict], ocr: l
     llm.REFUSAL_BY_ROLE['vm'] = visheet.REFUSAL_VI          # 5.8: נוסח הסירוב של הניתוח (llm.refusal_text)
     t0 = time.time()
     ix, inv_nums = vi_index(ev, slides, ocr, words, inv)
-    fixed = visheet.system_fixed(visheet.skeleton(lang, bnd, inv, slides, ocr, sp=sp))
+    people = (cast or {}).get('people') or []
+    fixed = visheet.system_fixed(visheet.skeleton(lang, bnd, inv, slides, ocr, sp=sp, cast=people))
     queue = win_plan(ev, slides, ocr, win_tok or VI_WIN_TOK)
     wins: list[dict] = []
     while queue:                                             # 5.5: חלון שלא נכנס לכרטיס — חוצים לשניים
@@ -684,7 +769,11 @@ def vi_map(eng, mode: str, lang: str, ev: list[dict], slides: list[dict], ocr: l
     if wins and st['fail'] == len(wins):
         raise VIFail('vi_schema', 'המיפוי נכשל בכל החלונות')
     m = merge_map(wins, outs, ix, bnd, slides, dur)
+    m['cast'] = people                                       # 17/11/2026: מי מדבר — לסינתזה ולרשת הביטחון (name_refs)
+    m['speakers'] = visheet.merge_cast(people, m.get('speakers') or {})
     m['st'] = dict(st, iss=issues, sh=visheet.sys_hash(), pv=visheet.PV, ms=int((time.time() - t0) * 1000))
+    if cast and cast.get('st'):
+        m['st']['cast'] = cast['st']
     m['raw'] = {'m0': '\n'.join(w.get('raw') or '' for w in wins)[:RAW_MAX],
                 'm1': json.dumps(m['items'], ensure_ascii=False, separators=(',', ':'))[:RAW_MAX]}
     return m
@@ -720,7 +809,7 @@ def vi_synth(eng, m: dict, ix, inv_nums: set) -> dict:
     d, fb, t0 = None, '', time.time()
     try:
         for _ in range(2):
-            res = eng.complete('vs', visheet.VS_SYS, visheet.synth_prompt(m['chapters'], m['items'], structured, fb),
+            res = eng.complete('vs', visheet.VS_SYS, visheet.synth_prompt(m['chapters'], m['items'], structured, fb, m.get('cast')),
                                max_tokens=VS_MAX_OUT, fmt=visheet.VS_SCHEMA if structured else None)
             m.setdefault('raw', {})['s0'] = str(res.text)[:RAW_MAX]
             try:
@@ -1106,10 +1195,14 @@ def speakers_doc(ev: list[dict], lang: str, voice: dict | None = None, named: di
     """16/11/2026 (בקשת המשתמש: "לכל דובר מי הדובר, המגדר שלו ובאיזו שפה הוא מדבר") — לכל תווית, בסדר ההופעה:
     sh — החלק מזמן הדיבור (לפי יחידות התמליל), ‏t — שניות; ‏lg — השפות שלו ([{lg, sh}]: לפחות SPK_LG_MIN מהדיבור שלו וגם
     SPK_LG_MIN_S שנ׳, עד 4; יחידה בלי lg — בשפת התמלול); ‏g — m / f / u, ו־gs — מאיפה: text (התוכן — Claude: איך הוא מדבר
-    על עצמו ואיך פונים אליו) קודם, voice (גובה הקול, diarize.voice_gender) אחריו; ‏name / ‏role — רק כשנאמרו בסרטון (Claude)."""
+    על עצמו ואיך פונים אליו) קודם, voice (גובה הקול, diarize.voice_gender) אחריו; ‏name / ‏role — רק כשנאמרו בסרטון (Claude).
+    17/11/2026 (מי מדבר, visheet.merge_cast): ‏orig — השם בכתב המקור, ‏ttl — מי הוא (תפקיד וארגון), ‏act — השחקן (סרט/סדרה),
+    ‏kb = 1 — השם/התואר/השחקן מהידע הכללי של המודל, לא מהסרטון."""
     tot, by = 0.0, {}
+    # 17/11/2026: בלי תוויות בכלל (קול אחד) — דובר אחד S1 (כמו בטלפון), רק כש"מי מדבר" יודע עליו משהו
+    one = not any(u.get('spk') for u in ev or []) and any(((named or {}).get('S1') or {}).get(f) for f in ('name', 'ttl', 'role', 'act'))
     for u in ev or []:
-        k = u.get('spk')
+        k = 'S1' if one else u.get('spk')
         if not k or (k not in by and len(by) >= SPK_MAX):
             continue
         d = max(0.0, float(u.get('t1') or 0) - float(u.get('t0') or 0))
@@ -1133,9 +1226,11 @@ def speakers_doc(ev: list[dict], lang: str, voice: dict | None = None, named: di
             s['g'], s['gs'] = vc['g'], 'voice'
         else:
             s['g'] = 'u'
-        for f in ('name', 'role'):
+        for f in ('name', 'role', 'orig', 'ttl', 'act'):   # 17/11/2026: מי מדבר — המקור, התואר והשחקן
             if nm.get(f):
                 s[f] = nm[f]
+        if nm.get('kb') and (s.get('name') or s.get('ttl') or s.get('act')):
+            s['kb'] = 1
         out.append(s)
     return out
 
@@ -1844,11 +1939,14 @@ def vi_run(J, args, engine=None) -> int:
         eng = engine or make_engine(ctx.st)
         if hasattr(J, 'LIVE_USAGE'):
             J.LIVE_USAGE = eng.ledger.list
-        S.go('rv', 'ממפים את ההרצאה')
+        S.go('rv', 'מזהים מי מדבר')
+        up, desc = cast_ctx(pd, spec)
+        cast = vi_cast(eng, os.path.splitext(str(spec.get('name') or ctx.name))[0][:200], up, desc, ocr, ev)
+        ctx.report('rv', 0.02, 'ממפים את ההרצאה', force=True)
         try:
             m = vi_map(eng, str(spec.get('mode') or ''), lang, ev, slides, ocr, inv, bnd, dur, words,
-                       on_progress=lambda x: ctx.report('rv', 0.7 * x), win_tok=VI_WIN_TOK_X if xflags.on(spec, 'vwin') else 0,
-                       sp=(tr.get('langs') or {}).get('share'))
+                       on_progress=lambda x: ctx.report('rv', 0.02 + 0.68 * x), win_tok=VI_WIN_TOK_X if xflags.on(spec, 'vwin') else 0,
+                       sp=(tr.get('langs') or {}).get('share'), cast=cast)
         except VIFail as e:
             S.end()
             lx = facts_safe(spec, lang, dur, None, None, eng, None, S.out, tr, words, screen, n_so, len(ocr), st='failed', err=e.code)
@@ -1857,6 +1955,7 @@ def vi_run(J, args, engine=None) -> int:
         ix, inv_nums = vi_index(ev, slides, ocr, words, inv)
         ctx.report('rv', 0.7, 'מסכמים', force=True)
         vi_synth(eng, m, ix, inv_nums)
+        m['st'].setdefault('cast', {})['fix'] = name_refs(m, ix)   # 17/11/2026: "הדובר" שנשאר — השם
         jeng = judge_engine(eng)
         ctx.report('rv', 0.85, 'מאמתים מול הראיות', force=True)
         vi_verify(jeng, m, ix, on_progress=lambda x: ctx.report('rv', 0.85 + 0.15 * x))
