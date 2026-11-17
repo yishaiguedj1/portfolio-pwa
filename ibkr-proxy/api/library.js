@@ -140,6 +140,8 @@ async function handler(req, res, deps = {}) {
   body = body || {};
   /* v318: גיבוי הספרייה הפרטית ל־Google Drive של המשתמש עצמו — כל משתמש מחובר (לא תלוי ברשימת הקוראים) */
   if (body.op === 'gdConfig') return res.status(200).json({ ok: true, clientId: gdrive.cfg().id, configured: gdrive.configured() });
+  // 17/11/2026: הבדיקה העצמית של לקוח הגיבוי מול Google — רק סיווג (ok / bad_secret / …), בלי שום ערך; מטמון 5 דק׳ (lib/gdrive.js check)
+  if (body.op === 'gdCheck') return res.status(200).json({ ok: true, ck: { library: await gdrive.check(deps).catch(() => ({ st: 'failed' })) } });
   if (/^gd[A-Z]/.test(String(body.op || ''))) {
     let gu;
     try { gu = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) { return res.status(401).json({ ok: false, error: 'no_auth' }); }

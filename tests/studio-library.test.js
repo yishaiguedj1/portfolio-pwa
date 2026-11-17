@@ -45,5 +45,20 @@ const R = 'R2_jLIBjobAAAAAAAAAAAAAA';
   ok(/'rr', 'litem'\]/.test(sj) && /if \(ui\.view === 'litem'\) lpStop\(\);/.test(sj), 'פריט — בלי החלקה (נגן), והנגן נעצר ביציאה');
   ok(/label: T\('studioLibT'\), sub: T\('studioLibRowS'\), onClick: \(\) => go\('lib'\)/.test(sj) && !/onClick: \(\) => goVids\(''\)/.test(sj), 'ההגדרות: הספרייה במקום "הסרטונים שלי"');
   ok(/appProperties has \{ key='snbRole' and value='m' \}/.test(read('studionet.js')) && /prop='snbRole' if lib/.test(py), 'הרשימה = המניפסטים (snbRole=m) שהעובד כותב');
+  /* ---------- 17/11/2026: Google דוחה את הסוד של לקוח ה־Drive בשרת (invalid_client) — התיקון למנהל ---------- */
+  const PROD = { appId: '1:286578855160:web:abc', projectId: 'yishaiguedj1-c786e' };
+  ok(st.gcClientUrl('286578855160-abc.apps.googleusercontent.com', PROD) === 'https://console.cloud.google.com/auth/clients/286578855160-abc.apps.googleusercontent.com?project=yishaiguedj1-c786e',
+    'הקישור ללקוח במסוף — עם הפרויקט כשמספר הפרויקט במזהה הוא של Firebase שבדף');
+  ok(st.gcClientUrl('111-abc.apps.googleusercontent.com', PROD) === 'https://console.cloud.google.com/auth/clients/111-abc.apps.googleusercontent.com' && st.gcClientUrl('', PROD) === 'https://console.cloud.google.com/auth/clients',
+    'לקוח מפרויקט אחר — בלי פרויקט; בלי מזהה — רשימת הלקוחות');
+  const fix = sj.slice(sj.indexOf('const lbFixable'), sj.indexOf('/* ---- פריט בספרייה'));
+  ok(/ui\.api && ui\.api\.admin\) && \/invalid_client\|gd_http_401\//.test(fix) && /p\.append\(lbFixable\(\) \? lbFix\(\) : btn\('st-btn wide', T\('studioLibRetry'\)/.test(sj),
+    'כרטיס התיקון — רק למנהל, רק כש־Google דחה את הלקוח; לאחרים "לנסות שוב"');
+  ok(/inp\.type = 'password'/.test(fix) && /inp\.autocomplete = 'off'/.test(fix) && /net\.api\('gdSecret', \{ s \}\)/.test(fix) && /lbFx\.v = '';/.test(fix) && !/localStorage|sessionStorage/.test(fix),
+    'הסוד — שדה סיסמה, נשלח פעם אחת לשרתון ונמחק מהזיכרון; לא נשמר בטלפון');
+  ok(/j\.drive === 'ok'\) \{ flashSafe\(T\('studioLibFixOk'\)\); lb\.st = ''; lb\.err = ''; lbLoad\(\)/.test(fix) && /j\.drive === 'revoked' \|\| j\.drive === 'not_connected'\) \{[^}]*lb\.st = 'conn'/.test(fix),
+    'אחרי השמירה: Drive עובד — הספרייה נטענת מחדש; ההרשאה בוטלה — כפתור החיבור');
+  const srvS = read('ibkr-proxy/api/studio.js');
+  ok(/if \(op === 'gdSecret'\) \{[\s\S]{0,400}if \(!isAdmin\(user\)\) return res\.status\(403\)/.test(srvS) && /body\.op === 'gdCheck'/.test(srvS), 'השרתון: gdSecret — מנהל בלבד; gdCheck — הבדיקה הציבורית');
   console.log(n + ' בדיקות עברו');
 })().catch((e) => { console.error('✗', e); process.exit(1); });
