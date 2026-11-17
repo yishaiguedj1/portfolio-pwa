@@ -18,7 +18,7 @@ const index = R('index.html');
 
 /* ---------- חיבור ---------- */
 const firstLayer = styles.match(/@layer\s+[^;{]+[;{]/);
-ok(firstLayer && /^@layer\s+invglass,\s*glassbtn;$/.test(firstLayer[0]), 'styles.css: השכבה invglass מוצהרת ראשונה, לפני glassbtn (ה־!important שלה גובר)');
+ok(firstLayer && /^@layer\s+invglass,\s*(acglass,\s*)?glassbtn;$/.test(firstLayer[0]), 'styles.css: השכבה invglass מוצהרת ראשונה, לפני glassbtn (ה־!important שלה גובר)');
 const gi = index.indexOf('href="glass-btn.css"'), ii = index.indexOf('<link rel="stylesheet" href="invest-glass.css">'), di = index.indexOf('href="desktop.css"');
 ok(gi > 0 && ii > gi && di > ii, 'index.html: invest-glass.css אחרי glass-btn.css ולפני desktop.css');
 for (const f of ['academy.html', 'studio.html', 'admin.html', 'cashflow.html', 'move.html']) ok(!R(f).includes('invest-glass.css'), f + ' לא טוען את invest-glass.css (רק Invest)');

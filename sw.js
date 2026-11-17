@@ -8,9 +8,10 @@ const CACHE_NAME = 'portfolio-pwa-v805';
 const HASHES = {
   "./": "a4c10604dc53d9719855cb70d87ca9ff",
   "./index.html": "a4c10604dc53d9719855cb70d87ca9ff",
-  "./styles.css": "94567b26f71b5f515a541e9699f42d67",
+  "./styles.css": "8ea7f0ebabbcc4963e3dea6f327426ce",
   "./glass-btn.css": "7b3da3fe7844c11efc76054133bbd65a",
   "./invest-glass.css": "bb7073d34f0cae3eb2861ef0f6083002",
+  "./academy-glass.css": "ae0f0a4c37f00512734308010a546a77",
   "./desktop.css": "22dcb3bea6e645027d3146b31d66712a",
   "./app.js": "867a9a69c869cdc28b6c9b10d0fc2f67",
   "./returns.js": "afe0d262348852fd10982ef2d0239545",
@@ -75,7 +76,7 @@ const HASHES = {
   "./vendor/foliate-js/fixed-layout.js": "7aee1d15d8e0479b8a6c59a20304b250",
   "./vendor/foliate-js/vendor/zip.js": "2a0d43157e4a447c6e43351225758795",
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
-  "./academy.html": "4e22225573f3222dc148ea8a9409fd2f",
+  "./academy.html": "9c6de2f5fd2634d07d9c0e0a6dc9ebe7",
   "./academy-app.js": "8f943cfa4b1bbb60bc8d83d4304d9978",
   "./strings-academy.js": "db3005085c9d0e1124100400343ffad9",
   "./core.js": "9e33270ffa7df7aeeae8086d07f5c327",
@@ -127,6 +128,7 @@ const APP_SHELL = [
   './styles.css',
   './glass-btn.css',   // 31/10/2026: כפתורי זכוכית בכל המערכת
   './invest-glass.css',   // 17/11/2026: Invest בזכוכית — שכבת העיצוב שאושרה + החיפוש בטלפון
+  './academy-glass.css',  // 17/11/2026: Academy בזכוכית — שכבת העיצוב שאושרה (רק ב־academy.html)
   './desktop.css',     // 11/11/2026: תצוגת מחשב — משותף לכל האפליקציות (נטען מ־600px)
   './app.js',
   './returns.js',
