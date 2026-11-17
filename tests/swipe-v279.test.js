@@ -35,7 +35,8 @@ const w = fn('wirePageSwipe');
 ok(/Math\.abs\(dx\) < Math\.abs\(dy\) \* 1\.5\) \{ unhook\(g\); g = null; return; \}/.test(w), 'תנועה אנכית = גלילה, לא החלקה');
 ok(/const v = swipeVelocity\(s\.samples, clock\(\)\)/.test(w) && /let act = pageSwipeDecide\(s\.d \|\| 0, s\.w, Math\.max\(0, v\)\)/.test(w), 'ההחלטה בשחרור לפי מרחק + מהירות האצבע ברגע השחרור, בכיוון (14/10/2026: swipeVelocity)');
 ok(/PAGE_SWIPE_EDGE/.test(w), 'קצה המסך (מחוות חזור) לא נחשב');
-ok(/canvas, \.sc-ov, input, textarea, select/.test(fn('pageSwipeBlocked')) && /\.wl-tabs/.test(fn('pageSwipeBlocked')), 'גרף/שדה/טאבי רשימות — לא מחליקים עמוד');
+// 2.162.1 (בקשת המשתמש): גרף עם שער (touchGate, data-tg) והעוגה כן מעבירים עמוד בהחלקה לרוחב; גרף אחר — לא
+ok(/canvas:not\(\[data-tg\]\):not\(\[data-pie-touch\]\), \.sc-ov, input, textarea, select/.test(fn('pageSwipeBlocked')) && /\.wl-tabs/.test(fn('pageSwipeBlocked')), 'שדה/טאבי רשימות/גרף בלי שער — לא מחליקים עמוד');
 ok(/overflowX/.test(fn('pageSwipeBlocked')), 'פס גלילה אופקי — לא מחליקים עמוד');
 ok(!/wlSwitch|wlTo|watch/.test(w), 'במעקב — החלקה = עמוד, בין הרשימות רק בלחיצה (14/10/2026)');
 ok(/dragBusy\(\)/.test(w) && /state\.cardAnim/.test(w), 'לא בזמן גרירה/אנימציית כרטיס');
