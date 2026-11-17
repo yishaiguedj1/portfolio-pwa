@@ -6094,10 +6094,12 @@ function pageLibItem(p) {
   }
   p.append(secT(T('studioLibFiles')), list(...m.f.map((f) => rowExt({ href: 'https://drive.google.com/file/d/' + f.id + '/view', tile: tile(f.r === 's' ? 'globe' : 'film', f.r === 's' ? 'blue' : 'green'),
     label: libRoleT(f.r), sub: [fileTitle(f.n), f.s ? fmtSize(f.s) : ''].filter(Boolean).join(' · '), k: 'lf:' + f.id }))));
-  p.append(list(
+  const acts = list(
     rec ? rowNav({ tile: tile('edit', 'blue'), label: T('studioLibOpen'), sub: T('studioLibOpenS'), onClick: () => go('job', rec.id), k: 'lib-job' }) : null,
     it.folder ? rowExt({ href: 'https://drive.google.com/drive/folders/' + it.folder, tile: tile('cloud', 'teal'), label: T('studioLibDrive'), k: 'lib-drive' }) : null,
-    it.folder ? btn('st-row st-act st-vl-danger', T('studioLibDel'), () => lbDel(it), 'lib-del') : null));
+    it.folder ? btn('st-row st-act st-vl-danger', T('studioLibDel'), () => lbDel(it), 'lib-del') : null);
+  acts.classList.add('st-lib-acts');
+  p.append(acts);
 }
 function lbDel(it) {
   const go2 = async () => {
