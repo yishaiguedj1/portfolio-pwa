@@ -125,12 +125,12 @@ class TestHide(unittest.TestCase):
             self.assertLessEqual(y[0] - x[1], 1e-6)                    # אין רגע בלי כיסוי
         last = max(t for t, _ in d['frames'])
         self.assertGreaterEqual(ev[-1][1], last + B.HS_PRE - 1e-6)
-        z = B.hardsub(d, WD, HD)['z']
-        for _, _, r in ev:                                             # כל האזור, בכל רגע
-            self.assertTrue(r[0] <= z[0] and r[1] <= z[1] and r[2] >= z[2] and r[3] >= z[3], r)
-        cr = B.cue_rect(cs[0], ST, M, WD, HD)
-        r = next(x[2] for x in ev if x[0] <= 1.0 <= x[1])
-        self.assertTrue(r[1] <= cr[1] and r[3] >= cr[3])               # גם הכתובית שלנו בתוך המלבן
+        for t, bs in d['frames']:                                      # כל שורה צרובה — בתוך מלבן פעיל ברגע שלה
+            g = B.grow(bs[0], WD, HD)
+            self.assertTrue(any(s <= t <= e and B._inside(g, r) >= 0.999 for s, e, r in ev), t)
+        for _, _, r in ev:                                             # 17/11/2026: צמוד לשורה — לא חצי מסך
+            self.assertLess(r[3] - r[1], 0.12, r)
+        self.assertEqual(len({tuple(r) for _, _, r in ev}), 1)         # קטע רציף — מלבן אחד קבוע (בלי קפיצות)
 
     def test_long_silence_not_covered(self):
         sl = [sub_line(0.4 + 0.05 * (k % 3)) for k in range(20)]
@@ -148,11 +148,44 @@ class TestHide(unittest.TestCase):
         self.assertLess(ev[0][2][0], 0.3)
         self.assertEqual(B.cover(cs, None, None, ST, M, WD, HD), [])
 
-    def test_full_band(self):
-        ev = B.cover([cue(1, 1.0, 2.0, ['א'])], None, [0.3, 0.84, 0.7, 0.92], ST, M, WD, HD, full=True, dur=30.0)
-        self.assertEqual((ev[0][0], ev[-1][1]), (0.0, 30.0))
-        for x, y in zip(ev, ev[1:]):
-            self.assertLessEqual(y[0] - x[1], 1e-6)
+    def test_no_giant_cover(self):
+        """17/11/2026 (סרטון אמיתי — ראיון עם כתוביות עבריות צרובות): לוגו גבוה בגובה של הכתובית, כיתובים בצדדים,
+        וכתובית שהורמה באמצע המסך לכמה שניות. הגרסה הקודמת איחדה הכל (+ האזור + פס רציף) למלבן שכיסה חצי מסך."""
+        logo = [0.09, 0.62, 0.44, 0.88]                                # תיבה גבוהה (לוגו / דמות) — לא שורת טקסט
+        side = [0.08, 0.86, 0.2, 0.88]                                 # כיתוב קטן בצד, באותה שורה
+        frames = []
+        for k in range(120):
+            t = k / 2
+            bs = [sub_line(0.4 + 0.1 * ((k // 4) % 3)), logo]
+            if 20 <= k < 26:
+                bs = [sub_line(0.45, 0.6)]                             # כתובית שהורמה (3 שנ׳)
+            if k % 10 == 0:
+                bs.append(side)
+            frames.append([t, bs])
+        d = {'v': 1, 'fps': 2, 'n': 120, 'frames': frames}
+        ev = B.cover([cue(1, 1.0, 50.0, ['שלום'])], d, None, ST, M, WD, HD)
+        for _, _, r in ev:
+            self.assertLess(r[3] - r[1], 0.12, r)                      # אף מלבן לא גבוה משורה וריפוד
+            self.assertGreater(r[1], 0.55, r)
+        hi = [(s, e) for s, e, r in ev if r[1] < 0.7]
+        self.assertTrue(hi and all(9.0 <= s and e <= 13.5 for s, e in hi), hi)   # המורמת — רק בזמן שלה
+        self.assertLess(min(r[0] for _, _, r in ev if r[1] > 0.8), 0.09)         # הכיתוב בצד באותה שורה — מכוסה איתה
+
+    def test_band_with_zone(self):
+        """17/11/2026: עם האזור — פס צמוד בזמן הכתוביות שלנו ובכל הופעה של צרובה, גם כשהגלאי מפספס שליש מהדגימות
+        (כך בסרטון אמיתי); שורה שהורמה — מלבן צמוד משלה, רק בזמן שלה."""
+        z = [0.25, 0.86, 0.75, 0.92]
+        frames = [[k / 2, [sub_line(0.5)]] for k in range(0, 40) if k % 3]
+        frames += [[k / 2, [sub_line(0.4, 0.6)]] for k in range(50, 54)]
+        d = {'v': 1, 'fps': 2, 'n': 120, 'frames': sorted(frames)}
+        ev = B.cover([cue(1, 40.0, 44.0, ['שלום'])], d, z, ST, M, WD, HD)
+        bz = [round(v, 4) for v in B._pad(z)]
+        band = [(s, e) for s, e, r in ev if r == bz]
+        self.assertEqual(band, [(0.0, 19.75), (40.0, 44.0)])          # רציף למרות הפספוסים, ובזמן הכתובית שלנו
+        hi = [(s, e) for s, e, r in ev if r[1] < 0.8]
+        self.assertEqual(hi, [(24.25, 27.25)])
+        for _, _, r in ev:
+            self.assertLess(r[3] - r[1], 0.12, r)
 
     def test_top_cue_not_merged(self):
         cs = [dict(cue(1, 0.0, 3.0, ['למעלה']), top=True)]
@@ -162,7 +195,7 @@ class TestHide(unittest.TestCase):
     def test_join_short_gaps(self):
         cs = [cue(1, 0.0, 1.0, ['א']), cue(2, 1.2, 2.0, ['ב'])]
         ev = B.cover(cs, None, [0.3, 0.84, 0.7, 0.92], ST, M, WD, HD)
-        self.assertEqual(ev[0][1], 1.2)
+        self.assertEqual([(s, e) for s, e, _ in ev], [(0.0, 2.0)])     # רווח קצר — מלבן רציף, בלי הבהוב
 
 
 class TestLeaks(unittest.TestCase):
@@ -195,12 +228,13 @@ class TestLeaks(unittest.TestCase):
         self.assertEqual(res, {'n': 20, 'lk': 1, 'ok': 1})
         self.assertEqual(len(writes), 2)                              # כתיבה, תיקון
         self.assertTrue(any(s <= 8.0 <= e for s, e, _ in ev))          # הדליפה מכוסה
-        # דולף שוב ושוב (בכל בדיקה במקום אחר) — אחרי שני תיקונים פס רציף, ובסוף ok=0
+        # דולף שוב ושוב (בכל בדיקה במקום אחר) — דליפה ששרדה תיקון מכוסה גם ±HS_LATE, ובסוף ok=0 (בלי פס רציף)
         frag = [0.17, 0.88, 0.25, 0.9]
         three = [{'n': 5, 'frames': [[t, [frag], [sub_line(0.7)]]]} for t in (1.0, 30.0, 60.0)]
-        ev, res = B.hide(cs, subs_video(5), None, ST, M, WD, HD, lambda e: None, lambda: three.pop(0), dur=9.0)
-        self.assertEqual((res['ok'], res.get('full'), res['n'], res['lk']), (0, 1, 15, 3))
-        self.assertTrue(any(s <= 30.0 <= e for s, e, _ in ev))
+        ev, res = B.hide(cs, subs_video(5), None, ST, M, WD, HD, lambda e: None, lambda: three.pop(0), dur=90.0)
+        self.assertEqual((res['ok'], res.get('full'), res['n'], res['lk']), (0, None, 15, 3))
+        self.assertTrue(any(s <= 30.0 + B.HS_LATE <= e for s, e, _ in ev))
+        self.assertFalse(any(s <= 45.0 <= e for s, e, _ in ev))        # בין הדליפות — בלי כיסוי
         # אי אפשר לבדוק
         ev, res = B.hide(cs, subs_video(5), None, ST, M, WD, HD, lambda e: None, lambda: None)
         self.assertEqual(res, {'n': 0, 'lk': 0, 'ok': 0})

@@ -387,7 +387,10 @@ HS_IN = 0.6              # תיבה שלפחות 60% ממנה בתוך מלבן 
 HS_ORIG = 0.5            # תיבה שחופפת לפחות חצי ממנה לטקסט שבמקור באותו רגע — טקסט של המקור (לא שלנו)
 HS_EDGE = (0.06, 0.04)   # קרוב כזה (רוחב) למלבן כיסוי, ובגובה שלו — חלק של הצרובה שמבצבץ מהצד
 HS_OFF = 0.25            # הבדיקה דוגמת באמצע בין הדגימות של הסריקה (שלב אחר בזמן — שילוב של 4 פריימים לשנייה)
-HS_ROUNDS = 3            # בדיקות: רגילה → תיקון הדליפות → פס רציף לכל הסרטון
+HS_ROUNDS = 3            # בדיקות: רגילה → תיקון הדליפות → תיקון בטווח זמן רחב (17/11/2026: בלי פס רציף לכל הסרטון)
+HS_LH = 0.14             # 17/11/2026: תיבה גבוהה מזה (חלק מהגובה) — לא שורת טקסט (לוגו גדול, דמות); לא חלק מכתובית
+HS_HR = 2.0              # תיבות באותה שורה — גובה דומה (עד פי כך); לוגו גבוה ליד הכתובית לא "מתאחד" איתה
+HS_LATE = 1.5            # דליפה שנמצאה אחרי תיקון — מכסים אותה גם ±כך שניות (הגלאי פספס אותה כמה דגימות ברצף)
 HS_PROBE = 36            # כמה פריימים בבדיקה המהירה בתחילת העבודה
 
 
@@ -398,11 +401,13 @@ def sub_lines(bs: list, wide: bool = False) -> list[tuple[list[float], list[int]
     rows: list[list] = []
     for i in sorted(range(len(bs)), key=lambda j: bs[j][1]):
         b = bs[i]
-        if (b[1] + b[3]) / 2 < HS_Y:
+        if (b[1] + b[3]) / 2 < HS_Y or b[3] - b[1] > HS_LH:
             continue
         for r in rows:
             q = r[0]
+            hb, hq = b[3] - b[1], min(bs[j][3] - bs[j][1] for j in r[1])
             if (min(q[3], b[3]) - max(q[1], b[1]) > 0.5 * min(q[3] - q[1], b[3] - b[1])
+                    and max(hb, hq) <= HS_HR * max(1e-6, min(hb, hq))
                     and b[0] <= q[2] + HS_GAP and b[2] >= q[0] - HS_GAP):
                 r[0] = [min(q[0], b[0]), min(q[1], b[1]), max(q[2], b[2]), max(q[3], b[3])]
                 r[1].append(i)
@@ -449,7 +454,8 @@ def hardsub(burned: dict, width: int = 1920, height: int = 1080) -> dict | None:
     def pct(v, p):
         v = sorted(v)
         return v[min(len(v) - 1, max(0, int(p * len(v))))]
-    z = [pct([q[0] for q in ls], 0.02), pct([q[1] for q in ls], 0.02), pct([q[2] for q in ls], 0.98), pct([q[3] for q in ls], 0.98)]
+    # 17/11/2026: בגובה — 5/95 (כתובית שהורמה פעם בכמה דקות לא מגדילה את האזור; היא מכוסה במקומה), ברוחב — 2/98
+    z = [pct([q[0] for q in ls], 0.02), pct([q[1] for q in ls], 0.05), pct([q[2] for q in ls], 0.98), pct([q[3] for q in ls], 0.95)]
     return {"z": [round(min(1.0, max(0.0, v)), 3) for v in z], "sh": round(min(1.0, len(rows) / n), 3)}
 
 
@@ -524,67 +530,72 @@ def _spans(ts: list[float], bridge: float) -> list[list[float]]:
     return out
 
 
-def cover(cues: list[dict], burned: dict | None, z: list[float] | None, st, meas, width: int, height: int,
-          extra=(), full: bool = False, dur: float = 0.0) -> list:
-    """מצב הסתרה → [(s, e, [x1, y1, x2, y2])] מלבנים אטומים (חלק מהפריים). 16/11/2026 (המשתמש: "הסתרה מוחלטת — שאף
-    פעם לא יבצבצו כתוביות מתחת לשלנו"):
-      • גאומטריה: כל האזור של הכתוביות הצרובות (z — השורה הרחבה ביותר, גם שתי שורות) + כל מה שנראה סביב הרגע,
-        בריפוד נדיב; הכתובית שלנו בתוכו כשהיא קרובה (מלבן אחד).
-      • זמן: מכל הופעה של כתובית צרובה ±HS_PRE, עם גישור של פערים עד HS_BRIDGE (פספוס של הגלאי / בין כתוביות), וגם
-        בכל זמן של כתובית שלנו (הרגעים שבהם הכי סביר שיש מתחתיה צרובה).
-      • extra: דליפות שהבדיקה מצאה [(t, תיבה)] — מכוסות ברגע שלהן. full: פס רציף לכל הסרטון (הצעד האחרון).
-    בלי burned.json (רק האזור): האזור בזמן הכתוביות שלנו."""
-    rows = _lines_at(burned, width, height, z or [0.0, HS_Y, 1.0, 1.0]) if burned else []
-    rows += [(float(t), [list(g)]) for t, g in extra]
-    rows.sort(key=lambda x: x[0])
-    if not rows and not z:
-        return []
-    Z = list(z) if z else None
-    if Z is None:
-        ls = [q for _, x in rows for q in x]
-        Z = ls[0]
-        for q in ls[1:]:
-            Z = _union(Z, q)
-    ts = [t for t, _ in rows]
-    pres = _spans(ts, HS_BRIDGE) if rows else []
-    end = max([float(c["end"]) for c in cues] + [p[1] for p in pres] + [float(dur or 0)] + [0.0])
-    if full:
-        pres = [[0.0, end]]
-    cs = [(float(c["start"]), float(c["end"]), c) for c in cues]
-    cut = sorted({0.0} | {x for p in pres for x in p} | {x for s, e, _ in cs for x in (s, e)})
-    ev = []
-    for a, b in zip(cut, cut[1:]):
-        if b - a < 1e-6:
-            continue
-        m = (a + b) / 2
-        on = any(p[0] <= m <= p[1] for p in pres)
-        act = [c for s, e, c in cs if s <= m <= e]
-        if not on and not act:
-            continue
-        u = list(Z)
-        for t, ls in rows:
-            if a - HS_PRE <= t <= b + HS_PRE:
-                for q in ls:
-                    u = _union(u, q)
-        r = _pad(u)
-        for c in act:
-            if c.get("top"):
-                continue
-            cr = cue_rect(c, st, meas, width, height, float(c.get("lift") or 0.0))
-            if cr[1] <= r[3] + HS_NEAR and cr[3] >= r[1] - HS_NEAR:
-                r = _union(r, _pad(list(cr)))
-        r = [round(v, 4) for v in r]
-        if ev and abs(ev[-1][1] - a) < 1e-6 and ev[-1][2] == r:
-            ev[-1] = (ev[-1][0], b, r)
+def _rows_of(obs: list) -> list[list]:
+    """תצפיות [(t, שורה)] → שורות במסך: אותו גובה (חפיפה של חצי מהגובה מול הממוצע של השורה). שתי שורות של כתובית
+    אחת = שתי שורות כאן; כתובית שהורמה = שורה משלה."""
+    rows: list[list] = []                        # [y1 ממוצע, y2 ממוצע, מספר, תצפיות]
+    for t, q in sorted(obs, key=lambda x: (x[1][1] + x[1][3]) / 2):
+        for r in rows:
+            y1, y2 = r[0] / r[2], r[1] / r[2]
+            if min(y2, q[3]) - max(y1, q[1]) >= 0.5 * min(y2 - y1, q[3] - q[1]):
+                r[0] += q[1]
+                r[1] += q[3]
+                r[2] += 1
+                r[3].append((t, q))
+                break
         else:
-            ev.append((a, b, r))
-    out = []
-    for i, (s, e, r) in enumerate(ev):
-        nx = ev[i + 1][0] if i + 1 < len(ev) else None
-        if nx is not None and 0 < nx - e <= HS_JOIN:
-            e = nx                                # בלי הבהוב בין שני כיסויים צמודים
-        out.append((round(s, 3), round(e, 3), r))
+            rows.append([q[1], q[3], 1, [(t, q)]])
+    return [r[3] for r in rows]
+
+
+def _merge(spans: list) -> list[list[float]]:
+    out: list[list[float]] = []
+    for a, b in sorted(spans):
+        if out and a - out[-1][1] <= HS_JOIN:
+            out[-1][1] = max(out[-1][1], b)
+        else:
+            out.append([a, b])
     return out
+
+
+def cover(cues: list[dict], burned: dict | None, z: list[float] | None, st, meas, width: int, height: int,
+          extra=(), dur: float = 0.0) -> list:
+    """מצב הסתרה → [(s, e, [x1, y1, x2, y2])] מלבנים אטומים (חלק מהפריים). 17/11/2026 (בדיקה על סרטון אמיתי — הגרסה
+    הקודמת איחדה הכל למלבן אחד, עם אזור שכלל כתוביות שהורמו, לוגו גבוה ופס רציף, וכיסתה חצי מסך):
+      • הפס: האזור הרגיל של הכתוביות הצרובות (z, אחוזונים 5/95 — שורה אחת או שתיים) בריפוד HS_PAD — בכל זמן של כתובית
+        שלנו (הן תרגום של אותו דיבור — מופיעות יחד) ובכל הופעה של צרובה באזור ±HS_PRE, פערים עד HS_BRIDGE מגושרים.
+        לא תלוי בגלאי בכל פריים — הוא מפספס שורות (בסרטון אמיתי: שליש מהדגימות ב־1080p).
+      • שורה צרובה מחוץ לפס (כתובית שהורמה, שורה רחבה) — מלבן צמוד משלה, רק בזמן שלה. לוגו / דמות (תיבה גבוהה) — לא שורה.
+      • extra: דליפות שהבדיקה מצאה [(t, תיבה)] — כמו שורה שנראתה ברגע הזה.
+    בלי z (בדיקות): רק השורות."""
+    obs = [(float(t), q) for t, ls in (_lines_at(burned, width, height, z or [0.0, HS_Y, 1.0, 1.0]) if burned else [])
+           for q in ls]
+    obs += [(float(t), list(g)) for t, g in extra]
+    ev = []
+    band = [round(v, 4) for v in _pad(list(z))] if z else None
+    if band:
+        pres = _spans([t for t, q in obs if _vin(q, band)], HS_BRIDGE)
+        pres += [[float(c["start"]), float(c["end"])] for c in cues if not c.get("top")]
+        ev += [(a, b, band) for a, b in _merge(pres)]
+    for row in _rows_of(obs):
+        for a, b in _spans([t for t, _ in row], HS_BRIDGE):
+            u = None
+            for t, q in row:
+                if a <= t <= b:
+                    u = list(q) if u is None else _union(u, q)
+            r = [round(v, 4) for v in _pad(u)]
+            if band and _inside(r, band) >= 0.98:
+                continue                         # הפס מכסה אותה
+            ev.append((a, b, r))
+    if dur:
+        ev = [(s, min(e, float(dur)), r) for s, e, r in ev if s < float(dur)]
+    out = []
+    for s, e, r in sorted(ev, key=lambda x: (x[2], x[0])):
+        if out and out[-1][2] == r and s - out[-1][1] <= HS_JOIN:
+            out[-1] = (out[-1][0], max(out[-1][1], e), r)     # אותו מלבן ברווח קצר — רציף (בלי הבהוב)
+        else:
+            out.append((s, e, r))
+    return sorted(((round(s, 3), round(e, 3), r) for s, e, r in out), key=lambda x: (x[0], x[2]))
 
 
 def leaks(chk: dict, ev: list, cues: list[dict], z: list[float] | None, st, meas, width: int, height: int) -> list:
@@ -603,7 +614,7 @@ def leaks(chk: dict, ev: list, cues: list[dict], z: list[float] | None, st, meas
         band = act or ([_pad(list(z))] if z else [])
         for b in comp:
             g = grow(b, width, height)
-            if (g[1] + g[3]) / 2 < HS_Y or any(_inside(g, r) >= HS_IN for r in ok):
+            if (g[1] + g[3]) / 2 < HS_Y or g[3] - g[1] > HS_LH or any(_inside(g, r) >= HS_IN for r in ok):
                 continue
             # מבצבץ מהצד: בגובה של מלבן הכיסוי (חצי מהתיבה לפחות) וצמוד לקצה שלו — לא שם דובר מעליו / לוגו רחוק
             side = any(_vin(g, r) and g[2] >= r[0] - HS_EDGE[0] and g[0] <= r[2] + HS_EDGE[0] for r in band)
@@ -615,8 +626,8 @@ def leaks(chk: dict, ev: list, cues: list[dict], z: list[float] | None, st, meas
 def hide(cues: list[dict], burned: dict | None, z: list[float] | None, st, meas, width: int, height: int,
          write, check, dur: float = 0.0):
     """מצב הסתרה עם בדיקה (16/11/2026): כיסוי → write(ev) כותב את ה־ASS → check() מצייר אותו על פריימים של המקור
-    ובודק מה נראה → דליפות מכוסות ובודקים שוב → בצעד האחרון פס רציף לכל הסרטון. → (ev, {"n": פריימים שנבדקו,
-    "lk": דליפות שתוקנו, "ok": 1 נקי / 0 לא נבדק, "full": 1 פס רציף})."""
+    ובודק מה נראה → דליפות מכוסות ובודקים שוב; מהתיקון השני — גם ±HS_LATE סביב כל דליפה (17/11/2026: במקום פס רציף
+    לכל הסרטון, שכיסה חצי מסך). → (ev, {"n": פריימים שנבדקו, "lk": דליפות שתוקנו, "ok": 1 נקי / 0 לא נבדק או נשארו})."""
     extra, st_ = [], {"n": 0, "lk": 0, "ok": 0}
     ev = cover(cues, burned, z, st, meas, width, height, dur=dur)
     write(ev)
@@ -633,10 +644,9 @@ def hide(cues: list[dict], burned: dict | None, z: list[float] | None, st, meas,
         extra += lk
         if rnd == HS_ROUNDS - 1:
             break
-        full = rnd == HS_ROUNDS - 2
-        if full:
-            st_["full"] = 1
-        ev = cover(cues, burned, z, st, meas, width, height, extra=extra, full=full, dur=dur)
+        if rnd > 0:                              # דליפה ששרדה תיקון — הגלאי מפספס אותה ברצף: גם לפניה ואחריה
+            extra += [(t + d, g) for t, g in lk for d in (-HS_LATE, HS_LATE)]
+        ev = cover(cues, burned, z, st, meas, width, height, extra=extra, dur=dur)
         write(ev)
     return ev, st_
 
