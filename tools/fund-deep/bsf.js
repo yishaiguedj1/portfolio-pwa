@@ -2,7 +2,7 @@
 // בדיקת העומק, גל 2 — "המאזן המודפס של כל הגשה" (אב־טיפוס לשארית של F7, ‏docs/research/fund-deep/wave-2.md):
 // לכל 10-K/10-Q ‏(בלי ‎/A‎) — FilingSummary.xml ודף ה־R של המאזן (lib/secface.js), והחוב בכל עמודה לפי debtFace של השרתון.
 // מקור בלתי תלוי ב־companyfacts ובבודק (FSDS). נתונים ציבוריים של SEC בלבד; הכל בתיקיית העבודה (--w <dir>/bsf), לא בריפו.
-//   node tools/fund-deep/bsf.js fetch --w <dir> [--only PH,MCD] [--par 2] [--since 2009]   ההורדה (~2 בקשות להגשה, מטמון בקבצים)
+//   node tools/fund-deep/bsf.js fetch --w <dir> [--only PH,MCD] [--par 2] [--since 2009] [--no-cf]   ההורדה (~2 בקשות להגשה, ועוד אחת לדף התזרים של 10-K; מטמון בקבצים)
 //   node tools/fund-deep/bsf.js cmp   --w <dir> [--only …] [--fs <fundamentals.js>]         החוב לפי ההגשה מול הצפוי (exp.json של debt_exp.py)
 'use strict';
 const fs = require('fs'), path = require('path'), zlib = require('zlib');
@@ -20,6 +20,7 @@ const pad = (c) => String(c).padStart(10, '0');
 const rows = fs.readFileSync(o.ciks || path.join(__dirname, 'ciks.tsv'), 'utf8').split('\n').map((l) => l.split(/\s+/)).filter((p) => p[1] && /^\d+$/.test(p[1]));
 const only = o.only && o.only !== true ? new Set(String(o.only).split(',')) : null;
 const SF = require(path.join(ROOT, 'ibkr-proxy/lib/secface.js'));
+const BSF = require(path.join(ROOT, 'ibkr-proxy/lib/bsfiled.js'));
 const gz = (f) => JSON.parse(zlib.gunzipSync(fs.readFileSync(f)).toString());
 const bsF = (cik) => path.join(D, cik + '.json');
 const PERIODIC = /^(10-K|10-Q|10-KT|10-QT)$/;
@@ -67,8 +68,15 @@ async function fetchAll() {
     try { fl = (await filingsOf(cik, get)).filter((x) => x.filed >= since); } catch (e) { console.log(sym, 'submissions נכשל', e.message); return; }
     let n = 0;
     for (const x of fl) {
-      if (have[x.acc]) continue;
       const base = 'https://www.sec.gov/Archives/edgar/data/' + (+cik) + '/' + x.acc.replace(/-/g, '') + '/';
+      // גל 3 (F13): להגשה שנתית שכבר נקראה — רק דף התזרים (lib/bsfiled.js readCf, אותו חיתוך)
+      if (have[x.acc]) {
+        if (!o['no-cf'] && BSF.needCf(have[x.acc])) {
+          try { const c = await BSF.readCf(base, null, async (u) => { nReq++; const t = await get(u); if (t == null) throw new Error('http_404'); return t; }); if (c) { Object.assign(have[x.acc], c); n++; } } catch (e) { /* רשת — בסבב הבא */ }
+          if (n % 10 === 0) fs.writeFileSync(f, JSON.stringify(have));
+        }
+        continue;
+      }
       const rec = { form: x.form, filed: x.filed, rep: x.rep };
       try {
         const xml = await get(base + 'FilingSummary.xml'); nReq++;
@@ -76,6 +84,7 @@ async function fetchAll() {
         if (!xml) rec.err = 'nofs';
         else if (!pick.bs) rec.err = /R\d+\.xml/.test(xml) ? 'xml' : 'nobs';
         else { const h = await get(base + pick.bs); nReq++; if (h) { const p = SF.parseR(h); rec.bs = { title: p.title, cols: p.cols, scale: p.scale, rows: p.rows }; } else rec.err = 'nor'; }
+        if (xml && /^10-K/.test(x.form) && !o['no-cf'] && rec.err !== 'xml') { const c = await BSF.readCf(base, xml, async (u) => { nReq++; const t = await get(u); if (t == null) throw new Error('http_404'); return t; }).catch(() => null); if (c) Object.assign(rec, c); }
       } catch (e) { rec.err = 'x:' + String(e.message || e).slice(0, 40); }
       if (rec.err && rec.err.startsWith('x:')) continue; // תקלת רשת — לא נשמר, ינוסה שוב
       have[x.acc] = rec; n++;

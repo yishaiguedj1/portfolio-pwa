@@ -1441,5 +1441,49 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     ok(F.adrRatio(25927.6e6, 5186472994) === 5 && F.adrRatio(19235e6, 2487744939) === 8 && F.adrRatio(1166e6, 1154204232) === 1, '(26) יחס ADR: TSMC 5, ‏Alibaba 8 (7.7), ‏SAP 1');
     ok(F.adrRatio(4443e6, 3333483124) === null && F.adrRatio(null, 5) === null, '(26) יחס לא שלם (רק סוג מניות אחד) — null, בלי המרה');
   }
+  /* ---------- (27) פחת והשקעות הוניות מדף התזרים של כל 10-K (17/11/2026, גל 3 — F13; ‏bsfCf, ‏lib/bsfiled.js שדה cf) ---------- */
+  {
+    const BSF = require(path.join(root, 'ibkr-proxy/lib/bsfiled.js'));
+    const TG = { dep: ['DepreciationDepletionAndAmortization', 'DepreciationAndAmortization', 'DepreciationAmortizationAndAccretionNet', 'Depreciation'], capex: ['PaymentsToAcquirePropertyPlantAndEquipment', 'PaymentsToAcquireProductiveAssets'] };
+    const cf = (ends, rows, m) => ({ cols: ends.map((end) => ({ end, months: m || 12, cur: null })), scale: { cur: 1e6, sh: 1 }, rows: rows.map(([tag, v]) => ({ ns: 'us-gaap', tag, label: tag, v })) });
+    // Apple: עד 2017 בתגית DepreciationAmortizationAndAccretionNet, מאז DepreciationDepletionAndAmortization — לכל שנה ה־10-K האחרון שמדפיס אותה
+    const have = {
+      a: { form: '10-K', filed: '2015-10-28', cf: cf(['2015-09-26', '2014-09-27', '2013-09-28'], [['DepreciationAmortizationAndAccretionNet', [11257, 7946, 6757]], ['PaymentsToAcquirePropertyPlantAndEquipment', [-11247, -9571, -8165]]]) },
+      b: { form: '10-K', filed: '2016-10-26', cf: cf(['2016-09-24', '2015-09-26', '2014-09-27'], [['DepreciationAmortizationAndAccretionNet', [10505, 11257, 7946]], ['PaymentsToAcquirePropertyPlantAndEquipment', [-12734, -11247, -9571]]]) },
+      c: { form: '10-K', filed: '2026-11-03', cf: cf(['2026-09-26', '2025-09-27'], [['DepreciationDepletionAndAmortization', [13423, 11698]], ['PaymentsToAcquirePropertyPlantAndEquipment', [-9041, -12715]]]) },
+      q: { form: '10-Q', filed: '2026-08-01', cf: cf(['2026-06-27'], [['DepreciationDepletionAndAmortization', [9000]]], 9) },
+    };
+    const M = F.bsfCf(have, 'USD', TG);
+    ok(M.dep.get('2015-09-26').v === 11257e6 && M.dep.get('2014-09-27').v === 7946e6 && M.dep.get('2013-09-28').v === 6757e6 && M.dep.get('2026-09-26').v === 13423e6 && !M.dep.has('2026-06-27'), '(27) bsfCf: השורה המודפסת בכל שנה, גם בתגית ישנה; לא מ־10-Q');
+    ok(M.dep.get('2014-09-27').filed === '2016-10-26' && M.capex.get('2014-09-27').v === 9571e6, '(27) bsfCf: ה־10-K האחרון שמדפיס את השנה; השקעה הונית — בערך מוחלט');
+    // כמה שורות פחת באותו תזרים — סכום שאינו בדוח (ד): אותה שנה לא נלקחת; ב־10-K האחרון — המדד כולו לא נלקח
+    const two = { ...have, b: { ...have.b, cf: cf(['2016-09-24', '2015-09-26', '2014-09-27'], [['Depreciation', [1, 2, 3]], ['DepreciationAndAmortization', [10505, 11257, 7946]]]) } };
+    ok(F.bsfCf(two, 'USD', TG).dep.get('2014-09-27').filed === '2015-10-28', '(27) bsfCf: שתי שורות פחת — הדוח הזה לא נספר');
+    const lastTwo = { c: { ...have.c, cf: cf(['2026-09-26'], [['Depreciation', [1]], ['DepreciationAndAmortization', [2]]]) }, a: have.a };
+    ok(!F.bsfCf(lastTwo, 'USD', TG).dep, '(27) bsfCf: שתי שורות בדוח האחרון — בלי פחת מהתזרים');
+    // הסדרה היום "Depreciation" בלבד (פחת בלי הפחתות) — לא מחליפים בסך פחת והפחתות של שנים קודמות (ד)
+    const dOnly = { c: { ...have.c, cf: cf(['2026-09-26'], [['Depreciation', [1]]]) }, a: have.a };
+    ok(!F.bsfCf(dOnly, 'USD', TG).dep, '(27) bsfCf: "Depreciation" בדוח האחרון — לא נוגעים');
+    ok(Object.keys(F.bsfCf({}, 'USD', TG)).length === 0 && Object.keys(F.bsfCf(null, 'USD', TG)).length === 0, '(27) bsfCf: בלי הגשות — ריק');
+    // slimCf / needCf: רק שורות הפחת וההשקעות; 10-K בלי cf (ובלי cfErr) — צריך להשלים; 10-Q / תקלה בהגשה — לא
+    const sc = BSF.slimCf({ cols: [{ end: '2025-12-31', months: 12 }], scale: { cur: 1 }, rows: [{ ns: 'us-gaap', tag: 'NetIncomeLoss', v: [1] }, { ns: 'us-gaap', tag: 'DepreciationDepletionAndAmortization', v: [2] }, { ns: 'us-gaap', tag: 'PaymentsToAcquirePropertyPlantAndEquipment', v: [3] }, { ns: 'us-gaap', tag: 'AmortizationOfIntangibleAssets', v: [4] }] });
+    ok(sc.rows.map((r) => r.tag).join() === 'DepreciationDepletionAndAmortization,PaymentsToAcquirePropertyPlantAndEquipment,AmortizationOfIntangibleAssets', '(27) slimCf: רק פחת/הפחתות ורכישת רכוש');
+    ok(BSF.needCf({ form: '10-K', bs: {} }) && !BSF.needCf({ form: '10-K', cf: {} }) && !BSF.needCf({ form: '10-K', cfErr: 'nocf' }) && !BSF.needCf({ form: '10-Q', bs: {} }) && !BSF.needCf({ form: '10-K', err: 'nofs' }) && BSF.needCf({ form: '10-K', err: 'nobs' }), '(27) needCf');
+    // load: הגשה שנתית חדשה — גם דף התזרים (3 בקשות); הגשה שנתית ישנה בלי cf — רק FilingSummary ודף התזרים, בלי המאזן
+    const RB = '<table><tr><th class="tl"><div><strong>Balance Sheets - USD ($)<br> $ in Millions</strong></div></th><th class="th">Dec. 31, 2025</th></tr>'
+      + '<tr class="re"><td class="pl"><a onclick="x(\'defref_us-gaap_Assets\')">Total assets</a></td><td class="nump">900</td></tr></table>';
+    const RC = '<table><tr><th class="tl"><div><strong>Cash Flows - USD ($)<br> $ in Millions</strong></div></th><th class="th" colspan="1">12 Months Ended</th></tr><tr><th class="th">Dec. 31, 2025</th></tr>'
+      + '<tr class="re"><td class="pl"><a onclick="x(\'defref_us-gaap_DepreciationDepletionAndAmortization\')">Depreciation and amortization</a></td><td class="nump">55</td></tr></table>';
+    const FS2 = '<FilingSummary><MyReports><Report><MenuCategory>Statements</MenuCategory><HtmlFileName>R2.htm</HtmlFileName><ShortName>Balance Sheets</ShortName></Report>'
+      + '<Report><MenuCategory>Statements</MenuCategory><HtmlFileName>R6.htm</HtmlFileName><ShortName>Consolidated Statements of Cash Flows</ShortName></Report></MyReports></FilingSummary>';
+    const urls = [], store = new Map();
+    store.set(BSF.key('7'), { v: BSF.V, f: { old: { form: '10-K', filed: '2025-02-20', bs: { rows: [] } } } });
+    const gt = async (u) => { urls.push(u); return /FilingSummary/.test(u) ? FS2 : /R6/.test(u) ? RC : RB; };
+    const SUB3 = { filings: { recent: { form: ['10-K', '10-K'], accessionNumber: ['new', 'old'], filingDate: ['2026-02-20', '2025-02-20'] } } };
+    const fl = (await BSF.load('7', SUB3, { getText: gt, store: { get: (k) => store.get(k), put: (k, o) => store.set(k, o) }, now: Date.parse('2026-11-17') })).f;
+    ok(fl.new.bs && fl.new.cf && fl.new.cf.rows[0].v[0] === 55 && fl.old.cf && fl.old.bs, '(27) load: 10-K חדש — מאזן ותזרים; ישן — הושלם התזרים');
+    ok(urls.filter((u) => /\/new\//.test(u)).length === 3 && urls.filter((u) => /\/old\//.test(u)).length === 2 && !urls.some((u) => /\/old\/R2/.test(u)), '(27) load: לישן רק FilingSummary ודף התזרים');
+    ok(F.bsfCf(fl, 'USD', TG).dep.get('2025-12-31').v === 55e6, '(27) מהדף שנקרא — הפחת של השנה');
+  }
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });

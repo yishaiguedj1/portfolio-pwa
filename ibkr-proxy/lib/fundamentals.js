@@ -310,6 +310,35 @@ function bsfDebt(have, cur) {
   }
   return per;
 }
+/* פחת והשקעות הוניות לפי דף התזרים המודפס של כל 10-K (17/11/2026, גל 3 — F13; ‏lib/bsfiled.js שדה cf). companyfacts לא אומר באיזה דוח
+   הופיע ערך: בשנים שבהן התזרים הדפיס את השורה בתגית אחרת מהיום, הסדרה לקחה ערך מביאור (Apple ‏2014–2015: ‏9.2B מביאור מול ‏11.26B
+   בתזרים; Tesla, ‏Franklin, ‏RTX, ‏WEC). לכל סוף שנה — ה־10-K האחרון שמדפיס אותו בעמודה של 12 חודשים (ההצגה האחרונה, כמו בשאר
+   הסדרות). רק כשבתזרים יש שורה אחת בלבד מהתגיות שלנו — גם ב־10-K האחרון וגם באותו דוח (כמה שורות פחת = סכום שאינו בדוח, ד);
+   ובפחת — לא כשהשורה (או הסדרה היום) היא "Depreciation" בלבד (הסדרה עוקבת אחרי פחת בלי הפחתות — החלטה קיימת, ד).
+   {have} → {dep: Map(סוף → {v, filed}), capex: …} */
+function bsfCf(have, cur, tags) {
+  const ann = Object.values(have || {}).filter((x) => x && x.cf && x.cf.rows && /^10-K/.test(x.form)).sort((a, b) => (a.filed < b.filed ? 1 : -1));
+  const out = {};
+  if (!ann.length) return out;
+  for (const k of ['dep', 'capex']) {
+    const list = tags[k] || [];
+    const cand = (x) => x.cf.rows.filter((r) => r.ns === 'us-gaap' && list.includes(r.tag));
+    const c0 = cand(ann[0]);
+    if (c0.length !== 1 || (k === 'dep' && c0[0].tag === 'Depreciation')) continue;
+    const M = new Map();
+    for (const x of ann) {
+      const c = cand(x);
+      if (c.length !== 1 || (k === 'dep' && c[0].tag === 'Depreciation')) continue;
+      const vals = SECFACE.rowVals(x.cf, c[0]);
+      x.cf.cols.forEach((col, ci) => {
+        if (col.months !== 12 || !SECFACE.colOk(col, cur) || vals[ci] == null || M.has(col.end)) return;
+        M.set(col.end, { v: Math.abs(vals[ci]), filed: x.filed });
+      });
+    }
+    if (M.size) out[k] = M;
+  }
+  return out;
+}
 /* הפרש של שתי תגיות (רווח כולל פחות זכויות מיעוט): כל תקופה ששתיהן קיימות בה; לכל הגשה שבשתיהן — ההפרש באותה הגשה */
 function diffFacts(a, b) {
   const out = { dur: new Map(), inst: new Map(), unit: a.unit };
@@ -1341,6 +1370,21 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
     // המאזן המודפס של ההגשה (bsfDebt) — אותו יום או עד 3 ימים (שנה של 52/53 שבועות: סוף העמודה מול סוף התקופה)
     if (bsfM && bsfM.size) { const p = bsfAt(bsfM, e); if (p && p.v != null) { if (!D.debt) D.debt = {}; D.debt[e] = p.v; bsfN++; } }
   }
+  // פחת והשקעות הוניות של השנה — מדף התזרים המודפס (bsfCf, גל 3 F13). רק השנתי; הרבעונים נשארים מהסדרה (הרבעון הרביעי — מחושב)
+  const cfy = [];
+  if (!isIfrs && bsf) {
+    const CF = bsfCf(bsf, rc || cur || 'USD', FLOW);
+    for (const k of ['dep', 'capex']) {
+      const M = CF[k]; if (!M) continue;
+      for (const e of fyEnds) {
+        const p = bsfAt(M, e); if (!p) continue;
+        if (!A[k]) A[k] = {};
+        const old = A[k][e];
+        if (old != null && Math.abs(old - p.v) <= Math.max(5e5, 5e-3 * Math.abs(p.v))) continue;
+        A[k][e] = p.v; cfy.push({ k: old == null ? 'ffill' : 'ffix', m: k, p: e, f: p.v, v: old == null ? null : old });
+      }
+    }
+  }
   // צמיחה ברת השוואה (26/10/2026, AppLovin): חברה שהציגה מחדש שנים קודמות (פעילות שנמכרה, שינוי מדיניות) — הערך
   // האחרון של 2023 הוא אחרי ההצגה מחדש (‏$1.84B בלי עסק האפליקציות), ו־2022 נשאר כפי שדווח אז (‏$2.82B כולל אותו):
   // היחס ביניהם = צמיחה מדומה (‎−35% במקום ‎+16.5%). לכל תקופה: היחס מהדוח האחרון שמציג גם אותה וגם את התקופה
@@ -1400,7 +1444,7 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
   const pack = (D, ends) => { const o = {}; for (const k of KEEP) { if (!D[k]) continue; const a = ends.map((e) => (D[k][e] != null ? D[k][e] : null)); if (a.some((v) => v != null)) o[k] = a; } return o; };
   const fy = fyEnds.filter((e) => A.rev[e] != null || A.ni[e] != null).slice(-20);
   const C = { A: pack(GA, fy), Q: pack(GQ, qEnds) };
-  return { fy, q: qEnds, shEst: shEst.filter((e) => Q.sh[e] != null), epsNum, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix, cx0, gpx, gpd, opx, splitsUsed, capFace, bsfN };
+  return { fy, q: qEnds, shEst: shEst.filter((e) => Q.sh[e] != null), epsNum, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix, cx0, gpx, gpd, opx, splitsUsed, capFace, bsfN, cfy };
 }
 
 /* השקעה הונית שהחברה לא מציגה בשורה נפרדת (5/11/2026, AppLovin). מ־2024 התזרים של AppLovin בלי "Purchase of property and
@@ -2033,7 +2077,7 @@ async function fundamentals(sym0) {
   const q4p = useSec ? q4Press(sec, secPr) : [];
   const qsh = useSec ? qShares(sec, y) : [];
   const qeps = useSec ? q4Eps(sec, y) : [];
-  const checks = useSec ? validate(sec).concat(crossCheck(sec, y), fcRes.out, ffix, q4p, qsh, qeps) : [];
+  const checks = useSec ? validate(sec).concat(crossCheck(sec, y), fcRes.out, ffix, sec.cfy || [], q4p, qsh, qeps) : [];
   // מידע: דוח שהושלם מקובץ ה־XBRL של ההגשה (לא היה ב־companyfacts) — הבקרה הלילית סופרת אותם
   if (useSec) for (const a of xbAdded) checks.push({ k: 'xbrl', m: a.form, p: a.per || a.filed });
   // שורה שחסרה ב־SEC לגמרי (תגית פרטית של החברה, למשל השקעות הוניות ב־IFRS) — משלימים מ־Yahoo לפי תאריך, ומסמנים
@@ -2157,7 +2201,7 @@ async function handle(body, res) {
 
 // בקשה ל־SEC עם המזהה (עבודת הרקע של המאזנים — server.js → startBsf → lib/bsfiled.js)
 const secText = (u) => getText(u, { headers: { 'User-Agent': SEC_UA() } }, 15000);
-module.exports = { handle, fundamentals, holes, q4Press, fxMonthly, adrRatio, FX_FRED, capexNil, debtFace, bsfDebt, secText, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
+module.exports = { handle, fundamentals, holes, q4Press, fxMonthly, adrRatio, FX_FRED, capexNil, debtFace, bsfDebt, bsfCf, secText, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
   industryFor, industryData, _cache: cache,
   // התגיות המועמדות לכל שורה — לכלי ההשוואה (fundxcheck: SEC גולמי גם לתקופות שהושלמו מתגית משנית). נשמט ב־f9db4c74 — tools/fund-xcheck.js מצפה לו
   TAGS: { gaap: { ...FLOW, ...INST }, ifrs: IFRS } };
