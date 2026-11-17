@@ -1458,7 +1458,8 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     ok(M.dep.get('2014-09-27').filed === '2016-10-26' && M.capex.get('2014-09-27').v === 9571e6, '(27) bsfCf: ה־10-K האחרון שמדפיס את השנה; השקעה הונית — בערך מוחלט');
     // כמה שורות פחת באותו תזרים — סכום שאינו בדוח (ד): אותה שנה לא נלקחת; ב־10-K האחרון — המדד כולו לא נלקח
     const two = { ...have, b: { ...have.b, cf: cf(['2016-09-24', '2015-09-26', '2014-09-27'], [['Depreciation', [1, 2, 3]], ['DepreciationAndAmortization', [10505, 11257, 7946]]]) } };
-    ok(F.bsfCf(two, 'USD', TG).dep.get('2014-09-27').filed === '2015-10-28', '(27) bsfCf: שתי שורות פחת — הדוח הזה לא נספר');
+    const M2 = F.bsfCf(two, 'USD', TG).dep;
+    ok(!M2.has('2014-09-27') && !M2.has('2016-09-24') && M2.get('2013-09-28').filed === '2015-10-28', '(27) bsfCf: שתי שורות פחת בדוח האחרון שמכסה שנה — השנה לא נלקחת, גם לא מדוח ישן יותר (DHI, Devon)');
     const lastTwo = { c: { ...have.c, cf: cf(['2026-09-26'], [['Depreciation', [1]], ['DepreciationAndAmortization', [2]]]) }, a: have.a };
     ok(!F.bsfCf(lastTwo, 'USD', TG).dep, '(27) bsfCf: שתי שורות בדוח האחרון — בלי פחת מהתזרים');
     // הסדרה היום "Depreciation" בלבד (פחת בלי הפחתות) — לא מחליפים בסך פחת והפחתות של שנים קודמות (ד)
@@ -1484,6 +1485,10 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     ok(fl.new.bs && fl.new.cf && fl.new.cf.rows[0].v[0] === 55 && fl.old.cf && fl.old.bs, '(27) load: 10-K חדש — מאזן ותזרים; ישן — הושלם התזרים');
     ok(urls.filter((u) => /\/new\//.test(u)).length === 3 && urls.filter((u) => /\/old\//.test(u)).length === 2 && !urls.some((u) => /\/old\/R2/.test(u)), '(27) load: לישן רק FilingSummary ודף התזרים');
     ok(F.bsfCf(fl, 'USD', TG).dep.get('2025-12-31').v === 55e6, '(27) מהדף שנקרא — הפחת של השנה');
+    // כל ערך שהודפס (לכלל ההצגה מחדש: ערך שלנו שהודפס בתזרים של 10-K אחר — לא מוחלף; YUM) ופחת שלילי נשמר בסימן (Allstate)
+    ok(M.dep.printed.get('2014-09-27').filter((v) => v === 7946e6).length === 2 && M.capex.printed.get('2014-09-27')[0] === 9571e6, '(27) bsfCf: הערכים שהודפסו בכל 10-K');
+    const neg = F.bsfCf({ c: { form: '10-K', filed: '2011-02-20', cf: cf(['2010-12-31', '2009-12-31'], [['DepreciationAndAmortization', [100, -91]]]) } }, 'USD', TG);
+    ok(neg.dep.get('2009-12-31').v === -91e6, '(27) bsfCf: פחת שלילי — כפי שהודפס');
   }
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });

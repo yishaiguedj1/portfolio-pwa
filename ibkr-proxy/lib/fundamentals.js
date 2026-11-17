@@ -315,7 +315,7 @@ function bsfDebt(have, cur) {
    בתזרים; Tesla, ‏Franklin, ‏RTX, ‏WEC). לכל סוף שנה — ה־10-K האחרון שמדפיס אותו בעמודה של 12 חודשים (ההצגה האחרונה, כמו בשאר
    הסדרות). רק כשבתזרים יש שורה אחת בלבד מהתגיות שלנו — גם ב־10-K האחרון וגם באותו דוח (כמה שורות פחת = סכום שאינו בדוח, ד);
    ובפחת — לא כשהשורה (או הסדרה היום) היא "Depreciation" בלבד (הסדרה עוקבת אחרי פחת בלי הפחתות — החלטה קיימת, ד).
-   {have} → {dep: Map(סוף → {v, filed}), capex: …} */
+   {have} → {dep: Map(סוף → {v, filed}), capex: …, last: התאריך של ה־10-K האחרון}. השער (הסדרה עוקבת היום אחרי השורה) — בהחלה */
 function bsfCf(have, cur, tags) {
   const ann = Object.values(have || {}).filter((x) => x && x.cf && x.cf.rows && /^10-K/.test(x.form)).sort((a, b) => (a.filed < b.filed ? 1 : -1));
   const out = {};
@@ -325,17 +325,23 @@ function bsfCf(have, cur, tags) {
     const cand = (x) => x.cf.rows.filter((r) => r.ns === 'us-gaap' && list.includes(r.tag));
     const c0 = cand(ann[0]);
     if (c0.length !== 1 || (k === 'dep' && c0[0].tag === 'Depreciation')) continue;
-    const M = new Map();
+    const M = new Map(), seen = new Set(), printed = new Map();
     for (const x of ann) {
-      const c = cand(x);
-      if (c.length !== 1 || (k === 'dep' && c[0].tag === 'Depreciation')) continue;
-      const vals = SECFACE.rowVals(x.cf, c[0]);
+      const c = cand(x), bad = c.length !== 1 || (k === 'dep' && c[0].tag === 'Depreciation');
+      // כל ערך שהודפס בשורה מהתגיות שלנו, בכל 10-K (גם דו־משמעי) — ערך כזה בסדרה הוא הצגה מסוימת, לא ביאור
+      for (const r of c) SECFACE.rowVals(x.cf, r).forEach((v, ci) => { const col = x.cf.cols[ci]; if (v == null || !col || col.months !== 12) return; if (!printed.has(col.end)) printed.set(col.end, []); printed.get(col.end).push(k === 'capex' ? Math.abs(v) : v); });
+      const vals = bad ? [] : SECFACE.rowVals(x.cf, c[0]);
       x.cf.cols.forEach((col, ci) => {
-        if (col.months !== 12 || !SECFACE.colOk(col, cur) || vals[ci] == null || M.has(col.end)) return;
-        M.set(col.end, { v: Math.abs(vals[ci]), filed: x.filed });
+        if (col.months !== 12 || !SECFACE.colOk(col, cur) || seen.has(col.end)) return;
+        // השנה שייכת לדוח האחרון שמדפיס אותה — גם כשהוא דו־משמעי (שתי שורות: DHI, ‏Devon, ‏Edison) לא יורדים לדוח ישן יותר
+        seen.add(col.end);
+        // השקעה הונית מודפסת כתשלום (במינוס) — ערך מוחלט; פחת — כפי שהודפס (Allstate ‏2009: ‏(91) בשורה של פחת ושאר פריטים)
+        if (!bad && vals[ci] != null) M.set(col.end, { v: k === 'capex' ? Math.abs(vals[ci]) : vals[ci], filed: x.filed });
       });
     }
+    M.printed = printed;
     if (M.size) out[k] = M;
+    out.last = ann[0].filed;
   }
   return out;
 }
@@ -1376,11 +1382,18 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
     const CF = bsfCf(bsf, rc || cur || 'USD', FLOW);
     for (const k of ['dep', 'capex']) {
       const M = CF[k]; if (!M) continue;
+      // שער עקביות: הסדרה שלנו כבר עוקבת היום אחרי השורה הזו — בכל השנים שהדוח האחרון מדפיס, הערך שלנו = השורה (AEP: בתגית של
+      // השקעה הונית מודפסת "Acquisitions of Assets", וההשקעה עצמה — ‏$8.5B — בתגית פרטית; בלי השער כל השנים היו מוחלפות ברכישות)
+      const lastE = fyEnds.filter((e) => { const p = bsfAt(M, e); return p && p.filed === CF.last; });
+      if (!lastE.length || !lastE.every((e) => A[k] && A[k][e] != null && Math.abs(A[k][e] - bsfAt(M, e).v) <= Math.max(5e5, 5e-3 * Math.abs(A[k][e])))) continue;
       for (const e of fyEnds) {
         const p = bsfAt(M, e); if (!p) continue;
         if (!A[k]) A[k] = {};
-        const old = A[k][e];
-        if (old != null && Math.abs(old - p.v) <= Math.max(5e5, 5e-3 * Math.abs(p.v))) continue;
+        const old = A[k][e], near = (a, b) => Math.abs(a - b) <= Math.max(5e5, 5e-3 * Math.abs(b));
+        if (old != null && near(old, p.v)) continue;
+        // הערך שלנו הודפס בתזרים של 10-K אחר — הצגה מחדש (ד), לא מחליפים (YUM ‏2014: ‏1,033 לפני הפיצול של Yum China, כמו ההכנסות
+        // של אותה שנה ב־companyfacts; ‏508 — אחרי)
+        if (old != null) { let pr = M.printed.get(e); if (!pr) for (const [k2, v2] of M.printed) if (Math.abs(day(k2) - day(e)) <= 3) { pr = v2; break; } if (pr && pr.some((v) => near(old, v))) continue; }
         A[k][e] = p.v; cfy.push({ k: old == null ? 'ffill' : 'ffix', m: k, p: e, f: p.v, v: old == null ? null : old });
       }
     }
