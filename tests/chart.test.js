@@ -215,7 +215,7 @@ ok(Object.keys(L.IND).length >= 40, 'לפחות 40 אינדיקטורים נוס
   ok(/function renderPick\(c\)/.test(cj) && /pill\(T\('kcPickTf'\)[\s\S]{0,200}?setTf\(c, it\.v\)/.test(cj) && /pill\(T\('kcPickRg'\)[\s\S]{0,200}?goRange\(it\.v\)/.test(cj)
     && /UI\.mbar\.append\(\n    ib\('watch'/.test(cj) && !/const symB = /.test(cj) && /\.kc-pick \{ display: flex; \}/.test(cc), 'בטלפון: "אינטרוול" ו"טווח תאריכים" בפינה העליונה של הגרף, לא בסרגל התחתון');
   ok(/\.kc-bar, \.kc-foot, \.kc-fab, \.kc-fab\.on, \.kc-top-end \.kc-undo, \.kc-top-end \.kc-redo \{ display: none !important; \}/.test(cc) && /\.kc-mbar \{ display: flex; \}/.test(cc), 'בטלפון הסרגל התחתון מחליף את הסרגלים של המחשב');
-  ok(/b\.timestamp <= t && t <= b\.timestamp \+ BASESEC\[d\.base\] \* 1000 && b\.close !== p/.test(cj), 'הנר האחרון נסגר על מחיר הסגירה הרשמי');
+  ok(/b\.timestamp <= t && t <= barEnd\(c, d\.base, b\.timestamp\) && b\.close !== p/.test(cj) && /const barEnd = \(c, base, ts\) => \(base === '1mo' \? monthEnd\(c\.tz, ts, 1\) : ts \+ BASESEC\[base\] \* 1000\)/.test(cj), 'הנר האחרון נסגר על מחיר הסגירה הרשמי (בחודשי — עד סוף החודש הקלנדרי, C-026)');
   ok(/setZoomAnchor\(back \? 'cursor' : 'last_bar'\)/.test(cj) && /navigator\.vibrate\(8\)/.test(cj) && /convertFromPixel\(\[\{ x: e\.clientX - r\.left/.test(cj), 'זום צמוד לנר האחרון, רטט בלחיצה ארוכה, בחירת נר בהקשה');
   ok(/extendTexts: \[\{ show: true, position: 'below_price'[\s\S]{0,400}?updateInterval: 1000/.test(cj) && /formatExtendText: \(x\) => \(x && x.type === 'last_price' \? countdown\(c, x.data, Date.now\(\)\)/.test(cj), 'ספירה לאחור לסגירת הנר מתחת לתווית המחיר');
   ok(/name: 'kcExtPx'/.test(cj) && /function drawExt\(c\)/.test(cj) && /if \(c.raw.length\) \{ drawExt\(c\);/.test(cj), 'תווית טרום/אחרי המסחר בציר');
