@@ -6006,7 +6006,7 @@ async function lbLoad() {
   } catch (e) {
     if (seq !== lb.seq) return;
     const c = e && e.code;
-    lb.err = String(c || (e && e.name) || 'err').slice(0, 40);   // קוד קצר על המסך — בלי פרטים אישיים
+    lb.err = (String(c || (e && e.name) || 'err') + (e && e.detail ? ' · ' + e.detail : !c && e && e.message ? ' · ' + e.message : '')).slice(0, 110);   // קוד קצר על המסך — בלי פרטים אישיים
     if (typeof console !== 'undefined') console.warn('studio lib load', e);
     lb.st = c === 'not_connected' || c === 'revoked' || c === 'not_allowed' ? 'conn' : lb.st === 'ok' ? 'ok' : 'err';
   } finally { if (seq === lb.seq) { lb.busy = false; lbPaint(); } }
