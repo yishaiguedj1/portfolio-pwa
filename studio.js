@@ -6089,7 +6089,11 @@ function pageLib(p) {
     chips.append(b);
   }
   p.append(chips);
-  if (lb.st === 'err' && !lb.items.length) { p.append(h('div', 'st-empty st-empty-sm', T('studioLibErr')), h('div', 'st-lib-errc', lb.err || ''), btn('st-btn wide', T('studioLibRetry'), lbLoad, 'lib-retry')); return; }
+  if (lb.st === 'err' && !lb.items.length) {
+    p.append(h('div', 'st-empty st-empty-sm', T('studioLibErr')), h('div', 'st-lib-errc', lb.err || ''));
+    p.append(lbFixable() ? lbFix() : btn('st-btn wide', T('studioLibRetry'), lbLoad, 'lib-retry'));
+    return;
+  }
   if (!lb.st) { p.append(h('div', 'st-empty st-empty-sm', T('studioPlLoading'))); return; }
   const cards = lbCards();
   if (!cards.length) p.append(h('div', 'st-empty st-empty-sm', T('studioLibEmpty')));
@@ -6099,6 +6103,46 @@ function pageLib(p) {
     p.append(hd, g);
   }
   const mt = lbMeter(); if (mt) p.append(mt);
+}
+/* 17/11/2026: Google דוחה את הסוד של לקוח ה־Drive בשרת (invalid_client) — המנהל מדביק כאן סוד חדש. השרתון בודק אותו מול
+   Google לפני השמירה (gdSecret), שומר מוצפן ומיד מנסה גישה ל־Drive. הסוד לא נשמר בטלפון; v — רק עד השליחה (ציור מחדש לא מוחק) */
+const lbFx = { v: '', busy: false, msg: '', cid: '' };
+const lbFixable = () => !!(ui.api && ui.api.admin) && /invalid_client|gd_http_401/.test(lb.err || '');
+/* הלקוח במסוף של Google Cloud. הפרויקט — רק כשמספר הפרויקט שבמזהה הוא של Firebase שבדף (appId 1:<מספר>:web:…) */
+export function gcClientUrl(cid, fb) {
+  const c = String(cid || ''), f = fb || {};
+  const pid = c && String(f.appId || '').split(':')[1] === c.split('-')[0] ? String(f.projectId || '') : '';
+  return 'https://console.cloud.google.com/auth/clients' + (c ? '/' + encodeURIComponent(c) : '') + (pid ? '?project=' + encodeURIComponent(pid) : '');
+}
+const lbFixErr = (c) => (c === 'bad_format' ? T('studioLibFixEFmt') : c === 'bad_secret' ? T('studioLibFixEBad') : c === 'no_client' ? T('studioLibFixENo')
+  : c === 'net' || c === 'signin' ? T('studioLibFixENet') : c === 'not_admin' ? T('studioErrNotAdmin') : T('studioLibFixEGen', { c: String(c || '?').slice(0, 30) }));
+function lbFix() {
+  const box = h('div', 'st-lib-fix');
+  if (!lbFx.cid) gd().config().then((c) => { if (c && c.clientId && !lbFx.cid) { lbFx.cid = c.clientId; lbPaint(); } }).catch(() => {});
+  const fb = typeof window !== 'undefined' ? window.FIREBASE_CONFIG : null;
+  box.append(h('div', 'st-lib-fixt', T('studioLibFixT')), h('p', 'st-lib-fixs', T('studioLibFixS')),
+    extLink('st-btn wide tint', gcClientUrl(lbFx.cid, fb), T('studioLibFixOpen'), 'out', 'lib-fix-open'));
+  const inp = h('input', 'st-in'); inp.type = 'password'; inp.dir = 'ltr'; inp.autocomplete = 'off'; inp.spellcheck = false;
+  inp.placeholder = 'GOCSPX-…'; inp.value = lbFx.v; inp.setAttribute('aria-label', T('studioLibFixPh'));
+  inp.addEventListener('input', () => { lbFx.v = inp.value; });
+  const b = btn('st-btn wide', lbFx.busy ? T('studioLibFixBusy') : T('studioLibFixSave'), lbFixSave, 'lib-fix-save'); b.disabled = lbFx.busy;
+  box.append(inp, b);
+  if (lbFx.msg) box.append(h('p', 'st-ferr', lbFx.msg));
+  return box;
+}
+async function lbFixSave() {
+  const s = lbFx.v.trim();
+  if (lbFx.busy) return;
+  if (!s) { lbFx.msg = T('studioLibFixEFmt'); lbPaint(); return; }
+  lbFx.busy = true; lbFx.msg = ''; lbPaint();
+  let j;
+  try { j = await net.api('gdSecret', { s }); } catch (e) { j = { ok: false, error: 'net' }; }
+  lbFx.busy = false;
+  if (!j || !j.ok) { lbFx.msg = lbFixErr(j && j.error); lbPaint(); return; }
+  lbFx.v = ''; lbFx.msg = '';
+  if (j.drive === 'ok') { flashSafe(T('studioLibFixOk')); lb.st = ''; lb.err = ''; lbLoad(); return; }
+  if (j.drive === 'revoked' || j.drive === 'not_connected') { flashSafe(T('studioLibFixRe')); lb.st = 'conn'; lb.err = ''; statusAt = 0; refreshStatus(true); lbPaint(); return; }
+  lb.err = (String(j.drive || 'drive') + (j.why ? ' · ' + j.why : '')).slice(0, 110); lbFx.msg = T('studioLibFixDrive'); lbPaint();
 }
 /* ---- פריט בספרייה (לפי הציור: פוסטר גדול, כותרת, ניגון + שיתוף + פתיחה בסטודיו, פרקים, קבצים, מצב השמירה) ---- */
 let lp = null;   // { id, st: 'load' | 'ok' | 'err', ctl, err } — הנגן בתוך הדף, כשאין עבודה לנגן ממנה
