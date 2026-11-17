@@ -1168,7 +1168,7 @@ def check_facts(co, cache=None):
                 for fd in fl:
                     if not best or fd > best[0]:
                         best = (fd, v, ddate)
-    if best and price and sh:
+    if best and price and sh and best[1]:  # מניות 0 בעמוד השער (SPCX — חברת SPAC לפני הנפקה) — בלי השוואה
         diff = sh / best[1] - 1
         out.append(dict(layer='def', k='mcap_shares', screen=sh, cover=best[1], cover_date=best[2], filed=best[0], diff=diff))
     return out
