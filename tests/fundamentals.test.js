@@ -1290,6 +1290,12 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
       const d1 = F.normalizeSec(MD, [], fc), d0 = F.normalizeSec(MD, [], null);
       ok(d1.tags.dep === 'DepreciationAndAmortization' && d1.A.dep[d1.fy.indexOf('2025-12-31')] === 260 && d0.tags.dep === 'DepreciationDepletionAndAmortization', '(24) פחת: השורה בתזרים לפני השורה ברווח והפסד');
     }
+    // גל 2, ‏F14: מו״פ בתגית "בלי מו״פ שנרכש" (AbbVie, ‏Amgen) ודיבידנד ב־PaymentsOfOrdinaryDividends (Accenture) — עד אז חסרים במסך
+    {
+      const MR = facts([...base, ['ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost', 'USD', yrs([50, 51, 52, 53, 54, 55, 56], 2019)], ['PaymentsOfOrdinaryDividends', 'USD', yrs([7, 8, 9, 10, 11, 12, 13], 2019)]]);
+      const r = F.normalizeSec(MR, [], null), i = r.fy.indexOf('2025-12-31');
+      ok(r.A.rnd && r.A.rnd[i] === 56 && r.A.divp && r.A.divp[i] === 13, '(24) מו״פ ודיבידנד בתגיות החלופיות (F14)');
+    }
     // חוב שלילי (Hartford ‏10-K ‏2016: שגיאת סימן בהגשה) — העמודה לא נספרת, הרבעוני נשאר
     const neg = { q: { form: '10-Q', filed: '2016-04-28', bs: sheet(['2016-03-31', '2015-12-31'], [['LongTermDebtNoncurrent', 'Long-term debt', [5000, 5084]]]) },
       k: { form: '10-K', filed: '2016-02-26', bs: sheet(['2015-12-31', '2014-12-31'], [['ShortTermBorrowings', 'Short-term debt', [275, 456]], ['LongTermDebtNoncurrent', 'Long-term debt', [-5084, -5653]]]) } };

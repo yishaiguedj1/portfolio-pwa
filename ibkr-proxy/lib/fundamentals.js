@@ -38,7 +38,7 @@ async function getText(url, opts = {}, ms = 9000) {
 
 /* ---------- SEC: מיפוי תגיות (סדר = עדיפות) ---------- */
 const FLOW = {
-  rev: ['RevenuesNetOfInterestExpense', 'Revenues', 'RegulatedAndUnregulatedOperatingRevenue', 'RevenueFromContractWithCustomerExcludingAssessedTax', 'SalesRevenueNet', 'RevenueFromContractWithCustomerIncludingAssessedTax', 'SalesRevenueGoodsNet', 'RegulatedOperatingRevenue', 'OperatingLeaseLeaseIncome'],
+  rev: ['RevenuesNetOfInterestExpense', 'Revenues', 'RegulatedAndUnregulatedOperatingRevenue', 'RevenueFromContractWithCustomerExcludingAssessedTax', 'SalesRevenueNet', 'RevenueFromContractWithCustomerIncludingAssessedTax', 'SalesRevenueGoodsNet', 'RegulatedOperatingRevenue', 'OperatingLeaseLeaseIncome', 'SalesRevenueServicesNet'],
   cogs: ['CostOfRevenue', 'CostOfGoodsAndServicesSold', 'CostOfGoodsSold', 'CostOfServices', 'CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization'], // האחרונה: Uber, ‏Newmont ("Costs applicable to sales")
   gp: ['GrossProfit'],
   op: ['OperatingIncomeLoss'],
@@ -48,7 +48,8 @@ const FLOW = {
   nic: ['NetIncomeLossAvailableToCommonStockholdersDiluted', 'NetIncomeLossAvailableToCommonStockholdersBasic'], // לבעלי המניות הרגילות (אחרי דיבידנד בכורה) — לזהות EPS × מניות
   pretax: ['IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest', 'IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments'],
   tax: ['IncomeTaxExpenseBenefit'],
-  rnd: ['ResearchAndDevelopmentExpense'],
+  // גל 2 (F14): התגיות של השורה המודפסת — AbbVie, ‏Amgen, ‏Biogen ‏(בלי מו״פ שנרכש), ‏Adobe, ‏Cadence (תוכנה); עד אז בלי מו״פ בכלל
+  rnd: ['ResearchAndDevelopmentExpense', 'ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost', 'ResearchAndDevelopmentExpenseSoftwareExcludingAcquiredInProcessCost'],
   int: ['InterestExpense', 'InterestExpenseNonoperating', 'InterestExpenseDebt'],
   eps: ['EarningsPerShareDiluted', 'EarningsPerShareBasicAndDiluted', 'EarningsPerShareBasic'],
   sh: ['WeightedAverageNumberOfDilutedSharesOutstanding', 'WeightedAverageNumberOfShareOutstandingBasicAndDiluted', 'WeightedAverageNumberOfSharesOutstandingBasic'],
@@ -56,8 +57,8 @@ const FLOW = {
   capex: ['PaymentsToAcquirePropertyPlantAndEquipment', 'PaymentsToAcquireProductiveAssets'],
   sbc: ['ShareBasedCompensation', 'AllocatedShareBasedCompensationExpense'],
   dep: ['DepreciationDepletionAndAmortization', 'DepreciationAndAmortization', 'DepreciationAmortizationAndAccretionNet', 'Depreciation'],
-  buy: ['PaymentsForRepurchaseOfCommonStock'],
-  divp: ['PaymentsOfDividendsCommonStock', 'PaymentsOfDividends'],
+  buy: ['PaymentsForRepurchaseOfCommonStock', 'PaymentsForRepurchaseOfEquity'], // ‏GE, ‏Aon, ‏Invesco (F14)
+  divp: ['PaymentsOfDividendsCommonStock', 'PaymentsOfDividends', 'PaymentsOfOrdinaryDividends'], // ‏Accenture, ‏Colgate (F14)
   dps: ['CommonStockDividendsPerShareDeclared', 'CommonStockDividendsPerShareCashPaid'],
   // "Other investing activities" — רק כגבול עליון להשקעה הונית שלא מוצגת בשורה נפרדת (capexNil); לא נשלח למסך
   oinv: ['PaymentsForProceedsFromOtherInvestingActivities'],
@@ -72,7 +73,7 @@ const INST = {
     'CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents'],
   // AvailableForSaleSecuritiesCurrent — התגית לפני ASU 2016-01 (Apple 2015–2017: ‏"Short-term marketable securities" ‏$20.5B–$53.9B
   // יצאו ריקות והמזומן נטו ירד בהתאם; בדיקת העומק 16/11/2026)
-  msec: ['MarketableSecuritiesCurrent', 'AvailableForSaleSecuritiesDebtSecuritiesCurrent', 'AvailableForSaleSecuritiesCurrent', 'ShortTermInvestments'],
+  msec: ['MarketableSecuritiesCurrent', 'AvailableForSaleSecuritiesDebtSecuritiesCurrent', 'AvailableForSaleSecuritiesCurrent', 'ShortTermInvestments', 'DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent'],
   debt: ['LongTermDebt'],
   debtNc: ['LongTermDebtNoncurrent'], debtC: ['LongTermDebtCurrent'], stb: ['ShortTermBorrowings', 'CommercialPaper'],
   eq: ['StockholdersEquity', 'StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest'],
@@ -83,7 +84,7 @@ const INST = {
     ...TMP_FACE],
   ta: ['Assets'], tl: ['Liabilities'], tle: ['LiabilitiesAndStockholdersEquity'],
   ca: ['AssetsCurrent'], cl: ['LiabilitiesCurrent'], re: ['RetainedEarningsAccumulatedDeficit'],
-  ppe: ['PropertyPlantAndEquipmentNet', 'PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization'],
+  ppe: ['PropertyPlantAndEquipmentNet', 'PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization', 'PublicUtilitiesPropertyPlantAndEquipmentNet'],
 };
 /* IFRS (20-F/40-F) — רק השורות המרכזיות; רבעונים לרוב לא קיימים (6-K בלי XBRL) */
 const IFRS = {
