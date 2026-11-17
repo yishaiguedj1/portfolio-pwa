@@ -2574,7 +2574,7 @@ const ST_DIAL_ICO = {
   tower: '<path d="M9.2 21l.9-8.5h3.8l.9 8.5M7 21h10M6.5 8.5h11l-1.6 4h-7.8zM12 8.5V4.5M9.8 4.5h4.4"/>',
   ka: '<circle cx="8.5" cy="17.5" r="3"/><path d="M11.5 17.5V3.5c0 2.6 4.8 3.4 4.8 7.2"/>',
   vi: '<rect x="3" y="4" width="18" height="12.5" rx="2.5"/><path d="M12 16.5V20M8.5 20h7M7 8.5h5M7 12h3"/><circle cx="15.6" cy="10" r="2.2"/><path d="M17.2 11.6l1.5 1.5"/>',   // 10/11/2026: ניתוח — לוח הרצאה וזכוכית מגדלת
-  lib: '<path d="M4 4.5v15M8 4.5v15"/><path d="M11.5 5.2l3.6-.9 3.9 15-3.6.9z"/>',   // 17/11/2026: הספרייה — מדף (שני כרכים וספר נטוי)
+  lib: '<rect x="3" y="7.5" width="14.5" height="12.5" rx="2.5"/><path d="M6.5 4.5h12A2.5 2.5 0 0 1 21 7v9.5"/><path d="M9 11v5.5l4.4-2.75z"/>',   // 17/11/2026: הספרייה — ערימת סרטונים (לפי הציור שאושר)
 };
 let dialNav = null, dialPrev = null, stDialC = null;
 function stDialNav() {
@@ -2698,6 +2698,7 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   folder: '<path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4.6l2 2.2h8.4A1.5 1.5 0 0 1 21 9.7v8.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/>',   // 26/10/2026: רשימת הקבצים ב־Drive
   bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   back: '<polyline points="9 6 15 12 9 18"/>',
+  play: '<path d="M7 4.5v15l12.5-7.5z" fill="currentColor" stroke="none"/>',   // 17/11/2026: ניגון (דף פריט בספרייה)
   chev: '<polyline points="15 6 9 12 15 18"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   check: '<polyline points="5 12.5 10 17 19 7"/>',
@@ -5958,7 +5959,7 @@ function pageVids(p) {
    (drive.file). כשהעותק ב־R2 פג (21 יום), השרתון מחליף בעבודה את המזהים לקבצים בספרייה (libSwap) — הנגן, העורכים וההפקה מחדש
    ממשיכים. כל עוד העבודה קיימת — מנגנים ממנה (R2 עדיף: איכויות צפייה); אחרת — מהמניפסט */
 const LIB_KINDS = ['', 'tr', 'ka', 'vi'];
-const lb = { st: '', items: [], old: [], k: '', quota: null, seq: 0, busy: false, man: new Map() };
+const lb = { st: '', items: [], old: [], k: '', quota: null, seq: 0, busy: false, man: new Map(), th: null };
 const lbPaint = () => { if (root && (ui.view === 'lib' || ui.view === 'litem')) render('none'); };
 const libTabOk = () => driveOk();
 /* המניפסט כמו שהעובד כותב אותו (translator/job.py lib_manifest) — רק השדות המוכרים, בגבולות */
@@ -5987,6 +5988,8 @@ async function lbLoad() {
     lb.items = r.files.map((x) => ({ id: x.id, folder: x.parent, at: x.at, m: lb.man.get(x.id + ':' + x.at) })).filter((x) => x.m);
     lb.old = o.files.filter((x) => /^video\//.test(x.type));
     lb.st = 'ok';
+    // הפוסטרים והמד — אחרי שהרשת כבר מצוירת (בלעדיהם: פוסטר בצבע הסוג)
+    net.libThumbs().then((L) => { if (seq !== lb.seq) return; const m = new Map(); for (const v of L) { const c = m.get(v.parent); if (!c || (v.r === 'b' && c.r !== 'b' && v.th)) m.set(v.parent, v); } lb.th = m; lbPaint(); }).catch(() => {});
     net.driveQuota().then((q) => { if (seq === lb.seq) { lb.quota = q; lbPaint(); } }).catch(() => {});
   } catch (e) {
     if (seq !== lb.seq) return;
@@ -5995,18 +5998,62 @@ async function lbLoad() {
   } finally { if (seq === lb.seq) { lb.busy = false; lbPaint(); } }
 }
 const lbKindT = (k) => (k === 'ka' ? T('studioLibKKa') : k === 'vi' ? T('studioLibKVi') : T('studioLibKTr'));
-function lbRow(x) {
-  const m = x.m;
-  const sub = [lbKindT(m.k), m.d ? fmtDur(m.d) : '', (m.fr && m.to.length ? m.fr + '→' + m.to.join(',') : ''), fmtDay(m.at || x.at)].filter(Boolean).join(' · ');
-  return rowNav({ tile: tile(m.k === 'ka' ? 'note' : m.k === 'vi' ? 'lect' : 'film', m.k === 'ka' ? 'purple' : m.k === 'vi' ? 'teal' : 'green'), label: m.t || T('studioUntitled'), sub, onClick: () => go('litem', x.id), k: 'lib:' + x.id });
+/* השפות על הפוסטר: "EN→HE"; קריוקי — תו */
+export const libLangTag = (m) => (m.k === 'ka' ? '♪' : m.to.length ? (m.fr ? m.fr.toUpperCase() + '→' : '') + m.to[0].toUpperCase() : '');
+/* הפוסטר 16:9 — התמונה הממוזערת של Drive, ובלעדיה צבע הסוג; על הפוסטר: שפות למעלה, משך למטה (לפי הציור שאושר) */
+function lbPoster(o) {
+  const ps = h('div', 'st-lp k-' + (o.k || 'f') + (o.big ? ' big' : ''));
+  if (o.th) {
+    const im = h('img'); im.alt = ''; im.decoding = 'async'; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer';
+    im.addEventListener('error', () => im.remove());
+    im.src = o.th; ps.append(im);
+  } else if (o.k === 'f') ps.append(ico('film', 'st-lp-ic'));
+  if (o.lang) { const lg = h('span', 'st-lp-lang'); lg.append(h('bdi', null, o.lang)); lg.dir = 'ltr'; ps.append(lg); }
+  if (o.state) ps.append(h('span', 'st-lp-state', o.state));
+  if (o.dur) { const tg = h('span', 'st-lp-dur', fmtDur(o.dur)); tg.dir = 'ltr'; ps.append(tg); }
+  if (o.p != null) { const pr = h('div', 'st-lp-prog'); const i = h('i'); i.style.inlineSize = Math.round(o.p * 100) + '%'; pr.append(i); ps.append(pr); }
+  return ps;
+}
+function lbCard(o) {
+  const c = btn('st-lc' + (o.k === 'f' ? ' fileonly' : ''), null, o.onClick, o.key);
+  const tt = h('span', 'st-lc-t'); const tb = h('bdi', null, o.t); tb.dir = 'auto'; tt.append(tb);
+  c.append(lbPoster(o), tt, h('span', 'st-lc-m', o.meta));
+  if (o.href) c.setAttribute('aria-label', o.t);
+  return c;
+}
+/* מה ברשת: הפריטים, שמירות שעוד רצות (עם אחוז), והקבצים הישנים — מהחדש לישן. ui: '' / tr / ka / vi / sh (עד דקה) / f (קבצים) */
+const LIB_CHIPS = ['', 'tr', 'ka', 'vi', 'sh', 'f'];
+function lbCards() {
+  const k = lb.k, out = [];
+  if (k !== 'f') {
+    for (const x of lb.items) {
+      const m = x.m;
+      if (k === 'sh' ? !(m.d > 0 && m.d <= 60) : k && m.k !== k) continue;
+      const tv = lb.th && lb.th.get(x.folder);
+      out.push({ at: m.at || x.at, key: 'lib:' + x.id, t: m.t || T('studioUntitled'), k: m.k, th: tv && tv.th, dur: m.d || (tv && tv.dur) || 0, lang: libLangTag(m),
+        meta: lbKindT(m.k) + ' · ' + fmtDay(m.at || x.at), onClick: () => go('litem', x.id) });
+    }
+    if (!k) for (const r of store.jobs) {
+      const d = r.up && r.up.dx;
+      if (!d || !d.lib || d.st !== 'run' || (r.srv && r.srv.lib)) continue;
+      out.push({ at: Date.now(), key: 'libs:' + r.id, t: fileTitle(r.spec.name) || T('studioUntitled'), k: r.spec.ka ? 'ka' : r.spec.vi ? 'vi' : 'tr', dur: r.spec.dur,
+        state: T('studioLibSaving', { p: Math.round((d.p || 0) * 100) }), p: d.p || 0, meta: T('studioLibSavingS'), onClick: () => go('job', r.id) });
+    }
+  }
+  if (!k || k === 'f') for (const x of lb.old) out.push({ at: x.at, key: 'libo:' + x.id, t: fileTitle(x.name), k: 'f', th: x.th, dur: x.dur, meta: T('studioLibOldS') + ' · ' + T('studioLibOld'),
+    onClick: () => { if (x.url) window.open(x.url, '_blank', 'noopener'); } });
+  return out.sort((a, b) => b.at - a.at);
 }
 function lbMeter() {
   const q = lb.quota;
   if (!q || !q.limit) return null;
-  const f = Math.max(0, Math.min(1, q.used / q.limit));
-  const w = h('div', 'st-lib-meter' + (f > 0.9 ? ' hi' : ''));
-  const bar = h('span', 'st-lib-bar'); const fill = h('i'); fill.style.inlineSize = (f * 100).toFixed(1) + '%'; bar.append(fill);
-  w.append(bar, h('small', null, T('studioLibStore', { u: fmtSize(q.used), l: fmtSize(q.limit) })));
+  const mine = lb.items.reduce((s, x) => s + x.m.f.reduce((a, f) => a + f.s, 0), 0);
+  const w = h('div', 'st-lib-meter' + (q.used / q.limit > 0.9 ? ' hi' : ''));
+  const bar = h('span', 'st-lib-bar');
+  const a = h('i', 'mine'); a.style.inlineSize = Math.min(100, mine / q.limit * 100).toFixed(1) + '%';
+  const b = h('i', 'rest'); b.style.inlineSize = Math.max(0, Math.min(100, (q.used - mine) / q.limit * 100)).toFixed(1) + '%';
+  bar.append(a, b);
+  w.append(bar, h('small', null, T('studioLibStore', { a: fmtSize(mine), u: fmtSize(q.used), l: fmtSize(q.limit) })));
   return w;
 }
 function pageLib(p) {
@@ -6019,30 +6066,29 @@ function pageLib(p) {
     return;
   }
   if (!lb.st && !lb.busy) lbLoad();
-  const seg = h('div', 'st-seg st-lib-seg'); seg.setAttribute('role', 'tablist');
-  for (const k of LIB_KINDS) {
+  const chips = h('div', 'st-chips'); chips.setAttribute('role', 'tablist');
+  const lbl = { '': T('studioLibAll'), tr: T('studioLibKTr'), ka: T('studioLibKKa'), vi: T('studioLibKVi'), sh: T('studioLibKSh'), f: T('studioLibKF') };
+  for (const k of LIB_CHIPS) {
     const on = lb.k === k;
-    const b = btn('st-seg-b' + (on ? ' on' : ''), k ? lbKindT(k) : T('studioLibAll'), () => { lb.k = k; lbPaint(); }, 'lib-k:' + (k || 'all'));
+    const b = btn('st-lchip' + (on ? ' on' : ''), lbl[k], () => { lb.k = k; lbPaint(); }, 'lib-k:' + (k || 'all'));
     b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', on ? 'true' : 'false');
-    seg.append(b);
+    chips.append(b);
   }
-  p.append(seg);
+  p.append(chips);
   if (lb.st === 'err' && !lb.items.length) { p.append(h('div', 'st-empty st-empty-sm', T('studioLibErr')), btn('st-btn wide', T('studioLibRetry'), lbLoad, 'lib-retry')); return; }
   if (!lb.st) { p.append(h('div', 'st-empty st-empty-sm', T('studioPlLoading'))); return; }
-  const its = lb.items.filter((x) => !lb.k || x.m.k === lb.k);
-  if (its.length) p.append(list(...its.map(lbRow)));
-  else if (!lb.old.length || lb.k) p.append(h('div', 'st-empty st-empty-sm', T('studioLibEmpty')));
-  if (lb.old.length && !lb.k) {
-    p.append(secT(T('studioLibOld')), list(...lb.old.slice(0, 50).map((x) => {
-      const a = rowExt({ href: x.url || 'https://drive.google.com/file/d/' + x.id + '/view', tile: tile('film', 'gray'), label: fileTitle(x.name), sub: [T('studioLibOldS'), x.size ? fmtSize(x.size) : ''].filter(Boolean).join(' · '), k: 'libo:' + x.id });
-      return a;
-    })));
+  const cards = lbCards();
+  if (!cards.length) p.append(h('div', 'st-empty st-empty-sm', T('studioLibEmpty')));
+  else {
+    const hd = secT(T('studioLibRecent')); hd.append(h('small', null, T('studioLibCount', { n: cards.length })));
+    const g = h('div', 'st-lgrid'); g.append(...cards.map(lbCard));
+    p.append(hd, g);
   }
   const mt = lbMeter(); if (mt) p.append(mt);
 }
-/* ---- פריט בספרייה ---- */
-let lp = null;   // { id, st, ctl, err }
-function lpStop() { if (lp && lp.ctl) { lp.ctl.destroy(); lp.ctl = null; } if (lp && lp.url) lp.url = ''; lp = null; }
+/* ---- פריט בספרייה (לפי הציור: פוסטר גדול, כותרת, ניגון + שיתוף + פתיחה בסטודיו, פרקים, קבצים, מצב השמירה) ---- */
+let lp = null;   // { id, st: 'load' | 'ok' | 'err', ctl, err } — הנגן בתוך הדף, כשאין עבודה לנגן ממנה
+function lpStop() { if (lp && lp.ctl) { lp.ctl.destroy(); lp.ctl = null; } lp = null; }
 const lbItem = (id) => lb.items.find((x) => x.id === id) || null;
 async function lpLoad(it) {
   const me = lp, m = it.m;
@@ -6058,10 +6104,13 @@ async function lpLoad(it) {
     me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: [], T,
       chapters: normChapters(m.ch.map((c) => ({ t: c.t, title: c.n })), m.d), pref: store.settings.pt, onPref: ptSave });
     me.st = 'ok';
+    try { me.ctl.play(); } catch (e) {}
   } catch (e) { if (lp !== me) return; me.st = 'err'; me.err = (e && e.code) || 'drive'; }
   lbPaint();
 }
 const libRoleT = (r) => (r === 'v' ? T('studioLibRv') : r === 'a' ? T('studioLibRa') : r === 'b' ? T('studioLibRb') : r === 's' ? T('studioLibRs') : r === 'p' ? T('studioLibRp') : T('studioLibRx'));
+const LANG_NAME = (c) => { try { return new Intl.DisplayNames([uiLang()], { type: 'language' }).of(c) || c; } catch (e) { return c; } };
+function lbIcoBtn(icon, label, fn, k) { const b = btn('st-lib-sec', null, fn, k); b.setAttribute('aria-label', label); b.append(ico(icon)); return b; }
 function pageLibItem(p) {
   const it = lbItem(ui.param);
   if (!it) {   // רענון בדף — הרשימה נטענת, ואז הדף מצויר שוב
@@ -6072,34 +6121,47 @@ function pageLibItem(p) {
     return;
   }
   const m = it.m, rec = m.job ? jobRec(m.job) : null, live = !!(rec && canPlay(rec));
-  p.append(navBar({ back: T('studioLibT'), title: m.t || T('studioUntitled') }));
-  if (live) {
-    const hero = h('div', 'st-lib-hero');
-    const t = h('h2', 'st-lib-t'); const tb = h('bdi', null, m.t || T('studioUntitled')); tb.dir = 'auto'; t.append(tb);
-    hero.append(t, h('small', null, [lbKindT(m.k), m.d ? fmtDur(m.d) : ''].filter(Boolean).join(' · ')), btn('st-btn in-card', T('studioPlWatch'), () => go('play', rec.id), 'lib-play'));
-    p.append(hero);
-  } else {
-    p.classList.add('st-dark');
-    if (!lp || lp.id !== it.id) { lpStop(); lp = { id: it.id, st: 'load', ctl: null, err: '' }; lpLoad(it); }
-    if (lp.st === 'load') p.append(h('div', 'st-pl-ph', T('studioPlLoading')));
-    else if (lp.st === 'err') p.append(h('div', 'st-empty st-empty-sm', lp.err === 'nosw' ? T('studioPlNoSw') : T('studioPlLoadErr')));
-    else p.append(lp.ctl.el);
-  }
-  if (m.ch.length && live) {
+  const tv = lb.th && lb.th.get(it.folder);
+  p.classList.add('st-litem');
+  const hero = h('div', 'st-lib-hero');
+  if (lp && lp.id === it.id) {
+    if (lp.st === 'ok') hero.append(lp.ctl.el);
+    else hero.append(h('div', 'st-pl-ph', lp.st === 'err' ? (lp.err === 'nosw' ? T('studioPlNoSw') : T('studioPlLoadErr')) : T('studioPlLoading')));
+  } else hero.append(lbPoster({ k: m.k, th: tv && tv.th, big: true }));
+  const bk = btn('st-lib-back', null, back, 'nav-back'); bk.setAttribute('aria-label', T('studioLibT')); bk.append(ico('back'));
+  hero.append(bk);
+  p.append(hero);
+  const tint = h('div', 'st-lib-tint');
+  const t = h('h1', 'st-lib-t'); const tb = h('bdi', null, m.t || T('studioUntitled')); tb.dir = 'auto'; t.append(tb);
+  const size = m.f.reduce((a, f) => a + f.s, 0);
+  const langs = m.to.length ? (m.fr ? LANG_NAME(m.fr) + ' → ' : '') + m.to.map(LANG_NAME).join(', ') : '';
+  const meta = h('div', 'st-lib-meta', [m.d ? fmtDur(m.d) : '', langs, size ? fmtSize(size) : ''].filter(Boolean).join(' · '));
+  const acts = h('div', 'st-lib-acts');
+  const play = btn('st-lib-pri', null, () => { if (live) { go('play', rec.id); return; } if (lp && lp.id === it.id && lp.ctl) { try { lp.ctl.play(); } catch (e) {} return; } lpStop(); lp = { id: it.id, st: 'load', ctl: null, err: '' }; lbPaint(); lpLoad(it); }, 'lib-play');
+  play.append(ico('play'), h('span', null, T('studioLibPlay')));
+  acts.append(play);
+  if (rec && shrOk(rec)) acts.append(lbIcoBtn('share', T('studioLibShare'), () => go('shr', rec.id), 'lib-share'));
+  if (rec) acts.append(lbIcoBtn('edit', T('studioLibOpen'), () => go('job', rec.id), 'lib-job'));
+  tint.append(t, meta, acts);
+  p.append(tint);
+  if (m.ch.length) {
     p.append(secT(T('studioLibCh')), list(...m.ch.map((c, i) => {
-      const r = h('div', 'st-row st-ric'); const tm = h('span', 'st-pl-tm'); tm.append(h('bdi', null, fmtT(c.t)));
-      r.append(tm, rowTxt(c.n, '')); r.dataset.k = 'lch:' + i;
+      const r = btn('st-row st-ric', null, () => { if (lp && lp.id === it.id && lp.ctl) { lp.ctl.seek(c.t); lp.ctl.play(); } }, 'lch:' + i);
+      const tm = h('span', 'st-pl-tm'); tm.append(h('bdi', null, fmtT(c.t)));
+      r.append(tm, rowTxt(c.n, ''));
       return r;
     })));
   }
-  p.append(secT(T('studioLibFiles')), list(...m.f.map((f) => rowExt({ href: 'https://drive.google.com/file/d/' + f.id + '/view', tile: tile(f.r === 's' ? 'globe' : 'film', f.r === 's' ? 'blue' : 'green'),
-    label: libRoleT(f.r), sub: [fileTitle(f.n), f.s ? fmtSize(f.s) : ''].filter(Boolean).join(' · '), k: 'lf:' + f.id }))));
-  const acts = list(
-    rec ? rowNav({ tile: tile('edit', 'blue'), label: T('studioLibOpen'), sub: T('studioLibOpenS'), onClick: () => go('job', rec.id), k: 'lib-job' }) : null,
-    it.folder ? rowExt({ href: 'https://drive.google.com/drive/folders/' + it.folder, tile: tile('cloud', 'teal'), label: T('studioLibDrive'), k: 'lib-drive' }) : null,
+  p.append(secT(T('studioLibFilesT')), list(...m.f.map((f) => rowExt({ href: 'https://drive.google.com/file/d/' + f.id + '/view', label: libRoleT(f.r), sub: fileTitle(f.n), k: 'lf:' + f.id }))
+    .map((a, i) => { if (m.f[i].s) a.insertBefore(h('span', 'st-v', fmtSize(m.f[i].s)), a.lastChild); return a; })));
+  const until = rec && rec.srv && rec.srv.ended && !(rec.srv.lib && rec.srv.lib.home) ? rec.srv.ended + 21 * 864e5 : 0;
+  const stRow = (label, value, cls) => { const r = h('div', 'st-row'); r.append(rowTxt(label, '')); r.append(h('span', 'st-v' + (cls ? ' ' + cls : ''), value)); return r; };
+  const ok = stRow(T('studioLibOk'), '✓ ' + fmtDay(m.at || it.at), 'st-ok-v');
+  const acts2 = list(ok, stRow(T('studioLibFrom'), until > Date.now() ? T('studioLibFromR2', { d: fmtDay(until) }) : 'Google Drive'),
+    it.folder ? rowExt({ href: 'https://drive.google.com/drive/folders/' + it.folder, label: T('studioLibDrive'), k: 'lib-drive' }) : null,
     it.folder ? btn('st-row st-act st-vl-danger', T('studioLibDel'), () => lbDel(it), 'lib-del') : null);
-  acts.classList.add('st-lib-acts');
-  p.append(acts);
+  acts2.classList.add('st-lib-gap');
+  p.append(acts2);
 }
 function lbDel(it) {
   const go2 = async () => {
