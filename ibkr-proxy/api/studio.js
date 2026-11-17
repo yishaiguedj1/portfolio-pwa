@@ -4026,8 +4026,11 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json({ ok: true });
     }
     if (op === 'drive') {
-      const t = await gdrive.accessToken(deps, uid);
-      if (!t.ok) return res.status(/^gd_http_/.test(t.error) ? 502 : 200).json({ ok: false, error: t.error });
+      // 17/11/2026: הספרייה לא נטענה ("Failed to fetch") — תשובת 502 הגיעה לטלפון בלי CORS. עכשיו תמיד 200 עם הקוד והסיבה של Google
+      let t;
+      try { t = await gdrive.accessToken(deps, uid); }
+      catch (e) { t = { ok: false, error: /^(fs_http_\d+|vault_[a-z_]+)$/.test(String(e && e.message)) ? String(e.message) : 'gd_failed' }; }
+      if (!t.ok) return res.status(200).json({ ok: false, error: t.error, why: t.why || '' });
       return res.status(200).json({ ok: true, token: t.token, exp: t.exp, email: t.email });
     }
     if (op === 'test') {

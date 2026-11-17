@@ -78,7 +78,8 @@ function makeDrive(o) {
       await delRec(deps, uid);
       return { ok: false, error: 'revoked' };
     }
-    if (t.status !== 200 || !t.j.access_token) return { ok: false, error: 'gd_http_' + t.status };
+    // why — קוד השגיאה של Google (למשל invalid_client), אותיות בלבד: מה לתקן בהגדרות, בלי פרטים אישיים
+    if (t.status !== 200 || !t.j.access_token) return { ok: false, error: 'gd_http_' + t.status, why: String((t.j && t.j.error) || '').replace(/[^a-z_]/g, '').slice(0, 40) };
     const expiresIn = t.j.expires_in || 3600;
     return { ok: true, token: t.j.access_token, expiresIn, exp: Date.now() + expiresIn * 1000, email: rec.email || '' };
   }
@@ -119,7 +120,8 @@ function makeDrive(o) {
       }
       if (body.op === OP + 'Token') {
         const t = await accessToken(deps, uid);
-        if (!t.ok) return res.status(/^gd_http_/.test(t.error) ? 502 : 200).json({ ok: false, error: t.error });
+        // 17/11/2026: 200 ולא 502 — דרך Cloudflare תשובת 502 הגיעה לטלפון בלי CORS ("Failed to fetch"), והקוד האמיתי אבד
+        if (!t.ok) return res.status(200).json({ ok: false, error: t.error, why: t.why || '' });
         return res.status(200).json({ ok: true, access_token: t.token, expires_in: t.expiresIn, email: t.email });
       }
       if (body.op === OP + 'Disconnect') {

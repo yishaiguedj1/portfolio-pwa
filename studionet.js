@@ -846,7 +846,7 @@ export function createNet(env) {
   async function driveToken(force) {
     if (!force && dtok && dtok.exp - 120e3 > E.now()) return dtok.at;
     const j = await api('drive');
-    if (!j.ok || !j.token) { const e = new Error(j.error || 'drive'); e.code = j.error || 'drive'; e.detail = j.detail || ''; e.fatal = j.error === 'not_connected' || j.error === 'revoked' || j.error === 'not_allowed'; throw e; }
+    if (!j.ok || !j.token) { const e = new Error(j.error || 'drive'); e.code = j.error || 'drive'; e.detail = j.detail || j.why || ''; e.fatal = j.error === 'not_connected' || j.error === 'revoked' || j.error === 'not_allowed'; throw e; }
     dtok = { at: j.token, exp: Math.min(j.exp || 0, E.now() + 3500e3) || E.now() + 3000e3 };
     return dtok.at;
   }
