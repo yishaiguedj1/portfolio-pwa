@@ -1,0 +1,209 @@
+/* ==== Invest בזכוכית (17/11/2026, בקשת המשתמש — 16 השינויים אושרו בתצוגה המקדימה) — לפי ת־עיצוב ====
+   שכבת עיצוב בלבד מעל Invest: אותו מבנה, אותם רכיבים ואותו תוכן. התוכנית והמחקר: docs/invest-design-plan.md,
+   docs/research/invest-design/. נטען רק ב־index.html, אחרי glass-btn.css ולפני desktop.css.
+   איך זה בנוי:
+   - הכל ב־@layer invglass עם !important. השכבה מוצהרת ראשונה (שורת ה־@layer בראש styles.css), ולכן ה־!important כאן גובר
+     גם על glassbtn וגם על ה־!important של הרכיבים — בדיוק כמו בתצוגה המקדימה שאושרה.
+   - כל רכיב תחת main / ההדר / החוגה / התפריט — האקדמיה, הסטודיו ומרכז המס שנפתחים מעל Invest לא מושפעים.
+   - ההדר המתכווץ והחוגה — רק בטלפון לאורך (html:not(.dk), גובה מעל 500); בתצוגת מחשב יש סרגל צד.
+   - הטשטוש של רכיבי התוכן דרך --gb-fx, שכבוי בזמן סיבוב הקובייה (כמו כפתורי הזכוכית).
+   tests/invest-glass.test.js בודק את החיבור ואת עיקרי הכללים. */
+@layer invglass {
+html {
+  --lg-body: linear-gradient(180deg, rgba(255, 255, 255, .60), rgba(255, 255, 255, .30)) !important;
+  --lg-fx: blur(14px) saturate(190%) brightness(1.04) !important;
+  --lg-rim: inset 0 1.5px 0 -.5px rgba(255, 255, 255, 1), inset 0 -1px 0 rgba(255, 255, 255, .45), inset 1px 0 0 rgba(255, 255, 255, .3), inset -1px 0 0 rgba(255, 255, 255, .3),
+    inset 0 0 14px rgba(255, 255, 255, .35), 0 0 0 .5px rgba(0, 0, 0, .07), 0 6px 18px -8px rgba(0, 0, 0, .22) !important;
+  --lg-tint: linear-gradient(180deg, rgba(70, 222, 110, .94), rgba(40, 192, 82, .9)) !important;
+  --lg-tint-rim: inset 0 1.5px 0 -.5px rgba(255, 255, 255, .8), inset 0 -2px 6px rgba(0, 80, 20, .18), inset 0 0 12px rgba(255, 255, 255, .25), 0 8px 20px -8px rgba(30, 170, 70, .6) !important;
+  --lg-card: rgba(255, 255, 255, .80) !important;
+  --lg-card-sh: 0 0 0 .5px rgba(0, 0, 0, .04), 0 1px 2px rgba(0, 0, 0, .03), 0 12px 32px -16px rgba(0, 0, 0, .14) !important;
+  --lg-fill: rgba(118, 118, 128, .12) !important;
+  --lg-knob: #fff !important; --lg-knob-sh: 0 3px 8px rgba(0, 0, 0, .12), 0 0 0 .5px rgba(0, 0, 0, .04) !important;
+  --lg-sep: rgba(60, 60, 67, .14) !important;
+  --lg-spring: linear(0, .009, .035 2.1%, .141 4.4%, .723 12.9%, .938 16.7%, 1.017 19.7%, 1.051 22.6%, 1.055 25.7%, 1.033 30.7%, 1.006 37.3%, .995 44.6%, 1) !important;
+  --lg-round: ui-rounded, "SF Pro Rounded", var(--font) !important;
+}
+html[data-theme="dark"] {
+  --lg-body: linear-gradient(180deg, rgba(255, 255, 255, .17), rgba(255, 255, 255, .07)) !important;
+  --lg-rim: inset 0 1.5px 0 -.5px rgba(255, 255, 255, .42), inset 0 -1px 0 rgba(255, 255, 255, .10), inset 0 0 12px rgba(255, 255, 255, .07), 0 0 0 .5px rgba(255, 255, 255, .10), 0 8px 20px -8px rgba(0, 0, 0, .8) !important;
+  --lg-card: #1C1C1E !important; --lg-card-sh: 0 0 0 .5px rgba(255, 255, 255, .07) !important;
+  --lg-fill: rgba(118, 118, 128, .24) !important; --lg-knob: rgba(99, 99, 102, .95) !important; --lg-knob-sh: 0 3px 8px rgba(0, 0, 0, .3) !important;
+  --lg-sep: rgba(84, 84, 88, .55) !important;
+}
+
+/* ===== 1. חומר הזכוכית: זכוכית רק על מה שצף (כפתורים, צ׳יפים, ההדר, החוגה, התפריט); כרטיסים במילוי רך ===== */
+html { --gb-body: var(--lg-body) !important; --gb-sh: var(--lg-rim) !important; --gb-fx: var(--lg-fx) !important;
+  --gb-hdr-body: var(--lg-body) !important; --gl-btn: rgba(255, 255, 255, .45) !important; --gl-btn-sh: var(--lg-rim) !important; --gl-fx: var(--lg-fx) !important; }
+html[data-theme="dark"] { --gl-btn: rgba(255, 255, 255, .12) !important; }
+main .card { background: var(--lg-card) !important; border-color: transparent !important; box-shadow: var(--lg-card-sh) !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border-radius: 24px !important; }
+main .card .card, main .dep-tile { box-shadow: none !important; }
+/* כרטיס "דוחות קרובים": אריחי הקרוסלה במילוי רך בלי מסגרת, לוגו עגול, ולוח השנה כמו כפתור הבחירה */
+main .earn-list > .earn-row { background: var(--lg-fill) !important; box-shadow: none !important; border-radius: 20px !important; }
+main .earn-row .stock-logo { border-radius: 50% !important; }
+main .earn-cal { background: var(--lg-knob) !important; box-shadow: var(--lg-knob-sh) !important; border-radius: 12px !important; }
+main .earn-row.soon .earn-cal { background: color-mix(in srgb, var(--primary) 16%, var(--lg-knob)) !important; }
+
+/* ===== 2. ההדר: אותו מבנה; סמלים בצבע הטקסט, הבועות בקפסולה בשורה אחת ===== */
+.appbar .icon-btn { color: var(--on-surface) !important; }
+.appbar .icon-btn svg.ic { stroke: var(--on-surface) !important; }
+.appbar .icon-btn .face-main { font-weight: 600 !important; }
+html:not(.dk) .appbar :is(#sourceLabel .st-pill, .fx-pill) { border-radius: 999px !important; background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important;
+  -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important; height: 40px !important; min-height: 0 !important; margin-top: 4px !important;
+  flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 6px !important; padding: 0 14px !important; border: 0 !important; }
+html:not(.dk) .appbar #sourceLabel .st-pill .sub-cap, html:not(.dk) .appbar .fx-pill > :first-child { font-size: 13px !important; font-weight: 500 !important; color: var(--on-surface-var) !important; }
+html:not(.dk) .appbar #sourceLabel .st-pill .sub-val { font-size: 15px !important; font-weight: 600 !important; color: var(--on-surface-var) !important; }
+html:not(.dk) .appbar .fx-pill { white-space: nowrap !important; padding: 0 8px !important; gap: 4px !important; }
+html:not(.dk) .appbar .fx-pill .fx-pill-label { font-size: 11.5px !important; gap: 3px !important; }
+html:not(.dk) .appbar .fx-pill .fx-pill-value { display: inline-flex !important; align-items: baseline !important; gap: 1px !important; font-size: 14px !important; font-weight: 600 !important; }
+html:not(.dk) .appbar .fx-pill .fx-num { color: var(--on-surface) !important; }
+.appbar::before { -webkit-backdrop-filter: blur(14px) saturate(1.5) !important; backdrop-filter: blur(14px) saturate(1.5) !important;
+  background: color-mix(in srgb, var(--bg) 72%, transparent) !important; }
+
+/* גלילה: הלוגו מתכווץ, הבועות מתקפלות למעלה ונעלמות, והרצועה שמתחת להדר עולה — ההדר נעשה נמוך ורואים יותר תוכן.
+   מונע בגלילה עצמה (ציר גלילה ב־CSS, בלי JS); בדפדפן בלי ציר גלילה ההדר פשוט נשאר מלא. השטח שהתפנה לא חוסם הקשות. */
+@keyframes igLogo { to { scale: .6; } }
+@keyframes igBub { 55% { opacity: 0; } to { translate: 0 -34px; scale: .8; opacity: 0; visibility: hidden; } }
+@keyframes igScrimUp { to { translate: 0 -44px; } }
+@media (min-height: 501px) {
+  html:not(.dk) .appbar { pointer-events: none !important; }
+  html:not(.dk) .appbar :is(button, input, select, a, label, .fx-pill, #sourceLabel, .menu-drop, .lang-menu, h1.brand .brand-art) { pointer-events: auto !important; }
+  @supports (animation-timeline: scroll()) {
+    html:not(.dk) .appbar .brand-art { transform-origin: 50% 0 !important;
+      animation: artFloat 6.5s cubic-bezier(.45, 0, .55, 1) infinite, igLogo linear both, artLean 9s cubic-bezier(.45, 0, .55, 1) infinite, artAct 20s linear infinite !important;
+      animation-timeline: auto, scroll(root block), auto, auto !important; animation-range: normal, 0 110px, normal, normal !important; }
+    html:not(.dk) .appbar :is(#sourceLabel, .fx-pill) { animation: igBub linear both !important; animation-timeline: scroll(root block) !important; animation-range: 0 70px !important; }
+    html:not(.dk) .appbar::before { animation: hdrScrim linear both, igScrimUp linear both !important; animation-timeline: scroll(root block), scroll(root block) !important; animation-range: 0 72px, 0 110px !important; }
+  }
+}
+
+/* ===== 3. החוגה: אותה חוגה ואותה תנועה, על מסילת זכוכית צפה; פריטים בלי עיגולים; הנבחר = טיפת זכוכית ירוקה מורמת ===== */
+.tabs::after { display: none !important; }
+.tabs::before { inset: auto 10px calc(8px + env(safe-area-inset-bottom, 0px)) 10px !important; height: 80px !important; border-radius: 40px !important;
+  background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important;
+  -webkit-mask-image: none !important; mask-image: none !important; z-index: -1 !important; }
+.tabs :is(.tab-disc, .tab-bub) { top: 23px !important; scale: .83 !important; transition: scale .45s var(--lg-spring), translate .45s var(--lg-spring) !important; }
+.tabs .tab.active :is(.tab-disc, .tab-bub) { scale: .86 !important; translate: 0 -11px !important; }
+.tabs .tab-disc { background: transparent !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+.tabs .tab-disc .tab-ico { stroke: var(--on-surface) !important; }
+.tabs .tab-disc .tab-fill path { fill: var(--on-surface) !important; }
+.tabs .tab-glow { background: var(--lg-tint) !important; box-shadow: var(--lg-tint-rim) !important; }
+.tabs .tab-lbl { top: 87px !important; font-size: 11.5px !important; font-weight: 600 !important; text-shadow: none !important; color: var(--on-surface-var) !important; }
+.tabs .tab.active .tab-lbl { color: var(--gain) !important; font-weight: 700 !important; }
+
+/* ===== 4. טיפוגרפיה ומספרים: ספרות מעוגלות ברוחב אחיד, משקלים קלים יותר, מחיר בצבע הטקסט (הצבע שמור לשינוי) ===== */
+main :is(.stat-value, .stock-price, .rs-val, .lg-pct, .dep-amt, .dep-yr-net, .sub-val, .buy-amt, .day-chg, .gb-pct, .pk-pct b, .ov-day-v, .pension-total, .tx-list b) {
+  font-family: var(--lg-round) !important; font-variant-numeric: tabular-nums !important; }
+main .stat-value { font-weight: 650 !important; }
+main #ovValue { color: var(--on-surface) !important; }
+main .stock-price { color: var(--on-surface) !important; font-weight: 650 !important; font-size: 26px !important; letter-spacing: -.2px !important; }
+main .stock-sym { font-weight: 700 !important; }
+main :is(.stat-label, .lg-val) { font-size: 13px !important; letter-spacing: .1px !important; }
+main :is(.card h2, .subpage-title) { font-weight: 700 !important; letter-spacing: -.3px !important; }
+
+/* ===== 5. השינוי היומי בגלולה צבעונית ===== */
+main .stock-sub .day-chg { justify-self: start !important; display: inline-flex !important; align-items: center !important; gap: 6px !important; padding: 2px 9px !important; border-radius: 8px !important;
+  background: color-mix(in srgb, var(--gain) 16%, transparent) !important; width: fit-content !important; }
+main .stock-sub .day-chg.neg { background: color-mix(in srgb, var(--loss) 14%, transparent) !important; }
+main .ov-day-v { padding: 2px 10px !important; border-radius: 8px !important; background: color-mix(in srgb, var(--gain) 16%, transparent) !important; }
+main .ov-day-v.neg { background: color-mix(in srgb, var(--loss) 14%, transparent) !important; }
+main .ov-day-lbl { font-weight: 500 !important; color: var(--on-surface-var) !important; }
+
+/* ===== 6. כרטיס מניה נקי: אותו כרטיס ואותו סדר; "השוק סגור" כבר בהדר — בכרטיס רק שורת המסחר המאוחר ===== */
+main .ext-sess.closed { background: none !important; padding: 0 !important; font-weight: 500 !important; font-size: 12px !important; color: var(--on-surface-var) !important; }
+main .ext-sess.closed .ext-dot { display: none !important; }
+main .ext-sess.closed .ext-line:first-child { display: none !important; }
+main .stock-logo { border-radius: 50% !important; }
+main .src-tag { background: var(--lg-fill) !important; color: var(--on-surface-var) !important; }
+main .stock-sub { border-top: .5px solid var(--lg-sep) !important; padding-top: 10px !important; margin-top: 2px !important; }
+main .stock-sub :is(.day-chg, .buy-chg) { font-weight: 600 !important; }
+
+/* ===== 7. בוררים: מסילה עדינה וידית לבנה (אפורה בכהה) במקום מילוי ירוק; במיון — הנבחר כהה ===== */
+main :is(#pfChips, .stock-body .chip-row.stock-chips) { background: var(--lg-fill) !important; border-radius: 999px !important; padding: 3px !important; gap: 0 !important; }
+main :is(#pfChips, .stock-chips) .range-btn { background: transparent !important; box-shadow: none !important; border: 0 !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  color: var(--on-surface-var) !important; flex: 1 !important; transition: background .35s var(--lg-spring), color .2s, box-shadow .35s !important; }
+main :is(#pfChips, .stock-chips) .range-btn.active { background: var(--lg-knob) !important; box-shadow: var(--lg-knob-sh) !important; color: var(--on-surface) !important; }
+main :is(#pfChips, .stock-chips) .src-filter { flex: 1 !important; display: flex !important; }
+main :is(#pfChips, .stock-chips) .src-filter .range-btn { width: 100% !important; }
+main .lang-toggle { background: var(--lg-fill) !important; }
+main :is(.lang-opt, .theme-opt).active { background: var(--lg-knob) !important; color: var(--on-surface) !important; box-shadow: var(--lg-knob-sh) !important; }
+main :is(.sort-chip.on, .wl-tabs .chip-btn.on) { background: var(--on-surface) !important; color: var(--bg) !important; box-shadow: none !important; }
+main .sort-chip:not(.on) { background: var(--lg-fill) !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+main .tx-seg { background: var(--lg-fill) !important; }
+main .tx-seg button.on { background: var(--lg-knob) !important; color: var(--on-surface) !important; box-shadow: var(--lg-knob-sh) !important; }
+
+/* ===== 8. הגרף: אותו מקרא באותו מקום, בלי קופסה — הקו נראה דרכו ===== */
+main .pf-key { background: transparent !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border: 0 !important; }
+main .pf-key .pk-row { background: transparent !important; box-shadow: none !important; }
+main .pf-key .pk-name { color: var(--on-surface-var) !important; font-weight: 500 !important; text-shadow: 0 0 6px var(--surface), 0 0 10px var(--surface) !important; }
+main .pf-key .pk-pct b { text-shadow: 0 0 6px var(--surface), 0 0 10px var(--surface) !important; }
+main .pf-range-summary .rs-range { color: var(--on-surface-var) !important; }
+
+/* ===== 9. רווח/הפסד מהקנייה: עמודות מעוגלות בצבע רך, השם בלי קופסה ===== */
+main .gb-bar { border-radius: 8px !important; }
+main .gb-row.gb-up .gb-bar { background: color-mix(in srgb, var(--gain) 22%, transparent) !important; box-shadow: none !important; }
+main .gb-row.gb-down .gb-bar { background: color-mix(in srgb, var(--loss) 20%, transparent) !important; box-shadow: none !important; }
+main .gb-out .gb-bar { background: var(--gain) !important; }
+main .gb-down.gb-out .gb-bar { background: var(--loss) !important; }
+main .gb-fb { background: transparent !important; box-shadow: none !important; }
+main .gb-fbn { color: var(--on-surface) !important; }
+main .gb-grid { opacity: .5 !important; }
+main .gb-pct { font-weight: 600 !important; }
+
+/* ===== 10. חלוקת התיק: העוגה כמו שהיא; הרשימה שמתחתיה — רשימה מקובצת עם קווים דקים ===== */
+main #pieLegend li { border-bottom: .5px solid var(--lg-sep) !important; padding-block: 6px !important; }
+main #pieLegend li:last-child { border-bottom: 0 !important; }
+main #pieLegend .lg-bar { height: 4px !important; border-radius: 4px !important; background: var(--lg-fill) !important; }
+main #pieLegend .lg-bar i { border-radius: 4px !important; }
+main #pieLegend .lg-pct { font-weight: 650 !important; }
+main #pieLegend .pie-leg-logo { border-radius: 50% !important; }
+
+/* ===== 11. שדה חיפוש בקפסולת זכוכית ===== */
+main .search-field { border-radius: 999px !important; background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; border: 0 !important;
+  -webkit-backdrop-filter: var(--gb-fx) !important; backdrop-filter: var(--gb-fx) !important; }
+
+/* ===== 12. התפריט: זכוכית שצומחת מכפתור ☰ בקפיץ, שורות בלי קווים; מאחוריו טשטוש עדין (הערת המשתמש: "פחות מעכשיו") ===== */
+.appbar .menu-drop { background: var(--lg-body) !important; box-shadow: var(--lg-rim), 0 24px 60px -12px rgba(0, 0, 0, .32) !important; border: 0 !important; border-radius: 30px !important;
+  -webkit-backdrop-filter: blur(30px) saturate(190%) !important; backdrop-filter: blur(30px) saturate(190%) !important; transform-origin: top left !important; }
+.appbar .menu-drop:not(.hidden) { animation: igGrow .5s var(--lg-spring) both !important; }
+@keyframes igGrow { from { transform: scale(.2); opacity: .2; } to { transform: none; opacity: 1; } }
+.appbar .menu-drop .menu-section { border: 0 !important; background: transparent !important; box-shadow: none !important; }
+.appbar .menu-drop .row-link { border: 0 !important; border-radius: 16px !important; background: transparent !important; box-shadow: none !important; }
+.appbar .menu-drop .row-link:active { background: rgba(127, 127, 127, .16) !important; }
+.appbar .menu-drop input { background: rgba(127, 127, 127, .14) !important; border: 0 !important; box-shadow: none !important; }
+.menu-veil { -webkit-backdrop-filter: blur(5px) saturate(1.2) !important; backdrop-filter: blur(5px) saturate(1.2) !important; background: rgba(0, 0, 0, .05) !important; }
+
+/* ===== 13. הגדרות: רשימה מקובצת — הקווים מתחילים אחרי הסמל, כיתובים במשקל רגיל ===== */
+main .row-card .row-link { border: 0 !important; position: relative !important; }
+main .row-card .row-link + .row-link::before { content: '' !important; position: absolute !important; top: 0 !important; inset-inline-start: 58px !important; inset-inline-end: 0 !important; border-top: .5px solid var(--lg-sep) !important; }
+main .row-card :is(hr, .row-sep) { display: none !important; }
+main .row-link-txt { font-weight: 500 !important; }
+main .row-link-ic { width: 30px !important; height: 30px !important; border-radius: 8px !important; }
+main .display-label { font-weight: 500 !important; font-size: 13px !important; color: var(--on-surface-var) !important; }
+main .subpage-back { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; color: var(--on-surface) !important; }
+
+/* ===== 14. הפקדות: אותה רשימה לפי חודשים, בלי קופסה לכל שורה — קו דק בין השורות ===== */
+main .dep-row { background: transparent !important; box-shadow: none !important; border-radius: 0 !important; border-bottom: .5px solid var(--lg-sep) !important; }
+main .dep-mo { font-weight: 600 !important; color: var(--on-surface-var) !important; font-size: 13px !important; }
+main .dep-tile { background: var(--lg-fill) !important; border: 0 !important; }
+main .dep-ic { width: 30px !important; height: 30px !important; }
+main .dep-hero .stat-value { font-family: var(--lg-round) !important; font-weight: 650 !important; }
+
+/* ===== 15. הודעה קופצת: גלולת זכוכית שצונחת מראש המסך בקפיץ — לא מסתירה את החוגה =====
+   (בלי סימן ✓: אותה הודעה משמשת גם לשגיאות) */
+.toast { bottom: auto !important; top: calc(10px + env(safe-area-inset-top, 0px)) !important; transform: translateX(-50%) translateY(-90px) scale(.6) !important;
+  background: var(--lg-body) !important; color: var(--on-surface) !important; box-shadow: var(--lg-rim), 0 12px 30px -10px rgba(0, 0, 0, .3) !important; border: 0 !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important; backdrop-filter: blur(24px) saturate(190%) !important; transition: transform .55s var(--lg-spring), opacity .25s !important; z-index: 120 !important; }
+.toast.show { transform: translateX(-50%) translateY(0) scale(1) !important; }
+
+/* ===== 16. לחיצה גמישה: מתכווץ וחוזר בקפיץ; כרטיס מניה שוקע מעט ===== */
+:is(main, .appbar) :is(.icon-btn, .chip-btn, .range-btn, .btn, .dep-add, .tx-add, .lang-opt, .row-link, .subpage-back) { transition: transform .5s var(--lg-spring), background .25s, color .2s !important; }
+:is(main, .appbar) :is(.icon-btn, .chip-btn, .range-btn, .btn, .dep-add, .tx-add, .lang-opt, .subpage-back):active { transform: scale(.88) !important; }
+main .stock-head:active { transform: scale(.985) !important; transition: transform .5s var(--lg-spring) !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .appbar .menu-drop:not(.hidden) { animation: none !important; }
+  :is(main, .appbar) :is(.icon-btn, .chip-btn, .range-btn, .btn, .dep-add, .tx-add, .lang-opt, .subpage-back):active, main .stock-head:active { transform: none !important; }
+}
+}

@@ -4,14 +4,15 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v797';
+const CACHE_NAME = 'portfolio-pwa-v798';
 const HASHES = {
-  "./": "031f8d8236f76d2a05cf9082369e4815",
-  "./index.html": "031f8d8236f76d2a05cf9082369e4815",
-  "./styles.css": "b86f8c787a4e1df9720c0e5a623ae3f7",
+  "./": "e40d7c51b4bff0ea0c7d4f93f47598c4",
+  "./index.html": "e40d7c51b4bff0ea0c7d4f93f47598c4",
+  "./styles.css": "94567b26f71b5f515a541e9699f42d67",
   "./glass-btn.css": "7b3da3fe7844c11efc76054133bbd65a",
+  "./invest-glass.css": "11a81366ae9e250518c0d81a750e492f",
   "./desktop.css": "22dcb3bea6e645027d3146b31d66712a",
-  "./app.js": "287ac06c16d181fc667646aa66182bd0",
+  "./app.js": "f683a40622e39c2a5f915fb9e08b9694",
   "./returns.js": "afe0d262348852fd10982ef2d0239545",
   "./cloud.js": "d403f6c76884375dc9999b80660f1ddf",
   "./firebase-config.js": "a4adfadcd5fe3b79a29e9fa0eeb94df0",
@@ -77,7 +78,7 @@ const HASHES = {
   "./academy.html": "4e22225573f3222dc148ea8a9409fd2f",
   "./academy-app.js": "8f943cfa4b1bbb60bc8d83d4304d9978",
   "./strings-academy.js": "37c15666e2928e54b16d4730531086dc",
-  "./core.js": "ee6990180da6bf2ca5a4ee7b1a2228ee",
+  "./core.js": "94864b142bf80d0584f7cc9f3e06aba3",
   "./auth.js": "465d3bc983806d8a2f462e567725df21",
   "./shell.js": "04e4e9bb8b1a12538f4b12ac699dabd5",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -125,6 +126,7 @@ const APP_SHELL = [
   './index.html',
   './styles.css',
   './glass-btn.css',   // 31/10/2026: כפתורי זכוכית בכל המערכת
+  './invest-glass.css',   // 17/11/2026: Invest בזכוכית — שכבת העיצוב שאושרה
   './desktop.css',     // 11/11/2026: תצוגת מחשב — משותף לכל האפליקציות (נטען מ־600px)
   './app.js',
   './returns.js',
