@@ -185,6 +185,7 @@ class TestRefs(unittest.TestCase):
                                                          {"start_time": 61.234, "title": " Next‮ "}], "formats": [{"url": "https://signed"}]}
         self.assertEqual(F.ref_meta(info), {"desc": "a b\nline", "ch": [[0.0, "Intro"], [61.23, "Next"]]})
         self.assertIsNone(F.ref_meta({"description": "", "chapters": []}))
+        self.assertEqual(F.ref_meta({"uploader": " Acquired ", "description": ""})["up"], "Acquired", "המעלה — ל\"מי מדבר\"")
 
     def test_get_subs_meta_same_request(self):
         seen = []

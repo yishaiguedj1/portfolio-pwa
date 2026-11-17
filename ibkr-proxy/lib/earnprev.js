@@ -6,7 +6,8 @@
       אין שם מבנה קבוע (משפטים, תבליטים, טבלאות) — לכן חילוץ זהיר: רק ערכים בצורת צפי (טווח, ±, "צפוי … בערך"),
       תקופה לפי הסימון הקרוב ביותר (רבעון / שנה), ובדיקת סבירות מול קונצנזוס האנליסטים — ערך רחוק ממנו נזרק
       (הכנסות של מגזר, יחידות שגויות). עדיף בלי שורת הנהלה מאשר מספר שגוי. רק חברות שמגישות ל־SEC; ת״א — בלי.
-   פלט: { ok, data: { SYM: { a?: {...}, g?: {...} } } } — הצורות ב־analysts() וב־guidance(). */
+   3. מצב העסק — 5 רבעונים מ־Yahoo (parseBiz, 17/11/2026).
+   פלט: { ok, data: { SYM: { a?: {...}, g?: {...}, b?: {...} } } } — הצורות ב־analysts(), ב־guidance() וב־parseBiz(). */
 const UA = 'Mozilla/5.0 (compatible; portfolio-pwa/1.0)';
 const SEC_UA = () => process.env.SEC_UA || 'TheSnowball/1.0 data@thesnowball.app';
 const SYM_RE = /^[A-Z0-9][A-Z0-9.\-]{0,15}$/;
@@ -66,9 +67,44 @@ function parseAnalysts(j) {
   if (hs.length) {
     const sp = hs.map((h) => raw(h, 'surprisePercent')).filter((v) => v != null);
     out.h = { b: hs.filter((h) => raw(h, 'epsActual') > raw(h, 'epsEstimate')).length, n: hs.length, s: sp.length ? Math.round(sp.reduce((x, v) => x + v, 0) / sp.length * 1000) / 10 : null };
+    // 17/11/2026: הרווח בפועל האחרון לפי Yahoo ("רווח הרחוב" — מותאם או GAAP) — הטלפון משווה ל־GAAP של הרבעון (דגל "מותאם")
+    const lh = hs[hs.length - 1], lq = raw(lh, 'quarter');
+    out.la = { e: r4(raw(lh, 'epsActual')), d: lq > 0 ? new Date(lq * 1000).toISOString().slice(0, 10) : null };
   }
   return out;
 }
+/* ---------- 3. מצב העסק — 5 הרבעונים האחרונים (17/11/2026, בקשת המשתמש: הערכה אמיתית לפי השקעות ערך) ----------
+   Yahoo fundamentals-timeseries, בקשה אחת קלה למניה: הכנסות, רווח תפעולי, לפני מס, נקי, מנורמל (בלי חד־פעמי), פריטים חריגים,
+   תזרים שוטף, השקעות הוניות, תשלום במניות, מניות מדוללות, רווח למניה (GAAP), רכישת עסקים ומוניטין. הטלפון מחשב את האותות
+   (earnXExp / earnXBiz / earnXFlags ב־app.js). המחקר: docs/earnings-outlook-research.md */
+const BIZ = { rev: 'TotalRevenue', op: 'OperatingIncome', pretax: 'PretaxIncome', ni: 'NetIncomeCommonStockholders', norm: 'NormalizedIncome',
+  unus: 'TotalUnusualItems', ocf: 'OperatingCashFlow', capex: 'CapitalExpenditure', sbc: 'StockBasedCompensation', sh: 'DilutedAverageShares',
+  eps: 'DilutedEPS', acq: 'PurchaseOfBusiness', gw: 'Goodwill' };
+/* תשובת timeseries → { q: [סופי רבעונים], <מפתח>: [ערכים או null] } — 5 האחרונים, טהורה */
+function parseBiz(j) {
+  const res = {};
+  for (const r of (j && j.timeseries && j.timeseries.result) || []) { const t = r.meta && r.meta.type && r.meta.type[0]; if (t) res[t] = r[t] || []; }
+  const ser = {}, ends = new Set();
+  for (const [k, t] of Object.entries(BIZ)) {
+    ser[k] = {};
+    for (const x of res['quarterly' + t] || []) { if (!x || !x.reportedValue || typeof x.reportedValue.raw !== 'number' || !x.asOfDate) continue; ser[k][x.asOfDate] = x.reportedValue.raw; if (k === 'rev') ends.add(x.asOfDate); }
+  }
+  const q = [...ends].sort().slice(-5);
+  if (q.length < 2) return null;
+  const out = { q };
+  for (const k of Object.keys(BIZ)) {
+    const a = q.map((e) => (ser[k][e] == null ? null : k === 'eps' ? r4(ser[k][e]) : Math.round(ser[k][e])));
+    if (a.some((v) => v != null)) out[k] = a;
+  }
+  return out;
+}
+async function biz(sym) {
+  const hit = cget('b:' + sym, TTL_G); if (hit) return hit.v;
+  const url = 'https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/' + encodeURIComponent(sym) +
+    '?type=' + Object.values(BIZ).map((t) => 'quarterly' + t).join(',') + '&period1=' + Math.floor(Date.now() / 1000 - 3 * 365 * 86400) + '&period2=' + Math.floor(Date.now() / 1000 + 86400);
+  return cset('b:' + sym, parseBiz(await get(url, { 'User-Agent': UA }, 6000)));
+}
+
 async function analysts(sym) {
   const hit = cget('a:' + sym, TTL_A); if (hit) return hit.v;
   const { _getCrumb } = require('../api/quotes');
@@ -280,6 +316,7 @@ async function handle(body, res) {
       const s = syms[i++];
       const o = {};
       try { const a = await analysts(s); if (a) o.a = a; } catch (e) { /* בלי אנליסטים */ }
+      if (Date.now() < deadline) { try { const b = await biz(s); if (b) o.b = b; } catch (e) { /* בלי מצב העסק */ } }
       if (Date.now() < deadline) { try { const g = await guidance(s, o.a); if (g) o.g = g; } catch (e) { /* בלי צפי הנהלה */ } }
       data[s] = o;
     }
@@ -289,4 +326,4 @@ async function handle(body, res) {
   return res.status(200).json({ ok: true, data });
 }
 
-module.exports = { handle, parseAnalysts, extractGuidance, htmlText, valueAt, periodBefore, lastResults, exhibitHref, _cache: cache };
+module.exports = { handle, parseAnalysts, parseBiz, extractGuidance, htmlText, valueAt, periodBefore, lastResults, exhibitHref, _cache: cache };

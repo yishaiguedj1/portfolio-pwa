@@ -1,5 +1,5 @@
 // 17/11/2026 (בקשת המשתמש — לפי ת־גרף): אצבע על גרף בזמן גלילת הדף לא נוגעת בסימון; הסימון נדלק רק בכוונה —
-// הקשה, החזקה או גרירה לרוחב. גרף הביצועים, גרף המניה, העוגה, פסי התשואה והדוחות הקרובים.
+// הקשה או החזקה. החלקה לרוחב שמתחילה על גרף — מעבר עמוד (2.162.1). גרף הביצועים, גרף המניה, העוגה, פסי התשואה והדוחות הקרובים.
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -15,8 +15,8 @@ const ictx = {};
 vm.runInNewContext(fn('tgIntent') + ';this.f = tgIntent;', ictx);
 const I = ictx.f;
 ok(I(0, 0, 0) === 'wait' && I(3, 4, 200) === 'wait', 'בלי תזוזה ובלי החזקה — מחכים');
-ok(I(2, -30, 40) === 'scroll' && I(5, 9, 10) === 'scroll', 'תזוזה אנכית — גלילה של הדף');
-ok(I(-12, 4, 30) === 'scrub' && I(9, 8, 0) === 'scrub', 'תזוזה לרוחב — סימון');
+ok(I(2, -30, 40) === 'pass' && I(5, 9, 10) === 'pass', 'תזוזה אנכית — גלילה של הדף');
+ok(I(-12, 4, 30) === 'pass' && I(9, 8, 0) === 'pass' && I(-40, 2, 200) === 'pass', 'תזוזה לרוחב — החלקה בין העמודים, לא סימון (בקשת המשתמש)');
 ok(I(1, 1, 350) === 'scrub' && I(1, 1, 349) === 'wait', 'החזקה של 350ms — סימון');
 
 // השער — אירועים מדומים
@@ -26,7 +26,7 @@ const log = [];
 let now = 1000;
 const timers = [];
 const gctx = { document: doc, Date: { now: () => now }, setTimeout: (f, ms) => { timers.push({ f, at: now + ms }); return timers.length; }, clearTimeout: (id) => { if (timers[id - 1]) timers[id - 1].f = null; } };
-vm.runInNewContext(fn('tgIntent') + 'let _tgScrollT = 0;' + fn('touchGate') + ';this.g = touchGate;', gctx);
+vm.runInNewContext(fn('tgIntent') + 'let _tgScrollT = 0, _tgLive = 0;' + fn('touchGate') + ';this.g = touchGate; this.live = () => _tgLive;', gctx);
 gctx.g(el, { down: (e) => log.push('down:' + e.id), move: (e) => log.push('move:' + e.id), up: (e) => log.push('up:' + e.id), cancel: (e) => log.push('cancel:' + e.id) });
 const P = (id, x, y, type = 'touch') => ({ pointerId: id, pointerType: type, clientX: x, clientY: y, id });
 const tick = (ms) => { now += ms; for (const t of timers) if (t.f && t.at <= now) { const f = t.f; t.f = null; f(); } };
@@ -37,9 +37,14 @@ ok(log.length === 0, 'גלילה שמתחילה על הגרף — שום איר�
 el.emit('pointerdown', P(2, 100, 100)); tick(80); el.emit('pointerup', P(2, 100, 100));
 ok(log.join() === 'down:2,up:2', 'הקשה — הסימון נדלק (down ואז up)');
 log.length = 0;
-// גרירה לרוחב
-el.emit('pointerdown', P(3, 100, 100)); tick(16); el.emit('pointermove', P(3, 112, 102)); el.emit('pointermove', P(3, 130, 140)); el.emit('pointerup', P(3, 130, 140));
-ok(log.join() === 'down:3,move:3,move:3,up:3', 'גרירה לרוחב — הסימון זז, ואחר כך גם תנועה אנכית מזיזה אותו');
+// החלקה לרוחב — של הדף (מעבר עמוד), הגרף לא שומע כלום, וגם השחרור לא נחשב הקשה
+el.emit('pointerdown', P(3, 100, 100)); tick(16); el.emit('pointermove', P(3, 112, 102)); el.emit('pointermove', P(3, 180, 104)); tick(500); el.emit('pointerup', P(3, 180, 104));
+ok(log.length === 0 && gctx.live() === 0, 'החלקה לרוחב על הגרף — לא מסמנת (מעבירה עמוד)');
+// החזקה ואז גרירה לרוחב — הסימון זז, וההחלקה בין העמודים מתבטלת
+el.emit('pointerdown', P(9, 100, 100)); tick(360);
+ok(gctx.live() === 1, 'אחרי החזקה — הגרף תפס את האצבע (ההחלקה בין העמודים מתבטלת)');
+el.emit('pointermove', P(9, 140, 102)); el.emit('pointermove', P(9, 150, 140)); el.emit('pointerup', P(9, 150, 140));
+ok(log.join() === 'down:9,move:9,move:9,up:9' && gctx.live() === 0, 'החזקה וגרירה — הסימון זז לכל כיוון; בשחרור הגרף משחרר');
 log.length = 0;
 // החזקה
 let prevented = 0;
@@ -70,6 +75,10 @@ ok(/touchGate\(canvas, \{ down, move/.test(sc) && !/canvas\.addEventListener\('p
 ok(/document\.addEventListener\('click'/.test(pf) && /document\.addEventListener\('click'/.test(sc), 'ניקוי הסימון — בהקשה מחוץ לגרף, לא ב־pointerdown (גלילה לא מנקה)');
 ok(/addEventListener\('click'/.test(pie) && !/addEventListener\('pointerdown'/.test(pie), 'העוגה — click: גלילה לא בוחרת פרוסה');
 ok(/\.gb-row'\)\.forEach\(\(b\) => b\.addEventListener\('click'/.test(app), 'פסי התשואה — click');
-ok(/@media \(pointer: coarse\) \{ \.earn-list\.earn-scroll \{ overflow-y: hidden; \} \}/.test(css), 'הדוחות הקרובים — במגע אצבע גוללת את הדף, לא את הרשימה');
+ok(/main \.tabpage :is\([^)]*\.earn-list\):not\(\.stock-chips\) \{ overflow: hidden; touch-action: pan-y; \}/.test(css), 'הדוחות הקרובים — קרוסלה אופקית: אצבע שזזה למעלה/למטה גוללת את הדף');
+const psb = fn('pageSwipeBlocked');
+ok(/canvas:not\(\[data-tg\]\):not\(\[data-pie-touch\]\)/.test(psb) && !/closest\('canvas,/.test(psb), 'מעבר עמוד בהחלקה — גם כשהאצבע מתחילה על גרף עם שער או על העוגה');
+ok(/dragBusy\(\) \|\| _tgLive > 0\) \{ cancel\(\); return; \}/.test(app), 'גרף שכבר נדלק — ההחלקה בין העמודים מתבטלת');
+ok(/el\.dataset\.tg = '1'/.test(fn('touchGate')) && /touchAction = 'pan-y'/.test(pie), 'הגרף מסומן לשער; העוגה pan-y');
 ok(/#pfChart \{ touch-action: pan-y/.test(css), 'גרף הביצועים — pan-y (הדף נגלל, הגרירה לרוחב לגרף)');
 console.log('\n' + n + ' passed');

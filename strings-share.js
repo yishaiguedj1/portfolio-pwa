@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של share (136 מפתחות מתוך 7011) */
+/* המחרוזות של share (139 מפתחות מתוך 7043) */
 const STRINGS = {
 he: {
   "studioMoreN": "ועוד {n}",
@@ -57,6 +57,7 @@ he: {
   "studioPlUnflagged": "הסימון בוטל ({t})",
   "studioRetry": "לנסות שוב",
   "studioShrUntil": "הקישור בתוקף עד {t}",
+  "studioSpkAct": "בגילום {n}",
   "studioSpkAll": "הצגת כל הדוברים",
   "studioSpkCol": "צבע",
   "studioSpkColN": "צבע {n}",
@@ -66,6 +67,7 @@ he: {
   "studioSpkGT": "לפי מה שנאמר בסרטון",
   "studioSpkGU": "מגדר לא ידוע",
   "studioSpkGV": "זוהה לפי הקול",
+  "studioSpkKb": "הפרטים לפי ידע כללי, לא מהסרטון",
   "studioSpkLangs": "שפות",
   "studioSpkM": "גבר",
   "studioSpkN": "דובר {n}",
@@ -78,6 +80,7 @@ he: {
   "studioSpkShareS": "{p}% מהדיבור · {n} שנ׳",
   "studioSpkT": "דוברים",
   "studioSpkU": "לא ידוע",
+  "studioSpkWho": "מי מדבר",
   "studioSrcTag": "מקור",
   "studioSvBy": "שותף איתך מ־THE SNOWBALL Studio · צפייה והורדה בלבד",
   "studioSvErr": "לא הצלחנו לטעון את הדף",
@@ -195,6 +198,7 @@ en: {
   "studioPlUnflagged": "Unmarked ({t})",
   "studioRetry": "Try again",
   "studioShrUntil": "The link works until {t}",
+  "studioSpkAct": "Played by {n}",
   "studioSpkAll": "Show all speakers",
   "studioSpkCol": "Color",
   "studioSpkColN": "Color {n}",
@@ -204,6 +208,7 @@ en: {
   "studioSpkGT": "From what was said in the video",
   "studioSpkGU": "Gender unknown",
   "studioSpkGV": "Detected from the voice",
+  "studioSpkKb": "Details from general knowledge, not from the video",
   "studioSpkLangs": "Languages",
   "studioSpkM": "Man",
   "studioSpkN": "Speaker {n}",
@@ -216,6 +221,7 @@ en: {
   "studioSpkShareS": "{p}% of the talk · {n} sec",
   "studioSpkT": "Speakers",
   "studioSpkU": "Unknown",
+  "studioSpkWho": "Who's speaking",
   "studioSrcTag": "SRC",
   "studioSvBy": "Shared with you from THE SNOWBALL Studio · view and download only",
   "studioSvErr": "Couldn't load the page",
