@@ -262,6 +262,23 @@ function debtFace(face, cur) {
     lines.push({ tag: r.tag, ns: r.ns, cat, label: lab, v, grp });
     if (isTot) grp++;
   }
+  // חלויות שוטפות שדף ה־R הציג אחרי סך ההתחייבויות וההון (Seagate ‏10-Q ‏2020: "Less: current portion of debt" ‏25 בשורה האחרונה) —
+  // נספרות רק כשהן משלימות את "סך התחייבויות שוטפות" (השורות שלפניו + החלויות = הסך, בכל עמודה) — כלומר הן שורה של המאזן
+  const lc = rows.findIndex((r, i) => i > a0 && i < stop && r.tag === 'LiabilitiesCurrent');
+  if (lc > 0 && c0 >= 0) {
+    const from = rows.slice(a0 + 1, lc).reduce((k, r, i) => (r.total || /^total\b/i.test(r.label || '') ? a0 + 1 + i : k), a0);
+    const vLc = SECFACE.rowVals(S, rows[lc]);
+    for (let i = stop + 1; i < rows.length; i++) {
+      const r = rows[i]; if (r.ns !== 'us-gaap' || DEBT_OF.get(r.tag) !== 'c' || lines.some((l) => l.tag === r.tag)) continue;
+      const v = SECFACE.rowVals(S, r);
+      const fit = S.cols.every((c, ci) => {
+        if (vLc[ci] == null || v[ci] == null) return true;
+        let t = 0; for (let k = from + 1; k < lc; k++) { const x = SECFACE.rowVals(S, rows[k])[ci]; if (x != null) t += x; }
+        return Math.abs(t + v[ci] - vLc[ci]) <= Math.max(1, 1e-4 * Math.abs(vLc[ci]));
+      });
+      if (fit && v[c0] != null) lines.push({ tag: r.tag, ns: r.ns, cat: 'c', label: r.label || '', v, grp: grp++ });
+    }
+  }
   const tot = new Map(), cols = [];
   S.cols.forEach((c, ci) => {
     if (!SECFACE.colOk(c, cur)) return;

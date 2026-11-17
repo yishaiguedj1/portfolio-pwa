@@ -130,6 +130,9 @@ function cmpAll() {
     }
     const sc = { ok: 2, xtra: 1, miss: 0, bad: -1 };
     const d = diffs.reduce((t, r) => t + (sc[r[6]] ?? 0) - (sc[r[5]] ?? 0), 0);
+    // ההרעות קודם (בחברה שהורעה) — כדי שהשורות המודפסות יהיו אלה שצריך לבדוק (Seagate: 4 שיפורים הסתירו את ההרעות)
+    const dd = (r) => (sc[r[6]] ?? 0) - (sc[r[5]] ?? 0);
+    if (d < 0) diffs.sort((a, b) => dd(a) - dd(b));
     if (diffs.length) (d >= 0 ? better : worse).push([ex.sym, d, diffs.slice(0, 4).map((r) => [r[0], r[1], M(r[2]), M(r[3]), M(r[4]), r[5], r[6]].join(' ')).join(' | ')]);
   }
   console.log('ישן:', JSON.stringify(tot.old), 'צפוי חלקי:', inc);

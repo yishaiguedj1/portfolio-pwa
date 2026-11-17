@@ -1308,6 +1308,15 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     ok(bd([['LongTermDebt', 'Long-term debt', [1500, 1500]], ['DebtAndOtherLiabilitiesOfVariableInterestEntities', 'Debt and other liabilities of CIP', [6000, 5000]]]).v === 1500e6, '(24) "liabilities of" — לא חוב של החברה');
     // Vulcan: "Total short-term debt" ‏0 אחרי חלויות ‏400 — הוא לא הסך שלהן
     ok(bd([['LongTermDebtCurrent', 'Current maturities of long-term debt', [400, 0.5]], ['ShortTermBorrowings', 'Total short-term debt', [0, 550]], ['LongTermDebtNoncurrent', 'Long-term debt', [3964, 4359]]]).v === 4364e6, '(24) "Total" קטן מהשורות שלפניו — לא מחליף אותן');
+    // Seagate ‏10-Q ‏2020: "Less: current portion of debt" אחרי סך ההתחייבויות וההון — נספר רק כשהוא משלים את סך ההתחייבויות השוטפות
+    {
+      const st = (lcTot) => { const b = sheet(['2020-10-02', '2020-07-03'], [['AccountsPayableCurrent', 'Accounts payable', [1795, 1808]], ['AccruedLiabilitiesCurrent', 'Accrued expenses', [603, 602]],
+        ['LiabilitiesCurrent', 'Total current liabilities', lcTot], ['LongTermDebtNoncurrent', 'Long-term debt', [4138, 4156]]]);
+        b.rows.find((r) => r.tag === 'LiabilitiesCurrent').total = true;
+        b.rows.push({ ns: 'us-gaap', tag: 'LongTermDebtCurrent', label: 'Less: current portion of debt', v: [25, 19] });
+        return F.bsfDebt({ q: { form: '10-Q', filed: '2020-10-29', bs: b } }, 'USD').get('2020-10-02').v / 1e6; };
+      ok(st([2423, 2429]) === 4163 && st([2398, 2410]) === 4138, '(24) חלויות שוטפות אחרי סך המאזן — רק כשהן משלימות את סך ההתחייבויות השוטפות');
+    }
     // FilingSummary: המאזן המאוחד סומן "Uncategorized" לפני הדוח הראשון ב־Statements (Eversource ‏10-K ‏2022) — הוא המאזן, לא של חברת־הבת
     const rep = (f, n, c) => `<Report><HtmlFileName>${f}</HtmlFileName><ShortName>${n}</ShortName><MenuCategory>${c}</MenuCategory></Report>`;
     const UNC = '<FilingSummary><MyReports>' + rep('R2.htm', 'Audit Information', 'Notes') + rep('R3.htm', 'CONSOLIDATED BALANCE SHEETS', 'Uncategorized')
