@@ -1298,6 +1298,16 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     // "Notes Payable to Eversource Parent" במאזן המאוחד (ES ‏10-Q ‏2018) — לא חוב של הקבוצה
     const par = F.bsfDebt({ q: { form: '10-Q', filed: '2018-05-03', bs: sheet(['2018-03-31', '2017-12-31'], [['NotesPayable', 'Notes Payable', [1049, 1088]], ['NotesPayableRelatedPartiesClassifiedCurrent', 'Notes Payable to Eversource Parent', [276, 116]], ['LongTermDebtNoncurrent', 'Long-Term Debt', [12016, 11776]]]) } }, 'USD');
     ok(par.get('2018-03-31').v === 13065e6, '(24) "Notes payable to … Parent" — לא נספר');
+    // גל 2, ‏F12 — ארבעה שורשים מהלפני/אחרי על כל היקום:
+    const bd = (rows, cols) => F.bsfDebt({ k: { form: '10-K', filed: '2024-02-20', bs: sheet(cols || ['2023-12-31', '2022-12-31'], rows) } }, 'USD').get((cols || ['2023-12-31'])[0]);
+    // Prologis: אותה שורה פעמיים (שני רושמים) — פעם אחת
+    ok(bd([['LongTermDebt', 'Debt', [17715, 16000]], ['LongTermDebt', 'Debt', [17715, 16000]]]).v === 17715e6, '(24) שורת חוב כפולה — נספרת פעם אחת');
+    // ICE: סכום־ביניים בלי "Total" (‏2,645 + 4,271 = ‏6,916)
+    ok(bd([['LongTermDebtCurrent', 'Short-term debt', [2645, 100]], ['LongTermDebtNoncurrent', 'Long-term debt', [4271, 4000]], ['LongTermDebt', 'Long-term debt', [6916, 4100]]]).v === 6916e6, '(24) סכום־ביניים בלי "Total" — לא נספר שוב');
+    // Invesco: "Debt and other liabilities of CIP" — של הקרנות המאוחדות, לא של החברה
+    ok(bd([['LongTermDebt', 'Long-term debt', [1500, 1500]], ['DebtAndOtherLiabilitiesOfVariableInterestEntities', 'Debt and other liabilities of CIP', [6000, 5000]]]).v === 1500e6, '(24) "liabilities of" — לא חוב של החברה');
+    // Vulcan: "Total short-term debt" ‏0 אחרי חלויות ‏400 — הוא לא הסך שלהן
+    ok(bd([['LongTermDebtCurrent', 'Current maturities of long-term debt', [400, 0.5]], ['ShortTermBorrowings', 'Total short-term debt', [0, 550]], ['LongTermDebtNoncurrent', 'Long-term debt', [3964, 4359]]]).v === 4364e6, '(24) "Total" קטן מהשורות שלפניו — לא מחליף אותן');
     // FilingSummary: המאזן המאוחד סומן "Uncategorized" לפני הדוח הראשון ב־Statements (Eversource ‏10-K ‏2022) — הוא המאזן, לא של חברת־הבת
     const rep = (f, n, c) => `<Report><HtmlFileName>${f}</HtmlFileName><ShortName>${n}</ShortName><MenuCategory>${c}</MenuCategory></Report>`;
     const UNC = '<FilingSummary><MyReports>' + rep('R2.htm', 'Audit Information', 'Notes') + rep('R3.htm', 'CONSOLIDATED BALANCE SHEETS', 'Uncategorized')

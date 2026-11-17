@@ -184,8 +184,8 @@ const DEBT_FAM = { SecuredDebtOther: ['SecuredDebt'], SecuredDebt: ['SecuredDebt
   LoansPayable: ['LongTermLoansPayable'] };
 const DEBT_OF = new Map(Object.entries(DEBT_CAT).flatMap(([c, ts]) => ts.map((t) => [t, c])));
 const DEBT_LAB = /borrowing|commercial paper|notes? payable|\bdebt\b|loans? payable|bank loans?|credit facilit|senior (unsecured )?notes|convertible (senior )?notes|debentures|bonds payable|term loans?|mortgages? (payable|notes|loans)|lines? of credit|revolving/i;
-// "Notes Payable to Eversource Parent" — שורה של חברת־בת שהוצגה במאזן המאוחד של ‏10-Q ‏2018 (בתוך הקבוצה, מתקזזת; ‏wave-2.md ‏F12)
-const DEBT_NOT = /operating lease|interest payable|accrued|accounts payable|deferred|debt securities|held.for.sale|derivative|guarantee|total liabilities|receivable|investment|due to (related|affiliat)|deposits?\b|repurchase|trading|capitalization|fair value|other than long.?term debt|\bto (\w+ )?parent\b/i;
+// "Debt and other liabilities of CIP" (Invesco — קרנות מאוחדות, לא חוב של החברה) · "Notes Payable to Eversource Parent" — שורה של חברת־בת שהוצגה במאזן המאוחד של ‏10-Q ‏2018 (בתוך הקבוצה, מתקזזת; ‏wave-2.md ‏F12)
+const DEBT_NOT = /operating lease|interest payable|accrued|accounts payable|deferred|debt securities|held.for.sale|derivative|guarantee|total liabilities|receivable|investment|due to (related|affiliat)|deposits?\b|repurchase|trading|capitalization|fair value|other than long.?term debt|\bto (\w+ )?parent\b|liabilities of/i;
 // תגיות שאינן חוב גם כשהשם או התווית נשמעים כך: סך ההון והחוב, "התחייבויות לא שוטפות חוץ מחוב", רכיב ההון של אג"ח להמרה,
 // ריבית לשלם, חובות לחברות קשורות, הנחות ועלויות הנפקה, נכסים. תגית מ־DEBT_CAT — תמיד חוב (Hershey: ‏LongTermDebtAndCapitalLeaseObligations)
 const DEBT_NOTAG = /OtherThanLong|^Capitalization|^EquityAndLongTermDebt|^TemporaryEquity|^ReserveForEsop|^InterestPayable|^DueTo(Affiliate|RelatedParties)|Receivable|DebtInstrumentInterestRate|Unamortized|DebtFairValueAdjustment|^ConvertibleDebtEquity/;
@@ -239,11 +239,25 @@ function debtFace(face, cur) {
       && !(FIN_LEASE.test(lab) && !DEBT_LAB.test(lab.replace(/(financ\w*|capital) leases?( obligations?| liabilit\w*)?/ig, '')));
     if (!debt) { if (isTot) grp++; continue; }
     const v = SECFACE.rowVals(S, r);
+    // אותה שורה פעמיים (Prologis ‏10-K ‏2023: שני רושמים, "Debt" חוזרת באותם ערכים) — פעם אחת (גל 2, ‏F12)
+    if (lines.some((l) => l.tag === r.tag && l.v.length === v.length && l.v.every((x, i) => x === v[i]))) continue;
+    // סכום־ביניים בלי "Total" (ICE ‏10-Q ‏2018: "Short-term debt" + "Long-term debt" ואחריהן "Long-term debt" ב־LongTermDebt = הסכום) —
+    // שווה בכל עמודה לסכום שתיים או יותר מהשורות האחרונות שנספרו
+    if (!isTot && lines.length >= 2) {
+      const cs = v.map((x, i) => i).filter((i) => v[i] != null);
+      let sub = false;
+      for (let n = 2; n <= lines.length && !sub; n++) {
+        const last = lines.slice(-n);
+        sub = cs.length > 0 && cs.some((i) => v[i]) && cs.every((i) => Math.abs(last.reduce((t, l) => t + (l.v[i] || 0), 0) - v[i]) <= Math.max(1e-9, 1e-4 * Math.abs(v[i])));
+      }
+      if (sub) continue;
+    }
     if (isTot) {
       const prev = lines.filter((l) => l.grp === grp), x = c0 >= 0 ? v[c0] : null;
       const sum = prev.reduce((t, l) => t + (c0 >= 0 && l.v[c0] != null ? l.v[c0] : 0), 0);
       if (prev.length && r.ns !== 'us-gaap' && x != null && Math.abs(sum - x) <= 0.01 * Math.abs(x)) { grp++; continue; }
-      for (const l of prev) lines.splice(lines.indexOf(l), 1);
+      // "Total short-term debt" קטן מהשורות שלפניו (Vulcan ‏10-Q ‏2026: חלויות ‏400, ‏"Total short-term debt" ‏0) — הוא לא הסך שלהן
+      if (!(x != null && sum > 0 && x < sum - 0.01 * sum)) for (const l of prev) lines.splice(lines.indexOf(l), 1);
     }
     lines.push({ tag: r.tag, ns: r.ns, cat, label: lab, v, grp });
     if (isTot) grp++;

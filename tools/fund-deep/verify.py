@@ -133,7 +133,7 @@ INCL_RE = re.compile(r',?\s*\(?(including|includes|net of)\b.*$', re.I)
 # "Commercial paper and repurchase agreement" (Apple ‏10-Q ‏2020) — הלוואות לזמן קצר, חוב (גל 2, ‏F12)
 CP_RE = re.compile(r'commercial paper', re.I)
 PAYABLE_LAB = re.compile(r'accounts payable|structured payables?|supplier financ|trade payables?|securities lending|repurchase agreements?', re.I)
-DEBT_EXCL = re.compile(r'operating lease|interest payable|accrued|accounts payable|deferred|debt securities|held.for.sale|derivative|due to (related|affiliat)|guarantee|total liabilities|liabilities of|customer|deposits|payable to|insurance|policy|unearned|pension|tax|dividend|issuance cost', re.I)
+DEBT_EXCL = re.compile(r'operating lease|interest payable|accrued|accounts payable|deferred|debt securities|held.for.sale|derivative|due to (related|affiliat)|guarantee|total liabilities|liabilities of|customer|deposits|payable to(?! banks?\b)|insurance|policy|unearned|pension|tax|dividend|issuance cost', re.I)
 LEASE_RE = re.compile(r'finance lease|capital lease', re.I)
 ST_RE = re.compile(r'short.?term (borrowings|debt|notes|loans)|commercial paper|notes payable|bank (loans|overdraft)|loans payable|(?<!long.term )borrowings(?! .*long)', re.I)
 CUR_RE = re.compile(r'current (portion|maturities)|due within one year|currently due|current$|, current', re.I)
@@ -229,6 +229,22 @@ def splits_from(rows):
     # מחדש (פעילות שנמכרה, תקן חדש) ביחסים כמו 1/3 (Salesforce 2018) או 7/5 (GE)
     whole = {float(k) for k in _K} | {1 / k for k in _K}
     return [tuple(o[:4]) for o in out if o[4] >= 2 or (o[3] >= 3 and o[2] in whole)]
+
+
+def refine_splits(splits, ysp):
+    """הפיצולים שהוסקו מהצגות מחדש — מאומתים מול רשימת הפיצולים של Yahoo (גל 2, 17/11/2026):
+       פיצול באותו יחס שתאריכו בתוך החלון → החלון מתחיל בתאריך הפיצול (APH 9/2026: החלון 10/2025–10/2026 השאיר את רבעון 1 של 2026
+       לא מותאם); בלי פיצול כזה ב־Yahoo → לא פיצול (AMD 2018: יחס 2 מהצגה מחדש של רווח למניה, בלי פיצול). בלי רשימה — כמו קודם"""
+    if ysp is None:
+        return splits
+    out = []
+    for a, b, k, *rest in splits:
+        m = [d.replace('-', '') for d, x in ysp if abs(float(x) - k) < 1e-6 and a < d.replace('-', '') <= b]
+        if m:
+            d = m[0]
+            prev = (dt.date(int(d[:4]), int(d[4:6]), int(d[6:])) - dt.timedelta(days=1)).strftime('%Y%m%d')
+            out.append((max(a, prev), b, k, *rest))
+    return out
 
 
 def factor_after(splits, filed):
@@ -529,6 +545,22 @@ class Co:
                     out.append((round(a - b, 6), 'הכנסות − עלות המכר (מצטבר: %s)' % wa))
         return out
 
+    def in_8k(self, m, e, ours):
+        """רבעון רביעי שלא הודפס ב־10-K: מופיע בשורות "Diluted" של ההודעה לעיתונות (מניות — ביחידות, באלפים או במיליונים)"""
+        if ours is None:
+            return None
+        de = dt.date.fromisoformat(e)
+        for r in (getattr(self, 'pr8k', None) or {}).values():
+            if not r.get('rows') or abs((dt.date.fromisoformat(r['end']) - de).days) > 5:
+                continue
+            for row in r['rows']:
+                for x in row.get('v') or []:
+                    if x is None:
+                        continue
+                    if m == 'eps' and abs(x - ours) <= 0.005 or m == 'sh' and ours and any(abs(x * f - ours) <= 5e-4 * abs(ours) for f in (1, 1e3, 1e6)):
+                        return 'בהודעה לעיתונות (8-K ‏%s, ‏EX-99.1): "%s"' % (r.get('acc', ''), row.get('label', '')[:40])
+        return None
+
     def q4_ps(self, m, j, ours):
         """רווח למניה / מניות ברבעון שלא הודפס: לא נגזר בחיסור — מועמדים: רווח ÷ מניות, ו־4×שנה − 3×תשעה חודשים"""
         e, pe = self.ends['q'][j], self.prev_q(j)
@@ -538,6 +570,15 @@ class Co:
         fy = [c[6] for c in self.pr.cands('sh', me(e), 4, self.cur)]
         n9 = [c[6] for c in self.pr.cands('sh', me(pe), 3, self.cur)]
         shq = sorted({round(4 * a - 3 * b) for a in fy for b in n9})
+        # ההערכה של השרתון (q4Shares): ‏4 × השנה − שלושת הרבעונים שלפניו כפי שהם במסך (Kimco ‏2015: ‏4 × 412.85 − 1,240.17 = 410.24)
+        Q, qs = self.d['raw']['Q'].get('sh') or [], self.ends['q']
+        dd = lambda a, b: (dt.date.fromisoformat(b) - dt.date.fromisoformat(a)).days
+        fyE, A = self.ends['fy'], self.d['raw']['A'].get('sh') or []
+        fa = [A[fyE.index(e)]] if e in fyE and fyE.index(e) < len(A) and A[fyE.index(e)] else []
+        if j >= 3 and all(x for x in Q[j - 3:j]) and all(dd(qs[k], qs[k + 1]) < 120 for k in range(j - 3, j)):
+            for a in fy + fa:
+                shq.append(round(4 * a - sum(Q[j - 3:j])))
+            shq = sorted(set(shq))
         if m == 'sh':
             return [(x, '4×שנה − 3×תשעה חודשים') for x in shq]
         niq = [x for x, _ in self.ytd('ni', j, 'fs')] or [x for x, _ in self.ytd('ni', j, 'cf')]
@@ -599,6 +640,10 @@ class Co:
                 if y and src == 'fs':
                     rec['ytd'] = [x for x, _ in y][:6]
             if m in ('eps', 'sh'):
+                hit = self.in_8k(m, e, ours)
+                if hit:
+                    rec['verdict'], rec['why'] = 'V8K', hit
+                    return self.add(**rec)
                 y = self.q4_ps(m, j, ours)
                 tol = (lambda a, b: abs(a - b) <= TOL_PS) if m == 'eps' else (lambda a, b: abs(a - b) <= 5e-4 * abs(b))
                 hit = next((w for x, w in y if tol(ours, x)), None)
@@ -868,7 +913,7 @@ def truth_map(res):
     t = {}
     for r in res:
         v = r.get('verdict')
-        if v in ('V3', 'V2', 'V1', 'DER', 'DERCF', 'DERX', 'NOFACE', 'NONE', 'EXTRA'):
+        if v in ('V3', 'V2', 'V1', 'V8K', 'DER', 'DERCF', 'DERX', 'NOFACE', 'NONE', 'EXTRA'):
             t[(r['m'], r['mode'], r['end'])] = r.get('ours')
         elif r.get('exp') is not None:
             t[(r['m'], r['mode'], r['end'])] = r['exp']
@@ -1229,7 +1274,13 @@ def main():
                 nqq = nasdaq(s, cache, 2)
             except Exception as e:
                 print('%s: Nasdaq נכשל: %s' % (s, e))
+        pr.splits = refine_splits(pr.splits, snap.get('splits'))
         co = Co(s, disp, snap, pr, cfi, na, nqq)
+        # שורות "Diluted" מההודעה לעיתונות (EX-99.1 של ה־8-K — המטמון של q4pr.js, ‏<w>/pr/<CIK>.p.json): מקור מודפס לרבעון הרביעי
+        try:
+            co.pr8k = json.load(open(os.path.join(o.w, 'pr', '%010d.p.json' % ck), encoding='utf-8'))
+        except Exception:
+            co.pr8k = {}
         res = co.run()
         der = check_derived(co) + check_growth(co) + check_facts(co, cache) + check_prices_mult(co, cache, not o.no_net)
         json.dump(res, open(os.path.join(outd, s + '.json'), 'w'), ensure_ascii=False)
