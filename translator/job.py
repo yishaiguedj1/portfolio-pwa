@@ -5588,7 +5588,8 @@ def ladder_finish(ctx):
         return None
     v = (ctx.refresh().get('files') or {}).get('v') or {}
     top, rungs = st.get('top') or {}, st.get('rungs') or []
-    if not v.get('id') or v.get('ext') or not Path(str(top.get('f') or '')).exists() or not rungs:
+    # 17/11/2026: בלי איכויות נמוכות (ladder.low_on) — המקור הארוז מחליף את המקור, ו־hl = המקור בלבד
+    if not v.get('id') or v.get('ext') or not Path(str(top.get('f') or '')).exists():
         return None
     title = os.path.splitext(str((ctx.st.get('spec') or {}).get('name') or ctx.name))[0][:120]
     ctx.report('sv', 0.9, 'שומרים את איכויות הצפייה', force=True)
@@ -5632,7 +5633,7 @@ def ladder_finish(ctx):
     size = tp.stat().st_size
     up = [x for x in up if not x.get('a')]
     hl = [dict({k: top[k] for k in ('w', 'h', 'bw', 'abw', 'c')}, id=v['id'], size=size)] + sorted(up, key=lambda x: -min(x['w'], x['h']))
-    print('✓ איכויות צפייה: מקור (%dp) + %s%s' % (min(top['w'], top['h']), ' · '.join('%dp' % min(x['w'], x['h']) for x in hl[1:]),
+    print('✓ איכויות צפייה: מקור (%dp)%s%s' % (min(top['w'], top['h']), ''.join(' · %dp' % min(x['w'], x['h']) for x in hl[1:]),
                                                    '' if not n else ' · הגרסה הקודמת של המקור נמחקה'))
     if hla:
         print('✓ עותק קול לנגן (Opus, %s) — הקול המקורי נשאר בקובץ' % ' · '.join('%d ערוצים%s' % (a['ch'], ' ' + a['l'] if a.get('l') else '') for a in hla))

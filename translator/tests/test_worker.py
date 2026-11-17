@@ -389,7 +389,7 @@ class TestWorker(unittest.TestCase):
         self.assertTrue(early[1].get('rd'))
 
     # ---------------------------------------------------------------- איכויות צפייה (ladder.py)
-    def seed_ladder(self, s='ok', alt=False, multi=False):
+    def seed_ladder(self, s='ok', alt=False, multi=False, low=True):
         d = self.tmp / 'work' / '_ladder'
         (d / 'out').mkdir(parents=True, exist_ok=True)
         (d / 'out' / 'top.mp4').write_bytes(b'T' * 500000)
@@ -403,7 +403,7 @@ class TestWorker(unittest.TestCase):
             top['c'] = 'avc1.640028,ec-3'
             (d / 'out' / 'alt.mp4').write_bytes(b'A' * 40000)
             a = {'bw': 330000, 'abw': 300000, 'c': 'opus', 'ch': 6, 'size': 40000, 'f': str(d / 'out' / 'alt.mp4')}
-        st = {'job': JOB, 's': s, 'why': '' if s == 'ok' else 'gop', 'top': top, 'rungs': rungs, 'alt': a}
+        st = {'job': JOB, 's': s, 'why': '' if s == 'ok' else 'gop', 'top': top, 'rungs': rungs if low else [], 'alt': a}
         if multi:                                # 23/10/2026: שתי רצועות קול — עותק לכל אחת, השנייה ברירת המחדל
             (d / 'out' / 'alt1.mp4').write_bytes(b'B' * 20000)
             st['alts'] = [dict(a, l='eng'), {'bw': 140000, 'abw': 128000, 'c': 'opus', 'ch': 2, 'l': 'heb', 'd': 1, 'f': str(d / 'out' / 'alt1.mp4')}]
@@ -431,8 +431,24 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(low['Interview_2026 (720p).mp4']['meta']['parents'], ['FOLDER00001'])
         self.assertIn('VIDEO000001/revisions/rev0001', self.fake.deleted, 'הגרסה הקודמת של המקור נמחקת (לא 30 יום באחסון)')
         self.assertNotIn('VIDEO000001/revisions/rev0002', self.fake.deleted, 'הנוכחית נשארת')
-        self.assertIn('איכויות צפייה: מקור (1080p) + 720p · 360p', out)
+        self.assertIn('איכויות צפייה: מקור (1080p) · 720p · 360p', out)
         self.assertIsNone(done.get('hla'), 'קול רגיל — בלי עותק')
+
+    def test_ladder_original_only(self):
+        # 17/11/2026 (החלטת המשתמש): בלי איכויות נמוכות — המקור הארוז מחליף את המקור, ו־hl = המקור בלבד
+        self.assertEqual(self.take()[0], 0)
+        self.assertEqual(self.job('prepare')[0], 0)
+        self.assertEqual(self.job('align')[0], 0)
+        self.seed_ladder(alt=True, low=False)
+        code, out = self.job('finish')
+        self.assertEqual(code, 0, out)
+        done = self.fake.reports[-1]
+        self.assertEqual([(x['id'], x['h']) for x in done['hl']], [('VIDEO000001', 1080)])
+        self.assertEqual(done['vs'], 500000)
+        self.assertTrue(done.get('hla'), 'עותק הקול לנגן נשמר — בלעדיו Dolby לא נשמע בטלפון')
+        names = sorted(u['meta'].get('name') for u in self.fake.uploads.values() if (u['meta'].get('appProperties') or {}).get('snbOut') == 'hl')
+        self.assertEqual(names, ['Interview_2026 (קול לנגן).mp4'], 'אף קובץ איכות נמוכה')
+        self.assertIn('איכויות צפייה: מקור (1080p) · הגרסה הקודמת', out)
 
     def test_ladder_alt_audio(self):
         self.assertEqual(self.take()[0], 0)

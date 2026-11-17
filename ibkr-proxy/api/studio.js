@@ -2051,7 +2051,12 @@ async function server(req, res, body, deps) {
       if (job.kind === 'lb' && hb.lb !== 1) continue;   // 16/11/2026: עבודת־העזר של המאגר — רק לעובד שמכיר אותה (עובד ישן היה מסמן worker_unknown_kind)   // 9/11/2026: ניתוח — רק לעובד שמכיר אותו (hb.vi); עובד ישן היה מריץ אותו כתרגום, עם Claude
       if (job.bw && !br.includes(job.id) && !lost.includes(job.id)) continue;   // 01/11/2026 (I3): מחכה לתור החיסכון — רק כשהסוכן אמר שהתשובות חזרו (או שהתור שלה אבד)
       if (job.vw && !((job.spec && job.spec.ph === 1 ? job.fph : job.fv) || {}).id) continue;   // 15/10/2026: מחכה לסרטון — לא תופסים שרת עד שהוא נרשם (24/10: בתרגום בטלפון — לקובץ המדידות)
-      if (fit && (S.peakNeed(job, fit) > fit.mb || S.perfBlock(job, fit))) break;   // 5/11/2026: וגם הקבלה החזויה (perfBlock)
+      if (fit && (S.peakNeed(job, fit) > fit.mb || S.perfBlock(job, fit))) {   // 5/11/2026: וגם הקבלה החזויה (perfBlock)
+        // 17/11/2026: למה היא מחכה — נכתב רק כשהשתנה (patchIf לא יבוא אחריו בפנייה הזו: יוצאים מהלולאה)
+        const qw = S.qwOf(job, fit);
+        if (JSON.stringify(qw) !== JSON.stringify(job.qw || null)) await patchDoc(deps, 'studioJobs', job.id, { qw }).catch(() => null);
+        break;
+      }
       await capWarm(deps, now);
       const st = job.kind === 'lb' ? null : await readStats(deps, job.uid);
       const cap = job.kind === 'lb' ? S.CAP_MIN_JOB : S.jobCap(job.spec, S.monthUsed(st.mu, now), userMonth(st), S.usdOf(job.use0));   // 16/11/2026: lb — בלי Claude, לא נגמר בתקציב
@@ -2063,7 +2068,7 @@ async function server(req, res, body, deps) {
       const key = S.newKey();
       // 21/10/2026: לצפי — הליבות של השרת וכמה עבודות כבר רצות עליו (חולקות את המעבד)
       const fx = Object.assign(hb.cpu > 0 ? { hc: Math.round(hb.cpu) } : {}, { cc: Math.max(0, Math.round(hb.nj || 0)) });
-      const got = await patchIf(deps, 'studioJobs', job.id, Object.assign({ sid: p.sid, pk: now, vw: 0, bw: 0, capc: Math.round(cap * 100), kh: S.keyHash(key), kx: now + S.KEY_TTL, updated: now }, fx, lost.includes(job.id) ? { bl: (Number(job.bl) || 0) + 1 } : {}), job._ut);
+      const got = await patchIf(deps, 'studioJobs', job.id, Object.assign({ sid: p.sid, pk: now, vw: 0, bw: 0, qw: null, capc: Math.round(cap * 100), kh: S.keyHash(key), kx: now + S.KEY_TTL, updated: now }, fx, lost.includes(job.id) ? { bl: (Number(job.bl) || 0) + 1 } : {}), job._ut);
       if (!got) continue;
       await patchDoc(deps, 'studioServers', p.sid, Object.assign(seen, { job: job.id }));
       const dur = job.spec && job.spec.dur > 0 ? Math.round(job.spec.dur) : 0;
