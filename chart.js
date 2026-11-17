@@ -1084,7 +1084,7 @@ function countdown(c, bar, now) {
   if (!bar || c.replay || !c.q) return '';
   const intra = L.isIntraday(c.tf), st = c.q.st, live = st === 'REGULAR' || (intra && S.store.g.ext && c.q.ext && c.q.extK !== 'night');
   if (!live || (!intra && c.secReal < 7 * 86400)) return '';
-  const d = TF[c.tf], ms = (d.base === '1mo' ? monthEnd(c.tz, bar.timestamp, d.cal || 1) : bar.timestamp + c.secReal * 1000) - now;
+  const tfd = TF[c.tf], ms = (tfd.base === '1mo' ? monthEnd(c.tz, bar.timestamp, tfd.cal || 1) : bar.timestamp + c.secReal * 1000) - now;
   if (!(ms > 0) || now < bar.timestamp) return '';
   const t = Math.floor(ms / 1000), d = Math.floor(t / 86400), h = Math.floor(t / 3600) % 24, m = Math.floor(t / 60) % 60, sec = t % 60, z = (x) => String(x).padStart(2, '0');
   return d ? d + 'd ' + h + 'h' : h ? h + ':' + z(m) + ':' + z(sec) : z(m) + ':' + z(sec);

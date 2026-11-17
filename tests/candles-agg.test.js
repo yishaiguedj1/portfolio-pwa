@@ -73,7 +73,7 @@ ok(monthEnd('America/New_York', ms(U(2026, 10, 1, 4)), 3) === ms(U(2027, 1, 1, 5
 ok(monthEnd('Asia/Jerusalem', ms(U(2026, 10, 31, 22)), 1) === ms(U(2026, 11, 30, 22)) && monthEnd('UTC', ms(U(2026, 11, 1)), 1) === ms(U(2026, 12, 1)), 'סוף החודש בשעון ישראל וב־UTC');
 // חודש של 31 יום: סגירת 31/12 בתוך הנר (היה 30 יום מתחילתו — הסגירה הרשמית לא תוקנה ב־31 לחודש)
 ok(ms(U(2026, 12, 31, 21)) <= monthEnd('America/New_York', ms(U(2026, 12, 1, 5)), 1) && ms(U(2026, 12, 31, 21)) > ms(U(2026, 12, 1, 5)) + 2592000 * 1000, 'סגירת היום האחרון בחודש של 31 יום — בתוך הנר');
-ok(/const d = TF\[c\.tf\], ms = \(d\.base === '1mo' \? monthEnd\(c\.tz, bar\.timestamp, d\.cal \|\| 1\) : bar\.timestamp \+ c\.secReal \* 1000\) - now;/.test(cj)
+ok(/const tfd = TF\[c\.tf\], ms = \(tfd\.base === '1mo' \? monthEnd\(c\.tz, bar\.timestamp, tfd\.cal \|\| 1\) : bar\.timestamp \+ c\.secReal \* 1000\) - now;/.test(cj)
   && /if \(!\(ms > 0\) \|\| now < bar\.timestamp\) return '';/.test(cj), 'ספירה לאחור בחודשי/רבעוני/שנתי — עד סוף התקופה הקלנדרית (C-026)');
 
 /* ---------- handle: Yahoo מדומה ---------- */

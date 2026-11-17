@@ -2492,6 +2492,43 @@ function stubFetch(text, status = 200) {
         await run({ op: 'remove', idToken: OWNER, job: DP });
         ok(!db.get('studioJobs/' + X1.id), 'סטודיו (dx): נמחקת יחד עם העבודה המקורית');
       }
+      // 17/11/2026: ספריית הסרטונים — dx עם lib: כל קבצי הפרויקט, md5, מניפסט אחרון; ההורה נרשם (vlib)
+      {
+        const LP = 'jLIBparentAAAAAAAAAAA', LF = 'R2_' + LP, vO = LF + '_aaaaaaaaaaaa', sO = LF + '_bbbbbbbbbbbb', src = LF + '_ssssssssssss';
+        db.set('studioJobs/' + LP, { fields: SR.toFields({ id: LP, uid: 'ownerUid0001', kind: 'tr', state: 'done', created: now - 9e5, updated: now - 6e5, ended: now - 6e5, folder: LF, eng: 'api',
+          spec: { name: 'Talk.mp4', size: 900, type: 'video/mp4', dur: 600, from: 'en', to: ['he'], mode: 'haiku-high', out: ['compact', 'srt'], eng: 'api', cap: 5 },
+          fv: { id: src, name: 'Talk.mp4', size: 900 },
+          fo: [{ id: vO, name: 'Talk.he.compact.mp4', size: 800, k: 'compact' }, { id: sO, name: 'Talk.he.srt', size: 30, k: 'srt' }] }) });
+        driveFiles.set('libProj1234567', { id: 'libProj1234567', name: 'Talk', mimeType: 'application/vnd.google-apps.folder', trashed: false, capabilities: { canAddChildren: true } });
+        const LX = (dx) => run({ op: 'dxRun', idToken: OWNER, job: LP, dx });
+        const it = [{ id: vO, n: 'Talk — מתורגם.mp4' }, { id: sO, n: 'Talk.he.srt' }, { id: src, n: 'Talk.mp4' }];
+        const m = { t: 'Talk', k: 'tr', fr: 'en', to: ['he'], d: 600, ch: [{ t: 0, n: 'פתיחה' }, { t: 99999, n: 'x' }] };
+        ok((await LX({ f: 'libProj1234567', lib: 1, m, it: [{ id: LF + '_cccccccccccc', n: 'x.mp4' }] })).statusCode === 400, 'ספרייה: רק קבצים של העבודה');
+        rr = await LX({ f: 'libProj1234567', lib: 1, m, it });
+        const L1 = rr.payload.job;
+        ok(rr.payload.ok && L1.kind === 'dx' && L1.spec.dx.lib === 1 && L1.spec.dx.it.map((x) => x.r).join() === 'b,s,v' && L1.spec.dx.m.ch.length === 1 && L1.spec.dx.m.d === 600,
+          'ספרייה: עבודת dx עם lib — התפקידים (צרוב, כתוביות, מקור), פרק לא תקין יורד');
+        await run({ op: 'start', idToken: OWNER, job: L1.id });
+        const key = SR.newKey();   // כאילו השרת לקח מהתור (poll) — העבודה רצה עם מפתח
+        await patchJobRaw(L1.id, { state: 'running', kh: SR.keyHash(key), kx: now + 3600e3, claimed: now });
+        const md5 = 'a'.repeat(32);
+        const fd = [[vO, 'drvV1234567890', md5], [sO, 'drvS1234567890', md5], [src, 'drvR1234567890', md5]];
+        if (key) {
+          rr = await wrk({ op: 'report', job: L1.id, key, done: true, lib: { m: 'manif123456789', fd } });
+          ok(rr.statusCode === 400, 'ספרייה: מניפסט שלא בתיקיית הפרויקט — נדחה');
+          driveFiles.set('manif123456789', { id: 'manif123456789', name: 'project.snb.json', size: '700', parents: ['libProj1234567'], trashed: false });
+          rr = await wrk({ op: 'report', job: L1.id, key, done: true, lib: { m: 'manif123456789', fd: fd.slice(0, 2) } });
+          ok(rr.statusCode === 400, 'ספרייה: חסר קובץ אחד — נדחה (כל הקבצים או כלום)');
+          rr = await wrk({ op: 'report', job: L1.id, key, done: true, lib: { m: 'manif123456789', fd } });
+          const P1 = SR.fromFields(db.get('studioJobs/' + LP).fields);
+          ok(rr.payload.ok && P1.vlib && P1.vlib.m === 'manif123456789' && P1.vlib.fd.length === 3 && P1.vlib.fd[0].b === 'drvV1234567890', 'ספרייה: ההורה נרשם — המניפסט וזוגות R2 → Drive');
+          rr = await run({ op: 'job', idToken: OWNER, job: LP });
+          ok(rr.payload.job.lib && rr.payload.job.lib.f === 'libProj1234567' && !rr.payload.job.lib.home && !JSON.stringify(rr.payload.job.lib).includes('drv'), 'ספרייה: הטלפון רואה "נשמר" (בלי הזוגות)');
+        } else ok(false, 'ספרייה: העובד לקח את העבודה');
+        const sw = SR.libSwap(SR.fromFields(db.get('studioJobs/' + LP).fields));
+        ok(sw && sw.folder === 'libProj1234567' && sw.fo.map((o) => o.id).join() === 'drvV1234567890,drvS1234567890' && sw.fv.id === 'drvR1234567890' && sw.vlib.home === 1, 'ספרייה: libSwap — התוצרים, המקור והתיקייה עוברים ל־Drive');
+        ok(SR.libSwap({ fo: [] }) === null && SR.normLibDone({ m: 'manif123456789', fd }, { lib: 0, it: [] }) === null, 'ספרייה: בלי שמירה — אין החלפה');
+      }
       for (const id of [JP, JN]) await run({ op: 'remove', idToken: OWNER, job: id });
       ok(!db.get('studioJobs/' + R3), 'סטודיו: הפקה מחדש — נמחקת יחד עם העבודה המקורית');
       const odE = db.get('studioOps/ownerUid0001');
@@ -4393,10 +4430,15 @@ function stubFetch(text, status = 200) {
         mkJ('jGcOldDrvaaaaaaaaaaaa', 'DriveFolderId0123456789', now - 40 * D);
         mkJ('jGcOldGoldaaaaaaaaaaa', 'R2_jGcOldGoldaaaaaaaaaaa', now - 40 * D, { gd: { stringValue: '{"ref":"x"}' } });
         mkJ('jGcNewR2aaaaaaaaaaaaa', 'R2_jGcNewR2aaaaaaaaaaaaa', now - 20 * D);
+        mkJ('jGcLibR2aaaaaaaaaaaaa', 'R2_jGcLibR2aaaaaaaaaaaaa', now - 22 * D, { fo: { stringValue: JSON.stringify([{ id: 'R2_jGcLibR2aaaaaaaaaaaaa_aaaaaaaaaaaa', k: 'srt', size: 3 }]) },
+          vlib: { stringValue: JSON.stringify({ f: 'libFold1234567', m: 'libMani1234567', fd: [{ a: 'R2_jGcLibR2aaaaaaaaaaaaa_aaaaaaaaaaaa', b: 'libSrt12345678', h: 'a'.repeat(32) }], at: now - 21 * D }) } });
         const wget = async () => { const x = mockRes(); await studio._handler({ method: 'GET', headers: {} }, x, deps()); return x; };
         studio._reset();
         let a = await wget();
-        ok(a.payload.jg === 1 && !db.has('studioJobs/jGcOldR2aaaaaaaaaaaaa'), 'מחיקה אחרי 3 שבועות: עבודה ב־R2 שהסתיימה לפני 22 יום — נמחקה');
+        ok(a.payload.jg === 2 && !db.has('studioJobs/jGcOldR2aaaaaaaaaaaaa'), 'מחיקה אחרי 3 שבועות: עבודה ב־R2 שהסתיימה לפני 22 יום — נמחקה');
+        const LH = require("../lib/studio").fromFields(db.get('studioJobs/jGcLibR2aaaaaaaaaaaaa').fields);
+        ok(LH.folder === 'libFold1234567' && LH.fo[0].id === 'libSrt12345678' && LH.vlib.home === 1, 'ספרייה: עבודה שנשמרה בספרייה לא נמחקת — עוברת לקבצים ב־Drive');
+        db.delete('studioJobs/jGcLibR2aaaaaaaaaaaaa');
         ok(db.has('studioJobs/jGcOldDrvaaaaaaaaaaaa') && db.has('studioJobs/jGcOldGoldaaaaaaaaaaa') && db.has('studioJobs/jGcNewR2aaaaaaaaaaaaa'),
           'מחיקה אחרי 3 שבועות: עבודה ב־Drive, עבודת זהב ועבודה בת 20 יום — נשארו');
         a = await wget();
