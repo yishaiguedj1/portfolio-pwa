@@ -348,8 +348,19 @@ function mkDoc() {
     const rows = () => pgS.el.byCls('st-spk-row');
     ok(rows().length === 2 && rows()[0].textContent.includes('Dana Levi') && rows()[1].textContent.includes('studioSpkN{"n":2}') && pgS.el.byCls('st-spk-list').length === 1,
       'כרטיס הדוברים: שורה לכל דובר; בלי שם — "דובר 2"');
-    ok(rows()[0].textContent.includes('מרצה · studioSpkF · en, he') && rows()[0].textContent.includes('71%') && rows()[1].textContent.includes('studioSpkGU · en') && rows()[1].textContent.includes('29%'),
-      'תפקיד · מגדר · שפות, והחלק מהדיבור');
+    ok(rows()[0].textContent.includes('פרופסור לכלכלה, סטנפורד · מרצה') && !rows()[0].textContent.includes('studioSpkF') && rows()[0].textContent.includes('71%')
+      && rows()[1].textContent.includes('studioSpkGU · en') && rows()[1].textContent.includes('29%'),
+      'מי הוא (תואר · תפקיד); בלי שום פרט — מגדר · שפות; והחלק מהדיבור');
+    /* 17/11/2026 (מי מדבר): כשידוע מי מישהו — בראש הדף, לפני השורה האחת */
+    const kids = [...pgS.el.children], iSp = kids.findIndex((x) => x.className === 'st-spk-sec0'), iG = kids.findIndex((x) => /st-vi-gist/.test(x.className));
+    ok(iSp > 0 && iG > iSp && kids[iSp].byCls('st-sec-t')[0].textContent === 'studioSpkWho', '"מי מדבר" בראש הדף, לפני השורה האחת');
+    {
+      const anon = JSON.parse(JSON.stringify(good));
+      for (const d of anon.speakers) { delete d.name; delete d.role; delete d.ttl; }
+      const pa = P.renderVi(ctx(P.normVi(anon), {}));
+      const ka = [...pa.el.children], ia = ka.findIndex((x) => x.className === 'st-spk-sec0');
+      ok(ia > ka.findIndex((x) => /st-vi-gist/.test(x.className)) && ka[ia].byCls('st-sec-t')[0].textContent === 'studioSpkT', 'לא ידוע עליהם כלום — "דוברים" בסוף כמו קודם');
+    }
     ok(rows()[0].dataset.spk === '0' && rows()[1].dataset.spk === '2' && rows()[0].byCls('st-spk-av')[0].textContent === 'DL' && rows()[1].byCls('st-spk-av')[0].textContent === '2',
       'צבע לכל דובר (כחול, כתום) וראשי תיבות');
     const tx = pgS.el.byCls('st-vi-tx')[0];
@@ -396,9 +407,13 @@ function mkDoc() {
     sheet = doc.body.byCls('st-spk-sh').pop();
     ok(sheet.byCls('st-spk-note')[0].textContent === 'studioSpkGT' && sheet.byCls('st-spk-lgs')[0].byCls('st-row').length === 2 && sheet.byK('spk-role').value === 'מרצה',
       'דובר שנאמר בסרטון: "לפי מה שנאמר בסרטון", השפות עם פס, התפקיד');
+    ok(sheet.byCls('st-spk-who')[0].textContent === 'פרופסור לכלכלה, סטנפורד' && !sheet.byCls('st-spk-who')[0].hidden && !sheet.byCls('st-spk-kb')[0].hidden,
+      'בגיליון: מי הוא, ו"לפי ידע כללי" (kb)');
     const xs = sheet.byK('spk-nm');
     xs.value = '<img src=x onerror=alert(1)>'; xs.fire('change');
     ok(rows()[0].textContent.includes('<img src=x') && !pgS.el.all((x) => x.tagName === 'IMG').length && !doc.body.all((x) => x.tagName === 'IMG').length, 'שם עם HTML — טקסט בלבד');
+    ok(!rows()[0].textContent.includes('סטנפורד') && rows()[0].textContent.includes('מרצה') && sheet.byCls('st-spk-who')[0].hidden && sheet.byCls('st-spk-kb')[0].hidden,
+      'שינית את השם — התואר של מי שהעובד מצא כבר לא שלו (התפקיד נשאר)');
     ok(pgS.closeSheet() && !doc.body.byCls('st-spk-sh').some((x) => x.isConnected), '"חזור" סוגר את גיליון הדובר');
     pgS.destroy();
 

@@ -1300,6 +1300,7 @@ html.st-dock .toast { bottom: calc(var(--dock-pad, var(--dock-h, 120px)) + 12px 
 .st-vi-vv { flex: none; margin-inline-start: auto; }   /* PR 1.2ג: "אמת שוב" בקצה פס הטיוטה */
 .st-vi-vv-busy { font-weight: 500; white-space: nowrap; }
 .st-vi-gist { margin-top: 4px; padding: 18px 16px; }
+.st-spk-sec0 + .st-vi-gist { margin-top: 20px; }   /* 17/11/2026: "מי מדבר" בראש הדף — רווח של כרטיס לכרטיס */
 .st-vi-one { margin: 0 0 16px; font-size: 19px; font-weight: 600; line-height: 1.45; text-wrap: pretty; }
 .st-vi-one:last-child { margin-bottom: 0; }
 .st-vi-pts, .st-vi-notes { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
@@ -1385,6 +1386,10 @@ html.st-dock .toast { bottom: calc(var(--dock-pad, var(--dock-h, 120px)) + 12px 
 .st-spk-tt { min-width: 0; }
 .st-spk-sub { font-size: 14px; color: var(--on-surface-var); }
 .st-spk-sub[hidden], .st-spk-note[hidden] { display: none; }
+/* 17/11/2026 (מי מדבר): מי הוא — מעל החלק מהדיבור; "לפי ידע כללי" — קטן מתחת */
+.st-spk-who { font-size: 14px; color: var(--on-surface); }
+.st-spk-kb { font-size: 12px; color: var(--on-surface-var); }
+.st-spk-who[hidden], .st-spk-kb[hidden] { display: none; }
 .st-spk-in { flex: 1; min-width: 0; border: 0; background: none; font: inherit; font-size: 16px; color: var(--on-surface-var); text-align: end; padding: 0; }
 .st-rs .st-spk-sec { margin-block: 0 -6px; }
 .st-spk-g { margin-inline: 16px; }

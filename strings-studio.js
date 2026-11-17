@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2488 מפתחות מתוך 7043) */
+/* המחרוזות של studio (2491 מפתחות מתוך 7046) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1984,6 +1984,7 @@ he: {
   "studioSmT": "סדרות",
   "studioSmTerms": "שמות ומונחים · {n}",
   "studioSoon": "בקרוב",
+  "studioSpkAct": "בגילום {n}",
   "studioSpkAll": "הצגת כל הדוברים",
   "studioSpkCol": "צבע",
   "studioSpkColN": "צבע {n}",
@@ -1993,6 +1994,7 @@ he: {
   "studioSpkGT": "לפי מה שנאמר בסרטון",
   "studioSpkGU": "מגדר לא ידוע",
   "studioSpkGV": "זוהה לפי הקול",
+  "studioSpkKb": "הפרטים לפי ידע כללי, לא מהסרטון",
   "studioSpkLangs": "שפות",
   "studioSpkM": "גבר",
   "studioSpkN": "דובר {n}",
@@ -2005,6 +2007,7 @@ he: {
   "studioSpkShareS": "{p}% מהדיבור · {n} שנ׳",
   "studioSpkT": "דוברים",
   "studioSpkU": "לא ידוע",
+  "studioSpkWho": "מי מדבר",
   "studioSrcEn": "המקור באנגלית",
   "studioSrcGone": "סרטון המקור נמחק (נשמר יום מפתיחת הפרויקט). לצריבה מחדש צריך להעלות אותו שוב.",
   "studioSrcGoneS": "סרטון המקור נמחק",
@@ -4474,6 +4477,7 @@ en: {
   "studioSmT": "Series",
   "studioSmTerms": "Names and terms · {n}",
   "studioSoon": "Soon",
+  "studioSpkAct": "Played by {n}",
   "studioSpkAll": "Show all speakers",
   "studioSpkCol": "Color",
   "studioSpkColN": "Color {n}",
@@ -4483,6 +4487,7 @@ en: {
   "studioSpkGT": "From what was said in the video",
   "studioSpkGU": "Gender unknown",
   "studioSpkGV": "Detected from the voice",
+  "studioSpkKb": "Details from general knowledge, not from the video",
   "studioSpkLangs": "Languages",
   "studioSpkM": "Man",
   "studioSpkN": "Speaker {n}",
@@ -4495,6 +4500,7 @@ en: {
   "studioSpkShareS": "{p}% of the talk · {n} sec",
   "studioSpkT": "Speakers",
   "studioSpkU": "Unknown",
+  "studioSpkWho": "Who's speaking",
   "studioSrcEn": "English source",
   "studioSrcGone": "The original video was deleted (it is kept for a day after the project opens). Upload it again to re-render.",
   "studioSrcGoneS": "Original video deleted",
