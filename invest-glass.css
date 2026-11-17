@@ -206,6 +206,123 @@ main .stock-head:active { transform: scale(.985) !important; transition: transfo
   .appbar .menu-drop:not(.hidden) { animation: none !important; }
   :is(main, .appbar) :is(.icon-btn, .chip-btn, .range-btn, .btn, .dep-add, .tx-add, .lang-opt, .subpage-back):active, main .stock-head:active { transform: none !important; }
 }
+
+/* ===== מנתח החברות וגרף הנרות (17/11/2026, בקשת המשתמש — 15 השינויים אושרו בתצוגה המקדימה) =====
+   אותם מסכים, לשוניות, כלים ומספרים — רק עיצוב. docs/analysis-chart-design-plan.md.
+   הכל תחת html (.an-root / .an-sheet / .kc-root), כך שרק המסכים האלה מושפעים. צבעי הקנבס של הגרף — דרך הטוקנים
+   --kc-cv-* ש־palette() ב־chart.js קורא (בלי הטוקנים — הצבעים של היום). */
+/* ===== 17. החומר: כרטיסים במילוי רך (כמו כרטיסי Invest), בלי מסגרת; אריחי העובדות במילוי אפור ===== */
+html .an-root :is(.an-card, .an-rcard, .an-mtile, .an-key) { background: var(--lg-card) !important; border-color: transparent !important; box-shadow: var(--lg-card-sh) !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border-radius: 24px !important; }
+html .an-root :is(.an-fact, .an-stats div, .an-scen > div) { background: var(--lg-fill) !important; border-color: transparent !important; box-shadow: none !important; border-radius: 14px !important; }
+html .an-root .an-card .an-card { box-shadow: none !important; }
+
+/* ===== 18. ההדר: "חזור" בעיגול זכוכית ניטרלי, המחיר בצבע הטקסט והשינוי בגלולה ===== */
+html .an-root .an-back { color: var(--on-surface) !important; }
+html .an-root .an-back .an-chev { border-color: var(--on-surface) !important; }
+html .an-root .an-back { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important; }
+html .an-root :is(.an-px, .an-nav-q) b { color: var(--on-surface) !important; font-family: var(--lg-round) !important; font-weight: 650 !important; font-variant-numeric: tabular-nums !important; }
+html .an-root :is(.an-px, .an-nav-q) span { display: inline-block !important; padding: 1px 8px !important; border-radius: 999px !important; font-weight: 600 !important; font-variant-numeric: tabular-nums !important;
+  background: color-mix(in srgb, currentColor 14%, transparent) !important; }
+
+/* ===== 19. הלשוניות והבוררים: מסילה עדינה וידית לבנה (אפורה בכהה) במקום מילוי ירוק ===== */
+html .an-root .an-seg { background: var(--lg-fill) !important; box-shadow: none !important; border: 0 !important; }
+html .an-root .an-seg.an-seg-main { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important; }
+html .an-root .an-seg-th { background: var(--lg-knob) !important; box-shadow: var(--lg-knob-sh) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+html .an-root .an-seg button { color: var(--on-surface) !important; font-weight: 500 !important; }
+html .an-root .an-seg button[aria-pressed="true"] { color: var(--on-surface) !important; font-weight: 650 !important; }
+html .an-root .an-seg:not(.an-seg-main) button[aria-pressed="true"] { background: var(--lg-knob) !important; box-shadow: var(--lg-knob-sh) !important; }
+
+/* ===== 20. טווחי הגרף בראש (1Y…MAX): בורר אחד עם ידית, במקום חמש גלולות ===== */
+html .an-root .an-hrng { background: var(--lg-fill) !important; border-radius: 999px !important; padding: 3px !important; gap: 2px !important; }
+html .an-root .an-hrng > .range-btn { background: transparent !important; box-shadow: none !important; border: 0 !important; color: var(--on-surface) !important; font-weight: 500 !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border-radius: 999px !important; font-family: var(--lg-round) !important; }
+html .an-root .an-hrng > .range-btn.active { background: var(--lg-knob) !important; box-shadow: var(--lg-knob-sh) !important; font-weight: 650 !important; color: var(--on-surface) !important; }
+
+/* ===== 21. מספרים: גופן מעוגל וספרות ברוחב אחיד בכל המספרים הגדולים ובטבלאות ===== */
+html .an-root :is(.an-key b, .an-rc-big b, .an-mtile b, .an-stats b, .an-fact b, .an-rstat b, .an-scen b, .an-mv2 b, .an-big strong, .an-tbl td, .an-ctbl td, .an-vtbl td, .an-sens td, .an-cin, .an-cv) {
+  font-family: var(--lg-round) !important; font-variant-numeric: tabular-nums !important; }
+html .an-root :is(.an-key b, .an-rc-big b, .an-mtile b) { font-weight: 650 !important; letter-spacing: -.4px !important; }
+html .an-root .an-chart :is(line:not(.an-mc-avg), .an-grid) { stroke-opacity: .55 !important; }
+
+/* ===== 22. אריחי התמונה: הסמל בעיגול צבעוני רך, הכותרת בצבע הטקסט ===== */
+html .an-root .an-key-ic { border-radius: 50% !important; background: color-mix(in srgb, var(--an-k) 16%, transparent) !important; color: var(--an-k) !important; }
+html .an-root .an-key-l { color: var(--on-surface) !important; font-weight: 600 !important; }
+html .an-root .an-key-l .an-chev { color: var(--on-surface-var) !important; opacity: .6 !important; }
+
+/* ===== 23. הערכת שווי ורשימות: שורות עם קו דק, שדות קלט בקפסולה, מחוון עם ידית לבנה ===== */
+html .an-root :is(.an-inr, .an-cf, .an-row, .an-mrow) { border-color: var(--lg-sep) !important; }
+html .an-root :is(.an-cin, .an-in) { border-radius: 999px !important; background: var(--lg-fill) !important; text-align: center !important; font-weight: 600 !important; }
+html .an-root :is(.an-cin, .an-in):focus { box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 55%, transparent) !important; }
+html .an-root input[type=range] { accent-color: var(--primary) !important; }
+html .an-root input[type=range]::-webkit-slider-thumb { background: var(--lg-knob) !important; box-shadow: var(--lg-knob-sh) !important; border: 0 !important; }
+
+/* ===== 24. טבלת ההשוואה: העמודה של המניה בגוון ירוק עדין מעוגל, קווים דקים, צ׳יפים בזכוכית ===== */
+html .an-root .an-ctbl .me { background: color-mix(in srgb, var(--primary) 9%, transparent) !important; }
+html .an-root .an-ctbl thead .me { color: var(--on-surface) !important; border-radius: 14px 14px 0 0 !important; }
+html .an-root .an-ctbl tbody tr:last-child .me { border-radius: 0 0 14px 14px !important; }
+html .an-root .an-ctbl :is(th, td) { border-color: var(--lg-sep) !important; }
+html .an-root .an-ctbl thead th { color: var(--on-surface-var) !important; font-weight: 600 !important; }
+html .an-root :is(.an-chip, .an-chip-add) { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; border: 0 !important; -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important; font-weight: 500 !important; }
+
+/* ===== 25. גיליונות ותת־עמודים: זכוכית עם ידית גרירה, ✕ בעיגול זכוכית, הבקרים ברשימה מקובצת ===== */
+html .an-sheet { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; -webkit-backdrop-filter: blur(30px) saturate(190%) !important; backdrop-filter: blur(30px) saturate(190%) !important; border-radius: 32px 32px 0 0 !important; }
+html[data-theme="dark"] .an-sheet { background: rgba(44, 44, 46, .82) !important; }
+html :is(.an-sheet, .an-root) .an-x { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; border-radius: 50% !important; color: var(--on-surface) !important; }
+html .an-root .an-subb .an-ctl { border-bottom: .5px solid var(--lg-sep) !important; padding-block: 8px !important; }
+html .an-root .an-subb .an-ctl > span { color: var(--on-surface-var) !important; font-weight: 500 !important; }
+
+/* ===== 26. הקנבס של הגרף: רשת עדינה יותר, צירים בגופן מעוגל, תוויות הסמן והמחיר בקפסולה, נפח רך ===== */
+html { --kc-cv-grid: rgba(60, 60, 67, .055); --kc-cv-axis: rgba(60, 60, 67, .10); --kc-cv-text: #8E8E93; --kc-cv-label: rgba(28, 28, 30, .86); --kc-cv-vol: .32; --kc-cv-font: ui-rounded, "SF Pro Rounded", system-ui, sans-serif; --kc-cv-r: 10; }
+html[data-theme="dark"] { --kc-cv-grid: rgba(255, 255, 255, .045); --kc-cv-axis: rgba(255, 255, 255, .10); --kc-cv-text: #8E8E93; --kc-cv-label: rgba(99, 99, 102, .92); }
+
+/* ===== 27. ראש הגרף: מחיר בגופן מעוגל, שורת הפתיחה/גבוה/נמוך שקטה, הבוררים (אינטרוול, טווח) בקפסולות זכוכית ===== */
+html .kc-root .kc-px { font-family: var(--lg-round) !important; font-weight: 650 !important; font-variant-numeric: tabular-nums !important; letter-spacing: -.5px !important; }
+html .kc-root .kc-ch { display: inline-block !important; padding: 1px 8px !important; border-radius: 999px !important; background: color-mix(in srgb, currentColor 14%, transparent) !important; font-weight: 600 !important; }
+html .kc-root .kc-stat > b { font-family: var(--lg-round) !important; font-weight: 600 !important; font-variant-numeric: tabular-nums !important; }
+html .kc-root .kc-stat > span { font-weight: 500 !important; opacity: .8 !important; }
+html .kc-root :is(.kc-pk, .kc-qm .kc-ib, .kc-now, .kc-plus) { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important; border: 0 !important; }
+html .kc-root .kc-pk { border-radius: 18px !important; }
+html .kc-root .kc-pk-v { font-family: var(--lg-round) !important; }
+html .kc-root :is(.kc-qm .kc-ib, .kc-now, .kc-plus) { border-radius: 999px !important; }
+html .kc-root .kc-back { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; color: var(--on-surface) !important; border-radius: 50% !important; }
+
+/* ===== 28. סרגל הכלים התחתון: מסילת זכוכית צפה (כמו החוגה של Invest), הסמלים בלי עיגולים, הפעיל = טיפה ירוקה ===== */
+html .kc-root .kc-mbar { margin: 0 12px calc(8px + env(safe-area-inset-bottom, 0px)) !important; padding: 5px 6px !important; border: 0 !important; border-radius: 999px !important;
+  background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important; }
+html .kc-root .kc-mb { background: transparent !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; color: var(--on-surface) !important; border: 0 !important; }
+html .kc-root .kc-mb.on { background: var(--lg-tint) !important; box-shadow: var(--lg-tint-rim) !important; color: #fff !important; }
+html .kc-root .kc-mb:disabled { opacity: .35 !important; }
+
+/* ===== 29. הגיליונות (כלי ציור, אינדיקטורים, עוד, הגדרות, רשימת מעקב): זכוכית, אריחים רכים, בוררים עם ידית ===== */
+html .kc-root .kc-sheet { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; -webkit-backdrop-filter: blur(30px) saturate(190%) !important; backdrop-filter: blur(30px) saturate(190%) !important; border-radius: 32px !important; }
+html[data-theme="dark"] .kc-root .kc-sheet { background: rgba(44, 44, 46, .82) !important; }
+html .kc-root .kc-sheet :is(.kc-tcell, .kc-tfcell, .kc-bg) { background: var(--lg-fill) !important; box-shadow: none !important; border-radius: 20px !important; border: 0 !important; }
+html .kc-root .kc-sheet .kc-tfcell.on { background: color-mix(in srgb, var(--primary) 14%, var(--lg-fill)) !important; }
+html .kc-root .kc-seg { background: var(--lg-fill) !important; }
+html .kc-root .kc-seg-b { color: var(--on-surface) !important; background: transparent !important; box-shadow: none !important; font-weight: 500 !important; }
+html .kc-root .kc-seg-b.on { background: var(--lg-knob) !important; box-shadow: var(--lg-knob-sh) !important; color: var(--on-surface) !important; font-weight: 650 !important; }
+html .kc-root .kc-sheet .kc-chip { background: var(--lg-fill) !important; box-shadow: none !important; }
+html .kc-root .kc-sheet .kc-chip.on { background: var(--on-surface) !important; color: var(--bg) !important; }
+html .kc-root .kc-sheet .kc-in { border-radius: 999px !important; background: var(--lg-fill) !important; }
+html .kc-root .kc-sheet .kc-li { border-radius: 14px !important; }
+html .kc-root .kc-sheet .kc-sh-head .kc-ib { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; border-radius: 50% !important; color: var(--on-surface) !important; }
+html .kc-root .kc-sheet .kc-rg { background: transparent !important; box-shadow: none !important; }
+html .kc-root .kc-sheet .kc-rg.on { background: var(--lg-knob) !important; box-shadow: var(--lg-knob-sh) !important; color: var(--on-surface) !important; }
+
+/* ===== 30. חלונית הערכים בגרירה: קפסולת זכוכית מעל הגרף, המספרים מעוגלים ===== */
+html .kc-root .kc-ohlc, html .kc-root .kc-ctag { font-family: var(--lg-round) !important; font-variant-numeric: tabular-nums !important; }
+html .kc-root .kc-ctag { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important; border-radius: 999px !important; }
+
+/* ===== 31. לחיצה גמישה בשני המסכים: מתכווץ וחוזר בקפיץ ===== */
+html :is(.an-root, .kc-root) :is(button, .an-key, .an-rcard, .an-mtile, .kc-pk, .kc-tcell) { transition: transform .45s var(--lg-spring) !important; }
+html :is(.an-root, .kc-root) :is(button, .kc-pk, .kc-tcell):active { transform: scale(.93) !important; }
+html .an-root :is(.an-key, .an-rcard, .an-mtile):active { transform: scale(.975) !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  html :is(.an-root, .kc-root) :is(button, .an-key, .an-rcard, .an-mtile, .kc-pk, .kc-tcell) { transition: none !important; }
+}
+
 }
 
 /* 17/11/2026 (בקשת המשתמש): חיפוש בטלפון — app.js msOpen. מחוץ לשכבה: מחלקות חדשות, בלי מה לעקוף.

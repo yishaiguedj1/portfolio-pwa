@@ -54,6 +54,25 @@ ok(/\.menu-veil \{[^}]*backdrop-filter: blur\([1-8]px/.test(body), 'מאחורי
 ok(!/\.toast::before/.test(body) && !/✓/.test(body), 'בלי ✓ בהודעה (משמשת גם לשגיאות)');
 ok(/@media \(prefers-reduced-motion: reduce\)/.test(body), 'מכבד הפחתת תנועה');
 
+/* ---------- מנתח החברות וגרף הנרות (17/11/2026) ---------- */
+const acI = body.indexOf('מנתח החברות וגרף הנרות') > -1 ? body : css;
+const acRules = rules.map((r) => r.slice(0, r.indexOf('{')).trim()).filter((sel) => /\.(an|kc)-/.test(sel));
+ok(acRules.length >= 40, 'הסעיפים של הניתוח והגרף בשכבה (' + acRules.length + ' כללים)');
+ok(acRules.every((sel) => sel.split(/,(?![^(]*\))/).every((x) => /^html(\[data-theme="dark"\])? (:is\()?\.(an-root|an-sheet|kc-root)|^html(\[data-theme="dark"\])? :is\(\.an-sheet, \.an-root\)|^html \.an-root|^html :is\(\.an-root, \.kc-root\)/.test(x.trim()))),
+  'כל כלל של הניתוח/הגרף מוגבל ל־.an-root / .an-sheet / .kc-root');
+ok(!/\.ap-[a-z]/.test(css.replace(/-webkit-tap/g, '')), 'בלי מזהי התצוגה המקדימה (html.ap-*) בקובץ');
+for (const k of ['grid', 'axis', 'text', 'label', 'vol', 'font', 'r']) ok(new RegExp('html \\{[^}]*--kc-cv-' + k + ':').test(body), 'טוקן הקנבס --kc-cv-' + k + ' מוגדר');
+for (const k of ['grid', 'axis', 'label']) ok(new RegExp('html\\[data-theme="dark"\\] \\{[^}]*--kc-cv-' + k + ':').test(body), 'טוקן הקנבס --kc-cv-' + k + ' בכהה');
+const cj = R('chart.js');
+const pal = (cj.match(/function palette\(\) \{[\s\S]*?\n\}/) || [''])[0];
+for (const k of ['text', 'grid', 'axis', 'label', 'font']) ok(new RegExp("tk\\('--kc-cv-" + k + "', ").test(pal), 'palette(): ' + k + ' מטוקן, עם ברירת המחדל הקודמת');
+ok(/^\s*font: tk\('--kc-cv-font'/m.test(pal), 'palette(): font בשורה משלו — לא בתוך הערה (עד 17/11 הצירים לא קיבלו את הגופן)');
+ok(/vol: \+css\('--kc-cv-vol'\) \|\| 0\.55/.test(pal) && /upColor: rgba\(p\.up, p\.vol\)/.test(cj), 'עמודות הנפח — מהטוקן, ברירת מחדל 0.55');
+ok((cj.match(/borderRadius: p\.rad \}/g) || []).length === 2, 'תוויות הסמן — רדיוס מהטוקן');
+ok(/'#089981'/.test(pal) && /'#E5E5EA'/.test(pal), 'הפלטות "קלאסי" ו"שחור־לבן" לא השתנו');
+const appS = R('app.js');
+ok(/kcColApp: 'ברירת מחדל'/.test(appS) && /kcColApp: 'Default'/.test(appS), 'שם הפלטה בהגדרות הגרף — "ברירת מחדל" (בנייה נקייה, לא שם של מוצר)');
+
 /* ---------- חיפוש בטלפון (17/11/2026) ---------- */
 const app = R('app.js');
 ok(/<button id="msBtn" class="icon-btn" type="button" data-i18n-aria="msAria"/.test(index), 'index.html: כפתור החיפוש בהדר');
