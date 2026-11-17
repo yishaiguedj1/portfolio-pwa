@@ -1667,11 +1667,19 @@ html[data-app="cashflow"] .login-overlay { background: linear-gradient(160deg, #
 .earn-tone-ic.pos { color: var(--gain); }
 .earn-tone-ic.neg { color: var(--loss); }
 /* 17/11/2026: שורת האות — צפי חיובי/שלילי לדוח הקרוב ועקיפת הצפי */
-.earn-sig { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; margin-top: 4px; min-width: 0; }
+.earn-list > .earn-row { flex-wrap: wrap; row-gap: 0; }
+.earn-sigs { flex: 1 0 100%; display: flex; flex-direction: column; gap: 5px; margin-top: 8px; padding-top: 8px; border-top: .5px solid var(--separator); min-width: 0; }
+.earn-sig { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 .earn-sig .earn-tone { margin-inline-start: 0; }
 .earn-tone.neu { color: var(--on-surface-var); background: color-mix(in srgb, var(--on-surface) 8%, transparent); }
-.earn-fc-v { font-weight: 600; font-variant-numeric: tabular-nums; }
-.earn-beat { font-size: 12px; color: var(--on-surface-var); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.earn-fc-v { font-size: 12px; font-weight: 600; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
+.earn-flag { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: var(--pill); font-size: 11.5px; font-weight: 700; white-space: nowrap; color: var(--warn-fg); background: var(--warn-bg); }
+.esx-sec { margin-top: 12px; padding-top: 10px; border-top: .5px solid var(--card-border); }
+.esx-st { font-size: 13.5px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.esx-st .earn-tone { margin-inline-start: 0; }
+.esx-sec .esx-meta { margin-top: 4px; }
+.esx-flag { font-size: 12.5px; margin-top: 8px; padding: 6px 10px; border-radius: var(--radius-sm); color: var(--on-surface); background: var(--warn-bg); }
+.esx-flag > span { color: var(--warn-fg); }
 .es-x { margin: -4px 0 16px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); }
 .esx-title { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
 .esx-grid { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); column-gap: 12px; row-gap: 8px; align-items: baseline; }
