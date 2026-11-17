@@ -260,7 +260,7 @@ export function normJob(j) {
     link: u.link === true,   // 22/10/2026: מקישור — העובד מוריד; בלי העלאה מהטלפון
     ph: PH_PID_RE.test(String(u.ph || '')) ? u.ph : '',   // 24/10/2026: תרגום בטלפון — Studio לאנדרואיד מעלה (הסרטון נשאר בטלפון)
     dx: u.dx && FID_RE.test(String(u.dx.f || '')) ? { f: u.dx.f, n: String(u.dx.n || '').slice(0, 120), at: num(u.dx.at),   // התוצר נשמר בתיקייה שבחרת ב־Drive
-      j: JOB_RE.test(String(u.dx.j || '')) ? u.dx.j : '', st: ['run', 'ok', 'err'].includes(u.dx.st) ? u.dx.st : 'ok', p: Math.max(0, Math.min(1, +u.dx.p || 0)), e: String(u.dx.e || '').slice(0, 40), mv: u.dx.mv ? 1 : 0 } : null,   // 26/10/2026: שמירה בשרת (j = עבודת dx)
+      j: JOB_RE.test(String(u.dx.j || '')) ? u.dx.j : '', st: ['run', 'ok', 'err'].includes(u.dx.st) ? u.dx.st : 'ok', p: Math.max(0, Math.min(1, +u.dx.p || 0)), e: String(u.dx.e || '').slice(0, 40), mv: u.dx.mv ? 1 : 0, lib: u.dx.lib ? 1 : 0 } : null,   // 26/10/2026: שמירה בשרת (j = עבודת dx)
     tl: normUtl(u.tl) };
   const fp = j.fp && typeof j.fp === 'object' ? { name: String(j.fp.name || '').slice(0, 200), size: num(j.fp.size), lm: num(j.fp.lm) } : null;
   const s = j.srv && typeof j.srv === 'object' ? j.srv : null;
@@ -298,6 +298,7 @@ export function normJob(j) {
     jd: normJudge(s.jd),                      // v375: שופט האיכות
     rvf: normRvf(s.rvf), fil: normFil(s.fil), // סבב 4: סימונים מהביקורת, מילות מילוי
     hs: normHs(s.hs),                         // 16/11/2026: כתוביות צרובות במקור — האזור, ומה בדיקת ההסתרה מצאה
+    lib: s.lib && FID_RE.test(String(s.lib.f || '')) && FID_RE.test(String(s.lib.m || '')) ? { f: s.lib.f, m: s.lib.m, at: num(s.lib.at), home: s.lib.home === 1 ? 1 : 0 } : null,   // 17/11/2026: נשמר בספרייה (התיקייה והמניפסט ב־Drive)
     gl: normGl(s.gl),                         // v380: זיכרון המונחים
     nt: normNote(s.nt),                       // v382: הערה לעובד
     sla: normSla(s.sla),                      // v377: יעדי זמן ותקציב
@@ -2399,7 +2400,7 @@ const viJob = (id) => !!(store && store.jobs && store.jobs.some((r) => r && r.id
    דפי המשנה שלו) החוגה כולה ירדה. עכשיו המגדל אח בחוגה: ההורה = הבית, כמו הקריוקי והעבודה */
 export function chainFor(v, p) {
   if ((v === 'lang' && p !== 'def') || v === 'tracks' || v === 'link' || v === 'linkfmt' || v === 'linksec' || v === 'fmthelp' || v === 'grab' || v === 'cutsrc' || v === 'dpick') { v = 'new'; p = form && form.ka ? 'ka' : form && form.vi ? 'vi' : null; }   // הטופס (והקובץ) לא שורדים רענון; 30/10: טופס של שיר — תחת הקריוקי
-  const parent = (x, y) => (x === stRoot() ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : x === 'tower' || x === 'act' || x === 'home' || x === 'ka' || x === 'vi' || x === 'settings' ? [stRoot(), null] : (x === 'lang' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push' || x === 'credits') ? ['settings', null] : x === 'gloss' || x === 'series' ? ['rules', null] : x === 'ser' ? ['series', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : x === 'vids' ? (vidsParent(y) || ['store', null]) : x === 'kasty' ? ['new', 'ka'] : (x === 'new' && y === 'ka') || (x === 'job' && kaJob(y)) ? ['ka', null] : (x === 'new' && y === 'vi') || (x === 'job' && viJob(y)) ? ['vi', null] : ['home', null]);   // 10/11/2026: ניתוח — תחת לשונית הניתוח   // 30/10: שיר — תחת הקריוקי
+  const parent = (x, y) => (x === stRoot() ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : x === 'tower' || x === 'act' || x === 'lib' || x === 'home' || x === 'ka' || x === 'vi' || x === 'settings' ? [stRoot(), null] : (x === 'lang' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push' || x === 'credits') ? ['settings', null] : x === 'gloss' || x === 'series' ? ['rules', null] : x === 'ser' ? ['series', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : x === 'litem' ? ['lib', null] : x === 'vids' ? (vidsParent(y) || ['store', null]) : x === 'kasty' ? ['new', 'ka'] : (x === 'new' && y === 'ka') || (x === 'job' && kaJob(y)) ? ['ka', null] : (x === 'new' && y === 'vi') || (x === 'job' && viJob(y)) ? ['vi', null] : ['home', null]);   // 10/11/2026: ניתוח — תחת לשונית הניתוח   // 30/10: שיר — תחת הקריוקי
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -2407,7 +2408,8 @@ export function chainFor(v, p) {
 
 function leaving() {              // יציאה מדף: המפתח שהודבק באשף לא נשאר בזיכרון
   if (ui.view === 'play') playClose();   // מ1: הנגן נעצר ומשחרר את הסרטון
-  if (ui.view === 'job') vaClose();       // PR 1.5ב: דף הניתוח — המקום נשמר, הנגן נעצר, תמונות השקפים משוחררות
+  if (ui.view === 'job') vaClose();
+  if (ui.view === 'litem') lpStop();   // 17/11/2026: הנגן של פריט בספרייה       // PR 1.5ב: דף הניתוח — המקום נשמר, הנגן נעצר, תמונות השקפים משוחררות
   if (ui.view === 'subs') seStop();      // מ2: הנגן של העורך נעצר; העריכה נשארת בזיכרון
   if (ui.view === 'cut' || ui.view === 'cutsrc') ceStop();   // מ4–מ5: החיתוך עצמו נשמר (rrEdl / form.edl)
   if (ui.view === 'sty') syStop();   // סבב 5: העיצוב עצמו נשמר (rrOpt.sty / ההגדרות)
@@ -2495,10 +2497,11 @@ function onPop(e) {
    בלי "החלקה קצרה" לטאבים (בקשת המשתמש) — פרטים · ציר · קשורות רק בלחיצה.
    29/10/2026 (בקשת המשתמש): החוגה של Invest אחד לאחד, באדום — מימין לשמאל: הגדרות · העבודות (הבית, במרכז) · העבודה
    (הפעילה, ואם אין — האחרונה שהסתיימה) · מגדל הפיקוח. מה שמחוץ לחוגה ממופה לאח שלו (stKeyOf) */
-const ST_SIB = ['ka', 'home', 'vi', 'job', 'tower'];   // 10/11/2026 (בקשת המשתמש): הניתוח במרכז ועמוד הבית; מימינו התרגום ומימין לו הקריוקי (מי שלא רואה אותו — החוגה של היום)
+const ST_SIB = ['ka', 'home', 'vi', 'job', 'lib', 'tower'];   // 17/11/2026: הספרייה — בין "העבודה" למגדל
+   // 10/11/2026 (בקשת המשתמש): הניתוח במרכז ועמוד הבית; מימינו התרגום ומימין לו הקריוקי (מי שלא רואה אותו — החוגה של היום)
 /* עמוד הבית: הניתוח כשהלשונית זמינה, אחרת התרגום. השורש של כל השרשראות (chainFor), ההחלקה והפתיחה */
 const stRoot = () => (viTabOk() ? 'vi' : 'home');
-const ST_NOSWIPE = ['play', 'subs', 'cut', 'cutsrc', 'tracks', 'dpick', 'vids', 'link', 'linkfmt', 'linksec', 'fmthelp', 'grab', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr'];   // עורכים, נגן וטפסים — בלי
+const ST_NOSWIPE = ['play', 'subs', 'cut', 'cutsrc', 'tracks', 'dpick', 'vids', 'link', 'linkfmt', 'linksec', 'fmthelp', 'grab', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr', 'litem'];   // עורכים, נגן וטפסים — בלי
 const ST_TAB_KEYS = ['d', 't', 'r'];
 let swipePop = 0;
 let stDialJ = '';                 // העבודה שהחוגה פתחה — נשארת "העבודה" גם כשאחרת נעשית פעילה
@@ -2506,11 +2509,12 @@ function stDialJob() {            // הפעילה (בתור / רצה / בהעל�
   const on = store.jobs.find((r) => r && r.srv && !FINAL.includes(r.srv.state) && (r.srv.state !== 'new' || r.up.started));
   return on ? { rec: on, on: true } : (() => { const d = store.jobs.find((r) => r && r.srv && r.srv.state === 'done'); return d ? { rec: d, on: false } : null; })();
 }
-function stDialKeys() { const j = stDialJob() || ui.view === 'act' || (stDialJ && ui.view === 'job' && ui.param === stDialJ); return ST_SIB.filter((k) => (k !== 'job' || j) && (k !== 'ka' || kaOk()) && (k !== 'vi' || viTabOk())); }
+function stDialKeys() { const j = stDialJob() || ui.view === 'act' || (stDialJ && ui.view === 'job' && ui.param === stDialJ); return ST_SIB.filter((k) => (k !== 'job' || j) && (k !== 'ka' || kaOk()) && (k !== 'vi' || viTabOk()) && (k !== 'lib' || libTabOk())); }
 function stKeyOf(v, p) {          // לאיזה פריט בחוגה שייך הדף
   if (v === 'act') return 'job';   // 17/11/2026: "פעילה" = עמוד העבודות הפעילות
   const ch = chainFor(v, p);
   if (ch.some((x) => x.v === 'tower')) return 'tower';
+  if (ch.some((x) => x.v === 'lib')) return 'lib';
   const j = ch.find((x) => x.v === 'job'), dj = stDialJob();
   if (j && (j.p === stDialJ || (dj && dj.rec.id === j.p))) return 'job';   // "העבודה" — משותפת לשני הכלים
   const sib = ch.slice().reverse().find((x) => x.v === 'ka' || x.v === 'vi' || x.v === 'home');   // העמוק מביניהם (השורש בכל שרשרת)
@@ -2570,6 +2574,7 @@ const ST_DIAL_ICO = {
   tower: '<path d="M9.2 21l.9-8.5h3.8l.9 8.5M7 21h10M6.5 8.5h11l-1.6 4h-7.8zM12 8.5V4.5M9.8 4.5h4.4"/>',
   ka: '<circle cx="8.5" cy="17.5" r="3"/><path d="M11.5 17.5V3.5c0 2.6 4.8 3.4 4.8 7.2"/>',
   vi: '<rect x="3" y="4" width="18" height="12.5" rx="2.5"/><path d="M12 16.5V20M8.5 20h7M7 8.5h5M7 12h3"/><circle cx="15.6" cy="10" r="2.2"/><path d="M17.2 11.6l1.5 1.5"/>',   // 10/11/2026: ניתוח — לוח הרצאה וזכוכית מגדלת
+  lib: '<path d="M4 4.5v15M8 4.5v15"/><path d="M11.5 5.2l3.6-.9 3.9 15-3.6.9z"/>',   // 17/11/2026: הספרייה — מדף (שני כרכים וספר נטוי)
 };
 let dialNav = null, dialPrev = null, stDialC = null;
 function stDialNav() {
@@ -2578,7 +2583,7 @@ function stDialNav() {
     { k: 'ka', ico: ST_DIAL_ICO.ka, lbl: T('studioDialKa') },
     { k: 'home', ico: ST_DIAL_ICO.home, lbl: T('studioDialHome') },
     { k: 'vi', ico: ST_DIAL_ICO.vi, lbl: T('studioDialVi') },
-    { k: 'job', ico: ST_DIAL_ICO.job, lbl: T('studioDialLast') }, { k: 'tower', ico: ST_DIAL_ICO.tower, lbl: T('studioDialTower') },
+    { k: 'job', ico: ST_DIAL_ICO.job, lbl: T('studioDialLast') }, { k: 'lib', ico: ST_DIAL_ICO.lib, lbl: T('studioDialLib') }, { k: 'tower', ico: ST_DIAL_ICO.tower, lbl: T('studioDialTower') },
   ], stDialTo);
   return dialNav;
 }
@@ -2909,7 +2914,7 @@ function rowOut(rec, o) {
   } else { a.href = 'https://drive.google.com/file/d/' + o.id + '/view'; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
   a.append(tile(isTextOut(o.k) ? 'globe' : 'film', isTextOut(o.k) ? 'blue' : 'green'), rowTxt(outShort(o.k), o.size ? fmtSize(o.size) : ''));
   const sh = isTextOut(o.k) || o.k === 'small';   // סבב 8: העותק לוואטסאפ — שיתוף, לא הורדה
-  const dx = !sh && driveOk();                     // סרטון — שמירה ב־Drive
+  const dx = false;                                // 17/11/2026: השמירה ב־Drive — "הוספה לספרייה" (העבודה כולה), לא קובץ לבד
   const b = btn('st-outb', null, () => (dx ? goVids('O:' + rec.id + ':' + o.id) : shareOut(rec, o)), (dx ? 'out-dx:' : 'out-sh:') + o.k);
   b.setAttribute('aria-label', (sh ? T('studioOutShare') : dx ? T('studioOutDx') : T('studioOutDown')) + ' · ' + outShort(o.k));
   b.append(ico(sh ? 'share' : dx ? 'cloud' : 'down'));
@@ -5869,7 +5874,7 @@ async function dxTick() {
     const d = r.up.dx;
     if (!x.ok || !x.job) { if (x.error === 'not_found') { d.st = 'err'; d.e = 'gone'; } continue; }
     const s = String(x.job.state || '');
-    if (s === 'done') { d.st = 'ok'; d.at = Date.now(); d.p = 1; flashSafe(T('studioDxDone', { n: d.n })); }
+    if (s === 'done') { d.st = 'ok'; d.at = Date.now(); d.p = 1; flashSafe(d.lib ? T('studioLibDone') : T('studioDxDone', { n: d.n })); if (d.lib) { lb.st = ''; const pj = await net.api('job', { job: r.id }).catch(() => null); if (pj && pj.ok && pj.job) r.srv = normJob({ id: r.id, srv: pj.job }).srv; } }   // עבודה אחת (לא op:'jobs' — מכסת Firestore)
     else if (s === 'failed' || s === 'cancelled') { d.st = 'err'; d.e = String(x.job.err || 'failed').slice(0, 40); flashSafe(T('studioDxFail')); }
     else d.p = Math.max(0, Math.min(1, +(x.job.prog && x.job.prog.p) || 0));
   }
@@ -5945,6 +5950,201 @@ function pageVids(p) {
     foot.append(where, go1);
     p.append(foot);
   }
+}
+
+/* ---------------- ספריית הסרטונים ב־Google Drive שלך (17/11/2026, בקשת המשתמש — docs/studio-library-research.md) ----------------
+   פריט בספרייה = תיקייה ב"הסרטונים שלי" עם project.snb.json (snbRole=m) שהעובד כותב אחרון, אחרי שכל קובץ נבדק (md5 מול Drive).
+   ההוספה רק ידנית ("הוספה לספרייה" בדף העבודה → עבודת dx עם lib:1 — הסרטון לא עובר בטלפון). מה שנשמר — רק ב־Drive שלך
+   (drive.file). כשהעותק ב־R2 פג (21 יום), השרתון מחליף בעבודה את המזהים לקבצים בספרייה (libSwap) — הנגן, העורכים וההפקה מחדש
+   ממשיכים. כל עוד העבודה קיימת — מנגנים ממנה (R2 עדיף: איכויות צפייה); אחרת — מהמניפסט */
+const LIB_KINDS = ['', 'tr', 'ka', 'vi'];
+const lb = { st: '', items: [], old: [], k: '', quota: null, seq: 0, busy: false, man: new Map() };
+const lbPaint = () => { if (root && (ui.view === 'lib' || ui.view === 'litem')) render('none'); };
+const libTabOk = () => driveOk();
+/* המניפסט כמו שהעובד כותב אותו (translator/job.py lib_manifest) — רק השדות המוכרים, בגבולות */
+export function normLibMan(m) {
+  if (!m || typeof m !== 'object' || m.v !== 1) return null;
+  const lang = (x) => (/^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(String(x || '')) ? String(x) : '');
+  const f = (Array.isArray(m.f) ? m.f.slice(0, 16) : []).filter((x) => x && FID_RE.test(String(x.id || '')) && !isR2Id(String(x.id)))
+    .map((x) => ({ r: ['v', 'a', 'b', 's', 'p', 'x'].includes(x.r) ? x.r : 'x', k: String(x.k || '').slice(0, 20), n: String(x.n || '').slice(0, 200), id: String(x.id), s: num(x.s) }));
+  if (!f.length) return null;
+  return { job: JOB_RE.test(String(m.job || '')) ? String(m.job) : '', t: String(m.t || '').slice(0, 120), k: LIB_KINDS.includes(m.k) && m.k ? m.k : 'tr',
+    fr: lang(m.fr), to: (Array.isArray(m.to) ? m.to : []).map(lang).filter(Boolean).slice(0, 4), d: Math.max(0, Math.min(86400, num(m.d))),
+    ch: (Array.isArray(m.ch) ? m.ch.slice(0, 60) : []).filter((c) => c && Number(c.t) >= 0 && Number(c.t) <= 86400 && typeof c.n === 'string' && c.n).map((c) => ({ t: num(c.t), n: c.n.slice(0, 100) })),
+    at: num(m.at), f };
+}
+async function lbLoad() {
+  const seq = ++lb.seq;
+  lb.busy = true; lbPaint();
+  try {
+    const [r, o] = await Promise.all([net.libList(), net.libList({ old: true }).catch(() => ({ files: [] }))]);
+    if (seq !== lb.seq) return;
+    const fresh = r.files.filter((x) => !lb.man.has(x.id + ':' + x.at));
+    for (let i = 0; i < fresh.length; i += 6) {   // שש בכל פעם — לא מאה בקשות במקביל
+      await Promise.all(fresh.slice(i, i + 6).map((x) => net.driveJson(x.id).then((j) => lb.man.set(x.id + ':' + x.at, normLibMan(j))).catch(() => lb.man.set(x.id + ':' + x.at, null))));
+      if (seq !== lb.seq) return;
+    }
+    lb.items = r.files.map((x) => ({ id: x.id, folder: x.parent, at: x.at, m: lb.man.get(x.id + ':' + x.at) })).filter((x) => x.m);
+    lb.old = o.files.filter((x) => /^video\//.test(x.type));
+    lb.st = 'ok';
+    net.driveQuota().then((q) => { if (seq === lb.seq) { lb.quota = q; lbPaint(); } }).catch(() => {});
+  } catch (e) {
+    if (seq !== lb.seq) return;
+    const c = e && e.code;
+    lb.st = c === 'not_connected' || c === 'revoked' || c === 'not_allowed' ? 'conn' : lb.st === 'ok' ? 'ok' : 'err';
+  } finally { if (seq === lb.seq) { lb.busy = false; lbPaint(); } }
+}
+const lbKindT = (k) => (k === 'ka' ? T('studioLibKKa') : k === 'vi' ? T('studioLibKVi') : T('studioLibKTr'));
+function lbRow(x) {
+  const m = x.m;
+  const sub = [lbKindT(m.k), m.d ? fmtDur(m.d) : '', (m.fr && m.to.length ? m.fr + '→' + m.to.join(',') : ''), fmtDay(m.at || x.at)].filter(Boolean).join(' · ');
+  return rowNav({ tile: tile(m.k === 'ka' ? 'note' : m.k === 'vi' ? 'lect' : 'film', m.k === 'ka' ? 'purple' : m.k === 'vi' ? 'teal' : 'green'), label: m.t || T('studioUntitled'), sub, onClick: () => go('litem', x.id), k: 'lib:' + x.id });
+}
+function lbMeter() {
+  const q = lb.quota;
+  if (!q || !q.limit) return null;
+  const f = Math.max(0, Math.min(1, q.used / q.limit));
+  const w = h('div', 'st-lib-meter' + (f > 0.9 ? ' hi' : ''));
+  const bar = h('span', 'st-lib-bar'); const fill = h('i'); fill.style.inlineSize = (f * 100).toFixed(1) + '%'; bar.append(fill);
+  w.append(bar, h('small', null, T('studioLibStore', { u: fmtSize(q.used), l: fmtSize(q.limit) })));
+  return w;
+}
+function pageLib(p) {
+  p.append(navBar({ back: T('studioBack'), title: T('studioLibT'), coll: true }), large(T('studioLibT')));
+  if (!driveOk()) { p.append(h('div', 'st-empty st-empty-sm', T('studioDriveNoCfg'))); return; }
+  if (!store.drive || !store.drive.connected || lb.st === 'conn') {
+    p.append(h('div', 'st-empty st-empty-sm', T('studioLibConnT')));
+    const b = btn('st-btn wide', ui.driveBusy ? T('studioDriveBusy') : T('studioDriveConnect'), connectDrive, 'lib-conn'); b.disabled = !!ui.driveBusy;
+    p.append(b);
+    return;
+  }
+  if (!lb.st && !lb.busy) lbLoad();
+  const seg = h('div', 'st-seg st-lib-seg'); seg.setAttribute('role', 'tablist');
+  for (const k of LIB_KINDS) {
+    const on = lb.k === k;
+    const b = btn('st-seg-b' + (on ? ' on' : ''), k ? lbKindT(k) : T('studioLibAll'), () => { lb.k = k; lbPaint(); }, 'lib-k:' + (k || 'all'));
+    b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', on ? 'true' : 'false');
+    seg.append(b);
+  }
+  p.append(seg);
+  if (lb.st === 'err' && !lb.items.length) { p.append(h('div', 'st-empty st-empty-sm', T('studioLibErr')), btn('st-btn wide', T('studioLibRetry'), lbLoad, 'lib-retry')); return; }
+  if (!lb.st) { p.append(h('div', 'st-empty st-empty-sm', T('studioPlLoading'))); return; }
+  const its = lb.items.filter((x) => !lb.k || x.m.k === lb.k);
+  if (its.length) p.append(list(...its.map(lbRow)));
+  else if (!lb.old.length || lb.k) p.append(h('div', 'st-empty st-empty-sm', T('studioLibEmpty')));
+  if (lb.old.length && !lb.k) {
+    p.append(secT(T('studioLibOld')), list(...lb.old.slice(0, 50).map((x) => {
+      const a = rowExt({ href: x.url || 'https://drive.google.com/file/d/' + x.id + '/view', tile: tile('film', 'gray'), label: fileTitle(x.name), sub: [T('studioLibOldS'), x.size ? fmtSize(x.size) : ''].filter(Boolean).join(' · '), k: 'libo:' + x.id });
+      return a;
+    })));
+  }
+  const mt = lbMeter(); if (mt) p.append(mt);
+}
+/* ---- פריט בספרייה ---- */
+let lp = null;   // { id, st, ctl, err }
+function lpStop() { if (lp && lp.ctl) { lp.ctl.destroy(); lp.ctl = null; } if (lp && lp.url) lp.url = ''; lp = null; }
+const lbItem = (id) => lb.items.find((x) => x.id === id) || null;
+async function lpLoad(it) {
+  const me = lp, m = it.m;
+  try {
+    const of = (r, k) => m.f.find((x) => x.r === r && (!k || x.k === k));
+    const v = of('v'), b = of('b', 'compact') || of('b', 'same') || of('b', 'small') || of('b');
+    const co = of('s', 'cues'), so = of('s', 'srt');
+    let cues = co ? normCues(await net.driveJson(co.id).catch(() => null)) : [];
+    if (!cues.length && so) cues = normCues(parseSrt(await net.driveText(so.id)));
+    if (lp !== me) return;
+    const src = v ? net.mediaUrl(v.id) : '', fb = b ? net.mediaUrl(b.id) : '';
+    if (!src && !fb) { me.st = 'err'; me.err = 'nosw'; lbPaint(); return; }
+    me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: [], T,
+      chapters: normChapters(m.ch.map((c) => ({ t: c.t, title: c.n })), m.d), pref: store.settings.pt, onPref: ptSave });
+    me.st = 'ok';
+  } catch (e) { if (lp !== me) return; me.st = 'err'; me.err = (e && e.code) || 'drive'; }
+  lbPaint();
+}
+const libRoleT = (r) => (r === 'v' ? T('studioLibRv') : r === 'a' ? T('studioLibRa') : r === 'b' ? T('studioLibRb') : r === 's' ? T('studioLibRs') : r === 'p' ? T('studioLibRp') : T('studioLibRx'));
+function pageLibItem(p) {
+  const it = lbItem(ui.param);
+  if (!it) {   // רענון בדף — הרשימה נטענת, ואז הדף מצויר שוב
+    p.append(navBar({ back: T('studioLibT') }));
+    if (lb.st === 'ok' && !lb.busy) { back(); return; }
+    if (!lb.busy) lbLoad();
+    p.append(h('div', 'st-empty st-empty-sm', T('studioPlLoading')));
+    return;
+  }
+  const m = it.m, rec = m.job ? jobRec(m.job) : null, live = !!(rec && canPlay(rec));
+  p.append(navBar({ back: T('studioLibT'), title: m.t || T('studioUntitled') }));
+  if (live) {
+    const hero = h('div', 'st-lib-hero');
+    const t = h('h2', 'st-lib-t'); const tb = h('bdi', null, m.t || T('studioUntitled')); tb.dir = 'auto'; t.append(tb);
+    hero.append(t, h('small', null, [lbKindT(m.k), m.d ? fmtDur(m.d) : ''].filter(Boolean).join(' · ')), btn('st-btn in-card', T('studioPlWatch'), () => go('play', rec.id), 'lib-play'));
+    p.append(hero);
+  } else {
+    p.classList.add('st-dark');
+    if (!lp || lp.id !== it.id) { lpStop(); lp = { id: it.id, st: 'load', ctl: null, err: '' }; lpLoad(it); }
+    if (lp.st === 'load') p.append(h('div', 'st-pl-ph', T('studioPlLoading')));
+    else if (lp.st === 'err') p.append(h('div', 'st-empty st-empty-sm', lp.err === 'nosw' ? T('studioPlNoSw') : T('studioPlLoadErr')));
+    else p.append(lp.ctl.el);
+  }
+  if (m.ch.length && live) {
+    p.append(secT(T('studioLibCh')), list(...m.ch.map((c, i) => {
+      const r = h('div', 'st-row st-ric'); const tm = h('span', 'st-pl-tm'); tm.append(h('bdi', null, fmtT(c.t)));
+      r.append(tm, rowTxt(c.n, '')); r.dataset.k = 'lch:' + i;
+      return r;
+    })));
+  }
+  p.append(secT(T('studioLibFiles')), list(...m.f.map((f) => rowExt({ href: 'https://drive.google.com/file/d/' + f.id + '/view', tile: tile(f.r === 's' ? 'globe' : 'film', f.r === 's' ? 'blue' : 'green'),
+    label: libRoleT(f.r), sub: [fileTitle(f.n), f.s ? fmtSize(f.s) : ''].filter(Boolean).join(' · '), k: 'lf:' + f.id }))));
+  p.append(list(
+    rec ? rowNav({ tile: tile('edit', 'blue'), label: T('studioLibOpen'), sub: T('studioLibOpenS'), onClick: () => go('job', rec.id), k: 'lib-job' }) : null,
+    it.folder ? rowExt({ href: 'https://drive.google.com/drive/folders/' + it.folder, tile: tile('cloud', 'teal'), label: T('studioLibDrive'), k: 'lib-drive' }) : null,
+    it.folder ? btn('st-row st-act st-vl-danger', T('studioLibDel'), () => lbDel(it), 'lib-del') : null));
+}
+function lbDel(it) {
+  const go2 = async () => {
+    try { await net.driveTrash(it.folder); lb.items = lb.items.filter((x) => x.id !== it.id); flashSafe(T('studioVidsDelDone')); back(); }
+    catch (e) { flashSafe(T('studioVidsErr')); }
+  };
+  if (typeof askConfirm === 'function') askConfirm(T('studioLibDelQ', { n: it.m.t || T('studioUntitled') }), go2, { danger: true, ok: T('studioLibDel') });
+  else go2();
+}
+/* ---- "הוספה לספרייה" בדף העבודה (במקום "הסרטונים שלי") ---- */
+let libBusy = '';
+const libLang = (x) => (/^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(String(x || '')) ? String(x) : '');
+/* מה נשמר: כל התוצרים שב־R2 (הסרטונים הצרובים, הכתוביות וקבצי העזר של הנגן והעורך) והמקור — השרתון בודק כל מזהה (libIds) */
+export function libItems(rec) {
+  const outs = ((rec && rec.srv && rec.srv.out) || []).filter((o) => isR2Id(o.id));
+  const it = outs.map((o) => ({ id: o.id, n: OUT_MAIN.includes(o.k) ? outDlName(rec, o) : (fileTitle(rec.spec.name) || 'video') + '.' + o.k + '.json' }));
+  const fv = rec && rec.srv && rec.srv.fv;
+  if (fv && isR2Id(fv) && !srcGone(rec)) it.unshift({ id: fv, n: (fileTitle(rec.spec.name) || 'video') + ' (' + T('studioLibRv') + ')' + ((/\.[A-Za-z0-9]{2,4}$/.exec(rec.spec.name || '') || ['.mp4'])[0]) });
+  return it.slice(0, 16);
+}
+export function libMeta(rec) {
+  const sp = rec.spec || {};
+  return { t: (fileTitle(sp.name) || '').slice(0, 120), k: sp.ka ? 'ka' : sp.vi ? 'vi' : 'tr', fr: libLang(sp.from), to: (sp.to || []).map(libLang).filter(Boolean).slice(0, 4),
+    d: Math.max(0, Math.round(Number(sp.dur) || 0)), ch: (rec.chap || []).slice(0, 60).map((c) => ({ t: Math.max(0, Math.round(Number(c.t) || 0)), n: String(c.title || '').slice(0, 100) })).filter((c) => c.n) };
+}
+async function libAdd(rec) {
+  if (libBusy === rec.id || (rec.up.dx && rec.up.dx.st === 'run')) return;
+  const it = libItems(rec);
+  if (!it.length) return;
+  libBusy = rec.id; repaint();
+  try {
+    const r0 = await net.vidsRoot(T('studioVidsRoot'));
+    const f = await net.vidsSub(r0, vlCleanName(fileTitle(rec.spec.name)) || 'video');
+    const j = await net.api('dxRun', { job: rec.id, dx: { f: f.id, n: f.name, lib: 1, m: libMeta(rec), it } });
+    if (!j.ok || !j.job) { flashSafe(j.error === 'dx_busy' ? T('studioDxBusy') : errText(j.error)); return; }
+    const k = await startSub(j.job.id);
+    if (!k.ok) { flashSafe(errText(k.error)); return; }
+    rec.up.dx = { f: f.id, n: f.name.slice(0, 120), at: 0, j: j.job.id, st: 'run', p: 0, e: '', lib: 1 };
+    save(); uxAdd(rec, 'o', 'dx'); dxKick();
+  } catch (e) { flashSafe(T('studioLibFail')); }
+  finally { libBusy = ''; repaint(); }
+}
+function libRow(rec) {
+  const d = rec.up.dx, lv = rec.srv && rec.srv.lib, run = libBusy === rec.id || (d && d.lib && d.st === 'run');
+  if (lv) return rowNav({ tile: tile('folder', 'green'), label: T('studioLibIn'), sub: T('studioLibInS'), onClick: () => { lb.st = ''; go('litem', lv.m); }, k: 'lib-in' });
+  const sub = run ? (d && d.st === 'run' ? T('studioLibRun', { p: Math.round((d.p || 0) * 100) }) : T('studioDxBusy')) : d && d.lib && d.st === 'err' ? T('studioLibFail') : T('studioLibAddS');
+  return rowNav({ tile: tile('folder', 'blue'), label: T('studioLibAdd'), sub, onClick: () => (run ? null : libAdd(rec)), k: 'lib-add' });
 }
 
 function pageLang(p) {
@@ -9776,7 +9976,7 @@ function pageJob(p) {
     canEdit(rec) ? rowNav({ tile: tile('edit', 'blue'), label: T('studioSeTitle'), sub: rec.srv.ev ? T('studioSeEdited', { n: rec.srv.ev }) : '', onClick: () => go('subs', id), k: 'subs' }) : null,   // מ2
     canEdit(rec) ? rrRow(rec, 'rr') : null,
     canEdit(rec) ? rowNav({ tile: tile('spark', 'teal'), label: T('studioIdTitle'), sub: T('studioIdSub'), onClick: () => go('ideas', id), k: 'ideas' }) : null,   // מ8
-    driveOk() && outs.some((o) => DX_MOVE.includes(o.k) || o.k === 'srt') ? dxRow(rec) : null,   // 26/10/2026: ״הסרטונים שלי״ ב־Drive   // התוצר לתיקייה שבחרת ב־Drive
+    driveOk() && libItems(rec).length ? libRow(rec) : null,   // 17/11/2026: "הוספה לספרייה" (במקום "הסרטונים שלי")   // 26/10/2026: ״הסרטונים שלי״ ב־Drive   // התוצר לתיקייה שבחרת ב־Drive
     jobFolder(rec) && !isR2Folder(jobFolder(rec)) ? rowExt({ href: 'https://drive.google.com/drive/folders/' + jobFolder(rec), tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
     outs.some((o) => o.k === 'srt') ? rowNav({ tile: tile('copy', 'orange'), label: T('studioAcRow'), sub: T('studioAcRowS'), onClick: () => sendToAcademy(rec), k: 'academy' }) : null,   // Academy Pro גל 6 (C12)
     btn('st-row st-act', T('studioRcpt'), () => shareReceipt(rec), 'receipt')));   // שלב 4: קבלה
@@ -10145,7 +10345,7 @@ function pageStore(p) {
   drow.append(tile('cloud', 'blue'), dl);
   const drows = [drow];
   if (!dr || !dr.connected) { const b = btn('st-row st-act', ui.driveBusy ? T('studioDriveBusy') : T('studioDriveConnect'), connectDrive, 'drive-connect'); b.disabled = ui.driveBusy || blocked(); drows.push(b); }
-  if (dr && dr.connected) drows.push(rowNav({ tile: tile('folder', 'blue'), label: T('studioVidsT'), sub: T('studioVidsRowS'), onClick: () => goVids(''), k: 'vids' }));   // 26/10/2026
+  if (dr && dr.connected) drows.push(rowNav({ tile: tile('folder', 'blue'), label: T('studioLibT'), sub: T('studioLibRowS'), onClick: () => go('lib'), k: 'lib' }));   // 17/11/2026: הספרייה (במקום "הסרטונים שלי")
   p.append(setCard(T('studioSecDrive'), list(...drows), note(T('studioDriveNote'))));
   p.append(setCard(T('studioSecUpload'), list(
     rowSwitch({ label: T('studioWifiOnly'), sub: typeKnown() ? T('studioWifiOnlyS') : T('studioWifiUnknown'), on: s.wifi, onClick: () => { s.wifi = !s.wifi; save(); render('none'); }, k: 'wifi' }))));
@@ -10715,7 +10915,9 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   else if (ui.view === 'tracks') pageTracks(p);      // שלב 4: כתוביות בתוך הסרטון
   else if (ui.view === 'link') pageLink(p);          // 22/10/2026: הורדה מקישור
   else if (ui.view === 'dpick') pageDrivePick(p);    // 26/10/2026: סרטון מ־Drive — הרשימה שלנו
-  else if (ui.view === 'vids') pageVids(p);          // 26/10/2026: ״הסרטונים שלי״ ב־Drive
+  else if (ui.view === 'vids') pageVids(p);
+  else if (ui.view === 'lib') pageLib(p);            // 17/11/2026: ספריית הסרטונים ב־Drive
+  else if (ui.view === 'litem') pageLibItem(p);          // 26/10/2026: ״הסרטונים שלי״ ב־Drive
   else if (ui.view === 'linkfmt') pageLinkFmt(p);
   else if (ui.view === 'linksec') pageLinkSec(p);
   else if (ui.view === 'fmthelp') pageFmtHelp(p);
