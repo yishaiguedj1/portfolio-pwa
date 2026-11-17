@@ -326,7 +326,7 @@ class Boost(unittest.TestCase):
             J.LADDER_DIR = old
             shutil.rmtree(d, ignore_errors=True)
 
-    @unittest.skipUnless(hasattr(os, 'SCHED_IDLE') and sys.platform.startswith('linux'), 'לינוקס בלבד')
+    @unittest.skipUnless(FF and hasattr(os, 'SCHED_IDLE') and sys.platform.startswith('linux'), 'לינוקס עם ffmpeg בלבד')   # run_case מריץ ffmpeg אמיתי — כמו שאר הבדיקות בקובץ
     def test_boost_whole_group(self):
         import resource
         hard = resource.getrlimit(resource.RLIMIT_NICE)[1]
