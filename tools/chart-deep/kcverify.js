@@ -7,7 +7,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { chromium } = require(process.env.PW_PATH || 'playwright');
+const playwright = () => require(process.env.PW_PATH || 'playwright');   // רק בהרצה — הבדיקה (chart-deep.test.js) טוענת את הקובץ בלי דפדפן, וב־CI אין playwright
 const { loadLib } = require('./model.js');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -56,7 +56,7 @@ async function main() {
   const sym = String(arg('sym', 'AAPL'));
   const { L, TF } = loadLib();
   const log = [];
-  const browser = await chromium.launch();
+  const browser = await playwright().chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, locale: 'he-IL', timezoneId: 'Asia/Jerusalem' });
   const page = await ctx.newPage();
   await page.addInitScript(() => {   // כל מופע של KLineChart נשמר ב־window.__kcs
