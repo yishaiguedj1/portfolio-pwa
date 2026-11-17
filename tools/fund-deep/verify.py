@@ -130,6 +130,8 @@ NOT_DEBT_TAG = re.compile(r'OtherThanLong|^Capitalization|^EquityAndLongTermDebt
 INCL_RE = re.compile(r',?\s*\(?(including|includes|net of)\b.*$', re.I)
 # תגית של חוב, אבל התווית — ספקים / מימון ספקים (Mosaic: ‏ShortTermBankLoansAndNotesPayable "Structured accounts payable arrangements")
 # השאלת ניירות ערך / הסכמי רכש חוזר — לא חוב גם בתגית של secured borrowings (Aflac 2026: "Payables under securities lending and repurchase agreements")
+# "Commercial paper and repurchase agreement" (Apple ‏10-Q ‏2020) — הלוואות לזמן קצר, חוב (גל 2, ‏F12)
+CP_RE = re.compile(r'commercial paper', re.I)
 PAYABLE_LAB = re.compile(r'accounts payable|structured payables?|supplier financ|trade payables?|securities lending|repurchase agreements?', re.I)
 DEBT_EXCL = re.compile(r'operating lease|interest payable|accrued|accounts payable|deferred|debt securities|held.for.sale|derivative|due to (related|affiliat)|guarantee|total liabilities|liabilities of|customer|deposits|payable to|insurance|policy|unearned|pension|tax|dividend|issuance cost', re.I)
 LEASE_RE = re.compile(r'finance lease|capital lease', re.I)
@@ -426,7 +428,7 @@ def debt_row(tag, lab):
         return False
     lab = INCL_RE.sub('', lab)
     txt = tag + ' ' + lab
-    if (DEBT_EXCL.search(txt) and tag not in DEBT_ALL) or PAYABLE_LAB.search(lab):
+    if (DEBT_EXCL.search(txt) and tag not in DEBT_ALL) or (PAYABLE_LAB.search(lab) and not CP_RE.search(lab)):
         return False
     if tag in LEASE_FIN or (LEASE_RE.search(lab) and not DEBT_RE.search(LEASE_RE.sub('', lab))):
         return False
@@ -658,7 +660,7 @@ class Co:
             if a0 and pos <= a0:
                 continue
             txt = tag + ' ' + lab
-            if NOT_DEBT_TAG.search(tag) or (DEBT_EXCL.search(txt) and tag not in DEBT_ALL) or PAYABLE_LAB.search(lab):
+            if NOT_DEBT_TAG.search(tag) or (DEBT_EXCL.search(txt) and tag not in DEBT_ALL) or (PAYABLE_LAB.search(lab) and not CP_RE.search(lab)):
                 continue
             if tag in LEASE_FIN or (LEASE_RE.search(lab) and not DEBT_RE.search(re.sub(LEASE_RE, '', lab))):
                 kind = 'lease'

@@ -184,7 +184,8 @@ const DEBT_FAM = { SecuredDebtOther: ['SecuredDebt'], SecuredDebt: ['SecuredDebt
   LoansPayable: ['LongTermLoansPayable'] };
 const DEBT_OF = new Map(Object.entries(DEBT_CAT).flatMap(([c, ts]) => ts.map((t) => [t, c])));
 const DEBT_LAB = /borrowing|commercial paper|notes? payable|\bdebt\b|loans? payable|bank loans?|credit facilit|senior (unsecured )?notes|convertible (senior )?notes|debentures|bonds payable|term loans?|mortgages? (payable|notes|loans)|lines? of credit|revolving/i;
-const DEBT_NOT = /operating lease|interest payable|accrued|accounts payable|deferred|debt securities|held.for.sale|derivative|guarantee|total liabilities|receivable|investment|due to (related|affiliat)|deposits?\b|repurchase|trading|capitalization|fair value|other than long.?term debt/i;
+// "Notes Payable to Eversource Parent" — שורה של חברת־בת שהוצגה במאזן המאוחד של ‏10-Q ‏2018 (בתוך הקבוצה, מתקזזת; ‏wave-2.md ‏F12)
+const DEBT_NOT = /operating lease|interest payable|accrued|accounts payable|deferred|debt securities|held.for.sale|derivative|guarantee|total liabilities|receivable|investment|due to (related|affiliat)|deposits?\b|repurchase|trading|capitalization|fair value|other than long.?term debt|\bto (\w+ )?parent\b/i;
 // תגיות שאינן חוב גם כשהשם או התווית נשמעים כך: סך ההון והחוב, "התחייבויות לא שוטפות חוץ מחוב", רכיב ההון של אג"ח להמרה,
 // ריבית לשלם, חובות לחברות קשורות, הנחות ועלויות הנפקה, נכסים. תגית מ־DEBT_CAT — תמיד חוב (Hershey: ‏LongTermDebtAndCapitalLeaseObligations)
 const DEBT_NOTAG = /OtherThanLong|^Capitalization|^EquityAndLongTermDebt|^TemporaryEquity|^ReserveForEsop|^InterestPayable|^DueTo(Affiliate|RelatedParties)|Receivable|DebtInstrumentInterestRate|Unamortized|DebtFairValueAdjustment|^ConvertibleDebtEquity/;
@@ -269,6 +270,8 @@ function bsfDebt(have, cur) {
     for (const [end, ci] of dF.cols) {
       // עמודה בלי סך נכסים — ביאור, לא מאזן (Welltower); ‏0 = עמודה ריקה (Albemarle ‏10-Q ‏2015: עמודות של 2014 עם אפסים בכל שורה)
       if (!a || !a.v[ci]) continue;
+      // שורת חוב שלילית — שגיאת סימן בהגשה (Hartford ‏10-K ‏2016/2017: ‏"Long-term debt" ‏(5,084) — 2 מתוך 12,288 מאזנים; ‏wave-2.md ‏F12) — לא נספרת
+      if (dF.lines.some((l) => l.v[ci] < 0)) continue;
       const ann = !/^10-Q/.test(x.form), b = per.get(end);
       if (!b || (ann && !b.ann) || (ann === b.ann && x.filed > b.filed)) per.set(end, { v: dF.tot.get(end), form: x.form, filed: x.filed, ann });
     }

@@ -1281,6 +1281,20 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     ok(debt(m1, 2023) === 1150 && debt(m1, 2020) === 950 && debt(m1, 2025) === 1250 && m1.bsfN >= 3, '(24) ביאור בלי סך נכסים לא דורס; הגשה בלי שורות חוב — הכלל של F7');
     const M = F.bsfDebt(have, 'USD');
     ok(M.get('2022-12-31').form === '10-K' && M.get('2022-12-31').v === 1323e6 && !M.has('2020-12-31') && M.get('2023-03-31').v === 1130e6 && !M.has('2014-03-31'), '(24) bsfDebt: השנתי גובר על רבעוני מאוחר באותו תאריך');
+    // חוב שלילי (Hartford ‏10-K ‏2016: שגיאת סימן בהגשה) — העמודה לא נספרת, הרבעוני נשאר
+    const neg = { q: { form: '10-Q', filed: '2016-04-28', bs: sheet(['2016-03-31', '2015-12-31'], [['LongTermDebtNoncurrent', 'Long-term debt', [5000, 5084]]]) },
+      k: { form: '10-K', filed: '2016-02-26', bs: sheet(['2015-12-31', '2014-12-31'], [['ShortTermBorrowings', 'Short-term debt', [275, 456]], ['LongTermDebtNoncurrent', 'Long-term debt', [-5084, -5653]]]) } };
+    const MN = F.bsfDebt(neg, 'USD');
+    ok(MN.get('2015-12-31').v === 5084e6 && MN.get('2015-12-31').form === '10-Q' && !MN.has('2014-12-31'), '(24) bsfDebt: שורת חוב שלילית — העמודה לא נספרת');
+    // "Notes Payable to Eversource Parent" במאזן המאוחד (ES ‏10-Q ‏2018) — לא חוב של הקבוצה
+    const par = F.bsfDebt({ q: { form: '10-Q', filed: '2018-05-03', bs: sheet(['2018-03-31', '2017-12-31'], [['NotesPayable', 'Notes Payable', [1049, 1088]], ['NotesPayableRelatedPartiesClassifiedCurrent', 'Notes Payable to Eversource Parent', [276, 116]], ['LongTermDebtNoncurrent', 'Long-Term Debt', [12016, 11776]]]) } }, 'USD');
+    ok(par.get('2018-03-31').v === 13065e6, '(24) "Notes payable to … Parent" — לא נספר');
+    // FilingSummary: המאזן המאוחד סומן "Uncategorized" לפני הדוח הראשון ב־Statements (Eversource ‏10-K ‏2022) — הוא המאזן, לא של חברת־הבת
+    const rep = (f, n, c) => `<Report><HtmlFileName>${f}</HtmlFileName><ShortName>${n}</ShortName><MenuCategory>${c}</MenuCategory></Report>`;
+    const UNC = '<FilingSummary><MyReports>' + rep('R2.htm', 'Audit Information', 'Notes') + rep('R3.htm', 'CONSOLIDATED BALANCE SHEETS', 'Uncategorized')
+      + rep('R5.htm', 'CONSOLIDATED STATEMENTS OF INCOME', 'Statements') + rep('R10.htm', 'SUBSIDIARY BALANCE SHEETS', 'Statements')
+      + rep('R90.htm', 'Balance Sheet Details', 'Uncategorized') + '</MyReports></FilingSummary>';
+    ok(SF.pickStatements(UNC).bs === 'R3.htm' && SF.pickStatements(UNC.replace('R3.htm', 'R3x.htm').replace('CONSOLIDATED BALANCE SHEETS', 'Other')).bs === 'R10.htm', '(24) FilingSummary: מאזן "Uncategorized" לפני הדוחות — נבחר; אחריהם — לא');
     // pickStatements: FilingSummary ישן בלי MenuCategory (McDonald's ‏10-Q ‏2014) — הסוג מתוך LongName
     const OLDFS = '<FilingSummary><MyReports><Report><HtmlFileName>R1.htm</HtmlFileName><LongName>0001000 - Document - Document and Entity Information</LongName><ShortName>Document and Entity Information</ShortName></Report>'
       + '<Report><HtmlFileName>R2.htm</HtmlFileName><LongName>1001000 - Statement - Condensed Consolidated Balance Sheet</LongName><ShortName>Condensed Consolidated Balance Sheet</ShortName></Report>'
