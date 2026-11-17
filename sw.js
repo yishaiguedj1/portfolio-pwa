@@ -4,16 +4,16 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v806';
+const CACHE_NAME = 'portfolio-pwa-v807';
 const HASHES = {
   "./": "a4c10604dc53d9719855cb70d87ca9ff",
   "./index.html": "a4c10604dc53d9719855cb70d87ca9ff",
   "./styles.css": "8ea7f0ebabbcc4963e3dea6f327426ce",
   "./glass-btn.css": "40916bc7f51ba17be27ae56ed9b23902",
-  "./invest-glass.css": "de7c2aa66cd09eac425d7b53793da42e",
+  "./invest-glass.css": "bb7073d34f0cae3eb2861ef0f6083002",
   "./academy-glass.css": "ae0f0a4c37f00512734308010a546a77",
   "./desktop.css": "22dcb3bea6e645027d3146b31d66712a",
-  "./app.js": "8b04187cf01cbe2bd5ce2cc387ce7478",
+  "./app.js": "52762a02010bf6a8343ec4419767a7e2",
   "./returns.js": "afe0d262348852fd10982ef2d0239545",
   "./cloud.js": "d403f6c76884375dc9999b80660f1ddf",
   "./firebase-config.js": "a4adfadcd5fe3b79a29e9fa0eeb94df0",
@@ -40,7 +40,7 @@ const HASHES = {
   "./taxcenter.js": "9f66ea89d2f027260196a7b3d96e876d",
   "./taxcenter.css": "49d72724551122808472e2d92ce76b63",
   "./taxil.js": "7a5d81baa42d2be44782ba667dd89174",
-  "./chart.js": "0f029889491a1d714860608f0d6aed64",
+  "./chart.js": "3f74233649fd86584c01c154e14acc75",
   "./chartlib.js": "5c00c490dac1b09329fa1ce657350a9b",
   "./chart.css": "1a90f5eae0277b64c9f0238c248f20f5",
   "./vendor/klinecharts/klinecharts.min.js": "4202d8661b8302175751d8d072bf6d2f",
@@ -79,7 +79,7 @@ const HASHES = {
   "./academy.html": "9c6de2f5fd2634d07d9c0e0a6dc9ebe7",
   "./academy-app.js": "8f943cfa4b1bbb60bc8d83d4304d9978",
   "./strings-academy.js": "c3ccfddd78371c77ba86ae835e8e6c58",
-  "./core.js": "fa82e8f59a92762887649a9c8976961e",
+  "./core.js": "a404603b9bcf1bf6e6d2952bd16fd36f",
   "./auth.js": "465d3bc983806d8a2f462e567725df21",
   "./shell.js": "04e4e9bb8b1a12538f4b12ac699dabd5",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
