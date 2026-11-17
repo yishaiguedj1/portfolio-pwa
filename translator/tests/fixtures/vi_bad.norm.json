@@ -79,18 +79,23 @@
    "g": "f",
    "gs": "text",
    "name": "Dana Levi",
-   "role": "מרצה"
+   "role": "מרצה",
+   "orig": "Dana Levi",
+   "ttl": "מנכ״לית Acme"
   },
   {
    "spk": "S2",
    "sh": 0.288,
-   "g": "u"
+   "g": "u",
+   "act": "רוברט דאוני ג׳וניור",
+   "kb": 1
   },
   {
    "spk": "S5",
    "sh": 0.05,
    "g": "m",
-   "name": "Professor Maximilian Alexander Rosenberg"
+   "name": "Professor Maximilian Alexander Rosenberg",
+   "ttl": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
   }
  ],
  "slides": [

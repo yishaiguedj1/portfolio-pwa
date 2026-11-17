@@ -1071,12 +1071,21 @@ function mountCell(c) {
 }
 /* לפי ת־גרף: מתחת לתווית המחיר האחרון — כמה זמן נשאר עד סגירת הנר (mm:ss / h:mm:ss / 3d 4h).
    רק כשהנר באמת חי: תוך־יומי בזמן מסחר (או טרום/אחרי כשהמורחב מוצג), שבועי/חודשי בזמן מסחר. יומי — לא (הסגירה תלויה בבורסה). */
+/* סוף החודש / הרבעון / חצי השנה / השנה (months) של הנר שמתחיל ב־ms — חצות של 1 בחודש הבא בשעון הבורסה, במילישניות.
+   17/11/2026 (C-026): לא 30 יום קבועים מתחילת הנר */
+function monthEnd(tz, ms, months) {
+  const dt = new Date(ms + tzOffset(tz, ms) + 43200000);
+  const g = Date.UTC(dt.getUTCFullYear(), Math.floor(dt.getUTCMonth() / months) * months + months, 1);
+  return g - tzOffset(tz, g - tzOffset(tz, g));
+}
+/* סוף נר הבסיס (c.raw): תחילתו + אורך הטווח; בחודשי — 1 בחודש הבא */
+const barEnd = (c, base, ts) => (base === '1mo' ? monthEnd(c.tz, ts, 1) : ts + BASESEC[base] * 1000);
 function countdown(c, bar, now) {
   if (!bar || c.replay || !c.q) return '';
   const intra = L.isIntraday(c.tf), st = c.q.st, live = st === 'REGULAR' || (intra && S.store.g.ext && c.q.ext && c.q.extK !== 'night');
   if (!live || (!intra && c.secReal < 7 * 86400)) return '';
-  const ms = bar.timestamp + c.secReal * 1000 - now;
-  if (!(ms > 0) || ms > c.secReal * 1000) return '';
+  const tfd = TF[c.tf], ms = (tfd.base === '1mo' ? monthEnd(c.tz, bar.timestamp, tfd.cal || 1) : bar.timestamp + c.secReal * 1000) - now;
+  if (!(ms > 0) || now < bar.timestamp) return '';
   const t = Math.floor(ms / 1000), d = Math.floor(t / 86400), h = Math.floor(t / 3600) % 24, m = Math.floor(t / 60) % 60, sec = t % 60, z = (x) => String(x).padStart(2, '0');
   return d ? d + 'd ' + h + 'h' : h ? h + ':' + z(m) + ':' + z(sec) : z(m) + ':' + z(sec);
 }
@@ -1228,7 +1237,7 @@ function onQuote(c, q) {
     /* אחרי הסגירה: הנרות של Yahoo לא כוללים את מכירת הסגירה (נר אחרון 154.81 מול סגירה רשמית 154.78) —
        הנר שמכיל את זמן הסגירה נסגר על המחיר הרשמי, לפי ת־גרף ובכרטיס המניה */
     const b = c.raw[c.raw.length - 1], t = q.reg.t * 1000, p = q.reg.p;
-    if (b && b.timestamp <= t && t <= b.timestamp + BASESEC[d.base] * 1000 && b.close !== p) {
+    if (b && b.timestamp <= t && t <= barEnd(c, d.base, b.timestamp) && b.close !== p) {
       b.close = p; b.high = Math.max(b.high, p); b.low = Math.min(b.low, p);
       pushLive(c, false);
     }

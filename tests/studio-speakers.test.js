@@ -46,7 +46,14 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   ok(s.name === 'studioSpkN{"n":2}' && !s.named && s.ini === '2' && s.g === 'u' && s.c === 4 && s.k === 'S2', 'בלי שם — "דובר N", המספר בעיגול, מגדר לא ידוע');
   ok(SK.spkLine(T, s, (c) => c.toUpperCase()) === 'studioSpkGU · EN, FR', 'שורת הפרטים: מגדר ושפות מ־5% (לפי החלק)');
   const s2 = SK.spkView(T, { k: 'S1', name: 'Dana Levi', role: 'מרצה', g: 'f', lg: [{ lg: 'en', sh: 1 }] }, 1, 0);
-  ok(SK.spkLine(T, s2, (c) => c) === 'מרצה · studioSpkF · en' && s2.named && s2.ini === 'DL', 'תפקיד · מגדר · שפה');
+  ok(SK.spkLine(T, s2, (c) => c) === 'מרצה' && s2.named && s2.ini === 'DL', 'ידוע מי הוא — רק מי הוא (המגדר והשפות בגיליון)');
+  /* 17/11/2026 (מי מדבר): התואר · התפקיד בסרטון · "בגילום X"; kb רק כשהוא 1 */
+  const s3 = SK.spkView(T, { k: 'S1', name: 'ג׳נסן הואנג', role: 'מרואיין', ttl: 'מנכ״ל NVIDIA', orig: 'Jensen Huang', kb: 1, g: 'm', lg: [] }, 1, 0);
+  ok(SK.spkLine(T, s3, (c) => c) === 'מנכ״ל NVIDIA · מרואיין' && SK.spkWho(T, s3) === 'מנכ״ל NVIDIA · מרואיין' && s3.kb && s3.orig === 'Jensen Huang', 'תואר · תפקיד');
+  const s4 = SK.spkView(T, { k: 'S2', name: 'טוני סטארק', role: 'דמות', act: 'רוברט דאוני ג׳וניור', kb: true, lg: [] }, 2, 1);
+  ok(SK.spkLine(T, s4, (c) => c) === 'דמות · studioSpkAct{"n":"רוברט דאוני ג׳וניור"}' && !s4.kb, 'סרט/סדרה — הדמות, ו"בגילום" השחקן; kb רק 1');
+  const s5 = SK.spkView(T, { k: 'S3', name: '', role: 'שואל מהקהל', lg: [] }, 3, 2);
+  ok(SK.spkLine(T, s5, (c) => c) === 'שואל מהקהל' && s5.name === 'studioSpkN{"n":3}', 'בלי שם — "דובר 3" ומה הוא בסרטון');
   ok(SK.mainLg(s) === 'en' && SK.mainLg({ lg: [] }) === '' && SK.pctOf(0.712) === 71, 'השפה העיקרית והאחוז');
 
   /* ---------- 4. מה ששינית (store.vsp) ---------- */

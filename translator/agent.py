@@ -1052,8 +1052,11 @@ def mem_fit(slots: dict) -> dict | None:
     התקרה פחות הסוכן, פחות מרווח בטחון (10%, לפחות 1GB), פחות ההזמנות של מה שרץ; ובנוסף לא יותר ממה שבאמת פנוי
     עכשיו (MemAvailable) פחות מה שהעבודות שרצות עוד יתפסו עד השיא שלהן."""
     lim = mem_limit_mb()
-    if not lim or mem_pressure() > PSI_MAX:
+    if not lim:
         return None
+    # 17/11/2026: אין מקום (לחץ זיכרון / פחות מגיליון AI) — עדיין שואלים את השרתון, עם mb=0: הוא לא נותן עבודה, אבל רושם
+    # על הראשונה בתור למה היא מחכה (qw — "צריכה X GB, פנויים Y"). עד היום הסוכן פשוט לא שאל, והטלפון לא ידע למה
+    psi = mem_pressure() > PSI_MAX
     head = max(1024, lim * 0.1)
     res = sum(s.reserved() for s in slots.values())
     grow = sum(max(0.0, s.reserved() - s.peak) for s in slots.values())   # מה שהן עוד יגדלו (מעבר למה שהן תופסות עכשיו)
@@ -1061,14 +1064,16 @@ def mem_fit(slots: dict) -> dict | None:
     free = lim - MEM_BASE_MB - head - res
     if av:
         free = min(free, av - head - grow)
-    if free < mem_need('ai', 0):
-        return None
+    if psi or free < mem_need('ai', 0):
+        free = 0
     a, b = mem_model('tr')
     ra, rb = mem_model('rr')
     va, vb = mem_model('vi')
     out = {'mb': int(free), 'a': int(round(a * MEM_MARGIN)), 'b': round(b * MEM_MARGIN, 1), 'ra': int(round(ra * MEM_MARGIN)),
            'rb': round(rb * MEM_MARGIN, 1), 'ai': mem_need('ai', 0),
            'va': int(round(va * MEM_MARGIN)), 'vb': round(vb * MEM_MARGIN, 1)}   # 9/11/2026: ניתוח — שדות רשות בשרתון (normFit)
+    if psi:
+        out['ps'] = 1                                # 17/11/2026: הזיכרון בלחץ (PSI) — הסיבה בשורת התור
     dm = perf_dmax(slots)
     if dm is not None:
         out['dm'] = dm
@@ -1162,7 +1167,7 @@ def run_slots(server: str, tok: str, warm, nmax: int, stop_after: int = 0) -> in
         if len(_slots) < nmax and now >= nxt_poll:
             fit = mem_fit(_slots) if _slots else None
             if _slots and fit is None:
-                nxt_poll = now + POLL_S                      # אין זיכרון לעוד עבודה — מחכים שתסתיים / שהלחץ ירד
+                nxt_poll = now + POLL_S                      # לא ידועה תקרת הזיכרון — לא לוקחים עוד עבודה
             else:
                 r = poll(server, tok, fit=fit)
                 if r.get('job'):

@@ -25,11 +25,18 @@ ok(/\.sort\(\(a, b\) => \(a\.sm === 1\) - \(b\.sm === 1\) \|\| \(\(a\.spec \|\| 
 ok(/if \(k === 'job' && stDialJob\(\) && stDialJob\(\)\.on\) return \{ v: 'act', p: null \}/.test(st), 'יש עבודה פעילה — "פעילה" פותחת את עמוד הניהול');
 ok(/if \(v === 'act'\) return 'job';/.test(st), 'העמוד שייך ל"פעילה" בחוגה');
 ok(/else if \(ui\.view === 'act'\) pageAct\(p\);/.test(st), 'הציור');
-ok(/x === 'tower' \|\| x === 'act' \|\| x === 'home'/.test(st), 'ההורה — עמוד הבית ("חזור")');
+ok(/x === 'tower' \|\| x === 'act' \|\| x === 'lib' \|\| x === 'home'/.test(st), 'ההורה — עמוד הבית ("חזור")');
 ok(/if \(o\.act\) stDialJ = rec\.id; go\('job', rec\.id\);/.test(st), 'לחיצה על שורה — דף העבודה, שנשאר תחת "פעילה"');
 ok(/if \(ui\.view === 'act'\) return 'act\|'/.test(st), 'עבודה עברה מהתור לריצה — העמוד נבנה מחדש');
 ok(/ui\.view === 'home' \|\| ui\.view === 'vi' \|\| ui\.view === 'act'\) ms = /.test(st) && /\} else if \(ui\.view === 'home' \|\| ui\.view === 'vi' \|\| ui\.view === 'act'\) \{/.test(st), 'מתעדכן כמו הבית (אותו קצב, אותן קריאות)');
 ok(/tx\.textContent = o\.act && ph === 'queued' \? nowLine\(rec, run, ph\)/.test(st), 'בתור — למה היא מחכה');
 ok(/const rows = jobs\.map\(\(rec\) => projRow\(rec\)\);/.test(st), 'הבית — אותה שורה (projRow)');
 ok(/o\.act && ph === 'queued' \? \['amber', T\('studioBQueued'\)\]/.test(st) && /rec\.spec\.vi && \(ph === 'running' \|\| ph === 'queued'\) \? \['green', T\('studioBViRun'\)\]/.test(st), 'התגית: "בתור" בפעילות; ניתוח — "בניתוח", לא "בתרגום"');
+// 17/11/2026: למה היא מחכה — מהשרתון (qw) לשורת התור
+ok(/qw: s\.qw && s\.qw\.r === 'mem' \? \{ r: 'mem', n: num\(s\.qw\.n\), f: num\(s\.qw\.f\) \}/.test(st), 'הטלפון: qw מנורמל (mem / perf / psi)');
+ok(/if \(q && q\.r === 'mem'\) return T\('studioQwMem'/.test(st) && /if \(q && q\.r === 'psi'\) return T\('studioQwPsi'\)/.test(st) && /if \(q && q\.r === 'perf'\) return T\('studioQwPerf'\)/.test(st), 'שורת התור — הסיבה מהשרתון לפני "עכשיו רצה"');
+const lib = fs.readFileSync(path.join(root, 'ibkr-proxy/lib/studio.js'), 'utf8'), agent = fs.readFileSync(path.join(root, 'translator/agent.py'), 'utf8');
+ok(/qw: qwView\(job\)/.test(lib) && /const JSON_FIELDS = \['mon', 'qw'/.test(lib), 'השרתון: qw בתצוגה ושדה JSON');
+ok(/const qw = S\.qwOf\(job, fit\);\s*if \(JSON\.stringify\(qw\) !== JSON\.stringify\(job\.qw \|\| null\)\)/.test(api) && /pk: now, vw: 0, bw: 0, qw: null,/.test(api), 'השרתון: נכתב רק כשהשתנה; בלקיחה — נמחק');
+ok(/if psi or free < mem_need\('ai', 0\):\s*free = 0/.test(agent) && /out\['ps'\] = 1/.test(agent), 'הסוכן: בלי מקום — שואל עם mb=0 (ולחץ = ps), לא שותק');
 console.log('# ' + n + ' בדיקות');

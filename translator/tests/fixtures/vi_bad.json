@@ -141,7 +141,11 @@
    "gs": "text",
    "name": "Dana Levi\u0007",
    "role": "מרצה",
-   "x": 1
+   "x": 1,
+   "ttl": "מנכ״לית\u0007 Acme",
+   "orig": "Dana Levi",
+   "act": 7,
+   "kb": true
   },
   {
    "spk": "S1",
@@ -155,7 +159,10 @@
    "g": "x",
    "gs": "voice",
    "name": "",
-   "role": 5
+   "role": 5,
+   "ttl": "",
+   "act": "רוברט דאוני ג׳וניור",
+   "kb": 1
   },
   {
    "spk": "A3",
@@ -170,7 +177,9 @@
    "sh": 0.05,
    "g": "m",
    "gs": "guess",
-   "name": "Professor Maximilian Alexander Rosenberg-Whitfield"
+   "name": "Professor Maximilian Alexander Rosenberg-Whitfield",
+   "ttl": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "kb": 2
   },
   "junk"
  ],

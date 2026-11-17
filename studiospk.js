@@ -41,12 +41,14 @@ export function initials(name, no) {
   return /^[A-Za-z]$/.test(a) ? (a + (/^[A-Za-z]$/.test(z) ? z : '')).toUpperCase() : a || String(no || '');
 }
 
-/* דובר לתצוגה: d = { k, name, role, g, gs, sh, t, lg }; no — המספר בסדר ההופעה; c — מספר הצבע. בלי שם — "דובר N" */
+/* דובר לתצוגה: d = { k, name, role, g, gs, sh, t, lg, ttl, act, orig, kb }; no — המספר בסדר ההופעה; c — מספר הצבע. בלי שם — "דובר N".
+   17/11/2026 (מי מדבר): ttl — מי הוא (תואר וארגון), act — השחקן (סרט/סדרה), orig — השם בכתב המקור, kb — מהידע הכללי של המודל */
 export function spkView(T, d, no, c) {
   const named = !!(d && d.name);
   return {
     k: d.k, no, c, named, name: named ? d.name : T('studioSpkN', { n: no }), ini: initials(named ? d.name : '', no),
     role: d.role || '', g: d.g === 'm' || d.g === 'f' ? d.g : 'u', gs: d.gs || '', sh: d.sh || 0, t: d.t || 0, lg: Array.isArray(d.lg) ? d.lg : [],
+    ttl: d.ttl || '', act: d.act || '', orig: d.orig || '', kb: d.kb === 1,
   };
 }
 
@@ -54,10 +56,17 @@ export const pctOf = (sh) => Math.round((sh || 0) * 100);
 /* השפה העיקרית של הדובר (הכי הרבה דיבור) */
 export const mainLg = (s) => (s && s.lg && s.lg.length ? s.lg.reduce((a, x) => (x.sh > a.sh ? x : a)).lg : '');
 export function genderWord(T, g) { return g === 'm' ? T('studioSpkM') : g === 'f' ? T('studioSpkF') : T('studioSpkGU'); }
-/* שורת הפרטים: תפקיד · מגדר · השפות (מ־5%, עד שלוש) */
+/* מי הוא, בשורה אחת (17/11/2026, המשתמש: "טייטל ברור — שהמשתמש תמיד יבין במי מדובר, קצר ונקי"): התואר · התפקיד בסרטון ·
+   "בגילום X" (סרט/סדרה). אין — ריק */
+export function spkWho(T, s) {
+  return [s.ttl, s.role, s.act ? T('studioSpkAct', { n: s.act }) : ''].filter(Boolean).join(' · ');
+}
+/* שורת הפרטים: מי הוא (spkWho); כשלא ידוע עליו כלום — המגדר · השפות (מ־5%, עד שלוש). המגדר והשפות תמיד בגיליון */
 export function spkLine(T, s, nm) {
+  const who = spkWho(T, s);
+  if (who) return who;
   const lgs = s.lg.filter((x) => x.sh >= LANG_MIN).sort((a, b) => b.sh - a.sh).slice(0, 3).map((x) => nm(x.lg));
-  return [s.role, genderWord(T, s.g), lgs.join(', ')].filter(Boolean).join(' · ');
+  return [genderWord(T, s.g), lgs.join(', ')].filter(Boolean).join(' · ');
 }
 
 /* העיגול: ראשי התיבות בלבן על צבע הדובר. sm / lg — קטן (בראש תור) / גדול (בגיליון) */
@@ -101,8 +110,11 @@ export function spkSheet(o) {
   const ttlN = h('bdi', null, s.name); ttl.append(ttlN);
   sh.setAttribute('aria-labelledby', ttl.id);
   tt.append(ttl);
+  /* 17/11/2026: מי הוא — השם בכתב המקור · התואר · "בגילום X"; מהידע הכללי של המודל — הערה קטנה */
+  const who = h('div', 'st-spk-who');
+  const kb = h('div', 'st-spk-kb', T('studioSpkKb'));
   const sub = h('div', 'st-spk-sub');
-  tt.append(sub);
+  tt.append(who, sub, kb);
   const av = avatar(h, s, 'lg');
   top.append(av, tt);
   box.append(h('div', 'st-rs-grab'), top);
@@ -180,8 +192,11 @@ export function spkSheet(o) {
   sh.addEventListener('click', (e) => { if (e.target === sh) close(); });
 
   subOf();
-  /* "47% מהדיבור · 20 דק׳" (פחות מדקה — בשניות) */
+  /* "47% מהדיבור · 20 דק׳" (פחות מדקה — בשניות); מעליו — מי הוא */
   function subOf() {
+    who.textContent = [s.orig, s.ttl, s.act ? T('studioSpkAct', { n: s.act }) : ''].filter(Boolean).join(' · ');
+    who.hidden = !who.textContent;
+    kb.hidden = !s.kb;
     sub.textContent = s.sh > 0 ? (s.t < 60 ? T('studioSpkShareS', { p: pctOf(s.sh), n: Math.max(1, Math.round(s.t)) }) : T('studioSpkShare', { p: pctOf(s.sh), n: Math.round(s.t / 60) })) : '';
     sub.hidden = !sub.textContent;
   }
