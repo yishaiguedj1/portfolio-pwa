@@ -28,7 +28,7 @@ ok(shell.includes("'./invest-glass.css'"), 'sw.js: invest-glass.css ב־APP_SHEL
 ok(/"\.\/invest-glass\.css": "[0-9a-f]{32}"/.test(sw), 'sw.js: טביעה ל־invest-glass.css (swgen)');
 
 /* ---------- מבנה הקובץ ---------- */
-ok(/^\s*@layer invglass\s*\{/.test(body), 'הכל בתוך @layer invglass');
+ok(/^\s*@layer invglass\s*\{/.test(body), 'השכבה invglass בראש הקובץ (אחריה רק החיפוש בטלפון — מחלקות חדשות)');
 let depth = 0, neg = false;
 for (const ch of body) { if (ch === '{') depth++; else if (ch === '}') { depth--; if (depth < 0) neg = true; } }
 ok(depth === 0 && !neg, 'סוגריים מאוזנים');
@@ -36,8 +36,8 @@ ok(depth === 0 && !neg, 'סוגריים מאוזנים');
 /* ---------- הגבלה ל־Invest ---------- */
 const rules = body.replace(/@keyframes[^{]+\{(?:[^{}]*\{[^}]*\})*[^}]*\}/g, '').match(/[^{}]+\{[^{}]*\}/g) || [];
 const bad = rules.map((r) => r.slice(0, r.indexOf('{')).trim()).filter((sel) => sel && !/^@/.test(sel))
-  .filter((sel) => sel.split(/,(?![^(]*\))/).some((s) => { s = s.trim(); return !/^(html|main|:is\(main, \.appbar\)|\.appbar|html:not\(\.dk\) \.appbar|\.tabs|\.menu-veil|\.toast)(?=[\s:.#[]|$)/.test(s); }));
-ok(!bad.length, 'כל כלל מוגבל ל־html / main / ההדר / החוגה / התפריט / ההודעה' + (bad.length ? ' — חריגים: ' + bad.slice(0, 4).join(' | ') : ''));
+  .filter((sel) => sel.split(/,(?![^(]*\))/).some((s) => { s = s.trim(); return !/^(html|main|:is\(main, \.appbar\)|\.appbar|html:not\(\.dk\) \.appbar|\.tabs|\.menu-veil|\.toast|\.ms(-[a-z0-9]+)?)(?=[\s:.#[]|$)/.test(s); }));
+ok(!bad.length, 'כל כלל מוגבל ל־html / main / ההדר / החוגה / התפריט / ההודעה / מסך החיפוש' + (bad.length ? ' — חריגים: ' + bad.slice(0, 4).join(' | ') : ''));
 ok(/main \.card \{/.test(body) && !/(^|[{}])\s*\.card \{/.test(body), 'הכרטיסים רק בתוך main (לא כרטיסי האקדמיה/הסטודיו)');
 
 /* ---------- ההדר המתכווץ ---------- */
@@ -53,6 +53,19 @@ ok(/main \.search-field \{[^}]*backdrop-filter: var\(--gb-fx\)/.test(body), 'ט�
 ok(/\.menu-veil \{[^}]*backdrop-filter: blur\([1-8]px/.test(body), 'מאחורי התפריט — טשטוש עדין (הערת המשתמש)');
 ok(!/\.toast::before/.test(body) && !/✓/.test(body), 'בלי ✓ בהודעה (משמשת גם לשגיאות)');
 ok(/@media \(prefers-reduced-motion: reduce\)/.test(body), 'מכבד הפחתת תנועה');
+
+/* ---------- חיפוש בטלפון (17/11/2026) ---------- */
+const app = R('app.js');
+ok(/<button id="msBtn" class="icon-btn" type="button" data-i18n-aria="msAria"/.test(index), 'index.html: כפתור החיפוש בהדר');
+ok(/\.appbar \.appbar-actions > #msBtn \{ grid-column: 7;/.test(body), 'הכפתור בעמודה 7 — ליד ☰, לא על כפתור המטבע');
+ok(/html\.dk \.appbar #msBtn \{ display: none;/.test(body), 'במחשב הכפתור מוסתר (יש ⌘K)');
+ok(/menu-open > #msBtn \{ opacity: 0; pointer-events: none;/.test(body), 'כשהתפריט פתוח — הכפתור נעלם');
+ok(/\n  initMobileSearch\(\);/.test(app) && /function msOpen\(\)[\s\S]{0,3000}modalPush\(\(\) => msClose\(true\)\)/.test(app), 'נפתח בהפעלה, ו"חזור" סוגר (modalPush)');
+ok(/function msOpen\(\)[\s\S]{0,3000}visualViewport/.test(app) && /bottom: calc\(var\(--ms-kb\)/.test(body), 'השדה נצמד מעל המקלדת (visualViewport)');
+ok(/function msPaint\(\)[\s\S]{0,2500}deskCmdList\(\)[\s\S]{0,4000}deskInvestCmds\(q\)/.test(app), 'אותו מנוע של לוח הפקודות במחשב');
+ok(/function msMark\(label, q\) \{[\s\S]{0,300}esc\(L\.slice\(0, i\)\)/.test(app), 'ההדגשה עוברת esc — בלי HTML מהקלט');
+ok(/sc\(it\) >= 60\)\) hits = hits\.filter/.test(app), 'התאמה רופפת רק כשאין התאמה אמיתית');
+for (const k of ['msTitle', 'msPh', 'msMarket', 'msNoneSub', 'msClose']) ok((app.match(new RegExp('\\n  ' + k + ': ', 'g')) || []).length === 2, 'מחרוזת ' + k + ' בעברית ובאנגלית');
 
 if (fails.length) { console.log('\nנכשלו ' + fails.length + '/' + n + ':\n- ' + fails.join('\n- ')); process.exit(1); }
 console.log('\n' + n + '/' + n + ' עברו');
