@@ -4,7 +4,7 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v800';
+const CACHE_NAME = 'portfolio-pwa-v803';
 const HASHES = {
   "./": "a4c10604dc53d9719855cb70d87ca9ff",
   "./index.html": "a4c10604dc53d9719855cb70d87ca9ff",
@@ -12,7 +12,7 @@ const HASHES = {
   "./glass-btn.css": "7b3da3fe7844c11efc76054133bbd65a",
   "./invest-glass.css": "de7c2aa66cd09eac425d7b53793da42e",
   "./desktop.css": "22dcb3bea6e645027d3146b31d66712a",
-  "./app.js": "7eb541c6262bead95a51a5e7c72ec5d2",
+  "./app.js": "e8889e0ac0b046c846eb77f8e9b24167",
   "./returns.js": "afe0d262348852fd10982ef2d0239545",
   "./cloud.js": "d403f6c76884375dc9999b80660f1ddf",
   "./firebase-config.js": "a4adfadcd5fe3b79a29e9fa0eeb94df0",
@@ -39,7 +39,7 @@ const HASHES = {
   "./taxcenter.js": "9f66ea89d2f027260196a7b3d96e876d",
   "./taxcenter.css": "49d72724551122808472e2d92ce76b63",
   "./taxil.js": "7a5d81baa42d2be44782ba667dd89174",
-  "./chart.js": "f449f30b56da8452861aff9919ce0758",
+  "./chart.js": "1daeac9caef6f67ad326025a745c424c",
   "./chartlib.js": "5c00c490dac1b09329fa1ce657350a9b",
   "./chart.css": "1a90f5eae0277b64c9f0238c248f20f5",
   "./vendor/klinecharts/klinecharts.min.js": "4202d8661b8302175751d8d072bf6d2f",
@@ -78,7 +78,7 @@ const HASHES = {
   "./academy.html": "4e22225573f3222dc148ea8a9409fd2f",
   "./academy-app.js": "8f943cfa4b1bbb60bc8d83d4304d9978",
   "./strings-academy.js": "db3005085c9d0e1124100400343ffad9",
-  "./core.js": "bf631bcb7ff3ee409fc52037c27bfcee",
+  "./core.js": "3e5d23fa12dcc7ee16edbc557ff0a3cb",
   "./auth.js": "465d3bc983806d8a2f462e567725df21",
   "./shell.js": "04e4e9bb8b1a12538f4b12ac699dabd5",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -87,7 +87,7 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "0fac0bda7bb1fb46d409a07b6f250757",
+  "./studio.js": "9ce5d88d8e4b97eef3c2f4c3c9ce378e",
   "./studio.css": "99c47ad16a0371cd525b11927fb263b3",
   "./studionet.js": "dbe26e18ebd4989a47680cf3009c0ab4",
   "./studioplay.js": "0b89b8c22e6e7b388bbb8c9a4820c64c",
