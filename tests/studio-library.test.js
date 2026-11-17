@@ -36,6 +36,9 @@ const R = 'R2_jLIBjobAAAAAAAAAAAAAA';
   ok(mt.k === 'tr' && mt.fr === '' && mt.to.join() === 'he' && mt.d === 91 && mt.ch[0].t === 12 && mt.ch[0].n === 'פרק', 'libMeta: שפה "auto" לא נשלחת, פרקים בשניות שלמות');
   ok(/const LIB_MAX = 16/.test(srv) && /LIB_MAX = 16/.test(py) && /slice\(0, 16\)/.test(sj), 'עד 16 קבצים — בטלפון, בשרתון ובעובד');
 
+  const sn = read('studionet.js'), lbody = sn.slice(sn.indexOf('async function libList'), sn.indexOf('async function libThumbs'));
+  ok(/e\.status !== 400/.test(lbody) && /qs\.delete\('orderBy'\)/.test(lbody) && /lb\.err = /.test(sj) && /'st-lib-errc'/.test(sj), 'הטעינה: 400 מ־Drive — ניסיון בלי orderBy, וקוד השגיאה על המסך');
+
   /* ---------- 3. הלשונית והחלפת "הסרטונים שלי" ---------- */
   ok(/const ST_SIB = \['ka', 'home', 'vi', 'job', 'lib', 'tower'\]/.test(sj) && /\{ k: 'lib', ico: ST_DIAL_ICO\.lib, lbl: T\('studioDialLib'\) \}/.test(sj), 'החוגה: ספרייה בין "העבודה" למגדל');
   ok(/x === 'litem' \? \['lib', null\]/.test(sj) && /if \(ch\.some\(\(x\) => x\.v === 'lib'\)\) return 'lib';/.test(sj), 'פריט בספרייה — תחת הלשונית');
