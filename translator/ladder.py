@@ -2,6 +2,7 @@
 
 האיכות הגבוהה = המקור עצמו: אותם זרמי וידאו וקול בדיוק (בלי קידוד מחדש), רק בסידור של MP4 מקוטע עם אינדקס (sidx)
 בראש הקובץ — כך הנגן מבקש כל קטע לפי טווח בתים, וזה מחליף את הקובץ המקורי ב־Drive (לא קובץ נוסף).
+17/11/2026: כבויות כברירת מחדל (החלטת המשתמש — רק האיכות המקורית; SNB_LADDER_LOW=on מחזיר).
 האיכויות הנמוכות (144p…1440p, רק מתחת למקור) = H.264 קטן, עם מפתחות באותם רגעים של המקור — מעבר חלק בין איכויות.
 הכל נעשה ברקע, במקביל לתרגום, בלי Claude ובלי טוקנים. סרטון שאי אפשר לארוז בלי אובדן — נשאר כמו שהוא (בלי איכויות).
 
@@ -16,6 +17,12 @@ from pathlib import Path
 
 # גובה (הצלע הקצרה — אנכי 1080×1920 הוא "1080p", לפי ת־נגן), CRF ותקרת קצב (kbps) לכל איכות נמוכה
 RUNGS = ((1440, 25, 6000), (1080, 26, 3200), (720, 27, 1600), (480, 28, 800), (360, 29, 500), (240, 30, 280), (144, 31, 140))
+# 17/11/2026 (החלטת המשתמש): הנגן מציג תמיד את האיכות המקורית, ולא שומרים איכויות נוספות (לא ב־R2 ולא בספרייה ב־Drive).
+# המקור עדיין נארז (MP4 מקוטע עם sidx, בלי קידוד), ועותק הקול לנגן וקובץ הצד נשארים — אחרת סרטון עם Dolby/DTS לא נשמע בטלפון.
+# הנמוכות חוזרות רק עם SNB_LADDER_LOW=on (בדיקות / החלטה עתידית).
+def low_on():
+    return os.environ.get('SNB_LADDER_LOW') == 'on'
+
 V_OK = ('h264', 'hevc', 'av1', 'vp9')            # נארזים בלי קידוד ומתנגנים ב־MSE של Chrome
 A_OK = ('aac', 'opus', 'mp3', 'flac')           # הדפדפן מנגן אותם בעצמו — הקול נשאר בקובץ ומתנגן כמו שהוא
 # 22/10/2026 (בקשת המשתמש: "לא לדרוס סאונד איכותי"): קול שהטלפון לא תמיד מנגן (Dolby, DTS, TrueHD, ALAC) נשאר במקור כמו שהוא —
@@ -92,8 +99,8 @@ def plan(sm, edl=False):
     if not (0 < sm['gop'] <= GOP_MAX):
         return no('gop')
     short = min(sm['w'], sm['h'])
-    rungs = [r for r in RUNGS if r[0] < short - 8]
-    if short < 200 or not rungs:
+    rungs = [r for r in RUNGS if r[0] < short - 8] if low_on() else []
+    if short < 200 or (low_on() and not rungs):
         return no('small')
     return {'ok': True, 'why': '', 'short': short, 'rungs': rungs, 'alt': sm['na'] > 1 or (bool(sm['na']) and sm['a'] in A_ALT),
             'side': bool(sm['other'])}
@@ -446,12 +453,13 @@ def build(src, outdir, edl=False, ffmpeg='ffmpeg', ffprobe='ffprobe', log=print,
             if subprocess.run(alt_cmd(src, p, sm, ffmpeg, i)).returncode != 0 or not p.exists():
                 return {'ok': False, 'why': 'alt'}
             alts.append(p)
-    if gate is not None:
-        log('איכויות: המקור ארוז — הנמוכות מחכות לסוף הצריבה')
-        gate()
-    log('איכויות: ' + ' · '.join('%dp' % r[0] for r in pl['rungs']))
-    if subprocess.run(low_cmd(src, outdir, pl['rungs'], sm['na'] > 0, ffmpeg)).returncode != 0:
-        return {'ok': False, 'why': 'encode'}
+    if pl['rungs']:                              # 17/11/2026: בלי נמוכות — אין קידוד ואין למה לחכות לצריבה
+        if gate is not None:
+            log('איכויות: המקור ארוז — הנמוכות מחכות לסוף הצריבה')
+            gate()
+        log('איכויות: ' + ' · '.join('%dp' % r[0] for r in pl['rungs']))
+        if subprocess.run(low_cmd(src, outdir, pl['rungs'], sm['na'] > 0, ffmpeg)).returncode != 0:
+            return {'ok': False, 'why': 'encode'}
     t = describe(top)
     if not t:
         return {'ok': False, 'why': 'remux'}

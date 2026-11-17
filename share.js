@@ -119,8 +119,9 @@ async function fresh() {
    החתום התקף ברגע הבקשה — הקישורים פגים אחרי 15 דקות, ו־S מתחדש. בלי איכויות — {} (הנגן מנגן את הקובץ כמו קודם) */
 export function qPlan(play, plan, base) {
   const hl = (play && Array.isArray(play.hl)) ? play.hl : [];
-  if (!plan || plan.burned || !play.src || plan.src !== play.src || hl.length < 2 || !hl.every((l) => l && typeof l.url === 'string' && /^https:\/\//.test(l.url))) return {};
+  if (!plan || plan.burned || !play.src || plan.src !== play.src || !hl.length || !hl.every((l) => l && typeof l.url === 'string' && /^https:\/\//.test(l.url))) return {};
   const hla = Array.isArray(play.hla) ? play.hla.filter((a) => a && typeof a.url === 'string' && /^https:\/\//.test(a.url)) : [];
+  if (hl.length === 1 && !(hla.length && hla.length === play.hla.length)) return {};   // 17/11/2026: המקור בלבד ובלי עותק קול — הקובץ כמו שהוא
   const ladder = hl.map((l, i) => Object.assign({}, l, { url: base + 'v' + i }));
   const alt = hla.length && hla.length === play.hla.length ? hla.map((a, i) => Object.assign({}, a, { url: base + 'a' + i })) : null;
   return Object.assign({ ladder }, alt ? { alt } : {});

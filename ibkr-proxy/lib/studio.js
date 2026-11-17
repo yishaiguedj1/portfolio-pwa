@@ -362,8 +362,9 @@ function normOut(list) {
    הטלפון בונה מהן את רשימות ההשמעה (האינדקס בתחילת כל קובץ) — אין כאן רשימות, רק מה שהנגן צריך לרשימה הראשית */
 const HL_MAX = 8;
 const HL_C_RE = /^[A-Za-z0-9.-]{3,40}(,[A-Za-z0-9.-]{3,40})?$/;   // 22/10/2026: גם ac-3 / ec-3 (Dolby — נשאר במקור)
+// 17/11/2026 (החלטת המשתמש: רק האיכות המקורית): רשימה של קובץ אחד (המקור הארוז) תקינה — עם עותק הקול לנגן היא עדיין צריכה HLS
 function normHl(list, vid) {
-  if (!Array.isArray(list) || list.length < 2 || list.length > HL_MAX) return null;
+  if (!Array.isArray(list) || list.length < 1 || list.length > HL_MAX) return null;
   const out = [];
   for (const x of list) {
     if (!x || typeof x !== 'object' || !FILE_ID_RE.test(String(x.id || '')) || out.some((y) => y.id === x.id)) return null;

@@ -1891,8 +1891,9 @@ function stubFetch(text, status = 200) {
       const r7 = { id: 'r7201234567890', w: 1280, h: 720, bw: 1600000, abw: 1100000, c: 'avc1.64001f,mp4a.40.2', size: 60000000 };
       const r3 = { id: 'r3601234567890', w: 640, h: 360, bw: 500000, abw: 300000, c: 'avc1.64001e,mp4a.40.2', size: 17000000 };
       ok(S.normHl([top, r7, r3], 'vid1234567890').length === 3, 'סטודיו (איכויות): רשימה תקינה');
-      ok(S.normHl([r7, top, r3], 'vid1234567890') === null && S.normHl([top, r7, r7], 'vid1234567890') === null && S.normHl([top], 'vid1234567890') === null,
-        'סטודיו (איכויות): רק מהגבוהה לנמוכה, בלי כפילות, לפחות שתיים');
+      ok(S.normHl([r7, top, r3], 'vid1234567890') === null && S.normHl([top, r7, r7], 'vid1234567890') === null && S.normHl([], 'vid1234567890') === null,
+        'סטודיו (איכויות): רק מהגבוהה לנמוכה, בלי כפילות, לא ריקה');
+      ok(S.normHl([top], 'vid1234567890').length === 1 && S.normHl([r7], 'vid1234567890') === null, 'סטודיו (17/11/2026): המקור בלבד — תקין (ורק כשהוא המקור)');
       ok(S.normHl([top, r7], 'other12345678') === null && S.normHl([Object.assign({}, top, { c: 'avc1"><x' }), r7], 'vid1234567890') === null
         && S.normHl([Object.assign({}, top, { abw: 9e6 }), r7], 'vid1234567890') === null, 'סטודיו (איכויות): הראשונה = המקור; קודקים ומספרים בצורה קשיחה');
       driveFiles.set('r7201234567890', { id: 'r7201234567890', name: 'x (720p).mp4', size: '60000000', parents: ['fold1234567890'], trashed: false });
