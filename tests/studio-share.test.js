@@ -311,8 +311,10 @@ const { fakeR2, ENV } = require('./_r2fake');
     const play = { src: 'https://r2/S', fb: 'https://r2/B', hl: [{ h: 1080, url: 'https://r2/S' }, { h: 480, url: 'https://r2/Q' }], hla: [{ c: 'opus', url: 'https://r2/A' }] };
     const q = P.qPlan(play, P.playPlan('tr', play, true), B);
     ok(q.ladder.length === 2 && q.ladder[0].url === B + 'v0' && q.ladder[1].h === 480 && q.alt[0].url === B + 'a0', 'qPlan: איכויות לנגן עם כתובות קבועות (הקישור החתום מתחלף)');
-    ok(!P.qPlan(play, P.playPlan('tr', play, false), B).ladder && !P.qPlan(Object.assign({}, play, { hl: [play.hl[0]] }), P.playPlan('tr', play, true), B).ladder
-      && !P.qPlan(Object.assign({}, play, { hl: [] }), P.playPlan('tr', play, true), B).ladder, 'qPlan: מנגנים את הצרוב / איכות אחת / אין — בלי איכויות');
+    ok(!P.qPlan(play, P.playPlan('tr', play, false), B).ladder && !P.qPlan(Object.assign({}, play, { hl: [play.hl[0]], hla: [] }), P.playPlan('tr', play, true), B).ladder
+      && !P.qPlan(Object.assign({}, play, { hl: [] }), P.playPlan('tr', play, true), B).ladder, 'qPlan: מנגנים את הצרוב / איכות אחת בלי עותק קול / אין — בלי איכויות');
+    const one = P.qPlan(Object.assign({}, play, { hl: [play.hl[0]] }), P.playPlan('tr', play, true), B);
+    ok(one.ladder && one.ladder.length === 1 && one.alt && one.alt[0].url === B + 'a0', 'qPlan (17/11/2026): המקור בלבד + עותק קול לנגן — דרך HLS, כדי שהקול יישמע');
     ok(P.qUrl(play, B, B + 'v1') === 'https://r2/Q' && P.qUrl(play, B, B + 'a0') === 'https://r2/A' && P.qUrl(play, B, B + 'v9') === '' && P.qUrl(play, B, 'https://evil/v0') === '' && P.qUrl(play, B, B + 'x0') === '', 'qUrl: הכתובת הקבועה → הקישור החתום הנוכחי, רק שלנו');
     const sp = read('studioplay.js');
     ok(/fetch\(mapU\(url\)/.test(sp) && /ctx\.url = mapU\(k0\)/.test(sp) && /alt \|\| opts\.mapUrl \? \{ fLoader: FL \}/.test(sp), 'הנגן: mapUrl ברגע כל בקשה (האינדקס והקטעים, גם בניסיון חוזר)');

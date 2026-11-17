@@ -1915,6 +1915,20 @@ he: {
   dkCmdLight: "מצב בהיר",
   dkPalPh: "חיפוש עמוד, מניה או פעולה",
   dkPalNone: "לא נמצא",
+  msAria: "חיפוש",
+  msTitle: "חיפוש",
+  msPh: "מניה, עמוד או פעולה",
+  msYours: "המניות שלך",
+  msPages: "עמודים",
+  msActs: "פעולות ואפליקציות",
+  msStocks: "מניות",
+  msPagesActs: "עמודים ופעולות",
+  msMore: "עוד",
+  msNone: "אין תוצאות בתיק",
+  msNoneSub: "לא נמצא ״{q}״ במניות, בעמודים או בפעולות",
+  msMarket: "חיפוש ״{q}״ בכל המניות",
+  msMarketSub: "הוספה לרשימת המעקב",
+  msClose: "סגירה",
   dkKeysTitle: "קיצורי מקלדת", dkKeyBookFind: "חיפוש בספר", dkKeyFontUp: "הגדלת האות", dkKeyFontDown: "הקטנת האות", dkKeyCueNext: "בעורך: השורה הבאה (Shift — הקודמת)", dkKeyChartPt: "בגרף: מחיר בתאריך", dkKeyChartMeasure: "בגרף: מדידה", dkKeyChartRange: "בגרף: טווח (וגם + ו־−)", dkGridTrades: "רשימת העסקאות — חצים למעבר בין שורות", dkGridDeposits: "רשימת ההפקדות — חצים למעבר בין שורות, Enter לעריכה", scKbdAria: "גרף {s} — חצים: מחיר בתאריך, Shift וחצים: מדידה, 1–9 או + −: טווח", dkSideHide: "הסתרת סרגל הצד", dkSideShow: "הצגת סרגל הצד", dkDropT: "שחרר כאן", libDropT: "שחרר כדי להוסיף לספרייה", libDropNone: "אפשר להוסיף רק ספרים (EPUB, MOBI, AZW3, FB2)", studioDropT: "שחרר כדי לתרגם", studioDropNone: "אפשר לגרור רק סרטון או קובץ שמע",
   dkKeysGen: "כללי",
   dkKeysNav: "ניווט",
@@ -3807,6 +3821,20 @@ en: {
   dkCmdLight: "Light mode",
   dkPalPh: "Search a page, stock or action",
   dkPalNone: "Nothing found",
+  msAria: "Search",
+  msTitle: "Search",
+  msPh: "Stock, page or action",
+  msYours: "Your stocks",
+  msPages: "Pages",
+  msActs: "Actions and apps",
+  msStocks: "Stocks",
+  msPagesActs: "Pages and actions",
+  msMore: "More",
+  msNone: "No results in your portfolio",
+  msNoneSub: "No stock, page or action matches “{q}”",
+  msMarket: "Search “{q}” in all stocks",
+  msMarketSub: "Add to your watchlist",
+  msClose: "Close",
   dkKeysTitle: "Keyboard shortcuts", dkKeyBookFind: "Find in book", dkKeyFontUp: "Larger text", dkKeyFontDown: "Smaller text", dkKeyCueNext: "Editor: next line (Shift — previous)", dkKeyChartPt: "Chart: price on a date", dkKeyChartMeasure: "Chart: measure", dkKeyChartRange: "Chart: range (also + and −)", dkGridTrades: "Trades list — arrows move between rows", dkGridDeposits: "Deposits list — arrows move between rows, Enter to edit", scKbdAria: "{s} chart — arrows: price on a date, Shift+arrows: measure, 1–9 or + −: range", dkSideHide: "Hide sidebar", dkSideShow: "Show sidebar", dkDropT: "Drop here", libDropT: "Drop to add to your library", libDropNone: "Only books can be added (EPUB, MOBI, AZW3, FB2)", studioDropT: "Drop to translate", studioDropNone: "Only a video or audio file can be dropped here",
   dkKeysGen: "General",
   dkKeysNav: "Navigation",
@@ -8148,8 +8176,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.165.2';
-const APP_VERSION = 'v800';
+const APP_RELEASE = '2.166.1';
+const APP_VERSION = 'v801';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -18581,6 +18609,155 @@ function deskOpenStock(sym, tab) {
     if (!state.open[sym]) toggleStock(sym, card); else card.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }));
 }
+/* 17/11/2026 (בקשת המשתמש): חיפוש בטלפון — אותו מנוע של לוח הפקודות במחשב (deskCmdList + deskInvestCmds + deskFilter),
+   במסך לפי ת־עיצוב: השדה בזכוכית בתחתית (ליד האגודל, מעל המקלדת — visualViewport), ✕ לסגירה, תוצאות מקובצות
+   (מניות עם מחיר ושינוי יומי, עמודים ופעולות), והחלק שהוקלד מודגש. לפני הקלדה — המניות שלך, העמודים והפעולות.
+   התאמה רופפת (אותיות מפוזרות / פריסת מקלדת אחרת) — רק כשאין התאמה אמיתית. בסוף — "חיפוש בכל המניות" (שדה המעקב).
+   במחשב (html.dk) הכפתור מוסתר — שם יש ⌘K. העיצוב: invest-glass.css */
+const ICON_FIND = _IC_PRE + '<circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="20.5" y2="20.5"/></svg>';
+const MS_SVG = {
+  find: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 20.5 20.5"/></svg>',
+  x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>',
+  clr: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" class="f"/><path d="M8.7 8.7l6.6 6.6M15.3 8.7l-6.6 6.6"/></svg>',
+  market: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 20.5 20.5M10.5 7.5v6M7.5 10.5h6"/></svg>'
+};
+let _ms = null;
+/* "Mi" בתוך "Microsoft" → <mark>; בלי HTML מהקלט. טהורה */
+function msMark(label, q) {
+  const L = String(label == null ? '' : label), n = String(q || '').trim();
+  const i = n ? L.toLowerCase().indexOf(n.toLowerCase()) : -1;
+  return i < 0 ? esc(L) : esc(L.slice(0, i)) + '<mark>' + esc(L.slice(i, i + n.length)) + '</mark>' + esc(L.slice(i + n.length));
+}
+/* התוצאות לשאילתה: { stocks, cmds } — מניות (מהתיק ומהמעקב) ועמודים/פעולות, בלי "קיצורי מקלדת". טהורה מול הקלט */
+function msResults(q, base, extra) {
+  const all = base.filter((it) => it.label !== t('dkKeysTitle')).concat(extra);
+  let hits = deskFilter(q, all).slice(0, 30);
+  const sc = (it) => deskScore(q, it.label, it.kw);
+  if (hits.some((it) => sc(it) >= 60)) hits = hits.filter((it) => sc(it) >= 60);
+  return { stocks: hits.filter((it) => extra.includes(it)), cmds: hits.filter((it) => !extra.includes(it)) };
+}
+function msEl(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+function msRow(icHTML, ico, title, sub, endHTML) {
+  const r = msEl('div', 'ms-row');
+  r.setAttribute('role', 'option'); r.tabIndex = -1;
+  const ic = msEl('span', 'ms-ic', icHTML || '');
+  if (ico) ic.append(ico.cloneNode ? ico.cloneNode(true) : ico);
+  r.append(ic, msEl('span', 'ms-tx', '<b>' + title + '</b>' + (sub ? '<small>' + sub + '</small>' : '')));
+  if (endHTML) r.append(msEl('span', 'ms-end', endHTML));
+  return r;
+}
+function msQuoteHTML(sym) {
+  let m = null;
+  try { m = metrics(sym); } catch (e) {}
+  if (!m || m.price === null || m.price === undefined) return '';
+  const d = m.dayChg === null || m.dayChg === undefined || !isFinite(m.dayChg) ? null : m.dayChg;
+  return '<span class="ms-px" dir="ltr">' + fmtPx(m.price, sym) + '</span>' +
+    (d === null ? '' : '<span class="ms-chg ' + (d < -0.005 ? 'dn' : 'up') + '" dir="ltr">' + esc(fmtPct(d, true)) + '</span>');
+}
+function msPaint() {
+  const S = _ms;
+  if (!S) return;
+  const q = S.inp.value.trim(), L = S.list;
+  S.clr.hidden = !S.inp.value;
+  L.textContent = ''; S.runs = [];
+  let base = [];
+  try { base = deskCmdList(); } catch (e) {}
+  const add = (row, run) => { row.addEventListener('click', () => msGo(run)); S.runs.push({ row, run }); return row; };
+  const section = (title, rows) => {
+    if (title) L.append(msEl('div', 'ms-sec', esc(title)));
+    const c = msEl('div', 'ms-card'); rows.forEach((r) => c.append(r)); L.append(c);
+  };
+  if (!q) {
+    L.append(msEl('h1', 'ms-h1', esc(t('msTitle'))));
+    const syms = (POSITIONS || []).map((p) => p.sym).slice(0, 12);
+    if (syms.length) {
+      L.append(msEl('div', 'ms-sec', esc(t('msYours'))));
+      const sug = msEl('div', 'ms-sug');
+      for (const s of syms) {
+        const b = msEl('button', 'ms-chip', stockLogoHTML(s) + '<span dir="ltr">' + esc(dispSym(s)) + '</span>');
+        b.type = 'button';
+        b.addEventListener('click', () => msGo(() => deskOpenStock(s, 'stocks')));
+        sug.append(b);
+      }
+      L.append(sug);
+    }
+    const isPage = (it) => it.sub === t('dkCmdPage');
+    section(t('msPages'), base.filter(isPage).map((it) => add(msRow('', it.ico, esc(it.label), ''), it.run)));
+    section(t('msActs'), base.filter((it) => !isPage(it) && it.label !== t('dkKeysTitle')).map((it) => add(msRow('', it.ico, esc(it.label), esc(it.sub || '')), it.run)));
+    return;
+  }
+  let extra = [];
+  try { extra = deskInvestCmds(q) || []; } catch (e) {}
+  const R = msResults(q, base, extra);
+  if (R.stocks.length) section(t('msStocks'), R.stocks.map((it) => {
+    const sym = it.sym || String(it.kw || '').split(' ')[0];
+    const r = msRow(stockLogoHTML(sym), null, '<bdi dir="ltr">' + msMark(it.label, q) + '</bdi>', msMark(it.sub, q), msQuoteHTML(sym));
+    r.classList.add('ms-stock');
+    return add(r, it.run);
+  }));
+  if (R.cmds.length) section(t('msPagesActs'), R.cmds.map((it) => add(msRow('', it.ico, msMark(it.label, q), esc(it.sub || '')), it.run)));
+  const none = !R.stocks.length && !R.cmds.length;
+  if (none) L.append(msEl('div', 'ms-none', MS_SVG.find + '<b>' + esc(t('msNone')) + '</b>' + esc(t('msNoneSub', { q }))));
+  section(none ? '' : t('msMore'), [add(msRow(MS_SVG.market, null, esc(t('msMarket', { q })), esc(t('msMarketSub'))), () => {
+    switchTab('wishlist');
+    setTimeout(() => { const i = document.getElementById('wlSearchInput'); if (i) { i.value = q; i.dispatchEvent(new Event('input', { bubbles: true })); } }, 350);
+  })]);
+  if (S.runs[0]) S.runs[0].row.classList.add('sel');
+}
+function msGo(run) { msClose(); setTimeout(() => { try { run(); } catch (e) {} }, 60); }
+function msOpen() {
+  if (typeof document === 'undefined') return;
+  if (_ms) { _ms.inp.focus(); return; }
+  if (typeof mainMenuOpen === 'function' && mainMenuOpen()) setMainMenuOpen(false);
+  const root = msEl('div', 'ms');
+  root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', t('msTitle'));
+  const list = msEl('div', 'ms-list'); list.id = 'msList'; list.setAttribute('role', 'listbox');
+  const bar = msEl('div', 'ms-bar'), field = msEl('label', 'ms-field', MS_SVG.find);
+  const inp = msEl('input', 'ms-in');
+  inp.type = 'search'; inp.placeholder = t('msPh'); inp.enterKeyHint = 'search'; inp.autocomplete = 'off'; inp.spellcheck = false;
+  inp.setAttribute('autocorrect', 'off'); inp.setAttribute('autocapitalize', 'off'); inp.setAttribute('aria-controls', 'msList');
+  const clr = msEl('button', 'ms-clr', MS_SVG.clr); clr.type = 'button'; clr.setAttribute('aria-label', t('searchClear')); clr.hidden = true;
+  const x = msEl('button', 'ms-x', MS_SVG.x); x.type = 'button'; x.setAttribute('aria-label', t('msClose'));
+  field.append(inp, clr); bar.append(field, x); root.append(list, bar);
+  _ms = { root, list, inp, clr, runs: [], modal: null, unfit: null, prev: document.activeElement };
+  inp.addEventListener('input', msPaint);
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); if (_ms && _ms.runs[0]) msGo(_ms.runs[0].run); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (inp.value) { inp.value = ''; msPaint(); } else msClose(); }
+  });
+  clr.addEventListener('click', () => { inp.value = ''; msPaint(); inp.focus(); });
+  x.addEventListener('click', () => msClose());
+  list.addEventListener('touchmove', () => { if (document.activeElement === inp) inp.blur(); }, { passive: true });   // גלילה מורידה את המקלדת
+  const vv = window.visualViewport;
+  if (vv) {
+    const fit = () => { if (_ms) root.style.setProperty('--ms-kb', Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) + 'px'); };
+    vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit);
+    _ms.unfit = () => { vv.removeEventListener('resize', fit); vv.removeEventListener('scroll', fit); };
+  }
+  document.body.append(root);
+  document.documentElement.classList.add('ms-open');
+  _ms.modal = modalPush(() => msClose(true));   // "חזור" סוגר
+  msPaint();
+  requestAnimationFrame(() => { root.classList.add('on'); try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); } });
+}
+function msClose(fromBack) {
+  const S = _ms;
+  if (!S) return;
+  _ms = null;
+  if (!fromBack) modalDone(S.modal);
+  if (S.unfit) S.unfit();
+  try { S.inp.blur(); } catch (e) {}
+  S.root.classList.remove('on');
+  document.documentElement.classList.remove('ms-open');
+  setTimeout(() => S.root.remove(), 240);
+  try { if (S.prev && S.prev.isConnected && S.prev.focus) S.prev.focus({ preventScroll: true }); } catch (e) {}
+}
+function initMobileSearch() {
+  const b = document.getElementById('msBtn');
+  if (!b) return;
+  b.innerHTML = btnFacesHTML(ICON_FIND, '');
+  b.addEventListener('click', msOpen);
+}
 function toggleStock(sym, card) {
   const body = card.querySelector && card.querySelector('.stock-body');
   const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -20495,6 +20672,7 @@ function init() {
   /* תצוגת מחשב (11/11/2026, core: deskOnSettings / deskAddCmds): "הגדרות" בסרגל הצד ו־⌘, — עמוד ההגדרות; בלוח הפקודות (⌘K) — המניות */
   deskOnSettings(() => switchTab('settings'), () => navDepth(currentTabName()) > 0);
   deskAddCmds(deskInvestCmds);
+  initMobileSearch();   // 17/11/2026: חיפוש בטלפון (🔍 בהדר)
   // מטבע — כפתור בטאב ההגדרות + כפתור בהדר (v109) שמחליפים בין $ ל־₪; נשמר בין רענונים
   const paintCurBtn = () => {
     const lbl = state.currency === 'ILS' ? '₪' : '$';

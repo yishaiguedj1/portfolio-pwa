@@ -1,3 +1,5 @@
+/* סדר השכבות: invglass (Invest בזכוכית — invest-glass.css, רק ב־index.html) לפני glassbtn, כדי שה־!important שלה יגבר על כפתורי הזכוכית */
+@layer invglass, glassbtn;
 /* תיק ההשקעות — שפת עיצוב v31: Liquid Glass לפי ת־עיצוב 26.
    פלטת צבעי המערכת של iOS 26 (בהיר/כהה), זכוכית עם הדגשת hairline עליונה,
    RTL/LTR לוגי, טיפוגרפיה לפי ת־עיצוב, קצב ריווח 8pt. */

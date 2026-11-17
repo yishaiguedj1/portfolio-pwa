@@ -23,6 +23,15 @@ def sm(**kw):
 
 
 class TestPlan(unittest.TestCase):
+    # 17/11/2026: האיכויות הנמוכות כבויות כברירת מחדל — הבדיקות של המסלול שלהן רצות עם הדגל
+    @classmethod
+    def setUpClass(cls):
+        os.environ['SNB_LADDER_LOW'] = 'on'
+
+    @classmethod
+    def tearDownClass(cls):
+        os.environ.pop('SNB_LADDER_LOW', None)
+
     def test_plan(self):
         p = L.plan(sm())
         self.assertTrue(p['ok'])
@@ -96,6 +105,7 @@ class TestPlan(unittest.TestCase):
 class TestBuild(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        os.environ['SNB_LADDER_LOW'] = 'on'
         cls.tmp = Path(tempfile.mkdtemp())
         cls.src = cls.tmp / 'src.mp4'
         r = subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=1280x720:rate=25', '-f', 'lavfi',
@@ -106,6 +116,7 @@ class TestBuild(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        os.environ.pop('SNB_LADDER_LOW', None)
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
     def md5(self, p, sel):
@@ -240,6 +251,38 @@ if __name__ == '__main__':
     unittest.main()
 
 
+class OriginalOnly(unittest.TestCase):
+    """17/11/2026 (החלטת המשתמש): ברירת המחדל = רק האיכות המקורית — המקור נארז, בלי קידוד של נמוכות ובלי המתנה לצריבה"""
+    def test_plan_default(self):
+        os.environ.pop('SNB_LADDER_LOW', None)
+        p = L.plan(sm())
+        self.assertTrue(p['ok'])
+        self.assertEqual(p['rungs'], [], 'בלי איכויות נמוכות')
+        self.assertTrue(L.plan(sm(w=640, h=360))['ok'], 'גם מקור קטן נארז (אין נמוכות שחסרות)')
+        self.assertEqual(L.plan(sm(w=176, h=144))['why'], 'small')
+        self.assertTrue(L.plan(sm(a='eac3'))['alt'], 'עותק הקול לנגן נשאר')
+
+    def test_build_default(self):
+        os.environ.pop('SNB_LADDER_LOW', None)
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            src = tmp / 'src.mp4'
+            r = subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=25', '-f', 'lavfi',
+                                '-i', 'sine=frequency=440', '-t', '4', '-c:v', 'libx264', '-g', '50', '-pix_fmt', 'yuv420p',
+                                '-c:a', 'aac', str(src)], capture_output=True)
+            if r.returncode != 0:
+                self.skipTest('ffmpeg בלי libx264')
+            called = []
+            res = L.build(src, tmp / 'out', log=lambda m: None, gate=lambda: called.append(1))
+            self.assertTrue(res['ok'], res)
+            self.assertEqual(res['rungs'], [])
+            self.assertTrue(Path(res['top']['f']).exists())
+            self.assertEqual(sorted(p.name for p in (tmp / 'out').glob('r*.mp4')), [], 'אף קובץ איכות נמוכה')
+            self.assertEqual(called, [], 'אין קידוד — לא מחכים לצריבה')
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
 class Boost(unittest.TestCase):
     """16/10/2026: finish מחכה רק לאיכויות — הן עוברות מ־SCHED_IDLE לעדיפות רגילה (כל התהליכונים בקבוצה, גם ילדים).
     בלי הרשאות זה מותר רק כש־RLIMIT_NICE ≥ 20 (compose: ulimits nice 20) — בלי זה: 0, בלי שגיאה."""
@@ -283,7 +326,7 @@ class Boost(unittest.TestCase):
             J.LADDER_DIR = old
             shutil.rmtree(d, ignore_errors=True)
 
-    @unittest.skipUnless(hasattr(os, 'SCHED_IDLE') and sys.platform.startswith('linux'), 'לינוקס בלבד')
+    @unittest.skipUnless(FF and hasattr(os, 'SCHED_IDLE') and sys.platform.startswith('linux'), 'לינוקס עם ffmpeg בלבד')   # run_case מריץ ffmpeg אמיתי — כמו שאר הבדיקות בקובץ
     def test_boost_whole_group(self):
         import resource
         hard = resource.getrlimit(resource.RLIMIT_NICE)[1]
