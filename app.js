@@ -8151,7 +8151,7 @@ function stripLegacyDemo(db) {
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
 const APP_RELEASE = '2.163.0';
-const APP_VERSION = 'v795';
+const APP_VERSION = 'v796';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -8784,7 +8784,7 @@ function pieWireTouch(canvas) {
   if (!canvas || !canvas.addEventListener || canvas.dataset.pieTouch) return;
   canvas.dataset.pieTouch = '1';
   canvas.style.cursor = 'pointer';
-  canvas.style.touchAction = 'manipulation';
+  canvas.style.touchAction = 'pan-y'; // הדף נגלל, והחלקה לרוחב מעבירה עמוד (pageSwipe)
   // 17/11/2026 (בקשת המשתמש): click ולא pointerdown — אצבע שגוללת את הדף לא בוחרת פרוסה, רק הקשה מכוונת
   canvas.addEventListener('click', (ev) => {
     const rc = canvas.getBoundingClientRect();
@@ -13925,28 +13925,32 @@ function pfIdxAt(map, x) {
    הקשה (שחרור בלי תזוזה), החזקה (350ms) או גרירה לרוחב; שתי אצבעות — מיד (מדידה). אחרי שנדלק גם תנועה אנכית מזיזה
    את הסמן ולא גוללת. נגיעה שעוצרת גלילה בתנופה — לא כוונה. טהורה: מה הכוונה לפי התזוזה והזמן. */
 function tgIntent(dx, dy, ms) {
-  const ax = Math.abs(dx), ay = Math.abs(dy);
-  if (ax >= 8 && ax > ay) return 'scrub';
-  if (ay >= 8) return 'scroll';
+  // 17/11/2026 (בקשת המשתמש): גם תזוזה לרוחב לפני ההדלקה היא לא שלנו — זו החלקה בין העמודים (כמו בעוגה).
+  // הסימון נדלק רק בהקשה או בהחזקה; אחרי ההחזקה — הגרירה (לכל כיוון) מזיזה אותו
+  if (Math.abs(dx) >= 8 || Math.abs(dy) >= 8) return 'pass';
   return ms >= 350 ? 'scrub' : 'wait';
 }
+/* כמה אצבעות "בתוך" גרף כרגע (אחרי הדלקה) — ההחלקה בין העמודים מתבטלת כשהגרף כבר תפס את האצבע */
+let _tgLive = 0;
 let _tgScrollT = 0;
 /* שער מגע: h = { down, move, up, cancel } — המטפלים הרגילים של הגרף. עכבר/עט עוברים ישר; אצבע עוברת רק כשיש כוונה
    (ה־pointerdown המקורי נמסר באיחור, ואחריו התנועה). גלילה — האירועים נבלעים, והגרף לא יודע שנגעו בו. */
 function touchGate(el, h) {
   const pend = new Map(), live = new Set();
+  if (el.dataset) el.dataset.tg = '1'; // pageSwipeBlocked: גרף עם שער לא חוסם את ההחלקה בין העמודים
   if (!_tgScrollT && typeof document !== 'undefined') { _tgScrollT = 1; document.addEventListener('scroll', () => { _tgScrollT = Date.now(); }, { capture: true, passive: true }); }
   const fire = (id) => {
     const p = pend.get(id);
     if (!p) return;
     clearTimeout(p.tm); pend.delete(id);
     if (p.dead) return;
-    live.add(id); h.down(p.ev);
+    grab(id); h.down(p.ev);
   };
+  const grab = (id) => { if (!live.has(id)) { live.add(id); _tgLive++; } };
   const fireAll = () => { for (const id of [...pend.keys()]) fire(id); };
   el.addEventListener('pointerdown', (e) => {
     if (e.pointerType !== 'touch') { h.down(e); return; }
-    if (live.size || pend.size) { fireAll(); live.add(e.pointerId); h.down(e); return; } // אצבע שנייה — מדידה, מיד
+    if (live.size || pend.size) { fireAll(); grab(e.pointerId); h.down(e); return; } // אצבע שנייה — מדידה, מיד
     const fling = Date.now() - _tgScrollT < 150; // הדף עוד נע — הנגיעה עוצרת אותו, לא מסמנת
     const p = { ev: e, t: Date.now(), dead: fling, tm: 0 };
     if (!fling) p.tm = setTimeout(() => fire(e.pointerId), 350);
@@ -13957,7 +13961,7 @@ function touchGate(el, h) {
     const p = pend.get(e.pointerId);
     if (!p || p.dead) return;
     const k = tgIntent(e.clientX - p.ev.clientX, e.clientY - p.ev.clientY, Date.now() - p.t);
-    if (k === 'scroll') { p.dead = true; clearTimeout(p.tm); }
+    if (k === 'pass') { p.dead = true; clearTimeout(p.tm); }
     else if (k === 'scrub') { fire(e.pointerId); h.move(e); }
   });
   const end = (e, cancel) => {
@@ -13965,6 +13969,7 @@ function touchGate(el, h) {
     if (!cancel && pend.has(e.pointerId) && !pend.get(e.pointerId).dead) fire(e.pointerId); // הקשה
     if (pend.has(e.pointerId)) { clearTimeout(pend.get(e.pointerId).tm); pend.delete(e.pointerId); return; }
     if (!live.delete(e.pointerId)) return;
+    _tgLive = Math.max(0, _tgLive - 1);
     (cancel ? h.cancel : h.up)(e);
   };
   el.addEventListener('pointerup', (e) => end(e, false));
@@ -17298,7 +17303,8 @@ function initHScroll() {
 }
 function pageSwipeBlocked(tg, root) {
   if (!tg || !tg.closest) return true;
-  if (tg.closest('canvas, .sc-ov, input, textarea, select, [contenteditable="true"], .wl-tabs, .item-acts, .no-swipe, .stock.dragging')) return true;
+  // 17/11/2026 (בקשת המשתמש): גרף עם שער (touchGate) והעוגה — החלקה לרוחב עליהם מעבירה עמוד
+  if (tg.closest('canvas:not([data-tg]):not([data-pie-touch]), .sc-ov, input, textarea, select, [contenteditable="true"], .wl-tabs, .item-acts, .no-swipe, .stock.dragging')) return true;
   for (let el = tg; el && el !== root && el.nodeType === 1; el = el.parentElement) { // פס גלילה אופקי (צ'יפים וכו')
     if (el.scrollWidth > el.clientWidth + 2) {
       const ox = getComputedStyle(el).overflowX;
@@ -17363,7 +17369,7 @@ function wirePageSwipe() {
   const seen = (e) => { if (!e) return true; if (e === lastEv && e.timeStamp === lastTs) return true; lastEv = e; lastTs = e.timeStamp; return false; };
   function move(e) {
     if (!g || seen(e)) return;
-    if (e.touches.length !== 1 || dragBusy()) { cancel(); return; }
+    if (e.touches.length !== 1 || dragBusy() || _tgLive > 0) { cancel(); return; } // גרף שכבר נדלק (החזקה) — הגרירה שלו
     const t = e.touches[0], dx = t.clientX - g.x0, dy = t.clientY - g.y0;
     if (!g.lock) {
       if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
