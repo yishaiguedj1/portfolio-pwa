@@ -8150,8 +8150,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.160.0';
-const APP_VERSION = 'v791';
+const APP_RELEASE = '2.160.1';
+const APP_VERSION = 'v792';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -8785,7 +8785,8 @@ function pieWireTouch(canvas) {
   canvas.dataset.pieTouch = '1';
   canvas.style.cursor = 'pointer';
   canvas.style.touchAction = 'manipulation';
-  canvas.addEventListener('pointerdown', (ev) => {
+  // 17/11/2026 (בקשת המשתמש): click ולא pointerdown — אצבע שגוללת את הדף לא בוחרת פרוסה, רק הקשה מכוונת
+  canvas.addEventListener('click', (ev) => {
     const rc = canvas.getBoundingClientRect();
     const sym = pieHitSym(state.pieGeom, ev.clientX - rc.left, ev.clientY - rc.top);
     const cur = state.pieActive || null;
@@ -13838,6 +13839,57 @@ function pfIdxAt(map, x) {
   } else idx = Math.max(0, Math.min(map.n - 1, Math.round((x - map.padL) / map.plotW * (map.n - 1))));
   return idx;
 }
+/* 17/11/2026 (בקשת המשתמש — לפי ת־גרף): אצבע על גרף בזמן גלילת הדף לא נוגעת בסימון. הסימון נדלק רק בכוונה:
+   הקשה (שחרור בלי תזוזה), החזקה (350ms) או גרירה לרוחב; שתי אצבעות — מיד (מדידה). אחרי שנדלק גם תנועה אנכית מזיזה
+   את הסמן ולא גוללת. נגיעה שעוצרת גלילה בתנופה — לא כוונה. טהורה: מה הכוונה לפי התזוזה והזמן. */
+function tgIntent(dx, dy, ms) {
+  const ax = Math.abs(dx), ay = Math.abs(dy);
+  if (ax >= 8 && ax > ay) return 'scrub';
+  if (ay >= 8) return 'scroll';
+  return ms >= 350 ? 'scrub' : 'wait';
+}
+let _tgScrollT = 0;
+/* שער מגע: h = { down, move, up, cancel } — המטפלים הרגילים של הגרף. עכבר/עט עוברים ישר; אצבע עוברת רק כשיש כוונה
+   (ה־pointerdown המקורי נמסר באיחור, ואחריו התנועה). גלילה — האירועים נבלעים, והגרף לא יודע שנגעו בו. */
+function touchGate(el, h) {
+  const pend = new Map(), live = new Set();
+  if (!_tgScrollT && typeof document !== 'undefined') { _tgScrollT = 1; document.addEventListener('scroll', () => { _tgScrollT = Date.now(); }, { capture: true, passive: true }); }
+  const fire = (id) => {
+    const p = pend.get(id);
+    if (!p) return;
+    clearTimeout(p.tm); pend.delete(id);
+    if (p.dead) return;
+    live.add(id); h.down(p.ev);
+  };
+  const fireAll = () => { for (const id of [...pend.keys()]) fire(id); };
+  el.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'touch') { h.down(e); return; }
+    if (live.size || pend.size) { fireAll(); live.add(e.pointerId); h.down(e); return; } // אצבע שנייה — מדידה, מיד
+    const fling = Date.now() - _tgScrollT < 150; // הדף עוד נע — הנגיעה עוצרת אותו, לא מסמנת
+    const p = { ev: e, t: Date.now(), dead: fling, tm: 0 };
+    if (!fling) p.tm = setTimeout(() => fire(e.pointerId), 350);
+    pend.set(e.pointerId, p);
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'touch' || live.has(e.pointerId)) { h.move(e); return; }
+    const p = pend.get(e.pointerId);
+    if (!p || p.dead) return;
+    const k = tgIntent(e.clientX - p.ev.clientX, e.clientY - p.ev.clientY, Date.now() - p.t);
+    if (k === 'scroll') { p.dead = true; clearTimeout(p.tm); }
+    else if (k === 'scrub') { fire(e.pointerId); h.move(e); }
+  });
+  const end = (e, cancel) => {
+    if (e.pointerType !== 'touch') { (cancel ? h.cancel : h.up)(e); return; }
+    if (!cancel && pend.has(e.pointerId) && !pend.get(e.pointerId).dead) fire(e.pointerId); // הקשה
+    if (pend.has(e.pointerId)) { clearTimeout(pend.get(e.pointerId).tm); pend.delete(e.pointerId); return; }
+    if (!live.delete(e.pointerId)) return;
+    (cancel ? h.cancel : h.up)(e);
+  };
+  el.addEventListener('pointerup', (e) => end(e, false));
+  el.addEventListener('pointercancel', (e) => end(e, true));
+  // אחרי שנדלק — הדף לא נגלל מתחת לאצבע (גם תנועה אנכית מזיזה את הסמן)
+  el.addEventListener('touchmove', (e) => { if (live.size && e.cancelable) e.preventDefault(); }, { passive: false });
+}
 /* v265: מגע בגרף הביצועים — אצבע אחת: הבועה + סמן, גרירה מזיזה; שתי אצבעות בו־זמנית: מדידה (כמו בגרף המניה).
    מצב "מתאריך" וכפתור "מדידה" — כמו קודם (onPfTap). */
 function pfAttachTouch(canvas) {
@@ -13874,7 +13926,7 @@ function pfAttachTouch(canvas) {
     } else return;
     repaint();
   };
-  canvas.addEventListener('pointerdown', (e) => {
+  const down = (e) => {
     if (state.pfPickDate) { // v266: סימון שאפשר להזיז — נגיעה/גרירה, בלי חלון אישור
       const map = canvas._pfMap;
       if (!map || map.n < 2) return;
@@ -13889,22 +13941,20 @@ function pfAttachTouch(canvas) {
     ptrs.set(e.pointerId, xOf(e));
     try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
     upd();
-  });
-  canvas.addEventListener('pointermove', (e) => {
+  };
+  const move = (e) => {
     if (pick === e.pointerId && state.pfPickDate) { pickAt(xOf(e)); return; }
     if (!ptrs.has(e.pointerId)) return;
     ptrs.set(e.pointerId, xOf(e));
     upd();
-  });
-  const end = (e, cancel) => {
-    if (pick === e.pointerId) pick = null;
-    if (!ptrs.has(e.pointerId)) return;
-    ptrs.delete(e.pointerId);
-    if (cancel && !froze && !ptrs.size) { hidePfTip(); repaint(); } // גלילת הדף — לא התכוונו לגרף
   };
-  canvas.addEventListener('pointerup', (e) => end(e, false));
-  canvas.addEventListener('pointercancel', (e) => end(e, true));
-  if (typeof document !== 'undefined') document.addEventListener('pointerdown', (e) => {
+  const end = (e) => {
+    if (pick === e.pointerId) pick = null;
+    ptrs.delete(e.pointerId); // 17/11/2026: הסימון נשאר גם כשהנגיעה בוטלה — גלילה לא מוחקת אותו (touchGate)
+  };
+  touchGate(canvas, { down, move, up: end, cancel: end });
+  // נגיעה (הקשה) מחוץ לגרף מנקה את הסימון — גלילה לא (17/11/2026: click ולא pointerdown)
+  if (typeof document !== 'undefined') document.addEventListener('click', (e) => {
     if (e.target === canvas || state.pfMeasure.on || state.pfPickDate) return;
     if (state.pfTipIdx !== null || state.pfMeasure.pts.length) { hidePfTip(); state.pfMeasure.pts = []; repaint(); }
   }, true);
@@ -19037,7 +19087,7 @@ function scAttach(canvas, sym) {
       scSet(canvas, { mode: 'm', a, b }); froze = true;
     } else if (xs.length === 1 && !froze) scSet(canvas, { mode: 'tip', i: scIdx(map, xs[0]) });
   };
-  canvas.addEventListener('pointerdown', (e) => {
+  const down = (e) => {
     if (busy()) return;
     if (e.pointerType === 'mouse') { if (e.button !== 0) return; mouseDown = xOf(e); return; }
     if (!ptrs.size) froze = false;
@@ -19045,8 +19095,8 @@ function scAttach(canvas, sym) {
     try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
     upd();
     if (ptrs.size === 1) scHintOnce();
-  });
-  canvas.addEventListener('pointermove', (e) => {
+  };
+  const move = (e) => {
     if (busy()) return;
     const map = canvas._chartMap;
     if (e.pointerType === 'mouse') {
@@ -19059,7 +19109,7 @@ function scAttach(canvas, sym) {
     if (!ptrs.has(e.pointerId)) return;
     ptrs.set(e.pointerId, xOf(e));
     upd();
-  });
+  };
   const end = (e, cancel) => {
     if (e.pointerType === 'mouse') {
       if (cancel || mouseDown === null) return;
@@ -19069,19 +19119,15 @@ function scAttach(canvas, sym) {
       mouseDown = null;
       return;
     }
-    if (!ptrs.has(e.pointerId)) return;
-    ptrs.delete(e.pointerId);
-    // גלילה אנכית של הדף (pointercancel) באמצע נגיעה של אצבע אחת — לא התכוונו לגרף
-    if (cancel && !froze && !ptrs.size) scSet(canvas, null);
+    ptrs.delete(e.pointerId); // 17/11/2026: גלילה לא מגיעה לכאן (touchGate) — הסימון נשאר
   };
-  canvas.addEventListener('pointerup', (e) => end(e, false));
-  canvas.addEventListener('pointercancel', (e) => end(e, true));
+  touchGate(canvas, { down, move, up: (e) => end(e, false), cancel: (e) => end(e, true) });
   canvas.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && mouseDown === null && canvas._sc && !canvas._sc.pinned) scSet(canvas, null); });
   canvas.addEventListener('contextmenu', (e) => { if (canvas._sc) e.preventDefault(); }); // לחיצה ארוכה — בלי תפריט
   if (!_scOutWired && typeof document !== 'undefined') {
     _scOutWired = true;
-    // נגיעה מחוץ לגרף — הסמן/המדידה נעלמים (כמו בגרף הרווח/הפסד)
-    document.addEventListener('pointerdown', (e) => {
+    // הקשה מחוץ לגרף — הסמן/המדידה נעלמים (17/11/2026: click — גלילה לא מנקה)
+    document.addEventListener('click', (e) => {
       document.querySelectorAll('.chart-wrap canvas').forEach((c) => { if (c._sc && !c._sc.pick && e.target !== c) scSet(c, null); }); // v268: סמן הבחירה נשאר עד המשך/ביטול
     }, true);
   }
