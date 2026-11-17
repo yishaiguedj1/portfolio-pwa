@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2534 מפתחות מתוך 7104) */
+/* המחרוזות של studio (2534 מפתחות מתוך 7106) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1192,7 +1192,7 @@ he: {
   "studioLibSaving": "נשמר {p}%",
   "studioLibSavingS": "נשמר עכשיו לספרייה",
   "studioLibShare": "שיתוף",
-  "studioLibStore": "Drive: הספרייה {a} · הכל {u} מתוך {l}",
+  "studioLibStore": "{u} מתוך {l} תפוסים ב־Drive",
   "studioLibT": "ספרייה",
   "studioLinkAdd": "הוספה",
   "studioLinkAll": "כל האיכויות",
@@ -3728,7 +3728,7 @@ en: {
   "studioLibSaving": "Saving {p}%",
   "studioLibSavingS": "Being saved to your library",
   "studioLibShare": "Share",
-  "studioLibStore": "Drive: library {a} · all {u} of {l}",
+  "studioLibStore": "{u} of {l} used in Drive",
   "studioLibT": "Library",
   "studioLinkAdd": "Add",
   "studioLinkAll": "All qualities",
