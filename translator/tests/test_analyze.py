@@ -744,6 +744,10 @@ class TestViRun(unittest.TestCase):
 
         def ask(k, text):
             seen.append((k, text))
+            if k == "vm" and "## Sample sentences" in text:    # 17/11/2026: מי מדבר — לפני המיפוי
+                return "<json>" + json.dumps({"fmt": "lecture", "people": [
+                    {"spk": "S1", "name": "דן לוי", "orig": "Dan Levy", "ttl": "פרופסור למדעי המחשב", "role": "מרצה",
+                     "act": "", "g": "m", "kb": False}]}, ensure_ascii=False) + "</json>"
             if k == "vs":
                 return "<json>" + json.dumps({"one": {"text": "ירידת גרדיאנט עובדת", "from": ["n1"]},
                                               "bluf": {"text": "השיטה עובדת.", "from": ["n1"]},
@@ -754,18 +758,26 @@ class TestViRun(unittest.TestCase):
             e = re.findall(r"^\[(e\d+)", text, re.M)
             d = {"genre": "academic_lecture", "segments": [{"from": e[0], "type": "content"}],
                  "chapters": [{"from": e[0], "lvl": 1, "cont": False, "title": "ירידת גרדיאנט", "sum": "השיטה עובדת."}],
-                 "items": [{"kind": "claim", "text": "ירידת גרדיאנט עובדת", "ev": [e[0]], "q": "descent works.", "src": "speech",
+                 "items": [{"kind": "claim", "text": "לפי הדובר, ירידת גרדיאנט עובדת", "ev": [e[0]], "q": "descent works.", "src": "speech",
                             "basis": "speaker", "conf": "high"}],
                  "drop": []}
             return "<json>" + json.dumps(d, ensure_ascii=False) + "</json>"
         rc, ctx, J, out = self.run_vi(engine=llm.ManualEngine(ask), dry=0)
         self.assertEqual(rc, 0)
-        self.assertEqual([k for k, _ in seen], ["vm", "vs", "vv"], "מיפוי, סינתזה, אימות")
-        self.assertNotIn("1.6", seen[0][1].split("## Window")[1], "בלי זמנים בחלון")
+        self.assertEqual([k for k, _ in seen], ["vm", "vm", "vs", "vv"], "מי מדבר, מיפוי, סינתזה, אימות")
+        self.assertIn("Title: הרצאה", seen[0][1], "מי מדבר — עם כותרת הסרטון")
+        self.assertIn("## Who is who\nS1 = דן לוי (Dan Levy) · פרופסור למדעי המחשב · in this video: מרצה", seen[1][1],
+                      "המיפוי יודע מי מדבר (בשלד שבמטמון)")
+        self.assertIn("## Who is who", seen[2][1], "גם הסינתזה")
+        self.assertNotIn("1.6", seen[1][1].split("## Window")[1], "בלי זמנים בחלון")
         vi = json.loads((ctx.pdir / "vi.json").read_text())
         self.assertEqual(vi["chapters"][0]["title"], "ירידת גרדיאנט")
         it = vi["items"][0]
         self.assertEqual((it["id"], it["ch"], it["t"], it["src"]), ("n1", "c1", 1.6, "speech"), "זמן המילה descent")
+        self.assertEqual(it["text"], "לפי דן לוי, ירידת גרדיאנט עובדת", "רשת הביטחון: \"הדובר\" שנשאר — השם")
+        self.assertEqual(vi["speakers"], [{"spk": "S1", "sh": 1.0, "t": vi["speakers"][0]["t"], "lg": [{"lg": "en", "sh": 1.0}], "g": "m",
+                                           "gs": "text", "name": "דן לוי", "role": "מרצה", "orig": "Dan Levy",
+                                           "ttl": "פרופסור למדעי המחשב"}], "קול אחד בלי תוויות — S1 עם מי שהוא")
         self.assertNotIn("vi_unver", vi["quality"]["warn"], "האימות הושלם")
         self.assertNotIn("vi_partial", vi["quality"]["warn"])
         self.assertEqual(it["ver"], "sup")

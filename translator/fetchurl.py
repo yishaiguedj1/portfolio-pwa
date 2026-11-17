@@ -557,7 +557,10 @@ def ref_meta(info):
         t = _clean(c.get('title'), 300)
         if t:
             ch.append([st, t])
-    return {'desc': desc, 'ch': ch} if desc or ch else None
+    up = _clean(info.get('uploader') or info.get('channel'), 100)   # 17/11/2026: לבקשת "מי מדבר" בניתוח (analyze.cast_ctx)
+    if not (desc or ch or up):
+        return None
+    return dict({'desc': desc, 'ch': ch}, **({'up': up} if up else {}))
 
 
 def get_subs(url, out_dir, run=subprocess.run, timeout=REF_TIMEOUT, ref='', meta=False):
