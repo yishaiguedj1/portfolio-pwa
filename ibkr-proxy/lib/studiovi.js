@@ -95,7 +95,8 @@ function normVi(o) {
     if (Number.isInteger(e.w0) && Number.isInteger(e.w1) && e.w0 >= 0 && e.w1 >= e.w0) { x.w0 = e.w0; x.w1 = e.w1; }
     out.evidence.push(x);
   }
-  /* 16/11/2026 (דוברים בתמליל): [{spk, sh, t, lg: [{lg, sh}], g: m|f|u, gs, name, role}] — תווית אחת פעם אחת, עד SPK_MAX */
+  /* 16/11/2026 (דוברים בתמליל): [{spk, sh, t, lg: [{lg, sh}], g: m|f|u, gs, name, role}] — תווית אחת פעם אחת, עד SPK_MAX;
+     17/11/2026 (מי מדבר): + orig, ttl, act, kb (1 — מהידע הכללי של המודל) */
   const sps = [];
   for (const d of list(o.speakers, SPK_MAX)) {
     if (!isObj(d) || !SPK_RE.test(String(d.spk || '')) || !fin(d.sh, 0, 1) || sps.some((y) => y.spk === d.spk)) continue;
@@ -106,7 +107,8 @@ function normVi(o) {
     if (lgs.length) x.lg = lgs.slice(0, 4);
     x.g = d.g === 'm' || d.g === 'f' ? d.g : 'u';
     if (x.g !== 'u' && (d.gs === 'text' || d.gs === 'voice')) x.gs = d.gs;
-    for (const k of ['name', 'role']) { const v = txt(d[k], VI_TXT.spk); if (v) x[k] = v; }
+    for (const k of ['name', 'role', 'orig', 'ttl', 'act']) { const v = txt(d[k], VI_TXT.spk); if (v) x[k] = v; }   // 17/11/2026: מי מדבר — המקור, התואר והשחקן
+    if (d.kb === 1 && (x.name || x.ttl || x.act)) x.kb = 1;
     sps.push(x);
   }
   if (sps.length) out.speakers = sps;

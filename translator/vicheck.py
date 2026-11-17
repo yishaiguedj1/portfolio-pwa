@@ -154,6 +154,7 @@ def norm_vi(o):
             x['w0'], x['w1'] = int(w0), int(w1)
         out['evidence'].append(x)
     # 16/11/2026 (דוברים בתמליל): [{spk, sh, t, lg: [{lg, sh}], g: m|f|u, gs, name, role}] — תווית אחת פעם אחת, עד SPK_MAX
+    # 17/11/2026 (מי מדבר): + orig, ttl, act, kb (1 — מהידע הכללי של המודל)
     sps: list[dict] = []
     for d in _list(o.get('speakers'), SPK_MAX):
         if (not isinstance(d, dict) or not SPK_RE.match(_s(d.get('spk'))) or not _fin(d.get('sh'), 0, 1)
@@ -172,10 +173,12 @@ def norm_vi(o):
         x['g'] = d['g'] if d.get('g') in ('m', 'f') else 'u'
         if x['g'] != 'u' and d.get('gs') in ('text', 'voice'):
             x['gs'] = d['gs']
-        for k in ('name', 'role'):
+        for k in ('name', 'role', 'orig', 'ttl', 'act'):   # 17/11/2026: מי מדבר — המקור, התואר והשחקן
             v = _txt(d.get(k), VI_TXT['spk'])
             if v:
                 x[k] = v
+        if _isnum(d.get('kb')) and d['kb'] == 1 and any(k in x for k in ('name', 'ttl', 'act')):   # === 1 (לא true)
+            x['kb'] = 1
         sps.append(x)
     if sps:
         out['speakers'] = sps
