@@ -1089,12 +1089,11 @@ he: {
   earnBmo: 'לפני הפתיחה',
   earnAmc: 'אחרי הסגירה',
   earnEst: 'משוער',
-  earnMore: 'עוד {n} דוחות', earnMoreOne: 'עוד דוח אחד', earnTop: 'חזרה למעלה',
   earnXAn: 'אנליסטים', earnXMg: 'הנהלה', earnXMgY: 'הנהלה · שנתי', earnXTitle: 'צפי לדוח', earnXEps: 'רווח למניה', earnXRev: 'הכנסות',
   earnXN: '{n} אנליסטים', earnXN1: 'אנליסט אחד', earnXYago: 'לפני שנה: {v}', earnXSrc: 'צפי ההנהלה מהודעת הדוחות הקודמת ({d})',
   earnXGaap: 'GAAP', earnXYear: 'שנה מלאה',
   earnXCard: 'צפי', earnXFy: 'דוח שנתי', earnXAnY: 'אנליסטים · שנתי', earnXQtr: 'רבעון', earnXTonePos: 'מגמה חיובית', earnXToneNeg: 'מגמה שלילית', earnXToneNeu: 'מגמה ניטרלית',
-  earnXD90: 'הצפי לרווח למניה {v} ב־90 יום', earnXRevs: 'ב־30 יום: {up} העלו, {dn} הורידו', earnXBeat: 'עקפה את הצפי ב־{b} מ־{n} הרבעונים האחרונים',
+  earnXD90: 'הצפי לרווח למניה {v} ב־90 יום', earnXRevs: 'ב־30 יום: {up} העלו, {dn} הורידו', earnXBeat: 'עקפה את הצפי ב־{b} מ־{n} הרבעונים האחרונים', earnXBeatS: 'עקפה {b}/{n}', earnXFcPos: 'צפי חיובי', earnXFcNeg: 'צפי שלילי', earnXFcFlat: 'צפי יציב', earnXFcWhy: 'הצפי לרווח למניה {v} מול הרבעון המקביל אשתקד', earnXFcWhyRev: 'הצפי להכנסות {v} מול הרבעון המקביל אשתקד',
   earnXBeatAvg: ' (בממוצע {v})', earnXToneSrc: 'המגמה לפי שינויי הצפי של האנליסטים (Yahoo) — לא תחזית ולא המלצה.',
   calReport: 'דוח רבעוני', calAddAria: 'הוספת הדוח של {sym} ליומן', calGoogle: 'הוספה ל־Google Calendar', calOther: 'יומן אחר (אפל, סמסונג, Outlook)',
   calIcsNote: 'ביומן אחר נוצרות גם תזכורות — יום לפני ושעה לפני.', calIcsDone: 'הקובץ ירד — פתח אותו כדי להוסיף ליומן', calLocal: '{t} שעון ישראל',
@@ -2983,12 +2982,11 @@ en: {
   earnBmo: 'Before open',
   earnAmc: 'After close',
   earnEst: 'estimated',
-  earnMore: '{n} more reports', earnMoreOne: '1 more report', earnTop: 'Back to top',
   earnXAn: 'Analysts', earnXMg: 'Company', earnXMgY: 'Company · FY', earnXTitle: 'Expectations', earnXEps: 'EPS', earnXRev: 'Revenue',
   earnXN: '{n} analysts', earnXN1: '1 analyst', earnXYago: 'Year ago: {v}', earnXSrc: 'Company guidance from its previous earnings release ({d})',
   earnXGaap: 'GAAP', earnXYear: 'Full year',
   earnXCard: 'Est.', earnXFy: 'Annual report', earnXAnY: 'Analysts · FY', earnXQtr: 'Quarter', earnXTonePos: 'Trending up', earnXToneNeg: 'Trending down', earnXToneNeu: 'Flat',
-  earnXD90: 'EPS estimate {v} over 90 days', earnXRevs: 'Last 30 days: {up} up, {dn} down', earnXBeat: 'Beat estimates in {b} of the last {n} quarters',
+  earnXD90: 'EPS estimate {v} over 90 days', earnXRevs: 'Last 30 days: {up} up, {dn} down', earnXBeat: 'Beat estimates in {b} of the last {n} quarters', earnXBeatS: 'Beat {b}/{n}', earnXFcPos: 'Positive outlook', earnXFcNeg: 'Negative outlook', earnXFcFlat: 'Flat outlook', earnXFcWhy: 'EPS estimate {v} vs. the same quarter last year', earnXFcWhyRev: 'Revenue estimate {v} vs. the same quarter last year',
   earnXBeatAvg: ' (avg {v})', earnXToneSrc: 'Trend from analyst estimate revisions (Yahoo) — not a forecast or advice.',
   calReport: 'Earnings', calAddAria: 'Add the {sym} earnings report to your calendar', calGoogle: 'Add to Google Calendar', calOther: 'Other calendar (Apple, Samsung, Outlook)',
   calIcsNote: 'Other calendars also get reminders — a day before and an hour before.', calIcsDone: 'Downloaded — open it to add to your calendar', calLocal: '{t} local time',
@@ -8150,8 +8148,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.160.1';
-const APP_VERSION = 'v792';
+const APP_RELEASE = '2.161.0';
+const APP_VERSION = 'v793';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -11852,7 +11850,6 @@ function switchTab(name, opts) {
   document.querySelectorAll('.tabpage').forEach((s) => { if (s.id !== 'tab-' + name || !cubeDone) s.classList.remove('no-in'); else s.classList.add('no-in'); });
   document.querySelectorAll('.tabpage').forEach((s) => s.classList.toggle('active', s.id === 'tab-' + name));
   if (tabDirty[name]) { const fn = tabRenderer(name); if (fn) { try { fn(); } catch (e) {} } } // v193: הטאב השתנה בזמן שהיה מוסתר
-  if (name === 'overview') { try { sizeEarnWindow(); } catch (e) {} } // v223: חלון הדוחות נמדד רק כשהסקירה גלויה
   // v85: שמירת הטאב האחרון — חזרה לאותו עמוד אחרי רענון
   try { localStorage.setItem('pwa_lasttab_v1', name); } catch (e) {}
   requestAnimationFrame(() => { try { fitNumbers(); } catch (e) {} }); // התאמת מספרים אחרי המעבר (fitNumbers)
@@ -12292,6 +12289,25 @@ function earnXTone(a) {
   const sc = (d90 == null ? 0 : d90 > 0.02 ? 2 : d90 < -0.02 ? -2 : 0) + (d30 == null ? 0 : d30 > 0.01 ? 1 : d30 < -0.01 ? -1 : 0) + (r > 0 ? 1 : r < 0 ? -1 : 0);
   return { k: sc >= 1 ? 'pos' : sc <= -1 ? 'neg' : 'neu', d90: d90, d30: d30, up: q.up || 0, dn: q.dn || 0 };
 }
+/* 17/11/2026 (בקשת המשתמש): צפי חיובי/שלילי לדוח הקרוב — הצפי של האנליסטים לרווח למניה מול הרבעון המקביל אשתקד
+   (בלי רווח למניה אשתקד — ההכנסות). עד ±1% — יציב. טהורה: { k: 'pos'|'neg'|'flat', d: שינוי יחסי, by: 'eps'|'rev' } או null */
+function earnXFc(a) {
+  const q = a && a.q;
+  if (!q) return null;
+  const rel = (c, y) => (c == null || y == null || !isFinite(c) || !isFinite(y) || y === 0 ? null : (c - y) / Math.abs(y));
+  let d = rel(q.eps, q.yEps), by = 'eps';
+  if (d == null) { d = rel(q.rev, q.yRev); by = 'rev'; }
+  if (d == null) return null;
+  return { k: d > 0.01 ? 'pos' : d < -0.01 ? 'neg' : 'flat', d: d, by: by };
+}
+function earnXFcHTML(fc) {
+  if (!fc) return '';
+  const k = fc.k === 'flat' ? 'neu' : fc.k;
+  const v = '\u2066' + (fc.d > 0 ? '+' : fc.d < 0 ? '−' : '') + Math.abs(fc.d * 100).toFixed(Math.abs(fc.d) < 0.1 ? 1 : 0) + '%\u2069';
+  const txt = fc.k === 'pos' ? t('earnXFcPos') : fc.k === 'neg' ? t('earnXFcNeg') : t('earnXFcFlat');
+  return '<span class="earn-tone ' + k + '" title="' + esc(fc.by === 'eps' ? t('earnXFcWhy', { v: v }) : t('earnXFcWhyRev', { v: v })) + '"><span aria-hidden="true">' +
+    (fc.k === 'pos' ? '▲' : fc.k === 'neg' ? '▼' : '●') + '</span> ' + esc(txt) + ' <span class="earn-fc-v">' + esc(v) + '</span></span>';
+}
 function earnXToneHTML(tn) {
   if (!tn) return '';
   const txt = tn.k === 'pos' ? t('earnXTonePos') : tn.k === 'neg' ? t('earnXToneNeg') : t('earnXToneNeu');
@@ -12306,14 +12322,16 @@ function earnXRowHTML(ex) {
   if (a && a.q) {
     lab = t('earnXCard');
     parts = [earnEpsTxt(a.q.eps, a.cur), earnRevTxt(a.q.rev, a.cur)].filter(Boolean);
-    const tn = earnXTone(a);   // בכרטיס רק חיובית/שלילית; ניטרלית — בלי סימן (פחות רעש), המילים בגיליון
-    if (tn && tn.k !== 'neu') ic = '<span class="earn-tone-ic ' + tn.k + '" role="img" aria-label="' + esc(tn.k === 'pos' ? t('earnXTonePos') : t('earnXToneNeg')) + '">' + (tn.k === 'pos' ? '▲' : '▼') + '</span>';
+    // 17/11/2026 (בקשת המשתמש): הדוח הקרוב צפוי חיובי או שלילי (מול הרבעון המקביל אשתקד — לא מגמת הצפי, היא בגיליון),
+    // ועקיפת הצפי ברבעונים האחרונים — בשורה משלה
+    const fc = earnXFc(a), h = a.h && a.h.n ? a.h : null;
+    if (fc || h) ic = '<span class="earn-sig">' + earnXFcHTML(fc) + (h ? '<span class="earn-beat" title="' + esc(t('earnXBeat', { b: h.b, n: h.n })) + '">' + esc(t('earnXBeatS', { b: h.b, n: h.n })) + '</span>' : '') + '</span>';
   } else if (g && (g.q || g.y)) {
     const p = g.q || g.y;
     lab = g.q ? t('earnXMg') : t('earnXMgY');
     parts = [p.eps ? earnRangeTxt(p.eps[0], p.eps[1], 'eps', 'USD') : '', p.rev ? earnRangeTxt(p.rev[0], p.rev[1], 'rev', 'USD') : ''].filter(Boolean);
   }
-  return parts.length ? '<span class="earn-x">' + ic + '<b>' + esc(lab) + '</b> <span dir="ltr">' + esc(parts.join(' · ')) + '</span></span>' : '';
+  return parts.length ? '<span class="earn-x"><b>' + esc(lab) + '</b> <span dir="ltr">' + esc(parts.join(' · ')) + '</span></span>' + ic : '';
 }
 /* כרטיס "דוחות קרובים" — תיק + מעקב, ממוין לפי תאריך */
 function renderEarningsCard(noFetch) {
@@ -12332,7 +12350,7 @@ function renderEarningsCard(noFetch) {
   rows.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   if (!rows.length) { card.classList.add('hidden'); return; }
   card.classList.remove('hidden');
-  const keepTop = list.scrollTop;   // ציור מחדש כשהצפי מגיע — בלי לקפוץ לראש הרשימה
+  const keepX = list.scrollLeft;   // ציור מחדש כשהצפי מגיע — בלי לקפוץ לתחילת הקרוסלה
   list.innerHTML = '';
   // v221: שורה בסגנון רשימת iOS — לוגו, סימבול + שם, "בעוד N ימים · אחרי הסגירה", ואריח לוח שנה (חודש + יום) בקצה
   const monFmt = new Intl.DateTimeFormat(state.lang === 'en' ? 'en-US' : 'he-IL', { month: 'short', timeZone: 'UTC' });
@@ -12358,72 +12376,14 @@ function renderEarningsCard(noFetch) {
       '<span class="earn-day">' + dt.getUTCDate() + '</span></span>';
     list.appendChild(li);
   }
-  if (keepTop) list.scrollTop = keepTop;
-  sizeEarnWindow();
+  if (keepX) list.scrollLeft = keepX;
+  // 17/11/2026 (בקשת המשתמש): קרוסלה אופקית — העמוד נגלל למעלה/למטה, הדוחות לצדדים (ת־עיצוב: לא גלילה בתוך גלילה באותו כיוון)
+  const shown = Math.min(rows.length, 12);
+  list.classList.toggle('earn-one', shown === 1);
+  const cnt = document.getElementById('earnCnt');
+  if (cnt) cnt.textContent = shown > 1 ? ' · ' + shown : '';
   if (!noFetch) earnXFetch(rows.slice(0, 12).map((r) => r.sym));
 }
-/* v223: חלון של שלושה דוחות (שניים במסך קטן) שנגלל בתוך הכרטיס (כמו רשימת הווידג׳ט): הגובה = שתי השורות הראשונות, עצירה על כל
-   שורה (scroll-snap), דהייה בתחתית כשיש עוד. נמדד אחרי הציור; בטאב מוסתר (גובה 0) — ננסה שוב כשייראה */
-function sizeEarnWindow() {
-  const list = document.getElementById('earnList');
-  if (!list) return;
-  requestAnimationFrame(() => {
-    const rows = list.querySelectorAll('.earn-row');
-    // 15/11/2026 (בקשת המשתמש): שלושה דוחות במסך גדול, שניים במסך קטן. השאר בגלילה, ו"עוד N דוחות" מתחת
-    const n = earnWinRows(Math.max(window.innerHeight || 0, (window.screen && screen.height) || 0));
-    const more = rows.length > n;
-    list.classList.toggle('earn-scroll', more);
-    const btn = document.getElementById('earnMore');
-    if (btn) btn.classList.toggle('hidden', !more);
-    if (!more) { list.style.maxHeight = ''; return; }
-    let h = 0;
-    for (let i = 0; i < n; i++) h += rows[i].offsetHeight;
-    if (h > 0) list.style.maxHeight = h + 'px';
-    if (!sizeEarnWindow._rs) {
-      sizeEarnWindow._rs = true;
-      let tm = 0;
-      window.addEventListener('resize', () => { clearTimeout(tm); tm = setTimeout(sizeEarnWindow, 150); }, { passive: true });
-    }
-    if (!list._earnWired) {
-      list._earnWired = true;
-      list.addEventListener('scroll', () => earnMoreUpdate(), { passive: true });
-      // v224: הכפתור גולל דוח אחד למטה; בסוף הרשימה — חזרה לראש
-      if (btn) btn.addEventListener('click', () => {
-        const atEnd = list.scrollTop + list.clientHeight >= list.scrollHeight - 2;
-        const step = (list.querySelector('.earn-row') || {}).offsetHeight || 70;
-        try { list.scrollTo({ top: atEnd ? 0 : list.scrollTop + step, behavior: 'smooth' }); } catch (e) { list.scrollTop = atEnd ? 0 : list.scrollTop + step; }
-      });
-    }
-    earnMoreUpdate();
-  });
-}
-/* 15/11/2026: כמה דוחות בחלון — 3 במסך גדול (גובה 800 ומעלה, ביחידות CSS), 2 במסך קטן. לפי גובה המסך ולא לפי
-   יחס לגובה השורות: הכלל הקודם (שלוש שורות עד רבע מהמסך) הניח שורה של ~60 פיקסלים, אבל שורה אמיתית (שם, מועד,
-   צפי) היא ~85, ולכן בכל טלפון, גם בגדול, יצאו שניים */
-function earnWinRows(vh) {
-  return vh >= 800 ? 3 : 2;
-}
-/* v224 (בקשת המשתמש: שיהיה ברור שאפשר לגלול): "עוד N דוחות ⌄" מתחת לחלון — N = השורות שעוד מתחת לתצוגה;
-   בסוף הרשימה "חזרה למעלה ⌃". יחד עם הדהייה בתחתית */
-function earnMoreUpdate() {
-  const list = document.getElementById('earnList');
-  const btn = document.getElementById('earnMore');
-  if (!list || !btn) return;
-  const bottom = list.scrollTop + list.clientHeight;
-  const atEnd = bottom >= list.scrollHeight - 2;
-  list.classList.toggle('at-end', atEnd);
-  // שורות שמרכזן מתחת לתחתית החלון (מיקום יחסי לחלון, לא לדף)
-  const lb = list.getBoundingClientRect().bottom;
-  let n = 0;
-  for (const r of list.querySelectorAll('.earn-row')) { const rr = r.getBoundingClientRect(); if (rr.bottom > lb + 2) n++; }   // 15/11/2026: גם השורה החצויה בתחתית נספרת
-  const txt = atEnd ? t('earnTop') : n === 1 ? t('earnMoreOne') : t('earnMore', { n: n });
-  const key = (atEnd ? 'top' : 'down') + '|' + txt;
-  if (btn._key === key) return;
-  btn._key = key;
-  btn.classList.toggle('up', atEnd);
-  btn.innerHTML = '<span>' + esc(txt) + '</span><svg class="earn-more-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
-}
-
 /* v222: הוספת דוח ליומן — גיליון תחתון לפי ת־עיצוב/Android: Google Calendar בנגיעה, או קובץ .ics לכל יומן אחר
    (Apple / Samsung / Outlook) עם תזכורת יום לפני ושעה לפני. שעה ידועה (לפני הפתיחה/אחרי הסגירה) — אירוע של חצי שעה
    בזמן של Yahoo; בלי שעה — אירוע של יום שלם. טהורות: earnCalEvent, earnGoogleUrl, earnIcs. */
@@ -17139,13 +17099,26 @@ function pageSwipeTarget(cur, next) { // next=true → העמוד הבא (שמא
    שורה שהדפדפן גולל (overflow: auto) היא תמיד שכבה נפרדת. בטלפון היא נבנתה מחדש בכל נחיתה, והייתה ריקה עד שנצבעה (עד שתי שניות).
    כאן הגלילה באצבע: גרירה לרוחב מזיזה את scrollLeft, ובשחרור — תנופה שדועכת. גרירה אנכית נשארת של הדף (touch-action: pan-y).
    hsRow(el): השורה עצמה, רק כשיש לה מה לגלול */
-const HS_ROWS = 'main .tabpage :is(.ranges, .chip-row, .stock-sort-row, .wl-tabs, .tx-years):not(.stock-chips)';
+const HS_ROWS = 'main .tabpage :is(.ranges, .chip-row, .stock-sort-row, .wl-tabs, .tx-years, .earn-list):not(.stock-chips)';
 function hsRow(el) {
   const r = el && el.closest ? el.closest(HS_ROWS) : null;
   return r && r.scrollWidth > r.clientWidth + 2 ? r : null;
 }
 /* התנועה עצמה — טהורה (נבדקת): dx מאז ההתחלה → scrollLeft; תנופה: מהירות (px/ms) דועכת לפי הזמן */
 function hsFling(v, dt) { return v * Math.pow(0.996, dt); }
+/* 17/11/2026: קרוסלה (.earn-list) — בשחרור נעצרת על כרטיס, ולכל היותר כרטיס אחד מזה שהתחלנו בו (לפי ת־עיצוב).
+   טהורה: starts — ה־scrollLeft שבו כל כרטיס בתחילת השורה; from — scrollLeft בתחילת הגרירה; proj — לאן התנופה הייתה מגיעה */
+function hsSnapTarget(starts, from, proj) {
+  if (!starts.length) return proj;
+  const near = (x) => starts.reduce((bi, v, i) => Math.abs(v - x) < Math.abs(starts[bi] - x) ? i : bi, 0);
+  const i0 = near(from), i = near(proj);
+  return starts[Math.max(i0 - 1, Math.min(i0 + 1, i))];
+}
+function hsSnapStarts(row) {
+  const rr = row.getBoundingClientRect(), cs = getComputedStyle(row), rtl = cs.direction === 'rtl';
+  const pad = parseFloat(rtl ? cs.paddingRight : cs.paddingLeft) || 0;
+  return [...row.children].map((c) => { const r = c.getBoundingClientRect(); return row.scrollLeft + (rtl ? r.right - (rr.right - pad) : r.left - (rr.left + pad)); });
+}
 function initHScroll() {
   if (typeof document === 'undefined' || !document.addEventListener) return;
   let s = null, raf = 0, eat = 0;
@@ -17174,6 +17147,16 @@ function initHScroll() {
     if (!g.on || e.type === 'pointercancel') return;
     eat = e.timeStamp;                       // הלחיצה שאחרי גרירה — לא בחירה בצ'יפ
     let v = e.timeStamp - g.t > 80 ? 0 : g.v, last = performance.now();
+    if (g.row.classList.contains('earn-list') && typeof requestAnimationFrame === 'function') {   // קרוסלה — נעצרת על כרטיס
+      const a = g.row.scrollLeft, b = hsSnapTarget(hsSnapStarts(g.row), g.x0, a - v * 250), t0 = performance.now(), D = 320;
+      const step = (now) => {
+        const k = Math.min(1, (now - t0) / D), ez = 1 - Math.pow(1 - k, 3);
+        g.row.scrollLeft = a + (b - a) * ez;
+        raf = k < 1 && g.row.isConnected ? requestAnimationFrame(step) : 0;
+      };
+      raf = requestAnimationFrame(step);
+      return;
+    }
     if (Math.abs(v) < 0.05 || typeof requestAnimationFrame !== 'function') return;
     const step = (now) => {
       const dt = Math.min(48, now - last); last = now;
