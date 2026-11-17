@@ -41,6 +41,7 @@
 | **בדיקת העומק של גרף הנרות** (16/11/2026): כל נר בכל מרווח מול מקורות בלי מפתח (Webull, הדגמות Twelve Data/EODHD, בורסות קריפטו, ECB/בנק ישראל), הפסיקות (V3…ALIGN), הימים המיוחדים, הכלים `tools/chart-deep/`, הממצאים C-001… (`docs/research/chart-deep/`) | `docs/chart-deep-audit.md` |
 | עיצוב, ניווט, "חזור", חלונות, קובייה/החלקה, ביצועי פתיחה, הדר, APK לשלוש האפליקציות | `docs/ui.md` |
 | **Invest בזכוכית** (17/11/2026): `invest-glass.css` (שכבת `invglass` לפני `glassbtn`, רק ב־index.html), ההדר המתכווץ בציר גלילה, **החיפוש בטלפון** (`msOpen` — מנוע ⌘K), התצוגה המקדימה והלקחים | `docs/invest-design-plan.md` |
+| **Academy בזכוכית** (17/11/2026): התצוגה המקדימה (20 פריטים, היום/מוצע), המחקר על אפליקציית ספרים (`docs/research/studio-academy-design/02-academy-books.md`), תוכנית `academy-glass.css` (שכבה `acglass`) | `docs/academy-design-plan.md` |
 | **תצוגת מחשב** (11/11/2026): `desktop.css` + מודול `desk*` בליבה — סרגל צד, ⌘K, מקלדת, מידות לפי קלט (עכבר/מחשב מגע/טאבלט), הצילום `tools/qa-desktop.js`; המחקר ב־`docs/research/desktop/` | `docs/desktop-plan.md` |
 | בדיקות — פירוט ורשימות | `docs/tests.md` |
 | פריסה — הפרוטוקול המלא, Vercel, סביבות | `docs/deploy.md` |
