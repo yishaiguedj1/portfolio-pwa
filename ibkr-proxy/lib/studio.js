@@ -901,6 +901,7 @@ function publicJob(job, now) {
     vw: job.vw && !job.pk ? 1 : 0,                   // 15/10/2026: מחכה לסרטון בתור — השרת פנוי בינתיים
     bw: job.bw && !job.pk ? 1 : 0,                   // 01/11/2026 (I3): מחכה לתשובה מתור החיסכון — השרת פנוי בינתיים
     btx: job.btx && Number.isFinite(job.btx.t) && job.btx.t > 0 ? { t: job.btx.t, s: job.btx.s === 'job' ? 'job' : 'x' } : null,   // 4/11/2026: יציאה מתור החיסכון (btNow) — מתי ומאיפה
+    qw: qwView(job),                                // 17/11/2026: למה הראשונה בתור לא נלקחה (זיכרון / לחץ / קבלה חזויה)
     bq: bqView(job, now),                           // 2/11/2026: מצב הבקשות בתור (נאספות / נשלחו ומתי / תקלה / הסוכן שותק)
     fr: job.fr && typeof job.fr.s === 'number' ? { s: job.fr.s, ms: Math.max(0, Math.round(job.fr.ms || 0)) } : null,   // v369: תוצאת ההפעלה האחרונה
     tr: normTrace(job.tr),                          // v373: עקיבה — פעולות לכל סוכן והקבוצות הנפוצות
@@ -1810,7 +1811,26 @@ function normFit(f) {
   const va = n(f.va, 100, 1e5), vb = n(f.vb, 0, 1e4), dv = n(f.dv, 0, 1e4);
   if (va != null && vb != null) { o.va = va; o.vb = vb; }
   if (dv != null) o.dv = dv;
+  if (f.ps === 1) o.ps = 1;   // 17/11/2026: הזיכרון בלחץ (PSI) — mb=0
   return o;
+}
+/* 17/11/2026 (בקשת המשתמש: "למה עבודה בתור אם השרת מריץ שתיים במקביל?"): למה הראשונה בתור לא נלקחה — נרשם עליה (qw)
+   ומוצג בשורת התור בטלפון. GB בעשיריות, מעוגל לחצי GB — כתיבה רק כשהסיבה באמת משתנה (לא בכל poll). null = לא חסומה */
+const gbHalf = (mb) => Math.round(Math.max(0, mb) / 512) * 5;
+function qwOf(job, fit) {
+  if (!fit || !job) return null;
+  if (fit.ps === 1) return { r: 'psi' };
+  const need = peakNeed(job, fit);
+  if (need > fit.mb) return { r: 'mem', n: gbHalf(need), f: gbHalf(fit.mb) };
+  if (perfBlock(job, fit)) { const lim = job.spec && job.spec.vi === 1 && fit.dv != null ? fit.dv : fit.dm; return { r: 'perf', d: Math.round(lim) }; }
+  return null;
+}
+const QW_R = ['mem', 'psi', 'perf'];
+function qwView(job) {
+  const q = job && job.state === 'queued' && !job.pk && !job.sid && job.qw;
+  if (!q || !QW_R.includes(q.r)) return null;
+  const n = (x) => (Number.isFinite(+x) && +x >= 0 && +x < 1e4 ? Math.round(+x) : 0);
+  return q.r === 'mem' ? { r: 'mem', n: n(q.n), f: n(q.f) } : q.r === 'perf' ? { r: 'perf', d: n(q.d) } : { r: 'psi' };
 }
 /* 5/11/2026 (קבלה חזויה, docs/studio-parallel-plan.md): fit.dm = האורך המרבי (דק׳ סרטון) של עבודה שנכנסת עכשיו בלי שאף
    עבודה בשרת תאט מעבר לתקרה (הסוכן מריץ קדימה את מה שרץ). בלי dm — בלי הגבלה. גיליון AI / העתקה / קובץ כתוביות — בלי מעבד */
@@ -1890,7 +1910,7 @@ function normUtl(o) {
   for (const k of UTL_KEYS) { const v = Number(o[k]); if (Number.isFinite(v) && v >= 0 && v <= 1e11) out[k] = Math.round(v); }
   return Object.keys(out).length ? out : null;
 }
-const JSON_FIELDS = ['mon', 'bq', 'btx', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr', 'urt', 'fsr', 'vst', 'vcp', 'vsm', 'fvi', 'vrf', 'vq', 'fvj', 'vjd', 'vref', 'vpd', 'hs'];   // 16/11/2026: hs = כתוביות צרובות במקור   // PR 1.6: fvj = הזוגות של עבודת השופט, vjd = מה שהשופט מצא, vref = עותק הייחוס לשופט, vpd = טיוטת הייחוס (ה5); vrf = חבילת הייחוס של ניתוח בסט הזהב, vq = הציון מולה   // PR 1.2ג: fvi = ה־vi.json של ההורה לעבודת "אמת שוב"   // 9/11/2026: vsm = סיכום הניתוח (מספרים)   // 29/10/2026: vst = כמה מהסרטון ב־R2 בפעם האחרונה שזז (העלאה תקועה — upStallStep)   // 26/10/2026: fsr = רצועת הכתוביות שבקובץ, עזר להגהה   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['mon', 'qw', 'bq', 'btx', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr', 'urt', 'fsr', 'vst', 'vcp', 'vsm', 'fvi', 'vrf', 'vq', 'fvj', 'vjd', 'vref', 'vpd', 'hs'];   // 16/11/2026: hs = כתוביות צרובות במקור   // PR 1.6: fvj = הזוגות של עבודת השופט, vjd = מה שהשופט מצא, vref = עותק הייחוס לשופט, vpd = טיוטת הייחוס (ה5); vrf = חבילת הייחוס של ניתוח בסט הזהב, vq = הציון מולה   // PR 1.2ג: fvi = ה־vi.json של ההורה לעבודת "אמת שוב"   // 9/11/2026: vsm = סיכום הניתוח (מספרים)   // 29/10/2026: vst = כמה מהסרטון ב־R2 בפעם האחרונה שזז (העלאה תקועה — upStallStep)   // 26/10/2026: fsr = רצועת הכתוביות שבקובץ, עזר להגהה   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -1929,7 +1949,7 @@ module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, 
   NORM_MIN, NORM_DEF, NORM_FIXED, NORM_DEF_API, NORM_FIXED_API, normDef, normFixed, engKey, normSample, addSample, learnedNorm, normsView,
   FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide, fbRemove,
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, BLOCK_ERRS, BLOCK_WAIT, isBlock, blockWait, EARLY_FAIL_MS, EARLY_WAIT, recoverWait, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
-  effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, excludeWait, toFields, fromFields, normFit, peakNeed, perfBlock,
+  effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, excludeWait, toFields, fromFields, normFit, peakNeed, perfBlock, qwOf, qwView,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, BAD_AUTH_GAP, badAuthDue, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
   serverMatches, normHb, normEv, SRV_EV, parkable, bwParkable, BW_MAX, BT_ERRS, normBq, bqView, BQ_SILENT_MS, bwLost, BQ_LOST_MS, BL_MAX, WL_RE, PARK_MAX, serverView, viClosed, monthKey, monthUsed, addMonth, jobCap,
 };

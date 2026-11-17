@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2485 מפתחות מתוך 7040) */
+/* המחרוזות של studio (2488 מפתחות מתוך 7043) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1597,6 +1597,9 @@ he: {
   "studioQcNone": "אין בעיות. הכתוביות עומדות בכללים.",
   "studioQcT": "בדיקה",
   "studioQuality": "איכות",
+  "studioQwMem": "ממתינה לזיכרון בשרת: צריכה כ־{n}GB, פנויים {f}GB — תתחיל כשמה שרץ יתקדם",
+  "studioQwPerf": "ממתינה לרגע שבו לא תאט את מה שרץ עכשיו",
+  "studioQwPsi": "ממתינה — הזיכרון בשרת עמוס כרגע",
   "studioRateChange": "שינוי",
   "studioRateDn": "לא טוב",
   "studioRateErr": "המשוב לא נשמר — נסו שוב",
@@ -4084,6 +4087,9 @@ en: {
   "studioQcNone": "No issues. The subtitles meet the rules.",
   "studioQcT": "Check",
   "studioQuality": "Quality",
+  "studioQwMem": "Waiting for server memory: needs ~{n}GB, {f}GB free — starts as the running work moves on",
+  "studioQwPerf": "Waiting for a moment when it won’t slow down what’s running",
+  "studioQwPsi": "Waiting — server memory is under pressure right now",
   "studioRateChange": "Change",
   "studioRateDn": "Not good",
   "studioRateErr": "Feedback wasn't saved — try again",

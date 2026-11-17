@@ -278,6 +278,8 @@ export function normJob(j) {
     bw: s.bw === 1,   // 01/11/2026 (סבב 3): מחכה לתשובה מתור החיסכון — השרת פנוי בינתיים
     // 2/11/2026: מצב הבקשות בתור (השרתון — bqView): g נאספות, s נשלחו ב־t, e השליחה נכשלת, n הסוכן לא מדווח
     bq: s.bq && ['g', 's', 'e', 'n'].includes(s.bq.s) && num(s.bq.t) > 0 ? { s: s.bq.s, t: num(s.bq.t) } : null,
+    // 17/11/2026: למה הראשונה בתור לא נלקחה (השרתון — qwView): mem — צריכה n ופנויים f (עשיריות GB), psi — הזיכרון בלחץ, perf — עד d דק׳ נכנסות עכשיו
+    qw: s.qw && s.qw.r === 'mem' ? { r: 'mem', n: num(s.qw.n), f: num(s.qw.f) } : s.qw && s.qw.r === 'perf' ? { r: 'perf', d: num(s.qw.d) } : s.qw && s.qw.r === 'psi' ? { r: 'psi' } : null,
     vsm: s.vsm && typeof s.vsm === 'object' ? { n: num(s.vsm.n), ok: num(s.vsm.ok), cov: Math.min(100, num(s.vsm.cov)), so: num(s.vsm.so), d: num(s.vsm.d) } : null,   // 9/11/2026: סיכום הניתוח (מספרים בלבד)
     btx: s.btx && num(s.btx.t) > 0 ? { t: num(s.btx.t), s: s.btx.s === 'job' ? 'job' : 'x' } : null,   // 4/11/2026: יצאה מתור החיסכון — מתי ומאיפה
     vw: s.vw === 1 || s.vw === true,   // 15/10/2026: מחכה לסרטון בתור — השרת פנוי בינתיים
@@ -3292,8 +3294,13 @@ function nowLine(rec, run, ph) {
   return rec.srv && rec.srv.err === 'halted' ? T('studioErrHalted') : T('studioNowCancelled');
 }
 /* 1/11/2026 (צילום מהטלפון: "בתור לשרת" דקות ארוכות, וההתראה מראה עבודה אחרת ב"בודקים ומתקנים"): עבודה ישנה שחודשה
-   ("המשך" אוטומטי) רצה בשרת ונמצאת עמוק ברשימה — "בתור לשרת" לבד נראה כמו תקיעה. אומרים מה השרת מסיים קודם */
+   ("המשך" אוטומטי) רצה בשרת ונמצאת עמוק ברשימה — "בתור לשרת" לבד נראה כמו תקיעה. אומרים מה רץ עכשיו (17/11: לא "מסיים קודם" — השרת מריץ כמה במקביל) */
 function queuedApiLine(rec) {
+  // 17/11/2026: השרתון אמר למה היא לא נלקחה — הסיבה עצמה (זיכרון / לחץ / כדי לא להאט את מה שרץ)
+  const q = rec.srv && rec.srv.qw, gb = (x) => fmtNum(x / 10);
+  if (q && q.r === 'mem') return T('studioQwMem', { n: gb(q.n), f: gb(q.f) });
+  if (q && q.r === 'psi') return T('studioQwPsi');
+  if (q && q.r === 'perf') return T('studioQwPerf');
   const o = store.jobs.find((x) => x !== rec && x.srv && x.srv.state === 'running' && !x.srv.stale && x.srv.eng === 'api');
   return o ? T('studioNowBehind', { n: fileTitle(o.spec.name) || T('studioUntitled') }) : T('studioNowQueuedApi');
 }
