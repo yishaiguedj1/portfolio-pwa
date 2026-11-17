@@ -70,6 +70,20 @@ ok(Math.abs(ta.price - 400) < 1e-9 && ta.fxNote, 'מניה בת״א שמדווח
   ok(ck && !JSON.stringify(ck).includes('NaN'), 'הבדיקות רצות בלי מחיר במטבע הדוחות');
   ok(/anFxMix: 'הדוחות ב־\{c\}/.test(app) && /anFxMix: 'Reports in \{c\}/.test(app), 'הערה בשתי השפות');
 }
+// ההמרה המלאה (17/11/2026, גל 2 — F6): שער חודשי ויחס ADR מהשרתון (d.fxm) — המחיר למניה רגילה במטבע הדוחות
+{
+  const px = D.px || { t: ['2026-09', '2026-10'], c: [300, 310] };
+  const fxm = { cur: 'TWD', now: 0.03, m: px.t.map((t) => [t, 0.031]), adr: 5 };
+  const tw = A.prep({ ...D, sym: 'TSMX', cur: 'TWD', px, fxm }, { close: 375, prev: 370 }, 3.7);
+  ok(!tw.fxMix && tw.fxNote && Math.abs(tw.price - 375 / 5 / 0.03) < 1e-6 && Math.abs(tw.prev - 370 / 5 / 0.03) < 1e-6, 'ADR ‏375$ ÷ 5 ÷ 0.03 = NT$2,500 למניה רגילה');
+  ok(tw.px.c.every((x, i) => px.c[i] == null ? x == null : Math.abs(x - px.c[i] / 5 / 0.031) < 1e-6), 'ההיסטוריה — בשער של אותו חודש');
+  ok(A.multHist(tw).t.length > 0, 'עם המרה — יש היסטוריית מכפילים');
+  const gap = A.prep({ ...D, sym: 'TSMX', cur: 'TWD', px, fxm: { ...fxm, m: [] } }, { close: 375 }, 3.7);
+  ok(gap.px.c.every((x) => x == null) && !gap.fxMix, 'חודש בלי שער — ריק (לא מחיר בדולר)');
+  ok(A.prep({ ...D, sym: 'TSMX', cur: 'TWD', fxm: { ...fxm, adr: null } }, { close: 375 }, 3.7).fxMix, 'בלי יחס ADR ודאי — נשאר fxMix');
+  ok(A.prep({ ...D, sym: 'TSMX', cur: 'TWD', fxm: { ...fxm, cur: 'EUR' } }, { close: 375 }, 3.7).fxMix, 'שער של מטבע אחר — לא ממירים');
+  ok(/anFxAdr: 'ADR אחד = \{n\}/.test(app) && /anFxAdr: 'One ADR = \{n\}/.test(app), 'הערת ADR בשתי השפות');
+}
 const many = A.prep({ ...D, fy: Array.from({ length: 15 }, (_, i) => (2011 + i) + '-12-31'), A: Object.fromEntries(Object.keys(A0).map((k) => [k, Array(15).fill(1)])) }, null, 3.7);
 ok(many.years.length === 12 && many.years[0] === 2014, 'עד 12 שנים מוצגות');
 ok(A.prep({ ...D, sic: 6021 }, null, 3.7).fin && A.prep({ ...D, ind: 'Bank (Money Center)' }, null, 3.7).fin && !co.fin, 'בנקים וביטוח מזוהים (קוד SIC או ענף)');

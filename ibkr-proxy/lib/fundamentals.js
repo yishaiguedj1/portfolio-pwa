@@ -1704,6 +1704,8 @@ function parseSummary(j, div) {
     price: px != null ? px / div : null, prev: raw(pr, 'regularMarketPreviousClose') != null ? raw(pr, 'regularMarketPreviousClose') / div : null,
     quoteCur: pr.currency || null, finCur: fd.financialCurrency || null,
     sharesOut: raw(ks, 'sharesOutstanding') || raw(ks, 'impliedSharesOutstanding'),
+    // למניות ADR: כל המניות במונחי ADR (Novo: ‏sharesOutstanding רק סוג B — ‏3.33B; ה־implied כולל את A — ‏4.41B) — ליחס ה־ADR
+    adrSh: Math.max(raw(ks, 'sharesOutstanding') || 0, raw(ks, 'impliedSharesOutstanding') || 0) || null,
     fpe: raw(sd, 'forwardPE') || raw(ks, 'forwardPE'), peg: raw(ks, 'pegRatio'), beta: raw(sd, 'beta'),
     est, hist, nextEarn: ed[0] || null,
   };
@@ -1829,6 +1831,36 @@ function parseFred(csv) {
   const r5 = rows.filter((r) => r[0] >= from).map((r) => +r[1]);
   return { rf: +last[1] / 100, rfDate: last[0], rf5: Math.round(r5.reduce((s, x) => s + x, 0) / r5.length * 100) / 1e4 };
 }
+/* שער חודשי (H.10 של הפדרל ריזרב דרך FRED): ממוצע חודשי + השער היומי האחרון. דולר ליחידה של המטבע (17/11/2026, גל 2 — F6).
+   הסדרות שמצוטטות "מטבע לדולר" (DKK, ‏TWD, ‏CNY…) — הופכים. מטבע שאין לו סדרה — null (המסך נשאר בלי מכפילים, fxMix) */
+const FX_FRED = { EUR: ['EXUSEU', 1], GBP: ['EXUSUK', 1], AUD: ['EXUSAL', 1], NZD: ['EXUSNZ', 1], DKK: ['EXDNUS', -1], TWD: ['EXTAUS', -1],
+  CNY: ['EXCHUS', -1], JPY: ['EXJPUS', -1], CAD: ['EXCAUS', -1], CHF: ['EXSZUS', -1], KRW: ['EXKOUS', -1], INR: ['EXINUS', -1], BRL: ['EXBZUS', -1],
+  MXN: ['EXMXUS', -1], SEK: ['EXSDUS', -1], NOK: ['EXNOUS', -1], HKD: ['EXHKUS', -1], SGD: ['EXSIUS', -1], ZAR: ['EXSFUS', -1], THB: ['EXTHUS', -1] };
+const fredRows = (csv) => String(csv).split(/\r?\n/).map((l) => l.split(',')).filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r[0]) && /^\d/.test(r[1] || '')).map((r) => [r[0], +r[1]]);
+const FXC = new Map();
+async function fxMonthly(cur, deps = {}) {
+  const f = FX_FRED[cur]; if (!f) return null;
+  const hit = FXC.get(cur); if (hit && Date.now() - hit.at < 12 * 3600e3) return hit.v;
+  const get = deps.getText || ((u) => getText(u, { headers: { 'User-Agent': UA } }, 8000));
+  const base = 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=';
+  const from = new Date(Date.now() - 40 * 864e5).toISOString().slice(0, 10);
+  const [mc, dc] = await Promise.all([get(base + f[0]), get(base + 'D' + f[0] + '&cosd=' + from).catch(() => '')]);
+  const inv = (x) => (f[1] < 0 ? 1 / x : x);
+  const m = fredRows(mc).filter((r) => r[1] > 0).map((r) => [r[0].slice(0, 7), +inv(r[1]).toPrecision(6)]);
+  if (!m.length) return null;
+  const d = fredRows(dc).filter((r) => r[1] > 0), last = d.length ? d[d.length - 1] : null;
+  const v = { cur, src: 'FRED ' + f[0], m, now: last ? +inv(last[1]).toPrecision(6) : m[m.length - 1][1], nowD: last ? last[0] : m[m.length - 1][0] };
+  FXC.set(cur, { at: Date.now(), v });
+  return v;
+}
+/* יחס ה־ADR: המניות הרגילות (מהדוח) ÷ כל המניות במונחי ADR (Yahoo). שלם, עד 5% (TSMC ‏25.93B ÷ 5.19B = 5.0; ‏Alibaba ‏19.24 ÷ 2.49
+   = 7.7 → 8 — ממוצע מדולל של השנה מול היום); מניה שנסחרת ישירות (SAP, ‏ASML) — 1. אחר — null (בלי המרה, עדיף ריק משגוי) */
+function adrRatio(ours, adrSh) {
+  if (!(ours > 0) || !(adrSh > 0)) return null;
+  const r = ours / adrSh, n = Math.round(r);
+  return n >= 1 && Math.abs(r / n - 1) <= 0.05 ? n : null;
+}
+
 /* משרד האוצר האמריקאי — CSV שנתי של עקום התשואות; העמודה "10 Yr". גיבוי כש־FRED לא עונה */
 function parseTreasury(csv) {
   const lines = String(csv).trim().split(/\r?\n/), hdr = (lines[0] || '').split(',').map((x) => x.replace(/"/g, '').trim()), i = hdr.indexOf('10 Yr');
@@ -2012,6 +2044,11 @@ async function fundamentals(sym0) {
   // מניות לשווי השוק: בדילול מהדוח האחרון (ב־Yahoo "sharesOutstanding" הוא לפעמים רק סוג מניות אחד — Meta: 2.2B מתוך 2.57B)
   const lastSh = (D) => (D && D.sh ? D.sh.filter((v) => v > 0).pop() : null);
   const sharesOut = useSec ? (lastSh(sec.Q) || lastSh(sec.A)) : ((y && y.sharesOut) || lastSh(y && y.Q) || (s && s.sharesOut));
+  // דוחות במטבע שאינו דולר/שקל והמחיר בדולר (Novo — DKK, ‏TSMC — TWD, ‏Alibaba — CNY, ‏SAP/ASML — EUR): השער החודשי ויחס ה־ADR,
+  // והמסך ממיר את המחיר למטבע הדוחות למניה רגילה (fxm; עד 17/11/2026 — co.fxMix, בלי מכפילים)
+  const rcur = useSec ? sec.cur : null;
+  const fxm = rcur && rcur !== 'USD' && rcur !== 'ILS' && !ta && s && (s.quoteCur || 'USD') === 'USD'
+    ? await fxMonthly(rcur).then((f) => (f ? { ...f, adr: adrRatio(sharesOut, s.adrSh) } : null)).catch(() => null) : null;
   const out = {
     ok: true, v: 1, sym, src: useSec ? 'sec' : 'yahoo', cik, asOf: new Date().toISOString().slice(0, 10), gone: goneSince(m && m.last),
     cur: (useSec ? sec.cur : (s && s.finCur)) || (ta ? 'ILS' : 'USD'),
@@ -2021,7 +2058,7 @@ async function fundamentals(sym0) {
     prof: s ? s.prof : null, price: s ? s.price : null, prev: s ? s.prev : null,
     sharesOut: sharesOut || (s && s.sharesOut) || null, fill, qfill, fpe: s ? s.fpe : null, peg: s ? s.peg : null, beta: s ? s.beta : null,
     est: s ? s.est : [], hist: s ? s.hist : [], nextEarn: s ? s.nextEarn : null, nq: n || null,
-    px: m ? m.px : null, splits: m ? m.splits : [], splitsUsed: useSec ? sec.splitsUsed || [] : [], peers: peers || [],
+    px: m ? m.px : null, fxm, splits: m ? m.splits : [], splitsUsed: useSec ? sec.splitsUsed || [] : [], peers: peers || [],
     ind: industryFor(s && s.prof && s.prof.industry), checks, errs,
     // מקור ושקיפות (שכבה 6): התגית שנבחרה לכל שורה, הדוח שמולו נבדקנו, וכמה ערכים תאמו לו
     tags: useSec ? sec.tags : null,
@@ -2080,7 +2117,7 @@ async function handle(body, res) {
 
 // בקשה ל־SEC עם המזהה (עבודת הרקע של המאזנים — server.js → startBsf → lib/bsfiled.js)
 const secText = (u) => getText(u, { headers: { 'User-Agent': SEC_UA() } }, 15000);
-module.exports = { handle, fundamentals, holes, q4Press, capexNil, debtFace, bsfDebt, secText, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
+module.exports = { handle, fundamentals, holes, q4Press, fxMonthly, adrRatio, FX_FRED, capexNil, debtFace, bsfDebt, secText, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
   industryFor, industryData, _cache: cache,
   // התגיות המועמדות לכל שורה — לכלי ההשוואה (fundxcheck: SEC גולמי גם לתקופות שהושלמו מתגית משנית). נשמט ב־f9db4c74 — tools/fund-xcheck.js מצפה לו
   TAGS: { gaap: { ...FLOW, ...INST }, ifrs: IFRS } };

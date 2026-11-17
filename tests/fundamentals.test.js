@@ -1378,5 +1378,20 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     ok(F.q4Press(sec2, P).length === 0 && sec2.Q.eps[0] === 0.96, '(25) q4Press: רבעון שלא הוערך — לא נוגעים');
     ok(F.q4Press(sec, null).length === 0, '(25) בלי הודעות (אין R2 / עוד לא נקרא) — כמו היום');
   }
+
+  /* ---------- (26) המרת מטבע מלאה (17/11/2026, גל 2 — F6): שער חודשי מ־FRED ויחס ADR ---------- */
+  {
+    const urls = [];
+    const gt = async (u) => { urls.push(u); return /id=DEXTAUS/.test(u) ? 'observation_date,DEXTAUS\n2026-11-12,32.80\n2026-11-13,.\n' : 'observation_date,EXTAUS\n2026-09-01,31.7381\n2026-10-01,32.2695\n'; };
+    const v = await F.fxMonthly('TWD', { getText: gt });
+    ok(v && v.src === 'FRED EXTAUS' && v.m.length === 2 && v.m[1][0] === '2026-10' && Math.abs(v.m[1][1] - 1 / 32.2695) < 1e-7 && Math.abs(v.now - 1 / 32.8) < 1e-7 && v.nowD === '2026-11-12', '(26) TWD: דולר ל־NT$ (הפוך), חודשי + היומי האחרון (בלי ".")');
+    const n0 = urls.length; await F.fxMonthly('TWD', { getText: gt });
+    ok(urls.length === n0, '(26) מטמון 12 שעות');
+    const e = await F.fxMonthly('EUR', { getText: async (u) => (/DEXUSEU/.test(u) ? '' : 'd,EXUSEU\n2026-10-01,1.1198\n') });
+    ok(e.m[0][1] === 1.1198 && e.now === 1.1198, '(26) EUR: כבר דולר ליורו; בלי יומי — החודש האחרון');
+    ok((await F.fxMonthly('XYZ', { getText: gt })) === null, '(26) מטבע בלי סדרה — null (המסך: fxMix)');
+    ok(F.adrRatio(25927.6e6, 5186472994) === 5 && F.adrRatio(19235e6, 2487744939) === 8 && F.adrRatio(1166e6, 1154204232) === 1, '(26) יחס ADR: TSMC 5, ‏Alibaba 8 (7.7), ‏SAP 1');
+    ok(F.adrRatio(4443e6, 3333483124) === null && F.adrRatio(null, 5) === null, '(26) יחס לא שלם (רק סוג מניות אחד) — null, בלי המרה');
+  }
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });
