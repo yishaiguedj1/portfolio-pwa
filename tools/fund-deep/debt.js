@@ -3,7 +3,7 @@
 // נתונים ציבוריים של SEC בלבד; הכל בתיקיית העבודה (--w <dir>/debt), לא בריפו.
 //   node tools/fund-deep/debt.js fetch --w <dir> [--ciks tools/fund-deep/ciks.tsv] [--par 6]   companyfacts + submissions + המאזן (secFace)
 //   python3 -I tools/fund-deep/debt_exp.py --db <dir>/fsds.db --w <dir>                         הצפוי (FSDS) → <dir>/debt/exp.json
-//   node tools/fund-deep/debt.js cmp  --w <dir> --old <fundamentals.js> [--new <fundamentals.js>] [--only PH,MCK] [--tag X]
+//   node tools/fund-deep/debt.js cmp  --w <dir> --old <fundamentals.js> [--new <fundamentals.js>] [--only PH,MCK] [--tag X] [--bsf]  (--bsf: המאזן של כל הגשה, bsf.js)
 //   node tools/fund-deep/debt.js diff --w <dir> --sym PH --old <fundamentals.js> [--new …]     התאריכים שבהם שתי הגרסאות שונות, והצפוי
 //   node tools/fund-deep/debt.js tags --w <dir> --sym PH --tags LongTermDebtCurrent,CommercialPaper [--from 2012-01-01]
 //   node tools/fund-deep/debt.js find --w <dir> --sym INVH --end 2020-12-31 --v 402 [--tol 0.03]   תגיות שהערך שלהן קרוב (במיליונים)
@@ -107,7 +107,9 @@ function cmpAll() {
     let a, b;
     try {
       const L = load(NEW, cik);
-      a = OLD.normalizeSec(L.facts, [], L.face); b = NEW.normalizeSec(L.facts, [], L.face);
+      // --bsf: המאזן של כל הגשה (bsf.js fetch → <w>/bsf/<CIK>.json) רק לגרסה החדשה — כמו בייצור (lib/bsfiled.js)
+      const bf = o.bsf && fs.existsSync(path.join(path.resolve(o.w), 'bsf', cik + '.json')) ? JSON.parse(fs.readFileSync(path.join(path.resolve(o.w), 'bsf', cik + '.json'), 'utf8')) : null;
+      a = OLD.normalizeSec(L.facts, [], L.face); b = NEW.normalizeSec(L.facts, [], L.face, bf);
     } catch (e) { console.log(ex.sym, 'שגיאה', e.message); continue; }
     if (!a || !b) continue;
     const diffs = [];

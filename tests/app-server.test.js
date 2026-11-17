@@ -137,5 +137,16 @@ function listen(server) {
   for (const m of dfApp.matchAll(/^COPY\s+(?:--\S+\s+)*(.+)$/gm)) { const parts = m[1].trim().split(/\s+/); srcs.push(...parts.slice(0, -1)); }
   const missing = srcs.filter((x) => !allow.some((a) => a === x || a === x + '/' || (a.endsWith('/') && x.startsWith(a))));
   ok(srcs.length >= 6 && !missing.length, 'כל מה ש־Dockerfile של השרתון מעתיק מותר ב־Dockerfile.dockerignore' + (missing.length ? ' — חסר: ' + missing.join(', ') : ''));
+  // 17/11/2026: עבודת הרקע של המאזנים (lib/bsfiled.js) — בתוך התהליך, לא שני סבבים במקביל, SNB_BSF=off מכבה
+  {
+    const srv = fs.readFileSync(path.join(__dirname, '..', 'ibkr-proxy', 'server.js'), 'utf8');
+    ok(/if \(process\.env\.SNB_BSF !== 'off'\) startBsf\(\);/.test(srv), 'server.js — עבודת המאזנים מופעלת (SNB_BSF=off מכבה)');
+    let calls = 0, release;
+    const gate = new Promise((r) => { release = r; });
+    const b = S.startBsf({ first: 1e9, every: 1e9, deps: { syms: ['AAA'], cikMap: async () => { calls++; await gate; return new Map(); }, store: { get: () => null, put: () => {} } } });
+    const p1 = b.tick(), p2 = await b.tick();
+    release(); const r1 = await p1; b.stop();
+    ok(calls === 1 && p2 === null && r1 && r1.ok, 'startBsf — סבב שני בזמן שהראשון רץ לא מתחיל');
+  }
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL - ' + e.message); process.exit(1); });
