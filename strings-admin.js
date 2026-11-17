@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (1684 מפתחות מתוך 7095) */
+/* המחרוזות של admin (1685 מפתחות מתוך 7122) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -736,6 +736,7 @@ he: {
   "admLgFbDone": "פנייה סומנה \"טופל\"",
   "admLgFlOff": "כובה: {n}",
   "admLgFlOn": "הודלק: {n}",
+  "admLgGdSet": "סוד חדש ללקוח ה־Drive של הסטודיו (נבדק מול Google)",
   "admLgMtOff": "מצב תחזוקה כובה",
   "admLgMtOn": "מצב תחזוקה הודלק",
   "admLgMtUpd": "הודעת התחזוקה עודכנה",
@@ -2422,6 +2423,7 @@ en: {
   "admLgFbDone": "Feedback marked handled",
   "admLgFlOff": "Turned off: {n}",
   "admLgFlOn": "Turned on: {n}",
+  "admLgGdSet": "New secret for the Studio Drive client (checked with Google)",
   "admLgMtOff": "Maintenance mode off",
   "admLgMtOn": "Maintenance mode on",
   "admLgMtUpd": "Maintenance message updated",

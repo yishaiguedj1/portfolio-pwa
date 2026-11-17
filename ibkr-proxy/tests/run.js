@@ -1315,7 +1315,7 @@ function stubFetch(text, status = 200) {
         const p = new URLSearchParams(opt.body || '');
         if (p.get('grant_type') === 'urn:ietf:params:oauth:grant-type:jwt-bearer' || p.get('assertion')) return J({ access_token: 'SA', expires_in: 3600 });
         if (p.get('grant_type') === 'authorization_code') return p.get('code') === 'GOOD' ? J(Object.assign({ access_token: 'AT1', expires_in: 3599, scope: grant.scope, id_token: idt }, grant.refresh ? { refresh_token: grant.refresh } : {})) : J({ error: 'invalid_grant' }, 400);
-        if (p.get('grant_type') === 'refresh_token') return grant.bad ? J({ error: 'invalid_grant' }, 400) : J({ access_token: 'AT2', expires_in: 3599 });
+        if (p.get('grant_type') === 'refresh_token') return grant.cli ? J({ error: 'invalid_client' }, 401) : grant.bad ? J({ error: 'invalid_grant' }, 400) : J({ access_token: 'AT2', expires_in: 3599 });
       }
       if (url.includes('oauth2.googleapis.com/revoke')) return J({});
       const m = url.match(/documents\/driveVault\/([A-Za-z0-9]+)/);
@@ -1356,6 +1356,14 @@ function stubFetch(text, status = 200) {
     store.delete('userUid00002');
     r = await run({ op: 'gdToken', idToken: U1 });
     ok(r.payload.ok && r.payload.access_token === 'AT2' && calls.some((c) => /refresh_token=RT-SECRET-1/.test(c.body)), 'גיבוי Drive: גישה זמנית חדשה מההרשאה השמורה');
+    grant.cli = true;
+    r = await run({ op: 'gdToken', idToken: U1 });
+    ok(r.statusCode === 200 && r.payload.ok === false && r.payload.error === 'gd_http_401' && r.payload.why === 'invalid_client' && store.has('userUid00001'), 'גיבוי Drive: Google דוחה את הלקוח — 200 עם הקוד והסיבה (502 הגיע לטלפון בלי CORS), הרשומה נשארת');
+    require('../lib/gdrive')._reset();
+    r = await run({ op: 'gdCheck' });   // 17/11/2026: הבדיקה העצמית של לקוח הגיבוי — בלי התחברות, רק סיווג
+    ok(r.statusCode === 200 && r.payload.ok && r.payload.ck.library.st === 'bad_secret' && !JSON.stringify(r.payload).includes('csecret'), 'גיבוי Drive: gdCheck ציבורי — Google דוחה את הסוד → bad_secret, בלי ערך');
+    require('../lib/gdrive')._reset();
+    grant.cli = false;
     grant.refresh = '';
     r = await run({ op: 'gdConnect', idToken: U1, code: 'GOOD', redirect: RED });
     ok(r.payload.ok && store.get('userUid00001'), 'גיבוי Drive: חיבור חוזר בלי הרשאה קבועה חדשה — נשארת הקודמת');
@@ -1479,6 +1487,7 @@ function stubFetch(text, status = 200) {
     const calls = [];
     let fireMode = 'ok', fires = [], driveFiles = new Map(), now = Date.UTC(2026, 9, 7, 9, 0), pushes = [];
     let driveQuota = { limit: '16106127360', usage: '1000' }, driveListFail = false;   // v378: המכסה ותקלה ברשימה
+    let sAccept = null;   // 17/11/2026: הסודות שלקוח הסטודיו מקבל (null = כל סוד — כמו עד היום)
     const J = (o, st = 200, hd = {}) => ({ status: st, json: async () => o, headers: { get: (k) => hd[String(k).toLowerCase()] || null } });
     let fsQuota = false;   // 26/10/2026: "מכסת הקריאות נגמרה" — כל פנייה ל־Firestore עונה 429
     const fake = async (url, opt = {}) => {
@@ -1490,6 +1499,14 @@ function stubFetch(text, status = 200) {
         if (p.get('assertion')) return J({ access_token: 'SA', expires_in: 3600 });
         // v357: לסטודיו לקוח OAuth משלו — ההרשאה של הסטודיו עובדת רק איתו, וזו של גיבוי הספרייה לא מגיעה לסטודיו
         const cid = p.get('client_id');
+        // 17/11/2026: הבדיקה העצמית (הרשאה מזויפת) — Google בודק קודם את הלקוח והסוד (invalid_client), ורק אז את ההרשאה (invalid_grant)
+        if (p.get('refresh_token') === '1//0snb-self-check') {
+          const good = { 'scid.apps.googleusercontent.com': sAccept || ['ssecret'], 'cid.apps.googleusercontent.com': ['csecret'], 'bcid.apps.googleusercontent.com': ['bsecret'] }[cid];
+          if (!good) return J({ error: 'invalid_client', error_description: 'The OAuth client was not found.' }, 401);
+          if (!p.get('client_secret')) return J({ error: 'invalid_request', error_description: 'client_secret is missing.' }, 400);
+          return good.includes(p.get('client_secret')) ? J({ error: 'invalid_grant', error_description: 'Bad Request' }, 400) : J({ error: 'invalid_client', error_description: 'The provided client secret is invalid.' }, 401);
+        }
+        if (sAccept && cid === 'scid.apps.googleusercontent.com' && !sAccept.includes(p.get('client_secret'))) return J({ error: 'invalid_client', error_description: 'The provided client secret is invalid.' }, 401);
         if (p.get('grant_type') === 'refresh_token' && p.get('refresh_token') === 'BRT-1') return cid === 'bcid.apps.googleusercontent.com' ? J({ access_token: 'BROWSE-AT', expires_in: 3599 }) : J({ error: 'invalid_grant' }, 400);   // 26/10/2026: רשימת הקבצים
         if (p.get('grant_type') === 'authorization_code' && p.get('code') === 'BCODE' && cid === 'bcid.apps.googleusercontent.com')
           return J({ access_token: 'B-AT1', expires_in: 3599, refresh_token: 'BRT-1', scope: p.get('client_secret') === 'bsecret' ? 'openid email https://www.googleapis.com/auth/drive.readonly' : 'openid email', id_token: 'x.' + b64u({ email: 'drive.owner@example.com' }) + '.y' });
@@ -1665,6 +1682,51 @@ function stubFetch(text, status = 200) {
     ok(r.statusCode === 400 && calls.filter((c) => c.url.includes('oauth2.googleapis.com/token')).length === nTok, 'PKCE: verifier בצורה לא תקינה — נדחה, בלי פנייה ל־Google');
     r = await run({ op: 'status', idToken: OWNER });
     ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected && r.payload.drive.email === 'drive.owner@example.com' && r.payload.kinds.join() === 'ping,tr,rr,ai,dx', 'סטודיו: מצב — Drive של הסטודיו מחובר, עדיין לא Claude; העובד יודע לבדוק חיבור, לתרגם, להפיק מחדש, לענות על גיליון AI ולשמור ב־Drive');
+
+    // 17/11/2026: הסוד של לקוח ה־Drive של הסטודיו — ניקוי, בדיקה עצמית, וסוד חלופי מוצפן בכספת (הספרייה נדחתה ב־invalid_client)
+    {
+      const G = require('../lib/gdrive');
+      const NEW = 'GOCSPX-' + 'N'.repeat(28);
+      G._reset();
+      process.env.STUDIO_GDRIVE_CLIENT_SECRET = ' "ssecret"\u200f ';
+      ok(G.studio.cfg().secret === 'ssecret' && G.studio.cfg().src === 'env', 'Drive: סוד בסביבה עם מירכאות וסימן כיוון — מנוקה לפני השימוש');
+      let ck = await G.studio.check({ fetch: fake }, true);
+      ok(ck.st === 'ok' && ck.fix === true && ck.src === 'env', 'Drive: בדיקה עצמית — סוד תקין (invalid_grant להרשאה המזויפת); fix מסמן שהניקוי שינה את הערך');
+      process.env.STUDIO_GDRIVE_CLIENT_SECRET = 'ssecret';
+      G._reset();
+      sAccept = [NEW];   // הסוד שבשרת הוחלף / נמחק ב־Google
+      r = await run({ op: 'drive', idToken: OWNER });
+      ok(r.statusCode === 200 && r.payload.ok === false && r.payload.error === 'gd_http_401' && r.payload.why === 'invalid_client' && db.has('studioDrive/ownerUid0001'), 'Drive: הסוד בשרת נדחה — invalid_client כמו בייצור, והחיבור נשאר');
+      r = await run({ op: 'gdCheck' });
+      ok(r.payload.ok && r.payload.ck.studio.st === 'bad_secret' && r.payload.ck.studio.src === 'env' && !('library' in r.payload.ck) && !/ssecret|csecret/.test(JSON.stringify(r.payload)),
+        'Drive: הבדיקה הציבורית — רק סיווג לכל לקוח (bad_secret / ok), בלי שום ערך');
+      ck = await G.studio.check({ fetch: fake });
+      ok(ck.st === 'bad_secret', 'Drive: הבדיקה במטמון — אותה תשובה בלי פנייה נוספת');
+      const lk = await G.check({ fetch: fake }, true);
+      ok(lk.st === 'ok' && lk.src === 'env', 'Drive: הבדיקה העצמית של לקוח הגיבוי של Academy — נפרדת, והסוד שלו תקין');
+      const nTk = calls.filter((c) => c.url.includes('oauth2.googleapis.com/token')).length;
+      r = await run({ op: 'gdSecret', idToken: FRIEND, s: NEW });   // משתמש של הסטודיו שאינו המנהל
+      ok(r.statusCode === 403 && r.payload.error === 'not_admin' && !db.has('studioVault/_gdc'), 'Drive: סוד חדש — רק המנהל');
+      r = await run({ op: 'gdSecret', idToken: OWNER, s: 'abc def' });
+      ok(r.payload.ok === false && r.payload.error === 'bad_format' && !db.has('studioVault/_gdc') && calls.filter((c) => c.url.includes('oauth2.googleapis.com/token')).length === nTk,
+        'Drive: סוד בצורה לא תקינה — נדחה בלי לפנות ל־Google');
+      r = await run({ op: 'gdSecret', idToken: OWNER, s: 'GOCSPX-' + 'W'.repeat(28) });
+      ok(r.payload.ok === false && r.payload.error === 'bad_secret' && !db.has('studioVault/_gdc'), 'Drive: סוד ש־Google דוחה — לא נשמר');
+      r = await run({ op: 'gdSecret', idToken: OWNER, s: '\u200e"' + NEW + '"\n' });
+      const gdc = db.get('studioVault/_gdc');
+      ok(r.payload.ok && r.payload.drive === 'ok' && gdc && !JSON.stringify(gdc).includes(NEW) && vault.open(gdc.fields.studio.stringValue, 'gdclient|studio').s === NEW
+        && vault.open(gdc.fields.studio.stringValue, 'gdclient|library') === null && !JSON.stringify(r.payload).includes(NEW),
+        'Drive: סוד תקין — נבדק מול Google, נשמר מוצפן (AAD לכל לקוח), לא חוזר בתשובה, והגישה ל־Drive חוזרת מיד');
+      ok([...db.keys()].some((k) => k.startsWith('sysLog/') && (db.get(k).fields.k || {}).stringValue === 'gd_set' && !JSON.stringify(db.get(k)).includes(NEW)), 'Drive: הסוד החדש ביומן הפעולות — בלי הערך');
+      r = await run({ op: 'drive', idToken: OWNER });
+      ok(r.payload.ok && r.payload.token === 'DRIVE-AT', 'Drive: אחרי הסוד החדש — הספרייה מקבלת גישה');
+      G._reset();   // אתחול של השרת: הסוד נקרא מהכספת
+      r = await run({ op: 'drive', idToken: OWNER });
+      ok(r.payload.ok && r.payload.token === 'DRIVE-AT' && G.studio.cfg().src === 'vault', 'Drive: אחרי אתחול — הסוד נטען מהכספת וגובר על הסביבה');
+      r = await run({ op: 'gdCheck' });
+      ok(r.payload.ck.studio.st === 'ok' && r.payload.ck.studio.src === 'vault', 'Drive: הבדיקה הציבורית אחרי התיקון — ok מהכספת');
+      sAccept = null; db.delete('studioVault/_gdc'); G._reset();
+    }
 
     // חיבור: כספת
     r = await run({ op: 'connect', idToken: OWNER, url: 'https://evil.example/fire', key: RKEY });

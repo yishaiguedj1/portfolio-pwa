@@ -395,6 +395,7 @@ function logRow(x) {
     am_add: ['studio', '✦', t('admLgAmAdd'), d], am_del: ['gray', '✦', t('admLgAmDel'), d],
     ts_add: ['studio', '◎', t('admLgTsAdd'), d], ts_del: ['gray', '◎', t('admLgTsDel'), d],
     yt_set: ['green', '▶', t('admLgYtSet'), d], yt_clr: ['gray', '▶', t('admLgYtClr'), ''],
+    gd_set: ['green', '☁', t('admLgGdSet'), ''],
     ac_add: ['academy', '▤', t('admLgAcAdd'), d], ac_del: ['gray', '▤', t('admLgAcDel'), d],
     srv_pause: ['orange', '☁', t('admLgSrvPause'), d], srv_resume: ['green', '☁', t('admLgSrvResume'), d], srv_del: ['red', '☁', t('admLgSrvDel'), d],
     an_on: ['purple', '📣', t('admLgAnOn'), d], an_off: ['gray', '📣', t('admLgAnOff'), ''], fb_done: ['green', '✉', t('admLgFbDone'), ''], fb_del: ['gray', '✉', t('admLgFbDel'), ''],
