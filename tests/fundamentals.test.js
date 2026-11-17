@@ -1302,10 +1302,10 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     const getText = async (u) => { calls.push(u); if (/\/(e|f)\//.test(u)) throw new Error('http_404'); if (/\/g\//.test(u)) throw new Error('http_503'); return /FilingSummary/.test(u) ? FSX : R; };
     const SUB2 = { filings: { recent: { form: ['10-Q', '10-Q', '10-Q', '10-K', '10-Q', '10-Q'], accessionNumber: ['g', 'b', 'd', 'e', 'f', 'h'], filingDate: ['2026-10-30', '2026-07-30', '2026-04-30', '2026-02-20', '2025-10-30', '2025-07-30'] } } };
     const deps = { getText, store: { get: (k) => store.get(k), put: (k, o) => store.set(k, o) }, now: Date.parse('2026-11-17') };
-    const f1 = await BSF.load('123', SUB2, deps);
+    const f1 = (await BSF.load('123', SUB2, deps)).f;
     const saved = store.get(BSF.key('123'));
     ok(f1 && f1.b && f1.b.bs && f1.d && f1.e.err === 'nofs' && !f1.f && !f1.g && !f1.h && saved && saved.v === BSF.V, '(24) load: עד 4 הגשות, 404 נשמר, תקלת רשת לא, נכתב למחסן');
-    const n0 = calls.length; const f2 = await BSF.load('123', SUB2, deps);
+    const n0 = calls.length; const f2 = (await BSF.load('123', SUB2, deps)).f;
     ok(f2.h && f2.f.err === 'nofs' && !f2.g && f2.b && calls.length - n0 <= 6 && !calls.slice(n0).some((u) => /\/b\//.test(u)), '(24) load שני: רק מה שעוד חסר');
     ok(F.bsfDebt(f2, 'USD').get('2025-12-31').v === 100e6, '(24) מהדף שנקרא — החוב של העמודה');
     ok((await BSF.load('9', SUB2, { ...deps, getText: async () => { throw new Error('boom'); } })) === null, '(24) הכל נכשל — null (החוב בכלל של F7)');
@@ -1324,6 +1324,59 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
       const o3 = st3.get(BSF.key('1'));
       ok(t3.i === 0 && (!o3 || !o3.at), '(24) tick בתקרת זמן: החברה לא מסומנת כגמורה, והסבב הבא מתחיל ממנה');
     }
+  }
+
+  /* ---------- (25) הרבעון הרביעי מההודעה לעיתונות (17/11/2026, גל 2 — F2; lib/secpr.js, ‏q4Press) ---------- */
+  {
+    const PR = require(path.join(root, 'ibkr-proxy/lib/secpr.js'));
+    const BSF = require(path.join(root, 'ibkr-proxy/lib/bsfiled.js'));
+    // ההודעה של Apple לרבעון 4 של 2024 (מבנה אמיתי מקוצר: עמודות "$" נפרדות, שתי שורות "Diluted", וטבלת התאמה עם רווח מתואם)
+    const td = (c) => '<td style="x">' + c + '</td>';
+    const H = '<table><tr>' + td('') + td('Three Months Ended') + td('Twelve Months Ended') + '</tr>'
+      + '<tr>' + td('Net income') + td('$') + td('14,736') + td('$') + td('22,956') + td('$') + td('93,736') + td('$') + td('96,995') + '</tr>'
+      + '<tr>' + td('Earnings per share:') + '</tr>'
+      + '<tr>' + td('Diluted') + td('$') + td('0.97') + td('$') + td('1.46') + td('$') + td('6.08') + td('$') + td('6.13') + '</tr>'
+      + '<tr>' + td('Shares used in computing earnings per share:') + '</tr>'
+      + '<tr>' + td('Diluted') + td('15,242,853') + td('15,672,400') + td('15,408,095') + td('15,812,547') + '</tr></table>'
+      + '<table><tr>' + td('Diluted earnings per share') + td('$') + td('0.97') + td('$') + td('0.67') + td('$') + td('1.64') + '</tr>'
+      + '<tr>' + td('Shares used in computing diluted earnings per share') + td('15,242,853') + td('&#8212;') + td('15,242,853') + '</tr></table>';
+    const rows = PR.parse(H);
+    ok(rows.length === 4 && rows[0].v.join() === '0.97,1.46,6.08,6.13' && rows[1].v[0] === 15242853 && rows[3].v[1] === null, '(25) parse: שורות "Diluted" בלבד, "$" נשמט, "—" שומר מקום');
+    const m = PR.q4From(rows, 14736e6, 15.25e9);
+    ok(m && m.eps === 0.97 && m.sh === 15242853e3 && m.col === 0, '(25) q4From: העמודה שמכפלתה = הרווח של הרבעון (באלפים → מניות), לא הרווח המתואם 1.64');
+    ok(PR.q4From(rows, 20e9, 15.25e9) === null, '(25) מכפלה שלא מתאימה לרווח שלנו (בסיס אחר — MSFT ‏2017 אחרי הצגה מחדש) — לא נוגעים');
+    ok(PR.q4From(rows, 14736e6, 13e9) === null, '(25) מניות רחוקות מההערכה (מעל 10%) בלי אימות של השנה — לא נוגעים');
+    ok(PR.q4From(rows, 14736e6, 13e9, [], { sh: 15408095e3, ni: [93736e6] }).sh === 15242853e3, '(25) עמודת השנה מאמתת את הטבלה — עד 25% מההערכה (TransDigm)');
+    // פיצול אחרי ההודעה: ההודעה של 2019 (לפני 4:1), אצלנו מותאם
+    const pre = [{ t: 0, label: 'Diluted', v: [3.03] }, { t: 0, label: 'Diluted', v: [4648913] }];
+    const mp = PR.q4From(pre, 3.03 * 4648913e3, 4 * 4648913e3, [4]);
+    ok(mp && mp.sh === 4 * 4648913e3 && Math.abs(mp.eps - 0.7575) < 1e-9, '(25) פיצול 4:1 אחרי ההודעה — מניות × 4, רווח למניה ÷ 4');
+    // עמודת "שינוי ב־%" עם n/m — אורך שונה בשתי השורות (Southwest), שורת מניות במיליונים עם עשרוני (P&G)
+    ok(PR.q4From([{ t: 1, label: 'Diluted', v: [0.42, -0.42, 0.76, 0.76, null] }, { t: 1, label: 'Diluted', v: [641, 596, 7.6, 643, 640, 0.5] }], 269e6, 599e6).sh === 641e6, '(25) אורך שורות שונה — העמודה הראשונה, המכפלה מאמתת');
+    ok(PR.isShares({ label: 'Diluted Weighted Average Common Shares Outstanding', v: [2472.2] }) && !PR.isShares({ label: 'Diluted EPS', v: [1.27] }), '(25) isShares: מניות במיליונים עם עשרוני — לפי התווית');
+    // pickItems: ה־8-K של התוצאות אחרי סוף השנה (עד 100 יום), כמה מועמדים לפי הסדר
+    const sub = { filings: { recent: { form: ['8-K', '8-K', '8-K', '10-K'], items: ['2.02,9.01', '2.02,9.01', '5.02', ''], accessionNumber: ['b', 'a', 'c', 'k'], filingDate: ['2025-01-28', '2025-01-10', '2025-01-05', '2025-02-01'], primaryDocument: ['b.htm', 'a.htm', 'c.htm', 'k.htm'] } } };
+    const it = PR.pickItems(sub, ['2024-12-31', '2023-12-31']);
+    ok(it.length === 1 && it[0].end === '2024-12-31' && it[0].cands.map((x) => x.acc).join() === 'a,b', '(25) pickItems: רק Item 2.02, אחרי סוף השנה, המוקדם קודם');
+    ok(PR.exhibits({ directory: { item: [{ name: 'k8.htm', size: 9 }, { name: 'ex992.htm', size: 900 }, { name: 'ex991.htm', size: 100 }, { name: 'R1.htm', size: 5 }, { name: 'x.jpg' }] } }, 'k8.htm').join() === 'ex991.htm,ex992.htm', '(25) exhibits: ‏EX-99.1 קודם, בלי המסמך הראשי ודפי R');
+    // readPr: 8-K ראשון בלי הודעה (נתוני תנועה) → השני; ‏EX-99.1 בלי מניות → גם EX-99.2 (UPS)
+    const RNOS = '<table><tr><td>Diluted Earnings Per Share</td><td>3.52</td><td>3.59</td></tr></table>';
+    const RFULL = '<table><tr><td>Diluted earnings per share</td><td>3.52</td></tr><tr><td>Denominator for diluted</td><td>879</td></tr></table>';
+    const gtp = async (u) => /\/a\/index/.test(u) ? JSON.stringify({ directory: { item: [{ name: 'traffic.htm', size: 5 }] } })
+      : /\/b\/index/.test(u) ? JSON.stringify({ directory: { item: [{ name: 'ex991.htm', size: 5 }, { name: 'ex992.htm', size: 9 }] } })
+        : /traffic/.test(u) ? '<p>traffic</p>' : /ex991/.test(u) ? RNOS : RFULL;
+    const rp = await BSF.readPr('1', it[0], gtp);
+    ok(rp && rp.acc === 'b' && rp.file === 'ex991.htm ex992.htm' && rp.rows.length === 3 && rp.rows[2].t >= 1000, '(25) readPr: המועמד הבא כשאין הודעה; קובץ נוסף עד שורת מניות');
+    ok((await BSF.readPr('1', it[0], async () => { throw new Error('http_503'); })) === null, '(25) readPr: תקלת רשת — null (ינוסה שוב, לא נשמר)');
+    // q4Press: הרבעון הרביעי המוערך מקבל את המניות ואת הרווח למניה מההודעה; רבעון עם ערך מדווח — לא
+    const sec = { fy: ['2024-09-28'], q: ['2024-06-29', '2024-09-28'], shEst: ['2024-09-28'], derived: { eps: ['2024-09-28'] }, epsNum: { '2024-09-28': 14736e6 },
+      A: { sh: [15408095e3], ni: [93736e6] }, Q: { sh: [15.3e9, 15.20e9], eps: [1.40, 0.96], ni: [21448e6, 14736e6] } };
+    const P = { '2024-09-28': { end: '2024-09-28', filed: '2024-10-31', rows } };
+    const ch = F.q4Press(sec, P);
+    ok(sec.Q.sh[1] === 15242853e3 && sec.Q.eps[1] === 0.97 && !sec.shEst.includes('2024-09-28') && ch.length === 2 && ch.every((c) => c.k === 'qsh' && c.src === '8k'), '(25) q4Press: ‎0.96 (הערכה) → ‎0.97 כמו בהודעה; המניות מההודעה; נרשם qsh');
+    const sec2 = { fy: ['2024-09-28'], q: ['2024-09-28'], shEst: [], derived: { eps: [] }, epsNum: {}, A: {}, Q: { sh: [15.2e9], eps: [0.96], ni: [14736e6] } };
+    ok(F.q4Press(sec2, P).length === 0 && sec2.Q.eps[0] === 0.96, '(25) q4Press: רבעון שלא הוערך — לא נוגעים');
+    ok(F.q4Press(sec, null).length === 0, '(25) בלי הודעות (אין R2 / עוד לא נקרא) — כמו היום');
   }
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });

@@ -1,0 +1,115 @@
+/* הרבעון הרביעי מההודעה לעיתונות (17/11/2026, בדיקת העומק של מנתח החברות — גל 2, F2; ‏docs/research/fund-deep/wave-2.md).
+   מאז 2021 ה־10-K לא מדפיס את הרבעון הרביעי, ו־XBRL לא מתייג אותו — ממוצע המניות המדולל של הרבעון הוערך (4 × השנה פחות
+   שלושה רבעונים), ומכאן שגיאה של סנט־שניים ברווח למניה. מקור מודפס: ההודעה על התוצאות (8-K, ‏Item 2.02, ‏EX-99.1) —
+   טבלת דוח הרווח וההפסד של "שלושה חודשים" — שורות "Diluted" (רווח למניה ומניות). מידע ציבורי של SEC בלבד.
+   · pickItems — ה־8-K של התוצאות השנתיות: Item 2.02, הראשון אחרי סוף השנה (עד 100 יום)
+   · exhibits  — המועמדים בתיקיית ההגשה (index.json): ‏htm שאינו המסמך הראשי, EX-99 קודם
+   · parse     — שורות הטבלה שהתווית שלהן "dilut…": {label, v:[מספרים|null]} — העמודות כפי שהודפסו (בלי עמודות "$")
+   · q4From    — הזוג (רווח למניה, מניות) מאותה עמודה שמכפלתם = הרווח של הרבעון שלנו, והמניות ליד ההערכה שלנו */
+'use strict';
+
+const num = (s) => {
+  const t = String(s).replace(/[\s$€£,]/g, '').replace(/—|–/g, '-');
+  if (/^[-]+$/.test(t)) return null; // "—" = אפס/ריק — שומר על מיקום העמודה
+  const m = /^(\()?(-)?(\d+(?:\.\d+)?)\)?%?$/.exec(t);
+  if (!m) return undefined;
+  const v = +m[3];
+  return m[1] || m[2] ? -v : v;
+};
+const text = (h) => String(h).replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '').replace(/&nbsp;|&#160;|&#xa0;/gi, ' ')
+  .replace(/&amp;/g, '&').replace(/&#8212;|&#x2014;|&mdash;/gi, '—').replace(/&#8211;|&#x2013;|&ndash;/gi, '–')
+  .replace(/&#\d+;|&\w+;/g, ' ').replace(/\s+/g, ' ').trim();
+
+/* שורות "מדולל" בכל הטבלאות. כל שורה: תווית + ערכים מספריים לפי הסדר (עמודות "$" ו־")" נפרדות מתאחדות) */
+function parse(html) {
+  const out = [];
+  const tables = String(html).split(/<table/i).slice(1);
+  tables.forEach((tb, ti) => {
+    const body = tb.split(/<\/table>/i)[0];
+    let ctx = '';
+    for (const tr of body.split(/<tr/i).slice(1)) {
+      const cells = (tr.match(/<t[dh][^>]*>[\s\S]*?(?=<t[dh][\s>]|<\/tr>|$)/gi) || []).map(text).filter((c) => c && c !== '$' && c !== ')' && c !== '%');
+      if (!cells.length) continue;
+      const lab = [], v = [];
+      for (const c of cells) { const n = num(c); if (n === undefined && !v.length) lab.push(c); else if (n !== undefined) v.push(n); }
+      const label = lab.join(' ');
+      if (!v.length) { if (label) ctx = label.slice(0, 80); continue; }
+      if (!/dilut/i.test(label) && !/dilut/i.test(ctx)) continue;
+      if (!v.some((x) => x != null)) continue;
+      out.push({ t: ti, label: label.slice(0, 80), ctx: /dilut/i.test(label) ? '' : ctx, v });
+      if (out.length >= 40) return;
+    }
+  });
+  return out;
+}
+
+/* ה־8-K של התוצאות לכל סוף שנה: Item 2.02, הראשון שהוגש אחרי סוף השנה ועד 100 יום */
+function pickItems(sub, fyEnds) {
+  const r = sub && sub.filings && sub.filings.recent;
+  if (!r || !r.form) return [];
+  const day = (s) => Date.parse(s + 'T00:00:00Z') / 864e5;
+  const ks = [];
+  for (let i = 0; i < r.form.length; i++) if (/^8-K/.test(r.form[i]) && /2\.02/.test(r.items[i] || '')) ks.push({ acc: r.accessionNumber[i], filed: r.filingDate[i], doc: r.primaryDocument[i] });
+  const out = [];
+  for (const e of fyEnds) {
+    // כמה מועמדים — הראשון שיש בו שורות "מדולל" (Southwest: ‏8-K של נתוני תנועה בינואר, וההודעה על התוצאות אחריו)
+    const c = ks.filter((k) => day(k.filed) > day(e) && day(k.filed) - day(e) <= 100).sort((a, b) => (a.filed < b.filed ? -1 : 1));
+    if (c.length) out.push({ end: e, cands: c.slice(0, 3) });
+  }
+  return out;
+}
+
+/* המועמדים בתיקיית ההגשה: ‏htm, לא המסמך הראשי ולא דפי R; ‏EX-99 קודם, אחר כך לפי גודל */
+function exhibits(index, doc) {
+  const it = (index && index.directory && index.directory.item) || [];
+  return it.filter((x) => /\.htm$/i.test(x.name) && x.name !== doc && !/^R\d+\.htm$/i.test(x.name) && !/index/i.test(x.name))
+    .map((x) => ({ name: x.name, n: +x.size || 0, ex: /ex[-_]?99|exhibit99|ex99/i.test(x.name) ? (/99[-_.]?0?1(?!\d)/.test(x.name) ? 2 : 1) : 0 }))
+    .sort((a, b) => b.ex - a.ex || b.n - a.n).map((x) => x.name);
+}
+
+/* (רווח למניה, מניות) של הרבעון מאותה עמודה ומאותה טבלה: מכפלה = הרווח שבבסיס הרווח למניה (עד העיגול לסנט + 1%),
+   והמניות (אחרי קנה מידה 1 / אלף / מיליון) עד 10% מההערכה שלנו. ni — הרווח של הרבעון (דולרים), est — ההערכה (מניות),
+   post — מקדמי הפיצול האפשריים (מספר או מערך; Apple ‏4:1 ב־2020: ההודעה של 2019 — 4.65 מיליארד מניות, אצלנו 18.6. תאריך
+   הפיצול אצלנו הוא לפעמים ההגשה הראשונה אחריו, לא היום עצמו — לכן כל המקדמים, והמכפלה והקרבה להערכה בוחרות). אורך השורות יכול להיות
+   שונה (עמודת "שינוי ב־%" עם "n/m" נשמטת רק בשורה אחת — Southwest) — העמודה של הרבעון היא בדרך כלל הראשונה, והמכפלה מאמתת */
+/* ann — {ni:[…], sh} של השנה: כשעמודה אחרת באותן שורות היא השנה שלנו (מניות עד 2%, מכפלה עד 2%) — הטבלה אומתה, והמניות
+   של הרבעון יכולות להיות עד 25% מההערכה (TransDigm 2020: ההערכה ‏67.7M, בהודעה ‏57.3M — רבעונים עם דיבידנד מיוחד) */
+function q4From(rows, ni, est, post, ann) {
+  const pfs = [...new Set([1].concat(post == null ? [] : post).filter((x) => x > 0))];
+  if (!rows || !rows.length || !(est > 0) || !Number.isFinite(ni)) return null;
+  let best = null;
+  const isEps = (r) => r.v.every((x) => x == null || Math.abs(x) < 5000) && r.v.some((x) => x != null && Math.round(x) !== x);
+  for (const re of rows) {
+    if (!isEps(re)) continue;
+    for (const rs of rows) {
+      if (rs === re || rs.t !== re.t) continue;
+      for (let i = 0; i < Math.min(re.v.length, rs.v.length); i++) for (const pf of pfs) {
+        const e = re.v[i] / pf, s0 = rs.v[i] * pf;
+        if (re.v[i] == null) continue;
+        if (e == null || !(s0 > 0)) continue;
+        for (const f of [1, 1e3, 1e6]) {
+          const s = s0 * f;
+          const dv = Math.abs(s / est - 1);
+          if (dv > 0.25 || (dv > 0.1 && !annOk(re, rs, i, f, pf, ann))) continue;
+          const err = Math.abs(e * s - ni), tol = 0.0051 * s + 0.02 * Math.abs(ni);
+          if (err > tol) continue;
+          const sc = err / (tol || 1) + Math.abs(s / est - 1);
+          if (!best || sc < best.sc) best = { eps: Math.round(e * 1e4) / 1e4, sh: s, sc, i };
+        }
+      }
+    }
+  }
+  return best && { eps: best.eps, sh: best.sh, col: best.i };
+}
+
+const annOk = (re, rs, i, f, pf, ann) => !!ann && ann.sh > 0 && re.v.some((e0, j) => {
+  if (j === i || e0 == null || !(rs.v[j] > 0)) return false;
+  const s = rs.v[j] * f * pf, e = e0 / pf;
+  return Math.abs(s / ann.sh - 1) <= 0.02 && (ann.ni || []).some((n) => Number.isFinite(n) && Math.abs(e * s - n) <= 0.0051 * s + 0.02 * Math.abs(n));
+});
+
+/* שורת מניות (לא רווח למניה): תווית של מניות / ממוצע, או ערך של אלף ומעלה */
+const isShares = (r) => (/share|weight|average|outstanding/i.test(r.label + ' ' + (r.ctx || '')) && !/per (common )?share|earnings per|income per|loss per|\beps\b/i.test(r.label))
+  || r.v.some((x) => x != null && Math.abs(x) >= 1000);
+
+module.exports = { parse, pickItems, exhibits, q4From, isShares, num };

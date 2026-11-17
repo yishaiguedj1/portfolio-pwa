@@ -1520,6 +1520,35 @@ function q4Eps(sec, y) {
   return out;
 }
 
+/* הרבעון הרביעי מההודעה לעיתונות (17/11/2026, גל 2 — F2; ‏lib/secpr.js, ‏lib/bsfiled.js שדה p). ממוצע המניות המדולל של הרבעון
+   הרביעי הוא הערכה (q4Shares: 4 × השנה פחות שלושה רבעונים) והרווח למניה נגזר ממנה — עד ‎±0.02 מהמודפס (Apple 2021: ‎1.23 במקום
+   ‎1.24; P&G 2024: ‎1.26 במקום ‎1.27). ההודעה מדפיסה את שניהם: הזוג מאותה עמודה שמכפלתו = הרווח של הרבעון שלנו (הבסיס של הרווח
+   למניה, לבעלי המניות או הנקי — Southwest 2022: הרווח לבעלי המניות נגזר משנה שתויגה שגוי, והנקי ‎−$220M = ‎−0.37 × 594M), והמניות
+   עד 10% מההערכה (אחרי הפיצולים שאחרי ההודעה). המניות מחליפות את ההערכה, והרווח למניה — כשהוא נגזר. נרשם qsh (src 8k) */
+function q4Press(sec, P) {
+  const out = [];
+  if (!P || !sec || !sec.Q || !sec.q) return out;
+  const SECPR = require('./secpr');
+  const est = sec.shEst || [], der = (sec.derived && sec.derived.eps) || [];
+  const at = (e) => Object.values(P).find((r) => r && r.rows && Math.abs(day(r.end) - day(e)) <= 5);
+  sec.q.forEach((e, i) => {
+    if (!est.includes(e) || !(sec.fy || []).some((f) => Math.abs(day(f) - day(e)) <= 5)) return;
+    const r = at(e), sh = sec.Q.sh && sec.Q.sh[i]; if (!r || !(sh > 0)) return;
+    // כל מקדמי הפיצול שאחרי תאריך כלשהו (התאריך שלנו הוא לפעמים ההגשה שאחרי הפיצול — Apple ‏4:1: אצלנו 30/10/2020, ההודעה 29/10)
+    const sp = (sec.splitsUsed || []).slice().sort((a, b) => (a[0] < b[0] ? -1 : 1)), post = sp.map((_, j) => sp.slice(j).reduce((t, [, x]) => t * x, 1));
+    const ns = [sec.epsNum && sec.epsNum[e], sec.Q.nic && sec.Q.nic[i], sec.Q.ni && sec.Q.ni[i]].filter((x) => Number.isFinite(x) && x !== 0);
+    const fi = sec.fy.findIndex((f) => Math.abs(day(f) - day(e)) <= 5), A = sec.A || {};
+    const ann = { sh: A.sh && A.sh[fi], ni: [A.nic && A.nic[fi], A.ni && A.ni[fi]].filter((x) => Number.isFinite(x) && x !== 0) };
+    let m = null; for (const n of ns) { m = SECPR.q4From(r.rows, n, sh, post, ann); if (m) break; }
+    if (!m) return;
+    sec.Q.sh[i] = m.sh; sec.shEst = (sec.shEst || []).filter((x) => x !== e);
+    out.push({ k: 'qsh', m: 'sh', p: e, f: m.sh, v: sh, src: '8k' });
+    const ours = sec.Q.eps && sec.Q.eps[i];
+    if (der.includes(e) && ours != null && Math.abs(ours - m.eps) >= 0.005) { sec.Q.eps[i] = m.eps; out.push({ k: 'qsh', m: 'eps', p: e, f: m.eps, v: ours, src: '8k' }); }
+  });
+  return out;
+}
+
 /* ממוצע המניות ברבעון שאין לו ערך מ־SEC (26/10/2026) — הרבעון הרביעי (אין לו 10-Q) או רבעון שדווח רק לפי סוג מניות.
    ההערכה שלנו (q4Shares, ממוצע השנה) לא יודעת כמה מניות מדללות נכללו ברבעון (CoStar: ‏421.9 מול ‏419.6 שפורסם; Hasbro:
    הפסד בשנה — דילול 0 מול ‏2.1M ברבעון; Invesco: ‏453.8 גם ברבעון של הפסד; HPE: ‏1,333 מול ‏1,361). מה שהחברה פרסמה (Yahoo,
@@ -1534,7 +1563,7 @@ function qShares(sec, y) {
     const ours = sec.Q.sh[i]; if (ours != null && !est.includes(e)) return;
     const j = y.q.findIndex((x) => Math.abs(day(x) - day(e)) < 10); if (j < 0 || yComp(y, 'sh', y.q[j])) return;
     const v = y.Q.sh[j], ye = y.Q.eps && !yComp(y, 'eps', y.q[j]) ? y.Q.eps[j] : null; if (!(v > 0)) return;
-    const n = [sec.Q.nic && sec.Q.nic[i], sec.Q.ni && sec.Q.ni[i]].filter((x) => x != null);
+    const n = [sec.Q.nic && sec.Q.nic[i], sec.Q.ni && sec.Q.ni[i]].filter((x) => Number.isFinite(x) && x !== 0);
     const sameBase = ye != null && n.some((x) => Math.abs(ye * v - x) <= 0.05 * Math.max(Math.abs(x), Math.abs(ye * v)) + 0.005 * v);
     if (ours != null ? Math.abs(v / ours - 1) > 0.1 || Math.abs(v - ours) < 0.5 : !sameBase) return;
     sec.Q.sh[i] = v; out.push({ k: 'qsh', m: 'sh', p: e, f: v, v: ours });
@@ -1887,7 +1916,7 @@ async function fundamentals(sym0) {
   const ysTs = safe(yahooTs(sym), 'yts');
   const nq = ta ? Promise.resolve(null) : safe(nasdaqForecast(sym), 'nq');
   const peersP = safe(yahooPeers(sym), 'peers');
-  let sec = null, cik = null, face = null, xbAdded = [];
+  let sec = null, cik = null, face = null, xbAdded = [], secPr = null;
   if (!ta) {
     try {
       cik = (await cikMap()).get(secSym(sym)) || null;
@@ -1909,7 +1938,8 @@ async function fundamentals(sym0) {
         const facts = pf ? mergeFacts(pf, facts0) : facts0;
         face = fc;
         const m = await monthly;
-        sec = normalizeSec(facts, (m && m.splits) || [], face, bsf);
+        sec = normalizeSec(facts, (m && m.splits) || [], face, bsf && bsf.f);
+        secPr = bsf && bsf.p; // ההודעות לעיתונות (q4Press)
         if (sec && sub) { sec.sic = sub.sic || null; sec.sicDesc = sub.sicDescription || null; sec.fye = sub.fiscalYearEnd || null;
           const fl = ((sub.filings && sub.filings.recent && sub.filings.recent.filingDate) || [])[0]; sec.lastFiled = fl || null; }
       }
@@ -1928,9 +1958,10 @@ async function fundamentals(sym0) {
     if ((f.m === 'rev' || f.m === 'cogs') && sec.A.gp && sec.A.rev[f.i] != null && sec.A.cogs && sec.A.cogs[f.i] != null && (sec.A.gp[f.i] == null || (sec.gpd || []).includes(sec.fy[f.i])))
       sec.A.gp[f.i] = sec.A.rev[f.i] - sec.A.cogs[f.i];
   }
+  const q4p = useSec ? q4Press(sec, secPr) : [];
   const qsh = useSec ? qShares(sec, y) : [];
   const qeps = useSec ? q4Eps(sec, y) : [];
-  const checks = useSec ? validate(sec).concat(crossCheck(sec, y), fcRes.out, ffix, qsh, qeps) : [];
+  const checks = useSec ? validate(sec).concat(crossCheck(sec, y), fcRes.out, ffix, q4p, qsh, qeps) : [];
   // מידע: דוח שהושלם מקובץ ה־XBRL של ההגשה (לא היה ב־companyfacts) — הבקרה הלילית סופרת אותם
   if (useSec) for (const a of xbAdded) checks.push({ k: 'xbrl', m: a.form, p: a.per || a.filed });
   // שורה שחסרה ב־SEC לגמרי (תגית פרטית של החברה, למשל השקעות הוניות ב־IFRS) — משלימים מ־Yahoo לפי תאריך, ומסמנים
@@ -2049,7 +2080,7 @@ async function handle(body, res) {
 
 // בקשה ל־SEC עם המזהה (עבודת הרקע של המאזנים — server.js → startBsf → lib/bsfiled.js)
 const secText = (u) => getText(u, { headers: { 'User-Agent': SEC_UA() } }, 15000);
-module.exports = { handle, fundamentals, holes, capexNil, debtFace, bsfDebt, secText, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
+module.exports = { handle, fundamentals, holes, q4Press, capexNil, debtFace, bsfDebt, secText, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
   industryFor, industryData, _cache: cache,
   // התגיות המועמדות לכל שורה — לכלי ההשוואה (fundxcheck: SEC גולמי גם לתקופות שהושלמו מתגית משנית). נשמט ב־f9db4c74 — tools/fund-xcheck.js מצפה לו
   TAGS: { gaap: { ...FLOW, ...INST }, ifrs: IFRS } };

@@ -4,10 +4,13 @@
    אחסון: אובייקט אחד לחברה ב־R2, ‏fund/bsf/<CIK>.json.gz — לכל הגשה רק צד ההתחייבויות של המאזן. מידע ציבורי של SEC בלבד.
    · load — בכל op:'fund': קריאה מ־R2, ועד MAX_LIVE ההגשות החדשות ביותר שחסרות (2 בקשות להגשה, בתקרת זמן), ונכתב בחזרה.
    · tick — עבודת רקע בשרת שלנו (server.js → startBsf): משלימה את כל ההגשות מ־SINCE_Y שנים, עד 2 בקשות לשנייה ל־SEC.
-   כל תקלה — מחזיר מה שיש (או null), והחוב של אותו תאריך נשאר בכלל של F7. אף פעם לא מפיל את התשובה. */
+   כל תקלה — מחזיר מה שיש (או null), והחוב של אותו תאריך נשאר בכלל של F7. אף פעם לא מפיל את התשובה.
+   באותו אובייקט, שדה p (גל 2, F2): ההודעה לעיתונות על התוצאות השנתיות (8-K ‏Item 2.02 ← EX-99.1) לכל סוף שנה — שורות "Diluted"
+   (lib/secpr.js), למניות ולרווח למניה של הרבעון הרביעי. רק בעבודת הרקע (הרבעון האחרון — ממילא מ־Yahoo, qShares). */
 'use strict';
 const zlib = require('zlib');
 const SECFACE = require('./secface');
+const SECPR = require('./secpr');
 const R2 = require('./r2');
 
 const PRE = 'fund/bsf/';
@@ -37,7 +40,7 @@ function periodic(sub, files, sinceY, now) {
     for (let i = 0; i < r.form.length; i++) {
       const acc = r.accessionNumber[i];
       if (!PERIODIC.test(r.form[i]) || r.filingDate[i] < since || seen.has(acc)) continue;
-      seen.add(acc); out.push({ acc, form: r.form[i], filed: r.filingDate[i] });
+      seen.add(acc); out.push({ acc, form: r.form[i], filed: r.filingDate[i], rep: r.reportDate ? r.reportDate[i] : null });
     }
   };
   add(sub && sub.filings && sub.filings.recent);
@@ -57,6 +60,44 @@ async function readOne(cik, f, getText) {
   try { h = await getText(base + pick.bs); } catch (e) { return /http_404/.test(String(e && e.message)) ? { ...rec, err: 'nor' } : null; }
   const bs = slim(SECFACE.parseR(h));
   return bs && bs.rows.length ? { ...rec, bs } : { ...rec, err: 'empty' };
+}
+
+/* ההודעה לעיתונות של סוף שנה אחד: המועמדים (8-K ‏2.02 עד 100 יום אחרי) ← index.json ← עד 3 קבצים, הראשון שיש בו שורות "מדולל".
+   {end, acc, filed, file, rows} / {end, err} (נשמר) / null (תקלת רשת — ינוסה שוב) */
+async function readPr(cik, it, getText) {
+  let last = { end: it.end, err: 'nofile' };
+  for (const k of it.cands) {
+    const base = 'https://www.sec.gov/Archives/edgar/data/' + (+cik) + '/' + k.acc.replace(/-/g, '') + '/';
+    let idx;
+    try { idx = JSON.parse(await getText(base + 'index.json')); } catch (e) { if (/http_404/.test(String(e && e.message))) continue; return null; }
+    const names = SECPR.exhibits(idx, k.doc).slice(0, 3);
+    if (!names.length) { last = { end: it.end, err: 'noex' }; continue; }
+    // כמה קבצים באותה הגשה: עד שנמצאה גם שורת מניות (UPS: ‏EX-99.1 — רק התאמות לרווח המתואם; הדוחות המלאים ב־EX-99.2)
+    let rows = [], files = [];
+    for (const nm of names) {
+      let h;
+      try { h = await getText(base + nm); } catch (e) { if (/http_404/.test(String(e && e.message))) continue; return null; }
+      const r = SECPR.parse(h).map((x) => ({ ...x, t: x.t + 1000 * files.length }));
+      if (!r.length) continue;
+      rows = rows.concat(r); files.push(nm);
+      if (r.some(SECPR.isShares)) break;
+    }
+    if (rows.length) return { end: it.end, acc: k.acc, filed: k.filed, file: files.join(' '), rows };
+  }
+  return last;
+}
+
+/* כל ה־8-K של התוצאות מ־submissions (recent ודפי ההמשך) — לבחירה לפי סוף השנה */
+function merge8k(sub, files) {
+  const r = { form: [], items: [], accessionNumber: [], filingDate: [], primaryDocument: [] };
+  for (const x of [sub && sub.filings && sub.filings.recent, ...(files || [])]) {
+    if (!x || !x.form) continue;
+    for (let i = 0; i < x.form.length; i++) {
+      if (!/^8-K/.test(x.form[i]) || !/2\.02/.test((x.items && x.items[i]) || '')) continue;
+      for (const k of Object.keys(r)) r[k].push(x[k] ? x[k][i] : '');
+    }
+  }
+  return { filings: { recent: r } };
 }
 
 /* ---------- R2 (deps.store — מחסן בזיכרון לבדיקות) ---------- */
@@ -88,7 +129,8 @@ async function fill(cik, list, o, deps, max, ms) {
   return { o, added };
 }
 
-/* בתוך op:'fund': מה שיש ב־R2 + עד MAX_LIVE ההגשות החסרות החדשות ביותר. null — אין R2 / תקלה */
+/* בתוך op:'fund': מה שיש ב־R2 + עד MAX_LIVE ההגשות החסרות החדשות ביותר. {f, p} (p — ההודעות לעיתונות, רק מה שכבר נשמר) /
+   null — אין R2 / תקלה */
 async function load(cik, sub, deps = {}) {
   try {
     const o = (await getObj(cik, deps)) || { v: V, f: {} };
@@ -99,7 +141,7 @@ async function load(cik, sub, deps = {}) {
       const r = await live; if (r) added = r.added;
       if (added) await Promise.race([putObj(cik, o, deps).catch(() => false), new Promise((r) => setTimeout(r, 1500))]);
     }
-    return Object.keys(o.f).length ? o.f : null;
+    return Object.keys(o.f).length || (o.p && Object.keys(o.p).length) ? { f: o.f, p: o.p || {} } : null;
   } catch (e) { return null; }
 }
 
@@ -114,8 +156,19 @@ async function fillAll(cik, deps) {
   }
   const o = (await getObj(cik, deps)) || { v: V, f: {} };
   const list = periodic(sub, files, SINCE_Y, deps.now);
-  const { added } = await fill(cik, list, o, { ...deps, par: 1 }, 1e4, deps.budgetMs || 0);
-  const left = list.filter((f) => !o.f[f.acc]).length;
+  const t0 = Date.now();
+  let { added } = await fill(cik, list, o, { ...deps, par: 1 }, 1e4, deps.budgetMs || 0);
+  // ההודעות לעיתונות: לכל 10-K (סוף השנה = reportDate) שעוד אין לו רשומה
+  o.p = o.p || {};
+  const ends = [...new Set(list.filter((f) => /^10-K/.test(f.form) && f.rep).map((f) => f.rep))];
+  const its = SECPR.pickItems(merge8k(sub, files), ends).filter((it) => !o.p[it.end]);
+  let prLeft = 0;
+  for (const it of its) {
+    if (deps.budgetMs && Date.now() - t0 > deps.budgetMs) { prLeft++; continue; }
+    const r = await readPr(cik, it, deps.getText).catch(() => null);
+    if (r) { o.p[it.end] = r; added++; } else prLeft++;
+  }
+  const left = list.filter((f) => !o.f[f.acc]).length + prLeft;
   if (!left) o.at = new Date(deps.now || Date.now()).toISOString();
   if (added || !left) await putObj(cik, o, deps);
   return { n: list.length, added, left };
@@ -149,4 +202,4 @@ async function tick(deps = {}) {
   return { ok: true, done, added, i, ms: Date.now() - t0 };
 }
 
-module.exports = { load, fillAll, tick, slim, periodic, readOne, key, PRE, V, SINCE_Y, MAX_LIVE };
+module.exports = { load, fillAll, tick, slim, periodic, readOne, readPr, merge8k, key, PRE, V, SINCE_Y, MAX_LIVE };
