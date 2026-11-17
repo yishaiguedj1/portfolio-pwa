@@ -1101,7 +1101,14 @@ export function createNet(env) {
     const old = !!o.old, cond = ['trashed = false', old ? "appProperties has { key='snbVid' and value='dx' }" : "appProperties has { key='snbRole' and value='m' }"];
     const qs = new URLSearchParams({ q: cond.join(' and '), pageSize: '100', orderBy: 'modifiedTime desc', spaces: 'drive', fields: 'nextPageToken,files(' + VID_FIELDS + ')' });
     if (o.page) qs.set('pageToken', String(o.page).slice(0, 2000));
-    const j = await dreq('GET', API + '?' + qs);
+    /* 17/11/2026: הספרייה לא נטענה בטלפון אחרי 2.167.0 — אם Drive דוחה את הבקשה (400), מנסים בלי orderBy וממיינים כאן */
+    let j;
+    try { j = await dreq('GET', API + '?' + qs); } catch (e) {
+      if (!e || e.status !== 400 || !qs.has('orderBy')) throw e;
+      qs.delete('orderBy');
+      j = await dreq('GET', API + '?' + qs);
+      if (j && Array.isArray(j.files)) j.files.sort((a, b) => String(b.modifiedTime || '').localeCompare(String(a.modifiedTime || '')));
+    }
     return { files: (Array.isArray(j && j.files) ? j.files : []).filter((f) => f && DFID.test(String(f.id || ''))).map(vidOf), next: j && typeof j.nextPageToken === 'string' ? j.nextPageToken : '' };
   }
   /* הפוסטרים: הסרטונים של הספרייה (snbLib=1, צרוב או מקור) עם התמונה הממוזערת של Drive — בקשה אחת לכל הספרייה, לפי התיקייה */

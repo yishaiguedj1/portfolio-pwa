@@ -4,7 +4,7 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v803';
+const CACHE_NAME = 'portfolio-pwa-v804';
 const HASHES = {
   "./": "a4c10604dc53d9719855cb70d87ca9ff",
   "./index.html": "a4c10604dc53d9719855cb70d87ca9ff",
@@ -12,7 +12,7 @@ const HASHES = {
   "./glass-btn.css": "40916bc7f51ba17be27ae56ed9b23902",
   "./invest-glass.css": "de7c2aa66cd09eac425d7b53793da42e",
   "./desktop.css": "22dcb3bea6e645027d3146b31d66712a",
-  "./app.js": "8f3bc853a513a13a10697674762d9dc7",
+  "./app.js": "2ede23b3d46a7ef6632474b41a07da56",
   "./returns.js": "afe0d262348852fd10982ef2d0239545",
   "./cloud.js": "d403f6c76884375dc9999b80660f1ddf",
   "./firebase-config.js": "a4adfadcd5fe3b79a29e9fa0eeb94df0",
@@ -78,7 +78,7 @@ const HASHES = {
   "./academy.html": "4e22225573f3222dc148ea8a9409fd2f",
   "./academy-app.js": "8f943cfa4b1bbb60bc8d83d4304d9978",
   "./strings-academy.js": "291dfb6034d15d8876be7d885ca69617",
-  "./core.js": "3e5d23fa12dcc7ee16edbc557ff0a3cb",
+  "./core.js": "eb3332245fc687b64b0493d3db2032d3",
   "./auth.js": "465d3bc983806d8a2f462e567725df21",
   "./shell.js": "04e4e9bb8b1a12538f4b12ac699dabd5",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -87,9 +87,9 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "342fc3dcd8bc87f118689164a0d1b70b",
-  "./studio.css": "a6a07657fe7445605513bc44856fb07a",
-  "./studionet.js": "a1d3776f9ea730e506319bcb285e80ce",
+  "./studio.js": "4ef8b3e8c85ef3e109008a2327890272",
+  "./studio.css": "ab4dc1c26471a7a7762919295fdf4cb6",
+  "./studionet.js": "5cd5c6d4fd23fb3ed9adbbda0a55d336",
   "./studioplay.js": "0b89b8c22e6e7b388bbb8c9a4820c64c",
   "./studiovi.js": "985efcace5223c3240673be8328b86b2",
   "./studiospk.js": "d2da9bbef05bf9bfcd5b14bfd24b476a",

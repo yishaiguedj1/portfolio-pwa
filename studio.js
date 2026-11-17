@@ -5959,7 +5959,7 @@ function pageVids(p) {
    (drive.file). כשהעותק ב־R2 פג (21 יום), השרתון מחליף בעבודה את המזהים לקבצים בספרייה (libSwap) — הנגן, העורכים וההפקה מחדש
    ממשיכים. כל עוד העבודה קיימת — מנגנים ממנה (R2 עדיף: איכויות צפייה); אחרת — מהמניפסט */
 const LIB_KINDS = ['', 'tr', 'ka', 'vi'];
-const lb = { st: '', items: [], old: [], k: '', quota: null, seq: 0, busy: false, man: new Map(), th: null };
+const lb = { st: '', err: '', items: [], old: [], k: '', quota: null, seq: 0, busy: false, man: new Map(), th: null };
 const lbPaint = () => { if (root && (ui.view === 'lib' || ui.view === 'litem')) render('none'); };
 const libTabOk = () => driveOk();
 /* המניפסט כמו שהעובד כותב אותו (translator/job.py lib_manifest) — רק השדות המוכרים, בגבולות */
@@ -5994,6 +5994,8 @@ async function lbLoad() {
   } catch (e) {
     if (seq !== lb.seq) return;
     const c = e && e.code;
+    lb.err = String(c || (e && e.name) || 'err').slice(0, 40);   // קוד קצר על המסך — בלי פרטים אישיים
+    if (typeof console !== 'undefined') console.warn('studio lib load', e);
     lb.st = c === 'not_connected' || c === 'revoked' || c === 'not_allowed' ? 'conn' : lb.st === 'ok' ? 'ok' : 'err';
   } finally { if (seq === lb.seq) { lb.busy = false; lbPaint(); } }
 }
@@ -6075,7 +6077,7 @@ function pageLib(p) {
     chips.append(b);
   }
   p.append(chips);
-  if (lb.st === 'err' && !lb.items.length) { p.append(h('div', 'st-empty st-empty-sm', T('studioLibErr')), btn('st-btn wide', T('studioLibRetry'), lbLoad, 'lib-retry')); return; }
+  if (lb.st === 'err' && !lb.items.length) { p.append(h('div', 'st-empty st-empty-sm', T('studioLibErr')), h('div', 'st-lib-errc', lb.err || ''), btn('st-btn wide', T('studioLibRetry'), lbLoad, 'lib-retry')); return; }
   if (!lb.st) { p.append(h('div', 'st-empty st-empty-sm', T('studioPlLoading'))); return; }
   const cards = lbCards();
   if (!cards.length) p.append(h('div', 'st-empty st-empty-sm', T('studioLibEmpty')));
