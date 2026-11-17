@@ -1,4 +1,5 @@
-/* POST /api/history  { syms: ['SPY','LUMI.TA',…] (עד 40), range: '1y'|'5y'|'7y'|'10y' | '1d'|'5d' (תוך־יומי, v228) }
+/* POST /api/history  { syms: ['SPY','LUMI.TA',…] (עד 40), range: '1y'|'5y'|'7y'|'10y'|'max' | '1d'|'5d' (תוך־יומי, v228) }
+   (^XNDX — Nasdaq-100 כולל דיבידנדים — ההיסטוריה מ־Nasdaq, ראו fetchNasdaqIdx)
    או { op:'candles', sym, iv, to?, pre? } — נרות OHLCV לגרף הנרות (lib/candles.js)
    או { op:'fund', sym } / { op:'macro' } — דוחות כספיים ונתוני מקרו לניתוח חברה (lib/fundamentals.js)
    או { op:'ackman', v? } — תיק אקמן לדמו (lib/ackmanjob.js); GET ?job=ackman — העדכון האוטומטי (רק בשרת שלנו)
@@ -64,10 +65,61 @@ function parseChart(j) {
   return t.length ? { t, c } : null;
 }
 
+/* 16/11/2026: מדדי השוואה כולל דיבידנדים לגרף הביצועים (תקן המקצוע — GIPS). S&P 500 TR ‏(^SP500TR) — מ־Yahoo כרגיל, מ־1988.
+   Nasdaq-100 TR ‏(^XNDX) — ב־Yahoo יש רק מחיר נוכחי, בלי היסטוריה: ההיסטוריה מהמפרסם הרשמי (Nasdaq Global Index Watch, מ־1999),
+   והיום — מ־Yahoo (אותה סדרה: הסגירה הקודמת שם = הסגירה האחרונה אצל Nasdaq, נבדק 16/11/2026). ערך מוכן — לא מחשבים דיבידנדים בעצמנו. */
+const NQ_IDX = { '^XNDX': 'XNDX' };
+const NQ_DAYS = { '1y': 366, '5y': 1827, '7y': 7 * 366, '10y': 3653 };
+/* טהורה: aaData של Nasdaq → { t: [ימים מאז 1970], c: [ערכים] }, ישן → חדש. TimeStamp = חצות בניו־יורק (04:00/05:00Z) של יום המסחר */
+function parseNasdaqIdx(j) {
+  const rows = [];
+  for (const x of (j && j.aaData) || []) {
+    const m = /-?\d+/.exec(String((x && x.TimeStamp) || ''));
+    const v = Number(x && x.Value);
+    if (m && v > 0) rows.push([Math.floor(+m[0] / 86400000), Math.round(v * 1e4) / 1e4]);
+  }
+  rows.sort((a, b) => a[0] - b[0]);
+  const t = [], c = [];
+  for (const [d, v] of rows) { if (t.length && t[t.length - 1] === d) { c[c.length - 1] = v; continue; } t.push(d); c.push(v); }
+  return t.length ? { t, c } : null;
+}
+async function fetchNasdaqIdx(sym, range, deadline) {
+  const left = deadline - Date.now();
+  if (left < 1500) return null;
+  const days = NQ_DAYS[range];
+  const day = (ms) => new Date(ms).toISOString().slice(0, 10) + 'T00:00:00.000';
+  const from = days ? day(Date.now() - (days + 7) * 86400000) : '1990-01-01T00:00:00.000';
+  const ctl = new AbortController();
+  const to = setTimeout(() => ctl.abort(), Math.min(15000, left));
+  try {
+    const [r, live] = await Promise.all([
+      fetch('https://indexes.nasdaqomx.com/Index/HistoryData', {
+        method: 'POST', signal: ctl.signal,
+        headers: { 'User-Agent': UA, Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+        body: 'id=' + NQ_IDX[sym] + '&startDate=' + from + '&endDate=' + day(Date.now() + 86400000) + '&timeOfDay=EOD',
+      }),
+      fetch('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym) + '?interval=1d&range=5d',
+        { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: ctl.signal })
+        .then((y) => (y.status === 200 ? y.json() : null)).then(parseChart).catch(() => null),
+    ]);
+    if (r.status !== 200) return null;
+    const v = parseNasdaqIdx(await r.json());
+    if (!v) return null;
+    // היום (המסחר עוד פתוח / Nasdaq עוד לא פרסמה) — הערך החי מ־Yahoo, רק ימים שאחרי הסגירה האחרונה של Nasdaq
+    if (live) for (let i = 0; i < live.t.length; i++) if (live.t[i] > v.t[v.t.length - 1]) { v.t.push(live.t[i]); v.c.push(live.c[i]); }
+    return v;
+  } catch (e) { return null; } finally { clearTimeout(to); }
+}
+
 async function fetchOne(sym, range, deadline) {
   const key = sym + '|' + range;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < (INTRA[range] ? INTRA_CACHE_MS : CACHE_MS)) return hit.v;
+  if (NQ_IDX[sym] && !INTRA[range]) {
+    const v = await fetchNasdaqIdx(sym, range, deadline);
+    if (v) { cache.set(key, { at: Date.now(), v }); if (cache.size > 400) cache.clear(); }
+    return v;
+  }
   for (const host of ['query1', 'query2']) {
     const left = deadline - Date.now();
     if (left < 500) return null;
@@ -144,4 +196,6 @@ module.exports = async (req, res) => {
 
 module.exports._parseChart = parseChart;
 module.exports._parseIntra = parseIntra;
+module.exports._parseNasdaqIdx = parseNasdaqIdx;
+module.exports._fetchNasdaqIdx = fetchNasdaqIdx;
 module.exports._cache = cache;

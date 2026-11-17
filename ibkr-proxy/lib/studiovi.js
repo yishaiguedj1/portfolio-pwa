@@ -50,9 +50,10 @@ const VI_GENRES = ['academic_lecture', 'course_module', 'business_webinar', 'con
 const VI_ASRQ = ['high', 'med', 'low'];
 /* תקרות: מספר רשומות לכל רשימה ואורך טקסט לכל שדה (הרצאה של 90 דק׳ ≈ 1,000 יחידות דיבור) */
 const VI_CAP = { evidence: 20000, slides: 3000, ocr: 30000, segments: 2000, chapters: 400, items: 3000, ledger: 40000, states: 40, refs: 24, take: 7, warn: 16 };
-const VI_TXT = { text: 2000, q: 600, title: 300, sum: 3000, adds: 2000, vtitle: 300 };
+const VI_TXT = { text: 2000, q: 600, title: 300, sum: 3000, adds: 2000, vtitle: 300, spk: 40 };
+const SPK_MAX = 20;   // 16/11/2026: דוברים (speakers) — עד 20
 const ID = { e: /^e\d{1,6}$/, s: /^s\d{1,5}$/, o: /^o\d{1,5}\.\d{1,4}$/, c: /^c\d{1,4}$/, n: /^n\d{1,5}$/ };
-const VI_KEYS = ['v', 'pv', 'lang', 'genre', 'video', 'evidence', 'slides', 'ocr', 'segments', 'chapters', 'items', 'briefing', 'thesis', 'big', 'ledger', 'quality'];
+const VI_KEYS = ['v', 'pv', 'lang', 'genre', 'video', 'evidence', 'speakers', 'slides', 'ocr', 'segments', 'chapters', 'items', 'briefing', 'thesis', 'big', 'ledger', 'quality'];
 const SPK_RE = /^S\d{1,2}$/, KIND_RE = /^[a-z][a-z_]{0,15}$/, LANG_RE = /^[a-z]{2,3}$/, VSRC_RE = /^[a-z]{1,8}$/;
 
 const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
@@ -70,6 +71,13 @@ function normVi(o) {
   const out = { v: VI_V, pv: Number.isInteger(o.pv) && o.pv >= 1 && o.pv <= 999 ? o.pv : 1 };
   const lg = isObj(o.lang) ? o.lang : {};
   out.lang = { src: VI_LANGS.includes(lg.src) ? lg.src : 'en', out: 'he' };
+  for (const k of ['sp', 'scr']) {   // 16/11/2026: השפות המדוברות (ציר השפות) ושפות הטקסט על המסך — [{lg, sh}], עד 4
+    const xs = [];
+    for (const x of list(lg[k], 8)) {
+      if (isObj(x) && typeof x.lg === 'string' && LANG_RE.test(x.lg) && fin(x.sh, 0, 1) && x.sh > 0 && !xs.some((y) => y.lg === x.lg)) xs.push({ lg: x.lg, sh: r3(x.sh) });
+    }
+    if (xs.length) out.lang[k] = xs.slice(0, 4);
+  }
   out.genre = VI_GENRES.includes(o.genre) ? o.genre : 'other';
   const vd = isObj(o.video) ? o.video : {};
   out.video = { dur: fin(vd.dur, 0, 86400) ? r3(vd.dur) : 0 };
@@ -82,16 +90,37 @@ function normVi(o) {
     const sp = isObj(e) && ID.e.test(String(e.id || '')) && span(e), t = isObj(e) && txt(e.text, VI_TXT.text);
     if (!sp || t == null) continue;
     const x = Object.assign({ id: e.id }, sp, { spk: SPK_RE.test(String(e.spk || '')) ? e.spk : 'S1', text: t });
+    if (LANG_RE.test(String(e.lg || ''))) x.lg = e.lg;   // 16/11/2026: יחידה בשפה אחרת משפת התמלול (ציר השפות)
     if (fin(e.conf, 0, 1)) x.conf = r3(e.conf);
     if (Number.isInteger(e.w0) && Number.isInteger(e.w1) && e.w0 >= 0 && e.w1 >= e.w0) { x.w0 = e.w0; x.w1 = e.w1; }
     out.evidence.push(x);
   }
+  /* 16/11/2026 (דוברים בתמליל): [{spk, sh, t, lg: [{lg, sh}], g: m|f|u, gs, name, role}] — תווית אחת פעם אחת, עד SPK_MAX;
+     17/11/2026 (מי מדבר): + orig, ttl, act, kb (1 — מהידע הכללי של המודל) */
+  const sps = [];
+  for (const d of list(o.speakers, SPK_MAX)) {
+    if (!isObj(d) || !SPK_RE.test(String(d.spk || '')) || !fin(d.sh, 0, 1) || sps.some((y) => y.spk === d.spk)) continue;
+    const x = { spk: d.spk, sh: r3(d.sh) };
+    if (fin(d.t, 0, 86400)) x.t = r3(d.t);
+    const lgs = [];
+    for (const z of list(d.lg, 8)) if (isObj(z) && LANG_RE.test(String(z.lg || '')) && fin(z.sh, 0, 1) && z.sh > 0 && !lgs.some((y) => y.lg === z.lg)) lgs.push({ lg: z.lg, sh: r3(z.sh) });
+    if (lgs.length) x.lg = lgs.slice(0, 4);
+    x.g = d.g === 'm' || d.g === 'f' ? d.g : 'u';
+    if (x.g !== 'u' && (d.gs === 'text' || d.gs === 'voice')) x.gs = d.gs;
+    for (const k of ['name', 'role', 'orig', 'ttl', 'act']) { const v = txt(d[k], VI_TXT.spk); if (v) x[k] = v; }   // 17/11/2026: מי מדבר — המקור, התואר והשחקן
+    if (d.kb === 1 && (x.name || x.ttl || x.act)) x.kb = 1;
+    sps.push(x);
+  }
+  if (sps.length) out.speakers = sps;
   out.ocr = [];
   for (const r of list(o.ocr, VI_CAP.ocr)) {
     const t = isObj(r) && ID.o.test(String(r.id || '')) && txt(r.text, VI_TXT.text);
     if (t == null || t === false) continue;
     const x = { id: r.id, text: t, conf: fin(r.conf, 0, 100) ? Math.round(r.conf) : 0, lang: LANG_RE.test(String(r.lang || '')) ? r.lang : 'und' };
     if (r.dir === 'rtl' || r.dir === 'ltr') x.dir = r.dir;
+    // 16/11/2026: שורה מעורבת — השפות שבה לפי הסדר (2–4, בלי כפילות), כמו vicheck.py
+    const lg = [...new Set((Array.isArray(r.lgs) ? r.lgs.slice(0, 8) : []).filter((v) => typeof v === 'string' && LANG_RE.test(v)))].slice(0, 4);
+    if (lg.length >= 2) x.lgs = lg;
     out.ocr.push(x);
   }
   const ocrIds = new Set(out.ocr.map((x) => x.id));

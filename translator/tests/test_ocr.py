@@ -174,6 +174,229 @@ class TestPool(unittest.TestCase):
         self.assertEqual(p.limit, 1)
 
 
+class TestBidiV2(unittest.TestCase):
+    """גרסה 2: היפוך אלגוריתם ה־bidi בשורות מעורבות — ניטרליים בקצות אי, תחיליות, מירכאות, כיוון השורה."""
+
+    def test_separator_outside_island(self):
+        w = [(900, "דנה"), (800, "לוי"), (700, "|"), (400, "Dana"), (500, "Levi")]
+        self.assertEqual(O.reorder(w, "rtl"), "דנה לוי | Dana Levi")
+        w = [(900, "ברוכים"), (800, "הבאים"), (700, "—"), (400, "Welcome")]
+        self.assertEqual(O.reorder(w, "rtl"), "ברוכים הבאים — Welcome")
+
+    def test_island_edge_punct_and_quotes(self):
+        # המירכאה הסוגרת של ‎"fix"‎ מוצגת משמאל ל־git (ניטרלי בין לטינית לעברית מקבל את כיוון השורה)
+        w = [(1610, "הפקודה"), (1175, '"git'), (1263, "commit"), (1445, "-m"), (1523, '"fix'), (1031, "שומרת"),
+             (931, "שינוי")]
+        self.assertEqual(O.reorder(w, "rtl"), 'הפקודה git commit -m "fix" שומרת שינוי')
+        w = [(900, "תודה"), (800, "רבה!"), (600, "you"), (400, "!Thank")]
+        self.assertEqual(O.reorder(w, "rtl"), "תודה רבה! Thank you!")
+        self.assertEqual(O.reorder([(900, "כלי"), (700, '"CRM"'), (500, "מבוסס")], "rtl"), 'כלי "CRM" מבוסס')
+
+    def test_prefix_glue(self):
+        self.assertEqual(O.reorder([(900, "מבוא"), (800, "ל"), (600, "React")], "rtl"), "מבוא ל\u05beReact")
+        self.assertEqual(O.reorder([(900, "מבוא"), (800, "ל-"), (600, "React")], "rtl"), "מבוא ל-React")
+        # "של" היא מילה ולא תחילית
+        self.assertEqual(O.reorder([(900, "הרכיבים"), (800, "של"), (600, "React")], "rtl"), "הרכיבים של React")
+
+    def test_line_dir_matrix_language(self):
+        # רוב האותיות לטיניות, אבל "על" — המשפט עברי
+        self.assertEqual(O.line_dir([(100, "Machine"), (280, "Learning"), (480, "על"), (560, "הרצאה")]), "rtl")
+        w = [(100, "Our"), (200, "team"), (300, "in"), (400, "Israel"), (550, "(הצוות"), (700, "בישראל)")]
+        self.assertEqual(O.line_dir(w), "ltr")
+        # כותרת עם נקודתיים בקצה הימני — עברית
+        self.assertEqual(O.line_dir([(900, "הכלים:"), (600, "Excel,"), (400, "Power"), (300, "BI")]), "rtl")
+
+    def test_aligns_same_size_only(self):
+        # כותרת גדולה שהקצה השמאלי שלה נופל ליד שורת גוף — לא נחשבת מיושרת לשמאל
+        self.assertEqual(O.aligns([[1142, 113, 654, 65], [1065, 267, 691, 46], [1162, 367, 594, 38]]), [None, "r", "r"])
+
+    def test_split_gaps(self):
+        ws = [{"x": 100, "w": 100, "h": 40, "text": "a"}, {"x": 210, "w": 100, "h": 40, "text": "b"},
+              {"x": 900, "w": 100, "h": 40, "text": "c"}]
+        self.assertEqual([[w["text"] for w in p] for p in O.split_gaps(ws)], [["a", "b"], ["c"]])
+
+
+class TestSegmentsV2(unittest.TestCase):
+    def test_codes_are_neutral(self):
+        self.assertEqual(O.segments("הכנסות | Q1 2025 | 12.5%"), [["הכנסות | Q1 2025 | 12.5%", "he"]])
+        self.assertEqual([lg for _, lg in O.segments("תוצאות A/B Testing: גרסה B ניצחה")], ["he", "en", "he"])
+        self.assertEqual(O.lang_of("רשת 5G מהירה"), "he")
+        self.assertEqual(O.lang_of("בינה מלאכותית (AI)"), "mix")         # ראשי תיבות של שתי אותיות — מילה
+        self.assertEqual(O.lang_of("Q1"), "other")
+
+    def test_scripts_and_latin_languages(self):
+        self.assertEqual(O.segments("ברוכים הבאים — Добро пожаловать"),
+                         [["ברוכים הבאים —", "he"], ["Добро пожаловать", "ru"]])
+        self.assertEqual(O.lang_of("مرحبا بكم"), "ar")
+        self.assertEqual(O.latin_lang("Gracias por su atención"), "es")
+        self.assertEqual(O.latin_lang("Bienvenue à tous"), "fr")
+        self.assertEqual(O.latin_lang("Vielen Dank für Ihre Aufmerksamkeit"), "de")
+        self.assertEqual(O.latin_lang("Thank you for watching"), "en")
+
+    def test_page_langs(self):
+        ls = O.lines(O.tsv_words(SLIDE))
+        self.assertEqual(set(O.page_langs(ls)), {"he", "en"})
+
+
+HOCR = """<div class='ocr_page' id='page_1' title='image "x"; bbox 0 0 300 60'>
+<span class='ocrx_word' id='word_1_1' title='bbox 10 5 290 55; x_wconf 31'>
+<span class='ocrx_cinfo' title='x_bboxes 260 8 290 50; x_conf 98.5'>ב</span>
+<span class='ocrx_cinfo' title='x_bboxes 240 26 256 30; x_conf 97'>-</span>
+<span class='ocrx_cinfo' title='x_bboxes 20 8 230 50; x_conf 40'>&amp;</span></span></div>
+<div class='ocr_page' id='page_2' title='image "x"; bbox 0 0 300 60'></div>"""
+
+
+class TestRepairHelpers(unittest.TestCase):
+    """הכלים של תיקון המילים הדבוקות — בלי Tesseract."""
+
+    def test_parse_hocr(self):
+        pages = O.parse_hocr(HOCR)
+        self.assertEqual(len(pages), 2)
+        self.assertEqual(pages[1], [])
+        w = pages[0][0]
+        self.assertEqual(w["text"], "ב-&")
+        self.assertEqual(w["conf"], 31)
+        self.assertEqual(w["chars"][1], ("-", 240, 256, 97.0, 26, 30))
+
+    def test_dash_by_shape(self):
+        ref = (68, 62)
+        self.assertTrue(O._dash(("e", 173, 194, 87, 69, 75), ref))      # מקף שנקרא "e" — שטוח ונמוך
+        self.assertFalse(O._dash(("p", 52, 91, 99, 68, 130), ref))
+        self.assertFalse(O._dash((".", 10, 16, 90, 120, 126), ref))     # נקודה — לא שטוחה
+        self.assertTrue(O._dash(("־", 0, 9, 90, 0, 1), None))
+
+    def test_tail_and_prefix(self):
+        pip = [("p", 52, 91, 99, 68, 130), ("i", 104, 111, 99, 52, 113), ("p", 125, 164, 99, 68, 130),
+               ("e", 173, 194, 87, 69, 75), ("!", 205, 213, 89, 69, 113)]
+        self.assertEqual(O._tail_at(pip), 3)                            # ‎"pip" + מקף + ו׳ שנקראה "!"
+        hooks = [("H", 18, 37, 98, 21, 47), ("o", 42, 60, 99, 27, 47), ("o", 64, 82, 98, 27, 47),
+                 ("k", 86, 102, 99, 18, 47), ("s", 105, 118, 98, 27, 47), ('"', 122, 131, 85, 25, 27),
+                 ("7", 134, 150, 98, 18, 47)]
+        self.assertEqual(O._tail_at(hooks), 5)
+        hello = [(c, i * 10, i * 10 + 8, 99, 0, 30) for i, c in enumerate("Hello")] + [("!", 50, 54, 99, 0, 30)]
+        self.assertEqual(O._tail_at(hello), 5)                          # סימן בסוף, בלי תחילית אחריו
+        self.assertEqual(O._prefix_split(O.parse_hocr(HOCR)[0][0]["chars"]), ("ב", 240))
+        self.assertIsNone(O._prefix_split([("מ", 50, 80, 99, 0, 40), ("ו", 30, 45, 99, 0, 40), ("-", 10, 25, 99, 18, 22)]))
+        self.assertEqual(O._pre_of("ודצ"), "ו")
+        self.assertEqual(O._pre_of("ן"), "ו")                          # קו אנכי בודד
+        self.assertEqual(O._pre_of("וה"), "וה")
+        self.assertIsNone(O._pre_of("9"))
+        self.assertEqual(O._lat_edges('JSON"'), "JSON")
+        self.assertEqual(O._lat_edges("Learning\u201d"), "Learning")
+        self.assertEqual(O._lat_edges(".JSON"), ".JSON")
+
+    def test_other_script(self):
+        self.assertTrue(O._other("Спасибо"))
+        self.assertTrue(O._other("مرحبا"))
+        self.assertFalse(O._other("АРІ"))                                # רק אותיות שנראות לטיניות
+        self.assertFalse(O._other("API"))
+        self.assertTrue(O.JUNK.search("Cnacn6o"))
+        self.assertFalse(O.JUNK.search("JavaScript"))
+
+
+def _page(text, conf, chars=None, box=(0, 0, 100, 40)):
+    return {"text": text, "conf": conf, "box": list(box), "chars": chars or [(c, i * 10, i * 10 + 9, 95.0, 5, 35)
+                                                                             for i, c in enumerate(text)]}
+
+
+class TestRepairFlow(unittest.TestCase):
+    """_repair מקצה לקצה עם hOCR מזויף: מה נקרא שוב, ואיך התוצאה נכנסת לשורה."""
+
+    def setUp(self):
+        from PIL import Image
+        self.im = Image.new("L", (1600, 200), 255)
+        self.orig = O.run_hocr
+
+    def tearDown(self):
+        O.run_hocr = self.orig
+
+    def fake(self, script):
+        """script = {שפה: [תשובה לקריאה 1, לקריאה 2, …]} — הקריאות בעברית ובאנגלית רצות במקביל."""
+        lock = threading.Lock()
+        seen = {k: 0 for k in script}
+
+        def run(images, lang, psm=7, timeout=None):
+            with lock:
+                i = seen[lang]
+                seen[lang] += 1
+            out = script[lang][i]
+            self.assertEqual(len(out), len(images))
+            return out
+        O.run_hocr = run
+        return seen
+
+    def word(self, text, x, w, conf, n=1):
+        return {"key": (1, 1, 1), "n": n, "x": x, "y": 50, "w": w, "h": 40, "conf": conf, "text": text}
+
+    def test_glued_prefix_split(self):
+        ws = [self.word("השתמשנו", 1120, 220, 92, 1), self.word("ב-פחוחז63.!", 800, 300, 0, 2),
+              self.word("Machine", 600, 180, 93, 3)]
+        # המועמדים לפי x: Machine ואז הבלוב. בחיתוך הבלוב (שוליים 13): ה־ב בימין, מקף, וזבל משמאל
+        heb = _page("ב-שחוח", 31, [("ב", 290, 313, 99, 15, 50), ("-", 270, 286, 98, 30, 34), ("ש", 20, 260, 60, 15, 50)])
+        self.fake({"heb": [[[_page("ץ", 20)], [heb]], [[]]],
+                   "eng": [[[_page("Machine", 96)], [_page("Learning2", 11)]], [[_page("Learning", 95)]]]})
+        st = O._repair(self.im, ws)
+        self.assertEqual(st["split"], 1)
+        self.assertEqual(O.lines(ws)[0]["text"], "השתמשנו ב\u05beMachine Learning")
+
+    def test_hebrew_misread_as_latin(self):
+        ws = [self.word("nin", 1300, 120, 87, 1), self.word("נקי", 1200, 80, 92, 2)]
+        self.fake({"heb": [[[_page("רווח", 91)]]], "eng": [[[_page("niin", 69)]]]})
+        self.assertEqual(O._repair(self.im, ws)["heb"], 1)
+        self.assertEqual(O.lines(ws)[0]["text"], "רווח נקי")
+
+    def test_latin_word_between_latin_words_stays(self):
+        ws = [self.word("Our", 100, 80, 95, 1), self.word("team", 200, 100, 95, 2), self.word("in", 320, 40, 90, 3),
+              self.word("Israel", 380, 140, 95, 4), self.word("(הצוות", 600, 160, 92, 5)]
+        self.fake({"heb": [[[_page("Our", 0)], [_page("team", 0)], [_page("חו", 92)], [_page("Israel", 0)]]],
+                   "eng": [[[_page("Our", 95)], [_page("team", 96)], [_page("in", 70)], [_page("Israel", 96)]]]})
+        st = O._repair(self.im, ws)
+        self.assertEqual(st["heb"], 0)
+        self.assertEqual([w["text"] for w in ws][:4], ["Our", "team", "in", "Israel"])
+
+    def test_cell_code_and_acronym(self):
+        ws = [self.word("2025", 900, 100, 96, 1), self.word("01", 1020, 50, 48, 2), self.word("נתוני", 1300, 120, 92, 3),
+              self.word("חא", 1150, 60, 60, 4)]
+        self.fake({"heb": [[[_page("1", 37)], [_page("חא", 50)]]], "eng": [[[_page("Ql", 77)], [_page("KPI", 93)]]]})
+        st = O._repair(self.im, ws)
+        self.assertEqual(st["eng"], 2)
+        self.assertEqual({w["text"] for w in ws}, {"2025", "Q1", "נתוני", "KPI"})
+
+
+class TestSubs(unittest.TestCase):
+    def test_flat_background_skips(self):
+        from PIL import Image
+        self.assertEqual(O._subs(Image.new("RGB", (640, 360), "white"), []), (0, None))
+
+    def test_noisy_band_with_white_text(self):
+        import numpy as np
+        from PIL import Image
+        rng = np.random.default_rng(1)
+        a = rng.integers(40, 160, (360, 640, 3)).astype(np.uint8)
+        a[290:310, 200:440] = 255                                       # "טקסט" לבן
+        calls = []
+
+        def fake_tsv(src, *a_, **k):
+            calls.append(src)
+            return tsv([(1, 1, 1, 1, 200, 70, 110, 20, 93.0, "שלום"), (1, 1, 1, 2, 330, 70, 110, 20, 95.0, "Hello")])
+        orig = O.run_tsv
+        O.run_tsv = fake_tsv
+        try:
+            ws = [self.word_("junk", 210, 290, 12.0)]
+            n, im = O._subs(Image.fromarray(a), ws)
+        finally:
+            O.run_tsv = orig
+        self.assertEqual(n, 1)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(sorted(w["text"] for w in ws), ["Hello", "שלום"])     # הזבל של המעבר הראשון הוחלף
+        self.assertTrue(all(w["y"] >= 216 for w in ws))                        # המיקום חזר לקואורדינטות התמונה
+        self.assertEqual(im.mode, "L")
+
+    @staticmethod
+    def word_(text, x, y, conf):
+        return {"key": (1, 1, 1), "n": 1, "x": x, "y": y, "w": 100, "h": 20, "conf": conf, "text": text}
+
+
 @unittest.skipUnless(O.available() and "heb" in O.langs(), "Tesseract עם עברית לא מותקן")
 class TestRealTesseract(unittest.TestCase):
     """שקף ‏1280×720 שצויר ב־Pillow (raqm) — עברית, מעורב ואנגלית — וחוזר מ־Tesseract בסדר הנכון."""

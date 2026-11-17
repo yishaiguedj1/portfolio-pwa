@@ -3972,13 +3972,24 @@ function stubFetch(text, status = 200) {
       await run({ op: 'start', idToken: OWNER, job: JF });
       rr = await srvRun({ op: 'poll', hb: { nj: 1, cpu: 16 }, fit: FIT }, STOK);
       ok(rr.payload.ok && rr.payload.job === null && db.get('studioJobs/' + JF).fields.state.stringValue === 'queued', 'fit: לא נכנסת בזיכרון שנשאר — לא נלקחת (מחכה לשרת פנוי יותר)');
+      // 17/11/2026: למה היא מחכה — נרשם על העבודה (qw, עשיריות GB בחצאי GB), ומוצג בטלפון (qwView)
+      const qwOf = () => { const f = db.get('studioJobs/' + JF).fields.qw; return f && f.stringValue ? JSON.parse(f.stringValue) : null; };
+      ok(JSON.stringify(qwOf()) === JSON.stringify({ r: 'mem', n: 70, f: 10 }), 'qw: צריכה ~7GB, פנויים ~1GB');
+      ok(JSON.stringify(SC.qwView({ state: 'queued', qw: qwOf() })) === JSON.stringify({ r: 'mem', n: 70, f: 10 }) && SC.qwView({ state: 'running', qw: qwOf() }) === null
+        && SC.qwView({ state: 'queued', pk: 1, qw: qwOf() }) === null && SC.qwView({ state: 'queued', qw: { r: 'x' } }) === null, 'qwView: רק בתור, רק סיבה מוכרת');
+      ok(JSON.stringify(SC.qwOf({ kind: 'tr', spec: { dur: 600 } }, SC.normFit({ ...FIT, mb: 0, ps: 1 }))) === '{"r":"psi"}' && SC.normFit({ ...FIT, ps: 1 }).ps === 1
+        && SC.qwOf({ kind: 'tr', spec: { dur: 600 } }, SC.normFit({ ...FIT, mb: 9000 })) === null, 'qw: לחץ זיכרון; נכנסת — אין סיבה');
+      rr = await srvRun({ op: 'poll', hb: { nj: 1, cpu: 16 }, fit: FIT }, STOK);
+      ok(JSON.stringify(qwOf()) === JSON.stringify({ r: 'mem', n: 70, f: 10 }), 'qw: אותה סיבה — נשארת');
       // 5/11/2026: הזיכרון מספיק, אבל הקבלה החזויה אומרת שעבודה של 77 דק׳ תאט את מה שרץ — לא נלקחת
       rr = await srvRun({ op: 'poll', hb: { nj: 1, cpu: 16 }, fit: Object.assign({}, FIT, { mb: 9000, dm: 30 }) }, STOK);
       ok(rr.payload.ok && rr.payload.job === null && db.get('studioJobs/' + JF).fields.state.stringValue === 'queued', 'fit.dm: ארוכה מהמותר עכשיו — מחכה לרגע הנכון');
+      ok(JSON.stringify(qwOf()) === JSON.stringify({ r: 'perf', d: 30 }), 'qw: הקבלה החזויה — כדי לא להאט את מה שרץ');
       rr = await srvRun({ op: 'poll', hb: { nj: 1, cpu: 16 }, fit: Object.assign({}, FIT, { mb: 9000 }) }, STOK);
       ok(rr.payload.job && rr.payload.job.id === JF && rr.payload.job.dur === 4620, 'fit: נכנסת — נלקחת, עם האורך (להזמנת הזיכרון בסוכן)');
       const KF = rr.payload.job.key;
       let fl = db.get('studioJobs/' + JF).fields;
+      ok(qwOf() === null, 'qw: נלקחה — הסיבה נמחקת');
       ok(+fl.hc.integerValue === 16 && +fl.cc.integerValue === 1, 'הצפי: הליבות של השרת וכמה עבודות כבר רצות עליו — נרשמים בלקיחה');
       await wrk({ op: 'claim', job: JF, key: KF });
       fl = db.get('studioJobs/' + JF).fields;

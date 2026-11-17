@@ -66,6 +66,70 @@ class TestEvidence(unittest.TestCase):
         ev = A.evidence([W("שלום", 0, 1, c=1), W("לכולם", 1, 2, c=1)])
         self.assertEqual(ev[0]["ts"], "seg")
 
+    def test_language_switch_closes_unit(self):
+        """16/11/2026: מעבר שפה (lg מציר השפות) סוגר יחידה, והיחידה בשפה האחרת שומרת את השפה שלה"""
+        ws = [W("אז", 0.0, 0.3, spk="S1"), W("אמרתי", 0.35, 0.8, spk="S1"),
+              W("thank", 0.85, 1.1, spk="S1", lg="en"), W("you", 1.15, 1.4, spk="S1", lg="en"),
+              W("בסדר", 1.5, 1.9, spk="S1"), W("ok", 2.0, 2.2, spk="S1", lg="EN")]   # קוד לא תקין — לא נשמר
+        ev = A.evidence(ws)
+        self.assertEqual([u["text"] for u in ev], ["אז אמרתי", "thank you", "בסדר", "ok"])
+        self.assertEqual([u.get("lg") for u in ev], [None, "en", None, None])
+
+
+class TestSpeakers(unittest.TestCase):
+    """16/11/2026 (בקשת המשתמש: "לכל דובר מי הדובר, המגדר שלו ובאיזו שפה הוא מדבר")"""
+
+    EV = [{"id": "e1", "t0": 0, "t1": 30, "spk": "S1", "text": "a"},
+          {"id": "e2", "t0": 30, "t1": 40, "spk": "S2", "text": "b"},
+          {"id": "e3", "t0": 40, "t1": 46, "spk": "S2", "text": "c", "lg": "he"},
+          {"id": "e4", "t0": 46, "t1": 47, "spk": "S1", "text": "d", "lg": "he"},     # שנייה בעברית — מתחת לסף
+          {"id": "e5", "t0": 47, "t1": 50, "text": "e"},                             # בלי תווית — לא נספר
+          {"id": "e6", "t0": 50, "t1": 53, "spk": "S3", "text": "f", "lg": "ar"}]
+
+    def test_share_languages_gender(self):
+        sp = A.speakers_doc(self.EV, "en", voice={"S1": {"g": "m", "hz": 112}, "S2": {"g": "?"}, "S3": {"g": "f"}},
+                            named={"S1": {"name": "Daniel", "role": "אורח"}, "S2": {"g": "f", "name": "נועה"}, "S3": {"g": "m"}})
+        self.assertEqual([s["spk"] for s in sp], ["S1", "S2", "S3"], "בסדר ההופעה")
+        s1, s2, s3 = sp
+        self.assertEqual((s1["t"], s1["sh"]), (31.0, 0.62))
+        self.assertEqual(s1["lg"], [{"lg": "en", "sh": 1.0}], "שנייה אחת בעברית — לא שפה של הדובר")
+        self.assertEqual(s2["lg"], [{"lg": "en", "sh": 0.625}, {"lg": "he", "sh": 0.375}])
+        self.assertEqual(s3["lg"], [{"lg": "ar", "sh": 1.0}], "דובר קצר — השפה העיקרית שלו גם מתחת לסף")
+        self.assertEqual((s1["g"], s1["gs"], s1["name"], s1["role"]), ("m", "voice", "Daniel", "אורח"))
+        self.assertEqual((s2["g"], s2["gs"], s2["name"]), ("f", "text", "נועה"))
+        self.assertNotIn("role", s2)
+        self.assertEqual((s3["g"], s3["gs"]), ("m", "text"), "מה שנאמר בתוכן גובר על גובה הקול")
+        self.assertAlmostEqual(sum(s["sh"] for s in sp), 1.0, places=2)
+
+    def test_unknown_and_empty(self):
+        sp = A.speakers_doc(self.EV[:1], "he")
+        self.assertEqual(sp, [{"spk": "S1", "sh": 1.0, "t": 30.0, "lg": [{"lg": "he", "sh": 1.0}], "g": "u"}])
+        self.assertEqual(A.speakers_doc([], "he"), [])
+        self.assertEqual(A.speakers_doc([{"id": "e1", "t0": 0, "t1": 3, "text": "x"}], "he"), [], "בלי תוויות — בלי דוברים")
+
+    def test_mapping_speakers(self):
+        """המיפוי: ניקוי (תווית, שם שהוא בעצם "דובר", מגדר לא מוכר) ואיחוד החלונות לפי רוב"""
+        import visheet as V
+        d = V.parse_vm(json.dumps({"genre": "talk", "segments": [], "chapters": [], "items": [], "drop": [],
+                                   "speakers": [{"spk": "S1", "name": "  Dana   Levi ", "role": "מרצה", "g": "f"},
+                                                {"spk": "S1", "name": "x", "role": "", "g": "m"},
+                                                {"spk": "S2", "name": "S2", "role": "", "g": "x"},
+                                                {"spk": "A1", "name": "y"}, "z"]}))
+        self.assertEqual(d["speakers"], [{"spk": "S1", "name": "Dana Levi", "role": "מרצה", "g": "f"},
+                                         {"spk": "S2", "name": "", "role": "", "g": "u"}])
+        self.assertEqual(V.parse_vm('{"segments": [], "chapters": [], "items": [], "drop": []}')["speakers"], [], "תשובה ישנה בלי speakers")
+        m = V.merge_speakers([[{"spk": "S1", "name": "Dana", "role": "", "g": "f"}, {"spk": "S2", "name": "", "role": "אורח", "g": "m"}],
+                              [{"spk": "S1", "name": "דנה", "role": "מרצה", "g": "u"}, {"spk": "S2", "name": "", "role": "", "g": "f"}],
+                              [{"spk": "S1", "name": "Dana", "role": "מרצה", "g": "f"}]])
+        self.assertEqual(m, {"S1": {"name": "Dana", "role": "מרצה", "g": "f"}, "S2": {"role": "אורח", "g": "u"}})
+        self.assertEqual(V.merge_speakers([]), {})
+
+    def test_voice_doc(self):
+        self.assertEqual(VI.voice_doc({"S1": {"g": "m", "hz": 112.4}, "S2": {"g": "?"}, "S3": {"g": "x", "hz": "a"},
+                                       "bad": {"g": "f"}, "S4": 5}),
+                         {"S1": {"g": "m", "hz": 112}, "S2": {"g": "?"}, "S3": {"g": "?"}})
+        self.assertEqual(VI.voice_doc(None), {})
+
 
 SCREEN = {"units": [
     {"id": "s1", "t0": 0, "t1": 9, "kind": "cam", "states": [{"t0": 0}]},
@@ -93,6 +157,17 @@ class TestScreen(unittest.TestCase):
         self.assertEqual(sl[0]["ocr"], ["o1.1", "o1.2", "o1.3", "o1.4", "o1.5"])
         self.assertEqual(sl[1].get("oerr"), 1)
         self.assertEqual(ocr[3]["dir"], "rtl")
+        self.assertNotIn("lgs", ocr[3], "שורה בשפה אחת — בלי lgs")
+
+    def test_slides_doc_mix_langs(self):
+        """שורה מעורבת (OCR גרסה 2) — lgs: השפות שבה לפי הסדר, בלי other ובלי כפילות"""
+        mix = {"text": "שימוש ב־API של Python ובעברית", "conf": 88, "lang": "mix", "dir": "rtl", "box": [0, 0, 9, 9],
+               "segs": [["שימוש ב־", "he"], ["API", "en"], ["של", "he"], ["Python", "en"], ["ובעברית", "he"]]}
+        one = {"text": "רק עברית", "conf": 90, "lang": "mix", "dir": "rtl", "box": [0, 0, 9, 9], "segs": [["רק עברית", "he"]]}
+        scr = {"units": [{"id": "s1", "t0": 0, "t1": 9, "kind": "slide", "states": [{"t0": 0}], "ocr": {"lines": [mix, one]}}]}
+        _, ocr = A.slides_doc(scr)
+        self.assertEqual(ocr[0]["lgs"], ["he", "en"])
+        self.assertNotIn("lgs", ocr[1], "שפה אחת — lgs לא נכתב גם כשהתווית mix")
 
     def test_screen_only(self):
         sl, ocr = A.slides_doc(SCREEN)
@@ -669,6 +744,10 @@ class TestViRun(unittest.TestCase):
 
         def ask(k, text):
             seen.append((k, text))
+            if k == "vm" and "## Sample sentences" in text:    # 17/11/2026: מי מדבר — לפני המיפוי
+                return "<json>" + json.dumps({"fmt": "lecture", "people": [
+                    {"spk": "S1", "name": "דן לוי", "orig": "Dan Levy", "ttl": "פרופסור למדעי המחשב", "role": "מרצה",
+                     "act": "", "g": "m", "kb": False}]}, ensure_ascii=False) + "</json>"
             if k == "vs":
                 return "<json>" + json.dumps({"one": {"text": "ירידת גרדיאנט עובדת", "from": ["n1"]},
                                               "bluf": {"text": "השיטה עובדת.", "from": ["n1"]},
@@ -679,18 +758,26 @@ class TestViRun(unittest.TestCase):
             e = re.findall(r"^\[(e\d+)", text, re.M)
             d = {"genre": "academic_lecture", "segments": [{"from": e[0], "type": "content"}],
                  "chapters": [{"from": e[0], "lvl": 1, "cont": False, "title": "ירידת גרדיאנט", "sum": "השיטה עובדת."}],
-                 "items": [{"kind": "claim", "text": "ירידת גרדיאנט עובדת", "ev": [e[0]], "q": "descent works.", "src": "speech",
+                 "items": [{"kind": "claim", "text": "לפי הדובר, ירידת גרדיאנט עובדת", "ev": [e[0]], "q": "descent works.", "src": "speech",
                             "basis": "speaker", "conf": "high"}],
                  "drop": []}
             return "<json>" + json.dumps(d, ensure_ascii=False) + "</json>"
         rc, ctx, J, out = self.run_vi(engine=llm.ManualEngine(ask), dry=0)
         self.assertEqual(rc, 0)
-        self.assertEqual([k for k, _ in seen], ["vm", "vs", "vv"], "מיפוי, סינתזה, אימות")
-        self.assertNotIn("1.6", seen[0][1].split("## Window")[1], "בלי זמנים בחלון")
+        self.assertEqual([k for k, _ in seen], ["vm", "vm", "vs", "vv"], "מי מדבר, מיפוי, סינתזה, אימות")
+        self.assertIn("Title: הרצאה", seen[0][1], "מי מדבר — עם כותרת הסרטון")
+        self.assertIn("## Who is who\nS1 = דן לוי (Dan Levy) · פרופסור למדעי המחשב · in this video: מרצה", seen[1][1],
+                      "המיפוי יודע מי מדבר (בשלד שבמטמון)")
+        self.assertIn("## Who is who", seen[2][1], "גם הסינתזה")
+        self.assertNotIn("1.6", seen[1][1].split("## Window")[1], "בלי זמנים בחלון")
         vi = json.loads((ctx.pdir / "vi.json").read_text())
         self.assertEqual(vi["chapters"][0]["title"], "ירידת גרדיאנט")
         it = vi["items"][0]
         self.assertEqual((it["id"], it["ch"], it["t"], it["src"]), ("n1", "c1", 1.6, "speech"), "זמן המילה descent")
+        self.assertEqual(it["text"], "לפי דן לוי, ירידת גרדיאנט עובדת", "רשת הביטחון: \"הדובר\" שנשאר — השם")
+        self.assertEqual(vi["speakers"], [{"spk": "S1", "sh": 1.0, "t": vi["speakers"][0]["t"], "lg": [{"lg": "en", "sh": 1.0}], "g": "m",
+                                           "gs": "text", "name": "דן לוי", "role": "מרצה", "orig": "Dan Levy",
+                                           "ttl": "פרופסור למדעי המחשב"}], "קול אחד בלי תוויות — S1 עם מי שהוא")
         self.assertNotIn("vi_unver", vi["quality"]["warn"], "האימות הושלם")
         self.assertNotIn("vi_partial", vi["quality"]["warn"])
         self.assertEqual(it["ver"], "sup")

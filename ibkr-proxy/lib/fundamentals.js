@@ -70,7 +70,9 @@ const INST = {
   // (סך תזרים המזומנים — כולל מזומן של פעילות שנמכרה / מוחזקת למכירה) רק כשאין שורת מאזן לאותו תאריך (cashMerge)
   cash: ['CashAndCashEquivalentsAtCarryingValue', 'CashAndCashEquivalentsAtCarryingValueIncludingDiscontinuedOperations', 'Cash',
     'CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents'],
-  msec: ['MarketableSecuritiesCurrent', 'AvailableForSaleSecuritiesDebtSecuritiesCurrent', 'ShortTermInvestments'],
+  // AvailableForSaleSecuritiesCurrent — התגית לפני ASU 2016-01 (Apple 2015–2017: ‏"Short-term marketable securities" ‏$20.5B–$53.9B
+  // יצאו ריקות והמזומן נטו ירד בהתאם; בדיקת העומק 16/11/2026)
+  msec: ['MarketableSecuritiesCurrent', 'AvailableForSaleSecuritiesDebtSecuritiesCurrent', 'AvailableForSaleSecuritiesCurrent', 'ShortTermInvestments'],
   debt: ['LongTermDebt'],
   debtNc: ['LongTermDebtNoncurrent'], debtC: ['LongTermDebtCurrent'], stb: ['ShortTermBorrowings', 'CommercialPaper'],
   eq: ['StockholdersEquity', 'StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest'],
@@ -98,6 +100,9 @@ const IFRS = {
 const FORMS = /^(10-K|10-Q|20-F|40-F)(\/A)?$/;
 const NONNEG = ['rev', 'ta', 'tl', 'ca', 'cl', 'cash', 'sh', 'ppe'];
 const day = (s) => Date.parse(s + 'T00:00:00Z') / 864e5;
+// אורך של רבעון (בימים, סוף פחות התחלה): 12–14 שבועות, או רבעון של 16/17 שבועות בשנה של 52/53 שבועות (16/11/2026, בדיקת
+// העומק: Kroger — הרבעון הראשון 16 שבועות, ‏111 יום, לא נכנס אף פעם; Costco, PepsiCo, Domino's, AutoZone — הרביעי)
+const qLen = (d) => (d >= 80 && d <= 100) || (d >= 110 && d <= 119);
 const PER_SHARE = new Set(['eps', 'dps']);
 // זרימות שבהן אפשר לבדוק שהרבעונים מאותו בסיס כמו השנה (qmix)
 const QPOS = ['cogs', 'dep', 'sbc', 'int']; // הכנסות, מחקר והשקעות הוניות — יכולים להיות מרוכזים ברבעון אחד בצדק
@@ -143,6 +148,113 @@ function faceYearVals(face, sts, cur) {
     }
   }
   return out;
+}
+/* חוב כפי שהוא מודפס במאזן (16/11/2026, בדיקת העומק — F7). עד היום: LongTermDebt, או LongTermDebtNoncurrent + LongTermDebtCurrent,
+   ועוד ShortTermBorrowings / CommercialPaper. במאזנים של 519 החברות (FSDS, הדוח השנתי האחרון) 128 מדפיסות את החוב לזמן ארוך
+   בתגית LongTermDebtAndCapitalLeaseObligations, ‏81 את החלויות השוטפות ב־…Current ו־90 את החוב השוטף ב־DebtCurrent — אצלן החוב יצא
+   חלקי (Coca-Cola 2025: ‏$1.5B — רק ניירות הערך המסחריים — מול ‏$45.5B במאזן; Chevron ‏$3.3B מול ‏$40.8B; Yum ‏$77M מול ‏$11.9B), וכך
+   גם השווי הכולל, החוב נטו והמינוף. עכשיו: שורות החוב שבמאזן המודפס (הלוואות קצרות, חלויות, חוב לזמן ארוך, ובמאזן לא מסווג — כל
+   שורת חוב: איגרות, משכנתאות, מסגרות אשראי), וההיסטוריה של כל שורה מהתגית שלה ב־companyfacts (ומחלופה מאותו סוג — לשנים שלפני
+   שהחברה עברה לתגית של היום). בלי חכירה תפעולית, וחכירה מימונית רק כשהיא בתוך שורת החוב — כמו שמודפס */
+const DEBT_CAT = {
+  st: ['ShortTermBorrowings', 'CommercialPaper', 'OtherShortTermBorrowings', 'ShortTermBankLoansAndNotesPayable', 'ShortTermNonBankLoansAndNotesPayable',
+    'NotesPayableCurrent', 'LoansPayableCurrent', 'LinesOfCreditCurrent', 'BankOverdrafts', 'NotesAndLoansPayableCurrent', 'LoansPayableToBankCurrent'],
+  // חלויות שוטפות של מכשיר מסוים (Revvity: ‏OtherLongTermDebtCurrent "Current portion of long-term debt")
+  c: ['LongTermDebtCurrent', 'LongTermDebtAndCapitalLeaseObligationsCurrent', 'OtherLongTermDebtCurrent', 'ConvertibleNotesPayableCurrent', 'ConvertibleDebtCurrent',
+    'SeniorNotesCurrent', 'SecuredDebtCurrent', 'UnsecuredDebtCurrent'],
+  dc: ['DebtCurrent'],
+  nc: ['LongTermDebtNoncurrent', 'LongTermDebtAndCapitalLeaseObligations', 'OtherLongTermDebtNoncurrent', 'LongTermNotesPayable', 'ConvertibleDebtNoncurrent',
+    'ConvertibleLongTermNotesPayable', 'SeniorLongTermNotes', 'LongTermLineOfCredit', 'UnsecuredLongTermDebt', 'LongTermLoansPayable', 'SecuredLongTermDebt',
+    'JuniorSubordinatedLongTermNotes', 'LongTermNotesAndLoans', 'LongTermLoansFromBank'],
+  // מאזן לא מסווג (נדל"ן, בנקים, ביטוח): השורה כוללת את החלק השוטף
+  tot: ['LongTermDebt', 'DebtAndCapitalLeaseObligations', 'LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities', 'DebtLongtermAndShorttermCombinedAmount',
+    'SecuredDebt', 'UnsecuredDebt', 'SeniorNotes', 'NotesPayable', 'LoansPayable', 'LineOfCredit', 'OtherBorrowings', 'ConvertibleDebt', 'ConvertibleNotesPayable',
+    'SubordinatedDebt', 'JuniorSubordinatedNotes', 'AdvancesFromFederalHomeLoanBanks', 'NotesAndLoansPayable', 'SecuredDebtOther', 'LoansPayableToBank',
+    'OtherNotesPayable', 'WarehouseAgreementBorrowings', 'LongtermBorrowings'],
+};
+// השנים שלפני המעבר לתגית של היום: חלופה מאותו סוג (רק לשורה הראשונה מכל סוג, וחלופה שאינה שורה בעצמה)
+// (סך: רק לשורת סך כללית, לא לשורה של מכשיר)
+const DEBT_ALT = { c: ['LongTermDebtCurrent', 'LongTermDebtAndCapitalLeaseObligationsCurrent'], nc: ['LongTermDebtNoncurrent', 'LongTermDebtAndCapitalLeaseObligations'],
+  dc: ['LongTermDebtCurrent', 'LongTermDebtAndCapitalLeaseObligationsCurrent'], st: ['ShortTermBorrowings', 'CommercialPaper'], tot: ['LongTermDebt'] };
+const DEBT_TOT_MAIN = new Set(['LongTermDebt', 'DebtAndCapitalLeaseObligations', 'LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities',
+  'DebtLongtermAndShorttermCombinedAmount']);
+// חלופה לפי המכשיר, לכל שורה (Welltower: "Secured debt" ב־SecuredDebtOther מ־2024, לפני כן SecuredDebt)
+const DEBT_FAM = { SecuredDebtOther: ['SecuredDebt'], SecuredDebt: ['SecuredDebtOther'], UnsecuredDebt: ['UnsecuredLongTermDebt'], SeniorNotes: ['SeniorLongTermNotes'],
+  ConvertibleDebt: ['ConvertibleNotesPayable'], ConvertibleNotesPayable: ['ConvertibleDebt'], LineOfCredit: ['LongTermLineOfCredit'], NotesPayable: ['LongTermNotesPayable'],
+  LoansPayable: ['LongTermLoansPayable'] };
+const DEBT_OF = new Map(Object.entries(DEBT_CAT).flatMap(([c, ts]) => ts.map((t) => [t, c])));
+const DEBT_LAB = /borrowing|commercial paper|notes? payable|\bdebt\b|loans? payable|bank loans?|credit facilit|senior (unsecured )?notes|convertible (senior )?notes|debentures|bonds payable|term loans?|mortgages? (payable|notes|loans)|lines? of credit|revolving/i;
+const DEBT_NOT = /operating lease|interest payable|accrued|accounts payable|deferred|debt securities|held.for.sale|derivative|guarantee|total liabilities|receivable|investment|due to (related|affiliat)|deposits?\b|repurchase|trading|capitalization|fair value|other than long.?term debt/i;
+// תגיות שאינן חוב גם כשהשם או התווית נשמעים כך: סך ההון והחוב, "התחייבויות לא שוטפות חוץ מחוב", רכיב ההון של אג"ח להמרה,
+// ריבית לשלם, חובות לחברות קשורות, הנחות ועלויות הנפקה, נכסים. תגית מ־DEBT_CAT — תמיד חוב (Hershey: ‏LongTermDebtAndCapitalLeaseObligations)
+const DEBT_NOTAG = /OtherThanLong|^Capitalization|^EquityAndLongTermDebt|^TemporaryEquity|^ReserveForEsop|^InterestPayable|^DueTo(Affiliate|RelatedParties)|Receivable|DebtInstrumentInterestRate|Unamortized|DebtFairValueAdjustment|^ConvertibleDebtEquity/;
+// ...ואלה — רק כשהתווית היא של חוב (Con Edison מתייגת את "LONG-TERM DEBT" שבמאזן ב־LongTermDebtFairValue); חכירה לבדה — לא חוב
+const DEBT_SOFT = /FairValue|^DebtInstrument(Face|Carrying)Amount$|Lease(s)?Liabilit|^(Finance|Operating|Capital)Lease\w*$|^CapitalLeaseObligations?\w*$/;
+// "חוב לזמן ארוך כולל חלויות" — במאזן מסווג שיש בו גם שורת חלויות, השורה היא בפועל החלק הלא שוטף (Xcel)
+const DEBT_TOT_LTD = new Set(['LongTermDebt', 'LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities']);
+// שורות שאינן במאזן של היום (DEBT_IMPL): היו פעם (Microsoft: ניירות ערך מסחריים 2013–2018 ו־2023–2024), או מוצגות רק בפירוט עם
+// ממד שלא נקרא (Exelon: החוב לזמן ארוך — לפי "צד קשור / לא קשור"). סדר: לא שוטף, חוב שוטף כולל (dc) לפני רכיביו; COVER — אילו
+// סוגים של שורה קיימת באותו תאריך כבר כוללים אותה
+// (חלויות של מכשיר מסוים — אחרונות: רק כשאין חוב שוטף כולל או חלויות באותו תאריך; Gen Digital ‏2013: ‏ConvertibleDebtCurrent; ‏WTW ‏2015:
+// ‏SeniorNotesCurrent הוא חלק מ־DebtCurrent)
+const DEBT_IMPL = [['nc', ['LongTermDebtNoncurrent', 'LongTermDebtAndCapitalLeaseObligations']], ['dc', ['DebtCurrent']],
+  ['st', ['ShortTermBorrowings', 'CommercialPaper']], ['c', ['LongTermDebtCurrent', 'LongTermDebtAndCapitalLeaseObligationsCurrent']]];
+// תווית של שורת חוב שוטף שכוללת גם הלוואות קצרות (לא "long-term borrowings" / "long-term notes payable")
+const DEBT_STLAB = /short.?term|commercial paper|(?<!long.?term )(notes payable|borrowings)/i;
+const DEBT_IMPL_C2 = ['ConvertibleDebtCurrent', 'ConvertibleNotesPayableCurrent', 'OtherLongTermDebtCurrent', 'SeniorNotesCurrent'];
+// ltd — ערך מהתגית LongTermDebt ("חוב לזמן ארוך כולל חלויות"): כולל חלויות, לא הלוואות קצרות (Hartford: "Short-term debt" בשורה נפרדת עד
+// 2019). כשההלוואות הקצרות כן בתוך LongTermDebt — הראיה בתגיות: סך החוב של החברה כבר שווה לסכום (AIG ‏2022), או ש־LongTermDebtNoncurrent
+// ועוד ההלוואות שווה ל־LongTermDebt (KLA) — ראו בלולאת הרכיבים החסרים
+const DEBT_COVER = { dc: ['st', 'c', 'dc', 'tot', 'ltd'], st: ['st', 'dc', 'tot'], c: ['c', 'dc', 'tot', 'ltd'], nc: ['nc', 'tot', 'ltd'] };
+// החלויות של אותו מכשיר כמו שורה לא שוטפת במאזן (Palo Alto: ‏ConvertibleDebtNoncurrent ↔ ConvertibleDebtCurrent)
+const DEBT_PAIR = { ConvertibleLongTermNotesPayable: 'ConvertibleNotesPayableCurrent', SeniorLongTermNotes: 'SeniorNotesCurrent', SecuredLongTermDebt: 'SecuredDebtCurrent',
+  UnsecuredLongTermDebt: 'UnsecuredDebtCurrent', LongTermLoansPayable: 'LoansPayableCurrent', LongTermLineOfCredit: 'LinesOfCreditCurrent', LongTermNotesPayable: 'NotesPayableCurrent' };
+// סוג השורה לפי התווית, בתגית של הלוואות קצרות: "הלוואות קצרות וחלויות" — חוב שוטף כולל; "חלויות" — חלויות (Tyler: ‏LoansPayableCurrent
+// "Current portion of convertible senior notes"); ובתגית "רכה" — לפי התווית. שורת חלויות שהתווית שלה "…and notes payable" נשארת
+// חלויות: התגית שלה בתאריכים אחרים היא רק החלויות (Nordson)
+function debtCat(l) {
+  const lab = l.label || '', cur = /current (portion|maturities)|due within one year|currently due/i.test(lab), st = /short.?term|commercial paper|notes payable|borrowings/i.test(lab);
+  if (l.cat === 'st' && cur) return st ? 'dc' : 'c';
+  if (!l.cat && DEBT_SOFT.test(l.tag)) return cur ? 'c' : st ? 'st' : 'nc';
+  return l.cat;
+}
+const FIN_LEASE = /financ\w* leases?|capital leases?/i;
+/* שורות החוב במאזן המודפס: [{tag, ns, cat, label, v}] ו־tot: סוף העמודה → הסכום שהודפס. רק בצד ההתחייבויות (אחרי סך הנכסים ועד
+   "סך התחייבויות והון" — אחריו בא אצל בנקים פירוט הישויות המאוחדות, Bank of America: אותן שורות שוב). שורת "סך" של חוב — במקום
+   השורות שלפניה (AEP: ‏"Total Short-term Debt"); "סך" בתגית פרטית ששווה לסכום — השורות נשארות. שורת חכירה מימונית לבדה — לא חוב */
+function debtFace(face, cur) {
+  const S = face && face.bs; if (!S || !S.rows || !S.cols) return null;
+  const rows = S.rows, a0 = rows.findIndex((r) => r.tag === 'Assets');
+  let stop = rows.findIndex((r) => r.tag === 'LiabilitiesAndStockholdersEquity'); if (stop < 0) stop = rows.length;
+  const c0 = S.cols.findIndex((c) => SECFACE.colOk(c, cur));
+  const lines = []; let grp = 0; // grp — מספר הקבוצה: מתחלף אחרי כל שורת "סך"
+  for (let i = a0 + 1; i < stop; i++) {
+    const r = rows[i], lab = r.label || '', txt = lab + ' ' + r.tag.replace(/([a-z])([A-Z])/g, '$1 $2');
+    const cat = r.ns === 'us-gaap' ? DEBT_OF.get(r.tag) || null : null;
+    const isTot = r.total || /^total\b/i.test(lab);
+    const labD = DEBT_LAB.test(lab) && !DEBT_NOT.test(lab.replace(/,?\s*(measured |carried )?at fair value/ig, ''));
+    const debt = (cat || !DEBT_NOTAG.test(r.tag)) && (cat ? !(DEBT_NOT.test(lab) && !DEBT_LAB.test(lab.replace(DEBT_NOT, '')))
+      : DEBT_SOFT.test(r.tag) ? labD : !DEBT_NOT.test(txt) && DEBT_LAB.test(txt))
+      && !(FIN_LEASE.test(lab) && !DEBT_LAB.test(lab.replace(/(financ\w*|capital) leases?( obligations?| liabilit\w*)?/ig, '')));
+    if (!debt) { if (isTot) grp++; continue; }
+    const v = SECFACE.rowVals(S, r);
+    if (isTot) {
+      const prev = lines.filter((l) => l.grp === grp), x = c0 >= 0 ? v[c0] : null;
+      const sum = prev.reduce((t, l) => t + (c0 >= 0 && l.v[c0] != null ? l.v[c0] : 0), 0);
+      if (prev.length && r.ns !== 'us-gaap' && x != null && Math.abs(sum - x) <= 0.01 * Math.abs(x)) { grp++; continue; }
+      for (const l of prev) lines.splice(lines.indexOf(l), 1);
+    }
+    lines.push({ tag: r.tag, ns: r.ns, cat, label: lab, v, grp });
+    if (isTot) grp++;
+  }
+  const tot = new Map(), cols = [];
+  S.cols.forEach((c, ci) => {
+    if (!SECFACE.colOk(c, cur)) return;
+    let s = 0, any = false; for (const l of lines) if (l.v[ci] != null) { s += l.v[ci]; any = true; }
+    if (any && !tot.has(c.end)) { tot.set(c.end, s); cols.push([c.end, ci]); }
+  });
+  // מאזן מסווג — יש בו "סך התחייבויות שוטפות" (KLA: היום בלי שורת חלויות, ו־"Long-term debt" בתגית LongTermDebt היא הלא שוטף)
+  return { lines, tot, cols, cls: rows.slice(a0 + 1, stop).some((r) => r.tag === 'LiabilitiesCurrent') };
 }
 /* הפרש של שתי תגיות (רווח כולל פחות זכויות מיעוט): כל תקופה ששתיהן קיימות בה; לכל הגשה שבשתיהן — ההפרש באותה הגשה */
 function diffFacts(a, b) {
@@ -345,7 +457,7 @@ function mergeTags(fs, lock, qclash, best) {
       for (const k2 of f.dur.keys()) {
         const [s2, e2] = k2.split('|'); if (e2 !== e || day(s) - day(s2) < 60) continue; // מצטבר מתחילת השנה עד סוף הרבעון
         if (diff(k2)) return true;
-        for (const k1 of f.dur.keys()) { const [s1, e1] = k1.split('|'), g = day(e) - day(e1); if (s1 === s2 && g >= 80 && g <= 100 && diff(k1)) return true; }
+        for (const k1 of f.dur.keys()) { const [s1, e1] = k1.split('|'), g = day(e) - day(e1); if (s1 === s2 && qLen(g) && diff(k1)) return true; }
       }
       // הרבעון הישיר מול המצטברים של הסדרה באותו דוח: כשהמצטבר עד סוף הרבעון הוגש באותו דוח כמו הרבעון הישיר, והוא עדיין
       // הערך הראשון שדווח (אין הצגה מחדש בדרך — המצטבר הקודם מאותו בסיס), ההפרש ביניהם הוא הרבעון שבתזרים. Republic Services:
@@ -648,6 +760,192 @@ function normalizeSec(facts, splits = [], face = null) {
       }
     }
   }
+  // רווח למניה מפעילות נמשכת (16/11/2026, בדיקת העומק): אצל חלק מהחברות שורת ה־"Diluted" בדוח מתויגת
+  // IncomeLossFromContinuingOperationsPerDilutedShare גם כשאין שום פעילות שהופסקה (Airbnb, Monster, VeriSign, Halliburton,
+  // Freeport, Kimco, Regency, Exelon). עד היום התקופות האלה יצאו ריקות (Monster: מ־2011; VeriSign, Halliburton, Freeport,
+  // Exelon: מ־2022), או הושלמו מ־Yahoo בלי בדיקה (Airbnb 2025: ‏1.03 במקום 4.03 שהודפס). משלימים רק תקופה שאין לה רווח
+  // למניה: השורה מפעילות נמשכת + השורה מפעילות שהופסקה מאותו דוח (Exelon 2022: ‏2.08 + 0.12 — אין שורת סך), ורק כשהסכום
+  // = הרווח לבעלי המניות / המניות המדוללות של אותה תקופה (עד 3%, ועיגול לסנט)
+  if (merged.eps) {
+    const CO = isIfrs ? ['DilutedEarningsLossPerShareFromContinuingOperations', 'BasicEarningsLossPerShareFromContinuingOperations']
+      : ['IncomeLossFromContinuingOperationsPerDilutedShare', 'IncomeLossFromContinuingOperationsPerBasicAndDilutedShare', 'IncomeLossFromContinuingOperationsPerBasicShare'];
+    const DISC = isIfrs ? ['DilutedEarningsLossPerShareFromDiscontinuedOperations', 'BasicEarningsLossPerShareFromDiscontinuedOperations']
+      : ['IncomeLossFromDiscontinuedOperationsNetOfTaxPerDilutedShare', 'IncomeLossFromDiscontinuedOperationsNetOfTaxPerBasicAndDilutedShare', 'IncomeLossFromDiscontinuedOperationsNetOfTaxPerBasicShare'];
+    const inFiling = (h, filed) => (!h ? null : h.filed === filed ? h.v : h.all && h.all.has(filed) ? h.all.get(filed) : null);
+    let used = null;
+    CO.forEach((t, i) => {
+      const cf = tagFacts(tax[t], unitOf('eps')), df = tagFacts(tax[DISC[i]], unitOf('eps'));
+      for (const [kk, h] of cf.dur) {
+        if (merged.eps.dur.has(kk)) continue;
+        const num = (merged.nic && merged.nic.dur.get(kk)) || (merged.ni && merged.ni.dur.get(kk)), sh = merged.sh && merged.sh.dur.get(kk);
+        if (!num || !sh || !(sh.v > 0)) continue;
+        // השורה מפעילות שהופסקה קיימת לתקופה רק בדוח אחר — לא יודעים מה הסכום בדוח הזה, לא משלימים
+        const dh = df.dur.get(kk), d = inFiling(dh, h.filed);
+        if (dh && d == null) continue;
+        const v = Math.round((h.v + (d || 0)) * 1e4) / 1e4;
+        // המניות מאותו דוח כשאפשר (פיצול בין שני הדוחות — אחד מותאם והשני לא)
+        const s = inFiling(sh, h.filed) || sh.v;
+        if (Math.abs(v * s - num.v) > 0.03 * Math.abs(num.v) + 0.006 * s) continue;
+        merged.eps.dur.set(kk, { ...h, v, all: new Map([[h.filed, v]]) });
+        used = used || t;
+      }
+    });
+    if (used && merged.eps.spine == null) tags.eps = used;
+  }
+  // חוב כפי שמודפס במאזן (F7, ‏debtFace למעלה): הסכום של שורות החוב, כל אחת מההיסטוריה של התגית שלה — ובתאריכים שאין בה ערך,
+  // מחלופה מאותו סוג (Coca-Cola: עד 2023 ‏LongTermDebtNoncurrent, מאז ‏…AndCapitalLeaseObligations; McDonald's: החלויות עד 2020
+  // ב־LongTermDebtCurrent, מאז ב־DebtCurrent; Hershey: ברבעונים שאחרי הדוח השנתי). כל שורה חייבת להתאים למה שהודפס בכל עמודה של
+  // המאזן — מהתגית שלה או מחלופה שתואמת (Xcel: ‏LongTermDebt כולל בביאורים הישנים את החלויות; ‏…AndCapitalLeaseObligations תואמת
+  // ועקבית) — אחרת השיטה הקודמת. ובנוסף, שורות שהיו פעם במאזן ואינן בו היום (DEBT_IMPL), רק בתאריכים שאין בהם שורה קיימת מאותו
+  // סוג, ורק מתגית שאין לה ערך בעמודות של היום (ערך בלי שורה = פירוט בביאור). שורה בתגית פרטית או אותה תגית פעמיים — השיטה
+  // הקודמת; תאריך שחסר בו רכיב (חור בשורה, או חוב לזמן ארוך מלפני שהשורה התחילה) — גם הוא בשיטה הקודמת, לא סכום חלקי
+  let debtLine = null;
+  const dF = !isIfrs ? debtFace(face, rc || cur || 'USD') : null;
+  if (dF && dF.lines.length && dF.tot.size && dF.lines.every((l, i) => l.ns === 'us-gaap' && dF.lines.findIndex((x) => x.tag === l.tag) === i)) {
+    const near = (a, b) => Math.abs(a - b) <= Math.max(1.5e6, 0.005 * Math.abs(b));
+    // אותו סכום בדיוק = אותו חוב (Trimble: החלויות מתויגות גם ShortTermBorrowings; ‏CME: החלויות של האג"ח — UnsecuredDebtCurrent —
+    // הן שורת "Short-term debt"; ‏UPS)
+    const same = (a, b) => Math.abs(a - b) <= Math.max(5e5, 5e-4 * Math.abs(b));
+    const faceTags = new Set(dF.lines.map((l) => l.tag)), lcat = dF.lines.map(debtCat), cats = new Set(lcat);
+    const classified = dF.cls || cats.has('c') || cats.has('dc'), inst = (t) => tagFacts(tax[t], unitOf('debt')).inst;
+    const fd = new Set(dF.cols.map(([e]) => e)), catUsed = new Set(), usedT = new Set(), ltdNcT = inst('LongTermDebtNoncurrent');
+    let ser = [];
+    const pre = [];
+    for (const [i, l] of dF.lines.entries()) {
+      // "חוב לזמן ארוך כולל חלויות" במאזן מסווג (יש גם שורת חלויות) — בפועל הלא שוטף (Xcel); במאזן לא מסווג — ltd (Hartford)
+      const cat = lcat[i] === 'tot' && DEBT_TOT_LTD.has(l.tag) ? (classified ? 'nc' : 'ltd') : lcat[i];
+      const ak = cat === 'ltd' || (cat === 'tot' && DEBT_TOT_MAIN.has(l.tag)) ? 'tot' : cat === 'tot' ? null : cat;
+      const alts = [...(ak && !catUsed.has(ak) ? DEBT_ALT[ak] || [] : []), ...(DEBT_FAM[l.tag] || [])]
+        .filter((t, j, a) => t !== l.tag && !faceTags.has(t) && a.indexOf(t) === j);
+      if (ak) catUsed.add(ak);
+      const cs = [l.tag, ...alts].map((t) => ({ t, m: inst(t) }));
+      const good = cs.filter((c) => dF.cols.every(([e, ci]) => l.v[ci] == null || (c.m.has(e) ? near(c.m.get(e).v, l.v[ci]) : !l.v[ci])));
+      if (!good.length) { ser = null; break; }
+      if (cat === 'nc' && lcat[i] === 'tot') good.reverse();
+      // תגית "רכה" (Con Edison: ‏LongTermDebtFairValue) — בשנים קודמות אותה תגית היא השווי ההוגן שבביאור: מחוץ לעמודות של
+      // המאזן — החלופות קודם
+      const soft = !l.cat && DEBT_SOFT.test(l.tag), own = cs[0];
+      const order = soft ? [...cs.slice(1), own] : [...good, ...cs.filter((x) => !good.includes(x))];
+      pre.push({ l, cat, soft, own, order });
+    }
+    if (ser) for (const p of pre) {
+      const { l, cat, soft, own, order } = p;
+      // הלוואות קצרות: חלופה לא ממלאת תאריך שבו שורה קצרה אחרת מדווחת בתגית שלה (Con Edison: ניירות הערך המסחריים הם הפירוט של
+      // "Notes payable", לא ההיסטוריה של "Term loan")
+      const busy = (e) => cat === 'st' && pre.some((q) => q !== p && q.cat === 'st' && q.own.m.has(e));
+      const m = new Map(), src = new Map(), tg = new Map();
+      if (soft) for (const [e, h] of own.m) if (fd.has(e)) { m.set(e, h); src.set(e, cat); tg.set(e, own.t); }
+      for (const c of order) {
+        usedT.add(c.t);
+        for (const [e, h] of c.m) {
+          if (m.has(e) || (c.t !== l.tag && busy(e))) continue;
+          // ערך מ־LongTermDebt בשורה לא שוטפת: כולל חלויות (KLA ‏2015–2019: ‏3,190 = ‏3,173 + ‏17), חוץ מתאריך שבו הוא שווה ל־LongTermDebtNoncurrent
+          // (KLA ‏2024: ‏5,880, והחלויות ‏750 בשורה נפרדת)
+          const c0 = c.t === l.tag ? cat : DEBT_OF.get(c.t) || cat;
+          const c1 = cat === 'nc' && DEBT_TOT_LTD.has(c.t) && !(ltdNcT.has(e) && same(ltdNcT.get(e).v, h.v)) ? 'ltd' : c0;
+          m.set(e, h); src.set(e, c1 === 'tot' && cat === 'nc' ? 'nc' : c1); tg.set(e, c.t);
+        }
+      }
+      ser.push({ l, cat, m, src, tg, ks: [...m.keys()] });
+    }
+    // תגית בלי שורה שיש לה ערך בעמודות של היום: בדרך כלל פירוט בביאור של שורה קיימת — לא נכנסת. חוץ מ: חוב לזמן ארוך כשאין
+    // במאזן שורה שיכולה להכיל אותו (שורה שלא נקראה — כל התאריכים); ערך זניח היום (Nike: ‏5 מיליון בתוך ההתחייבויות לשלם — רק
+    // השנים שלפני המאזן); וחלויות (McDonald's: היום בתוך "Long-term debt") — רק בתאריך שבו סך החוב לזמן ארוך (LongTermDebt,
+    // כולל חלויות) שווה ללא שוטף + החלויות, כלומר הן לא היו בתוך השורה
+    const f0 = dF.cols.map(([e]) => e).sort()[0], ltd = inst('LongTermDebt');
+    // רכיב שיש לו ערך מהותי בעמודות של היום — בתוך שורה של המאזן שאינה החוב הלא שוטף; נכנס רק בתאריך שבו לשורות האלה אין ערך
+    // (Otis ‏2019 ו־Cooper ‏2014: "Short-term debt" שבמאזן — בלי ערך, וההלוואות הקצרות בתגית שלהן)
+    const nonNc = ser ? ser.filter((s) => s.cat !== 'nc') : [];
+    // ‏LongTermDebt שווה לסכום שורות החוב בכל עמודות המאזן של היום — הוא סך החוב של החברה באותה הגדרה; בתאריך שבו הסכום קטן ממנו,
+    // ויש ראיה שחסרה שורה: (א) מאזן לא מסווג שכל שורותיו "סך" של מכשיר — תגיות של מכשירי חוב שאינם במאזן של היום, שמשלימות בדיוק את
+    // הפער באותו תאריך (Invitation Homes ‏2020–2023: אג"ח להמרה 339 והלוואה בנקאית 401 — שורות שנעלמו; Welltower ‏2022: ‏SeniorNotes ‏545 —
+    // חלק מ־"Senior unsecured notes", לא משלים — לא);
+    // (ב) חלויות + לא שוטף — ראיה: לשורה של המאזן אין ערך באותו תאריך (Veralto ‏10/2026: אחרי הדוח השנתי החלויות ב־DebtCurrent)
+    const lFace = ser && !faceTags.has('LongTermDebt') && dF.cols.every(([e]) => ltd.has(e) && near(ltd.get(e).v, dF.tot.get(e)));
+    const totL = lFace && !classified && [...cats].every((k) => k === 'tot');
+    const clsL = lFace && !totL && [...cats].every((k) => k === 'c' || k === 'nc');
+    const gone = totL ? DEBT_CAT.tot.filter((t) => !DEBT_TOT_MAIN.has(t) && !faceTags.has(t) && !usedT.has(t) && ![...faceTags].some((f) => (DEBT_FAM[f] || []).includes(t))).map(inst) : [];
+    // סך החוב של החברה (קצר + ארוך) בתגית משלו — כשהסכום כבר שווה לו באותו תאריך, אין רכיב חסר (AIG ‏2022: ‏27,179 כולל ההלוואות
+    // הקצרות). ‏DebtAndCapitalLeaseObligations — רק כששורת חוב שוטף במאזן מצהירה שהיא כוללת הלוואות קצרות (Cardinal: "...and other
+    // short-term borrowings"): חברות רבות מדווחות בו חוב לזמן ארוך כולל חלויות בלבד (McKesson ‏2020–2024, ‏Lowe's ‏2014, ‏Western Digital
+    // ‏2015 — ההלוואות הקצרות מחוץ לו)
+    const stIn = dF.lines.some((l, i) => ['c', 'dc', 'st'].includes(lcat[i]) && DEBT_STLAB.test(l.label || '') && /long.?term|current/i.test(l.label || ''));
+    const totT = ['DebtLongtermAndShorttermCombinedAmount', ...(stIn ? ['DebtAndCapitalLeaseObligations'] : [])].filter((t) => !faceTags.has(t)).map(inst);
+    const unknown = dF.lines.some((l, i) => !lcat[i]);
+    const pairs = dF.lines.map((l) => DEBT_PAIR[l.tag] || (/Noncurrent$/.test(l.tag) ? l.tag.replace(/Noncurrent$/, 'Current') : null)).filter((t) => t && !faceTags.has(t));
+    // לכל סוג: התגיות לפי הסדר — בכל תאריך הראשונה שעוברת את כל הבדיקות (Otis ‏2020: ‏ShortTermBorrowings נחסמת, CommercialPaper נבדקת)
+    const impl = !ser || unknown ? [] : DEBT_IMPL.map(([k, ts0]) => {
+      const list = [];
+      for (const t of k === 'c' ? [...new Set([...ts0, ...pairs, ...DEBT_IMPL_C2])] : ts0) {
+        if (usedT.has(t)) continue;
+        const x = inst(t), atF = dF.cols.map(([e]) => (x.has(e) ? x.get(e).v : 0));
+        const big = dF.cols.some(([e], i) => Math.abs(atF[i]) > Math.max(1.5e6, 0.005 * Math.abs(dF.tot.get(e) || 0)));
+        const mode = !atF.some(Boolean) || (k === 'nc' && !['nc', 'tot', 'ltd'].some((x) => cats.has(x))) ? 'all' : !big ? 'past' : k === 'c' ? 'check'
+          : nonNc.length ? 'gap' : null;
+        if (mode && x.size) list.push({ x, mode });
+      }
+      return { k, list };
+    }).filter((g) => g.list.length);
+    if (ser) {
+      const ends = new Set(); for (const s of ser) for (const e of s.ks) ends.add(e);
+      debtLine = new Map(); const faceSum = new Map();
+      for (const e of [...ends].sort()) {
+        let v = 0, ok = true, nc = 0, lt = 0; const have = new Set(), vals = [];
+        for (const s of ser) {
+          const h = s.m.get(e);
+          if (h) {
+            const c = s.src.get(e);
+            v += h.v; vals.push(h.v); have.add(c);
+            if (c === 'nc') nc += h.v;
+            if (c === 'nc' || c === 'c') lt += h.v;
+            continue;
+          }
+          const before = s.ks.some((x) => x < e), after = s.ks.some((x) => x > e);
+          // חור בין שני ערכים — חסר; לפני שהשורה הופיעה: הלוואות קצרות / חלויות — 0, חוב לזמן ארוך — חסר; אחרי שנעלמה — 0
+          if ((before && after) || (!before && !['st', 'c', 'dc'].includes(s.cat))) { ok = false; break; }
+        }
+        if (!ok) continue;
+        faceSum.set(e, v);
+        // מכשיר במאזן של היום, ובעבר סך החוב הלא שוטף בתגית הכללית (Tyler: עד 2023 ‏LongTermDebtNoncurrent = אג"ח להמרה + הלוואות; היום
+        // רק אג"ח להמרה) — מחליפים רק כשסך החוב לזמן ארוך באותו תאריך (LongTermDebt, כולל חלויות) מאשר
+        const L = ltd.get(e);
+        if (L && e < f0 && !faceTags.has('LongTermDebt') && !near(lt, L.v)) {
+          for (const s of ser) {
+            const h = s.m.get(e);
+            if (!h || s.cat !== 'nc' || s.src.get(e) !== 'nc' || DEBT_ALT.nc.includes(s.tg.get(e))) continue;
+            const G = DEBT_ALT.nc.filter((g) => !faceTags.has(g)).map((g) => inst(g).get(e)).find((x) => x && x.v > h.v && near(lt - h.v + x.v, L.v));
+            if (G) { v += G.v - h.v; nc += G.v - h.v; lt += G.v - h.v; }
+          }
+        }
+        // הלוואות קצרות בתוך LongTermDebt באותו תאריך: ‏LongTermDebt = ‏LongTermDebtNoncurrent + ההלוואות (KLA ‏2020: ‏3,461 = ‏3,441 + ‏20)
+        const lv = ser.map((s) => (s.tg.get(e) === 'LongTermDebt' ? s.m.get(e).v : null)).find((x) => x != null), ncv = ltdNcT.get(e);
+        const T = totT.map((x) => x.get(e)).find(Boolean);
+        for (const g of impl) {
+          if (T && near(v, T.v)) break;
+          if (DEBT_COVER[g.k].some((k) => have.has(k))) continue;
+          for (const { x, mode } of g.list) {
+            const h = x.get(e);
+            if (!h || !h.v || (mode !== 'all' && e >= f0)) continue;
+            if (vals.some((y) => same(h.v, y))) break; // אותו סכום כבר נספר — החוב הזה כבר בפנים
+            if (g.k === 'st' && lv != null && ncv && near(ncv.v + h.v, lv)) break;
+            // הרכיב בתוך שורה של המאזן של היום (gap): רק כשהשורה הזו לא מדווחת בתגית שלה באותו תאריך
+            if (mode === 'gap' && nonNc.some((s) => s.tg.get(e) === s.l.tag)) continue;
+            if (mode === 'check' && (!L || !near(nc + h.v, L.v) || Math.abs(nc + h.v - L.v) >= Math.abs(nc - L.v))) continue;
+            v += h.v; vals.push(h.v); have.add(g.k); if (g.k === 'nc') nc += h.v; if (g.k === 'nc' || g.k === 'c') lt += h.v;
+            break;
+          }
+        }
+        if (totL && L && v < L.v && !near(v, L.v)) {
+          const gs = []; for (const x of gone) { const h = x.get(e); if (h && h.v > 0 && !gs.some((y) => same(y, h.v))) gs.push(h.v); }
+          const add = gs.reduce((a, b) => a + b, 0);
+          if (add && near(v + add, L.v)) v += add;
+        } else if (clsL && L && lt < L.v && !near(lt, L.v) && ser.some((s) => !s.m.has(e))) v += L.v - lt;
+        debtLine.set(e, v);
+      }
+      if ([...dF.tot].every(([e, t]) => faceSum.has(e) && near(faceSum.get(e), t))) tags.debt = ser.map((s) => s.l.tag).join('+');
+      else debtLine = null;
+    }
+  }
   // פיצולים לפי תאריך ההגשה (26/10/2026): ערך למניה / ממוצע מניות שהוגש לפני הפיצול — מותאם; שהוגש אחריו — החברה
   // כבר הציגה אותו מחדש (ASC 260: כל התקופות בדוח שהוגש אחרי הפיצול), גם כשהתקופה שלו לפני הפיצול. עד היום ההתאמה
   // הייתה לפי תאריך התקופה, וערך שהוצג מחדש (רבעון של שנה קודמת כהשוואה ב־10-Q שאחרי הפיצול — ServiceNow, Carvana,
@@ -659,7 +957,7 @@ function normalizeSec(facts, splits = [], face = null) {
   // ממוצע המניות הבסיסי — לרבעון הרביעי כשיש הפסד (q4Shares)
   const shB = { A: {}, Q: {} };
   { const fb = splitAdj(tagFacts(tax[isIfrs ? 'WeightedAverageShares' : 'WeightedAverageNumberOfSharesOutstandingBasic'], 'shares'), splitsUsed, true);
-    for (const [kk, h] of fb.dur) { const [s0, e0] = kk.split('|'), L = day(e0) - day(s0); if (L >= 350 && L <= 380) shB.A[e0] = h.v; else if (L >= 80 && L <= 100) shB.Q[e0] = h.v; } }
+    for (const [kk, h] of fb.dur) { const [s0, e0] = kk.split('|'), L = day(e0) - day(s0); if (L >= 350 && L <= 380) shB.A[e0] = h.v; else if (qLen(L)) shB.Q[e0] = h.v; } }
   // שנים פיסקליות: תקופות של ~שנה בהכנסות או ברווח הנקי (52/53 שבועות נכללים) — רק מדוח שנתי.
   // Amazon מדפיסה ב־10-Q גם עמודה של 12 החודשים האחרונים: בלי התנאי כל רבעון נעשה "סוף שנה" והטבלה השנתית התערבבה
   const yearOf = new Map(); // end → start
@@ -737,7 +1035,7 @@ function normalizeSec(facts, splits = [], face = null) {
     // רבעונים ישירים (~3 חודשים)
     for (const [kk, h] of dur) {
       const [s, e] = kk.split('|'), d = day(e) - day(s);
-      if (d >= 80 && d <= 100) {
+      if (qLen(d)) {
         // "רבעון" שערכו הוא השנה כולה, כשבאותה שנה יש כבר רבעונים / מצטבר — תיוג שגוי של החברה (Tractor Supply 2025: ההקשר
         // של הרבעון הרביעי ב־10-K קיבל את הרווח השנתי, ‏$1,096M במקום ‏$227M). לא נכנס — הרבעון מחושב משנה פחות תשעה חודשים
         const y0 = yearOf.get(e), av = A[k][e];
@@ -754,7 +1052,7 @@ function normalizeSec(facts, splits = [], face = null) {
       cum.sort((a, b) => (a[0] < b[0] ? -1 : 1));
       for (let i = 1; i < cum.length; i++) {
         const [e2, h2, k2] = cum[i], [e1, h1, k1] = cum[i - 1], gap = day(e2) - day(e1);
-        if (gap >= 80 && gap <= 100 && Q[k][e2] == null) {
+        if (qLen(gap) && Q[k][e2] == null) {
           // השנה כפי שדווחה מול אותם תשעה חודשים — לא אחרי הצגה מחדש מאוחרת (AppLovin: 2023 אחרי ההצגה מחדש ‏$1.84B
           // פחות תשעה חודשים כפי שדווחו אז ‏$2.33B = רבעון שלילי). הדוח השנתי הראשון שהוגש אחרי החלק הקודם
           const pk = subPick(merged[k], k2, h2, [[h1, k1]]), v0 = pk && pk.v, v = pk && nonNegQ(k, h2, h1, v0);
@@ -774,7 +1072,7 @@ function normalizeSec(facts, splits = [], face = null) {
       const s0 = yearOf.get(e), qs = Object.keys(Q[k]).filter((q) => q > s0 && q < e && day(e) - day(q) < 300);
       if (qs.length === 3) {
         // רבעונים ישירים — אותו כלל של בסיס אחד כמו במצטבר (subPick); רבעון שחושב בעצמו (אין לו תקופה ישירה) — כמו קודם
-        const dur = merged[k].dur, ka = s0 + '|' + e, hs = qs.map((q) => { for (const [kk, h] of dur) { const [a, b] = kk.split('|'), L = day(b) - day(a); if (b === q && L >= 80 && L <= 100) return [h, kk]; } return null; });
+        const dur = merged[k].dur, ka = s0 + '|' + e, hs = qs.map((q) => { for (const [kk, h] of dur) { const [a, b] = kk.split('|'), L = day(b) - day(a); if (b === q && qLen(L)) return [h, kk]; } return null; });
         const pk = dur.has(ka) && hs.every((x, i) => x && x[0].v === Q[k][qs[i]]) ? subPick(merged[k], ka, dur.get(ka), hs) : { v: A[k][e] - qs.reduce((t, q) => t + Q[k][q], 0) };
         if (!pk) { if (!qneg.some((x) => x.m === k && x.p === e)) qneg.push({ k: 'qmix', m: k, p: e, x: 'rst' }); continue; }
         const v = pk.v;
@@ -789,14 +1087,14 @@ function normalizeSec(facts, splits = [], face = null) {
   // השגוי (רבעון ישיר = השנה שלה): "רבעון" גדול מתשעת החודשים שלפניו, בשורה בלי שנה, הוא השנה — והרבעון = השנה פחות תשעה חודשים
   {
     const KS = FLOWK.filter((k) => k !== 'eps' && k !== 'sh');
-    const q4dir = (k, e) => [...merged[k].dur].find(([kk, h]) => { const [s0, e0] = kk.split('|'); return e0 === e && day(e) - day(s0) >= 80 && day(e) - day(s0) <= 100 && h.ann !== false; });
+    const q4dir = (k, e) => [...merged[k].dur].find(([kk, h]) => { const [s0, e0] = kk.split('|'); return e0 === e && qLen(day(e) - day(s0)) && h.ann !== false; });
     for (const e of fyEnds) {
       const y0 = yearOf.get(e);
       if (!KS.some((k) => { const a = A[k][e], x = q4dir(k, e); return a && x && Math.abs(x[1].v - a) <= 1e-3 * Math.abs(a); })) continue;
       for (const k of KS) {
         const x = q4dir(k, e); if (A[k][e] != null || !x || Q[k][e] !== x[1].v) continue;
         let c9 = null;
-        for (const [kk, h] of merged[k].dur) { const [s2, e2] = kk.split('|'), g = day(e) - day(e2); if (s2 === y0 && g >= 80 && g <= 100) c9 = h.v; }
+        for (const [kk, h] of merged[k].dur) { const [s2, e2] = kk.split('|'), g = day(e) - day(e2); if (s2 === y0 && qLen(g)) c9 = h.v; }
         if (!(c9 > 0 && x[1].v > c9)) continue;
         A[k][e] = x[1].v; Q[k][e] = x[1].v - c9; (derived[k] = derived[k] || []).push(e);
       }
@@ -914,7 +1212,11 @@ function normalizeSec(facts, splits = [], face = null) {
       if (qs3.length === 3 && qs3.every(okQ)) {
         const e3 = qs3.reduce((t, q) => t + Q.eps[q] * Q.sh[q], 0), e4 = A.eps[e] * A.sh[e] - e3, err = 0.005 * (A.sh[e] + qs3.reduce((t, q) => t + Q.sh[q], 0));
         const n3 = niOf(A, e) != null && niOf(Q, e) != null ? niOf(A, e) - niOf(Q, e) : null, s3 = qs3.reduce((t, q) => t + niOf(Q, q), 0);
-        if (Math.abs(e4) >= 20 * err && n3 != null && Math.abs(s3 - n3) <= 0.005 * Math.max(Math.abs(n3), Math.abs(s3))) niq = e4;
+        // רק כשהיחס של השנה לא מסביר את שלושת הרבעונים שהודפסו (TransDigm). כשהוא מסביר את כולם (כל אחד עד סנט) — הרווח × היחס
+        // מדויק יותר: החיסור צובר את העיגול לסנט של ארבעה ערכים, עד ‎±0.02 (בדיקת העומק 16/11/2026: Apple רבעון 4 2021 ‎1.22
+        // במקום ‎1.24 שפורסם; Airbnb רבעון 4 2024 ‎0.72 במקום ‎0.73)
+        const fit = qs3.every((q) => Math.abs(Math.round(niOf(Q, q) * yr / Q.sh[q] * 100) / 100 - Q.eps[q]) <= 0.0101);
+        if (!fit && Math.abs(e4) >= 20 * err && n3 != null && Math.abs(s3 - n3) <= 0.005 * Math.max(Math.abs(n3), Math.abs(s3))) niq = e4;
       }
     }
     if (Q.eps[e] == null && niq != null && Q.sh[e]) { Q.eps[e] = Math.round(niq / Q.sh[e] * 100) / 100; (derived.eps = derived.eps || []).push(e); epsNum[e] = niq; }
@@ -951,7 +1253,7 @@ function normalizeSec(facts, splits = [], face = null) {
   // כשכל השלוש מאותה הגשה ולא שוות (Altria — מס בלו, ‏LITE) — הגדרה של החברה, לא נוגעים
   const durOf = (k, e, ann) => { const d = merged[k] && merged[k].dur; if (!d) return null;
     if (ann) return d.get(yearOf.get(e) + '|' + e) || null;
-    for (const [kk, h] of d) { const [s, e2] = kk.split('|'); if (e2 === e && day(e) - day(s) >= 80 && day(e) - day(s) <= 100) return h; } return null; };
+    for (const [kk, h] of d) { const [s, e2] = kk.split('|'); if (e2 === e && qLen(day(e) - day(s))) return h; } return null; };
   const inB = (h, B) => (!h ? null : h.filed === B ? h.v : h.all && h.all.has(B) ? h.all.get(B) : null);
   if (tags.gp && tags.cogs && Object.keys(A.gp).length && Object.keys(A.cogs).length) for (const [D, ends, ann] of [[A, fyEnds, true], [Q, qEnds, false]]) for (const e of ends) {
     const rv = D.rev[e], hr = durOf('rev', e, ann); if (rv == null || D.gp[e] == null || D.cogs[e] == null || !hr || hr.v !== rv) continue;
@@ -973,6 +1275,7 @@ function normalizeSec(facts, splits = [], face = null) {
     if (D.tl && D.tl[e] == null && D.tle && D.tle[e] != null && D.eq[e] != null) D.tl[e] = D.tle[e] - (D.eqt && D.eqt[e] != null ? D.eqt[e] : D.eq[e]) - ((D.tmp && D.tmp[e]) || 0);
     if (D.debt && D.debt[e] == null) { const s = (D.debtNc[e] || 0) + (D.debtC[e] || 0); if (s) D.debt[e] = s; }
     if (D.debt && D.stb && D.stb[e]) D.debt[e] = (D.debt[e] || 0) + D.stb[e];
+    if (debtLine && debtLine.has(e)) { if (!D.debt) D.debt = {}; D.debt[e] = debtLine.get(e); }
   }
   // צמיחה ברת השוואה (26/10/2026, AppLovin): חברה שהציגה מחדש שנים קודמות (פעילות שנמכרה, שינוי מדיניות) — הערך
   // האחרון של 2023 הוא אחרי ההצגה מחדש (‏$1.84B בלי עסק האפליקציות), ו־2022 נשאר כפי שדווח אז (‏$2.82B כולל אותו):
@@ -1004,7 +1307,7 @@ function normalizeSec(facts, splits = [], face = null) {
     for (const e of fyEnds) { const r = cmpRatio(dur, yearOf.get(e) + '|' + e); if (r != null) (GA[k] = GA[k] || {})[e] = r; }
     for (const kk of dur.keys()) {
       const [s0, e0] = kk.split('|'), d0 = day(e0) - day(s0);
-      if (d0 >= 80 && d0 <= 100 && Q[k][e0] != null) { const r = cmpRatio(dur, kk); if (r != null) (GQ[k] = GQ[k] || {})[e0] = r; }
+      if (qLen(d0) && Q[k][e0] != null) { const r = cmpRatio(dur, kk); if (r != null) (GQ[k] = GQ[k] || {})[e0] = r; }
     }
     // רבעון מחושב (שנה − תשעה חודשים): גם הרבעון של שנה קודם צריך להיות על אותו בסיס. מחשבים מהדוח השנתי שממנו
     // נלקחה השנה (שמציג גם את השנה הקודמת) ומהדוח הרבעוני של תשעת החודשים; אי אפשר ויש הצגה מחדש — 0 = לא ידוע
@@ -1635,6 +1938,12 @@ async function fundamentals(sym0) {
     if (sec.A[k] || !y.A[k]) continue;
     if ((k === 'gp' || k === 'cogs') && sec.gpx !== 'fin' && (sec.gpx === 'part' || !grossOnFace)) continue; // 'off' עם שורת "Cost of…" בדוח (Thermo Fisher, Deere: לפי מוצרים ושירותים) — כן
     const a = sec.fy.map((e) => { const j = y.fy.findIndex((x) => Math.abs(day(x) - day(e)) < 20); return j >= 0 ? y.A[k][j] : null; });
+    // רווח למניה מ־Yahoo — רק שנה שמתאימה לרווח לבעלי המניות / המניות המדוללות מ־SEC (עד 5%; Airbnb 2025 ב־Yahoo: ‏1.03 מול
+    // 4.03 שהודפס, 16/11/2026). שנה בלי רווח או מניות מ־SEC — כמו שהיא
+    if (k === 'eps') a.forEach((v, i) => {
+      const n0 = sec.A.nic && sec.A.nic[i] != null ? sec.A.nic[i] : sec.A.ni ? sec.A.ni[i] : null, s0 = sec.A.sh ? sec.A.sh[i] : null;
+      if (v != null && n0 != null && s0 > 0 && Math.abs(v - n0 / s0) > 0.05 * Math.abs(n0 / s0) + 0.01) a[i] = null;
+    });
     if (a.some((v) => v != null)) { sec.A[k] = a; fill.push(k); }
   }
   // רבעון ש־SEC לא מאפשר לחשב מאותו בסיס (שנה שהוצגה מחדש מול תשעה חודשים ישנים — Bank of America; רבעונים שאינם מאותו בסיס
@@ -1712,7 +2021,7 @@ async function handle(body, res) {
   return res.status(200).json({ ...v, indData: industryData(v.ind) });
 }
 
-module.exports = { handle, fundamentals, holes, capexNil, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
+module.exports = { handle, fundamentals, holes, capexNil, debtFace, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
   industryFor, industryData, _cache: cache,
   // התגיות המועמדות לכל שורה — לכלי ההשוואה (fundxcheck: SEC גולמי גם לתקופות שהושלמו מתגית משנית). נשמט ב־f9db4c74 — tools/fund-xcheck.js מצפה לו
   TAGS: { gaap: { ...FLOW, ...INST }, ifrs: IFRS } };

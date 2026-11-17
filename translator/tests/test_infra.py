@@ -162,6 +162,8 @@ class Image(unittest.TestCase):
         self.assertIn('COPY --from=vi /opt/vi /opt/vi', fin)
         self.assertNotIn('/opt/vi -type', fin, 'chmod בשלב הסופי מעתיק כל קובץ שהשתנה לשכבה נוספת')
         self.assertRegex(fin, r'apt-get install[^\n]*tesseract-ocr tesseract-ocr-heb tesseract-ocr-eng')
+        self.assertRegex(fin, r'tesseract-ocr-ara tesseract-ocr-rus', 'OCR גרסה 2: המעבר השני (VI_OCR_EXTRA)')
+        self.assertIn('for l in heb eng ara rus', fin, 'כל השפות מותקנות — אחרת הבנייה נכשלת')
         # השכבות הכבדות לפני Tesseract — הן נשארות זהות לתמונה הקודמת, והשרת מושך רק את החדשות
         for heavy in ('COPY --from=deps /opt/vt', 'COPY --from=karaokehe', 'COPY --from=separator /opt/separator'):
             self.assertLess(fin.index(heavy), fin.index('tesseract-ocr-heb'), heavy)
@@ -172,6 +174,26 @@ class Image(unittest.TestCase):
         asr = read('translator/vt/asr_he.py')
         self.assertIn('"/opt/vi/zf"', asr, 'הקוד מחפש את המודל באותו נתיב')
         self.assertIn('"/opt/vi/py"', asr)
+
+    def test_lid_ecapa_stage(self):
+        """16/11/2026: ציר השפות — ECAPA בשלב נפרד (השכבה של whisper-small לא משתנה), גרסה נעולה, sha256, הרשאות בשלב."""
+        d = read('infra/worker/Dockerfile')
+        fin_at = d.index('# ---------------------------------------------------------------- התמונה הסופית')
+        a = d.index('FROM deps AS lidecapa')
+        st, fin = d[a:d.index('FROM ', a + 10)], d[fin_at:]
+        self.assertRegex(st, r"'speechbrain/lang-id-voxlingua107-ecapa', f, revision='[0-9a-f]{40}'", 'המודל בגרסה נעולה')
+        for f in ('embedding_model.ckpt', 'classifier.ckpt', 'label_encoder.txt'):
+            self.assertRegex(st, r'"[0-9a-f]{64}  ' + re.escape(f) + '"', 'sha256: ' + f)
+        self.assertIn('sha256sum -c', st)
+        self.assertIn('find /opt/lid/ecapa -type f -exec chmod 644', st, 'ההרשאות בשלב עצמו')
+        self.assertIn('COPY --from=lidecapa /opt/lid/ecapa /opt/lid/ecapa', fin)
+        self.assertNotIn('/opt/lid -type', fin, 'chmod בשלב הסופי מעתיק כל קובץ שהשתנה לשכבה נוספת')
+        self.assertLess(fin.index('COPY --from=lid /opt/lid'), fin.index('COPY --from=lidecapa'), 'whisper-small לא נדרס')
+        self.assertIn('lid.Model()', fin, 'בדיקת עשן: הרשת נטענת ומחזירה 107 שפות')
+        lid = read('translator/vt/lid.py')
+        self.assertIn('"/opt/lid/ecapa"', lid, 'הקוד מחפש את המודל באותו נתיב')
+        self.assertIn('weights_only=True', lid, 'בלי pickle שמריץ קוד')
+        self.assertNotIn('speechbrain', read('infra/worker/requirements.lock'), 'בלי speechbrain בתמונה')
 
     def test_dockerignore_keeps_context_small(self):
         di = read('.dockerignore').splitlines()

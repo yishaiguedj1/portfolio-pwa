@@ -181,22 +181,38 @@ def cmd_speech(a):
 
 def cmd_lang(a):
     """A12 (01/11/2026): קטעים שאינם באנגלית → foreign.json (vt/lang.py). רק Parakeet (מנועי הענן רב־לשוניים);
-    בלי המודל בתמונה / בלי מועמדים — קובץ ריק, ושום דבר לא נופל."""
+    בלי המודל בתמונה / בלי מועמדים — קובץ ריק, ושום דבר לא נופל.
+    16/11/2026: עם ציר השפות (vt/lid.py) — על כל הדיבור, לא רק על מילים בביטחון נמוך (עברית שנשמעה "בטוחה" ל־Parakeet
+    לא נמצאה, ומעל 30 מועמדים — כלום). הקטעים: עברית ב־ivrit, אחרת whisper-small; ‏tl = תקציר הציר (share, ‏regions)."""
     from . import lang as L
+    from . import lid
     pr = Project(a.name)
     pr.load()
     out = pr.p("foreign.json")
     eng, res = _asr_preferred(pr, None)
-    if eng != "parakeet" or not L.ready():
+    use_tl = lid.ready() and os.environ.get("SNB_LID") != "off"
+    if eng != "parakeet" or not (use_tl or L.ready()):
         write_json(out, {"v": 1, "seg": []})
         log("שפות: " + ("המנוע רב־לשוני" if eng != "parakeet" else "אין מודל זיהוי בתמונה") + " — מדלגים")
         return
+    wav = str(pr.p("audio16k.wav"))
+    doc: dict = {"v": 1, "seg": []}
     try:
-        seg = L.detect(str(pr.p("audio16k.wav")), res.get("words") or [])
+        if use_tl:
+            from .vi import _load16, langs_doc, verify_fn
+            audio = _load16(wav)
+            tl = lid.timeline(audio, prefer="en", verify_fn=verify_fn())
+            found = L.foreign_regions(tl, "en", audio=audio)
+            doc["seg"] = L.transcribe_spans(audio, found) if found else []
+            doc["tl"] = {k: v for k, v in langs_doc(tl).items() if k in ("src", "main", "share", "n", "s", "vf")}
+            log("שפות (ציר): " + ", ".join(f"{k} {round(v * 100)}%" for k, v in tl["share"].items()))
+        else:
+            doc["seg"] = L.detect(wav, res.get("words") or [])
     except Exception as e:      # noqa: BLE001 — שלב משני; התמלול באנגלית ממשיך כרגיל
         log(f"שפות: הזיהוי נכשל ({type(e).__name__}) — ממשיכים בלעדיו")
-        seg = []
-    write_json(out, {"v": 1, "seg": seg})
+        doc = {"v": 1, "seg": []}
+    seg = doc["seg"]
+    write_json(out, doc)
     log(f"שפות: {len(seg)} קטעים שאינם באנגלית" + (" — " + ", ".join(sorted({g['lg'] for g in seg})) if seg else ""))
 
 

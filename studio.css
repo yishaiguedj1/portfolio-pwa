@@ -235,11 +235,11 @@ a.st-row { color: inherit; text-decoration: none; -webkit-tap-highlight-color: t
 /* בוררי המקטעים של הסטודיו — זכוכית (16/11/2026, בקשת המשתמש: "ממורכזים ובסגנון הזכוכית העדכני, נקי וברור"), לפי ת־עיצוב:
    מסילת גלולה שקופה עם קו אור דק, והנבחר — "עדשת" זכוכית בהירה בגלולה עם הבזק עליון וצל רך. אותו עיצוב ל־st-seg2 (בחירה) ול־st-seg (לשוניות).
    מרכוז: הכפתור flex בעמודה, ממורכז בשני הצירים (עד היום grid בלי align-content — הטקסט ישב בראש הכפתור, לא באמצע) */
-.st-root { --sg-track: var(--st-fill);
+.st-root, .st-rs { --sg-track: var(--st-fill);   /* גם בגיליון (.st-rs נוסף ל־body, מחוץ ל־st-root) — בלי זה הבורר בגיליון בלי מסילה ובלי "עדשה" */
   --sg-track-sh: inset 0 0 0 .5px rgba(255, 255, 255, .55), inset 0 1px 1.5px rgba(0, 0, 0, .05);
   --sg-thumb: linear-gradient(180deg, rgba(255, 255, 255, .98), rgba(255, 255, 255, .84));
   --sg-thumb-sh: inset 0 0 0 .5px rgba(255, 255, 255, .9), inset 0 1px 0 #fff, 0 0 0 .5px rgba(0, 0, 0, .05), 0 1px 2px rgba(0, 0, 0, .06), 0 4px 12px -3px rgba(0, 0, 0, .16); }
-[data-theme="dark"] .st-root { --sg-track-sh: inset 0 0 0 .5px rgba(255, 255, 255, .1), inset 0 1px 1.5px rgba(0, 0, 0, .25);
+[data-theme="dark"] :is(.st-root, .st-rs) { --sg-track-sh: inset 0 0 0 .5px rgba(255, 255, 255, .1), inset 0 1px 1.5px rgba(0, 0, 0, .25);
   --sg-thumb: linear-gradient(180deg, rgba(255, 255, 255, .3), rgba(255, 255, 255, .17));
   --sg-thumb-sh: inset 0 0 0 .5px rgba(255, 255, 255, .22), inset 0 1px 0 rgba(255, 255, 255, .34), 0 0 0 .5px rgba(0, 0, 0, .4), 0 4px 12px -3px rgba(0, 0, 0, .55); }
 :is(.st-seg2, .st-seg) { padding: 3px; gap: 2px; border-radius: var(--pill); background: var(--sg-track); box-shadow: var(--sg-track-sh);
@@ -941,27 +941,29 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-tl-zb { appearance: none; border: 0; width: 28px; height: 28px; border-radius: var(--pill); background: rgba(30, 30, 34, .72); color: #fff;
   font: inherit; font-size: 17px; line-height: 1; cursor: pointer; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 /* B1: לוח הבדיקה · C3: הדוברים · C2: מילה לא בטוחה */
-.st-qc, .st-spk { display: grid; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--card-border); }
+.st-qc { display: grid; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--card-border); }
+.st-spk { display: grid; padding: 4px 12px 8px; border-bottom: 1px solid var(--card-border); }
 .st-qc[hidden], .st-spk[hidden] { display: none; }
+.st-spk .st-row { padding-inline: 4px; min-height: 52px; }
+.st-spk .st-row.st-ric + .st-row.st-ric::before { inset-inline-start: 48px; }
 .st-qc-h { display: flex; align-items: center; gap: 8px; font-size: 15px; min-height: 36px; }
 .st-qc-r { display: flex; align-items: center; gap: 6px; font-size: 14px; min-height: 38px; }
 .st-qc-k { flex: 1; min-width: 0; }
 .st-qc-n { font-weight: 600; font-variant-numeric: tabular-nums; min-width: 2ch; text-align: center; }
 .st-qc-ok { color: var(--on-surface-var); }
-.st-spk-r { display: flex; align-items: center; gap: 8px; min-height: 44px; }
-.st-spk-r .st-se-in { width: 0; padding-block: 6px; }
-.st-spk-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--spk); }
-.st-spk-sw { display: flex; gap: 4px; flex: none; }
-.st-spk-sw .st-se-b { --c: transparent; width: 24px; min-height: 24px; height: 24px; padding: 0; background: var(--c); border: 2px solid transparent; }
-.st-spk-sw .st-se-b.on { border-color: var(--on-surface); background: var(--c); }
-.st-se-who { display: block; font-size: 12.5px; font-weight: 600; color: var(--spk); }
+/* הדובר של הכתובית (בעריכה): שבב לכל דובר — נקודה בצבע שלו; הנבחר — הזכוכית בצבע הדובר (--btn-c) */
 .st-se-spks { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
-.st-se-spks .st-se-b { min-height: 28px; font-size: 13px; box-shadow: inset 0 0 0 1.5px var(--spk); }
-.st-se-spks .st-se-b.on { background: var(--spk); color: #000; }
+.st-se-spks .st-se-b { --btn-c: var(--si); min-height: 28px; font-size: 13px; }
+.st-se-spks .st-se-b::before { content: ""; flex: none; width: 8px; height: 8px; margin-inline-end: 2px; border-radius: 50%; background: var(--si); }
+.st-se-spks .st-se-b.on::before { background: currentColor; }
+/* ראש הכתובית: העיגול הקטן והשם בתחילת תור, תג שפה */
+.st-se-who2 { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; font-size: 13px; font-weight: 650; color: var(--si); }
+.st-se-who2 .st-spk-av { width: 18px; height: 18px; font-size: 9.5px; }
+.st-se-who2 > bdi { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-src-u { appearance: none; border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer;
   text-decoration: underline dotted #FF9F0A 2px; text-underline-offset: 3px; }
-.st-se-row.spk { position: relative; --spk: transparent; }
-.st-se-row.spk::before { content: ''; position: absolute; inset-block: 10px; inset-inline-start: 0; width: 3px; border-radius: 2px; background: var(--spk, transparent); }
+.st-se-row.spk { position: relative; }
+.st-se-row.spk::before { content: ''; position: absolute; inset-block: 10px; inset-inline-start: 0; width: 3px; border-radius: var(--pill); background: var(--si, transparent); }
 
 /* סבב 7: טשטוש אזור על הנגן (גרירה = הזזה, הפינה = גודל) */
 .st-ed-blr { position: absolute; z-index: 2; border: 1.5px dashed rgba(255, 255, 255, .9); border-radius: 4px; -webkit-backdrop-filter: blur(9px); backdrop-filter: blur(9px); touch-action: none; cursor: move; }
@@ -1298,6 +1300,7 @@ html.st-dock .toast { bottom: calc(var(--dock-pad, var(--dock-h, 120px)) + 12px 
 .st-vi-vv { flex: none; margin-inline-start: auto; }   /* PR 1.2ג: "אמת שוב" בקצה פס הטיוטה */
 .st-vi-vv-busy { font-weight: 500; white-space: nowrap; }
 .st-vi-gist { margin-top: 4px; padding: 18px 16px; }
+.st-spk-sec0 + .st-vi-gist { margin-top: 20px; }   /* 17/11/2026: "מי מדבר" בראש הדף — רווח של כרטיס לכרטיס */
 .st-vi-one { margin: 0 0 16px; font-size: 19px; font-weight: 600; line-height: 1.45; text-wrap: pretty; }
 .st-vi-one:last-child { margin-bottom: 0; }
 .st-vi-pts, .st-vi-notes { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
@@ -1337,6 +1340,66 @@ html.st-dock .toast { bottom: calc(var(--dock-pad, var(--dock-h, 120px)) + 12px 
 .st-vi-now { flex: 1; min-width: 0; font-size: 13px; color: var(--on-surface-var); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-vi-x { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: var(--pill); background: var(--st-fill); color: var(--on-surface); }
 .st-vi-x svg { width: 18px; height: 18px; }
+
+/* ---------- 16/11/2026: דוברים בכל תמליל (studiospk.js; לפי ת־עיצוב) ----------
+   הצבע לפי data-spk (0–5 — הסדר של SPK_BASE): ‎--sb הבסיס — העיגול (ראשי התיבות בלבן, 5.2:1); ‎--si הדיו — השם, הקו והפס.
+   בבהיר הדיו הוא הבסיס; בכהה (ובעורך, שכהה תמיד) — הגוון הבהיר (SPK_INK, ‏5.4:1 לפחות על הכרטיס הכהה) */
+[data-spk] { --si: var(--sb); }
+[data-spk="0"] { --sb: #016EBE; --sk: #4AA6FE; }
+[data-spk="1"] { --sb: #8E6502; --sk: #D39702; }
+[data-spk="2"] { --sb: #B74A01; --sk: #FB7F40; }
+[data-spk="3"] { --sb: #904EBA; --sk: #C886F6; }
+[data-spk="4"] { --sb: #047B59; --sk: #0DB886; }
+[data-spk="5"] { --sb: #AF4191; --sk: #ED79CA; }
+:is([data-theme="dark"], .st-dark) [data-spk] { --si: var(--sk); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) [data-spk] { --si: var(--sk); } }
+/* העיגול: ראשי התיבות בלבן על הבסיס */
+.st-spk-av { flex: none; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: var(--sb); color: #fff;
+  font-size: 14px; font-weight: 700; line-height: 1; box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .25); }
+.st-spk-av.sm { width: 22px; height: 22px; font-size: 11px; }
+.st-spk-av.lg { width: 56px; height: 56px; font-size: 22px; }
+/* כרטיס הדוברים (דף הניתוח) והפאנל בעורך: העיגול, השם, תפקיד · מגדר · שפות, החלק מהדיבור */
+.st-spk-list .st-row { min-height: 58px; }
+.st-spk-pc { flex: none; font-size: 14px; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
+/* התמליל: תור לכל דובר — העיגול והשם בראש, קו דק בצבע הדובר לאורך השורות */
+.st-spk-turn { position: relative; padding-inline-start: 30px; }
+.st-spk-turn + .st-spk-turn { margin-top: 6px; }
+.st-spk-turn::before { content: ""; position: absolute; inset-inline-start: 10px; top: 30px; bottom: 8px; width: 2px; background: var(--si); opacity: .35; }
+.st-spk-hd { display: flex; align-items: center; gap: 8px; margin-inline-start: -30px; padding: 10px 0 2px; }
+.st-spk-nm { min-width: 0; font-size: 14.5px; font-weight: 650; color: var(--si); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* תג שפה — שורה בשפה שאינה השפה העיקרית של הדובר */
+.st-spk-lg { flex: none; align-self: center; padding: 1px 7px; border-radius: var(--pill); background: var(--st-fill); color: var(--on-surface-var);
+  font-size: 11.5px; font-weight: 600; line-height: 1.5; }
+.st-vi-txr > span:last-child { min-width: 0; }
+.st-spk-only { justify-self: start; margin: 4px 0 6px; }
+.st-spk-only svg { width: 14px; height: 14px; }
+/* המיני־נגן: מי מדבר עכשיו · הפרק */
+.st-vi-now { display: flex; align-items: center; gap: 6px; }
+.st-vi-nowsp { flex: none; display: inline-flex; align-items: center; gap: 6px; max-width: 55%; }
+.st-vi-nowsp[hidden] { display: none; }
+.st-vi-nowsp b { min-width: 0; color: var(--si); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-vi-nowch { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-vi-nowsp:not([hidden]) + .st-vi-nowch:not(:empty)::before { content: "· "; }
+/* גיליון הדובר (.st-rs — הגיליון והזכוכית של הסטודיו) */
+.st-spk-top { display: flex; align-items: center; gap: 14px; padding: 4px 16px 0; }
+.st-spk-top .st-rs-t { margin: 0; overflow-wrap: anywhere; }
+.st-spk-tt { min-width: 0; }
+.st-spk-sub { font-size: 14px; color: var(--on-surface-var); }
+.st-spk-sub[hidden], .st-spk-note[hidden] { display: none; }
+/* 17/11/2026 (מי מדבר): מי הוא — מעל החלק מהדיבור; "לפי ידע כללי" — קטן מתחת */
+.st-spk-who { font-size: 14px; color: var(--on-surface); }
+.st-spk-kb { font-size: 12px; color: var(--on-surface-var); }
+.st-spk-who[hidden], .st-spk-kb[hidden] { display: none; }
+.st-spk-in { flex: 1; min-width: 0; border: 0; background: none; font: inherit; font-size: 16px; color: var(--on-surface-var); text-align: end; padding: 0; }
+.st-rs .st-spk-sec { margin-block: 0 -6px; }
+.st-spk-g { margin-inline: 16px; }
+.st-spk-g button { min-height: 44px; }
+.st-spk-note { margin: -6px 20px 0; font-size: 13px; color: var(--on-surface-var); line-height: 1.4; }
+.st-spk-bar { flex: none; width: 108px; height: 6px; border-radius: var(--pill); background: var(--st-fill); overflow: hidden; }
+.st-spk-bar i { display: block; height: 100%; border-radius: inherit; background: var(--si); }
+.st-spk-sws { display: flex; flex-wrap: wrap; gap: 12px; padding-inline: 16px; }
+.st-spk-c { width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: var(--sb); }
+.st-spk-c[aria-checked="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--sb); }
 /* חלונית הראיה — הגיליון של הסטודיו (.st-rs + .st-rs-box, הזכוכית בבלוק "חומר הזכוכית"); כאן רק התוכן */
 .st-vi-shin > .st-vi-bq, .st-vi-shin > .st-vi-sht, .st-vi-shin > .st-vi-shsl { margin-inline: 16px; }
 .st-vi-bq { margin-block: 0; font-size: 17px; line-height: 1.5; }

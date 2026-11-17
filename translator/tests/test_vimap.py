@@ -208,6 +208,26 @@ class TestPrompt(unittest.TestCase):
         self.assertEqual(V.unit_line({"id": "e3", "text": "x", "conf": 0.9}), "[e3] x")
 
 
+    def test_screen_langs_line(self):
+        """16/11/2026: שפות הטקסט על המסך בשלד — רק כשיש יותר משפה אחת או שהיא לא שפת הדיבור"""
+        ocr = [{"id": "o1.1", "text": "Machine Learning basics", "lang": "en"},
+               {"id": "o1.2", "text": "למידת מכונה", "lang": "he"},
+               {"id": "o1.3", "text": "שימוש ב־API", "lang": "mix", "lgs": ["he", "en"]},
+               {"id": "o1.4", "text": "12:30", "lang": "other"}]
+        sl, mixed = V.screen_langs(ocr)
+        self.assertEqual([k for k, _ in sl], ["en", "he"])
+        self.assertEqual(mixed, 1)
+        self.assertAlmostEqual(sum(v for _, v in sl), 1.0, places=1)
+        sk = V.skeleton("en", [], {}, [], ocr)
+        self.assertIn("Screen text: English", sk)
+        self.assertIn("Hebrew", sk)
+        self.assertIn("1 lines mix languages", sk)
+        only = [{"id": "o1.1", "text": "Machine Learning basics", "lang": "en"}]
+        self.assertNotIn("Screen text", V.skeleton("en", [], {}, [], only), "שפה אחת = שפת הדיבור — בלי שורה")
+        self.assertIn("Screen text: English 100%", V.skeleton("he", [], {}, [], only), "שקפים באנגלית בהרצאה בעברית")
+        self.assertNotIn("Screen text", V.skeleton("he", [], {}, [], []))
+
+
 class TestRecovery(unittest.TestCase):
     def test_schema_retry_once(self):
         n = []

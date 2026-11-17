@@ -3,7 +3,17 @@
  "pv": 1,
  "lang": {
   "src": "en",
-  "out": "he"
+  "out": "he",
+  "sp": [
+   {
+    "lg": "he",
+    "sh": 0.6
+   },
+   {
+    "lg": "ru",
+    "sh": 0.123
+   }
+  ]
  },
  "genre": "other",
  "video": {
@@ -28,6 +38,7 @@
    "t1": 622.4,
    "spk": "S1",
    "text": "Most of the consolidation happens in deep sleep.",
+   "lg": "he",
    "conf": 0.91,
    "w0": 900,
    "w1": 908
@@ -48,6 +59,43 @@
    "t1": 62,
    "spk": "S1",
    "text": "ctl <b>kept as text</b>"
+  }
+ ],
+ "speakers": [
+  {
+   "spk": "S1",
+   "sh": 0.712,
+   "t": 402.543,
+   "lg": [
+    {
+     "lg": "en",
+     "sh": 0.94
+    },
+    {
+     "lg": "he",
+     "sh": 0.06
+    }
+   ],
+   "g": "f",
+   "gs": "text",
+   "name": "Dana Levi",
+   "role": "מרצה",
+   "orig": "Dana Levi",
+   "ttl": "מנכ״לית Acme"
+  },
+  {
+   "spk": "S2",
+   "sh": 0.288,
+   "g": "u",
+   "act": "רוברט דאוני ג׳וניור",
+   "kb": 1
+  },
+  {
+   "spk": "S5",
+   "sh": 0.05,
+   "g": "m",
+   "name": "Professor Maximilian Alexander Rosenberg",
+   "ttl": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
   }
  ],
  "slides": [
@@ -137,6 +185,24 @@
    "text": "free text",
    "conf": 0,
    "lang": "und"
+  },
+  {
+   "id": "o3.2",
+   "text": "שלום hello привет",
+   "conf": 70,
+   "lang": "mix",
+   "lgs": [
+    "he",
+    "en",
+    "ru",
+    "ar"
+   ]
+  },
+  {
+   "id": "o3.3",
+   "text": "רק עברית",
+   "conf": 80,
+   "lang": "mix"
   }
  ],
  "segments": [

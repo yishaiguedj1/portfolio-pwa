@@ -2,9 +2,10 @@
 
 רץ בסביבת vt (numpy), מ־finish. הפלט = out/timeline.json:
   {"v": 1, "r": 20, "pk": "<base64: בית לכל 1/r שנ׳ — עוצמה בסולם dB, 0–255>", "sh": [שניות של חילופי שוטים],
-   "wd": [[התחלה, סוף, "מילה", ביטחון 0–100 או ‎-1], …]}   ← סבב 4 של השדרוג (2/11/2026): זמן לכל מילה ומילים לא בטוחות בעורך
+   "wd": [[התחלה, סוף, "מילה", ביטחון 0–100 או ‎-1], …],   ← סבב 4 של השדרוג (2/11/2026): זמן לכל מילה ומילים לא בטוחות בעורך
+   "sp": {"S1": {"n": שם, "r": תפקיד, "g": "m"|"f", "gs": "text"|"voice"}, …}}   ← 16/11/2026: דוברים בכל תמליל
 כך הטלפון לא צריך לפענח שעה של קול (זיכרון וסוללה) כדי לצייר את הציר.
-**R / PK_MAX / SH_MAX / WD_MAX / WD_LEN זהים ל־normMeta בטלפון (studiosubs.js)**.
+**R / PK_MAX / SH_MAX / WD_MAX / WD_LEN / SP_MAX / SP_LEN זהים ל־normMeta בטלפון (studiosubs.js)**.
 """
 import argparse
 import base64
@@ -18,6 +19,8 @@ PK_MAX = 4 * 3600 * R     # עד 4 שעות
 SH_MAX = 5000
 WD_MAX = 60000            # מילים — כ־6 שעות דיבור רצוף
 WD_LEN = 40               # תווים למילה
+SP_MAX = 20               # דוברים
+SP_LEN = 40               # תווים לשם / לתפקיד של דובר
 DB_FLOOR = -60.0
 
 
@@ -93,6 +96,51 @@ def words(pd):
     return []
 
 
+def _json(p):
+    try:
+        return json.loads(Path(p).read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return None
+
+
+def speakers(pd):
+    """16/11/2026 (המשתמש: "לכל דובר — מי הוא, המגדר שלו ובאיזו שפה הוא מדבר"): לכל תווית — שם, תפקיד ומגדר מטבלת
+    הדוברים שההגהה כתבה בתדריך (project.json), ומגדר מגובה הקול (asr/*.json, diarize.voice) כשהטבלה לא אמרה.
+    רק מה שידוע; שם שהוא בעצם "לא ידוע" / התווית — בלי שם (clean_speakers של הניתוח). האחוז מהדיבור והשפות של כל דובר —
+    הטלפון מחשב מהכתוביות עצמן (כך הם נכונים גם אחרי עריכה)."""
+    from visheet import clean_speakers, SPK_RE
+    from vt.translate import gender_of
+    pd = Path(pd)
+    brief = (_json(pd / 'project.json') or {}).get('speakers')
+    brief = brief if isinstance(brief, dict) else {}
+    voice = {}
+    for name in ('parakeet', 'elevenlabs', 'assemblyai'):   # כמו job.py (איסוף הלמידה): המנוע הראשון שיש לו קול
+        v = ((_json(pd / 'asr' / f'{name}.json') or {}).get('diarize') or {}).get('voice')
+        if isinstance(v, dict) and v:
+            voice = v
+            break
+    rows = clean_speakers([{'spk': k, 'name': b.get('name') if isinstance(b.get('name'), str) else '',
+                            'role': b.get('role') if isinstance(b.get('role'), str) else '', 'g': gender_of(b) or 'u'}
+                           for k, b in brief.items() if isinstance(b, dict)])
+    by = {x['spk']: x for x in rows}
+    out = {}
+    for k in list(by) + [k for k in voice if k not in by]:
+        if not isinstance(k, str) or not SPK_RE.fullmatch(k) or len(out) >= SP_MAX:
+            continue
+        x, d = by.get(k) or {}, {}
+        for a, b in (('n', 'name'), ('r', 'role')):
+            if x.get(b):
+                d[a] = x[b][:SP_LEN]
+        vg = voice.get(k) if isinstance(voice.get(k), dict) else {}
+        if x.get('g') in ('m', 'f'):
+            d['g'], d['gs'] = x['g'], 'text'          # מה שנאמר / נכתב בתדריך — גובר על הקול
+        elif vg.get('g') in ('m', 'f'):
+            d['g'], d['gs'] = vg['g'], 'voice'
+        if d:
+            out[k] = d
+    return out
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description='גל הקול וחילופי השוטים לעורך הכתוביות')
     p.add_argument('--project', required=True)
@@ -108,8 +156,15 @@ def main(argv=None):
     wd = words(pd)
     if wd:
         meta['wd'] = wd
+    try:
+        sp = speakers(pd)
+    except Exception as e:   # noqa: BLE001 — מידע משני; בלעדיו העורך מציג תוויות כמו קודם
+        print('· הדוברים לא נוספו (' + type(e).__name__ + ')')
+        sp = {}
+    if sp:
+        meta['sp'] = sp
     Path(a.out).write_text(json.dumps(meta, separators=(',', ':')), encoding='utf-8')
-    print('✓ גל הקול: %d שנ׳, %d חילופי שוטים, %d מילים' % (len(pk) // R, len(meta['sh']), len(wd)))
+    print('✓ גל הקול: %d שנ׳, %d חילופי שוטים, %d מילים, %d דוברים' % (len(pk) // R, len(meta['sh']), len(wd), len(sp)))
     return 0
 
 

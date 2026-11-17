@@ -9,6 +9,7 @@
       מגיעים מ־studio.js ב־ctx — המודול לא קורא לרשת בעצמו. */
 
 import { lineDir, langDir } from './studioplay.js';   // כיוון לכל שורה בשפת המקור — אותו כלל כמו בכתוביות של הנגן (שפות משולבות)
+import { spkIdx, spkView, spkRow, spkSheet, avatar, mainLg } from './studiospk.js';
 
 /* ---------- 1. vi.json — אותה הסכמה כמו בשרתון (נספח 19.1) ---------- */
 export const VI_V = 'snb.video-analysis/1';
@@ -23,9 +24,10 @@ export const VI_DROP = ['duplicate', 'decorative', 'agenda', 'title_only', 'spon
 export const VI_GENRES = ['academic_lecture', 'course_module', 'business_webinar', 'conference_talk', 'panel', 'interview_podcast', 'software_tutorial', 'product_demo', 'workshop', 'investor_presentation', 'other'];
 const VI_ASRQ = ['high', 'med', 'low'];
 const VI_CAP = { evidence: 20000, slides: 3000, ocr: 30000, segments: 2000, chapters: 400, items: 3000, ledger: 40000, states: 40, refs: 24, take: 7, warn: 16 };
-const VI_TXT = { text: 2000, q: 600, title: 300, sum: 3000, adds: 2000, vtitle: 300 };
+const VI_TXT = { text: 2000, q: 600, title: 300, sum: 3000, adds: 2000, vtitle: 300, spk: 40 };
+const SPK_MAX = 20;   // 16/11/2026: דוברים (speakers) — עד 20
 const ID = { e: /^e\d{1,6}$/, s: /^s\d{1,5}$/, o: /^o\d{1,5}\.\d{1,4}$/, c: /^c\d{1,4}$/, n: /^n\d{1,5}$/ };
-const VI_KEYS = ['v', 'pv', 'lang', 'genre', 'video', 'evidence', 'slides', 'ocr', 'segments', 'chapters', 'items', 'briefing', 'thesis', 'big', 'ledger', 'quality'];
+const VI_KEYS = ['v', 'pv', 'lang', 'genre', 'video', 'evidence', 'speakers', 'slides', 'ocr', 'segments', 'chapters', 'items', 'briefing', 'thesis', 'big', 'ledger', 'quality'];
 const SPK_RE = /^S\d{1,2}$/, KIND_RE = /^[a-z][a-z_]{0,15}$/, LANG_RE = /^[a-z]{2,3}$/, VSRC_RE = /^[a-z]{1,8}$/;
 
 const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
@@ -42,6 +44,13 @@ export function normVi(o) {
   const out = { v: VI_V, pv: Number.isInteger(o.pv) && o.pv >= 1 && o.pv <= 999 ? o.pv : 1 };
   const lg = isObj(o.lang) ? o.lang : {};
   out.lang = { src: VI_LANGS.includes(lg.src) ? lg.src : 'en', out: 'he' };
+  for (const k of ['sp', 'scr']) {   // 16/11/2026: השפות המדוברות (ציר השפות) ושפות הטקסט על המסך — [{lg, sh}], עד 4
+    const xs = [];
+    for (const x of lst(lg[k], 8)) {
+      if (isObj(x) && typeof x.lg === 'string' && LANG_RE.test(x.lg) && fin(x.sh, 0, 1) && x.sh > 0 && !xs.some((y) => y.lg === x.lg)) xs.push({ lg: x.lg, sh: r3(x.sh) });
+    }
+    if (xs.length) out.lang[k] = xs.slice(0, 4);
+  }
   out.genre = VI_GENRES.includes(o.genre) ? o.genre : 'other';
   const vd = isObj(o.video) ? o.video : {};
   out.video = { dur: fin(vd.dur, 0, 86400) ? r3(vd.dur) : 0 };
@@ -53,16 +62,37 @@ export function normVi(o) {
     const sp = isObj(e) && ID.e.test(String(e.id || '')) && span(e), t = isObj(e) && txt(e.text, VI_TXT.text);
     if (!sp || t == null) continue;
     const x = Object.assign({ id: e.id }, sp, { spk: SPK_RE.test(String(e.spk || '')) ? e.spk : 'S1', text: t });
+    if (LANG_RE.test(String(e.lg || ''))) x.lg = e.lg;   // 16/11/2026: יחידה בשפה אחרת משפת התמלול (ציר השפות)
     if (fin(e.conf, 0, 1)) x.conf = r3(e.conf);
     if (Number.isInteger(e.w0) && Number.isInteger(e.w1) && e.w0 >= 0 && e.w1 >= e.w0) { x.w0 = e.w0; x.w1 = e.w1; }
     out.evidence.push(x);
   }
+  /* 16/11/2026 (דוברים בתמליל): [{spk, sh, t, lg: [{lg, sh}], g: m|f|u, gs, name, role}] — תווית אחת פעם אחת, עד SPK_MAX;
+     17/11/2026 (מי מדבר): + orig, ttl, act, kb (1 — מהידע הכללי של המודל) */
+  const sps = [];
+  for (const d of lst(o.speakers, SPK_MAX)) {
+    if (!isObj(d) || !SPK_RE.test(String(d.spk || '')) || !fin(d.sh, 0, 1) || sps.some((y) => y.spk === d.spk)) continue;
+    const x = { spk: d.spk, sh: r3(d.sh) };
+    if (fin(d.t, 0, 86400)) x.t = r3(d.t);
+    const lgs = [];
+    for (const z of lst(d.lg, 8)) if (isObj(z) && LANG_RE.test(String(z.lg || '')) && fin(z.sh, 0, 1) && z.sh > 0 && !lgs.some((y) => y.lg === z.lg)) lgs.push({ lg: z.lg, sh: r3(z.sh) });
+    if (lgs.length) x.lg = lgs.slice(0, 4);
+    x.g = d.g === 'm' || d.g === 'f' ? d.g : 'u';
+    if (x.g !== 'u' && (d.gs === 'text' || d.gs === 'voice')) x.gs = d.gs;
+    for (const k of ['name', 'role', 'orig', 'ttl', 'act']) { const v = txt(d[k], VI_TXT.spk); if (v) x[k] = v; }   // 17/11/2026: מי מדבר — המקור, התואר והשחקן
+    if (d.kb === 1 && (x.name || x.ttl || x.act)) x.kb = 1;
+    sps.push(x);
+  }
+  if (sps.length) out.speakers = sps;
   out.ocr = [];
   for (const r of lst(o.ocr, VI_CAP.ocr)) {
     const t = isObj(r) && ID.o.test(String(r.id || '')) && txt(r.text, VI_TXT.text);
     if (t == null || t === false) continue;
     const x = { id: r.id, text: t, conf: fin(r.conf, 0, 100) ? Math.round(r.conf) : 0, lang: LANG_RE.test(String(r.lang || '')) ? r.lang : 'und' };
     if (r.dir === 'rtl' || r.dir === 'ltr') x.dir = r.dir;
+    // 16/11/2026: שורה מעורבת — השפות שבה לפי הסדר (2–4, בלי כפילות), כמו vicheck.py
+    const lg = [...new Set((Array.isArray(r.lgs) ? r.lgs.slice(0, 8) : []).filter((v) => typeof v === 'string' && LANG_RE.test(v)))].slice(0, 4);
+    if (lg.length >= 2) x.lgs = lg;
     out.ocr.push(x);
   }
   const ocrIds = new Set(out.ocr.map((x) => x.id));
@@ -181,6 +211,37 @@ export function chapterSlides(v, ix, c, its) {
 }
 const words = (s) => (String(s || '').match(/[\p{L}\p{N}][\p{L}\p{N}'’.\-]*/gu) || []).length;
 /* זמן הקריאה של הדף (כ־200 מילים לדקה), לפחות דקה */
+/* 16/11/2026: שם שפה בשפת הממשק (Intl), והשפות בשורת הפתיחה — "עברית ואנגלית" רק כשמדברים ביותר משפה אחת (lang.sp,
+   ‏≥ 5% מהדיבור), ו"בשקפים: …" רק כשבשקפים כמה שפות או שפה אחרת מהדיבור (lang.scr). אחרת — כמו קודם ("בעברית") */
+const uiLg = () => (typeof document !== 'undefined' && document.documentElement.lang === 'en' ? 'en' : 'he');
+export function lgName(c, ui) {
+  try { return new Intl.DisplayNames([ui || uiLg()], { type: 'language' }).of(c) || c; } catch (e) { return c; }
+}
+export const langsOf = (xs, min = 0.05) => (xs || []).filter((x) => x.sh >= min).slice(0, 3).map((x) => x.lg);
+export function langLine(v, T, ui) {
+  const sp = langsOf(v.lang.sp), sc = langsOf(v.lang.scr), nm = (c) => lgName(c, ui);
+  const list = (a) => (a.length > 2 ? T('studioViLang3', { a: nm(a[0]), b: nm(a[1]), c: nm(a[2]) }) : T('studioViLang2', { a: nm(a[0]), b: nm(a[1]) }));
+  const said = sp.length > 1 ? list(sp) : v.lang.src === 'he' ? T('studioViInHe') : T('studioViInEn');
+  const shown = sc.length > 1 ? list(sc) : sc.length === 1 && sc[0] !== (sp[0] || v.lang.src) ? nm(sc[0]) : '';
+  return said + (shown ? ' · ' + T('studioViScr', { l: shown }) : '');
+}
+/* 16/11/2026 (דוברים בכל תמליל): הדוברים — מ־speakers של העובד; ניתוח ישן (בלי) — מהיחידות של התמליל עצמו: סדר ההופעה,
+   החלק מהדיבור והשפות (יחידה בלי lg — בשפת התמליל), בלי מגדר ושם */
+export function spkOf(v) {
+  if (v.speakers && v.speakers.length) return v.speakers;
+  const m = new Map();
+  let tot = 0;
+  for (const e of v.evidence.slice().sort((a, b) => a.t0 - b.t0)) {
+    const d = Math.max(0, e.t1 - e.t0), lg = e.lg || v.lang.src;
+    let x = m.get(e.spk);
+    if (!x) { x = { spk: e.spk, t: 0, l: new Map() }; m.set(e.spk, x); }
+    x.t += d; x.l.set(lg, (x.l.get(lg) || 0) + d); tot += d;
+  }
+  return [...m.values()].map((x) => ({ spk: x.spk, sh: tot ? r3(x.t / tot) : 0, t: r3(x.t), g: 'u',
+    lg: [...x.l].map(([lg, d]) => ({ lg, sh: x.t ? r3(d / x.t) : 0 })).sort((a, b) => b.sh - a.sh) }));
+}
+/* מפתח הצבע של דובר: השם (אותו אדם — אותו צבע בכל העבודות, עד 20 תווים כמו spkc), בלי שם — התווית (בעבודה הזו בלבד) */
+export const spkKey = (name, k) => String(name || k).slice(0, 20);
 export function readMin(v) {
   let w = 0;
   for (const x of v.items) w += words(x.text);
@@ -235,7 +296,8 @@ export const placeMode = (pl, now) => (!pl ? '' : now - pl.at > VI_QUIET_MS && p
 
 /* ---------- 4. הדף ----------
    ctx: { T, h, btn, ico, fmtT, title, v (מנורמל), src: שפת המקור, place, now(), scroller(), flash(m), ro (קריאה בלבד — share.js),
-          mkPlayer() → createPlayer (או null), slideUrl(slide) → Promise<כתובת blob|''>, onUx(k, v), onVf(id, why), onPlace(pl), t0 }
+          mkPlayer() → createPlayer (או null), slideUrl(slide) → Promise<כתובת blob|''>, onUx(k, v), onVf(id, why), onPlace(pl), t0,
+          16/11/2026 — הדוברים: spkOv() → { S1: { n, r, g } }, spkc() → { מפתח: 0–5 }, onSpk(k, patch), onSpkColor(מפתח, i) }
    מחזיר { el, closeSheet() → true אם הייתה פתוחה, destroy() }. הדף נבנה פעם אחת לפתיחה; studio.js מצרף את אותו el בכל ציור */
 const WHY = ['wrong', 'ts', 'missing', 'attrib', 'overgen', 'shallow', 'unclear', 'long', 'other'];
 export function renderVi(ctx) {
@@ -245,6 +307,25 @@ export function renderVi(ctx) {
   const opened = new Set();
   const t0 = Date.now();
   let ctl = null, sh = null, alive = true, lastY = 0, plT = 0, curItem = null, visT = t0, rdMs = 0, txRows = null;
+  /* 16/11/2026: הדוברים — מה שהעובד מצא + מה ששינית (ctx.spkOv: { S1: { n, r, g } }), הצבע לפי ctx.spkc */
+  const sp0 = spkOf(v), evS = v.evidence.slice().sort((a, b) => a.t0 - b.t0);
+  const nm = (c) => lgName(c);
+  let spk = [], spkBy = new Map(), txOnly = '', nowS = null;
+  function spkModel() {
+    const ov = (ctx.spkOv && ctx.spkOv()) || {};
+    const base = sp0.map((d) => {
+      const o = ov[d.spk] || {};
+      /* 17/11/2026 (מי מדבר): התואר, השחקן והשם המקורי — של מי שהעובד מצא; שינית את השם — הם כבר לא שלו */
+      const mine = 'n' in o && o.n !== (d.name || '');
+      return { k: d.spk, name: 'n' in o ? o.n : d.name || '', role: 'r' in o ? o.r : d.role || '', g: o.g || d.g, gs: o.g ? 'me' : d.gs, sh: d.sh, t: d.t, lg: d.lg,
+        ...(mine ? {} : { ttl: d.ttl, act: d.act, orig: d.orig, kb: d.kb }) };
+    });
+    const idx = spkIdx(base.map((d) => spkKey(d.name, d.k)), (ctx.spkc && ctx.spkc()) || {});
+    spk = base.map((d, i) => spkView(T, d, i + 1, idx.get(spkKey(d.name, d.k))));
+    spkBy = new Map(spk.map((s) => [s.k, s]));
+  }
+  spkModel();
+  const evAt = (t) => { let lo = 0, hi = evS.length - 1, r = null; while (lo <= hi) { const m = (lo + hi) >> 1; if (evS[m].t0 <= t) { r = evS[m]; lo = m + 1; } else hi = m - 1; } return r; };
   const el = h('div', 'st-vi');
   el.dir = 'rtl';
   const tm = (t) => { const b = h('bdi', 'st-vi-t', fmtT(t)); b.dir = 'ltr'; return b; };
@@ -278,6 +359,9 @@ export function renderVi(ctx) {
   const mini = h('div', 'st-vi-mini');
   mini.hidden = true;
   const nowL = h('span', 'st-vi-now');
+  const nowSp = h('span', 'st-vi-nowsp'), nowCh = h('span', 'st-vi-nowch');   // 16/11/2026: מי מדבר עכשיו (כשיש יותר מדובר אחד) · הפרק
+  nowSp.hidden = true;
+  nowL.append(nowSp, nowCh);
   const mrow = h('div', 'st-vi-mrow');
   const backB = btn('st-linkb', T('studioViBackTxt'), () => {
     const on = curItem && ptEls.get(curItem);
@@ -300,6 +384,14 @@ export function renderVi(ctx) {
     ctl.seek(Math.max(0, t)); ctl.play();
     ctx.onUx('pl');
   }
+  function paintNow() {
+    nowSp.textContent = '';
+    nowSp.hidden = !nowS;
+    if (!nowS) { delete nowL.dataset.spk; return; }
+    nowL.dataset.spk = String(nowS.c);
+    const b = h('b', null, nowS.name); b.dir = 'auto';
+    nowSp.append(avatar(h, nowS, 'sm'), b);
+  }
   function closePlayer() {
     if (ctl) { try { ctl.destroy(); } catch (e) {} ctl = null; }
     plBox.textContent = ''; mini.hidden = true; curItem = null;
@@ -309,7 +401,9 @@ export function renderVi(ctx) {
   function paint() {
     if (!ctl) return;
     const t = ctl.video.currentTime || 0, ci = chapterAt(v, t);
-    nowL.textContent = ci >= 0 ? v.chapters[ci].title : '';
+    nowCh.textContent = ci >= 0 ? v.chapters[ci].title : '';
+    const e = spk.length > 1 ? evAt(t) : null, s = e ? spkBy.get(e.spk) || null : null;
+    if (s !== nowS) { nowS = s; paintNow(); }
     const id = activeAt(anchors, t);
     if (id !== curItem) {
       for (const a of ptEls.values()) for (const x of a) x.classList.remove('on');
@@ -325,7 +419,7 @@ export function renderVi(ctx) {
   const hd = h('header', 'st-vi-hd');
   hd.append(h('h1', 'st-large clamp', ctx.title || (v.video.title || '')));   // כמו דף העבודה
   const meta = h('div', 'st-vi-meta');
-  meta.append(tm(v.video.dur), ' · ' + (v.lang.src === 'he' ? T('studioViInHe') : T('studioViInEn')) + ' · ' + T('studioViRead', { n: readMin(v) }));
+  meta.append(tm(v.video.dur), ' · ' + langLine(v, T) + ' · ' + T('studioViRead', { n: readMin(v) }));
   const trust = h('div', 'st-vi-trust');
   const tq = h('div');   // שתי שורות קבועות — בלי נקודה מפרידה שנשארת לבד בקצה שורה
   if (v.quality.items > 0) { const b = h('b'); const nn = h('bdi', null, v.quality.sup + '/' + v.quality.items); nn.dir = 'ltr'; b.dir = 'auto'; b.append(nn, ' ' + T('studioViSupL')); tq.append(b, h('span', 'st-vi-dot', '·')); }   // auto: בממשק באנגלית — כל פריט בסדר שלו בתוך הדף (rtl)
@@ -347,6 +441,22 @@ export function renderVi(ctx) {
     const rb = btn('st-btn tint sm st-vi-resume', T('studioViResume', { t: fmtT(ctx.place.t) }), () => { rb.remove(); restore(ctx.place); playAt(ctx.place.t); }, 'vi-resume');
     el.append(rb);
   }
+
+  /* 16/11/2026: הדוברים — מי, התפקיד, והחלק מהדיבור; נגיעה = גיליון הדובר (המגדר, השפות, הצבע).
+     17/11/2026 (המשתמש: "בתחילת הניתוח — מי הוא בדיוק, שהמשתמש תמיד יבין במי מדובר"): כשידוע מי מישהו (שם, תואר או
+     תפקיד) — "מי מדבר" בראש הדף, לפני השורה האחת; אחרת — "דוברים" בסוף כמו קודם */
+  const spkSec = h('div', 'st-spk-sec0');
+  const spkTop = spk.some((s) => s.named || s.ttl || s.role || s.act);
+  function paintCard() {
+    spkSec.textContent = '';
+    if (!spk.length) return;
+    spkSec.append(sec(spkTop ? T('studioSpkWho') : T('studioSpkT')));
+    const ls = h('div', 'st-list st-spk-list');
+    for (const s of spk) ls.append(spkRow({ T, h, btn, s, nm, k: 'spk:' + s.k, chev: ctx.ico('chev', 'st-chev'), onOpen: () => openSpk(s.k) }));
+    spkSec.append(ls);
+  }
+  paintCard();
+  if (spkTop) el.append(spkSec);
 
   /* השורה האחת והנקודות */
   if (br.one || br.pts.length) {
@@ -438,27 +548,61 @@ export function renderVi(ctx) {
     el.append(ul);
   }
 
-  /* התמליל המלא — מקופל; השורות נבנות בפתיחה הראשונה. נגיעה בשורה = ניגון ממנה */
+  if (!spkTop) el.append(spkSec);   // הדוברים — בסוף, כשלא ידוע עליהם כלום (למעלה — "מי מדבר")
+
+  /* התמליל המלא — מקופל; השורות נבנות בפתיחה הראשונה. נגיעה בשורה = ניגון ממנה.
+     16/11/2026: כשמדברים כמה — תור לכל דובר (העיגול והשם בראש, קו בצבע שלו לאורך השורות); שורה בשפה שאינה השפה
+     העיקרית של הדובר — תג השפה; "רק X" (מהגיליון) — רק השורות שלו, עם שבב לניקוי */
+  let txD = null, txBox = null;
   if (v.evidence.length) {
-    const d = h('details', 'st-list st-vi-tx');
+    const d = txD = h('details', 'st-list st-vi-tx');
     const s = h('summary', 'st-row'), l = h('span', 'st-l'), chv = ctx.ico('chev', 'st-chev');
     l.append(h('b', null, T('studioViTx'))); s.append(l, chv);
     d.append(s);
     d.addEventListener('toggle', () => {
       chv.classList.toggle('open', d.open);
-      if (!d.open || txRows) return;
-      const box = srcTxt('div', 'st-vi-txb', null);
-      txRows = v.evidence.slice().sort((a, b) => a.t0 - b.t0).slice(0, 3000).map((e) => {
-        const r = btn('st-vi-txr', null, () => playAt(e.t0), 'tx:' + e.id);
-        const sp = h('span', null, e.text); sp.dir = lineDir(e.text, dir);   // שורת תמליל בשפה אחרת (עברית בסרטון באנגלית) — בכיוון שלה
-        r.append(tm(e.t0), sp);
-        box.append(r);
-        return { t: e.t0, el: r };
-      });
-      d.append(box);
-      if (ctl) paint();
+      if (!d.open || txBox) return;
+      buildTx();
     });
     el.append(d);
+  }
+  function buildTx() {
+    const box = srcTxt('div', 'st-vi-txb', null), rows = [];
+    const turns = spk.length > 1 && !txOnly;
+    if (txOnly && spkBy.has(txOnly)) {
+      const s = spkBy.get(txOnly);
+      const chip = btn('st-chip on st-spk-only', null, () => { txOnly = ''; buildTx(); }, 'spk-all');
+      chip.dataset.spk = String(s.c); chip.dir = 'rtl';
+      const lb = h('span', null, T('studioSpkOnly', { n: s.name })); lb.dir = 'auto';
+      chip.append(avatar(h, s, 'sm'), lb, ctx.ico('x'));
+      chip.setAttribute('aria-label', T('studioSpkAll'));
+      box.append(chip);
+    }
+    let turn = null, prev = '';
+    for (const e of evS.slice(0, 3000)) {
+      if (txOnly && e.spk !== txOnly) continue;
+      const s = spkBy.get(e.spk);
+      if (turns && s && (e.spk !== prev || !turn)) {
+        turn = h('div', 'st-spk-turn'); turn.dataset.spk = String(s.c);
+        const hd = h('div', 'st-spk-hd'), n = h('b', 'st-spk-nm', s.name); n.dir = 'auto';
+        hd.append(avatar(h, s, 'sm'), n);
+        turn.append(hd); box.append(turn);
+        prev = e.spk;
+      }
+      const r = btn('st-vi-txr', null, () => playAt(e.t0), 'tx:' + e.id);
+      const sp = h('span', null, e.text); sp.dir = lineDir(e.text, dir);   // שורת תמליל בשפה אחרת (עברית בסרטון באנגלית) — בכיוון שלה
+      if (e.lg) sp.lang = e.lg;
+      r.append(tm(e.t0));
+      const lg = e.lg || v.lang.src;
+      if (s && s.lg.length && lg !== mainLg(s)) r.append(h('span', 'st-spk-lg', nm(lg)));
+      r.append(sp);
+      (turns && turn ? turn : box).append(r);
+      rows.push({ t: e.t0, el: r });
+    }
+    if (txBox) txBox.remove();
+    txD.append(box);   // התיבה היא הילד האחרון של details (אחרי summary)
+    txBox = box; txRows = rows;
+    if (ctl) paint();
   }
   if (!v.items.length) el.append(h('div', 'st-empty st-empty-sm', T('studioViNone')));
 
@@ -540,6 +684,57 @@ export function renderVi(ctx) {
     document.body.append(sh);
   }
   function closeSheet() { if (!sh) return false; const was = sh.isConnected; sh.remove(); sh = null; return was; }   // rsClose של הסטודיו יכול להסיר אותה קודם
+
+  /* 16/11/2026: גיליון הדובר — שם, תפקיד, מגדר וצבע נשמרים (ctx.onSpk / ctx.onSpkColor); "רק X בתמליל". בדף השיתוף — לקריאה */
+  function openSpk(k) {
+    const s = spkBy.get(k);
+    if (!s) return;
+    closeSheet();
+    const edit = !ctx.ro && !!ctx.onSpk;
+    const o = spkSheet({ T, h, btn, s: Object.assign({}, s), nm, max: VI_TXT.spk, ro: !edit,
+      onName: (x) => setSpk(k, { n: x }), onRole: (x) => setSpk(k, { r: x }), onG: (g) => setSpk(k, { g }),
+      onColor: edit && ctx.onSpkColor ? (i) => setColor(k, i) : null,
+      act: spk.length > 1 ? { label: T('studioSpkOnly', { n: s.name }), fn: () => onlySpk(k) } : null,
+      actLabel: (x) => T('studioSpkOnly', { n: x.name }), onClose: () => { if (sh === o.el) sh = null; } });
+    sh = o.el;
+    document.body.append(sh);
+  }
+  function setSpk(k, patch) {
+    const old = spkBy.get(k);
+    if (!old || !ctx.onSpk) return null;
+    if ('n' in patch && patch.n === (old.named ? old.name : '')) return null;
+    if ('r' in patch && patch.r === old.role) return null;
+    const ck = spkKey(old.named ? old.name : '', k), pref = ((ctx.spkc && ctx.spkc()) || {})[ck];
+    ctx.onSpk(k, patch);
+    spkModel();
+    const nx = spkBy.get(k);
+    if ('n' in patch && pref != null && ctx.onSpkColor) {   // הצבע שבחרת עובר עם השם החדש
+      const nk = spkKey(nx.named ? nx.name : '', k);
+      if (nk !== ck && ((ctx.spkc && ctx.spkc()) || {})[nk] == null) { ctx.onSpkColor(nk, pref); spkModel(); }
+    }
+    refresh();
+    return spkBy.get(k);
+  }
+  function setColor(k, i) {
+    const s = spkBy.get(k);
+    if (!s || !ctx.onSpkColor || s.c === i) return null;
+    const other = spk.find((x) => x.k !== k && x.c === i);   // הצבע תפוס — מתחלפים (כל דובר בצבע אחר)
+    if (other) ctx.onSpkColor(spkKey(other.named ? other.name : '', other.k), s.c);
+    ctx.onSpkColor(spkKey(s.named ? s.name : '', k), i);
+    spkModel(); refresh();
+    return spkBy.get(k);
+  }
+  function onlySpk(k) {
+    if (!txD) return;
+    txOnly = k;
+    if (txD.open) buildTx(); else txD.open = true;   // הפתיחה בונה (toggle)
+    (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : setTimeout)(() => { if (txD.scrollIntoView) txD.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
+  }
+  function refresh() {
+    paintCard();
+    if (txBox) buildTx();
+    if (nowS) { nowS = spkBy.get(nowS.k) || null; paintNow(); }
+  }
 
   /* זיכרון המקום */
   function placeNow() {
