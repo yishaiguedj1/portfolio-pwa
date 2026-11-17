@@ -64,7 +64,17 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(!/close|'x'|ico\('x'\)|dismiss/.test(card), 'בכרטיס אין כפתור סגירה');
   ok(/jobStySet\(rec, \{ bx: 1 \}\)/.test(card) && /bx: 1 \}\)\); go\('rr', rec\.id\)/.test(card), '"להפעיל רקע כהה" — בעבודה עצמה; בסוף — הפקה מחדש עם רקע כהה');
   ok(/'job\|' \+ \(r \? one\(r\) \+ hsSig\(r\)/.test(sj), 'הכרטיס מופיע באמצע העבודה ברגע שהבדיקה המהירה מצאה (מפתח הציור)');
-  ok(/const hid = !!bo && hsPlayBurned\(rec\);/.test(sj) && /const src = srcId && !hid \?/.test(sj), 'הנגן: הקובץ הצרוב כשהוסתרו');
+  ok(/const hp = hsPick\(rec, rrJobs\.get\(rec\.id\)\);/.test(sj) && /const src = srcId && !hb \?/.test(sj), 'הנגן: הקובץ הצרוב כשהוסתרו (של העבודה או של ההפקה מחדש)');
+  ok(/const outs = ph0 === 'done' \? hsOuts\(/.test(sj), 'דף העבודה: הקובץ המוסתר במקום הישן');
+
+  /* ---------- 5. אחרי הפקה מחדש עם רקע כהה (17/11/2026, "הסתרת הכתוביות לא עובדת") ---------- */
+  const parent = job('done');
+  parent.srv.out = [{ k: 'same', id: 'p1' }, { k: 'srt', id: 'p2' }, { k: 'mkv', id: 'p3' }];
+  const rrd = rr('done', { srv: Object.assign(v(120, 0, 1), { out: [{ k: 'same', id: 'r1' }, { k: 'srt', id: 'r2' }] }) });
+  ok(ST.hsPick(parent, rrd) === 'rr', 'הנגן מנגן את הקובץ המוסתר של ההפקה מחדש');
+  ok(ST.hsOuts(parent.srv.out, rrd).map((o) => o.id).join() === 'r1,p2,p3', 'התוצרים: הסרטון המוסתר במקום הישן; הכתוביות וה־MKV — של העבודה');
+  ok(ST.hsOuts(parent.srv.out, rr('done')).map((o) => o.id).join() === 'p1,p2,p3' && ST.hsPick(parent, rr('running')) === '', 'בלי הסתרה בהפקה מחדש — כרגיל');
+  ok(ST.hsState(parent, rrd, true).rr === 1, 'הכרטיס יודע שהתוצאה מההפקה מחדש');
   for (const kk of ['studioHsT', 'studioHsS', 'studioHsGo', 'studioHsOnT', 'studioHsOnS', 'studioHsLate', 'studioHsRrS', 'studioHsRr', 'studioHsGone', 'studioHsRrRun', 'studioHsDone', 'studioHsChk', 'studioHsBadT', 'studioHsBad', 'studioHsNoChk']) {
     ok(sj.includes("'" + kk + "'"), 'בשימוש: ' + kk);
   }

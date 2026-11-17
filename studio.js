@@ -515,13 +515,25 @@ export function hsState(rec, rr, ed) {
   if (sv.state !== 'done') return { k: bx ? 'on' : ed ? 'ask' : 'late', n: 0 };
   const ver = (v) => (v.n > 0 ? { k: v.ok ? 'ok' : 'bad', n: v.n } : { k: 'nochk', n: 0 });
   const rs = rr && rr.srv;
-  if (rs && rs.state === 'done' && rs.hs && rs.hs.v) return ver(rs.hs.v);   // ההפקה האחרונה — היא מה שיש לך עכשיו
+  if (rs && rs.state === 'done' && rs.hs && rs.hs.v) return Object.assign(ver(rs.hs.v), { rr: 1 });   // ההפקה האחרונה — היא מה שיש לך עכשיו
   if (rs && ['new', 'queued', 'running'].includes(rs.state) && rr.spec && rr.spec.sty && rr.spec.sty.bx) return { k: 'rrrun', n: 0 };
   if (bx) return sv.hs.v ? ver(sv.hs.v) : null;
   return { k: sv.sx > 0 ? 'gone' : 'rr', n: 0 };
 }
 /* הנגן: הכתוביות הצרובות הוסתרו בקובץ — מנגנים אותו (מעל המקור הן היו מבצבצות). אחרי עריכה — המקור, כי בצרוב הנוסח הישן */
 export const hsPlayBurned = (rec) => !!(rec && rec.srv && rec.srv.hs && rec.srv.hs.v && rec.spec && rec.spec.sty && rec.spec.sty.bx && !(rec.srv.ev > 0));
+/* 17/11/2026 (המשתמש: "הסתרת הכתוביות לא עובדת"): ההפקה מחדש עם רקע כהה הסתירה, אבל דף העבודה המשיך להציע להורדה ולנגן
+   את הקובץ הישן (עם כפל הכתוביות). מי מחזיק את הקובץ המוסתר: 'rr' = ההפקה מחדש האחרונה · 'self' = העבודה עצמה · '' = אין */
+const hsRrDone = (rr) => { const rs = rr && rr.srv; return !!(rs && rs.state === 'done' && rs.hs && rs.hs.v); };
+export const hsPick = (rec, rr) => (hsRrDone(rr) && burnedOut(rr) ? 'rr' : hsPlayBurned(rec) ? 'self' : '');
+/* התוצרים בדף העבודה: כשההפקה מחדש הסתירה — הסרטונים הצרובים שלה במקום הצרובים הישנים (MKV וקבצי הכתוביות — של העבודה;
+   ב־MKV הכתוביות רכות מעל המקור, אין בו הסתרה) */
+const HS_BURN = ['compact', 'same', 'small'];
+export function hsOuts(outs, rr) {
+  if (!hsRrDone(rr)) return outs;
+  const rv = (rr.srv.out || []).filter((o) => HS_BURN.includes(o.k));
+  return rv.length ? rv.concat(outs.filter((o) => !HS_BURN.includes(o.k))) : outs;
+}
 export function afterAdvice(rec, o) {
   const out = [], sv = rec && rec.srv, x = o || {};
   if (!sv || sv.state !== 'done' || sv.kind === 'rr') return out;
@@ -8574,8 +8586,9 @@ async function playLoad(rec, phFile) {
       me.wt = bothTrack(watchTrack(rec, me.ctl.video), playStats(rec, me.ctl));
       me.st = 'ok'; plPaint(); return;
     }
-    const hid = !!bo && hsPlayBurned(rec);   // 16/11/2026: הכתוביות הצרובות הוסתרו בקובץ שנבדק — הוא, לא המקור עם שכבה מעליו
-    const src = srcId && !hid ? net.mediaUrl(srcId) : '', fb = bo ? net.mediaUrl(bo.id) : '';
+    const hp = hsPick(rec, rrJobs.get(rec.id));   // 16/11/2026: הכתוביות הצרובות הוסתרו בקובץ שנבדק — הוא, לא המקור עם שכבה מעליו
+    const hb = hp === 'rr' ? burnedOut(rrJobs.get(rec.id)) : hp === 'self' ? bo : null;   // 17/11/2026: גם של ההפקה מחדש
+    const src = srcId && !hb ? net.mediaUrl(srcId) : '', fb = (hb || bo) ? net.mediaUrl((hb || bo).id) : '';
     if (!src && !fb) { me.st = 'err'; me.err = 'nosw'; plPaint(); return; }
     me.cues = cues; me.iss = issuesList(cues);
     me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: me.iss, chapters: rec.chap || [], T,
@@ -9965,7 +9978,7 @@ function pageJob(p) {
   const quiet = ph0 === 'ready' && ['', 'worker_not_ready', 'conn_missing'].includes(rec.up.wait);
   // 10/10/2026: עבודה שהסתיימה — התוצרים עצמם במקום כרטיס "התרגום מוכן!" שני (הראש כבר אומר את זה);
   // עד עכשיו הקישורים היו רק בתוך "פרטים טכניים" המקופלים
-  const outs = ph0 === 'done' ? ((rec.srv && rec.srv.out) || []).filter((o) => OUT_MAIN.includes(o.k)) : [];   // קבצי עזר (cues/vtt/ass) — לנגן ולעורך
+  const outs = ph0 === 'done' ? hsOuts(((rec.srv && rec.srv.out) || []).filter((o) => OUT_MAIN.includes(o.k)), rrJobs.get(rec.id)) : [];   // 17/11/2026: הקובץ המוסתר   // קבצי עזר (cues/vtt/ass) — לנגן ולעורך
   // 21/10/2026: התוצרים עלו והעובד עוד משלים ברקע (איכויות צפייה לנגן, עותק למאגר הלמידה) — הם כבר שלך, בלי לחכות
   const early = ph0 !== 'done' && rec.srv && rec.srv.state === 'running' ? (rec.srv.out || []).filter((o) => OUT_MAIN.includes(o.k)) : [];
   // 21/10/2026 (תוכנית השיפור 3.13ג): הכתוביות עולות לפני הצריבה — הנגן זמין עם הסרטון המקורי, בלי לחכות לצריבה
