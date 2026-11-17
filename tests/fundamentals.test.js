@@ -1272,13 +1272,15 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
       a23: { form: '10-K', filed: '2024-02-20', bs: sheet(['2023-12-31', '2022-12-31'], [['LongTermDebtNoncurrent', 'Long-term debt', [1150, 5]]], [9e4, null]) },
       // הגשה בלי שורות חוב במאזן — לא "0": הכלל של F7 נשאר
       a20: { form: '10-K', filed: '2021-02-20', bs: sheet(['2020-12-31', '2019-12-31'], [['AccountsPayableCurrent', 'Accounts payable', [40, 30]]]) },
+      // עמודות ריקות (אפס בכל שורה, גם בסך הנכסים) — Albemarle ‏10-Q ‏2015
+      z15: { form: '10-Q', filed: '2015-05-11', bs: sheet(['2015-03-31', '2014-03-31'], [['LongTermDebtNoncurrent', 'Long-term debt', [5, 0]]], [9e4, 0]) },
       bad: { form: '10-Q', filed: '2021-05-01', err: 'nobs' },
     };
     const m0 = F.normalizeSec(MC, [], face), m1 = F.normalizeSec(MC, [], face, have);
     ok(debt(m0, 2022) === 1100 && debt(m1, 2022) === 1323 && debt(m1, 2021) === 1150, '(24) המאזן של ההגשה: שורה שנעלמה ממאזן היום נספרת (‏1,100 + 223)');
     ok(debt(m1, 2023) === 1150 && debt(m1, 2020) === 950 && debt(m1, 2025) === 1250 && m1.bsfN >= 3, '(24) ביאור בלי סך נכסים לא דורס; הגשה בלי שורות חוב — הכלל של F7');
     const M = F.bsfDebt(have, 'USD');
-    ok(M.get('2022-12-31').form === '10-K' && M.get('2022-12-31').v === 1323e6 && !M.has('2020-12-31') && M.get('2023-03-31').v === 1130e6, '(24) bsfDebt: השנתי גובר על רבעוני מאוחר באותו תאריך');
+    ok(M.get('2022-12-31').form === '10-K' && M.get('2022-12-31').v === 1323e6 && !M.has('2020-12-31') && M.get('2023-03-31').v === 1130e6 && !M.has('2014-03-31'), '(24) bsfDebt: השנתי גובר על רבעוני מאוחר באותו תאריך');
     // pickStatements: FilingSummary ישן בלי MenuCategory (McDonald's ‏10-Q ‏2014) — הסוג מתוך LongName
     const OLDFS = '<FilingSummary><MyReports><Report><HtmlFileName>R1.htm</HtmlFileName><LongName>0001000 - Document - Document and Entity Information</LongName><ShortName>Document and Entity Information</ShortName></Report>'
       + '<Report><HtmlFileName>R2.htm</HtmlFileName><LongName>1001000 - Statement - Condensed Consolidated Balance Sheet</LongName><ShortName>Condensed Consolidated Balance Sheet</ShortName></Report>'

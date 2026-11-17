@@ -267,7 +267,8 @@ function bsfDebt(have, cur) {
     if (!dF || !dF.lines.length) continue;
     const a = x.bs.rows.find((r) => r.tag === 'Assets') || x.bs.rows.find((r) => r.tag === 'LiabilitiesAndStockholdersEquity');
     for (const [end, ci] of dF.cols) {
-      if (!a || a.v[ci] == null) continue; // עמודה בלי סך נכסים — ביאור, לא מאזן (Welltower)
+      // עמודה בלי סך נכסים — ביאור, לא מאזן (Welltower); ‏0 = עמודה ריקה (Albemarle ‏10-Q ‏2015: עמודות של 2014 עם אפסים בכל שורה)
+      if (!a || !a.v[ci]) continue;
       const ann = !/^10-Q/.test(x.form), b = per.get(end);
       if (!b || (ann && !b.ann) || (ann === b.ann && x.filed > b.filed)) per.set(end, { v: dF.tot.get(end), form: x.form, filed: x.filed, ann });
     }
