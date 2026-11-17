@@ -153,8 +153,9 @@ export const Q_HEIGHTS = [4320, 2160, 1440, 1080, 720, 480, 360, 240, 144];
 const C_RE = /^[A-Za-z0-9.-]{3,40}(,[A-Za-z0-9.-]{3,40})?$/;   // 22/10/2026: גם ac-3 / ec-3
 const FID = /^[A-Za-z0-9_-]{10,100}$/;
 /* מהשרתון (job.hl): הראשונה = המקור, מהגבוהה לנמוכה — כמו normHl בשרתון */
+// 17/11/2026: גם קובץ אחד (המקור בלבד) — זהה ל־normHl בשרתון
 export function normLadder(list, vid) {
-  if (!Array.isArray(list) || list.length < 2 || list.length > 8) return null;
+  if (!Array.isArray(list) || list.length < 1 || list.length > 8) return null;
   const out = [];
   for (const x of list) {
     if (!x || !FID.test(String(x.id || '')) || out.some((y) => y.id === x.id) || !C_RE.test(String(x.c || ''))) return null;
@@ -609,7 +610,8 @@ export function createPlayer(opts) {
 
   /* ---- איכות: hls.js על הקבצים שהעובד ארז (opts.ladder), ברירת מחדל = המקור ---- */
   let pq = normPq(opts.pq), hls = null, levels = [], autoNow = -1, mode = 'file', altsNow = [];
-  const ladder = Array.isArray(opts.ladder) && opts.ladder.length > 1 ? opts.ladder : null;
+  // 17/11/2026: איכות אחת (המקור בלבד) = HLS רק כשיש עותק קול לנגן; אחרת הקובץ כמו שהוא
+  const ladder = Array.isArray(opts.ladder) && (opts.ladder.length > 1 || (opts.ladder.length === 1 && opts.alt && (!Array.isArray(opts.alt) || opts.alt.length))) ? opts.ladder : null;
   function qNow() {
     if (mode !== 'hls' || !levels.length) return '';
     if (pq === 'auto') return T('studioPlAutoNow', { q: autoNow >= 0 && levels[autoNow] ? qLabel(levels[autoNow]) : '' }).replace(/\s*\(\)$/, '');
