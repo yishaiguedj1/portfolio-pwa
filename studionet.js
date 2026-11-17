@@ -823,12 +823,14 @@ export function createNet(env) {
     let tk = '';
     try { tk = await E.idToken(); } catch (e) {}
     if (!tk) return { ok: false, error: 'signin' };
-    let r;
-    try {
+    let r, ne = null;
+    for (let a = 0; a < 2; a++) { try {
       // 25/10/2026: learnUx נשלח גם כשהדף נסגר (pagehide) — keepalive כדי שהבקשה לא תבוטל עם הדף (גוף קטן, ≤64KB)
       r = await E.fetch(E.base() + (path || '/api/studio'), Object.assign({ method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, E.headers ? E.headers() : {}),
         body: JSON.stringify(Object.assign({}, body || {}, { op, idToken: tk })) }, op === 'learnUx' || op === 'fnl' ? { keepalive: true } : {}));
-    } catch (e) { return { ok: false, error: 'net' }; }
+      ne = null; break;
+    } catch (e) { ne = e; if (a === 0 && op === 'drive') await E.sleep(700); else break; } }   // 17/11/2026: הספרייה — ניסיון שני לגישה ל־Drive
+    if (ne) return { ok: false, error: 'net', detail: String((ne && ne.name) || '') + ':' + String((ne && ne.message) || '').slice(0, 60) };
     let j = null; try { j = await r.json(); } catch (e) {}
     return j && typeof j === 'object' ? j : { ok: false, error: 'http_' + r.status };
   }
@@ -844,7 +846,7 @@ export function createNet(env) {
   async function driveToken(force) {
     if (!force && dtok && dtok.exp - 120e3 > E.now()) return dtok.at;
     const j = await api('drive');
-    if (!j.ok || !j.token) { const e = new Error(j.error || 'drive'); e.code = j.error || 'drive'; e.fatal = j.error === 'not_connected' || j.error === 'revoked' || j.error === 'not_allowed'; throw e; }
+    if (!j.ok || !j.token) { const e = new Error(j.error || 'drive'); e.code = j.error || 'drive'; e.detail = j.detail || ''; e.fatal = j.error === 'not_connected' || j.error === 'revoked' || j.error === 'not_allowed'; throw e; }
     dtok = { at: j.token, exp: Math.min(j.exp || 0, E.now() + 3500e3) || E.now() + 3000e3 };
     return dtok.at;
   }

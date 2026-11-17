@@ -4,7 +4,7 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v806';
+const CACHE_NAME = 'portfolio-pwa-v807';
 const HASHES = {
   "./": "a4c10604dc53d9719855cb70d87ca9ff",
   "./index.html": "a4c10604dc53d9719855cb70d87ca9ff",
@@ -13,7 +13,7 @@ const HASHES = {
   "./invest-glass.css": "de7c2aa66cd09eac425d7b53793da42e",
   "./academy-glass.css": "ae0f0a4c37f00512734308010a546a77",
   "./desktop.css": "22dcb3bea6e645027d3146b31d66712a",
-  "./app.js": "8b04187cf01cbe2bd5ce2cc387ce7478",
+  "./app.js": "e5afb6eb824015d72ff1f5b9d9d5f4b8",
   "./returns.js": "afe0d262348852fd10982ef2d0239545",
   "./cloud.js": "d403f6c76884375dc9999b80660f1ddf",
   "./firebase-config.js": "a4adfadcd5fe3b79a29e9fa0eeb94df0",
@@ -79,7 +79,7 @@ const HASHES = {
   "./academy.html": "9c6de2f5fd2634d07d9c0e0a6dc9ebe7",
   "./academy-app.js": "8f943cfa4b1bbb60bc8d83d4304d9978",
   "./strings-academy.js": "c3ccfddd78371c77ba86ae835e8e6c58",
-  "./core.js": "fa82e8f59a92762887649a9c8976961e",
+  "./core.js": "b7680f18ab5fa48dcfbf1b21536e8de1",
   "./auth.js": "465d3bc983806d8a2f462e567725df21",
   "./shell.js": "04e4e9bb8b1a12538f4b12ac699dabd5",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -88,9 +88,9 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "4ef8b3e8c85ef3e109008a2327890272",
+  "./studio.js": "6a0099f66e6d08e7389380cc1d7fdc38",
   "./studio.css": "ab4dc1c26471a7a7762919295fdf4cb6",
-  "./studionet.js": "5cd5c6d4fd23fb3ed9adbbda0a55d336",
+  "./studionet.js": "199eb03aab38406c6468d539476bbda3",
   "./studioplay.js": "0b89b8c22e6e7b388bbb8c9a4820c64c",
   "./studiovi.js": "985efcace5223c3240673be8328b86b2",
   "./studiospk.js": "d2da9bbef05bf9bfcd5b14bfd24b476a",
