@@ -1315,7 +1315,7 @@ function stubFetch(text, status = 200) {
         const p = new URLSearchParams(opt.body || '');
         if (p.get('grant_type') === 'urn:ietf:params:oauth:grant-type:jwt-bearer' || p.get('assertion')) return J({ access_token: 'SA', expires_in: 3600 });
         if (p.get('grant_type') === 'authorization_code') return p.get('code') === 'GOOD' ? J(Object.assign({ access_token: 'AT1', expires_in: 3599, scope: grant.scope, id_token: idt }, grant.refresh ? { refresh_token: grant.refresh } : {})) : J({ error: 'invalid_grant' }, 400);
-        if (p.get('grant_type') === 'refresh_token') return grant.bad ? J({ error: 'invalid_grant' }, 400) : J({ access_token: 'AT2', expires_in: 3599 });
+        if (p.get('grant_type') === 'refresh_token') return grant.cli ? J({ error: 'invalid_client' }, 401) : grant.bad ? J({ error: 'invalid_grant' }, 400) : J({ access_token: 'AT2', expires_in: 3599 });
       }
       if (url.includes('oauth2.googleapis.com/revoke')) return J({});
       const m = url.match(/documents\/driveVault\/([A-Za-z0-9]+)/);
@@ -1356,6 +1356,10 @@ function stubFetch(text, status = 200) {
     store.delete('userUid00002');
     r = await run({ op: 'gdToken', idToken: U1 });
     ok(r.payload.ok && r.payload.access_token === 'AT2' && calls.some((c) => /refresh_token=RT-SECRET-1/.test(c.body)), 'גיבוי Drive: גישה זמנית חדשה מההרשאה השמורה');
+    grant.cli = true;
+    r = await run({ op: 'gdToken', idToken: U1 });
+    ok(r.statusCode === 200 && r.payload.ok === false && r.payload.error === 'gd_http_401' && r.payload.why === 'invalid_client' && store.has('userUid00001'), 'גיבוי Drive: Google דוחה את הלקוח — 200 עם הקוד והסיבה (502 הגיע לטלפון בלי CORS), הרשומה נשארת');
+    grant.cli = false;
     grant.refresh = '';
     r = await run({ op: 'gdConnect', idToken: U1, code: 'GOOD', redirect: RED });
     ok(r.payload.ok && store.get('userUid00001'), 'גיבוי Drive: חיבור חוזר בלי הרשאה קבועה חדשה — נשארת הקודמת');
