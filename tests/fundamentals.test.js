@@ -1490,5 +1490,31 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     const neg = F.bsfCf({ c: { form: '10-K', filed: '2011-02-20', cf: cf(['2010-12-31', '2009-12-31'], [['DepreciationAndAmortization', [100, -91]]]) } }, 'USD', TG);
     ok(neg.dep.get('2009-12-31').v === -91e6, '(27) bsfCf: פחת שלילי — כפי שהודפס');
   }
+  /* ---------- (28) שורות החוב במאזן — גל 3 סעיף 3 (debtFace): הערה עם סכום בסוגריים, תגית "…NetOfUnamortized…", "סך" של כל הקבוצות ---------- */
+  {
+    const sh = (rows) => ({ bs: { cols: [{ end: '2012-12-31' }], scale: { cur: 1e6, sh: 1e6 },
+      rows: [{ ns: 'us-gaap', tag: 'Assets', label: 'Total assets', total: true, v: [9e5] },
+        ...rows.map(([ns, tag, label, v, total]) => ({ ns, tag, label, v: [v], total: !!total })),
+        { ns: 'us-gaap', tag: 'LiabilitiesAndStockholdersEquity', label: 'Total liabilities and equity', total: true, v: [9e5] }] } });
+    const tot = (rows) => F.debtFace(sh(rows), 'USD').tot.get('2012-12-31') / 1e6;
+    // Goldman: תגית פרטית, ובתווית הערה "(includes $X at fair value)" — לא "fair value" של השורה
+    ok(tot([['gs', 'UnsecuredShortTermBorrowingsIncludingCurrentPortionOfUnsecuredLongTermBorrowings', 'Unsecured short-term borrowings, including the current portion of unsecured long-term borrowings (includes $19,067 and $17,595 at fair value)', 44304],
+      ['us-gaap', 'UnsecuredLongTermDebt', 'Unsecured long-term borrowings (includes $11,691 and $12,593 at fair value)', 167305]]) === 211609, '(28) Goldman: שתי השורות, גם עם הערת שווי הוגן');
+    // JPMorgan: ‏OtherShortTermBorrowings "Other borrowed funds (included $13,306 … at fair value)"
+    ok(tot([['us-gaap', 'CommercialPaper', 'Commercial paper', 55367], ['us-gaap', 'OtherShortTermBorrowings', 'Other borrowed funds (included $13,306 and $11,591 at fair value)', 26636],
+      ['us-gaap', 'LongTermDebt', 'Long-term debt (included $28,878 and $30,788 at fair value)', 249024]]) === 331027, '(28) JPMorgan: "Other borrowed funds" נספר');
+    // "(including current portion…)" בלי סכום — נשאר בתווית (הסיווג "קצר + חלויות" של debtCat)
+    const dl = F.debtFace(sh([['us-gaap', 'ShortTermBorrowings', 'Short-term debt (including current portion of long-term debt)', 500]]), 'USD').lines[0];
+    ok(/including current portion/.test(dl.label), '(28) הערה בלי סכום נשארת בתווית');
+    // Realty Income: ‏o:NotesPayableNetOfUnamortizedDiscount — חוב; ‏UnamortizedDebtIssuanceCosts / DebtInstrumentUnamortizedDiscount — לא
+    ok(tot([['us-gaap', 'LineOfCredit', 'Line of credit payable', 128], ['o', 'NotesPayableNetOfUnamortizedDiscount', 'Notes payable, net', 3185],
+      ['us-gaap', 'DebtInstrumentUnamortizedDiscount', 'Unamortized discount on notes', 12]]) === 3313, '(28) Realty Income: "…NetOfUnamortizedDiscount" נספר, הניכיון לא');
+    // Regions: ‏"Total short-term borrowings" + ‏"Long-term borrowings" ואז ‏"Total borrowed funds" — הסך במקום כולן, לא פעמיים
+    ok(tot([['us-gaap', 'OtherShortTermBorrowings', 'Other short-term borrowings', 500], ['us-gaap', 'ShortTermBorrowings', 'Total short-term borrowings', 500, true],
+      ['us-gaap', 'LongTermDebt', 'Long-term borrowings', 8132], ['us-gaap', 'DebtAndCapitalLeaseObligations', 'Total borrowed funds', 8632, true]]) === 8632, '(28) Regions: "Total borrowed funds" — 8,632, לא 9,132');
+    // PNC: ‏"Total borrowed funds" שכולל ריפו (לא נספר) — הרכיבים נשארים (התווית "borrowed funds" לבדה אינה חוב)
+    ok(tot([['us-gaap', 'FederalFundsPurchasedAndSecuritiesSoldUnderAgreementsToRepurchase', 'Federal funds purchased and repurchase agreements', 3327], ['us-gaap', 'SubordinatedDebt', 'Subordinated debt', 7299],
+      ['us-gaap', 'CommercialPaper', 'Commercial paper (includes $0 and $6,045 for VIEs)', 8453], ['us-gaap', 'BorrowedFunds', 'Total borrowed funds', 19079, true]]) === 15752, '(28) PNC: סך שכולל ריפו — הרכיבים');
+  }
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });

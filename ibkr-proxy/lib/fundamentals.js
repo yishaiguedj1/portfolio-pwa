@@ -189,7 +189,7 @@ const DEBT_LAB = /borrowing|commercial paper|notes? payable|\bdebt\b|loans? paya
 const DEBT_NOT = /operating lease|interest payable|accrued|accounts payable|deferred|debt securities|held.for.sale|derivative|guarantee|total liabilities|receivable|investment|due to (related|affiliat)|deposits?\b|repurchase|trading|capitalization|fair value|other than long.?term debt|\bto (\w+ )?parent\b|liabilities of/i;
 // תגיות שאינן חוב גם כשהשם או התווית נשמעים כך: סך ההון והחוב, "התחייבויות לא שוטפות חוץ מחוב", רכיב ההון של אג"ח להמרה,
 // ריבית לשלם, חובות לחברות קשורות, הנחות ועלויות הנפקה, נכסים. תגית מ־DEBT_CAT — תמיד חוב (Hershey: ‏LongTermDebtAndCapitalLeaseObligations)
-const DEBT_NOTAG = /OtherThanLong|^Capitalization|^EquityAndLongTermDebt|^TemporaryEquity|^ReserveForEsop|^InterestPayable|^DueTo(Affiliate|RelatedParties)|Receivable|DebtInstrumentInterestRate|Unamortized|DebtFairValueAdjustment|^ConvertibleDebtEquity/;
+const DEBT_NOTAG = /OtherThanLong|^Capitalization|^EquityAndLongTermDebt|^TemporaryEquity|^ReserveForEsop|^InterestPayable|^DueTo(Affiliate|RelatedParties)|Receivable|DebtInstrumentInterestRate|^(\w*Instrument)?Unamortized|DebtFairValueAdjustment|^ConvertibleDebtEquity/;
 // ...ואלה — רק כשהתווית היא של חוב (Con Edison מתייגת את "LONG-TERM DEBT" שבמאזן ב־LongTermDebtFairValue); חכירה לבדה — לא חוב
 const DEBT_SOFT = /FairValue|^DebtInstrument(Face|Carrying)Amount$|Lease(s)?Liabilit|^(Finance|Operating|Capital)Lease\w*$|^CapitalLeaseObligations?\w*$/;
 // "חוב לזמן ארוך כולל חלויות" — במאזן מסווג שיש בו גם שורת חלויות, השורה היא בפועל החלק הלא שוטף (Xcel)
@@ -231,7 +231,9 @@ function debtFace(face, cur) {
   const c0 = S.cols.findIndex((c) => SECFACE.colOk(c, cur));
   const lines = []; let grp = 0; // grp — מספר הקבוצה: מתחלף אחרי כל שורת "סך"
   for (let i = a0 + 1; i < stop; i++) {
-    const r = rows[i], lab = r.label || '', txt = lab + ' ' + r.tag.replace(/([a-z])([A-Z])/g, '$1 $2');
+    // הערה בסוגריים — "(includes $973 at fair value)" — לא חלק מהשם (גל 3: Goldman ‏"Unsecured short-term borrowings…", ‏JPMorgan ‏"Other
+    // borrowed funds (included $13,306 … at fair value)" נפלו על "fair value"). רק הערה עם סכום — "(including current portion…)" נשארת (debtCat)
+    const r = rows[i], lab = (r.label || '').replace(/\s*\((includ|inclusive|of which)[^)]*\d[^)]*\)/ig, ''), txt = lab + ' ' + r.tag.replace(/([a-z])([A-Z])/g, '$1 $2');
     const cat = r.ns === 'us-gaap' ? DEBT_OF.get(r.tag) || null : null;
     const isTot = r.total || /^total\b/i.test(lab);
     const labD = DEBT_LAB.test(lab) && !DEBT_NOT.test(lab.replace(/,?\s*(measured |carried )?at fair value/ig, ''));
@@ -257,6 +259,10 @@ function debtFace(face, cur) {
       const prev = lines.filter((l) => l.grp === grp), x = c0 >= 0 ? v[c0] : null;
       const sum = prev.reduce((t, l) => t + (c0 >= 0 && l.v[c0] != null ? l.v[c0] : 0), 0);
       if (prev.length && r.ns !== 'us-gaap' && x != null && Math.abs(sum - x) <= 0.01 * Math.abs(x)) { grp++; continue; }
+      // "סך" של כל השורות שנספרו עד כאן, מכל הקבוצות (Regions: ‏"Total short-term borrowings" ‏1,574, ‏"Long-term borrowings" ‏5,861,
+      // ‏"Total borrowed funds" ‏7,435) — במקום כולן, לא רק הקבוצה האחרונה (אחרת הקצרות נספרו פעמיים)
+      const all = lines.reduce((t, l) => t + (c0 >= 0 && l.v[c0] != null ? l.v[c0] : 0), 0);
+      if (r.ns === 'us-gaap' && x != null && lines.length > prev.length && prev.length && Math.abs(all - x) <= Math.max(1e-9, 1e-3 * Math.abs(x))) { lines.length = 0; lines.push({ tag: r.tag, ns: r.ns, cat, label: lab, v, grp }); grp++; continue; }
       // "Total short-term debt" קטן מהשורות שלפניו (Vulcan ‏10-Q ‏2026: חלויות ‏400, ‏"Total short-term debt" ‏0) — הוא לא הסך שלהן
       if (!(x != null && sum > 0 && x < sum - 0.01 * sum)) for (const l of prev) lines.splice(lines.indexOf(l), 1);
     }
