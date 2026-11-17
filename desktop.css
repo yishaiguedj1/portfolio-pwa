@@ -213,6 +213,9 @@ html.dk .bk { max-width: var(--dk-read); margin-inline: auto; }
 /* ---------- 5. מידות: כרטיסים וכפתורים (עכבר) ---------- */
 html.dk { --radius-xl: 24px; --radius: 20px; }
 html.dk .card { padding: 20px 22px; }
+/* 17/11/2026: קרוסלת הדוחות במחשב — גלילה של הדפדפן (משטח מגע / Shift+גלגלת) ועצירה על כרטיס; כרטיס ברוחב קבוע */
+html.dk #earnList { --earn-pad: 22px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 22px; scrollbar-width: thin; }
+html.dk #earnList > .earn-row { flex-basis: min(86%, 320px); scroll-snap-align: start; }
 
 /* ---------- 6. חלונות וגיליונות — במחשב במרכז החלון ובכל הפינות מעוגלים (גיליון תחתון שייך לטלפון) ---------- */
 /* מעל הסרגל (899): הדיאלוגים, ההתחברות והגיליון של Invest יושבים ב־body בשכבות נמוכות */

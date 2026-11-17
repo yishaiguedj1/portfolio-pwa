@@ -1089,12 +1089,11 @@ he: {
   earnBmo: 'לפני הפתיחה',
   earnAmc: 'אחרי הסגירה',
   earnEst: 'משוער',
-  earnMore: 'עוד {n} דוחות', earnMoreOne: 'עוד דוח אחד', earnTop: 'חזרה למעלה',
   earnXAn: 'אנליסטים', earnXMg: 'הנהלה', earnXMgY: 'הנהלה · שנתי', earnXTitle: 'צפי לדוח', earnXEps: 'רווח למניה', earnXRev: 'הכנסות',
   earnXN: '{n} אנליסטים', earnXN1: 'אנליסט אחד', earnXYago: 'לפני שנה: {v}', earnXSrc: 'צפי ההנהלה מהודעת הדוחות הקודמת ({d})',
   earnXGaap: 'GAAP', earnXYear: 'שנה מלאה',
   earnXCard: 'צפי', earnXFy: 'דוח שנתי', earnXAnY: 'אנליסטים · שנתי', earnXQtr: 'רבעון', earnXTonePos: 'מגמה חיובית', earnXToneNeg: 'מגמה שלילית', earnXToneNeu: 'מגמה ניטרלית',
-  earnXD90: 'הצפי לרווח למניה {v} ב־90 יום', earnXRevs: 'ב־30 יום: {up} העלו, {dn} הורידו', earnXBeat: 'עקפה את הצפי ב־{b} מ־{n} הרבעונים האחרונים',
+  earnXD90: 'הצפי לרווח למניה {v} ב־90 יום', earnXRevs: 'ב־30 יום: {up} העלו, {dn} הורידו', earnXBeat: 'עקפה את הצפי ב־{b} מ־{n} הרבעונים האחרונים', earnXBeatWarn: '. רוב החברות עוקפות: הצפי יורד לקראת הדוח, ולכן עקיפה לבדה אינה ראיה לדוח טוב', earnXExpUp: 'ציפיות: צמיחה', earnXExpDown: 'ציפיות: ירידה', earnXExpMix: 'ציפיות: מעורב', earnXExpFlat: 'ציפיות: יציב', earnXRevS: 'הכנסות {v}', earnXEpsS: 'רווח {v}', earnXEpsNc: 'רווח — לא בר השוואה', earnXBizUp: 'העסק: משתפר', earnXBizDown: 'העסק: נחלש', earnXBizFlat: 'העסק: יציב', earnXFlag: 'יש חריגה', earnXExpT: 'ציפיות לרבעון', earnXExpWhy: 'הצפי של האנליסטים מול הרבעון המקביל אשתקד. הרווח מוחרג כשבאותו רבעון היה רווח חד־פעמי או לא־תפעולי גדול', earnXBizT: 'מצב העסק', earnXBizWhy: 'מהדוחות שכבר פורסמו: הרבעון האחרון מול המקביל אשתקד; המרת מזומן — 4 רבעונים. תזרים חופשי אחרי השקעות ותשלום במניות', earnXBMg: 'שולי רווח תפעולי {v} נק׳', earnXBFcf: 'תזרים חופשי למניה {v}', earnXBSh: 'מספר המניות {v}', earnXBCc: 'המרת מזומן {v}', earnXFOne: 'רווח חד־פעמי או לא־תפעולי גדול — הרווח למניה לא משקף את העסק', earnXFAcq: 'רכישה משמעותית בשנה האחרונה — חלק מהצמיחה לא אורגנית, והרווח ברבעון יכול לרדת זמנית', earnXFAdj: 'הרווח ״של הרחוב״ ברבעון האחרון {a} מול {g} לפי GAAP — יש החרגות גדולות', earnXFCash: 'הרווח לא מגובה במזומן (המרת מזומן {v})', earnXDisc: 'הערכת מצב מנתונים פומביים — לא תחזית ולא המלצה. הרווח בצפי הוא ״רווח הרחוב״: לפעמים מותאם ולפעמים GAAP.',
   earnXBeatAvg: ' (בממוצע {v})', earnXToneSrc: 'המגמה לפי שינויי הצפי של האנליסטים (Yahoo) — לא תחזית ולא המלצה.',
   calReport: 'דוח רבעוני', calAddAria: 'הוספת הדוח של {sym} ליומן', calGoogle: 'הוספה ל־Google Calendar', calOther: 'יומן אחר (אפל, סמסונג, Outlook)',
   calIcsNote: 'ביומן אחר נוצרות גם תזכורות — יום לפני ושעה לפני.', calIcsDone: 'הקובץ ירד — פתח אותו כדי להוסיף ליומן', calLocal: '{t} שעון ישראל',
@@ -2983,12 +2982,11 @@ en: {
   earnBmo: 'Before open',
   earnAmc: 'After close',
   earnEst: 'estimated',
-  earnMore: '{n} more reports', earnMoreOne: '1 more report', earnTop: 'Back to top',
   earnXAn: 'Analysts', earnXMg: 'Company', earnXMgY: 'Company · FY', earnXTitle: 'Expectations', earnXEps: 'EPS', earnXRev: 'Revenue',
   earnXN: '{n} analysts', earnXN1: '1 analyst', earnXYago: 'Year ago: {v}', earnXSrc: 'Company guidance from its previous earnings release ({d})',
   earnXGaap: 'GAAP', earnXYear: 'Full year',
   earnXCard: 'Est.', earnXFy: 'Annual report', earnXAnY: 'Analysts · FY', earnXQtr: 'Quarter', earnXTonePos: 'Trending up', earnXToneNeg: 'Trending down', earnXToneNeu: 'Flat',
-  earnXD90: 'EPS estimate {v} over 90 days', earnXRevs: 'Last 30 days: {up} up, {dn} down', earnXBeat: 'Beat estimates in {b} of the last {n} quarters',
+  earnXD90: 'EPS estimate {v} over 90 days', earnXRevs: 'Last 30 days: {up} up, {dn} down', earnXBeat: 'Beat estimates in {b} of the last {n} quarters', earnXBeatWarn: '. Most companies beat: estimates drift down before the report, so a beat alone is not evidence of a good report', earnXExpUp: 'Expectations: growth', earnXExpDown: 'Expectations: decline', earnXExpMix: 'Expectations: mixed', earnXExpFlat: 'Expectations: flat', earnXRevS: 'Revenue {v}', earnXEpsS: 'EPS {v}', earnXEpsNc: 'EPS — not comparable', earnXBizUp: 'Business: improving', earnXBizDown: 'Business: weakening', earnXBizFlat: 'Business: steady', earnXFlag: 'Distortion', earnXExpT: 'Quarter expectations', earnXExpWhy: 'Analyst estimates vs. the same quarter last year. EPS is excluded when that quarter had a large one-off or non-operating item', earnXBizT: 'Business health', earnXBizWhy: 'From published reports: latest quarter vs. the same quarter last year; cash conversion over 4 quarters. Free cash flow after capex and stock compensation', earnXBMg: 'Operating margin {v} pts', earnXBFcf: 'Free cash flow per share {v}', earnXBSh: 'Share count {v}', earnXBCc: 'Cash conversion {v}', earnXFOne: 'Large one-off or non-operating item — EPS does not reflect the business', earnXFAcq: 'Significant acquisition in the past year — part of the growth is not organic, and quarterly profit may dip temporarily', earnXFAdj: 'Street EPS last quarter {a} vs. {g} GAAP — large exclusions', earnXFCash: 'Earnings not backed by cash (cash conversion {v})', earnXDisc: 'An assessment from public data — not a forecast or advice. The EPS estimate is street EPS: sometimes adjusted, sometimes GAAP.',
   earnXBeatAvg: ' (avg {v})', earnXToneSrc: 'Trend from analyst estimate revisions (Yahoo) — not a forecast or advice.',
   calReport: 'Earnings', calAddAria: 'Add the {sym} earnings report to your calendar', calGoogle: 'Add to Google Calendar', calOther: 'Other calendar (Apple, Samsung, Outlook)',
   calIcsNote: 'Other calendars also get reminders — a day before and an hour before.', calIcsDone: 'Downloaded — open it to add to your calendar', calLocal: '{t} local time',
@@ -4257,7 +4255,7 @@ function earnXFor(x, date) {
   const day = (iso) => Date.parse(iso + 'T12:00:00Z') / 864e5;
   const a = x.a && x.a.q && (!x.a.d || Math.abs(day(x.a.d) - day(date)) <= 5) ? x.a : null;
   const g = x.g && x.g.fd && day(x.g.fd) < day(date) && day(date) - day(x.g.fd) <= 130 ? x.g : null;
-  return a || g ? { a, g } : null;
+  return a || g ? { a, g, b: x.b || null } : null;
 }
 async function earnXFetch(syms) {
   if (_earnXBusy || typeof fetch !== 'function') return;
@@ -4270,7 +4268,7 @@ async function earnXFetch(syms) {
     const r = await fetch(ibkrProxyBase() + '/api/history', { method: 'POST', headers: ibkrProxyHeaders(), body: JSON.stringify({ op: 'earnPrev', syms: need }) });
     const j = await r.json();
     if (!j || !j.ok || !j.data) throw new Error('earnx');
-    for (const s of need) { const v = j.data[s] || {}; all[s] = { at: now, a: v.a || null, g: v.g || null }; changed = true; }
+    for (const s of need) { const v = j.data[s] || {}; all[s] = { at: now, a: v.a || null, g: v.g || null, b: v.b || null }; changed = true; }
   } catch (e) {
     for (const s of need) if (!all[s] || !all[s].a) all[s] = Object.assign({}, all[s] || {}, { at: now, fail: 1 });
   } finally { _earnXBusy = false; }
@@ -8150,8 +8148,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.161.0';
-const APP_VERSION = 'v793';
+const APP_RELEASE = '2.162.0';
+const APP_VERSION = 'v794';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -11852,7 +11850,6 @@ function switchTab(name, opts) {
   document.querySelectorAll('.tabpage').forEach((s) => { if (s.id !== 'tab-' + name || !cubeDone) s.classList.remove('no-in'); else s.classList.add('no-in'); });
   document.querySelectorAll('.tabpage').forEach((s) => s.classList.toggle('active', s.id === 'tab-' + name));
   if (tabDirty[name]) { const fn = tabRenderer(name); if (fn) { try { fn(); } catch (e) {} } } // v193: הטאב השתנה בזמן שהיה מוסתר
-  if (name === 'overview') { try { sizeEarnWindow(); } catch (e) {} } // v223: חלון הדוחות נמדד רק כשהסקירה גלויה
   // v85: שמירת הטאב האחרון — חזרה לאותו עמוד אחרי רענון
   try { localStorage.setItem('pwa_lasttab_v1', name); } catch (e) {}
   requestAnimationFrame(() => { try { fitNumbers(); } catch (e) {} }); // התאמת מספרים אחרי המעבר (fitNumbers)
@@ -12292,6 +12289,118 @@ function earnXTone(a) {
   const sc = (d90 == null ? 0 : d90 > 0.02 ? 2 : d90 < -0.02 ? -2 : 0) + (d30 == null ? 0 : d30 > 0.01 ? 1 : d30 < -0.01 ? -1 : 0) + (r > 0 ? 1 : r < 0 ? -1 : 0);
   return { k: sc >= 1 ? 'pos' : sc <= -1 ? 'neg' : 'neu', d90: d90, d30: d30, up: q.up || 0, dn: q.dn || 0 };
 }
+/* 17/11/2026 (בקשת המשתמש — "הערכה אמיתית לפי באפט והשקעות ערך"; המחקר: docs/earnings-outlook-research.md).
+   רווח למניה מול אשתקד לבדו מטעה: רכישה מורידה רבעון אחד, הכנסה חד־פעמית מקפיצה אותו. לכן שני אותות נפרדים ודגל:
+   1. ציפיות לרבעון — מה האנליסטים מצפים מול הרבעון המקביל אשתקד: הכנסות תמיד, רווח למניה רק כשהרבעון אשתקד נקי.
+   2. מצב העסק — מהדוחות שכבר פורסמו (b מהשרתון, 5 רבעונים): הכנסות, שולי רווח תפעולי, תזרים חופשי למניה (קירוב ל־owner
+      earnings), מספר המניות, המרת מזומן. 3. דגלים — חד־פעמי, רכישה, פער מותאם/GAAP, רווח בלי מזומן. כולן טהורות. */
+const EARNX_DAY = 864e5;
+function earnXRel(c, y) { return c == null || y == null || !isFinite(c) || !isFinite(y) || y === 0 ? null : (c - y) / Math.abs(y); }
+/* האינדקס של הרבעון שהסתיים ~שנה לפני end (±25 יום), או -1 */
+function earnXBizIdx(b, end) {
+  if (!b || !b.q || !end) return -1;
+  const tg = Date.parse(end + 'T12:00:00Z') - 365 * EARNX_DAY;
+  let best = -1, bd = 25 * EARNX_DAY;
+  b.q.forEach((e, i) => { const d = Math.abs(Date.parse(e + 'T12:00:00Z') - tg); if (d <= bd) { bd = d; best = i; } });
+  return best;
+}
+function earnXV(b, k, i) { const a = b && b[k]; return a && i >= 0 && i < a.length && a[i] != null && isFinite(a[i]) ? a[i] : null; }
+/* רבעון עם רווח חד־פעמי/לא־תפעולי גדול: פריטים חריגים (או הפער בין לפני מס לתפעולי) מעל רבע מהרווח התפעולי */
+function earnXOneOff(b, i) {
+  const op = earnXV(b, 'op', i), un = earnXV(b, 'unus', i), pt = earnXV(b, 'pretax', i);
+  const base = Math.max(Math.abs(op != null ? op : pt != null ? pt : 0), 1);
+  if (un != null && Math.abs(un) > 0.25 * base) return true;
+  return op != null && pt != null && Math.abs(pt - op) > 0.35 * base;
+}
+/* הרווח "של הרחוב" ברבעון האחרון רחוק מ־GAAP ביותר מ־20% — החברה מדווחת רווח מותאם (Doyle et al.): { a, g } או null */
+function earnXAdj(a, b) {
+  const la = a && a.la, L = b && b.q ? b.q.length - 1 : -1, g = earnXV(b, 'eps', L);
+  if (!la || la.e == null || g == null || !la.d || Math.abs(Date.parse(la.d + 'T12:00:00Z') - Date.parse(b.q[L] + 'T12:00:00Z')) > 20 * EARNX_DAY) return null;
+  return Math.abs(la.e - g) > 0.2 * Math.max(Math.abs(g), 0.05) ? { a: la.e, g: g } : null;
+}
+/* אות 1 — ציפיות לרבעון: { k: 'up'|'down'|'mix'|'flat', rev, eps (null כשלא בר השוואה), nc: הרווח הוחרג } או null */
+function earnXExp(a, b) {
+  const q = a && a.q;
+  if (!q) return null;
+  const rev = earnXRel(q.rev, q.yRev);
+  let eps = earnXRel(q.eps, q.yEps), nc = false;
+  if (eps != null && b) {
+    const last = b.q && b.q.length ? b.q[b.q.length - 1] : null;
+    const end = q.end || (last ? new Date(Date.parse(last + 'T12:00:00Z') + 91 * EARNX_DAY).toISOString().slice(0, 10) : null);
+    const yi = earnXBizIdx(b, end);
+    // חד־פעמי ברבעון אשתקד מעוות את ההשוואה כשהרווח "של הרחוב" אשתקד כלל אותו: קרוב יותר ל־GAAP מאשר לרווח המנורמל
+    // (UBER — GAAP; ORCL — המותאם כלל רווח הון). בחברה שהחריגה אצלה (PFE) — ההשוואה נקייה
+    if (yi >= 0 && earnXOneOff(b, yi)) {
+      const g = earnXV(b, 'eps', yi), sh = earnXV(b, 'sh', yi), nm = earnXV(b, 'norm', yi), ni = earnXV(b, 'ni', yi), un = earnXV(b, 'unus', yi);
+      const ne = !sh ? null : nm != null ? nm / sh : ni != null && un != null ? (ni - un) / sh : null;
+      if (g == null || ne == null || q.yEps == null || Math.abs(q.yEps - g) <= Math.abs(q.yEps - ne)) { eps = null; nc = true; }
+    }
+  }
+  const dir = (v) => (v == null ? null : v > 0.02 ? 1 : v < -0.02 ? -1 : 0);
+  const r = dir(rev), e = dir(eps);
+  if (r == null && e == null) return null;
+  const k = r != null && e != null && r * e < 0 ? 'mix' : (r === 1 || e === 1) ? 'up' : (r === -1 || e === -1) ? 'down' : 'flat';
+  return { k: k, rev: rev, eps: eps, nc: nc };
+}
+/* אות 2 — מצב העסק: הרבעון האחרון מול המקביל אשתקד, והמרת מזומן ב־4 הרבעונים האחרונים. כל רכיב +1/0/−1;
+   ≥2 משתפר, ≤−2 נחלש, אחרת יציב; פחות משני רכיבים — null */
+function earnXBiz(b) {
+  if (!b || !b.q || b.q.length < 2) return null;
+  const L = b.q.length - 1, Y = earnXBizIdx(b, b.q[L]);
+  const o = { sc: 0, n: 0 };
+  const add = (k, v, s) => { if (v == null || !isFinite(v)) return; o[k] = v; o.n++; o.sc += s; };
+  if (Y >= 0) {
+    const r = earnXRel(earnXV(b, 'rev', L), earnXV(b, 'rev', Y));
+    add('rev', r, r == null ? 0 : r > 0.03 ? 1 : r < -0.03 ? -1 : 0);
+    const mg = (i) => { const op = earnXV(b, 'op', i), rv = earnXV(b, 'rev', i); return op == null || !rv ? null : op / rv; };
+    const m1 = mg(L), m0 = mg(Y);
+    if (m1 != null && m0 != null) { const d = m1 - m0; add('mg', d, d > 0.01 ? 1 : d < -0.01 ? -1 : 0); }
+    const fps = (i) => { const c = earnXV(b, 'ocf', i), sh = earnXV(b, 'sh', i); if (c == null || !sh) return null; return (c - Math.abs(earnXV(b, 'capex', i) || 0) - Math.abs(earnXV(b, 'sbc', i) || 0)) / sh; };
+    const f1 = fps(L), f0 = fps(Y);
+    if (f1 != null && f0 != null) { const d = earnXRel(f1, f0); add('fcf', d != null ? d : (f1 > 0 ? 1 : f1 < 0 ? -1 : 0), d == null ? (f1 > 0 ? 1 : f1 < 0 ? -1 : 0) : d > 0.1 ? 1 : d < -0.1 ? -1 : 0); }
+    const sh = earnXRel(earnXV(b, 'sh', L), earnXV(b, 'sh', Y));
+    add('sh', sh, sh == null ? 0 : sh < -0.01 ? 1 : sh > 0.02 ? -1 : 0);
+  }
+  const cc = earnXCash(b);
+  if (cc != null) add('cc', cc, cc >= 0.9 ? 1 : cc < 0.7 ? -1 : 0);
+  if (o.n < 2) return null;
+  o.k = o.sc >= 2 ? 'up' : o.sc <= -2 ? 'down' : 'flat';
+  return o;
+}
+/* המרת מזומן (Sloan): תזרים שוטף ÷ רווח נקי ב־4 הרבעונים האחרונים; רק כשיש רווח */
+function earnXCash(b) {
+  if (!b || !b.ocf || !b.ni) return null;
+  let c = 0, ni = 0, k = 0;
+  for (let i = b.q.length - 1; i >= 0 && k < 4; i--, k++) { const x = earnXV(b, 'ocf', i), y = earnXV(b, 'ni', i); if (x == null || y == null) return null; c += x; ni += y; }
+  return k === 4 && ni > 0 ? c / ni : null;
+}
+/* דגלי עיוות: [{ k: 'one'|'acq'|'adj'|'cash', ... }] */
+function earnXFlags(a, b) {
+  const out = [];
+  if (b && b.q && b.q.length) {
+    const L = b.q.length - 1, Y = earnXBizIdx(b, b.q[L]);
+    const ep = a && a.q ? earnXExp(a, b) : null;
+    if (earnXOneOff(b, L) || (ep && ep.nc)) out.push({ k: 'one' });
+    let acq = 0, rv = 0;
+    for (let i = L, k = 0; i >= 0 && k < 4; i--, k++) { acq += Math.abs(earnXV(b, 'acq', i) || 0); rv += earnXV(b, 'rev', i) || 0; }
+    const gw1 = earnXV(b, 'gw', L), gw0 = earnXV(b, 'gw', Y);
+    if ((rv > 0 && acq > 0.1 * rv) || (gw1 != null && gw0 != null && gw0 > 0 && gw1 > gw0 * 1.2 && gw1 - gw0 > 0.05 * Math.max(rv, 1))) out.push({ k: 'acq' });
+    const ad = earnXAdj(a, b);
+    if (ad) out.push({ k: 'adj', a: ad.a, g: ad.g });
+    const cc = earnXCash(b);
+    if (cc != null && cc < 0.8) out.push({ k: 'cash', v: cc });
+  }
+  return out;
+}
+function earnXPct(v) { return '⁦' + (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v * 100).toFixed(Math.abs(v) < 0.1 ? 1 : 0) + '%⁩'; }
+const EARNX_IC = { up: '▲', down: '▼', mix: '◆', flat: '●' };
+function earnXChip(k, txt) { const c = k === 'up' ? 'pos' : k === 'down' ? 'neg' : 'neu'; return '<span class="earn-tone ' + c + '"><span aria-hidden="true">' + EARNX_IC[k] + '</span> ' + esc(txt) + '</span>'; }
+function earnXExpTxt(k) { return k === 'up' ? t('earnXExpUp') : k === 'down' ? t('earnXExpDown') : k === 'mix' ? t('earnXExpMix') : t('earnXExpFlat'); }
+function earnXBizTxt(k) { return k === 'up' ? t('earnXBizUp') : k === 'down' ? t('earnXBizDown') : t('earnXBizFlat'); }
+/* "הכנסות +8% · רווח +12%" */
+function earnXExpNums(ex) {
+  return [ex.rev != null ? t('earnXRevS', { v: earnXPct(ex.rev) }) : '', ex.eps != null ? t('earnXEpsS', { v: earnXPct(ex.eps) }) : ex.nc ? t('earnXEpsNc') : ''].filter(Boolean).join(' · ');
+}
 function earnXToneHTML(tn) {
   if (!tn) return '';
   const txt = tn.k === 'pos' ? t('earnXTonePos') : tn.k === 'neg' ? t('earnXToneNeg') : t('earnXToneNeu');
@@ -12302,18 +12411,28 @@ function earnXToneHTML(tn) {
 function earnXRowHTML(ex) {
   if (!ex) return '';
   const a = ex.a, g = ex.g;
-  let lab = '', parts = [], ic = '';
+  let lab = '', parts = [];
   if (a && a.q) {
     lab = t('earnXCard');
     parts = [earnEpsTxt(a.q.eps, a.cur), earnRevTxt(a.q.rev, a.cur)].filter(Boolean);
-    const tn = earnXTone(a);   // בכרטיס רק חיובית/שלילית; ניטרלית — בלי סימן (פחות רעש), המילים בגיליון
-    if (tn && tn.k !== 'neu') ic = '<span class="earn-tone-ic ' + tn.k + '" role="img" aria-label="' + esc(tn.k === 'pos' ? t('earnXTonePos') : t('earnXToneNeg')) + '">' + (tn.k === 'pos' ? '▲' : '▼') + '</span>';
   } else if (g && (g.q || g.y)) {
     const p = g.q || g.y;
     lab = g.q ? t('earnXMg') : t('earnXMgY');
     parts = [p.eps ? earnRangeTxt(p.eps[0], p.eps[1], 'eps', 'USD') : '', p.rev ? earnRangeTxt(p.rev[0], p.rev[1], 'rev', 'USD') : ''].filter(Boolean);
   }
-  return parts.length ? '<span class="earn-x">' + ic + '<b>' + esc(lab) + '</b> <span dir="ltr">' + esc(parts.join(' · ')) + '</span></span>' : '';
+  return parts.length ? '<span class="earn-x"><b>' + esc(lab) + '</b> <span dir="ltr">' + esc(parts.join(' · ')) + '</span></span>' : '';
+}
+/* 17/11/2026 (בקשת המשתמש): שני אותות ודגל — תחתית ברוחב הכרטיס: "ציפיות" לרבעון והמספרים, "העסק" מהדוחות שפורסמו,
+   ו"יש חריגה". "לא בר השוואה", מגמת הצפי, עקיפת הצפי והפירוט — בגיליון. טהורה (מחזירה HTML) */
+function earnXSigHTML(ex) {
+  const a = ex && ex.a;
+  if (!a || !a.q) return '';
+  const ep = earnXExp(a, ex.b), bz = earnXBiz(ex.b), fl = earnXFlags(a, ex.b);
+  let h = '';
+  if (ep) h += '<span class="earn-sig">' + earnXChip(ep.k, earnXExpTxt(ep.k)) + '<span class="earn-fc-v">' + esc(earnXExpNums(Object.assign({}, ep, { nc: false }))) + '</span></span>';
+  if (bz || fl.length) h += '<span class="earn-sig">' + (bz ? earnXChip(bz.k, earnXBizTxt(bz.k)) : '') +
+    (fl.length ? '<span class="earn-flag"><span aria-hidden="true">⚠</span> ' + esc(t('earnXFlag')) + '</span>' : '') + '</span>';
+  return h ? '<span class="earn-sigs">' + h + '</span>' : '';
 }
 /* כרטיס "דוחות קרובים" — תיק + מעקב, ממוין לפי תאריך */
 function renderEarningsCard(noFetch) {
@@ -12332,7 +12451,7 @@ function renderEarningsCard(noFetch) {
   rows.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   if (!rows.length) { card.classList.add('hidden'); return; }
   card.classList.remove('hidden');
-  const keepTop = list.scrollTop;   // ציור מחדש כשהצפי מגיע — בלי לקפוץ לראש הרשימה
+  const keepX = list.scrollLeft;   // ציור מחדש כשהצפי מגיע — בלי לקפוץ לתחילת הקרוסלה
   list.innerHTML = '';
   // v221: שורה בסגנון רשימת iOS — לוגו, סימבול + שם, "בעוד N ימים · אחרי הסגירה", ואריח לוח שנה (חודש + יום) בקצה
   const monFmt = new Intl.DateTimeFormat(state.lang === 'en' ? 'en-US' : 'he-IL', { month: 'short', timeZone: 'UTC' });
@@ -12355,75 +12474,17 @@ function renderEarningsCard(noFetch) {
       '<span class="earn-name">' + esc(companyName(r.sym, names[r.sym] || r.sym)) + '</span>' +
       '<span class="earn-sub">' + esc(sub) + '</span>' + earnXRowHTML(exr) + '</span>' +
       '<span class="earn-cal" aria-label="' + esc(fmtDateIL(r.date)) + '"><span class="earn-mon">' + esc(monFmt.format(dt)) + '</span>' +
-      '<span class="earn-day">' + dt.getUTCDate() + '</span></span>';
+      '<span class="earn-day">' + dt.getUTCDate() + '</span></span>' + earnXSigHTML(exr);
     list.appendChild(li);
   }
-  if (keepTop) list.scrollTop = keepTop;
-  sizeEarnWindow();
+  if (keepX) list.scrollLeft = keepX;
+  // 17/11/2026 (בקשת המשתמש): קרוסלה אופקית — העמוד נגלל למעלה/למטה, הדוחות לצדדים (ת־עיצוב: לא גלילה בתוך גלילה באותו כיוון)
+  const shown = Math.min(rows.length, 12);
+  list.classList.toggle('earn-one', shown === 1);
+  const cnt = document.getElementById('earnCnt');
+  if (cnt) cnt.textContent = shown > 1 ? ' · ' + shown : '';
   if (!noFetch) earnXFetch(rows.slice(0, 12).map((r) => r.sym));
 }
-/* v223: חלון של שלושה דוחות (שניים במסך קטן) שנגלל בתוך הכרטיס (כמו רשימת הווידג׳ט): הגובה = שתי השורות הראשונות, עצירה על כל
-   שורה (scroll-snap), דהייה בתחתית כשיש עוד. נמדד אחרי הציור; בטאב מוסתר (גובה 0) — ננסה שוב כשייראה */
-function sizeEarnWindow() {
-  const list = document.getElementById('earnList');
-  if (!list) return;
-  requestAnimationFrame(() => {
-    const rows = list.querySelectorAll('.earn-row');
-    // 15/11/2026 (בקשת המשתמש): שלושה דוחות במסך גדול, שניים במסך קטן. השאר בגלילה, ו"עוד N דוחות" מתחת
-    const n = earnWinRows(Math.max(window.innerHeight || 0, (window.screen && screen.height) || 0));
-    const more = rows.length > n;
-    list.classList.toggle('earn-scroll', more);
-    const btn = document.getElementById('earnMore');
-    if (btn) btn.classList.toggle('hidden', !more);
-    if (!more) { list.style.maxHeight = ''; return; }
-    let h = 0;
-    for (let i = 0; i < n; i++) h += rows[i].offsetHeight;
-    if (h > 0) list.style.maxHeight = h + 'px';
-    if (!sizeEarnWindow._rs) {
-      sizeEarnWindow._rs = true;
-      let tm = 0;
-      window.addEventListener('resize', () => { clearTimeout(tm); tm = setTimeout(sizeEarnWindow, 150); }, { passive: true });
-    }
-    if (!list._earnWired) {
-      list._earnWired = true;
-      list.addEventListener('scroll', () => earnMoreUpdate(), { passive: true });
-      // v224: הכפתור גולל דוח אחד למטה; בסוף הרשימה — חזרה לראש
-      if (btn) btn.addEventListener('click', () => {
-        const atEnd = list.scrollTop + list.clientHeight >= list.scrollHeight - 2;
-        const step = (list.querySelector('.earn-row') || {}).offsetHeight || 70;
-        try { list.scrollTo({ top: atEnd ? 0 : list.scrollTop + step, behavior: 'smooth' }); } catch (e) { list.scrollTop = atEnd ? 0 : list.scrollTop + step; }
-      });
-    }
-    earnMoreUpdate();
-  });
-}
-/* 15/11/2026: כמה דוחות בחלון — 3 במסך גדול (גובה 800 ומעלה, ביחידות CSS), 2 במסך קטן. לפי גובה המסך ולא לפי
-   יחס לגובה השורות: הכלל הקודם (שלוש שורות עד רבע מהמסך) הניח שורה של ~60 פיקסלים, אבל שורה אמיתית (שם, מועד,
-   צפי) היא ~85, ולכן בכל טלפון, גם בגדול, יצאו שניים */
-function earnWinRows(vh) {
-  return vh >= 800 ? 3 : 2;
-}
-/* v224 (בקשת המשתמש: שיהיה ברור שאפשר לגלול): "עוד N דוחות ⌄" מתחת לחלון — N = השורות שעוד מתחת לתצוגה;
-   בסוף הרשימה "חזרה למעלה ⌃". יחד עם הדהייה בתחתית */
-function earnMoreUpdate() {
-  const list = document.getElementById('earnList');
-  const btn = document.getElementById('earnMore');
-  if (!list || !btn) return;
-  const bottom = list.scrollTop + list.clientHeight;
-  const atEnd = bottom >= list.scrollHeight - 2;
-  list.classList.toggle('at-end', atEnd);
-  // שורות שמרכזן מתחת לתחתית החלון (מיקום יחסי לחלון, לא לדף)
-  const lb = list.getBoundingClientRect().bottom;
-  let n = 0;
-  for (const r of list.querySelectorAll('.earn-row')) { const rr = r.getBoundingClientRect(); if (rr.bottom > lb + 2) n++; }   // 15/11/2026: גם השורה החצויה בתחתית נספרת
-  const txt = atEnd ? t('earnTop') : n === 1 ? t('earnMoreOne') : t('earnMore', { n: n });
-  const key = (atEnd ? 'top' : 'down') + '|' + txt;
-  if (btn._key === key) return;
-  btn._key = key;
-  btn.classList.toggle('up', atEnd);
-  btn.innerHTML = '<span>' + esc(txt) + '</span><svg class="earn-more-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
-}
-
 /* v222: הוספת דוח ליומן — גיליון תחתון לפי ת־עיצוב/Android: Google Calendar בנגיעה, או קובץ .ics לכל יומן אחר
    (Apple / Samsung / Outlook) עם תזכורת יום לפני ושעה לפני. שעה ידועה (לפני הפתיחה/אחרי הסגירה) — אירוע של חצי שעה
    בזמן של Yahoo; בלי שעה — אירוע של יום שלם. טהורות: earnCalEvent, earnGoogleUrl, earnIcs. */
@@ -12498,9 +12559,28 @@ function earnXSheetHTML(ex) {
   if (tn && tn.d90 != null) why.push(t('earnXD90', { v: sp(tn.d90) }));
   if (tn && (tn.up || tn.dn)) why.push(t('earnXRevs', { up: tn.up, dn: tn.dn }));
   if (why.length) h += '<div class="esx-meta">' + esc(why.join(' · ')) + '</div>';
-  if (a && a.h && a.h.n) h += '<div class="esx-meta">' + esc(t('earnXBeat', { b: a.h.b, n: a.h.n }) + (a.h.s != null ? t('earnXBeatAvg', { v: sp(a.h.s / 100) }) : '')) + '</div>';
+  if (a && a.h && a.h.n) h += '<div class="esx-meta">' + esc(t('earnXBeat', { b: a.h.b, n: a.h.n }) + (a.h.s != null ? t('earnXBeatAvg', { v: sp(a.h.s / 100) }) : '') + t('earnXBeatWarn')) + '</div>';
   if (g) h += '<div class="esx-meta">' + esc(t('earnXSrc', { d: fmtDateIL(g.fd) })) + '</div>';
   if (tn) h += '<div class="esx-meta esx-fine">' + esc(t('earnXToneSrc')) + '</div>';
+  // 17/11/2026: שני האותות והדגלים — הפירוט שמאחורי שורות הכרטיס
+  if (a && a.q) {
+    const ep = earnXExp(a, ex.b), bz = earnXBiz(ex.b), fl = earnXFlags(a, ex.b);
+    if (ep) h += '<div class="esx-sec"><div class="esx-st">' + esc(t('earnXExpT')) + earnXChip(ep.k, earnXExpTxt(ep.k).split(':').pop().trim()) + '</div>' +
+      '<div class="esx-meta">' + esc(earnXExpNums(ep)) + '</div><div class="esx-meta esx-fine">' + esc(t('earnXExpWhy')) + '</div></div>';
+    if (bz) {
+      const pts = (v) => '\u2066' + (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v * 100).toFixed(1) + '\u2069';
+      const ln = [bz.rev != null ? t('earnXRevS', { v: earnXPct(bz.rev) }) : '', bz.mg != null ? t('earnXBMg', { v: pts(bz.mg) }) : '',
+        bz.fcf != null ? t('earnXBFcf', { v: earnXPct(bz.fcf) }) : '', bz.sh != null ? t('earnXBSh', { v: earnXPct(bz.sh) }) : '',
+        bz.cc != null ? t('earnXBCc', { v: '\u2066' + bz.cc.toFixed(1) + '×\u2069' }) : ''].filter(Boolean);
+      h += '<div class="esx-sec"><div class="esx-st">' + esc(t('earnXBizT')) + earnXChip(bz.k, earnXBizTxt(bz.k).split(':').pop().trim()) + '</div>' +
+        '<div class="esx-meta">' + esc(ln.join(' · ')) + '</div><div class="esx-meta esx-fine">' + esc(t('earnXBizWhy')) + '</div></div>';
+    }
+    for (const f of fl) {
+      const txt = f.k === 'one' ? t('earnXFOne') : f.k === 'acq' ? t('earnXFAcq') : f.k === 'adj' ? t('earnXFAdj', { a: '\u2066' + earnEpsTxt(f.a, c) + '\u2069', g: '\u2066' + earnEpsTxt(f.g, c) + '\u2069' }) : t('earnXFCash', { v: '\u2066' + f.v.toFixed(1) + '×\u2069' });
+      h += '<div class="esx-flag"><span aria-hidden="true">⚠</span> ' + esc(txt) + '</div>';
+    }
+    if (ep || bz) h += '<div class="esx-meta esx-fine">' + esc(t('earnXDisc')) + '</div>';
+  }
   return h + '</div>';
 }
 function closeEarnCalSheet() {
@@ -17139,13 +17219,26 @@ function pageSwipeTarget(cur, next) { // next=true → העמוד הבא (שמא
    שורה שהדפדפן גולל (overflow: auto) היא תמיד שכבה נפרדת. בטלפון היא נבנתה מחדש בכל נחיתה, והייתה ריקה עד שנצבעה (עד שתי שניות).
    כאן הגלילה באצבע: גרירה לרוחב מזיזה את scrollLeft, ובשחרור — תנופה שדועכת. גרירה אנכית נשארת של הדף (touch-action: pan-y).
    hsRow(el): השורה עצמה, רק כשיש לה מה לגלול */
-const HS_ROWS = 'main .tabpage :is(.ranges, .chip-row, .stock-sort-row, .wl-tabs, .tx-years):not(.stock-chips)';
+const HS_ROWS = 'main .tabpage :is(.ranges, .chip-row, .stock-sort-row, .wl-tabs, .tx-years, .earn-list):not(.stock-chips)';
 function hsRow(el) {
   const r = el && el.closest ? el.closest(HS_ROWS) : null;
   return r && r.scrollWidth > r.clientWidth + 2 ? r : null;
 }
 /* התנועה עצמה — טהורה (נבדקת): dx מאז ההתחלה → scrollLeft; תנופה: מהירות (px/ms) דועכת לפי הזמן */
 function hsFling(v, dt) { return v * Math.pow(0.996, dt); }
+/* 17/11/2026: קרוסלה (.earn-list) — בשחרור נעצרת על כרטיס, ולכל היותר כרטיס אחד מזה שהתחלנו בו (לפי ת־עיצוב).
+   טהורה: starts — ה־scrollLeft שבו כל כרטיס בתחילת השורה; from — scrollLeft בתחילת הגרירה; proj — לאן התנופה הייתה מגיעה */
+function hsSnapTarget(starts, from, proj) {
+  if (!starts.length) return proj;
+  const near = (x) => starts.reduce((bi, v, i) => Math.abs(v - x) < Math.abs(starts[bi] - x) ? i : bi, 0);
+  const i0 = near(from), i = near(proj);
+  return starts[Math.max(i0 - 1, Math.min(i0 + 1, i))];
+}
+function hsSnapStarts(row) {
+  const rr = row.getBoundingClientRect(), cs = getComputedStyle(row), rtl = cs.direction === 'rtl';
+  const pad = parseFloat(rtl ? cs.paddingRight : cs.paddingLeft) || 0;
+  return [...row.children].map((c) => { const r = c.getBoundingClientRect(); return row.scrollLeft + (rtl ? r.right - (rr.right - pad) : r.left - (rr.left + pad)); });
+}
 function initHScroll() {
   if (typeof document === 'undefined' || !document.addEventListener) return;
   let s = null, raf = 0, eat = 0;
@@ -17174,6 +17267,16 @@ function initHScroll() {
     if (!g.on || e.type === 'pointercancel') return;
     eat = e.timeStamp;                       // הלחיצה שאחרי גרירה — לא בחירה בצ'יפ
     let v = e.timeStamp - g.t > 80 ? 0 : g.v, last = performance.now();
+    if (g.row.classList.contains('earn-list') && typeof requestAnimationFrame === 'function') {   // קרוסלה — נעצרת על כרטיס
+      const a = g.row.scrollLeft, b = hsSnapTarget(hsSnapStarts(g.row), g.x0, a - v * 250), t0 = performance.now(), D = 320;
+      const step = (now) => {
+        const k = Math.min(1, (now - t0) / D), ez = 1 - Math.pow(1 - k, 3);
+        g.row.scrollLeft = a + (b - a) * ez;
+        raf = k < 1 && g.row.isConnected ? requestAnimationFrame(step) : 0;
+      };
+      raf = requestAnimationFrame(step);
+      return;
+    }
     if (Math.abs(v) < 0.05 || typeof requestAnimationFrame !== 'function') return;
     const step = (now) => {
       const dt = Math.min(48, now - last); last = now;

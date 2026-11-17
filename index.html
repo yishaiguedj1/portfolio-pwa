@@ -185,9 +185,8 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
 
     <!-- v772: דוחות קרובים מיד אחרי ביצועי התיק (בקשת המשתמש) -->
     <div class="card hidden" id="earnCard">
-      <h2 data-i18n-html="earnTitle">דוחות קרובים</h2>
+      <h2><span data-i18n-html="earnTitle">דוחות קרובים</span><span class="earn-cnt" id="earnCnt"></span></h2>
       <ul id="earnList" class="earn-list"></ul>
-      <button type="button" id="earnMore" class="earn-more hidden"></button>
     </div>
 
     <div class="card hidden" id="gainCard">

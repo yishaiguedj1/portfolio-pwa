@@ -70,6 +70,6 @@ ok(/touchGate\(canvas, \{ down, move/.test(sc) && !/canvas\.addEventListener\('p
 ok(/document\.addEventListener\('click'/.test(pf) && /document\.addEventListener\('click'/.test(sc), 'ניקוי הסימון — בהקשה מחוץ לגרף, לא ב־pointerdown (גלילה לא מנקה)');
 ok(/addEventListener\('click'/.test(pie) && !/addEventListener\('pointerdown'/.test(pie), 'העוגה — click: גלילה לא בוחרת פרוסה');
 ok(/\.gb-row'\)\.forEach\(\(b\) => b\.addEventListener\('click'/.test(app), 'פסי התשואה — click');
-ok(/@media \(pointer: coarse\) \{ \.earn-list\.earn-scroll \{ overflow-y: hidden; \} \}/.test(css), 'הדוחות הקרובים — במגע אצבע גוללת את הדף, לא את הרשימה');
+ok(/main \.tabpage :is\([^)]*\.earn-list\):not\(\.stock-chips\) \{ overflow: hidden; touch-action: pan-y; \}/.test(css), 'הדוחות הקרובים — קרוסלה אופקית: אצבע שזזה למעלה/למטה גוללת את הדף');
 ok(/#pfChart \{ touch-action: pan-y/.test(css), 'גרף הביצועים — pan-y (הדף נגלל, הגרירה לרוחב לגרף)');
 console.log('\n' + n + ' passed');
