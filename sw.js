@@ -39,7 +39,7 @@ const HASHES = {
   "./taxcenter.js": "9f66ea89d2f027260196a7b3d96e876d",
   "./taxcenter.css": "49d72724551122808472e2d92ce76b63",
   "./taxil.js": "7a5d81baa42d2be44782ba667dd89174",
-  "./chart.js": "1daeac9caef6f67ad326025a745c424c",
+  "./chart.js": "0f029889491a1d714860608f0d6aed64",
   "./chartlib.js": "5c00c490dac1b09329fa1ce657350a9b",
   "./chart.css": "1a90f5eae0277b64c9f0238c248f20f5",
   "./vendor/klinecharts/klinecharts.min.js": "4202d8661b8302175751d8d072bf6d2f",
