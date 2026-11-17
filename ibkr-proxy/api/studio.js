@@ -1370,7 +1370,7 @@ async function jobGc(deps, now) {
     const ok = all.filter((x) => UID_RE.test(String(x.uid || '')));
     const ttl = SC.jobTtl(PROJECT()), ends = SC.folderEnds(ok), gone = new Set();
     for (const j of ok.filter((x) => SC.expiredJob(x, now, ttl, ends.get(x.folder))).slice(0, GC_MAX)) {
-      try { await removeJobRec(deps, j.uid, j, now); gone.add(j.id); n++; } catch (e) {}
+      try { if (S.libSwap(j)) await libHome(deps, j, now); else await removeJobRec(deps, j.uid, j, now); gone.add(j.id); n++; } catch (e) {}
     }
     srcSoon = new Map();
     for (const j of ok) if (!gone.has(j.id) && SC.srcPending(j) && SC.srcDueAt(j) <= now + GC_EVERY) srcSoon.set(j.id, { uid: j.uid, due: SC.srcDueAt(j) });
@@ -2651,6 +2651,16 @@ async function r2BgDone(req, res, body, deps) {
 }
 
 /* מחיקת עבודה: הקבצים ב־R2 נמחקים כשאף עבודה אחרת לא משתמשת בתיקייה (עבודות משנה וסט הזהב יורשים אותה) */
+/* 17/11/2026 (בקשת המשתמש): עבודה שנשמרה בספרייה לא נמחקת כש־R2 פג — היא עוברת הביתה: עבודות המשנה (שהקבצים שלהן ב־R2)
+   נמחקות, הקבצים ב־R2 נמחקים, והרשומה מצביעה על הקבצים ב־Drive (S.libSwap). התיקייה כבר לא ב־R2 — expiredJob לא יחזור אליה */
+async function libHome(deps, j, now) {
+  const sw = S.libSwap(j);
+  if (!sw) return false;
+  for (const r of (await listJobs(deps, j.uid)).filter((x) => x.rp === j.id && x.folder === j.folder)) await delDoc(deps, 'studioJobs', r.id).catch(() => null);
+  await r2Purge(deps, j.uid, j);
+  await patchJob(deps, j.id, Object.assign(sw, { updated: now }));
+  return true;
+}
 async function r2Purge(deps, uid, job) {
   if (!SR.isFolder(job.folder) || !R2.config().ok) return;
   try {
@@ -2992,6 +3002,16 @@ async function worker(req, res, body, deps) {
     if (body.gl != null) { const gl = S.normGl(body.gl); if (gl) up.gl = gl; }            // v380: זיכרון המונחים
     if (body.rvf != null) { const v = S.normRvf(body.rvf); if (v) up.rvf = v; }          // סבב 4: סימונים מהביקורת
     if (body.hs != null) { const v = S.normHs(body.hs); if (v) up.hs = v.v || !(job.hs && job.hs.v) ? v : Object.assign(v, { v: job.hs.v }); }   // 16/11/2026: כתוביות צרובות (הבדיקה נשמרת)
+    let libDone = null;
+    if (body.lib != null) {
+      // 17/11/2026: שמירה לספרייה הסתיימה — המניפסט חייב להיות בתיקיית הפרויקט ב־Drive, והזוגות רק מהרשימה של העבודה (md5 נבדק בעובד)
+      const dx = job.kind === 'dx' && job.spec && job.spec.dx;
+      libDone = dx && S.normLibDone(body.lib, dx);
+      if (!libDone) return res.status(400).json({ ok: false, error: 'lib_bad' });
+      const m = await driveFileInFolder(deps, job.uid, libDone.f, libDone.m);
+      if (m && m.error) return res.status(200).json({ ok: false, error: m.error });
+      if (!m) return res.status(400).json({ ok: false, error: 'lib_bad' });
+    }
     if (body.fil != null) { const v = S.normFil(body.fil); if (v) up.fil = v; }          // סבב 4: מילות מילוי
     if (body.lx != null) { const lx = job.spec && job.spec.vi === 1 ? LR.normViLx(body.lx) : LR.normLx(body.lx); if (lx) up.lx = lx; }   // 14/10/2026: עובדות למאגר הלמידה (מספרים וקודים בלבד) · 10/11: ניתוח — normViLx
     if (body.trace != null) {
@@ -3088,6 +3108,10 @@ async function worker(req, res, body, deps) {
       up.eh = (Array.isArray(job.eh) ? job.eh : []).concat([Object.assign({ e: up.err, s: (up.prog && up.prog.st) || '', at: now }, w ? { w } : {})]).slice(-10);
     }
     await patchJob(deps, id, up);
+    if (libDone) {   // ההורה: "נשמר בספרייה" — כשהעותק ב־R2 יפוג, העבודה תעבור לקבצים ב־Drive (jobGc → libHome)
+      const par = await readJob(deps, job.rp).catch(() => null);
+      if (par && par.uid === job.uid && par.kind === 'tr') await patchJob(deps, par.id, { vlib: Object.assign({}, libDone, { at: now }), updated: now });
+    }
     if (up.state === 'done' || up.state === 'failed') await learnSave(deps, Object.assign({}, job, up), now);
     if (spent > 0) await monthSpend(deps, job.uid, spent, now);   // מצב API: העלות נספרת בתקציב החודשי של המשתמש
     // 29/10/2026: הסכומים של המשתמש מאז ומעולם (מרכז הניהול ← משתמשים)
@@ -4483,7 +4507,9 @@ async function handler(req, res, deps = {}) {
       // בטלפון. התיקייה נבדקת בגישה של הסטודיו (drive.file — רק תיקייה שהאפליקציה יצרה / שנבחרה בה)
       if (job.kind !== 'tr' || st !== 'done' || !SR.isFolder(job.folder) || !apiJob(job)) return res.status(409).json({ ok: false, error: 'state' });
       if ((await readStats(deps, uid)).halt) return res.status(409).json({ ok: false, error: 'halted' });
-      const dx = S.normDx(body.dx, job.fo);
+      const isLib = !!(body.dx && body.dx.lib === 1);   // 17/11/2026: שמירה לספרייה — כל קבצי הפרויקט, md5 ומניפסט
+      if (isLib && job.vlib && job.vlib.home) return res.status(409).json({ ok: false, error: 'lib_home' });
+      const dx = isLib ? S.normLibDx(body.dx, job) : S.normDx(body.dx, job.fo);
       if (!dx) return res.status(400).json({ ok: false, error: 'bad_params' });
       const t = await gdrive.accessToken(deps, uid);
       if (!t.ok) return res.status(200).json({ ok: false, error: t.error || 'gd_failed' });

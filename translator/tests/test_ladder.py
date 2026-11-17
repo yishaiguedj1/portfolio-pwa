@@ -262,6 +262,7 @@ class OriginalOnly(unittest.TestCase):
         self.assertEqual(L.plan(sm(w=176, h=144))['why'], 'small')
         self.assertTrue(L.plan(sm(a='eac3'))['alt'], 'עותק הקול לנגן נשאר')
 
+    @unittest.skipUnless(FF, 'אין ffmpeg')   # בונה סרטון אמיתי — כמו TestBuild
     def test_build_default(self):
         os.environ.pop('SNB_LADDER_LOW', None)
         tmp = Path(tempfile.mkdtemp())
@@ -326,7 +327,7 @@ class Boost(unittest.TestCase):
             J.LADDER_DIR = old
             shutil.rmtree(d, ignore_errors=True)
 
-    @unittest.skipUnless(FF and hasattr(os, 'SCHED_IDLE') and sys.platform.startswith('linux'), 'לינוקס עם ffmpeg בלבד')   # run_case מריץ ffmpeg אמיתי — כמו שאר הבדיקות בקובץ
+    @unittest.skipUnless(hasattr(os, 'SCHED_IDLE') and sys.platform.startswith('linux'), 'לינוקס בלבד')
     def test_boost_whole_group(self):
         import resource
         hard = resource.getrlimit(resource.RLIMIT_NICE)[1]

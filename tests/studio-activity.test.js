@@ -25,7 +25,7 @@ ok(/\.sort\(\(a, b\) => \(a\.sm === 1\) - \(b\.sm === 1\) \|\| \(\(a\.spec \|\| 
 ok(/if \(k === 'job' && stDialJob\(\) && stDialJob\(\)\.on\) return \{ v: 'act', p: null \}/.test(st), 'יש עבודה פעילה — "פעילה" פותחת את עמוד הניהול');
 ok(/if \(v === 'act'\) return 'job';/.test(st), 'העמוד שייך ל"פעילה" בחוגה');
 ok(/else if \(ui\.view === 'act'\) pageAct\(p\);/.test(st), 'הציור');
-ok(/x === 'tower' \|\| x === 'act' \|\| x === 'home'/.test(st), 'ההורה — עמוד הבית ("חזור")');
+ok(/x === 'tower' \|\| x === 'act' \|\| x === 'lib' \|\| x === 'home'/.test(st), 'ההורה — עמוד הבית ("חזור")');
 ok(/if \(o\.act\) stDialJ = rec\.id; go\('job', rec\.id\);/.test(st), 'לחיצה על שורה — דף העבודה, שנשאר תחת "פעילה"');
 ok(/if \(ui\.view === 'act'\) return 'act\|'/.test(st), 'עבודה עברה מהתור לריצה — העמוד נבנה מחדש');
 ok(/ui\.view === 'home' \|\| ui\.view === 'vi' \|\| ui\.view === 'act'\) ms = /.test(st) && /\} else if \(ui\.view === 'home' \|\| ui\.view === 'vi' \|\| ui\.view === 'act'\) \{/.test(st), 'מתעדכן כמו הבית (אותו קצב, אותן קריאות)');

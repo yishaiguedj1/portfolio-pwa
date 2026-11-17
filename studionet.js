@@ -1094,6 +1094,22 @@ export function createNet(env) {
     const j = await dreq('GET', API + '?q=' + q(qs) + '&fields=files(' + q(VID_FIELDS) + ')&pageSize=5&spaces=drive');
     return j && j.files && j.files.length ? vidOf(j.files[0]) : vidsFolder(parent, n);
   }
+  /* 17/11/2026 — ספריית הסרטונים: פריט = תיקייה עם project.snb.json (snbRole=m, נכתב אחרון על ידי העובד — translator/job.py
+     dx_auto). מחפשים את המניפסטים עצמם (בגישת drive.file — רק מה שהאפליקציה יצרה), ואת הסרטונים הישנים מ"הסרטונים שלי" */
+  async function libList(o) {
+    o = o || {};
+    const old = !!o.old, cond = ['trashed = false', old ? "appProperties has { key='snbVid' and value='dx' }" : "appProperties has { key='snbRole' and value='m' }"];
+    const qs = new URLSearchParams({ q: cond.join(' and '), pageSize: '100', orderBy: 'modifiedTime desc', spaces: 'drive', fields: 'nextPageToken,files(' + VID_FIELDS + ')' });
+    if (o.page) qs.set('pageToken', String(o.page).slice(0, 2000));
+    const j = await dreq('GET', API + '?' + qs);
+    return { files: (Array.isArray(j && j.files) ? j.files : []).filter((f) => f && DFID.test(String(f.id || ''))).map(vidOf), next: j && typeof j.nextPageToken === 'string' ? j.nextPageToken : '' };
+  }
+  /* מד האחסון: כמה תפוס ב־Drive כולו ומה המכסה (about.get עובד גם ב־drive.file) */
+  async function driveQuota() {
+    const j = await dreq('GET', 'https://www.googleapis.com/drive/v3/about?fields=storageQuota');
+    const s = (j && j.storageQuota) || {};
+    return { used: Number(s.usage) || 0, limit: Number(s.limit) || 0 };
+  }
   async function driveRename(id, name) {
     if (!DFID.test(String(id || ''))) throw Object.assign(new Error('bad_id'), { code: 'bad_id' });
     return vidOf(await dreq('PATCH', API + '/' + id + '?fields=' + q(VID_FIELDS), { name: String(name || '').slice(0, 200) }));
@@ -1320,5 +1336,5 @@ export function createNet(env) {
   const goldUpload = (folderId, text) => textUpload(folderId, GOLD_REF_NAME, 'application/x-subrip', text, { snbRef: '1' });
 
 
-  return { api, signedPut, driveApi, driveToken, browseList, rangeBlob, vidsRoot, vidsList, vidsFolder, vidsSub, driveRename, driveTrash, driveMoveTo, jobFolder, upload, r2ToDrive, r2Get, cloudInitTemplate, glossLoad, glossSave, driveText, driveBlob, driveJson, goldUpload, textUpload, mediaUrl, mediaBytes, driveMeta, driveMove, driveCopy, lyricsSearch, subsFind, subsGet, _forget: () => { dtok = null; } };
+  return { api, signedPut, driveApi, driveToken, browseList, rangeBlob, vidsRoot, vidsList, vidsFolder, vidsSub, libList, driveQuota, driveRename, driveTrash, driveMoveTo, jobFolder, upload, r2ToDrive, r2Get, cloudInitTemplate, glossLoad, glossSave, driveText, driveBlob, driveJson, goldUpload, textUpload, mediaUrl, mediaBytes, driveMeta, driveMove, driveCopy, lyricsSearch, subsFind, subsGet, _forget: () => { dtok = null; } };
 }
