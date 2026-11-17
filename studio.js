@@ -2397,7 +2397,7 @@ const viJob = (id) => !!(store && store.jobs && store.jobs.some((r) => r && r.id
    דפי המשנה שלו) החוגה כולה ירדה. עכשיו המגדל אח בחוגה: ההורה = הבית, כמו הקריוקי והעבודה */
 export function chainFor(v, p) {
   if ((v === 'lang' && p !== 'def') || v === 'tracks' || v === 'link' || v === 'linkfmt' || v === 'linksec' || v === 'fmthelp' || v === 'grab' || v === 'cutsrc' || v === 'dpick') { v = 'new'; p = form && form.ka ? 'ka' : form && form.vi ? 'vi' : null; }   // הטופס (והקובץ) לא שורדים רענון; 30/10: טופס של שיר — תחת הקריוקי
-  const parent = (x, y) => (x === stRoot() ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : x === 'tower' || x === 'home' || x === 'ka' || x === 'vi' || x === 'settings' ? [stRoot(), null] : (x === 'lang' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push' || x === 'credits') ? ['settings', null] : x === 'gloss' || x === 'series' ? ['rules', null] : x === 'ser' ? ['series', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : x === 'vids' ? (vidsParent(y) || ['store', null]) : x === 'kasty' ? ['new', 'ka'] : (x === 'new' && y === 'ka') || (x === 'job' && kaJob(y)) ? ['ka', null] : (x === 'new' && y === 'vi') || (x === 'job' && viJob(y)) ? ['vi', null] : ['home', null]);   // 10/11/2026: ניתוח — תחת לשונית הניתוח   // 30/10: שיר — תחת הקריוקי
+  const parent = (x, y) => (x === stRoot() ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : x === 'tower' || x === 'act' || x === 'home' || x === 'ka' || x === 'vi' || x === 'settings' ? [stRoot(), null] : (x === 'lang' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push' || x === 'credits') ? ['settings', null] : x === 'gloss' || x === 'series' ? ['rules', null] : x === 'ser' ? ['series', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : x === 'vids' ? (vidsParent(y) || ['store', null]) : x === 'kasty' ? ['new', 'ka'] : (x === 'new' && y === 'ka') || (x === 'job' && kaJob(y)) ? ['ka', null] : (x === 'new' && y === 'vi') || (x === 'job' && viJob(y)) ? ['vi', null] : ['home', null]);   // 10/11/2026: ניתוח — תחת לשונית הניתוח   // 30/10: שיר — תחת הקריוקי
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -2504,8 +2504,9 @@ function stDialJob() {            // הפעילה (בתור / רצה / בהעל�
   const on = store.jobs.find((r) => r && r.srv && !FINAL.includes(r.srv.state) && (r.srv.state !== 'new' || r.up.started));
   return on ? { rec: on, on: true } : (() => { const d = store.jobs.find((r) => r && r.srv && r.srv.state === 'done'); return d ? { rec: d, on: false } : null; })();
 }
-function stDialKeys() { const j = stDialJob() || (stDialJ && ui.view === 'job' && ui.param === stDialJ); return ST_SIB.filter((k) => (k !== 'job' || j) && (k !== 'ka' || kaOk()) && (k !== 'vi' || viTabOk())); }
+function stDialKeys() { const j = stDialJob() || ui.view === 'act' || (stDialJ && ui.view === 'job' && ui.param === stDialJ); return ST_SIB.filter((k) => (k !== 'job' || j) && (k !== 'ka' || kaOk()) && (k !== 'vi' || viTabOk())); }
 function stKeyOf(v, p) {          // לאיזה פריט בחוגה שייך הדף
+  if (v === 'act') return 'job';   // 17/11/2026: "פעילה" = עמוד העבודות הפעילות
   const ch = chainFor(v, p);
   if (ch.some((x) => x.v === 'tower')) return 'tower';
   const j = ch.find((x) => x.v === 'job'), dj = stDialJob();
@@ -2514,6 +2515,7 @@ function stKeyOf(v, p) {          // לאיזה פריט בחוגה שייך ה�
   return sib ? sib.v : 'home';
 }
 function stSibTarget(k) {
+  if (k === 'job' && stDialJob() && stDialJob().on) return { v: 'act', p: null };   // 17/11/2026 (בקשת המשתמש): יש עבודה פעילה — עמוד הניהול (רצות + תור); אין — האחרונה, כמו קודם
   if (k === 'job') { const cur = ui.view === 'job' && stKeyOf(ui.view, ui.param) === 'job' ? ui.param : null, dj = stDialJob(); const id = cur || (dj && dj.rec.id); return id ? { v: 'job', p: id } : null; }
   return ST_SIB.includes(k) ? { v: k, p: null } : null;
 }
@@ -3388,6 +3390,62 @@ function jobsCardIn(rows) {
   if (o && o._jc && rows.length > 3) { o._jc(rows); const ph = h('i'); shellKeep.map.set(ph, o); return ph; }
   return jobsCard(rows);
 }
+/* 17/11/2026: שורת עבודה — הבית (לפי כלי) ועמוד "פעילות" (o.act: כל הכלים, סוג העבודה, ובתור — למה היא מחכה) */
+function projRow(rec, o = {}) {
+  const r = btn('st-proj', null, () => { if (o.act) stDialJ = rec.id; go('job', rec.id); }, (o.act ? 'a:' : 'j:') + rec.id);   // מ"פעילות": העבודה נשארת תחת "פעילה" בחוגה
+  const th = h('span', 'st-thumb'); th.append(ico('film'));
+  paintThumb(th, rec);
+  const bar = h('span', 'st-tprog'); const bi = h('i'); bar.append(bi); th.append(bar);
+  const info = h('span', 'st-pinfo');
+  const nm = h('b'); nm.append(h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')));
+  const stat = h('span', 'st-pstat');
+  const bd = h('span', 'st-badge'); const tx = h('span', 'st-ptx');
+  stat.append(bd, tx);
+  const sm = h('small');
+  if (o.act) sm.append((rec.spec.ka ? T('studioDialKa') : rec.spec.vi ? T('studioDialVi') : T('studioActTr')) + ' · ');   // בפעילות — כל הכלים יחד: מה סוג העבודה
+  if (rec.spec.ka) sm.append(T('studioKaRow')); else if (rec.spec.vi) sm.append(langName(rec.spec.from, uiLang()) + ' · ', h('bdi', 'st-nw', rec.spec.dry ? T('studioViT') : modeShort(modeById(rec.spec.mode)))); else sm.append(langsText(rec.spec.from, rec.spec.to) + ' · ', h('bdi', 'st-nw', modeShort(modeById(rec.spec.mode))));
+  if (rec.spec.bt) sm.append(' · ' + T('studioBtTag'));   // 01/11/2026 (סבב 3): חצי מחיר
+  info.append(nm, sm, stat);
+  r.append(th, info);
+  live(r, () => {             // אחוז ומצב — מתעדכנים במקום
+    const run = runs.get(rec.id), ph = jobPhase(rec, run), m = modelFor(rec);
+    const [c, l] = qaPending(rec) ? ['amber', T('studioBAsk')] : recovering(rec) ? ['amber', T('studioBRecover')] : o.act && ph === 'queued' ? ['amber', T('studioBQueued')] : rec.spec.vi && (ph === 'running' || ph === 'queued') ? ['green', T('studioBViRun')] : badgeFor(ph);   // 17/11/2026: ניתוח — לא "בתרגום"; בפעילות — התור בנפרד
+    bd.className = 'st-badge ' + c; bd.textContent = l;
+    const upping = ph === 'extract' || ph === 'audio' || ph === 'video';
+    tx.textContent = o.act && ph === 'queued' ? nowLine(rec, run, ph) : upping ? Math.round(100 * (ph === 'video' ? run.p || 0 : m.stages[0].p || 0)) + '%' + (ph === 'video' && !rec.up.noAudio ? ' · ' + T('studioVideoShort') : '')
+      : m.bg ? T('studioNowBg') : ph === 'queued' && rec.srv && rec.srv.bw ? T('studioBwShort') : ph === 'running' || ph === 'queued' ? T('studioLeftShort', { t: fmtLeft(shownLeft(rec, m)) }) : '';
+    const pct = ph === 'done' ? 1 : ph === 'video' ? run.p || 0 : upping ? m.stages[0].p || 0 : ph === 'running' || ph === 'queued' ? shownPct(rec, m.pct, 'h') : m.pct;
+    bar.hidden = FINAL.includes(ph) || ph === 'ready';
+    bi.style.width = Math.round(100 * pct) + '%';
+  });
+  return r;
+}
+/* 17/11/2026 (בקשת המשתמש — צילומים: שתי עבודות, "פעילה" הראתה רק אחת): "פעילה" בחוגה = עמוד לניהול העבודות הפעילות —
+   מה רץ עכשיו (כולל העלאה מהטלפון) ומה בתור, מכל הכלים יחד; לחיצה על שורה = דף העבודה (ו"חזור" חוזר לכאן).
+   התור — בסדר שבו השרת לוקח: תרגום לפני ניתוח, ואז לפי זמן הכניסה (= api/studio.js, poll) */
+export function actSplit(jobs, phaseOf) {   // טהורה: [רצות, בתור]
+  const on = jobs.filter((r) => r && r.srv && !FINAL.includes(r.srv.state) && (r.srv.state !== 'new' || (r.up && r.up.started)));
+  const q = on.filter((r) => phaseOf(r) === 'queued');
+  q.sort((a, b) => ((a.spec || {}).vi === 1) - ((b.spec || {}).vi === 1) || ((a.srv.fired || 0) - (b.srv.fired || 0)));
+  return [on.filter((r) => !q.includes(r)), q];
+}
+function pageAct(p) {
+  p.append(navBar({ back: T('studioShort'), title: T('studioActT'), coll: true }), large(T('studioActT')));
+  const ab = accessBanner(); if (ab) p.append(ab);
+  const hb = haltBanner(); if (hb) p.append(hb);
+  const [now, q] = actSplit(store.jobs, (r) => jobPhase(r, runs.get(r.id)));
+  if (!now.length && !q.length) {
+    const e = h('div', 'st-empty');
+    const ic = h('span', 'st-empty-ic'); ic.append(ico('check'));
+    e.append(ic, h('b', null, T('studioActEmpty')));
+    p.append(e);
+    const last = stDialJob();
+    if (last) p.append(secT(T('studioDialLast')), list(projRow(last.rec, { act: true })));
+    return;
+  }
+  if (now.length) p.append(secT(T('studioActNow', { n: now.length })), list(...now.map((r) => projRow(r, { act: true }))));
+  if (q.length) p.append(secT(T('studioActQ', { n: q.length })), list(...q.map((r) => projRow(r, { act: true }))));
+}
 function pageHome(p, kaTab, viTab) {   // 10/11/2026: viTab — לשונית הניתוח (רשימה משלה, כמו הקריוקי)
   const pon = apiMode() ? ui.api.online > 0 : !!store.conn;
   const pill = btn('st-cpill' + (pon ? ' on' : ''), null, () => go('eng'), 'cpill');
@@ -3424,34 +3482,7 @@ function pageHome(p, kaTab, viTab) {   // 10/11/2026: viTab — לשונית ה�
     return;
   }
   if (jobs.length) {
-    const rows = jobs.map((rec) => {
-      const r = btn('st-proj', null, () => go('job', rec.id), 'j:' + rec.id);
-      const th = h('span', 'st-thumb'); th.append(ico('film'));
-      paintThumb(th, rec);
-      const bar = h('span', 'st-tprog'); const bi = h('i'); bar.append(bi); th.append(bar);
-      const info = h('span', 'st-pinfo');
-      const nm = h('b'); nm.append(h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')));
-      const stat = h('span', 'st-pstat');
-      const bd = h('span', 'st-badge'); const tx = h('span', 'st-ptx');
-      stat.append(bd, tx);
-      const sm = h('small');
-      if (rec.spec.ka) sm.append(T('studioKaRow')); else if (rec.spec.vi) sm.append(langName(rec.spec.from, uiLang()) + ' · ', h('bdi', 'st-nw', rec.spec.dry ? T('studioViT') : modeShort(modeById(rec.spec.mode)))); else sm.append(langsText(rec.spec.from, rec.spec.to) + ' · ', h('bdi', 'st-nw', modeShort(modeById(rec.spec.mode))));
-      if (rec.spec.bt) sm.append(' · ' + T('studioBtTag'));   // 01/11/2026 (סבב 3): חצי מחיר
-      info.append(nm, sm, stat);
-      r.append(th, info);
-      live(r, () => {             // אחוז ומצב — מתעדכנים במקום
-        const run = runs.get(rec.id), ph = jobPhase(rec, run), m = modelFor(rec);
-        const [c, l] = qaPending(rec) ? ['amber', T('studioBAsk')] : recovering(rec) ? ['amber', T('studioBRecover')] : badgeFor(ph);
-        bd.className = 'st-badge ' + c; bd.textContent = l;
-        const upping = ph === 'extract' || ph === 'audio' || ph === 'video';
-        tx.textContent = upping ? Math.round(100 * (ph === 'video' ? run.p || 0 : m.stages[0].p || 0)) + '%' + (ph === 'video' && !rec.up.noAudio ? ' · ' + T('studioVideoShort') : '')
-          : m.bg ? T('studioNowBg') : ph === 'queued' && rec.srv && rec.srv.bw ? T('studioBwShort') : ph === 'running' || ph === 'queued' ? T('studioLeftShort', { t: fmtLeft(shownLeft(rec, m)) }) : '';
-        const pct = ph === 'done' ? 1 : ph === 'video' ? run.p || 0 : upping ? m.stages[0].p || 0 : ph === 'running' || ph === 'queued' ? shownPct(rec, m.pct, 'h') : m.pct;
-        bar.hidden = FINAL.includes(ph) || ph === 'ready';
-        bi.style.width = Math.round(100 * pct) + '%';
-      });
-      return r;
-    });
+    const rows = jobs.map((rec) => projRow(rec));
     p.append(secT(kaTab ? T('studioKaSecJobs') : T('studioSecJobs')), jobsCardIn(rows));
   }
   if (!drafts.length) return;
@@ -10529,6 +10560,7 @@ function shapeKey() {
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
   if (ui.view === 'job' && va && va.id === ui.param) return 'vi|' + va.id + '|' + va.st + '|' + ui.access;   // PR 1.5ב: דף הניתוח לא נבנה מחדש (הנגן והגלילה)
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) + hsSig(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param) + '|' + (r && r.up.dx ? r.up.dx.st + Math.round(r.up.dx.p * 20) + r.up.dx.n : '') + (dxBusy === ui.param ? 'X' : ''); }   // 26/10/2026: השמירה ב־Drive
+  if (ui.view === 'act') return 'act|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + ui.halt;   // 17/11/2026: עבודה עברה מהתור לריצה / הסתיימה — בונים מחדש
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');
   if (ui.view === 'tower' || ui.view === 'towerx' || TW_SUBS.includes(ui.view)) return ui.view + '|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(curNorm()) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag) + JSON.stringify(ui.pb) + (ui.pbAll ? 1 : 0) + JSON.stringify(ui.rb) + JSON.stringify(ui.sc) + JSON.stringify(ui.va) + JSON.stringify(ui.slo) + JSON.stringify(ui.sh) + JSON.stringify(ui.an);   // v383 · v384
   if (ui.view === 'alert') return 'alert|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.ops) + (ui.alTab || 'd') + ui.muPick + ackBusy + JSON.stringify(ui.fb) + store.jobs.map((r) => r.id + (r.srv && r.srv.fr ? r.srv.fr.s : '')).join();
@@ -10687,6 +10719,7 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   else if (ui.view === 'store') pageStore(p);
   else if (ui.view === 'push') pagePush(p);
   else if (ui.view === 'tower') pageTower(p);
+  else if (ui.view === 'act') pageAct(p);   // 17/11/2026: "פעילה" — העבודות שרצות והתור
   else if (ui.view === 'towerx') pageTowerFull(p);
   else if (ui.view === 'alerts') pageAlerts(p);     // 13/10/2026: עמודי המשנה של המגדל
   else if (ui.view === 'smap') pageSmap(p);
@@ -10796,7 +10829,7 @@ function stKeepTap(e) {
 const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 /* נכנסים לדף: מרעננים ממה שבשרתון (מצב החיבור, העבודות) */
 function onEnter() {
-  if (ui.view === 'home' || ui.view === 'vi') { refreshStatus(); refreshJobs(); }   // 10/11/2026: גם הניתוח (עמוד הבית)
+  if (ui.view === 'home' || ui.view === 'vi' || ui.view === 'act') { refreshStatus(); refreshJobs(); }   // 17/11/2026: גם "פעילות"   // 10/11/2026: גם הניתוח (עמוד הבית)
   else if (ui.view === 'settings' || ui.view === 'connect' || ui.view === 'eng' || ui.view === 'store') refreshStatus();
   else if (ui.view === 'tower' || ui.view === 'towerx' || TW_SUBS.includes(ui.view)) { refreshStatus(true); refreshJobs(true); }
   else if (ui.view === 'rules' || ui.view === 'alert' || ui.view === 'rlb' || ui.view === 'rlm') refreshStatus(true);
@@ -10820,7 +10853,7 @@ function schedulePoll() {
   // v368: עבודה שמתאוששת — בודקים שוב בסוף החלון (אז השרתון ממשיך אותה)
   const recMs = (list) => { const t = Math.min(...list.filter(recovering).map((r) => r.srv.rw)); return Number.isFinite(t) ? Math.max(2000, Math.min(60000, t - Date.now() + 1500)) : 0; };
   if (ui.view === 'job') { const r = jobRec(ui.param), st = r && r.srv ? r.srv.state : 'new'; ms = st === 'queued' || st === 'running' || (r && r.srv && r.srv.bg) || phBurnLive(r) || phPrepLive(r) ? 4000 : st === 'new' && r && (r.up.started || r.spec.nu) || vcLive(r) ? 15000 : r ? recMs([r]) : 0; }
-  else if (ui.view === 'home' || ui.view === 'vi') ms = store.jobs.some((r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running' || r.srv.bg)) ? 30000 : recMs(store.jobs);   // 26/10/2026: 30 שנ׳ (op:'jobs' = כל העבודות שלך — קריאה מ־Firestore לכל אחת)
+  else if (ui.view === 'home' || ui.view === 'vi' || ui.view === 'act') ms = store.jobs.some((r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running' || r.srv.bg)) ? 30000 : recMs(store.jobs);   // 26/10/2026: 30 שנ׳ (op:'jobs' = כל העבודות שלך — קריאה מ־Firestore לכל אחת)
   else if (ui.view === 'rr') { ms = rrRunning(rrJobs.get(ui.param)) || rrRunning(rrPv.get(ui.param)) ? 4000 : 0; }   // מ2; סבב 10: גם הבדיקה
   else if (ui.view === 'server' && ui.api && ui.api.admin) ms = 15000;   // מסך השרת: הדופק מתעדכן כל 15 שנ׳
   if (ui.access === 'offline') ms = Math.min(ms || 30000, 30000);   // 11/11/2026: הפס "השרת לא עונה" — בודקים שוב עד שהוא חוזר (לא רק במעבר דף)
@@ -10841,7 +10874,7 @@ async function pollNow() {
         const j = await net.api('job', { job: x.id });
         if (j.ok && j.job) x.srv = normJob({ id: x.id, srv: j.job }).srv;
       }
-    } else if (ui.view === 'home' || ui.view === 'vi') {
+    } else if (ui.view === 'home' || ui.view === 'vi' || ui.view === 'act') {
       // 28/10/2026: op:'jobs' = קריאה של כל העבודות שלך (70+) מ־Firestore. בזמן עבודה רצה — רק היא (op:'job' = קריאה אחת),
       // והרשימה המלאה לכל היותר פעם ב־JOBS_FULL_MS. 30 שנ׳ × כל הרשימה × כמה שעות של פרקים = המכסה היומית (28/10)
       const isLive = (r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running' || r.srv.bg);
