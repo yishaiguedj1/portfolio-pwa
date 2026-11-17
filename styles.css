@@ -786,7 +786,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
        עובר לדף) ו־overflow-x: clip — חותך רק מה שהמסך חותך ממילא. אנכית בלי חיתוך (תפריטים נפתחים, תוצאות חיפוש).
    גלאים: tools/qa-sweep.js — squashOf (שכבה דחוסה או שורת גלילה בדף שנחת); tests/smooth-invest-glass.test.js */
 main .tabpage { margin-inline: -16px; padding-inline: 16px; overflow-x: clip; }
-main .tabpage :is(.ranges, .chip-row, .stock-sort-row, .wl-tabs, .tx-years):not(.stock-chips) { overflow: hidden; touch-action: pan-y; }
+main .tabpage :is(.ranges, .chip-row, .stock-sort-row, .wl-tabs, .tx-years, .earn-list):not(.stock-chips) { overflow: hidden; touch-action: pan-y; }
 /* 31/10/2026 (סבב קפיצות 6, ש2): שכבה קבועה לעמוד הפעיל (will-change: transform, 2.94.3) בוטלה — בהקלטה מהטלפון החמירה:
    הדף נעלם אחרי נחיתה בכל העמודים במקום רק בסקירה. הסיבה כנראה בחימום השכנים (tabPrewarm ב־app.js), לא בשכבה */
 /* Academy / Studio: הדף היוצא = העתק "מת" של השכבה — בלי אנימציות כניסה שמתחילות מחדש בהעתק; רקע אטום מתחת לשכבה */
@@ -1614,21 +1614,17 @@ html[data-app="cashflow"] .login-overlay { background: linear-gradient(160deg, #
 /* ---- דוחות קרובים ---- */
 /* v221: דוחות קרובים — רשימה לפי ת־עיצוב/Material: לוגו, סימבול ושם, שורת "בעוד N ימים", ואריח לוח שנה בקצה */
 .earn-list { list-style: none; margin: 4px 0 0; padding: 0; }
-/* v223: שלושה דוחות גלויים (15/11/2026; היה שניים; בלי דהייה — "עוד N דוחות" מתחת מספיק), השאר בגלילה בתוך הכרטיס — עוצר על כל שורה, בלי פס גלילה, דהייה בתחתית כשיש עוד */
-/* 15/11/2026: בלי overscroll-behavior: contain — בקצה הרשימה הגלילה ממשיכה לעמוד (אחרת העמוד "נתקע" במסך קטן) */
-.earn-list.earn-scroll { max-height: 200px; overflow-y: auto; scroll-snap-type: y proximity; scrollbar-width: none; }
-.earn-list.earn-scroll::-webkit-scrollbar { display: none; }
-.earn-list.earn-scroll.at-end { -webkit-mask-image: none; mask-image: none; }
-.earn-list.earn-scroll .earn-row { scroll-snap-align: start; }
-/* 17/11/2026 (בקשת המשתמש — לפי ת־גרף): במגע, אצבע על הרשימה בזמן גלילה גוללת את הדף ולא את הרשימה. דוח נוסף — "עוד N דוחות" (גלילה מהקוד) */
-@media (pointer: coarse) { .earn-list.earn-scroll { overflow-y: hidden; } }
-/* v224: "עוד N דוחות ⌄" — גלולה קטנה וממורכזת מתחת לחלון (בסוף: "חזרה למעלה ⌃") */
-.earn-more { display: flex; align-items: center; gap: 4px; margin: 8px auto 0; padding: 6px 14px; border: 0; border-radius: var(--pill); background: var(--surface-2); color: var(--on-surface); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.earn-more.hidden { display: none; }
-.earn-more:active { transform: scale(.97); }
-.earn-more-ic { width: 16px; height: 16px; color: var(--primary); transition: transform .2s ease; }
-.earn-more.up .earn-more-ic { transform: rotate(180deg); }
-@media (prefers-reduced-motion: reduce) { .earn-more-ic { transition: none; } }
+/* 17/11/2026 (בקשת המשתמש): קרוסלה אופקית — כל דוח כרטיס, הבא מציץ בקצה. העמוד נגלל למעלה/למטה והדוחות לצדדים, בלי
+   גלילה בתוך גלילה באותו כיוון (ת־עיצוב). הגרירה והעצירה על כרטיס — initHScroll (overflow: hidden, בלי שכבה משלה — ראו HS_ROWS) */
+.earn-list { display: flex; gap: 8px; margin-inline: calc(-1 * var(--earn-pad, 20px)); padding: 4px var(--earn-pad, 20px) 6px; }
+.earn-list > .earn-row { flex: 0 0 86%; padding: 10px; gap: 8px; background: var(--surface-2); border-radius: var(--radius-sm); box-shadow: inset 0 0 0 .5px var(--card-border); }
+.earn-list > .earn-row + .earn-row::before { display: none; }
+@media (max-width: 380px) { .earn-list > .earn-row { flex-basis: 90%; } }   /* מסך צר — שורת המועד בשורה אחת */
+.earn-list.earn-one > .earn-row { flex-basis: 100%; }
+.earn-list .earn-sub { font-size: 12.5px; }
+.earn-list > .earn-row .stock-logo { width: 32px; height: 32px; }
+.earn-list .earn-cal { width: 40px; }
+.earn-cnt { color: var(--on-surface-var); font-weight: 500; }
 .earn-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; position: relative; }
 .earn-row + .earn-row::before { content: ""; position: absolute; top: 0; inset-inline-start: 48px; inset-inline-end: 0; height: .5px; background: var(--separator); }
 .earn-row .stock-logo { width: 36px; height: 36px; border-radius: var(--radius-xs); }
@@ -1670,6 +1666,20 @@ html[data-app="cashflow"] .login-overlay { background: linear-gradient(160deg, #
 .earn-tone-ic { font-size: 9px; line-height: 1; align-self: center; color: var(--on-surface-var); }
 .earn-tone-ic.pos { color: var(--gain); }
 .earn-tone-ic.neg { color: var(--loss); }
+/* 17/11/2026: שורת האות — צפי חיובי/שלילי לדוח הקרוב ועקיפת הצפי */
+.earn-list > .earn-row { flex-wrap: wrap; row-gap: 0; }
+.earn-sigs { flex: 1 0 100%; display: flex; flex-direction: column; gap: 5px; margin-top: 8px; padding-top: 8px; border-top: .5px solid var(--separator); min-width: 0; }
+.earn-sig { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.earn-sig .earn-tone { margin-inline-start: 0; }
+.earn-tone.neu { color: var(--on-surface-var); background: color-mix(in srgb, var(--on-surface) 8%, transparent); }
+.earn-fc-v { font-size: 12px; font-weight: 600; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
+.earn-flag { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: var(--pill); font-size: 11.5px; font-weight: 700; white-space: nowrap; color: var(--warn-fg); background: var(--warn-bg); }
+.esx-sec { margin-top: 12px; padding-top: 10px; border-top: .5px solid var(--card-border); }
+.esx-st { font-size: 13.5px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.esx-st .earn-tone { margin-inline-start: 0; }
+.esx-sec .esx-meta { margin-top: 4px; }
+.esx-flag { font-size: 12.5px; margin-top: 8px; padding: 6px 10px; border-radius: var(--radius-sm); color: var(--on-surface); background: var(--warn-bg); }
+.esx-flag > span { color: var(--warn-fg); }
 .es-x { margin: -4px 0 16px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); }
 .esx-title { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
 .esx-grid { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); column-gap: 12px; row-gap: 8px; align-items: baseline; }
