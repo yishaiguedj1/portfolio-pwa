@@ -1970,16 +1970,18 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 _OPEN = urllib.request.build_opener(_NoRedirect).open      # ב־Drive ‏308 = "התקבל חלקית", לא הפניה
 
 
-def drive_upload(ctx, path, name, kind, mime, on_progress=None, prop='snbOut', replace='', parent=''):
+def drive_upload(ctx, path, name, kind, mime, on_progress=None, prop='snbOut', replace='', parent='', app=None, info=None):
     """העלאה מתחדשת לתיקיית העבודה. מחזיר את מזהה הקובץ ב־Drive.
     replace = מזהה קובץ קיים: תוכן חדש לאותו קובץ (אותו מזהה — איכויות הצפייה מחליפות כך את המקור בגרסה הארוזה).
-    ב־Drive ההחלפה אטומית: עד שההעלאה מסתיימת הקובץ הקודם נשאר כמו שהוא."""
+    ב־Drive ההחלפה אטומית: עד שההעלאה מסתיימת הקובץ הקודם נשאר כמו שהוא.
+    app = מאפיינים נוספים לקובץ; info = מילון שמקבל את md5Checksum ש־Drive חישב (שמירה מאומתת לספרייה, 17/11/2026)."""
     size = path.stat().st_size
+    fl = 'id,md5Checksum' if info is not None else 'id'
     if replace:
-        meta, method, url = {'name': name}, 'PATCH', ctx.upload + '/files/' + replace + '?uploadType=resumable&fields=id'
+        meta, method, url = {'name': name}, 'PATCH', ctx.upload + '/files/' + replace + '?uploadType=resumable&fields=' + fl
     else:
-        meta, method = {'name': name, 'parents': [parent or ctx.st['folder']], 'appProperties': {'snbJob': ctx.st['job'], prop: kind}}, 'POST'
-        url = ctx.upload + '/files?uploadType=resumable&fields=id'
+        meta, method = {'name': name, 'parents': [parent or ctx.st['folder']], 'appProperties': dict(app or {}, snbJob=ctx.st['job'], **{prop: kind})}, 'POST'
+        url = ctx.upload + '/files?uploadType=resumable&fields=' + fl
     st, j, hd = http(method, url, meta, headers={'Authorization': 'Bearer ' + ctx.token(), 'X-Upload-Content-Type': mime,
                                                  'X-Upload-Content-Length': str(size)})
     if st == 401:
@@ -2002,6 +2004,8 @@ def drive_upload(ctx, path, name, kind, mime, on_progress=None, prop='snbOut', r
                     if out.get('id'):
                         if retried:
                             ctx.event('drive', 'up_retry', ok=True)       # v365: Drive חזר — ההתראה נסגרת
+                        if info is not None:
+                            info['md5'] = str(out.get('md5Checksum') or '')
                         return out['id']
                     raise SystemExit('✗ Drive לא החזיר מזהה לקובץ.')
             except urllib.error.HTTPError as e:
@@ -2031,6 +2035,8 @@ def drive_upload(ctx, path, name, kind, mime, on_progress=None, prop='snbOut', r
                 with _OPEN(q, timeout=60) as r:
                     out = json.loads(r.read() or b'{}')
                     if out.get('id'):
+                        if info is not None:
+                            info['md5'] = str(out.get('md5Checksum') or '')
                         return out['id']
             except urllib.error.HTTPError as e:
                 if e.code == 308:
@@ -4949,9 +4955,30 @@ def dx_items(spec):
     dx = (spec or {}).get('dx') if isinstance(spec, dict) else None
     if not isinstance(dx, dict) or not FILE_ID_RE.match(str(dx.get('f') or '')) or str(dx.get('f')).startswith('R2_'):
         return None, []
-    it = [x for x in (dx.get('it') or [])[:6] if isinstance(x, dict) and is_r2_id(str(x.get('id') or ''))
+    it = [x for x in (dx.get('it') or [])[:(LIB_MAX if dx.get('lib') == 1 else 6)] if isinstance(x, dict) and is_r2_id(str(x.get('id') or ''))
           and isinstance(x.get('n'), str) and 0 < len(x['n']) <= 160]
     return str(dx['f']), it
+
+
+LIB_MAX = 16                                       # = LIB_MAX בשרתון (normLibDx)
+LIB_ROLES = ('v', 'a', 'b', 's', 'p', 'x')
+
+
+def file_md5(p):
+    h = hashlib.md5()
+    with open(p, 'rb') as f:
+        for b in iter(lambda: f.read(1 << 20), b''):
+            h.update(b)
+    return h.hexdigest()
+
+
+def lib_manifest(job, dx, files, now=None):
+    """17/11/2026 — ספריית הסרטונים: project.snb.json, הקובץ שמגדיר פריט בספרייה (נכתב אחרון — בלעדיו התיקייה לא פריט).
+    בלי שום פרט מעבר למה שבתיקייה עצמה: שם, סוג, שפות, אורך, פרקים, והקבצים עם md5 שנבדק מול Drive"""
+    m = dx.get('m') if isinstance(dx.get('m'), dict) else {}
+    return {'v': 1, 'job': job, 't': str(m.get('t') or dx.get('n') or ''), 'k': m.get('k') or 'tr', 'fr': m.get('fr') or '',
+            'to': list(m.get('to') or []), 'd': int(m.get('d') or 0), 'ch': list(m.get('ch') or []),
+            'at': int((now if now is not None else time.time()) * 1000), 'f': files}
 
 
 def dx_auto(args):
@@ -4963,6 +4990,8 @@ def dx_auto(args):
         ctx.report(fail=True, err='dx_bad', force=True)
         print('✗ אין מה לשמור.')
         return 1
+    lib = ctx.st['spec']['dx'].get('lib') == 1
+    fd, files = [], []
     d = DX_DIR / ctx.name
     d.mkdir(parents=True, exist_ok=True)
     total = sum(max(1, int(x.get('s') or 0)) for x in it)
@@ -4976,14 +5005,37 @@ def dx_auto(args):
             p = d / ('f%d' % i)
             fetch_input(ctx, x['id'], p, int(x.get('s') or 0), prog(sz, 0))
             ext = os.path.splitext(x['n'])[1].lower()
+            info = {} if lib else None
+            h = file_md5(p) if lib else ''
+            r = x.get('r') if x.get('r') in LIB_ROLES else 'x'
             try:
-                drive_upload(ctx, p, x['n'], 'dx', DX_MIME.get(ext, 'application/octet-stream'), prog(sz, 1), prop='snbVid', parent=dest)
+                fid = drive_upload(ctx, p, x['n'], r if lib else 'dx', DX_MIME.get(ext, 'application/octet-stream'), prog(sz, 1),
+                                   prop='snbRole' if lib else 'snbVid', parent=dest, app={'snbLib': '1'} if lib else None, info=info)
             except StepError as e:
                 ctx.report(fail=True, err='dx_drive' if getattr(e, 'err', '') == 'store_fail' else 'dx_net', msg=str(e)[:200], force=True)
                 print(str(e))
                 return 1
+            if lib:
+                if info.get('md5') != h:                 # שמירה מאומתת: מה שהגיע ל־Drive = מה שהיה ב־R2, בייט בבייט
+                    ctx.report(fail=True, err='dx_md5', msg='md5', force=True)
+                    print('✗ הקובץ שהגיע ל־Drive לא זהה למקור.')
+                    return 1
+                fd.append([x['id'], fid, h])
+                files.append({'r': r, 'k': str(x.get('k') or ''), 'n': x['n'], 'id': fid, 's': p.stat().st_size, 'md5': h})
             p.unlink(missing_ok=True)
             base[0] += sz
+        if lib:
+            mp = d / 'project.snb.json'
+            mp.write_text(json.dumps(lib_manifest(ctx.st.get('job') or '', ctx.st['spec']['dx'], files), ensure_ascii=False), encoding='utf-8')
+            try:
+                mid = drive_upload(ctx, mp, 'project.snb.json', 'm', 'application/json', prop='snbRole', parent=dest, app={'snbLib': '1'})
+            except StepError as e:
+                ctx.report(fail=True, err='dx_drive' if getattr(e, 'err', '') == 'store_fail' else 'dx_net', msg=str(e)[:200], force=True)
+                print(str(e))
+                return 1
+            ctx.report(done=True, msg='נשמר בספרייה', force=True, lib={'m': mid, 'fd': fd})
+            print('✓ %d קבצים נשמרו בספרייה (md5 נבדק).' % len(it))
+            return 0
         ctx.report(done=True, msg='נשמר ב־Drive', force=True)
         print('✓ %d קבצים נשמרו ב־Drive.' % len(it))
         return 0

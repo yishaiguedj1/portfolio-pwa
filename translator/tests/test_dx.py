@@ -23,8 +23,11 @@ class FakeCtx:
 
 
 class Dx(unittest.TestCase):
-    def spec(self, it, f='vidsFold123456'):
-        return {'dx': {'f': f, 'n': 'הרצאות', 'it': it}}
+    def spec(self, it, f='vidsFold123456', lib=False):
+        dx = {'f': f, 'n': 'הרצאות', 'it': it}
+        if lib:
+            dx.update(lib=1, m={'t': 'הרצאה', 'k': 'tr', 'fr': 'en', 'to': ['he'], 'd': 60, 'ch': [{'t': 0, 'n': 'פתיחה'}]})
+        return {'dx': dx}
 
     def test_items_only_r2_to_drive(self):
         self.assertEqual(job.dx_items(self.spec([{'id': V, 'n': 'a.mp4'}]))[0], 'vidsFold123456')
@@ -32,8 +35,8 @@ class Dx(unittest.TestCase):
         self.assertEqual(job.dx_items(self.spec([{'id': 'driveFile12345', 'n': 'a.mp4'}]))[1], [])                     # רק קבצים מ־R2
         self.assertEqual(job.dx_items({})[1], [])
 
-    def run_dx(self, it, up=None):
-        ctx = FakeCtx({'job': 'jDXjobAAAAAAAAAAAAAAA', 'kind': 'dx', 'folder': F, 'spec': self.spec(it)})
+    def run_dx(self, it, up=None, lib=False, bad_md5=False):
+        ctx = FakeCtx({'job': 'jDXjobAAAAAAAAAAAAAAA', 'kind': 'dx', 'folder': F, 'spec': self.spec(it, lib=lib)})
         ups = []
 
         def fetch(c, fid, dest, size, on_progress=None):
@@ -41,11 +44,14 @@ class Dx(unittest.TestCase):
             if on_progress:
                 on_progress(1.0)
 
-        def upload(c, path, name, kind, mime, on_progress=None, prop='snbOut', replace='', parent=''):
+        def upload(c, path, name, kind, mime, on_progress=None, prop='snbOut', replace='', parent='', app=None, info=None):
             if up:
                 up()
-            ups.append((Path(path).read_bytes(), name, mime, prop, parent))
-            return 'D' + name
+            b = Path(path).read_bytes()
+            ups.append((b, name, mime, prop, parent, kind, app))
+            if info is not None:
+                info['md5'] = '0' * 32 if bad_md5 else job.hashlib.md5(b).hexdigest()
+            return 'D%013d' % len(ups)
         with tempfile.TemporaryDirectory() as d, mock.patch.object(job, 'DX_DIR', Path(d) / '_dx'), \
                 mock.patch.object(job, 'load_state', lambda: ctx.st), mock.patch.object(job, 'Ctx', lambda st: ctx), \
                 mock.patch.object(job, 'fetch_input', fetch), mock.patch.object(job, 'drive_upload', upload):
@@ -71,6 +77,35 @@ class Dx(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertEqual(ctx.reports[-1].get('err'), 'dx_drive')
         self.assertEqual(left, [])
+
+    def test_library_verified_copy_and_manifest_last(self):
+        rc, ctx, ups, left = self.run_dx([{'id': V, 'n': 'Talk.mp4', 's': 10, 'r': 'b', 'k': 'compact'},
+                                          {'id': S, 'n': 'Talk.he.srt', 's': 2, 'r': 's', 'k': 'srt'}], lib=True)
+        self.assertEqual(rc, 0)
+        self.assertEqual([(u[3], u[5], u[6]) for u in ups], [('snbRole', 'b', {'snbLib': '1'}), ('snbRole', 's', {'snbLib': '1'}),
+                                                              ('snbRole', 'm', {'snbLib': '1'})], 'המניפסט אחרון')
+        man = job.json.loads(ups[-1][0])
+        self.assertEqual((man['v'], man['t'], man['fr'], man['to'], man['d']), (1, 'הרצאה', 'en', ['he'], 60))
+        self.assertEqual([(f['r'], f['k'], f['id'], f['md5']) for f in man['f']],
+                         [('b', 'compact', 'D0000000000001', job.hashlib.md5(V.encode()).hexdigest()),
+                          ('s', 'srt', 'D0000000000002', job.hashlib.md5(S.encode()).hexdigest())])
+        last = ctx.reports[-1]
+        self.assertTrue(last.get('done'))
+        self.assertEqual(last['lib']['m'], 'D0000000000003')
+        self.assertEqual(last['lib']['fd'], [[V, 'D0000000000001', job.hashlib.md5(V.encode()).hexdigest()],
+                                             [S, 'D0000000000002', job.hashlib.md5(S.encode()).hexdigest()]])
+        self.assertEqual(left, [])
+
+    def test_library_md5_mismatch_fails_without_manifest(self):
+        rc, ctx, ups, left = self.run_dx([{'id': V, 'n': 'a.mp4', 's': 1, 'r': 'v'}], lib=True, bad_md5=True)
+        self.assertEqual((rc, ctx.reports[-1].get('err')), (1, 'dx_md5'))
+        self.assertNotIn('m', [u[5] for u in ups], 'בלי מניפסט — התיקייה לא נהיית פריט')
+        self.assertEqual(left, [])
+
+    def test_library_allows_more_items(self):
+        it = [{'id': F + '_%012d' % i, 'n': '%d.srt' % i} for i in range(20)]
+        self.assertEqual(len(job.dx_items(self.spec(it))[1]), 6)
+        self.assertEqual(len(job.dx_items(self.spec(it, lib=True))[1]), job.LIB_MAX)
 
     def test_nothing_to_copy(self):
         rc, ctx, ups, left = self.run_dx([])

@@ -909,6 +909,7 @@ function publicJob(job, now) {
     q: normQuality(job.q), ij: normInj(job.ij),     // v374: מדד האיכות ושומר ההזרקות
     jd: normJudge(job.jd),                          // v375: שופט האיכות
     rvf: normRvf(job.rvf), fil: normFil(job.fil),   // סבב 4: סימונים מהביקורת, מילות מילוי
+    lib: libView(job.vlib),                          // 17/11/2026: נשמר בספרייה ב־Drive (התיקייה, המניפסט, האם עברה הביתה)
     hs: normHs(job.hs),                             // 16/11/2026: כתוביות צרובות במקור (האזור, ואחרי ההסתרה — הבדיקה)
     ep: ETA.normEp(job.ep),                         // 10/10/2026: צפי הזמנים של העבודה (נקבע בלקיחה)
     gl: normGl(job.gl),                             // v380: מונחים מהמילון שלך שימשו + מונחים חדשים להצעה
@@ -1056,6 +1057,69 @@ function normDx(o, outs) {
     seen.add(id); it.push({ id, n, s: Math.max(0, Math.floor(+have.get(id).size || 0)) });
   }
   return it.length ? { f: String(o.f), n: dxName(o.n).slice(0, 120), it } : null;
+}
+/* 17/11/2026 (בקשת המשתמש): ספריית הסרטונים ב־Drive של המשתמש — אותה עבודת dx, עם lib: כל קבצי הפרויקט (התוצרים, המקור הארוז
+   אם עוד קיים, עותק הקול) לתיקייה של הפרויקט בספרייה; העובד בודק md5 מול Drive וכותב את המניפסט אחרון (project.snb.json).
+   r = התפקיד בספרייה: v מקור · b צרוב · s כתוביות · a קול לנגן · p פוסטר · x אחר. m = מה שהמניפסט מציג (שם, סוג, שפות, פרקים) */
+const LIB_MAX = 16, LIB_CH_MAX = 60;
+const LIB_ROLE = { src: 'v', aud: 'a', same: 'b', compact: 'b', small: 'b', mkv: 'b', srt: 's', vtt: 's', ass: 's', cues: 's', en: 's', thumb: 'p' };
+const libRole = (k) => LIB_ROLE[k] || 'x';
+/* המזהים שמותר להעתיק: התוצרים (fo), המקור הארוז (fv — רק ב־R2 ולפני שנמחק) ועותקי הקול (hla) */
+function libIds(job) {
+  const m = new Map();
+  for (const o of Array.isArray(job && job.fo) ? job.fo : []) if (o && FILE_ID_RE.test(String(o.id || ''))) m.set(String(o.id), { k: String(o.k || ''), s: o.size });
+  if (job && job.fv && !job.fv.ext && !job.sx && String(job.fv.id || '').startsWith('R2_')) m.set(String(job.fv.id), { k: 'src', s: job.fv.size });
+  for (const a of Array.isArray(job && job.hla) ? job.hla : []) if (a && String(a.id || '').startsWith('R2_')) m.set(String(a.id), { k: 'aud', s: a.size });
+  return m;
+}
+function normLibMeta(m) {
+  m = m && typeof m === 'object' && !Array.isArray(m) ? m : {};
+  const ch = [];
+  for (const c of Array.isArray(m.ch) ? m.ch.slice(0, LIB_CH_MAX) : []) {
+    const t = Math.round(Number(c && c.t)), n = dxName(c && c.n).slice(0, 100);
+    if (t >= 0 && t <= 86400 && n) ch.push({ t, n });
+  }
+  const lang = (x) => (/^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(String(x || '')) ? String(x) : '');
+  return { t: dxName(m.t).slice(0, 120), k: ['tr', 'ka', 'vi'].includes(m.k) ? m.k : 'tr', fr: lang(m.fr), to: (Array.isArray(m.to) ? m.to : []).map(lang).filter(Boolean).slice(0, 4),
+    d: Math.max(0, Math.min(86400, Math.round(Number(m.d) || 0))), ch };
+}
+function normLibDx(o, job) {
+  if (!o || typeof o !== 'object' || !FILE_ID_RE.test(String(o.f || '')) || String(o.f).startsWith('R2_')) return null;
+  const have = libIds(job), it = [], seen = new Set();
+  for (const x of Array.isArray(o.it) ? o.it.slice(0, LIB_MAX) : []) {
+    const id = String(x && x.id || ''), n = dxName(x && x.n), h = have.get(id);
+    if (!h || seen.has(id) || !n || !id.startsWith('R2_')) return null;
+    seen.add(id); it.push({ id, n, s: Math.max(0, Math.floor(+h.s || 0)), k: h.k, r: libRole(h.k) });
+  }
+  return it.length ? { f: String(o.f), n: dxName(o.n).slice(0, 120), lib: 1, m: normLibMeta(o.m), it } : null;
+}
+/* הדיווח של העובד בסוף שמירה לספרייה: המניפסט וזוגות R2 → Drive (רק מזהים מהרשימה של העבודה), עם md5 שנבדק */
+function normLibDone(o, dx) {
+  if (!o || typeof o !== 'object' || !dx || dx.lib !== 1 || !FILE_ID_RE.test(String(o.m || '')) || String(o.m).startsWith('R2_')) return null;
+  const ok = new Set((dx.it || []).map((x) => x.id)), fd = [], seen = new Set();
+  for (const p of Array.isArray(o.fd) ? o.fd.slice(0, LIB_MAX) : []) {
+    const [a, b, md5] = Array.isArray(p) ? p : [];
+    if (!ok.has(String(a)) || seen.has(String(a)) || !FILE_ID_RE.test(String(b || '')) || String(b).startsWith('R2_') || !/^[0-9a-f]{32}$/.test(String(md5 || ''))) return null;
+    seen.add(String(a)); fd.push({ a: String(a), b: String(b), h: String(md5) });   // אובייקטים — Firestore לא שומר מערך בתוך מערך
+  }
+  return fd.length === ok.size ? { f: dx.f, m: String(o.m), fd } : null;
+}
+/* העבודה עוברת הביתה (R2 פג): כל מזהה R2 שנשמר בספרייה → המזהה ב־Drive, התיקייה → תיקיית הפרויקט בספרייה. מה שלא נשמר יורד.
+   כך הנגן, העורכים, ההפקה מחדש וגיליון ה־AI ממשיכים לעבוד (כולם בוחרים לפי המזהה). מחזיר את השדות לעדכון, או null */
+function libSwap(job) {
+  const lb = job && job.vlib;
+  if (!lb || !FILE_ID_RE.test(String(lb.f || '')) || !Array.isArray(lb.fd) || !lb.fd.length) return null;
+  const map = new Map(lb.fd.filter((p) => p && p.a && p.b).map((p) => [String(p.a), String(p.b)]));
+  const sw = (x) => (x && map.has(String(x.id)) ? Object.assign({}, x, { id: map.get(String(x.id)) }) : null);
+  const fo = (Array.isArray(job.fo) ? job.fo : []).map(sw).filter(Boolean);
+  const fv = job.fv && map.has(String(job.fv.id)) ? sw(job.fv) : null;
+  const hl = fv && Array.isArray(job.hl) ? job.hl.map(sw).filter(Boolean) : [];
+  const hla = hl.length && Array.isArray(job.hla) ? job.hla.map(sw).filter(Boolean) : [];
+  return { fo, fv, hl: hl.length ? hl : null, hla: hla.length ? hla : null, folder: String(lb.f), ck: [], vlib: Object.assign({}, lb, { home: 1 }) };
+}
+function libView(lb) {
+  if (!lb || typeof lb !== 'object' || !FILE_ID_RE.test(String(lb.f || '')) || !FILE_ID_RE.test(String(lb.m || ''))) return null;
+  return { f: String(lb.f), m: String(lb.m), at: Math.max(0, Math.floor(+lb.at || 0)), home: lb.home === 1 ? 1 : 0 };
 }
 function dxJob(parent, dx, id, uid, now) {
   const sp = parent.spec || {};
@@ -1911,7 +1975,7 @@ function normUtl(o) {
   for (const k of UTL_KEYS) { const v = Number(o[k]); if (Number.isFinite(v) && v >= 0 && v <= 1e11) out[k] = Math.round(v); }
   return Object.keys(out).length ? out : null;
 }
-const JSON_FIELDS = ['mon', 'qw', 'bq', 'btx', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr', 'urt', 'fsr', 'vst', 'vcp', 'vsm', 'fvi', 'vrf', 'vq', 'fvj', 'vjd', 'vref', 'vpd', 'hs'];   // 16/11/2026: hs = כתוביות צרובות במקור   // PR 1.6: fvj = הזוגות של עבודת השופט, vjd = מה שהשופט מצא, vref = עותק הייחוס לשופט, vpd = טיוטת הייחוס (ה5); vrf = חבילת הייחוס של ניתוח בסט הזהב, vq = הציון מולה   // PR 1.2ג: fvi = ה־vi.json של ההורה לעבודת "אמת שוב"   // 9/11/2026: vsm = סיכום הניתוח (מספרים)   // 29/10/2026: vst = כמה מהסרטון ב־R2 בפעם האחרונה שזז (העלאה תקועה — upStallStep)   // 26/10/2026: fsr = רצועת הכתוביות שבקובץ, עזר להגהה   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['mon', 'qw', 'bq', 'btx', 'uh', 'sto', 'upv', 'spec','fa', 'fv', 'fsu', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'hla', 'rvf', 'fil', 'cp', 'lx', 'eh', 'lr', 'ux', 'utl', 'pbr', 'fph', 'pbn', 'fpw', 'ppr', 'urt', 'fsr', 'vst', 'vcp', 'vsm', 'fvi', 'vrf', 'vq', 'fvj', 'vjd', 'vref', 'vpd', 'hs', 'vlib'];   // 17/11/2026: vlib = נשמר בספרייה ב־Drive (התיקייה, המניפסט, R2 → Drive)   // 16/11/2026: hs = כתוביות צרובות במקור   // PR 1.6: fvj = הזוגות של עבודת השופט, vjd = מה שהשופט מצא, vref = עותק הייחוס לשופט, vpd = טיוטת הייחוס (ה5); vrf = חבילת הייחוס של ניתוח בסט הזהב, vq = הציון מולה   // PR 1.2ג: fvi = ה־vi.json של ההורה לעבודת "אמת שוב"   // 9/11/2026: vsm = סיכום הניתוח (מספרים)   // 29/10/2026: vst = כמה מהסרטון ב־R2 בפעם האחרונה שזז (העלאה תקועה — upStallStep)   // 26/10/2026: fsr = רצועת הכתוביות שבקובץ, עזר להגהה   // 25/10/2026: ppr = ההתקדמות בטלפון לפני ההתחלה (שלב 2)   // 25/10/2026: fpw = המילים עם הזמנים מהטלפון (שלב 2)   // 24/10/2026: fph = קובץ המדידות מהטלפון, pbn = הצריבה בטלפון   // 22/10/2026: pbr = סיכום בדיקת קישור (studioProbe)   // 15/10/2026: מ׳3 — מה קרה אחרי העבודה (ux)   // 14/10/2026: מאגר הלמידה — עובדות מהעובד, היסטוריית הכשלים, הרשומה   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -1941,7 +2005,7 @@ function fromFields(f) {
 module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, smAlias, smResolve, smRowsMerge, smEvict, smIsName, chKey, jobSeries, SM_BYTES, SM_READ, SM_GL, SM_CH, SM_NEW, SM_DONE, SM_LOCK, SM_UNSURE, SM_FIX, SM_WORKER, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, legacyMode, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
-  GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, isGold, isViGold, goldClone, normXe, XF_KEYS, XF_MAX, normXf, GOLD_ARMS, normArms, waveOrder, waveClone, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, burnSuspect, lbJob, cuesSwap, rrSpec, rrJob, VV_MAX, viOut, isVv, canViVerify, vvJob, vvAdopt, isVj, VJ_USD, isVp, VP_MODES, VP_USD, vpJob, viWave, vjPairs, normVjp, vjJob, vjRows, vjDecide,
+  GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, isGold, isViGold, goldClone, normXe, XF_KEYS, XF_MAX, normXf, GOLD_ARMS, normArms, waveOrder, waveClone, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, LIB_MAX, libRole, libIds, normLibMeta, normLibDx, normLibDone, libSwap, libView, burnSuspect, lbJob, cuesSwap, rrSpec, rrJob, VV_MAX, viOut, isVv, canViVerify, vvJob, vvAdopt, isVj, VJ_USD, isVp, VP_MODES, VP_USD, vpJob, viWave, vjPairs, normVjp, vjJob, vjRows, vjDecide,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normHs, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,

@@ -1423,3 +1423,13 @@ html.st-dock .toast { bottom: calc(var(--dock-pad, var(--dock-h, 120px)) + 12px 
 .st-sv-flash { position: fixed; inset-inline: 16px; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 950; padding: 12px 16px; border-radius: var(--radius-sm);
   background: var(--on-surface); color: var(--bg); font-size: 14.5px; line-height: 1.4; text-align: center; box-shadow: 0 6px 24px rgba(0, 0, 0, .25); }
 .st-sv-flash[hidden] { display: none; }
+/* 17/11/2026 — ספריית הסרטונים: הלשוניות (st-seg, זכוכית), מד האחסון ב־Drive, וכרטיס הראש של פריט שהעבודה שלו קיימת */
+.st-lib-seg { margin: 0 16px 12px; }
+.st-lib-meter { display: grid; gap: 6px; margin: 16px 16px 8px; color: var(--on-surface-var); font-size: 13px; }
+.st-lib-bar { display: block; block-size: 6px; border-radius: var(--pill); background: var(--st-fill); overflow: hidden; }
+.st-lib-bar i { display: block; block-size: 100%; border-radius: var(--pill); background: var(--primary); }
+.st-lib-meter.hi .st-lib-bar i { background: var(--loss); }
+.st-lib-hero { display: grid; gap: 6px; margin: 0 16px 12px; padding: 16px; border-radius: var(--radius); background: var(--st-card); }
+.st-lib-hero small { color: var(--on-surface-var); font-size: 14px; }
+.st-lib-t { margin: 0; font-size: 20px; line-height: 1.3; }
+.st-lib-acts { margin-top: 20px; }

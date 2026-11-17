@@ -172,7 +172,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   /* ---------- 10. הלשונית (PR 1.5א, 10/11/2026) ---------- */
   { const NA = new Function('return ' + (stj.match(/export function normApi\(a\) \{[\s\S]*?\n\}/) || [''])[0].replace('export ', ''))();
     ok(NA({ vi: true }).vi === true && NA({ vi: 1 }).vi === false && NA({}).vi === false, 'normApi: vi עובר מהסטטוס (נזרק עד 1.5א — הניתוח לא הוצג גם למנהל)'); }
-  ok(/const ST_SIB = \['ka', 'home', 'vi', 'job', 'tower'\];/.test(stj) && /\(k !== 'vi' \|\| viTabOk\(\)\)/.test(stj), 'החוגה: הניתוח במרכז (מימינו התרגום ומימין לו הקריוקי, 10/11), רק למי שמורשה');
+  ok(/const ST_SIB = \['ka', 'home', 'vi', 'job', 'lib', 'tower'\];/.test(stj) && /\(k !== 'vi' \|\| viTabOk\(\)\)/.test(stj) && /\(k !== 'lib' \|\| libTabOk\(\)\)/.test(stj), 'החוגה: הניתוח במרכז (מימינו התרגום ומימין לו הקריוקי, 10/11), רק למי שמורשה');
   ok(/const stRoot = \(\) => \(viTabOk\(\) \? 'vi' : 'home'\);/.test(stj) && /\[\{ v: stRoot\(\), p: null \}\]/.test(stj) && /ui\.view = restore \? \(restore\.sv \|\| stRoot\(\)\) : stRoot\(\);/.test(stj), 'עמוד הבית = הניתוח (כשהלשונית זמינה), אחרת התרגום');
   ok(/rootFresh = !restore && stRoot\(\) === 'home';/.test(stj) && /if \(rootFresh\) \{[^]*?rootFresh = false;[^]*?ui\.view === 'home' && stRoot\(\) === 'vi' && \(!CW_OK \|\| stack\.length === 1\)[^]*?ui\.view = 'vi'; ui\.param = null;[^]*?history\.state\.studio === 1\) history\.replaceState\(cleanState\(\{ studio: 1, sv: 'vi', sp: null \}\)/.test(stj),
     'פתיחה ראשונה בלי מטמון: הסטטוס הראשון מעביר מהתרגום לניתוח — פעם אחת, רק אם לא זזו, בלי רשומת היסטוריה');

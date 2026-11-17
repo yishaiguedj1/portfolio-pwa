@@ -88,6 +88,7 @@ const ID = '1AbCdEfGhIjKlMnOpQrStUvWxYz0123';
   const sj = read('studio.js');
   // 26/10/2026 (בקשת המשתמש): בלי Google Picker בכלל — המקור מהרשימה של Studio, והשמירה ב״הסרטונים שלי״ (דף שלנו)
   ok(!/pickSourceFromDrive|drivePick|legacyPick|google\.picker|canPick\(\)/.test(sj) && /go\('dpick'\); \}, k: 'from-drive'/.test(sj), 'מקור מ־Drive — הרשימה של Studio, לא Picker');
-  ok(/driveOk\(\) && outs\.some\(\(o\) => DX_MOVE\.includes\(o\.k\) \|\| o\.k === 'srt'\) \? dxRow\(rec\)/.test(sj) && /goVids\('S:' \+ rec\.id\)/.test(sj), 'השמירה ב־Drive — דרך ״הסרטונים שלי״');
+  // 17/11/2026 (בקשת המשתמש): הספרייה מחליפה את ״הסרטונים שלי״ — "הוספה לספרייה" בדף העבודה, עבודת dx עם lib:1 בשרת
+  ok(/driveOk\(\) && libItems\(rec\)\.length \? libRow\(rec\)/.test(sj) && /net\.api\('dxRun', \{ job: rec\.id, dx: \{ f: f\.id, n: f\.name, lib: 1, m: libMeta\(rec\), it \} \}\)/.test(sj), 'השמירה ב־Drive — "הוספה לספרייה"');
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL - ' + (e && e.stack || e)); process.exit(1); });
