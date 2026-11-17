@@ -10,6 +10,7 @@
 - `node tests/i18n-coverage.test.js` (711) — כל מחרוזת גלויה בעברית **ובאנגלית**.
 - `node tests/ui-v193.test.js` (≈45) — ביצועים ומעברים: ציור רק של הטאב הנראה, מפתח ציור לעוגה, אתחול מיידי, רשת, SW, אנימציות.
 - `node ibkr-proxy/tests/run.js` (62) — שרתון.
+- **ב־CI אין playwright** (17/11/2026, ‏`tools/chart-deep/kcverify.js` הפיל את `chart-deep.test.js` וחסם את הפריסה של 2.166.1): כלי שבדיקה טוענת (`require`) — טוען דפדפן רק בתוך ההרצה (`const playwright = () => require(...)`), לא בראש הקובץ. מקומית זה עובר כי playwright מותקן בקונטיינר — לכן זה לא נתפס ב־`tools/t.sh`.
 - `node tools/deploy-guard.js <base> <head>` — שומר הפריסה על PR (ב־CI אוטומטי, סעיף 11).
 - הכל: הלולאה ב־`.github/workflows/test.yml` (אין `tests/run-all.sh` בריפו). בדיקות תאימות `CACHE_NAME`↔`APP_VERSION` — דרך `tests/_swver.js` (`swVersionOk`). מ־v394 הן תמיד שוות (swgen כותב את שתיהן מאותו מקום); הסובלנות לגרסה אחת אחורה נשארה מהפרוטוקול הדו־שלבי ולא מזיקה. **`tests/swgen.test.js` = השומר**: `sw.js` לא מעודכן לקבצים = אדום. בדיקת גרסה חדשה — רק דרך `swVersionOk`.
 - מוסכמה: בבדיקות multi-chunk מעבירים `{ chunkGapMs: 5 }` — זה מחליף את כל הקצב (בלי מגביל, בלי המתנת poll ראשונה). לבדיקת קצב אמיתי: `{ limiter: ibkrMakeLimiter({now, sleep}), sleep }` עם שעון מדומה.
