@@ -19,7 +19,9 @@ function pickStatements(xml) {
   let m;
   while ((m = re.exec(String(xml || '')))) {
     const r = m[1], g = (t) => { const x = new RegExp('<' + t + '>([\\s\\S]*?)</' + t + '>').exec(r); return x ? x[1].trim() : ''; };
-    if (g('MenuCategory') !== 'Statements') continue;
+    // הגשות ישנות (עד ~2015, McDonald's ‏10-Q ‏2014) בלי MenuCategory — הסוג בתוך LongName: "1001000 - Statement - …"
+    const cat = g('MenuCategory') || (/^\s*\d+\s*-\s*Statement\s*-/i.test(g('LongName')) ? 'Statements' : '');
+    if (cat !== 'Statements') continue;
     // רווח שהפך ל־"??" בכותרת (Sherwin-Williams: "STATEMENTS??OF??CONSOLIDATED??INCOME" — כך בקובץ של SEC) / רווח קשיח — בלי זה הדוח לא זוהה, ו־OperatingIncomeLoss
     // מביאור המגזרים (סך רווח המגזרים, ‏$4.16B ב־2023) נשאר "רווח תפעולי" בלי דוח לבדוק מולו
     const name = g('ShortName').replace(/&#160;|&nbsp;|\?+|\s+/g, ' '), file = g('HtmlFileName');
