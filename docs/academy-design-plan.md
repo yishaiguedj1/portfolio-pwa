@@ -11,7 +11,7 @@
 ## 20 הפריטים
 1 חומר · 2 הדר · 3 חוגה · 4 חיפוש · 5 צ'יפים · 6 להמשיך לקרוא · 7 כריכות · 8 אוספים · 9 דף ספר · 10 כרטיסי תובנות · 11 סרגלי הקורא · 12 גיליונות · 13 בוררים · 14 ערכות · 15 בועת הדגשה · 16 מה למדתי · 17 הגדרות · 18 תפריט · 19 הודעה קופצת · 20 לחיצה גמישה.
 
-## היישום (שלב 2 — רק אחרי אישור)
+## היישום (שלב 2 — המשתמש אישר את כל 20 הפריטים, 17/11/2026; גרסה 2.168.0 (804))
 - `academy-glass.css` רק ב־`academy.html`: שכבה `acglass` מוצהרת ראשונה (`@layer acglass, glassbtn;` כמו `invglass`), `!important` בתוך השכבה כדי לגבור על `glass-btn.css`. בוררים מוגבלים ל־`.lib-root`/`.rd`/`.lib-sheet`/`.appbar` של Academy — לא לגעת ב־Studio.
 - רק הפריטים שאושרו, בלי מחלקות `ap-*` (ישירות).
 - `tests/academy-glass.test.js` (כמו `invest-glass.test.js`): השכבה ראשונה, הקובץ רק באקדמיה, אין שמות מותג, יש reduced-motion.
@@ -21,3 +21,9 @@
 - הנבחר בחוגה = `.tab[aria-selected="true"]`; בועת ההדגשה היא `.tr-card` (דרך `show-annotation`), לא `.rd-pop`.
 - "הספרייה שלי" ריקה מציגה את שדה הקובץ רק בתוך `label.bk-cta`.
 - `cover.r` = רוחב/גובה (ספר עומד ≈ 0.667).
+
+## מה נעשה ביישום
+- `academy-glass.css` = `pv-ap.css` של התצוגה בלי `html.ap-*` (כל הכללים ישירות על `html`), בשכבה `acglass`; מצב "מוצקה" עבר ל־`@media (prefers-reduced-transparency: reduce)`; `--lg-fx: none` בסיבוב הקובייה (כמו `--gb-fx`).
+- `styles.css`: `@layer invglass, acglass, glassbtn;` · `academy.html`: הקישור אחרי `glass-btn.css` · `sw.js`: ב־APP_SHELL.
+- `tests/academy-glass.test.js` (חיבור, הגבלה ל־html, בלי שאריות ap-/pv, קובייה, שקיפות, תנועה, בנייה נקייה); `invest-glass.test.js` מקבל את השכבה הנוספת.
+- נבדק בצילום: התצוגה עם הקובץ האמיתי ושכבת הצעה ריקה = זהה ל"מוצע" (בית, דף ספר, קורא, ערכות, בועת הדגשה, כהה).

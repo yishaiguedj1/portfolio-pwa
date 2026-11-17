@@ -1,0 +1,248 @@
+/* Academy בזכוכית (17/11/2026) — שכבת העיצוב שאושרה בתצוגה המקדימה (20 הפריטים, לפי ת־עיצוב). נטען רק ב־academy.html.
+   אותו מבנה, אותם מסכים ואותם כפתורים — רק חומר, טיפוגרפיה ותנועה. האסימונים (--lg-*) כמו ב־Invest; המבטא — הכחול של Academy.
+   בשכבה acglass (מוצהרת ראשונה ב־styles.css, לפני glassbtn) — ה־!important כאן גובר על כפתורי הזכוכית. התוכנית: docs/academy-design-plan.md */
+@layer acglass {
+html {
+  --lg-body: linear-gradient(180deg, rgba(255, 255, 255, .60), rgba(255, 255, 255, .30));
+  --lg-fx: blur(14px) saturate(190%) brightness(1.04);
+  --lg-rim: inset 0 1.5px 0 -.5px rgba(255, 255, 255, 1), inset 0 -1px 0 rgba(255, 255, 255, .45), inset 1px 0 0 rgba(255, 255, 255, .3), inset -1px 0 0 rgba(255, 255, 255, .3),
+    inset 0 0 14px rgba(255, 255, 255, .35), 0 0 0 .5px rgba(0, 0, 0, .07), 0 6px 18px -8px rgba(0, 0, 0, .22);
+  --lg-tint: linear-gradient(180deg, rgba(96, 168, 255, .97), rgba(38, 124, 250, .94));
+  --lg-tint-rim: inset 0 1.5px 0 -.5px rgba(255, 255, 255, .8), inset 0 -2px 6px rgba(0, 40, 120, .18), inset 0 0 12px rgba(255, 255, 255, .25), 0 8px 20px -8px rgba(30, 110, 240, .6);
+  --lg-card: rgba(255, 255, 255, .80);
+  --lg-card-sh: 0 0 0 .5px rgba(0, 0, 0, .04), 0 1px 2px rgba(0, 0, 0, .03), 0 12px 32px -16px rgba(0, 0, 0, .14);
+  --lg-fill: rgba(118, 118, 128, .12);
+  --lg-knob: #fff; --lg-knob-sh: 0 3px 8px rgba(0, 0, 0, .12), 0 0 0 .5px rgba(0, 0, 0, .04);
+  --lg-sep: rgba(60, 60, 67, .14);
+  --lg-spring: linear(0, .009, .035 2.1%, .141 4.4%, .723 12.9%, .938 16.7%, 1.017 19.7%, 1.051 22.6%, 1.055 25.7%, 1.033 30.7%, 1.006 37.3%, .995 44.6%, 1);
+  --lg-round: ui-rounded, "SF Pro Rounded", var(--font);
+  --lg-dark: linear-gradient(180deg, rgba(60, 60, 64, .62), rgba(30, 30, 32, .52));
+  --lg-dark-rim: inset 0 1px 0 -.25px rgba(255, 255, 255, .38), inset 0 0 10px rgba(255, 255, 255, .06), 0 0 0 .5px rgba(255, 255, 255, .12), 0 10px 26px -8px rgba(0, 0, 0, .55);
+  --lg-cover-sh: 0 1px 2px rgba(0, 0, 0, .12), 0 6px 14px -4px rgba(0, 0, 0, .28);
+}
+html[data-theme="dark"] {
+  --lg-body: linear-gradient(180deg, rgba(255, 255, 255, .17), rgba(255, 255, 255, .07));
+  --lg-rim: inset 0 1.5px 0 -.5px rgba(255, 255, 255, .42), inset 0 -1px 0 rgba(255, 255, 255, .10), inset 0 0 12px rgba(255, 255, 255, .07), 0 0 0 .5px rgba(255, 255, 255, .10), 0 8px 20px -8px rgba(0, 0, 0, .8);
+  --lg-card: #1C1C1E; --lg-card-sh: 0 0 0 .5px rgba(255, 255, 255, .07);
+  --lg-fill: rgba(118, 118, 128, .24); --lg-knob: rgba(99, 99, 102, .95); --lg-knob-sh: 0 3px 8px rgba(0, 0, 0, .3);
+  --lg-sep: rgba(84, 84, 88, .55);
+  --lg-cover-sh: 0 0 0 .5px rgba(255, 255, 255, .08), 0 8px 18px -6px rgba(0, 0, 0, .7);
+}
+
+/* ===== 1. חומר הזכוכית: זכוכית רק על מה שצף; כרטיסים במילוי רך, בלי טשטוש ===== */
+html { --gb-body: var(--lg-body) !important; --gb-sh: var(--lg-rim) !important; --gb-fx: var(--lg-fx) !important;
+  --gb-hdr-body: var(--lg-body) !important; --gl-btn: rgba(255, 255, 255, .45) !important; --gl-btn-sh: var(--lg-rim) !important; --gl-fx: var(--lg-fx) !important; }
+html[data-theme="dark"] { --gl-btn: rgba(255, 255, 255, .12) !important; }
+html .lib-root :is(.lib-cont, .col-card:not(.add), .bk-card, .lib-card, .lib-setcard, .lib-bkcard, .lib-ios) {
+  background: var(--lg-card) !important; box-shadow: var(--lg-card-sh) !important; border-color: transparent !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border-radius: 24px !important; }
+
+/* ===== 2. ההדר: סמלים בצבע הטקסט; "גיבוי · כבוי" בקפסולת זכוכית בשורה אחת ===== */
+html .appbar .icon-btn { color: var(--on-surface) !important; }
+html .appbar .icon-btn svg { stroke: var(--on-surface) !important; color: var(--on-surface) !important; }
+html .appbar .lib-bkpill { border-radius: 999px !important; background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; border: 0 !important;
+  -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important; height: 36px !important; flex-direction: row !important; align-items: center !important;
+  gap: 6px !important; padding: 0 14px !important; white-space: nowrap !important; color: var(--on-surface) !important; }
+html .appbar .lib-bkpill .sub-cap { font-size: 13px !important; font-weight: 500 !important; color: var(--on-surface-var) !important; display: inline-flex !important; align-items: center; gap: 4px; }
+html .appbar .lib-bkpill .sub-cap::after { content: "·"; margin-inline-start: 2px; }
+html .appbar .lib-bkpill .sub-val { font-size: 14px !important; font-weight: 600 !important; }
+
+/* ===== 3. החוגה: אותה חוגה ואותה תנועה, על מסילת זכוכית צפה; הנבחר = טיפת זכוכית כחולה מורמת ===== */
+html .tabs::after { display: none !important; }
+html .tabs::before { inset: auto 10px calc(8px + env(safe-area-inset-bottom, 0px)) 10px !important; height: 80px !important; border-radius: 40px !important;
+  background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important;
+  -webkit-mask-image: none !important; mask-image: none !important; z-index: -1 !important; content: '' !important; position: absolute !important; display: block !important; }
+html .tabs :is(.tab-disc, .tab-bub) { top: 23px !important; scale: .83 !important; transition: scale .45s var(--lg-spring), translate .45s var(--lg-spring) !important; }
+html .tabs .tab[aria-selected="true"] :is(.tab-disc, .tab-bub) { scale: .86 !important; translate: 0 -11px !important; }
+html .tabs .tab-disc { background: transparent !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+html .tabs .tab-disc svg { stroke: var(--on-surface) !important; color: var(--on-surface) !important; }
+html .tabs .tab[aria-selected="true"] .tab-disc svg { stroke: #fff !important; color: #fff !important; }
+html .tabs .tab-glow { background: var(--lg-tint) !important; box-shadow: var(--lg-tint-rim) !important; }
+html .tabs .tab-lbl { top: 87px !important; font-size: 11.5px !important; font-weight: 600 !important; text-shadow: none !important; color: var(--on-surface-var) !important; }
+html .tabs .tab[aria-selected="true"] .tab-lbl { color: var(--primary) !important; font-weight: 700 !important; }
+
+/* ===== 4. החיפוש: קפסולת זכוכית ===== */
+html .lib-root .lib-search { border-radius: 999px !important; height: 46px !important; padding-inline: 16px 8px !important; border: 0 !important;
+  background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; -webkit-backdrop-filter: var(--gb-fx) !important; backdrop-filter: var(--gb-fx) !important; }
+html .lib-root .lib-search > svg { color: var(--on-surface-var) !important; opacity: .8; }
+html .lib-root .lib-search .lib-qbtn { width: 34px !important; height: 34px !important; border-radius: 999px !important; background: transparent !important; box-shadow: none !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important; color: var(--on-surface-var) !important; }
+
+/* ===== 5. הצ'יפים: מילוי רך בלי צל; הנבחר — זכוכית כחולה ===== */
+html .lib-root .lib-chip { background: var(--lg-fill) !important; box-shadow: none !important; border: 0 !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  font-weight: 600 !important; font-size: 15px !important; height: 36px !important; padding: 0 15px !important; display: inline-flex !important; align-items: center !important; gap: 6px; color: var(--on-surface) !important; }
+html .lib-root .lib-chip.on { background: var(--lg-tint) !important; box-shadow: var(--lg-tint-rim) !important; color: #fff !important; }
+html .lib-root .lib-chip.on svg { color: #fff !important; stroke: #fff !important; }
+
+/* ===== 6. "להמשיך לקרוא": כריכה מורמת, פס דק, ספרות מעוגלות ===== */
+html .lib-root .lib-cont { padding: 14px 16px !important; gap: 16px !important; }
+html .lib-root .lib-cont .lib-cover.mini { width: 60px !important; box-shadow: var(--lg-cover-sh) !important; border-radius: 3px 6px 6px 3px !important; }
+html .lib-root .lib-cont .lc-k { font-size: 12.5px !important; font-weight: 600 !important; color: var(--primary) !important; }
+html .lib-root .lib-cont .lc-title { font-size: 17px !important; font-weight: 650 !important; margin: 2px 0 10px !important; }
+html .lib-root .lib-cont .lib-bar { height: 4px !important; border-radius: 999px !important; }
+html .lib-root .lib-cont .lc-p { font-family: var(--lg-round) !important; font-variant-numeric: tabular-nums !important; font-size: 13px !important; }
+
+/* ===== 7. הכריכות: ספר אמיתי — צל רך, שדרה, פינות של ספר; "חדש" בתווית כחולה קטנה ===== */
+html .lib-root .lib-cover { border-radius: 3px 7px 7px 3px !important; box-shadow: var(--lg-cover-sh) !important; }
+html .lib-root .lib-cover::after { content: "" !important; position: absolute !important; inset: 0 !important; pointer-events: none !important; border-radius: inherit !important;
+  background: linear-gradient(90deg, rgba(0, 0, 0, .16) 0, rgba(255, 255, 255, .22) 2.5%, rgba(255, 255, 255, 0) 6%, rgba(0, 0, 0, 0) 94%, rgba(0, 0, 0, .10) 100%) !important;
+  box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .10) !important; }
+html[dir="rtl"] .lib-root .lib-cover { border-radius: 7px 3px 3px 7px !important; }
+html[dir="rtl"] .lib-root .lib-cover::after { background: linear-gradient(270deg, rgba(0, 0, 0, .16) 0, rgba(255, 255, 255, .22) 2.5%, rgba(255, 255, 255, 0) 6%, rgba(0, 0, 0, 0) 94%, rgba(0, 0, 0, .10) 100%) !important; }
+html .lib-root .lib-grid { row-gap: 22px !important; }
+html .lib-root .lib-badge { font-size: 10.5px !important; font-weight: 700 !important; padding: 2px 7px !important; letter-spacing: .2px;
+  background: color-mix(in srgb, var(--primary) 16%, transparent) !important; color: var(--primary) !important; }
+html .lib-root .lib-cap { font-family: var(--lg-round) !important; font-variant-numeric: tabular-nums !important; }
+
+/* ===== 8. האסופות: כרטיסים במילוי רך, ערימת כריכות עם צל, כותרת במשקל בינוני ===== */
+html .lib-root .col-card:not(.add) { padding: 16px 14px 14px !important; }
+html .lib-root .col-stack .lib-cover { box-shadow: var(--lg-cover-sh) !important; }
+html .lib-root .col-card b { font-weight: 650 !important; font-size: 15.5px !important; }
+html .lib-root .col-sec { font-size: 20px !important; font-weight: 700 !important; color: var(--on-surface) !important; letter-spacing: -.2px; }
+html .lib-root .col-card.add { border: 1.5px dashed var(--lg-sep) !important; border-radius: 24px !important; }
+html .lib-root .col-plus { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; color: var(--primary) !important; border-radius: 999px !important; }
+
+/* ===== 9. דף הספר: כריכה מורמת, נתונים עם קווים מפרידים, "קרא" בקפסולת זכוכית כחולה, "ספרייה" בקפסולה ===== */
+html .lib-root .lib-back { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important;
+  border-radius: 999px !important; height: 40px !important; padding: 0 14px 0 10px !important; color: var(--on-surface) !important; font-weight: 600 !important; }
+html .lib-root .lib-back svg { color: var(--primary) !important; stroke: var(--primary) !important; }
+html .lib-root .bk-cover { box-shadow: 0 2px 4px rgba(0, 0, 0, .12), 0 22px 40px -14px rgba(0, 0, 0, .45) !important; border-radius: 7px 3px 3px 7px !important; }
+html .lib-root .bk-title { font-weight: 700 !important; letter-spacing: -.3px !important; margin-top: 6px !important; }
+html .lib-root .bk-stats { gap: 0 !important; margin: 18px 0 !important; }
+html .lib-root .bk-stats > * { padding: 0 18px !important; }
+html .lib-root .bk-stats > * + * { border-inline-start: 1px solid var(--lg-sep) !important; }
+html .lib-root .bk-stats b { font-family: var(--lg-round) !important; font-variant-numeric: tabular-nums !important; font-weight: 650 !important; font-size: 18px !important; }
+html .lib-root .bk-cta { background: var(--lg-tint) !important; box-shadow: var(--lg-tint-rim) !important; color: #fff !important; border: 0 !important; height: 52px !important; padding: 0 !important;
+  font-size: 17px !important; font-weight: 650 !important; border-radius: 999px !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+
+/* ===== 10. הכרטיסים בדף הספר: כותרת קטנה ואפורה, שורות עם קו שמתחיל אחרי הכיתוב ===== */
+html .lib-root .bk-card { padding: 16px 18px !important; margin-bottom: 14px !important; }
+html .lib-root .bk-card h4 { font-size: 13px !important; font-weight: 600 !important; color: var(--on-surface-var) !important; text-transform: none !important; letter-spacing: 0 !important; margin-bottom: 8px !important; }
+html .lib-root .bk-card .bk-desc { font-size: 16px !important; line-height: 1.6 !important; }
+html .lib-root .bk-card .ac-ul li::marker { color: var(--primary); }
+html .lib-root .bk-card :is(.ac-lens, .ac-term) { border: 0 !important; background: transparent !important; box-shadow: none !important; position: relative; }
+html .lib-root .bk-card :is(.ac-lens, .ac-term) + :is(.ac-lens, .ac-term)::before { content: ""; position: absolute; top: 0; inset-inline: 0; height: .5px; background: var(--lg-sep); }
+html .lib-root .bk-card .ac-lens b { color: var(--primary) !important; font-weight: 600 !important; }
+html .lib-root .bk-card .ac-q { font-size: 17px !important; font-weight: 600 !important; line-height: 1.45 !important; }
+
+/* ===== 11. סרגלי הקורא: צפים מעל הדף — בלי פס אטום ובלי קו; הכפתורים בקפסולות זכוכית בצבע הערכה ===== */
+html .rd { --lg-rd: color-mix(in srgb, var(--rd-page, #fff) 62%, transparent); --lg-rd-rim: inset 0 1px 0 rgba(255, 255, 255, .55), 0 0 0 .5px color-mix(in srgb, var(--rd-ink, #000) 12%, transparent), 0 8px 22px -10px rgba(0, 0, 0, .35); }
+html .rd :is(.rd-topbar, .rd-botbar) { background: transparent !important; border: 0 !important; }
+html .rd .rd-topbar { padding-inline: 10px !important; gap: 8px !important; }
+html .rd .rd-topbar > .rd-ic, html .rd .rd-acts { background: var(--lg-rd) !important; box-shadow: var(--lg-rd-rim) !important; border-radius: 999px !important;
+  -webkit-backdrop-filter: blur(16px) saturate(170%) !important; backdrop-filter: blur(16px) saturate(170%) !important; }
+html .rd .rd-topbar > .rd-ic { width: 44px !important; height: 44px !important; }
+html .rd .rd-acts { padding: 2px 4px !important; gap: 0 !important; }
+html .rd .rd-ttl { font-size: 13.5px !important; font-weight: 600 !important; color: var(--rd-ink2) !important; }
+html .rd .rd-botbar { padding: 0 12px calc(12px + env(safe-area-inset-bottom)) !important; }
+html .rd .rd-botbar > * { position: relative; }
+html .rd .rd-botbar::before { content: ""; position: absolute; inset: auto 12px calc(10px + env(safe-area-inset-bottom)) 12px; top: -8px; border-radius: 30px;
+  background: var(--lg-rd); box-shadow: var(--lg-rd-rim); -webkit-backdrop-filter: blur(16px) saturate(170%); backdrop-filter: blur(16px) saturate(170%); }
+html .rd .rd-botbar .rd-chap { margin: 0 0 2px !important; padding-top: 2px; font-weight: 600 !important; }
+html .rd .rd-botbar .rd-scrub, html .rd .rd-botbar .rd-nums { margin-inline: 14px !important; }
+html .rd .rd-botbar .rd-nums { font-family: var(--lg-round) !important; font-variant-numeric: tabular-nums !important; margin-top: 2px !important; margin-bottom: 4px !important; }
+
+/* ===== 12. הגיליונות (Aa, תוכן, הדגשות, פעולות): זכוכית צפה עם שוליים, פינות גדולות ===== */
+html .lib-veil { background: rgba(0, 0, 0, .12) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+html .lib-veil .lib-sheet { width: calc(100% - 16px) !important; margin: 0 8px calc(8px + env(safe-area-inset-bottom)) !important; border-radius: 36px !important;
+  background: color-mix(in srgb, var(--surface) 78%, transparent) !important; box-shadow: var(--lg-rim), 0 24px 60px -16px rgba(0, 0, 0, .35) !important; border: 0 !important;
+  -webkit-backdrop-filter: blur(30px) saturate(190%) !important; backdrop-filter: blur(30px) saturate(190%) !important; padding-bottom: 20px !important;
+  animation: acgSheet .5s var(--lg-spring) both !important; }
+@keyframes acgSheet { from { transform: translateY(105%); } to { transform: none; } }
+html .lib-sheet .lib-grab { width: 36px !important; background: color-mix(in srgb, var(--on-surface) 22%, transparent) !important; }
+html .lib-sheet .lib-ios { background: color-mix(in srgb, var(--on-surface) 5%, transparent) !important; border-radius: 22px !important; box-shadow: none !important; }
+html .lib-sheet .lib-row + .lib-row { border-top: 0 !important; box-shadow: inset 0 .5px 0 var(--lg-sep); }
+html .lib-sheet .lib-row { font-weight: 500 !important; }
+html .lib-sheet .lib-check { color: var(--primary) !important; }
+
+/* ===== 13. בוררים: מסילה וידית לבנה (בגיליון Aa, תוכן/הדגשות/סימניות, "מה למדתי") ===== */
+html :is(.rd-seg, .rd-mini-seg) { background: var(--lg-fill) !important; padding: 3px !important; box-shadow: none !important; }
+html :is(.rd-seg, .rd-mini-seg) button { background: transparent !important; box-shadow: none !important; color: var(--on-surface) !important; font-weight: 500 !important; height: 34px; padding-block: 0 !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important; transition: background .3s var(--lg-spring), box-shadow .3s; }
+html :is(.rd-seg, .rd-mini-seg) button.on { background: var(--lg-knob) !important; box-shadow: var(--lg-knob-sh) !important; color: var(--on-surface) !important; font-weight: 650 !important; }
+html .rd-dots { background: var(--lg-fill) !important; border-radius: 999px !important; padding: 3px !important; }
+html .rd-dots button { background: transparent !important; font-family: var(--lg-round) !important; font-variant-numeric: tabular-nums; }
+html .rd-dots button.on { background: var(--lg-knob) !important; box-shadow: var(--lg-knob-sh) !important; color: var(--on-surface) !important; font-weight: 700; }
+
+/* ===== 14. ערכות קריאה: אריחים עם "Aa" בצבעי הערכה, הנבחרת בטבעת כחולה ===== */
+html .rd-themes { gap: 10px !important; }
+html .rd-themes button { border-radius: 20px !important; border: 0 !important; box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .14), 0 2px 8px -3px rgba(0, 0, 0, .18) !important; }
+html .rd-themes button .big { font-family: "SNB Noto UI", Georgia, serif !important; font-size: 24px !important; font-weight: 500 !important; }
+html .rd-themes button .sm { font-size: 11.5px !important; font-weight: 600 !important; }
+html .rd-themes button.on { outline: 0 !important; box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 5px var(--primary) !important; }
+html .rd-fontrow { border-radius: 18px !important; background: color-mix(in srgb, var(--on-surface) 5%, transparent) !important; border: 0 !important; }
+html .rd-fontrow.on { outline: 0 !important; box-shadow: inset 0 0 0 2px var(--primary) !important; }
+
+/* ===== 15. כרטיס הסימון והתרגום: זכוכית בצבע הדף, פינות גדולות; המקטעים במילוי רך; עיגול הצבע בטבעת ===== */
+html .rd .tr-card { border-radius: 32px !important; inset-inline: 8px !important; padding: 8px 14px 16px !important;
+  background: color-mix(in srgb, var(--rd-page, #fff) 74%, transparent) !important; box-shadow: var(--lg-rim), 0 24px 60px -16px rgba(0, 0, 0, .38) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(180%) !important; backdrop-filter: blur(28px) saturate(180%) !important; }
+html .rd[data-dark="1"] .tr-card { background: rgba(44, 44, 46, .78) !important; }
+html .rd .tr-card .tr-sec-b { background: color-mix(in srgb, var(--rd-ink, #000) 5%, transparent) !important; border-radius: 20px !important; box-shadow: none !important; }
+html .rd .tr-card .tr-sec-h { font-family: var(--font) !important; font-weight: 600 !important; font-size: 12.5px !important; }
+html .rd .tr-card :is(.tr-tog, .wk-more, .tr-ib) { color: var(--primary) !important; }
+html .rd .tr-card .tr-head .tr-word { font-weight: 650 !important; }
+html .rd .tr-card .tr-dot { width: 32px !important; height: 32px !important; }
+html .rd .tr-card .tr-dot.on { box-shadow: 0 0 0 2px var(--rd-page), 0 0 0 4px var(--sw) !important; }
+/* בועת הסימון החדש (rd-pop) — זכוכית כהה בקפסולה */
+html .rd-pop { border-radius: 26px !important; padding: 6px 8px !important; background: var(--lg-dark) !important; box-shadow: var(--lg-dark-rim) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(180%) !important; backdrop-filter: blur(22px) saturate(180%) !important; }
+html .rd-pop button { border-radius: 999px !important; font-weight: 500 !important; }
+
+/* ===== 16. "מה למדתי": ציטוטים בכרטיס רך, סימון צבע עדין, נתונים קטנים ===== */
+html .lib-root .lib-large { font-weight: 700 !important; letter-spacing: -.4px !important; }
+html .lib-root .ann-row { border-radius: 22px !important; background: var(--lg-card) !important; box-shadow: var(--lg-card-sh) !important; padding-block: 14px !important; }
+html .lib-root .ann-row:not(.bm)::before { inset-block: 16px !important; width: 3px !important; }
+html .lib-root .ann-mark { background: color-mix(in srgb, var(--hl) 30%, transparent) !important; }
+html .lib-root .ann-x { font-size: 16px !important; line-height: 1.6 !important; }
+html .lib-root .ann-m { font-family: var(--lg-round) !important; font-variant-numeric: tabular-nums !important; }
+html .lib-root .ann-n { background: color-mix(in srgb, var(--on-surface) 5%, transparent) !important; border-radius: 14px !important; color: var(--on-surface) !important; }
+html .lib-root .learn-h b { font-size: 15px !important; font-weight: 650 !important; }
+html .lib-root .learn-exp { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; }
+html .lib-root .learn-colors button { width: 26px !important; height: 26px !important; }
+html .lib-root .lib-round { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important; color: var(--on-surface) !important; }
+html .lib-root .lib-top .lib-back { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; border-radius: 999px !important; height: 40px !important; padding: 0 14px 0 10px !important; color: var(--on-surface) !important; }
+
+/* ===== 17. ההגדרות: רשימות מקובצות — כיתוב רגיל, קו שמתחיל אחרי הסמל, מתגים בכחול ===== */
+html .lib-root .lib-setcard { padding-block: 6px !important; }
+html .lib-root .lib-setcard > h2 { font-size: 13px !important; font-weight: 600 !important; color: var(--on-surface-var) !important; }
+html .lib-root .lib-setcard .row-link + .row-link { border-top: 0 !important; box-shadow: inset 0 .5px 0 var(--lg-sep); }
+html .lib-root .lib-setcard .menu-row-t { font-weight: 500 !important; }
+html .lib-root .lib-sw[aria-checked="true"] { background: #34C759 !important; }
+html .lib-root .lib-opt { border-radius: 18px !important; background: color-mix(in srgb, var(--on-surface) 5%, transparent) !important; }
+
+/* ===== 18. התפריט: זכוכית שצומחת מכפתור ☰ בקפיץ, שורות בלי קווים ===== */
+html .appbar .menu-drop { background: var(--lg-body) !important; box-shadow: var(--lg-rim), 0 24px 60px -12px rgba(0, 0, 0, .32) !important; border: 0 !important; border-radius: 30px !important;
+  -webkit-backdrop-filter: blur(30px) saturate(190%) !important; backdrop-filter: blur(30px) saturate(190%) !important; transform-origin: top left !important; }
+html .appbar .menu-drop:not(.hidden) { animation: acgGrow .5s var(--lg-spring) both !important; }
+@keyframes acgGrow { from { transform: scale(.2); opacity: .2; } to { transform: none; opacity: 1; } }
+html .appbar .menu-drop :is(.menu-section, .row-card) { border: 0 !important; background: transparent !important; box-shadow: none !important; }
+html .appbar .menu-drop .row-link { border: 0 !important; border-radius: 16px !important; background: transparent !important; box-shadow: none !important; }
+html .appbar .menu-drop .row-link::before, html .appbar .menu-drop .row-link::after { display: none !important; }
+html .menu-veil { -webkit-backdrop-filter: blur(5px) saturate(1.2) !important; backdrop-filter: blur(5px) saturate(1.2) !important; background: rgba(0, 0, 0, .05) !important; }
+
+/* ===== 19. הודעה קופצת: גלולת זכוכית שצונחת מראש המסך — לא מסתירה את החוגה ===== */
+html .toast { bottom: auto !important; top: calc(10px + env(safe-area-inset-top, 0px)) !important; transform: translateX(-50%) translateY(-90px) scale(.6) !important;
+  background: var(--lg-body) !important; color: var(--on-surface) !important; box-shadow: var(--lg-rim), 0 12px 30px -10px rgba(0, 0, 0, .3) !important; border: 0 !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important; backdrop-filter: blur(24px) saturate(190%) !important; transition: transform .55s var(--lg-spring), opacity .25s !important; z-index: 1200 !important; }
+html .toast.show { transform: translateX(-50%) translateY(0) scale(1) !important; }
+
+/* ===== 20. לחיצה גמישה: מתכווץ וחוזר בקפיץ; כריכה ושורה שוקעות מעט ===== */
+html :is(.lib-root, .appbar, .rd) :is(.icon-btn, .lib-chip, .lib-back, .lib-round, .bk-cta, .rd-ic, .lib-qbtn, .lib-bkpill, .col-plus) { transition: transform .5s var(--lg-spring), background .25s, color .2s !important; }
+html :is(.lib-root, .appbar, .rd) :is(.icon-btn, .lib-chip, .lib-back, .lib-round, .bk-cta, .rd-ic, .lib-qbtn, .lib-bkpill, .col-plus):active { transform: scale(.88) !important; }
+html .lib-root :is(.lib-item, .lib-cont, .col-card, .ann-row):active { transform: scale(.97) !important; transition: transform .5s var(--lg-spring) !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  html .appbar .menu-drop:not(.hidden), html .lib-veil .lib-sheet, html .rd-pop { animation: none !important; }
+  html :is(.lib-root, .appbar, .rd) :is(.icon-btn, .lib-chip, .lib-back, .lib-round, .bk-cta, .rd-ic, .lib-qbtn, .lib-bkpill, .col-plus):active { transform: none !important; }
+}
+/* מוצקה: הגדרת הנגישות "הפחתת שקיפות" */
+@media (prefers-reduced-transparency: reduce) {
+  html { --lg-body: linear-gradient(180deg, #FBFBFD, #F2F2F6); --lg-fx: none; --lg-dark: rgba(40, 40, 42, .96); }
+  html[data-theme="dark"] { --lg-body: linear-gradient(180deg, #3A3A3C, #2C2C2E); }
+  html .lib-veil .lib-sheet { background: var(--surface) !important; }
+  html .rd .tr-card { background: color-mix(in srgb, var(--rd-page) 96%, var(--rd-ink)) !important; }
+}
+/* בזמן סיבוב/גרירה של הקובייה — בלי טשטוש (כמו --gb-fx ב־glass-btn.css) */
+html .lib-root:is(.cube-face, .cube-ghost), html .cube-flat { --lg-fx: none; }
+}
