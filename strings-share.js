@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של share (136 מפתחות מתוך 7011) */
+/* המחרוזות של share (136 מפתחות מתוך 7018) */
 const STRINGS = {
 he: {
   "studioMoreN": "ועוד {n}",
