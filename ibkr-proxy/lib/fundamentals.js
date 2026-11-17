@@ -675,7 +675,12 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
     const onFace0 = faceTagList(face, k === 'ni' ? (face && face.is ? ['is'] : []) : STMT_OF[k]), list = map[k].slice();
     // הפרש תגיות "בדוח" כששני החלקים בדוח (Bloom Energy: "Net loss" ו־"Net income attributable to noncontrolling interest")
     const onFace = onFace0.concat(list.filter((t) => /-/.test(t) && t.split('-').every((x) => onFace0.includes(x))));
-    let order = list.filter((t) => onFace.includes(t)).concat(list.filter((t) => !onFace.includes(t))); // בין אלה שבדוח — סדר העדיפות שלנו (מדולל לפני בסיסי)
+    // בין אלה שבדוח — לפי סדר הדוחות (פחת: התזרים לפני רווח והפסד), ובתוך דוח — סדר העדיפות שלנו (מדולל לפני בסיסי).
+    // McDonald's: ‏"Depreciation and amortization" בתזרים ב־DepreciationAndAmortization (‏$2.2B), ו־DepreciationDepletionAndAmortization
+    // שורה של "הוצאות אחרות" ברווח והפסד (‏$457M) — עד 17/11/2026 הפחת יצא ‏$457M (בדיקת העומק, גל 2, ‏F13)
+    const stOf = (t) => { const ss = k === 'ni' ? ['is'] : STMT_OF[k] || []; const i = ss.findIndex((st) => faceTagList(face, [st]).includes(t)); return i < 0 ? 0 : i; };
+    let order = list.filter((t) => onFace.includes(t)).map((t, i) => [t, stOf(t), i]).sort((a, b) => a[1] - b[1] || a[2] - b[2]).map((x) => x[0])
+      .concat(list.filter((t) => !onFace.includes(t)));
     // הכנסות: שורת הסיכום שהחברה עצמה מציגה ("Total operating revenues") — לפני שורת רכיב שקודמת לה ברשימה שלנו
     // (NiSource: ‏RegulatedOperatingRevenue ‏$6.64B הוא הסך, RevenueFromContract… ‏$6.52B רק "הכנסות מלקוחות");
     // בלי שורת סך — השורה הגדולה בדוח קודם (Camden: "Property revenues" ‏$1.57B בתגית OperatingLeaseLeaseIncome, ולא דמי ניהול ‏$13M)

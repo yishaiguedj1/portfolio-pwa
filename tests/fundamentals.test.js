@@ -1281,6 +1281,15 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     ok(debt(m1, 2023) === 1150 && debt(m1, 2020) === 950 && debt(m1, 2025) === 1250 && m1.bsfN >= 3, '(24) ביאור בלי סך נכסים לא דורס; הגשה בלי שורות חוב — הכלל של F7');
     const M = F.bsfDebt(have, 'USD');
     ok(M.get('2022-12-31').form === '10-K' && M.get('2022-12-31').v === 1323e6 && !M.has('2020-12-31') && M.get('2023-03-31').v === 1130e6 && !M.has('2014-03-31'), '(24) bsfDebt: השנתי גובר על רבעוני מאוחר באותו תאריך');
+    // פחת: התגית שבתזרים לפני התגית שבדוח רווח והפסד (McDonald's: ‏DepreciationAndAmortization בתזרים ‏$2.2B,
+    // ‏DepreciationDepletionAndAmortization שורה של "הוצאות אחרות" ‏$457M — עד גל 2 הפחת יצא ‏$457M; ‏F13)
+    {
+      const MD = facts([...base, ['DepreciationDepletionAndAmortization', 'USD', yrs([30, 31, 32, 33, 34, 35, 36], 2019)], ['DepreciationAndAmortization', 'USD', yrs([200, 210, 220, 230, 240, 250, 260], 2019)]]);
+      const row = (tag) => ({ ns: 'us-gaap', tag, label: 'x', v: [1] });
+      const fc = { cf: { cols: [{ end: '2025-12-31' }], scale: { cur: 1e6 }, rows: [row('DepreciationAndAmortization')] }, is: { cols: [{ end: '2025-12-31' }], scale: { cur: 1e6 }, rows: [row('DepreciationDepletionAndAmortization')] } };
+      const d1 = F.normalizeSec(MD, [], fc), d0 = F.normalizeSec(MD, [], null);
+      ok(d1.tags.dep === 'DepreciationAndAmortization' && d1.A.dep[d1.fy.indexOf('2025-12-31')] === 260 && d0.tags.dep === 'DepreciationDepletionAndAmortization', '(24) פחת: השורה בתזרים לפני השורה ברווח והפסד');
+    }
     // חוב שלילי (Hartford ‏10-K ‏2016: שגיאת סימן בהגשה) — העמודה לא נספרת, הרבעוני נשאר
     const neg = { q: { form: '10-Q', filed: '2016-04-28', bs: sheet(['2016-03-31', '2015-12-31'], [['LongTermDebtNoncurrent', 'Long-term debt', [5000, 5084]]]) },
       k: { form: '10-K', filed: '2016-02-26', bs: sheet(['2015-12-31', '2014-12-31'], [['ShortTermBorrowings', 'Short-term debt', [275, 456]], ['LongTermDebtNoncurrent', 'Long-term debt', [-5084, -5653]]]) } };
