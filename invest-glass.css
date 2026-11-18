@@ -116,7 +116,8 @@ main :is(.stat-label, .lg-val) { font-size: 13px !important; letter-spacing: .1p
 main :is(.card h2, .subpage-title) { font-weight: 700 !important; letter-spacing: -.3px !important; }
 
 /* ===== 5. השינוי היומי בגלולה צבעונית ===== */
-main .stock-sub .day-chg { justify-self: start !important; display: inline-flex !important; align-items: center !important; gap: 6px !important; padding: 2px 9px !important; border-radius: 8px !important;
+/* 18/11/2026 (בקשת המשתמש): גלולת "היום" בצד שמאל של השורה (סוף), מעל "מהקנייה" — לא צמודה לשווי */
+main .stock-sub .day-chg { justify-self: end !important; display: inline-flex !important; align-items: center !important; gap: 6px !important; padding: 2px 9px !important; border-radius: 8px !important;
   background: color-mix(in srgb, var(--gain) 16%, transparent) !important; width: fit-content !important; }
 main .stock-sub .day-chg.neg { background: color-mix(in srgb, var(--loss) 14%, transparent) !important; }
 main .ov-day-v { padding: 2px 10px !important; border-radius: 8px !important; background: color-mix(in srgb, var(--gain) 16%, transparent) !important; }
