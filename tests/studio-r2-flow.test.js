@@ -385,6 +385,81 @@ const { fakeR2, ENV } = require('./_r2fake');
   db.get('studioJobs/' + pv.id).fields.vr = iv(0);
   ok((await api('remove', { job: pv.id })).ok && !db.has('studioJobs/' + CH2) && !db.has('studioJobs/' + pv.id), 'אמת שוב: מחיקת הניתוח מוחקת גם את עבודות־הבת');
 
+  /* ---------- 11ב. "גם תרגום" (18/11/2026): הניתוח מוסר את הפרויקט (נקודת השמירה של התמלול) → עבודת תרגום רגילה ומקושרת ---------- */
+  const nsv = (o) => S.normSpec(Object.assign({ name: 'talk.mp4', size: 10, to: ['he'], eng: 'api', cap: 5, vi: 1, vr: 1 }, o));
+  ok(nsv({ from: 'en', vt: 1 }).vt === 1 && JSON.stringify(nsv({ from: 'auto', vt: 1, vto: ['same', 'nope', 'small'] }).vto) === '["same","small"]'
+    && !('vt' in nsv({ from: 'he', vt: 1 })) && !('vt' in nsv({ from: 'en', vt: 1, dry: 1 })) && !('vt' in nsv({ from: 'en' }))
+    && !('vt' in S.normSpec({ name: 'a.mp4', size: 10, to: ['he'], from: 'en', eng: 'api', cap: 5, vt: 1 })),
+    'גם תרגום: vt רק בניתוח עם Claude ממקור אנגלית / אוטומטי (לא יבש, לא עברית, לא בתרגום עצמו); vto = תוצרי התרגום בלבד');
+  const mkVt = (tag, extra, sp) => {
+    const id = ('jVt' + tag + 'xxxxxxxxxxxxxxxxxxxx').slice(0, 21), F = 'R2_' + id, K = crypto.randomBytes(32).toString('base64url');
+    const put1 = (fid, size) => {
+      R.objs.set('st/ownerUid0001/' + fid, Buffer.alloc(size));
+      db.set('studioUp/' + fid, { fields: { k: { stringValue: 'st/ownerUid0001/' + fid }, s: iv(size), uid: { stringValue: 'ownerUid0001' }, f: { stringValue: F }, ok: iv(1) }, ut: 'u' });
+      return fid;
+    };
+    const fa = put1(F + '_audiozzzzzzz', 30), ck = put1(F + '_ckasrzzzzzzz', 40);
+    db.set('studioJobs/' + id, { fields: Object.assign({ uid: { stringValue: 'ownerUid0001' }, kind: { stringValue: 'tr' }, state: { stringValue: 'running' }, folder: { stringValue: F },
+      created: iv(T0 - H), updated: iv(T0 - 60e3), kh: { stringValue: crypto.createHash('sha256').update(K).digest('hex') }, kx: iv(R.now + 3600e3),
+      spec: sv(Object.assign({ name: 'talk.mp4', size: 50, type: 'video/mp4', dur: 600, from: 'auto', to: ['he'], mode: 'haiku-high', out: [], style: 'bold', terms: 'Kant',
+        vi: 1, vr: 1, vt: 1, vto: ['same'], eng: 'api', cap: 5 }, sp || {})),
+      fa: sv({ id: fa, name: 'talk.m4a', size: 30 }) }, extra || {}), ut: 'u' });
+    return { id, F, fa, ck, put1, w: (op, b) => call(Object.assign({}, b, { op, job: id, key: K }), true).then((r) => r.j) };
+  };
+  const allJobs = () => [...db.keys()].filter((k) => k.startsWith('studioJobs/')).map((k) => Object.assign(jobOf(k.slice(11)), { id: k.slice(11) }));
+  const VA = mkVt('A');
+  let vh = await VA.w('vtHand', { lg: 'en', ck: { s: 'asr', id: VA.ck, size: 40 } });
+  const TJ = vh.id ? jobOf(vh.id) : {};
+  ok(vh.ok && vh.ck === 1 && vh.started === 1 && TJ.kind === 'tr' && TJ.va === VA.id && !TJ.rp && TJ.folder === VA.F && TJ.fa && TJ.fa.id === VA.fa && !TJ.fv
+    && TJ.state === 'queued' && TJ.spec.from === 'en' && JSON.stringify(TJ.spec.out) === '["same"]' && TJ.spec.mode === 'haiku-high' && TJ.spec.terms === 'Kant'
+    && TJ.spec.style === 'bold' && TJ.spec.eng === 'api' && !TJ.spec.vi && !TJ.spec.vt && !('vto' in TJ.spec),
+    'גם תרגום: המסירה יוצרת עבודת תרגום רגילה (בלי vi), באותה תיקייה ועם אותו קול, מאנגלית, עם התוצרים שנבחרו — ונכנסת לתור');
+  const wT = S.workerJob(Object.assign({}, TJ, { id: vh.id }));
+  ok(wT.ck.length === 1 && wT.ck[0].s === 'asr' && wT.ck[0].id === VA.ck && wT.ck[0].size === 40 && wT.files.a.id === VA.fa && !wT.spec.vi,
+    'גם תרגום: העובד של התרגום מקבל את נקודת השמירה של הניתוח (ממשיך ממנה כמו "המשך") ואת הקול');
+  ok(jobOf(VA.id).vtj === vh.id && S.publicJob(Object.assign(jobOf(VA.id), { id: VA.id }), T0).vtj === vh.id && S.publicJob(Object.assign({}, TJ, { id: vh.id }), T0).va === VA.id,
+    'גם תרגום: הקישור בשני הכיוונים (vtj בניתוח, va בתרגום) — גם בתצוגה לטלפון');
+  const vh2 = await VA.w('vtHand', { lg: 'en', ck: { s: 'asr', id: VA.ck, size: 40 } });
+  ok(vh2.ok && vh2.dup === 1 && vh2.id === vh.id && allJobs().filter((x) => x.va === VA.id).length === 1, 'גם תרגום: מסירה שנייה (ניסיון חוזר של העובד) — אותה עבודה, לא עוד אחת');
+  // הסרטון ממשיך לעלות אחרי המסירה — נרשם בניתוח וגם בעבודת התרגום (עם הגודל האמיתי)
+  const fvT = VA.put1(VA.F + '_videozzzzzzz', 50);
+  const fr = await api('file', { job: VA.id, which: 'v', id: fvT, folder: VA.F });
+  ok(fr.ok && jobOf(VA.id).fv.id === fvT && jobOf(vh.id).fv && jobOf(vh.id).fv.id === fvT && jobOf(vh.id).spec.size === 50,
+    'גם תרגום: הסרטון שנרשם בניתוח אחרי המסירה — נרשם גם בעבודת התרגום');
+  // הסרטון לא באנגלית — בלי תרגום (vtx lang); נקודת שמירה לא תקינה — תרגום מלא מההתחלה; לא ניתוח עם vt — state
+  const VB = mkVt('B');
+  const hb = await VB.w('vtHand', { lg: 'he' });
+  ok(hb.ok && hb.skip === 'lang' && jobOf(VB.id).vtx === 'lang' && !jobOf(VB.id).vtj && !allJobs().some((x) => x.va === VB.id)
+    && S.publicJob(Object.assign(jobOf(VB.id), { id: VB.id }), T0).vtx === 'lang', 'גם תרגום: הסרטון בעברית — בלי עבודת תרגום, והטלפון רואה למה (vtx)');
+  const VC = mkVt('C');
+  const hc = await VC.w('vtHand', { lg: 'en', ck: { s: 'asr', id: VC.ck, size: 41 } });
+  const hc2 = (await VC.w('vtHand', { lg: 'en', ck: { s: 'tl', id: VC.ck, size: 40 } }));
+  ok(hc.ok && hc.ck === 0 && jobOf(hc.id).ck.length === 0 && jobOf(hc.id).spec.from === 'en' && hc2.dup === 1,
+    'גם תרגום: נקודת שמירה שלא מתאימה לקובץ בתיקייה — העבודה נוצרת בלעדיה (תרגום מלא מאותם קבצים)');
+  const VD = mkVt('D', {}, { vt: 0, vto: [] });
+  const hd = await call({ op: 'vtHand', job: VD.id, key: 'x'.repeat(43), lg: 'en' }, true);
+  ok((await VD.w('vtHand', { lg: 'en' })).error === 'state' && hd.code === 403, 'גם תרגום: ניתוח בלי vt — state; מפתח לא נכון — bad_key');
+  const hcA = await (mkVt('E').w('vtHand', { lg: '' }));
+  ok(hcA.ok && jobOf(hcA.id).spec.from === 'auto' && jobOf(hcA.id).ck.length === 0, 'גם תרגום: בלי זיהוי ובלי נקודה — התרגום מזהה בעצמו (auto), מההתחלה');
+  // הטלפון: המסירה לא הגיעה (הניתוח הסתיים בלעדיה) — "תרגם" יוצר אותה פעם אחת; לא כשהסרטון בעברית; לא למשתמש אחר
+  const VF = mkVt('F', { state: { stringValue: 'done' }, ended: iv(T0 - 60e3) });
+  ok((await api('viTr', { job: VA.id })).error === 'state', 'גם תרגום: viTr בזמן שהניתוח רץ — state');
+  const ft = await api('viTr', { job: VF.id });
+  const ft2 = await api('viTr', { job: VF.id });
+  ok(ft.ok && ft.id && ft.job.vtj === ft.id && jobOf(ft.id).va === VF.id && jobOf(ft.id).state === 'queued' && ft2.dup === 1 && ft2.id === ft.id,
+    'גם תרגום: viTr מהטלפון — עבודת תרגום אחת מאותם קבצים');
+  db.get('studioJobs/' + VB.id).fields.state = { stringValue: 'done' };
+  ok((await api('viTr', { job: VB.id })).error === 'state' && (await other('viTr', { job: VF.id })).error === 'no_job', 'גם תרגום: viTr — לא כשהסרטון לא באנגלית, ולא למשתמש אחר');
+  const VG = mkVt('G', { state: { stringValue: 'done' }, ended: iv(T0 - 60e3), sx: iv(T0 - 30e3) });
+  ok((await api('viTr', { job: VG.id })).error === 'src_gone' && !allJobs().some((x) => x.va === VG.id), 'גם תרגום: viTr — לא אחרי שסרטון המקור נמחק');
+  // מחיקה: הניתוח נמחק — עבודת התרגום (עצמאית, בלי rp) והקבצים שלה נשארים; כשגם היא נמחקת — התיקייה מתנקה
+  db.get('studioJobs/' + VA.id).fields.state = { stringValue: 'done' };
+  db.get('studioJobs/' + vh.id).fields.state = { stringValue: 'done' };
+  ok((await api('remove', { job: VA.id })).ok && !db.has('studioJobs/' + VA.id) && db.has('studioJobs/' + vh.id) && R.objs.has('st/ownerUid0001/' + VA.fa) && R.objs.has('st/ownerUid0001/' + fvT),
+    'גם תרגום: מחיקת הניתוח לא מוחקת את עבודת התרגום ואת הקבצים שלה');
+  ok((await api('remove', { job: vh.id })).ok && !R.objs.has('st/ownerUid0001/' + VA.fa) && !R.objs.has('st/ownerUid0001/' + fvT), 'גם תרגום: אחרי שגם התרגום נמחק — התיקייה מתנקה');
+  for (const x of allJobs().filter((x) => /^jVt/.test(x.id) || /^jVt/.test(String(x.va || '')))) db.delete('studioJobs/' + x.id);
+
   /* ---------- 12. סט הזהב של הניתוח (PR 1.6, 10/11/2026): חבילת ייחוס (viRef, מנהל), מקור זהב, הרצת גל והציון מול הייחוס ---------- */
   const gv = mkVi('G', { fv: sv({ id: 'R2_jViGxxxxxxxxxxxxxxxxx_srcvideozzz', name: 'talk.mp4', size: 10 }) });
   const REF = { bounds: [{ t0: 0, lv: 1, title: 'פתיחה' }, { t0: 120, lv: 1, title: 'חלק ב' }, { t0: 130, lv: 2, title: 'משנה' }],

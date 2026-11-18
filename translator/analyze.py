@@ -28,6 +28,7 @@ import os
 import re
 import resource
 import subprocess
+import threading
 import time
 import unicodedata
 import wave
@@ -57,6 +58,9 @@ VI_FILES = (
     ('same', 'same.mp4', ' (איכות מקור).mp4', 'video/mp4'),
     ('thumb', 'screen/thumb.jpg', ' (תמונה).jpg', 'image/jpeg'),
 )
+# 18/11/2026 (job.mem_tail): השיא הצפוי מכאן — Claude (rv, נמדד 108–136MB), הסרטון לנגן (vi-same: העתקה ~220MB, קידוד עד
+# 1,323MB — עכשיו ברקע בזמן Claude) והשמירה (~180MB), ב־12 ניתוחים במאגר הלמידה. 1,323 × 1.1 ומעוגל למעלה
+VI_TAIL_MB = 1600
 UNIT_MAX_S = 25.0               # יחידת דיבור — משפט, עד כ־25 שנ׳ (4.1)
 UNIT_MIN_S = 3.0                # לא סוגרים משפט קצר מזה בגלל פיסוק
 PAUSE_S = 1.0                   # שקט שסוגר יחידה
@@ -1818,6 +1822,112 @@ def gold_score(vi: dict, spec: dict) -> dict | None:
     return {'f5': m.get('ch_f1_5'), 'f10': m.get('ch_f1_10')}
 
 
+def video_pre(J, ctx):
+    """18/11/2026 (מהתרגום — job.video_prefetch, "ששום דבר לא יחכה לשום דבר שלא הכרחי"): התחלנו מהקול → הסרטון יורד ברקע
+    בזמן התמלול, בשקט (בלי דיווח ובלי לגעת בפרויקט). לפני המסך — video_join, והמסלול הרגיל (wait_video + fetch_input)
+    מוצא אותו כבר שלם (ההורדה ממשיכה מאיפה שהקובץ נעצר). עד היום ההורדה התחילה רק אחרי התמלול. (thread, stop) או None."""
+    if not all(hasattr(J, a) for a in ('QuietCtx', 'fetch_input', 'in_path')) or os.environ.get('SNB_VI_PREFETCH') == 'off':
+        return None
+    q, stop = J.QuietCtx(dict(ctx.st)), threading.Event()
+    poll = float(os.environ.get('SNB_POLL', '30'))
+
+    def run():
+        try:
+            while not stop.is_set():
+                v = (q.st.get('files') or {}).get('v') or {}
+                if v.get('id'):
+                    t0 = time.time()
+                    J.fetch_input(q, v['id'], J.in_path(q, v, 'v'), int(v.get('size') or 0))
+                    J.note_timing(q, 'vi-prefetch', t0, time.time())
+                    return
+                stop.wait(poll)
+                if stop.is_set():
+                    return
+                q.st['files'] = (q.c.call('claim').get('job') or {}).get('files') or {}
+        except BaseException:                    # noqa: BLE001 — המסלול הרגיל ישלים (גם הורדה שנקטעה באמצע)
+            return
+    th = threading.Thread(target=run, name='vi-prefetch', daemon=True)
+    th.start()
+    return th, stop
+
+
+def video_join(pre) -> None:
+    """לפני שהתהליכון הראשי מוריד את הסרטון בעצמו — לא שני כותבים לאותו קובץ (מחכים להורדה שבדרך)."""
+    if pre:
+        th, stop = pre
+        stop.set()
+        th.join()
+
+
+def same_bg(J, ctx, src, out: Path, name: str):
+    """18/11/2026 (מהתרגום — עבודה שלא מחכה): הסרטון לנגן (vi-same — העתקה, ולפעמים קידוד) **והעלאתו** — ברקע, בזמן ש־Claude
+    ממפה ומאמת (המעבד והרשת פנויים שם; בשלב הזה הניתוח על ~120MB). עד היום שניהם רצו בטור אחרי Claude (bn, ‏sv).
+    same_join לפני השמירה; תקלה ברקע — המסלול הרגיל. (thread, box) או None."""
+    if not hasattr(ctx, 'quiet') or os.environ.get('SNB_VI_SAME_BG') == 'off':
+        return None
+    q, box = ctx.quiet(), {}
+    mime = next(m for k, _, _, m in VI_FILES if k == 'same')
+
+    def run():
+        try:
+            J.vt(q, ['vi-same', str(src), '--out', str(out)])
+            if not (out.is_file() and out.stat().st_size > 0):
+                return
+            box['ok'] = 1
+            size = out.stat().st_size
+            box['up'] = {'id': J.put_output_retry(q, out, name, 'same', mime), 'name': name, 'size': size, 'k': 'same'}
+        except BaseException as e:               # noqa: BLE001 — SystemExit של vt / רשת: המסלול הרגיל ישלים
+            box['err'] = type(e).__name__
+    th = threading.Thread(target=run, name='vi-same', daemon=True)
+    th.start()
+    return th, box
+
+
+def same_join(sb, ctx=None) -> dict:
+    """מחכים לסרטון לנגן שרץ ברקע. {'ok': 1, 'up': {...}} — מוכן (ואולי כבר הועלה); {} — המסלול הרגיל."""
+    if not sb:
+        return {}
+    th, box = sb
+    if th.is_alive():
+        if ctx is not None:
+            ctx.report('bn', None, 'מסיימים את הסרטון לנגן')
+        th.join()
+    if box.get('err'):
+        print('· הסרטון לנגן ברקע לא הסתיים (' + box['err'] + ') — עכשיו, בטור')
+        return {}
+    return box
+
+
+def vt_ingest(J, ctx, asrc, kind):
+    """18/11/2026 ("גם תרגום"): הפרויקט של התרגום על המקור (J.vt_project — vt new + ingest); הקול שלו (audio16k.wav,
+    אותו נתיב) הוא הקול של הניתוח, בלי חילוץ נוסף. True = מוכן · 'v' = הקול שעלה ראשון כמעט בלי דיבור (צריך את הסרטון) ·
+    False = תקלה: הניתוח ממשיך במסלול שלו (ffmpeg + vi-asr), והתרגום יתחיל מההתחלה מאותם קבצים."""
+    stop = getattr(J, 'Stop', None) or ()
+    t0 = time.time()
+    try:
+        ok = J.vt_project(ctx, asrc, kind)
+        J.note_timing(ctx, 'vi-wav', t0, time.time())
+        return True if ok else 'v'
+    except stop:
+        raise
+    except (SystemExit, Exception) as e:          # noqa: BLE001 — הניתוח לא נופל בגלל התרגום
+        print('· הפרויקט המשותף עם התרגום לא נוצר (' + type(e).__name__ + ') — הניתוח ממשיך לבד, והתרגום יתחיל מההתחלה')
+        return False
+
+
+def vt_after_asr(J, ctx, spec, dry, vt_on, kind, tr, info) -> str:
+    """18/11/2026 ("גם תרגום"): אחרי התמלול — המסירה עם נקודת השמירה (אנגלית, על הפרויקט המשותף: J.vt_hand), או הודעה
+    שאין מה לתרגם (עברית / שפה אחרת / בלי שמע — vtx lang בשרתון), או מסירה בלי נקודה (התרגום מההתחלה). מזהה העבודה / ''."""
+    if spec.get('vt') != 1 or dry or not hasattr(J, 'vt_call'):
+        return ''
+    lg = str(tr.get('lang') or '') if info['audio'] else 'x'
+    if lg not in ('', 'en', 'he'):
+        lg = 'x'
+    if vt_on and tr.get('vt') == 1 and lg == 'en':
+        return J.vt_hand(ctx, kind, 'en')
+    return J.vt_call(ctx, lg)
+
+
 def vi_run(J, args, engine=None) -> int:
     """עבודת ניתוח. J = המודול job (כמו pipeline.run_auto). engine — לבדיקות (מנוע מדומה); אחרת make_engine."""
     ctx = J.Ctx(J.load_state())
@@ -1846,7 +1956,7 @@ def vi_run(J, args, engine=None) -> int:
     files = ctx.st.get('files') or {}
     f = files.get('v') if (files.get('v') or {}).get('id') else None
     fa = files.get('a') if (files.get('a') or {}).get('id') else None
-    src = None
+    src, pre = None, None
     if f is None and fa is not None:
         asrc = J.in_path(ctx, fa, 'a')
         J.fetch_input(ctx, fa['id'], asrc, int(fa.get('size') or 0), lambda x: ctx.report('up', x))
@@ -1854,6 +1964,7 @@ def vi_run(J, args, engine=None) -> int:
         info = probe(asrc)
         info['video'] = True                      # לא ידוע עד שהסרטון יגיע — נבדק שוב לפני המסך
         print('· מתחילים מהקול — הסרטון ממשיך לעלות במקביל, ומצטרף לפני קריאת המסך')
+        pre = video_pre(J, ctx)                   # 18/11/2026: ויורד ברקע בזמן התמלול
     else:
         f = f or J.wait_video(ctx, 'up', 'מחכה שהסרטון יסיים לעלות')
         src = J.in_path(ctx, f, 'v')
@@ -1876,18 +1987,37 @@ def vi_run(J, args, engine=None) -> int:
     S.go('tr', 'מתמללים')
     wav = pd / 'audio16k.wav'
     tr_p, wd_p, scr = pd / 'vi.tr.json', pd / 'vi.wd.json', pd / 'screen'
+    # 18/11/2026 ("גם תרגום"): הקליטה והתמלול על הפרויקט של התרגום — פעם אחת לשתי העבודות (vt_ingest, vi-asr --proj)
+    vt_on = spec.get('vt') == 1 and not dry and bool(info['audio']) and hasattr(J, 'vt_hand')
+    vt_kind = 'a' if src is None else 'v'
+    if vt_on:
+        got = vt_ingest(J, ctx, asrc, vt_kind)
+        if got == 'v':                                # הקול שעלה ראשון כמעט בלי דיבור — הכל מהסרטון (כמו בתרגום)
+            video_join(pre)
+            f = J.wait_video(ctx, 'tr', 'מחכה שהסרטון יסיים לעלות')
+            src = J.in_path(ctx, f, 'v')
+            J.fetch_input(ctx, f['id'], src, int(f.get('size') or 0))
+            pv = probe(src)
+            info.update(video=pv['video'], fps=pv.get('fps') or 0.0, audio=pv['audio'])
+            decl = max(decl, pv['dur'])
+            asrc, vt_kind = src, 'v'
+            got = vt_ingest(J, ctx, asrc, 'v') if info['audio'] else False
+        vt_on = got is True
     if info['audio']:
         t0 = time.time()
-        subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(asrc), '-vn', '-ac', '1', '-ar', '16000', str(wav)],
-                       check=True, timeout=3600)
-        J.note_timing(ctx, 'vi-wav', t0, time.time())
+        if not vt_on:
+            subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(asrc), '-vn', '-ac', '1', '-ar', '16000', str(wav)],
+                           check=True, timeout=3600)
+            J.note_timing(ctx, 'vi-wav', t0, time.time())
         real = wav_dur(wav)
         if src_trunc(decl, real):
             dur = real                                # כל השלבים (זיכרון, צפי, משך בדף) — לפי מה שיש באמת
     report_dur(ctx, spec, dur)
     if info['audio']:
-        J.vt(ctx, ['vi-asr', str(wav), '--lang', lang, '--out', str(tr_p)], 'tr')
+        J.vt(ctx, ['vi-asr', '--proj', ctx.name, '--lang', lang, '--out', str(tr_p)] if vt_on
+             else ['vi-asr', str(wav), '--lang', lang, '--out', str(tr_p)], 'tr')
     tr = _read_json(tr_p) or {'lang': lang, 'words': [], 'quality': 'low'}
+    vt_after_asr(J, ctx, spec, dry, vt_on, vt_kind, tr, info)   # 18/11/2026: המסירה — לפני שהניתוח ממשיך (או נעצר על השפה)
     if lang == 'auto':                                # 9.3 סעיף 2: מה שזוהה (בלי שמע — אין מה לזהות: אנגלית)
         lang = tr.get('lang') if info['audio'] else 'en'
         if lang not in VI_LANGS:
@@ -1900,6 +2030,7 @@ def vi_run(J, args, engine=None) -> int:
     # 3. מסך ויישור
     S.go('al', 'מזהים שקפים ומיישרים')
     if src is None:                                   # התחלנו מהקול — עכשיו (ורק עכשיו) צריך את הסרטון
+        video_join(pre)                               # 18/11/2026: בדרך כלל כבר ירד ברקע בזמן התמלול
         f = J.wait_video(ctx, 'al', 'מחכה שהסרטון יסיים לעלות')
         src = J.in_path(ctx, f, 'v')
         J.fetch_input(ctx, f['id'], src, int(f.get('size') or 0))
@@ -1921,6 +2052,11 @@ def vi_run(J, args, engine=None) -> int:
         print('✓ הסרטון צורף · היסט %+.3f שנ׳ (ודאות %.2f) — הזמנים על ציר הזמן של הסרטון' % sync)
     elif sync[1] > 0:
         print('· ההיסט בין הקול לסרטון לא ודאי (%.2f) — הזמנים נשארים של הקול' % sync[1])
+    title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
+    same_sfx = next(x for k, _, x, _ in VI_FILES if k == 'same')
+    sb = same_bg(J, ctx, src, pd / 'same.mp4', title + same_sfx) if info['video'] and spec.get('vg') != 1 else None   # 18/11/2026
+    if hasattr(J, 'mem_tail'):
+        J.mem_tail(VI_TAIL_MB)                        # 18/11/2026: החלק הכבד (תמלול, מסך, יישור) מאחורינו — הסוכן משחרר את השאר
     ev = evidence(words)
     slides, ocr = slides_doc(screen)
     n_so = screen_only(slides, ocr, words)
@@ -1971,7 +2107,6 @@ def vi_run(J, args, engine=None) -> int:
     if trunc:
         warn.append('vi_trunc')
         print('⚠ המקור קטוע: בקובץ יש רק %d שנ׳, אבל הוא מצהיר על %d שנ׳ — הניתוח רק על מה שיש.' % (round(real), round(decl)))
-    title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
     src_kind = 'yt' if spec.get('src') == 'url' and 'youtu' in str(spec.get('url') or '') else 'url' if spec.get('src') == 'url' else 'file'
     spk = speakers_doc(ev, lang, wd.get('voice'), (m or {}).get('speakers'))
     if dry:
@@ -1984,11 +2119,14 @@ def vi_run(J, args, engine=None) -> int:
     (pd / 'vi.json').write_text(json.dumps(vi, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     cs = cues(words, info.get('fps') or 0.0)
     (pd / 'cues.json').write_text(json.dumps(cs, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
+    sj = same_join(sb, ctx)                          # 18/11/2026: בדרך כלל כבר מוכן (ומועלה) — רץ ברקע בזמן Claude
     if info['video'] and spec.get('vg') != 1:        # PR 1.6: הרצת זהב (vg) — בלי הסרטון באיכות מלאה (רק ה־vi.json נמדד)
-        J.vt(ctx, ['vi-same', str(src), '--out', str(pd / 'same.mp4')], 'bn', 0.1, 1.0)
+        if not sj.get('ok'):                          # הרקע לא הספיק / נכשל / כבוי — עכשיו, בטור
+            J.vt(ctx, ['vi-same', str(src), '--out', str(pd / 'same.mp4')], 'bn', 0.1, 1.0)
     # 6. שמירה
     S.go('sv', 'שומרים')
-    res = [(k, pd / fn, title + sfx, mime) for k, fn, sfx, mime in VI_FILES if (pd / fn).is_file() and (pd / fn).stat().st_size > 0]
+    res = [(k, pd / fn, title + sfx, mime) for k, fn, sfx, mime in VI_FILES if (pd / fn).is_file() and (pd / fn).stat().st_size > 0
+           and not (k == 'same' and sj.get('up'))]
     total = sum(p.stat().st_size for _, p, _, _ in res) or 1
     done, up = 0, []
     for k, p, name, mime in res:
@@ -1996,6 +2134,10 @@ def vi_run(J, args, engine=None) -> int:
         fid = J.put_output_retry(ctx, p, name, k, mime, lambda x, b=done, s=size: ctx.report('sv', (b + x * s) / total))
         done += size
         up.append({'id': fid, 'name': name, 'size': size, 'k': k})
+    if sj.get('up'):                                  # הועלה ברקע — במקום שלו בסדר התוצרים
+        up.append(sj['up'])
+        order = [k for k, *_ in VI_FILES]
+        up.sort(key=lambda o: order.index(o['k']))
     S.end()
     vs = summary(vi)
     vq = gold_score(vi, spec) if not dry else None

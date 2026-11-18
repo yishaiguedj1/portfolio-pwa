@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2549 מפתחות מתוך 7142) */
+/* המחרוזות של studio (2557 מפתחות מתוך 7150) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -2461,6 +2461,14 @@ he: {
   "studioViSupL": "אומתו",
   "studioViT": "ניתוח יבש",
   "studioViThanks": "תודה — נרשם",
+  "studioViTr": "גם תרגום לעברית",
+  "studioViTrEst": "תרגום: כ־{usd}",
+  "studioViTrFrom": "הניתוח של הסרטון",
+  "studioViTrGo": "תרגום לעברית",
+  "studioViTrLang": "לא תורגם: הדיבור בסרטון לא באנגלית",
+  "studioViTrRow": "התרגום לעברית",
+  "studioViTrS": "כתוביות וסרטון מתורגם כמו בתרגום סרטונים, מאותו תמלול",
+  "studioViTrWait": "התרגום לעברית יתחיל אחרי התמלול, ברשימת התרגומים",
   "studioViTrunc": "המקור קטוע: בקובץ יש רק {a} מתוך {b} — הניתוח רק על החלק הזה.",
   "studioViTx": "תמליל מלא",
   "studioViVv": "אמת שוב",
@@ -5012,6 +5020,14 @@ en: {
   "studioViSupL": "verified",
   "studioViT": "Dry analysis",
   "studioViThanks": "Thanks — noted",
+  "studioViTr": "Also translate to Hebrew",
+  "studioViTrEst": "translation ~{usd}",
+  "studioViTrFrom": "The video’s analysis",
+  "studioViTrGo": "Translate to Hebrew",
+  "studioViTrLang": "Not translated: the video isn’t in English",
+  "studioViTrRow": "Hebrew translation",
+  "studioViTrS": "Subtitles and a translated video, as in video translation, from the same transcript",
+  "studioViTrWait": "The Hebrew translation starts after the transcript, in your translations",
   "studioViTrunc": "The source is cut off: the file holds only {a} of {b} — the analysis covers just that part.",
   "studioViTx": "Full transcript",
   "studioViVv": "Verify again",
