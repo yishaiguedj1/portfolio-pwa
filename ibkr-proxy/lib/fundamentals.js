@@ -117,6 +117,7 @@ const day = (s) => Date.parse(s + 'T00:00:00Z') / 864e5;
 // העומק: Kroger — הרבעון הראשון 16 שבועות, ‏111 יום, לא נכנס אף פעם; Costco, PepsiCo, Domino's, AutoZone — הרביעי)
 const qLen = (d) => (d >= 80 && d <= 100) || (d >= 110 && d <= 119);
 const PER_SHARE = new Set(['eps', 'dps']);
+const F20_Q = false; // F20 ברבעונים — כבוי (גל 6: ‏worse ‏49 במדידה; ראו bsfIs)
 // זרימות שבהן אפשר לבדוק שהרבעונים מאותו בסיס כמו השנה (qmix)
 const QPOS = ['cogs', 'dep', 'sbc', 'int']; // הכנסות, מחקר והשקעות הוניות — יכולים להיות מרוכזים ברבעון אחד בצדק
 /* באיזה דוח מופיעה כל שורה (לבחירת התגית לפי הדוח שהחברה הגישה — lib/secface.js) */
@@ -1545,7 +1546,10 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
     const ISQ = bsfIs(bsf, rc || cur || 'USD', oq, true);
     const prAt = (P, e) => { let pr = P.get(e); if (!pr) for (const [k2, v2] of P) if (Math.abs(day(k2) - day(e)) <= 7) { pr = v2; break; } return pr; };
     const fyOf = (e) => fyEnds.find((f) => { const s0 = yearOf.get(f); return s0 && e > s0 && e <= f; });
-    for (const k of IS_KEYS) {
+    // כבוי (גל 6, המדידה): 932 ערכים — better ‏289, ‏worse ‏49, ‏neither ‏524. כל 10-Q מדפיס רק שני רבעונים (השנה ואשתקד), ולכן השרשור
+    // נשבר בכל הצגה מחדש, והעוגן מחדש קופץ לבסיס המקורי (Iron Mountain ‏pretax ‏2015-Q1: ‏57.7M מה־10-Q המקורי במקום ‏41.1M שהוצג
+    // מחדש). דפי ה־10-Q נשארים — ל־F29 (אילו רבעונים מודפסים). ‏wave-6.md §3
+    if (F20_Q) for (const k of IS_KEYS) {
       const M = ISQ[k]; if (!M) continue;
       for (const e of qEnds) {
         if (fyEnds.some((f) => Math.abs(day(f) - day(e)) <= 7)) continue; // הרבעון הרביעי — לא ב־10-Q
