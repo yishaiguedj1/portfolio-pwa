@@ -389,5 +389,6 @@ console.log('\nכל בדיקות מנתח החברות עברו: ' + n);
   ok(A.calcDefaults({ ...co, fin: true, _mh: null }, 'fcf').basis === 'ni', 'בנק — רק לפי רווח נקי');
   const src = fs.readFileSync(path.join(__dirname, '..', 'analysis.js'), 'utf8');
   ok(!/pageValDef|fairCard\(|assumeCard\(/.test(src) && /function pageVal\(co, pg\)[\s\S]{0,200}calcDefaults/.test(src), 'עמוד השווי = המחשבון בלבד, בלי DCF ובלי פרשנות');
+  ok(/\['cfb', 'anRCfb', \['ocf', 'fcf', 'fcfsbc', 'sbcN', 'capexN'\]\]/.test(src) && /fcfsbc: 'anDnOwn'/.test(src), 'פירוק התזרים כולל מזומן לבעלים (תזרים חופשי פחות תגמול במניות) עם שורת הסבר');
   ok(/DEF_NOTE = \{/.test(src) && /defNote\(def\.s\)/.test(src) && /anDnMult/.test(src), 'שורה גלויה איך מדד שמחושב בכמה דרכים מחושב אצלנו');
 }
