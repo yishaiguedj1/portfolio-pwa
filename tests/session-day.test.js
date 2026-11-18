@@ -65,7 +65,7 @@ is('LUMI.TA', '2026-09-22 07:00', 'dow', '2026-09-18', 'ת״א אחרי יום �
 // הכרטיס
 const subSrc = src.slice(src.indexOf('function stockSubHTML('), src.indexOf('const SKEL_HTML'));
 ok(/sessionDayLabel\(p && p\.sym\)/.test(subSrc), 'הכרטיס משתמש בתווית יום המסחר');
-ok(/subValLbl/.test(subSrc) && /subGlLbl/.test(subSrc), 'התוויות "שווי" ו"שינוי" בכרטיס');
-ok(/subValLbl: 'שווי', subGlLbl: 'שינוי'/.test(src) && /subValLbl: 'Value', subGlLbl: 'Change'/.test(src), 'מחרוזות בשתי השפות');
+ok(/subValLbl/.test(subSrc) && /subGlLbl/.test(subSrc), 'התוויות "שווי" ו"שינוי מהקנייה" בכרטיס');
+ok(/subValLbl: 'שווי', subGlLbl: 'שינוי מהקנייה'/.test(src) && /subValLbl: 'Value', subGlLbl: 'Gain'/.test(src), 'מחרוזות בשתי השפות');
 ok(/dayYest: 'אתמול'/.test(src) && /dayYest: 'Yesterday'/.test(src), '"אתמול" בשתי השפות');
 ok(/\.stock-sub \.sub-lbl \{[^}]*color: var\(--on-surface-var\)/.test(css), 'התווית אפורה (משתנה צבע)');
