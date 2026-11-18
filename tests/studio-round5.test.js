@@ -62,9 +62,9 @@ print(json.dumps([s1.size / b.size, s1.primary, b.bottom_y - s1.bottom_y, R.appl
 
   /* ---------- 4. הטלפון ---------- */
   const sj = read('studio.js');
-  ok(/sty: rrSty\(\)[,} ]/.test(sj) && /go\('sty', rec\.id\)/.test(sj) && /else if \(ui\.view === 'sty'\) pageSty\(p\);/.test(sj), 'הפקה מחדש: שורה "עיצוב הכתוביות" → הדף; העיצוב נשלח עם ההפקה');
+  ok(/sty: rrSty\(rec\)[,} ]/.test(sj) && /go\('sty', rec\.id\)/.test(sj) && /else if \(ui\.view === 'sty'\) pageSty\(p\);/.test(sj), 'הפקה מחדש: שורה "עיצוב הכתוביות" → הדף; העיצוב נשלח עם ההפקה');
   ok(/x === 'cut' \|\| x === 'sty'( \|\| x === '[a-z]+')* \? \['rr', y\]/.test(sj) && /if \(ui\.view === 'sty'\) syStop\(\);/.test(sj), '"חזור" מהעיצוב → ההפקה מחדש; היציאה עוצרת את הנגן');
-  ok(/const sty = normSty\(o\.sty\); if \(sty\) s\.sty = sty;/.test(sj), 'העיצוב האחרון נשמר בהגדרות (ברירת המחדל להפקה הבאה)');
+  ok(!/s\.sty = sty/.test(sj) && /function stySet\(rec, patch\) \{\n  rrFor\(rec\);/.test(sj), 'העיצוב נשמר להפקה הזו בלבד — לא בהגדרות (18/11/2026: לא ברירת מחדל לעבודה הבאה)');
   ok(/setStyle\(o\) \{/.test(read('studioplay.js')) && /--sub-k/.test(read('studio.css')) && /\.st-pl\.boxed \.st-pl-sub span/.test(read('studio.css')), 'הנגן: תצוגה חיה (גודל, צבע, רקע לכל שורה, גובה)');
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL - ' + (e && e.stack || e)); process.exit(1); });

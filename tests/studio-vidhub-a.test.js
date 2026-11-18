@@ -107,7 +107,7 @@ except Exception as e:
   /* ---------- 4. הטלפון ---------- */
   const st = read('studio.js');
   ok(/for \(const k of STYLES\.filter\(\(x\) => x !== 'karaoke'\)\)/.test(st) && /style: s\.style === 'karaoke' \? 'bold' : s\.style/.test(st), 'קריוקי לא מוצע בטופס; טיוטה ישנה עם קריוקי = מודגש');
-  ok(/sty: normSty\(store\.settings\.sty\)/.test(st), 'בטופס: העיצוב האחרון שבחרת = ברירת המחדל');
+  ok(/sty: null,   \/\/ 18\/11\/2026/.test(st) && !/settings\.sty/.test(st), 'בטופס: כל עבודה חדשה מתחילה מהעיצוב הרגיל (18/11/2026 — לא מה שנבחר בעבודה הקודמת)');
   ok((st.match(/\.\.\.\(f\.sty \? \{ sty: f\.sty \} : \{\}\)/g) || []).length === 3 && /sty: f\.sty \|\| null, terms/.test(st), 'העיצוב נשלח ביצירה (קובץ, קישור, הורדה בטלפון והעלאה דרך האפליקציה)');
   ok(/styFold\('form'/.test(st) && /if \(styEditable\(rec\) && !rec\.spec\.ka\) p\.append\(styFold\('job:'/.test(st), 'מקטע העיצוב בטופס ובדף העבודה');
   ok(/function styEditable\(rec\)[\s\S]{0,500}\['bn', 'sv'\]\.includes\(stg\)/.test(st), 'בדף העבודה — רק עד שהצריבה מתחילה');
@@ -116,7 +116,7 @@ except Exception as e:
   ok(/function keepLine\(\)[\s\S]{0,400}if \(!\(k\.s > 0\)\) return ' ' \+ T\('studioEstKeepAll', \{ t: keepSpan\(k\.j\) \}\);/.test(st) && /ui\.kt = j\.kt && j\.kt\.j > 0 \?/.test(st), 'באומדן: המקור נשמר עם העבודה (10/11/2026) — שורה אחת לכל הקבצים');
   ok(/function keepSpan\(ms\)[\s\S]{0,300}if \(d % 7\) return T\('studioKeepDays'[\s\S]{0,200}w === 2 \? T\('studioKeep2Weeks'\) : T\('studioKeepWeeks', \{ n: w \}\)/.test(st), 'זמן השמירה במילים — בשבועות ("3 שבועות")');
   ok(/T\('studioKeepJobP', \{ p: keepSpan\(ui\.kt\.j\), t: fmtDate\(rt\.j\) \}\)/.test(st), 'בדף העבודה: כמה זמן הסרטונים נשמרים ועד מתי');
-  ok(/function pageSty\(p\)[\s\S]{0,2000}p\.append\(\.\.\.styControls\(st, stySet\)\)/.test(st), 'ההפקה מחדש משתמשת באותן בקרות');
+  ok(/function pageSty\(p\)[\s\S]{0,2000}p\.append\(\.\.\.styControls\(st, \(patch\) => stySet\(rec, patch\)\)\)/.test(st), 'ההפקה מחדש משתמשת באותן בקרות');
 
   // מחרוזות בשתי השפות
   const app = read('app.js');
