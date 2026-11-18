@@ -97,7 +97,10 @@ class AgentTests(unittest.TestCase):
         hb = self.fake.hb[0]
         self.assertEqual(hb['busy'], '')
         self.assertTrue(0 <= hb['disk'] <= 100 and hb['free'] >= 0 and 'mem' in hb, 'דופק: דיסק, זיכרון — מספרים בלבד')
-        self.assertEqual(set(hb) - {'v', 'busy', 'disk', 'free', 'load', 'mem', 'up', 'iso', 'iw', 'al', 'ev', 'cpu', 'nj', 'mx', 'vi', 'vx', 'lb'}, set(), 'בלי שום שדה מעבר למספרים, לגרסה ולקודים הקבועים')
+        self.assertEqual(set(hb) - {'v', 'busy', 'disk', 'free', 'load', 'mem', 'up', 'iso', 'iw', 'al', 'ev', 'cpu', 'nj', 'mx', 'vi', 'vx', 'lb', 'mm'}, set(), 'בלי שום שדה מעבר למספרים, לגרסה ולקודים הקבועים')
+        mm = hb.get('mm') or {}                     # 18/11/2026: מודל הזיכרון — מסלולים מקטלוג, מספרים וקודי שלב בלבד
+        self.assertTrue(set(mm) <= {'tr', 'ka', 'vi', 'vh', 'rr', 'pk'} and all(isinstance(v, int) for k, x in mm.items() if k != 'pk' for v in x)
+                        and all(isinstance(x[1], int) and isinstance(x[2], int) and len(x) == 4 for x in mm.get('pk', [])), 'mm: מספרים וקודים בלבד')
         self.assertEqual(hb.get('vi'), 1, '9/11/2026: יכולת קבועה — העובד מריץ ניתוח סרטונים (שומר הלקיחה בשרתון)')
         self.assertEqual([k for _, k in hb['ev']], ['up'], 'ת7: יומן השרת — "הסוכן עלה" נשלח כבר בפנייה הראשונה')
         self.assertTrue(all(isinstance(t, int) and t > 1.6e9 for t, _ in hb['ev']))
