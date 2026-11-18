@@ -8245,8 +8245,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.181.3';
-const APP_VERSION = 'v833';
+const APP_RELEASE = '2.181.4';
+const APP_VERSION = 'v834';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -17327,7 +17327,7 @@ function pageSwipeTarget(cur, next) { // next=true → העמוד הבא (שמא
    שורה שהדפדפן גולל (overflow: auto) היא תמיד שכבה נפרדת. בטלפון היא נבנתה מחדש בכל נחיתה, והייתה ריקה עד שנצבעה (עד שתי שניות).
    כאן הגלילה באצבע: גרירה לרוחב מזיזה את scrollLeft, ובשחרור — תנופה שדועכת. גרירה אנכית נשארת של הדף (touch-action: pan-y).
    hsRow(el): השורה עצמה, רק כשיש לה מה לגלול */
-const HS_ROWS = 'main .tabpage :is(.ranges, .chip-row, .stock-sort-row, .wl-tabs, .tx-years, .earn-list):not(.stock-chips)';
+const HS_ROWS = 'main .tabpage :is(.ranges, .chip-row, .stock-sort-row, .wl-tabs, .tx-years, .st-al-chips, .earn-list):not(.stock-chips)';
 function hsRow(el) {
   const r = el && el.closest ? el.closest(HS_ROWS) : null;
   return r && r.scrollWidth > r.clientWidth + 2 ? r : null;
@@ -18418,37 +18418,45 @@ function alertBtn(sym) {
   b.addEventListener('click', (e) => { e.stopPropagation(); openStockAlertFor(sym); });
   return b;
 }
+/* 18/11/2026 (בקשת המשתמש, צילום): ההתראות כשורת שבבים בגובה כותרת המקטע, נגללת לרוחב כמו טאבי רשימת המעקב.
+   בשבב רק המחיר וחץ קטן: ירוק למעלה (עולה מעל), אדום למטה (יורד מתחת), אפור דו־כיווני (חוצה). הופעלה = חיוור.
+   בהתחלה (ימין בעברית) — פעמון עם פלוס קטן להתראה חדשה. ההערה והכיוון — ב־aria-label/title, לא בטקסט הגלוי */
+const BELL_ADD_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 9.5a5.5 5.5 0 0 1 9.2-4.1M15.5 11c0 4.6 2 6.5 2 6.5h-15s2-1.9 2-8"/><path d="M8.3 20.5a1.9 1.9 0 0 0 3.4 0"/><path class="st-al-plus" d="M19 2.5v6M16 5.5h6" stroke-width="2.2"/></svg>';
+const ST_AL_ARR = {
+  up: '<path d="M12 19V5M6.5 10.5 12 5l5.5 5.5"/>',
+  down: '<path d="M12 5v14M6.5 13.5 12 19l5.5-5.5"/>',
+  cross: '<path d="M8 19V5M4.5 8.5 8 5l3.5 3.5M16 5v14M12.5 15.5 16 19l3.5-3.5"/>',
+};
 function stockAlertsEl(sym) {
   const box = el('div', 'st-al');
   box.dataset.sym = sym;
   const list = stockAlertList(sym);
   box.hidden = !list.length;
   if (!list.length) return box;
-  const head = el('div', 'st-al-h');
-  head.appendChild(el('span', 'st-al-t')).textContent = t('kcPriceAlerts');
+  box.setAttribute('role', 'group');
+  box.setAttribute('aria-label', t('kcPriceAlerts'));
   const add = el('button', 'st-al-add');
   add.type = 'button';
   add.setAttribute('aria-label', t('kcAlertNew'));
-  add.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+  add.title = t('kcAlertNew');
+  add.innerHTML = BELL_ADD_SVG;
   add.addEventListener('click', (e) => { e.stopPropagation(); openStockAlertFor(sym); });
-  head.appendChild(add);
-  box.appendChild(head);
-  const ul = el('div', 'st-al-list');
+  box.appendChild(add);
+  const ul = el('div', 'st-al-chips');
   for (const a of list.slice().sort((x, y) => (x.done ? 1 : 0) - (y.done ? 1 : 0) || y.p - x.p)) {
-    const row = el('button', 'st-al-row' + (a.done ? ' done' : ''));
-    row.type = 'button';
-    row.appendChild(el('span', 'st-al-ic', BELL_FILL_SVG));
-    const tx = el('span', 'st-al-tx');
+    const dir = a.dir === 'up' || a.dir === 'down' ? a.dir : 'cross';
+    const chip = el('button', 'st-al-chip ' + dir + (a.done ? ' done' : ''));
+    chip.type = 'button';
+    chip.appendChild(el('span', 'st-al-arr', '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">' + ST_AL_ARR[dir] + '</svg>'));
     const pb = el('b', 'num');
     pb.textContent = fmtPx(+a.p, sym);
-    const sub = el('small');
-    sub.textContent = (a.dir === 'up' ? t('kcAlertUp') : a.dir === 'down' ? t('kcAlertDown') : t('kcAlertCross')) + (a.note ? ' · ' + String(a.note).slice(0, 80) : '');
-    tx.append(pb, sub);
-    row.appendChild(tx);
-    if (a.done) row.appendChild(el('span', 'st-al-st')).textContent = t('kcAlertDone');
-    row.appendChild(el('span', 'st-al-chev', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'));
-    row.addEventListener('click', (e) => { e.stopPropagation(); openStockAlertFor(sym, a.id); });
-    ul.appendChild(row);
+    chip.appendChild(pb);
+    const lbl = (dir === 'up' ? t('kcAlertUp') : dir === 'down' ? t('kcAlertDown') : t('kcAlertCross')) + ' ' + pb.textContent +
+      (a.done ? ' · ' + t('kcAlertDone') : '') + (a.note ? ' · ' + String(a.note).slice(0, 80) : '');
+    chip.setAttribute('aria-label', lbl);
+    chip.title = lbl;
+    chip.addEventListener('click', (e) => { e.stopPropagation(); openStockAlertFor(sym, a.id); });
+    ul.appendChild(chip);
   }
   box.appendChild(ul);
   return box;

@@ -788,7 +788,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
        עובר לדף) ו־overflow-x: clip — חותך רק מה שהמסך חותך ממילא. אנכית בלי חיתוך (תפריטים נפתחים, תוצאות חיפוש).
    גלאים: tools/qa-sweep.js — squashOf (שכבה דחוסה או שורת גלילה בדף שנחת); tests/smooth-invest-glass.test.js */
 main .tabpage { margin-inline: -16px; padding-inline: 16px; overflow-x: clip; }
-main .tabpage :is(.ranges, .chip-row, .stock-sort-row, .wl-tabs, .tx-years, .earn-list):not(.stock-chips) { overflow: hidden; touch-action: pan-y; }
+main .tabpage :is(.ranges, .chip-row, .stock-sort-row, .wl-tabs, .tx-years, .st-al-chips, .earn-list):not(.stock-chips) { overflow: hidden; touch-action: pan-y; }
 /* 31/10/2026 (סבב קפיצות 6, ש2): שכבה קבועה לעמוד הפעיל (will-change: transform, 2.94.3) בוטלה — בהקלטה מהטלפון החמירה:
    הדף נעלם אחרי נחיתה בכל העמודים במקום רק בסקירה. הסיבה כנראה בחימום השכנים (tabPrewarm ב־app.js), לא בשכבה */
 /* Academy / Studio: הדף היוצא = העתק "מת" של השכבה — בלי אנימציות כניסה שמתחילות מחדש בהעתק; רקע אטום מתחת לשכבה */
@@ -1080,28 +1080,26 @@ html[dir="ltr"] .stock-foot .kc-open-btn { order: -1; }   /* באנגלית (כ�
 .stock-foot .an-open-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0 11px; gap: 5px; flex: none; white-space: nowrap; font-size: 13px; line-height: 1; }   /* סמל + מילה, באותו גובה כמו כפתורי הסמל; מרכוז אנכי מפורש */
 /* תשואה ענקית (מעל 10,000%) מוצגת מקוצרת (‎fmtPct‎ — 12.3K%) — הכפתורים נשארים בגודל נוח ולא נדרסים */
 /* 28/10/2026: התראות המחיר של המניה בכרטיס — רשימה מקובצת לפי ת־עיצוב (כותרת קטנה, שורות עם קו מפריד, חץ) */
-.st-al { margin: 4px 14px 12px; }
+/* 18/11/2026: ההתראות — שורת שבבים בגובה אחד (כמו טאבי רשימת המעקב), פעמון־פלוס בהתחלה; החומר — glass-btn.css */
+.st-al { display: flex; align-items: center; gap: 8px; margin: 2px 14px 10px; }
 .st-al[hidden] { display: none; }
-.st-al-h { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 6px; }
-.st-al-t { font-size: 13px; font-weight: 600; color: var(--on-surface-var); }
-.st-al-add { inline-size: 28px; block-size: 28px; display: grid; place-items: center; border: 0; border-radius: var(--radius-xl); background: var(--primary-container); color: var(--on-primary-container, var(--primary)); cursor: pointer; padding: 0; }
-.st-al-add svg { inline-size: 16px; block-size: 16px; }
+.st-al-add { inline-size: 36px; block-size: 36px; flex: none; display: grid; place-items: center; border: 0; border-radius: var(--pill); background: var(--surface); color: var(--on-surface); cursor: pointer; padding: 0; }
+.st-al-add svg { inline-size: 20px; block-size: 20px; }
+.st-al-add .st-al-plus { stroke: var(--primary); }
 .st-al-add:active { transform: scale(.92); }
-.st-al-list { border-radius: var(--radius-sm); background: var(--surface-2); overflow: hidden; }
-.st-al-row { inline-size: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 0; background: none; color: var(--on-surface); font: inherit; text-align: start; cursor: pointer; }
-.st-al-row + .st-al-row { border-block-start: .5px solid var(--separator); }
-.st-al-row:active { background: color-mix(in srgb, var(--on-surface) 6%, transparent); }
-.st-al-ic { inline-size: 32px; block-size: 32px; flex: none; display: grid; place-items: center; border-radius: var(--radius-xs); background: var(--primary); color: #fff; } /* כמו סמלי התפריט (.row-link-ic): לבן על ירוק המערכת */
-.st-al-ic svg { inline-size: 18px; block-size: 18px; }
-.st-al-tx { flex: 1; min-inline-size: 0; display: flex; flex-direction: column; gap: 1px; }
-.st-al-tx b { font-size: 16px; font-weight: 600; unicode-bidi: isolate; text-align: start; font-variant-numeric: tabular-nums; }
-.st-al-tx small { font-size: 12.5px; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.st-al-st { font-size: 12px; color: var(--on-surface-var); flex: none; }
-.st-al-chev { flex: none; color: var(--on-surface-var); opacity: .6; }
-.st-al-chev svg { inline-size: 14px; block-size: 14px; display: block; }
-[dir="ltr"] .st-al-chev svg { transform: scaleX(-1); }
-.st-al-row.done .st-al-ic { background: var(--on-surface-var); opacity: .55; }
-.st-al-row.done .st-al-tx b { color: var(--on-surface-var); }
+.st-al-chips { flex: 1; min-inline-size: 0; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-block: -6px; padding: 6px 2px; }
+.st-al-chips::-webkit-scrollbar { display: none; }
+.st-al-chip { flex: none; display: inline-flex; align-items: center; gap: 4px; block-size: 36px; padding: 0 13px 0 11px; box-sizing: border-box;
+  border: 1px solid var(--outline); border-radius: var(--pill); background: var(--surface); color: var(--on-surface); font: inherit; cursor: pointer; white-space: nowrap; transition: transform .15s ease; }
+.st-al-chip:active { transform: scale(.96); }
+.st-al-chip b { font-size: 15px; font-weight: 600; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+.st-al-arr { display: grid; color: var(--on-surface-var); }
+.st-al-arr svg { inline-size: 13px; block-size: 13px; display: block; }
+.st-al-chip.up .st-al-arr { color: var(--gain); }
+.st-al-chip.down .st-al-arr { color: var(--loss); }
+.st-al-chip.done { opacity: .5; }
+.st-al-chip.done .st-al-arr { color: var(--on-surface-var); }
+@media (prefers-reduced-motion: reduce) { .st-al-chip, .st-al-add { transition: none; } }
 
 .chart-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .ranges { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; flex: 1; }
