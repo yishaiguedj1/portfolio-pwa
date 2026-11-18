@@ -1441,5 +1441,80 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     ok(F.adrRatio(25927.6e6, 5186472994) === 5 && F.adrRatio(19235e6, 2487744939) === 8 && F.adrRatio(1166e6, 1154204232) === 1, '(26) יחס ADR: TSMC 5, ‏Alibaba 8 (7.7), ‏SAP 1');
     ok(F.adrRatio(4443e6, 3333483124) === null && F.adrRatio(null, 5) === null, '(26) יחס לא שלם (רק סוג מניות אחד) — null, בלי המרה');
   }
+  /* ---------- (27) פחת והשקעות הוניות מדף התזרים של כל 10-K (17/11/2026, גל 3 — F13; ‏bsfCf, ‏lib/bsfiled.js שדה cf) ---------- */
+  {
+    const BSF = require(path.join(root, 'ibkr-proxy/lib/bsfiled.js'));
+    const TG = { dep: ['DepreciationDepletionAndAmortization', 'DepreciationAndAmortization', 'DepreciationAmortizationAndAccretionNet', 'Depreciation'], capex: ['PaymentsToAcquirePropertyPlantAndEquipment', 'PaymentsToAcquireProductiveAssets'] };
+    const cf = (ends, rows, m) => ({ cols: ends.map((end) => ({ end, months: m || 12, cur: null })), scale: { cur: 1e6, sh: 1 }, rows: rows.map(([tag, v]) => ({ ns: 'us-gaap', tag, label: tag, v })) });
+    // Apple: עד 2017 בתגית DepreciationAmortizationAndAccretionNet, מאז DepreciationDepletionAndAmortization — לכל שנה ה־10-K האחרון שמדפיס אותה
+    const have = {
+      a: { form: '10-K', filed: '2015-10-28', cf: cf(['2015-09-26', '2014-09-27', '2013-09-28'], [['DepreciationAmortizationAndAccretionNet', [11257, 7946, 6757]], ['PaymentsToAcquirePropertyPlantAndEquipment', [-11247, -9571, -8165]]]) },
+      b: { form: '10-K', filed: '2016-10-26', cf: cf(['2016-09-24', '2015-09-26', '2014-09-27'], [['DepreciationAmortizationAndAccretionNet', [10505, 11257, 7946]], ['PaymentsToAcquirePropertyPlantAndEquipment', [-12734, -11247, -9571]]]) },
+      c: { form: '10-K', filed: '2026-11-03', cf: cf(['2026-09-26', '2025-09-27'], [['DepreciationDepletionAndAmortization', [13423, 11698]], ['PaymentsToAcquirePropertyPlantAndEquipment', [-9041, -12715]]]) },
+      q: { form: '10-Q', filed: '2026-08-01', cf: cf(['2026-06-27'], [['DepreciationDepletionAndAmortization', [9000]]], 9) },
+    };
+    const M = F.bsfCf(have, 'USD', TG);
+    ok(M.dep.get('2015-09-26').v === 11257e6 && M.dep.get('2014-09-27').v === 7946e6 && M.dep.get('2013-09-28').v === 6757e6 && M.dep.get('2026-09-26').v === 13423e6 && !M.dep.has('2026-06-27'), '(27) bsfCf: השורה המודפסת בכל שנה, גם בתגית ישנה; לא מ־10-Q');
+    ok(M.dep.get('2014-09-27').filed === '2016-10-26' && M.capex.get('2014-09-27').v === 9571e6, '(27) bsfCf: ה־10-K האחרון שמדפיס את השנה; השקעה הונית — בערך מוחלט');
+    // כמה שורות פחת באותו תזרים — סכום שאינו בדוח (ד): אותה שנה לא נלקחת; ב־10-K האחרון — המדד כולו לא נלקח
+    const two = { ...have, b: { ...have.b, cf: cf(['2016-09-24', '2015-09-26', '2014-09-27'], [['Depreciation', [1, 2, 3]], ['DepreciationAndAmortization', [10505, 11257, 7946]]]) } };
+    const M2 = F.bsfCf(two, 'USD', TG).dep;
+    ok(!M2.has('2014-09-27') && !M2.has('2016-09-24') && M2.get('2013-09-28').filed === '2015-10-28', '(27) bsfCf: שתי שורות פחת בדוח האחרון שמכסה שנה — השנה לא נלקחת, גם לא מדוח ישן יותר (DHI, Devon)');
+    const lastTwo = { c: { ...have.c, cf: cf(['2026-09-26'], [['Depreciation', [1]], ['DepreciationAndAmortization', [2]]]) }, a: have.a };
+    ok(!F.bsfCf(lastTwo, 'USD', TG).dep, '(27) bsfCf: שתי שורות בדוח האחרון — בלי פחת מהתזרים');
+    // הסדרה היום "Depreciation" בלבד (פחת בלי הפחתות) — לא מחליפים בסך פחת והפחתות של שנים קודמות (ד)
+    const dOnly = { c: { ...have.c, cf: cf(['2026-09-26'], [['Depreciation', [1]]]) }, a: have.a };
+    ok(!F.bsfCf(dOnly, 'USD', TG).dep, '(27) bsfCf: "Depreciation" בדוח האחרון — לא נוגעים');
+    ok(Object.keys(F.bsfCf({}, 'USD', TG)).length === 0 && Object.keys(F.bsfCf(null, 'USD', TG)).length === 0, '(27) bsfCf: בלי הגשות — ריק');
+    // slimCf / needCf: רק שורות הפחת וההשקעות; 10-K בלי cf (ובלי cfErr) — צריך להשלים; 10-Q / תקלה בהגשה — לא
+    const sc = BSF.slimCf({ cols: [{ end: '2025-12-31', months: 12 }], scale: { cur: 1 }, rows: [{ ns: 'us-gaap', tag: 'NetIncomeLoss', v: [1] }, { ns: 'us-gaap', tag: 'DepreciationDepletionAndAmortization', v: [2] }, { ns: 'us-gaap', tag: 'PaymentsToAcquirePropertyPlantAndEquipment', v: [3] }, { ns: 'us-gaap', tag: 'AmortizationOfIntangibleAssets', v: [4] }] });
+    ok(sc.rows.map((r) => r.tag).join() === 'DepreciationDepletionAndAmortization,PaymentsToAcquirePropertyPlantAndEquipment,AmortizationOfIntangibleAssets', '(27) slimCf: רק פחת/הפחתות ורכישת רכוש');
+    ok(BSF.needCf({ form: '10-K', bs: {} }) && !BSF.needCf({ form: '10-K', cf: {} }) && !BSF.needCf({ form: '10-K', cfErr: 'nocf' }) && !BSF.needCf({ form: '10-Q', bs: {} }) && !BSF.needCf({ form: '10-K', err: 'nofs' }) && BSF.needCf({ form: '10-K', err: 'nobs' }), '(27) needCf');
+    // load: הגשה שנתית חדשה — גם דף התזרים (3 בקשות); הגשה שנתית ישנה בלי cf — רק FilingSummary ודף התזרים, בלי המאזן
+    const RB = '<table><tr><th class="tl"><div><strong>Balance Sheets - USD ($)<br> $ in Millions</strong></div></th><th class="th">Dec. 31, 2025</th></tr>'
+      + '<tr class="re"><td class="pl"><a onclick="x(\'defref_us-gaap_Assets\')">Total assets</a></td><td class="nump">900</td></tr></table>';
+    const RC = '<table><tr><th class="tl"><div><strong>Cash Flows - USD ($)<br> $ in Millions</strong></div></th><th class="th" colspan="1">12 Months Ended</th></tr><tr><th class="th">Dec. 31, 2025</th></tr>'
+      + '<tr class="re"><td class="pl"><a onclick="x(\'defref_us-gaap_DepreciationDepletionAndAmortization\')">Depreciation and amortization</a></td><td class="nump">55</td></tr></table>';
+    const FS2 = '<FilingSummary><MyReports><Report><MenuCategory>Statements</MenuCategory><HtmlFileName>R2.htm</HtmlFileName><ShortName>Balance Sheets</ShortName></Report>'
+      + '<Report><MenuCategory>Statements</MenuCategory><HtmlFileName>R6.htm</HtmlFileName><ShortName>Consolidated Statements of Cash Flows</ShortName></Report></MyReports></FilingSummary>';
+    const urls = [], store = new Map();
+    store.set(BSF.key('7'), { v: BSF.V, f: { old: { form: '10-K', filed: '2025-02-20', bs: { rows: [] } } } });
+    const gt = async (u) => { urls.push(u); return /FilingSummary/.test(u) ? FS2 : /R6/.test(u) ? RC : RB; };
+    const SUB3 = { filings: { recent: { form: ['10-K', '10-K'], accessionNumber: ['new', 'old'], filingDate: ['2026-02-20', '2025-02-20'] } } };
+    const fl = (await BSF.load('7', SUB3, { getText: gt, store: { get: (k) => store.get(k), put: (k, o) => store.set(k, o) }, now: Date.parse('2026-11-17') })).f;
+    ok(fl.new.bs && fl.new.cf && fl.new.cf.rows[0].v[0] === 55 && fl.old.cf && fl.old.bs, '(27) load: 10-K חדש — מאזן ותזרים; ישן — הושלם התזרים');
+    ok(urls.filter((u) => /\/new\//.test(u)).length === 3 && urls.filter((u) => /\/old\//.test(u)).length === 2 && !urls.some((u) => /\/old\/R2/.test(u)), '(27) load: לישן רק FilingSummary ודף התזרים');
+    ok(F.bsfCf(fl, 'USD', TG).dep.get('2025-12-31').v === 55e6, '(27) מהדף שנקרא — הפחת של השנה');
+    // כל ערך שהודפס (לכלל ההצגה מחדש: ערך שלנו שהודפס בתזרים של 10-K אחר — לא מוחלף; YUM) ופחת שלילי נשמר בסימן (Allstate)
+    ok(M.dep.printed.get('2014-09-27').filter((v) => v === 7946e6).length === 2 && M.capex.printed.get('2014-09-27')[0] === 9571e6, '(27) bsfCf: הערכים שהודפסו בכל 10-K');
+    const neg = F.bsfCf({ c: { form: '10-K', filed: '2011-02-20', cf: cf(['2010-12-31', '2009-12-31'], [['DepreciationAndAmortization', [100, -91]]]) } }, 'USD', TG);
+    ok(neg.dep.get('2009-12-31').v === -91e6, '(27) bsfCf: פחת שלילי — כפי שהודפס');
+  }
+  /* ---------- (28) שורות החוב במאזן — גל 3 סעיף 3 (debtFace): הערה עם סכום בסוגריים, תגית "…NetOfUnamortized…", "סך" של כל הקבוצות ---------- */
+  {
+    const sh = (rows) => ({ bs: { cols: [{ end: '2012-12-31' }], scale: { cur: 1e6, sh: 1e6 },
+      rows: [{ ns: 'us-gaap', tag: 'Assets', label: 'Total assets', total: true, v: [9e5] },
+        ...rows.map(([ns, tag, label, v, total]) => ({ ns, tag, label, v: [v], total: !!total })),
+        { ns: 'us-gaap', tag: 'LiabilitiesAndStockholdersEquity', label: 'Total liabilities and equity', total: true, v: [9e5] }] } });
+    const tot = (rows) => F.debtFace(sh(rows), 'USD').tot.get('2012-12-31') / 1e6;
+    // Goldman: תגית פרטית, ובתווית הערה "(includes $X at fair value)" — לא "fair value" של השורה
+    ok(tot([['gs', 'UnsecuredShortTermBorrowingsIncludingCurrentPortionOfUnsecuredLongTermBorrowings', 'Unsecured short-term borrowings, including the current portion of unsecured long-term borrowings (includes $19,067 and $17,595 at fair value)', 44304],
+      ['us-gaap', 'UnsecuredLongTermDebt', 'Unsecured long-term borrowings (includes $11,691 and $12,593 at fair value)', 167305]]) === 211609, '(28) Goldman: שתי השורות, גם עם הערת שווי הוגן');
+    // JPMorgan: ‏OtherShortTermBorrowings "Other borrowed funds (included $13,306 … at fair value)"
+    ok(tot([['us-gaap', 'CommercialPaper', 'Commercial paper', 55367], ['us-gaap', 'OtherShortTermBorrowings', 'Other borrowed funds (included $13,306 and $11,591 at fair value)', 26636],
+      ['us-gaap', 'LongTermDebt', 'Long-term debt (included $28,878 and $30,788 at fair value)', 249024]]) === 331027, '(28) JPMorgan: "Other borrowed funds" נספר');
+    // "(including current portion…)" בלי סכום — נשאר בתווית (הסיווג "קצר + חלויות" של debtCat)
+    const dl = F.debtFace(sh([['us-gaap', 'ShortTermBorrowings', 'Short-term debt (including current portion of long-term debt)', 500]]), 'USD').lines[0];
+    ok(/including current portion/.test(dl.label), '(28) הערה בלי סכום נשארת בתווית');
+    // Realty Income: ‏o:NotesPayableNetOfUnamortizedDiscount — חוב; ‏UnamortizedDebtIssuanceCosts / DebtInstrumentUnamortizedDiscount — לא
+    ok(tot([['us-gaap', 'LineOfCredit', 'Line of credit payable', 128], ['o', 'NotesPayableNetOfUnamortizedDiscount', 'Notes payable, net', 3185],
+      ['us-gaap', 'DebtInstrumentUnamortizedDiscount', 'Unamortized discount on notes', 12]]) === 3313, '(28) Realty Income: "…NetOfUnamortizedDiscount" נספר, הניכיון לא');
+    // Regions: ‏"Total short-term borrowings" + ‏"Long-term borrowings" ואז ‏"Total borrowed funds" — הסך במקום כולן, לא פעמיים
+    ok(tot([['us-gaap', 'OtherShortTermBorrowings', 'Other short-term borrowings', 500], ['us-gaap', 'ShortTermBorrowings', 'Total short-term borrowings', 500, true],
+      ['us-gaap', 'LongTermDebt', 'Long-term borrowings', 8132], ['us-gaap', 'DebtAndCapitalLeaseObligations', 'Total borrowed funds', 8632, true]]) === 8632, '(28) Regions: "Total borrowed funds" — 8,632, לא 9,132');
+    // PNC: ‏"Total borrowed funds" שכולל ריפו (לא נספר) — הרכיבים נשארים (התווית "borrowed funds" לבדה אינה חוב)
+    ok(tot([['us-gaap', 'FederalFundsPurchasedAndSecuritiesSoldUnderAgreementsToRepurchase', 'Federal funds purchased and repurchase agreements', 3327], ['us-gaap', 'SubordinatedDebt', 'Subordinated debt', 7299],
+      ['us-gaap', 'CommercialPaper', 'Commercial paper (includes $0 and $6,045 for VIEs)', 8453], ['us-gaap', 'BorrowedFunds', 'Total borrowed funds', 19079, true]]) === 15752, '(28) PNC: סך שכולל ריפו — הרכיבים');
+  }
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });
