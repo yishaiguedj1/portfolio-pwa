@@ -178,3 +178,8 @@ THE SNOWBALL — הספרייה            (appProperties snbVids=1 — אותה
 - זכוכית ברשת — שבירה ב־`backdrop-filter` רק ב־Chromium: https://kube.io/blog/liquid-glass-css-svg · https://bugs.webkit.org/show_bug.cgi?id=313914 · https://www.buildmvpfast.com/blog/liquid-glass-css-backdrop-filter-recipes-2026
 - `prefers-reduced-transparency` (רק Chrome 118+): https://caniuse.com/mdn-css_at-rules_media_prefers-reduced-transparency
 - הנחיות החומר (שכבת ניווט מעל תוכן, וריאנטים, הפחתת שקיפות): https://developer.apple.com/design/human-interface-guidelines/materials
+
+## סמל הסוג על הכרטיסים (18/11/2026, 2.175.3)
+- **התגית בפינה העליונה** (`lbPoster`, ‏`st-lp-lang`, ‏30px כמו ה־⋯): תרגום — `trIco(fr, to)`: שתי בועות (`ICO_BUB`), האות של שפת המקור בבועה שמאחור והאות של היעד בבועה שמלפנים (`LANG_GLYPH`, אות לכל שפה ב־SOURCE/TARGET_LANGS — בדיקה). מקור "auto" — בועה ריקה (העובד לא מדווח את השפה שזוהתה). קריוקי — התו; ניתוח — הלוח ושפת היעד; לא בדף הפריט.
+- **ניתוח שגם תורגם — `tv: 1` במניפסט**: `libMeta` (לפי `viTr(spec)` = ‏`spec.vi && spec.vt === 1`) → `normLibMeta` בשרתון → `lib_manifest` בעובד → `normLibMan`. לא לפי "מקור ≠ יעד": ניתוח לבד תמיד בעברית, גם מסרטון באנגלית. מי שבונה את התרגום בניתוח — מדליק `spec.vt` (או משנה את `viTr`), ושאר השרשרת כבר קיימת.
+- **הסמל הראשי** (`ICO_TR` = הבועות + A ו־א בקווים): בחוגה (`ST_DIAL_ICO.home`), ב"עבודה חדשה" ובמגדל. בחוגה הצבע בא מ־`stroke` של `.tab-ico`, לכן האותיות שם קווים ולא טקסט (`fill=currentColor` שם הוא צבע אחר).

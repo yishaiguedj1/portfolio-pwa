@@ -5002,9 +5002,12 @@ def lib_manifest(job, dx, files, now=None):
     """17/11/2026 — ספריית הסרטונים: project.snb.json, הקובץ שמגדיר פריט בספרייה (נכתב אחרון — בלעדיו התיקייה לא פריט).
     בלי שום פרט מעבר למה שבתיקייה עצמה: שם, סוג, שפות, אורך, פרקים, והקבצים עם md5 שנבדק מול Drive"""
     m = dx.get('m') if isinstance(dx.get('m'), dict) else {}
-    return {'v': 1, 'job': job, 't': str(m.get('t') or dx.get('n') or ''), 'k': m.get('k') or 'tr', 'fr': m.get('fr') or '',
-            'to': list(m.get('to') or []), 'd': int(m.get('d') or 0), 'ch': list(m.get('ch') or []),
-            'at': int((now if now is not None else time.time()) * 1000), 'f': files}
+    out = {'v': 1, 'job': job, 't': str(m.get('t') or dx.get('n') or ''), 'k': m.get('k') or 'tr', 'fr': m.get('fr') or '',
+           'to': list(m.get('to') or []), 'd': int(m.get('d') or 0), 'ch': list(m.get('ch') or []),
+           'at': int((now if now is not None else time.time()) * 1000), 'f': files}
+    if m.get('tv') == 1:
+        out['tv'] = 1   # 18/11/2026: ניתוח שגם תורגם — בספרייה גם סמל התרגום (= normLibMeta בשרתון, normLibMan בטלפון)
+    return out
 
 
 def dx_auto(args):
