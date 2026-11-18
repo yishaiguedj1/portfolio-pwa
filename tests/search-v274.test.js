@@ -64,5 +64,5 @@ const WM = require('../ibkr-proxy/lib/wordmark');
 ok(Object.keys(WM.INK).length >= 35 && WM.INK['AppLovin-Logo.gif'] && WM.INK['Terminal_X_Logo.jpg'], 'INK: מסגרות לשוליים ריקים (' + Object.keys(WM.INK).length + ')');
 ok(Object.values(WM.INK).every((b) => b.length === 4 && b[2] - b[0] > 0.3 && b[3] - b[1] > 0.3 && b.every((v) => v >= 0 && v <= 1)), 'INK: כל מסגרת תקינה (כמו wmInkBox)');
 ok(WM.tickerOf('DLR') === null && WM.tickerOf('AMT') === null && WM.tickerOf('AAPL'), 'לוגו לא קריא בפס (DLR, AMT) — בלי לוגו אופקי');
-ok(/pwa_wordmarks_v4/.test(app) && !/pwa_wordmarks_v3/.test(app), 'מטמון הלוגואים בטלפון מתחדש (v4)');
+ok(/LS_WORDMARK = 'pwa_wordmarks_v5'/.test(app) && (app.match(/pwa_wordmarks_v4/g) || []).length === 1 && /removeItem\('pwa_wordmarks_v4'\)/.test(app), 'מטמון הלוגואים בטלפון מתחדש (v5), הקודם נמחק');
 console.log('\n' + n + ' בדיקות עברו');

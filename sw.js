@@ -4,21 +4,21 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v832';
+const CACHE_NAME = 'portfolio-pwa-v834';
 const HASHES = {
   "./": "bc34c9382e9d1e5ae834bb4f7fa3e7f3",
   "./index.html": "bc34c9382e9d1e5ae834bb4f7fa3e7f3",
-  "./styles.css": "52184fb133492757915d19b7f2bae54e",
-  "./glass-btn.css": "6b6a3f94c5aa6ba034d7147a6126f1cf",
-  "./invest-glass.css": "a5e005b5b55f0f55890b6629cd004800",
+  "./styles.css": "d5bc272f825fad200cf4ba6aa1315f13",
+  "./glass-btn.css": "ebed4bb6e73d488190a601f3344d9c78",
+  "./invest-glass.css": "c9ba135fad9786a92d96d71a2793f83d",
   "./academy-glass.css": "689d316e8872779cdf9808f3cf285272",
   "./studio-glass.css": "d54e6727b159ff068609af08418f51a8",
   "./desktop.css": "22dcb3bea6e645027d3146b31d66712a",
-  "./app.js": "c30bf232f099b37d01bc277e2c1a1b70",
+  "./app.js": "eb56c656caee922fafa7271127657bef",
   "./returns.js": "afe0d262348852fd10982ef2d0239545",
   "./cloud.js": "d403f6c76884375dc9999b80660f1ddf",
   "./firebase-config.js": "a4adfadcd5fe3b79a29e9fa0eeb94df0",
-  "./move.js": "4803fc607847ca37e5a652d7d5bb7029",
+  "./move.js": "23337bb8f2fa6d50dab38f8820ec100d",
   "./manifest.webmanifest": "2919262cf7aaf46f97de6b3762508919",
   "./icon-192.png": "cf3bed681a924e2fbecc04893a92f5bf",
   "./icon-512.png": "7eff4578ee1f38ddb524eace83d90024",
@@ -80,7 +80,7 @@ const HASHES = {
   "./academy.html": "9c6de2f5fd2634d07d9c0e0a6dc9ebe7",
   "./academy-app.js": "8f943cfa4b1bbb60bc8d83d4304d9978",
   "./strings-academy.js": "2847f9d77840ebec4da88b84eb1601b9",
-  "./core.js": "861deacb1bc3690d162f71d98beb7ad7",
+  "./core.js": "72dc264ac55c6c564d8de53c6eebda8c",
   "./auth.js": "465d3bc983806d8a2f462e567725df21",
   "./shell.js": "568d54e3e8ef15bf5ebba098dabcab24",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",

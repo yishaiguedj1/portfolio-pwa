@@ -8245,8 +8245,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.181.2';
-const APP_VERSION = 'v832';
+const APP_RELEASE = '2.181.4';
+const APP_VERSION = 'v834';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -8263,7 +8263,7 @@ const APP_PAGE = (typeof window !== 'undefined' && window.SNB_ENV && window.SNB_
    ושמירת התיק נכשלה בלי שאיש ידע. עכשיו התיק וחיבור IBKR קודמים לכל מטמון: מפנים מטמונים שנטענים שוב מהרשת
    (היסטוריית מחירים, ציטוטים, לוגואים, מדדים), מהגדול לקטן, ומנסים שוב; עדיין לא נכנס → הודעה גלויה (פעם ב־10 דק׳).
    נתונים אישיים (תיק, IBKR, מחסני חשבונות אחרים, הספרייה, הסטודיו) לא נמחקים אף פעם. */
-const LS_CACHE_PREFIXES = ['pwa_hist_v2_', 'pwa_hist_v1_', 'pwa_intra_v1_', 'pwa_quotes_v2', 'pwa_fxhist_v1', 'pwa_bench_v1', 'pwa_wordmarks_v4', 'pwa_logo_meta_v1', 'pwa_earn_v1', 'pwa_earnx_v1', 'pwa_syscfg_v1', 'pwa_kcq_v1'];
+const LS_CACHE_PREFIXES = ['pwa_hist_v2_', 'pwa_hist_v1_', 'pwa_intra_v1_', 'pwa_quotes_v2', 'pwa_fxhist_v1', 'pwa_bench_v1', 'pwa_wordmarks_v5', 'pwa_logo_meta_v1', 'pwa_earn_v1', 'pwa_earnx_v1', 'pwa_syscfg_v1', 'pwa_kcq_v1'];
 function isQuotaErr(e) {
   return !!e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014);
 }
@@ -14851,12 +14851,13 @@ function localStockSearch(query) {
 /* ---------------- v256: גרף "רווח/הפסד מהקנייה" בסקירה — כל מניה = פס שבנוי מהלוגו האופקי שלה ----------------
    לוגואים אופקיים: השרתון (/api/wordmark ← Wikidata → Wikimedia Commons), מטמון בטלפון שבוע (חסר — יום).
    לוגו ריבועי/חסר (Apple, Tesla, מניה בלי לוגו) → "לוגו מורכב": האייקון הרגיל + שם החברה, באותו פס. */
-const LS_WORDMARK = 'pwa_wordmarks_v4'; // v259: עם מסגרת הדיו (bx); v260: v3 — GOOGL = Alphabet (דקות אחרי v259 השרתון החזיר Google)
+const LS_WORDMARK = 'pwa_wordmarks_v5'; // 18/11/2026: v5 — סבב "לוגו לוגו" (חברה פעילה לטיקר, BKNG/ROK, חסימות וחיתוכים); v259: עם מסגרת הדיו (bx); v260: v3 — GOOGL = Alphabet (דקות אחרי v259 השרתון החזיר Google)
 const WM_MIN_RATIO = 1.8; // רוחב/גובה — מתחת לזה הלוגו ריבועי מדי לפס
 let _wm = null, _wmBusy = false;
 function wmStore() {
   if (_wm) return _wm;
   try { _wm = JSON.parse(localStorage.getItem(LS_WORDMARK) || '{}') || {}; } catch (e) { _wm = {}; }
+  try { localStorage.removeItem('pwa_wordmarks_v4'); } catch (e) {} // המטמון הקודם — לא נקרא יותר
   return _wm;
 }
 function wordmarkOf(sym) {
@@ -14886,7 +14887,7 @@ async function wordmarkLoad(syms) {
         if (!j || !j.ok || !j.items) return false;
         for (const s of part) {
           const v = j.items[s];
-          st[s] = { at: now, v: v && /^https:\/\/(upload|thumb)\.wikimedia\.org\//.test(String(v.url)) && +v.w > 0 && +v.h > 0 ? { url: String(v.url), w: +v.w, h: +v.h, bx: wmInkBox(v.bx) } : null };
+          st[s] = { at: now, v: v && /^https:\/\/(upload|thumb)\.wikimedia\.org\//.test(String(v.url)) && +v.w > 0 && +v.h > 0 ? { url: String(v.url), w: +v.w, h: +v.h, bx: wmInkBox(v.bx), wb: v.wb ? 1 : 0 } : null };
         }
         return true;
       } catch (e) { return false; }
@@ -14930,7 +14931,7 @@ function gainMarkHTML(sym, name) {
   if (wm) {
     const b = wm.bx || [0, 0, 1, 1], bw = b[2] - b[0], bh = b[3] - b[1];
     const st = 'width:' + (100 / bw).toFixed(2) + '%;height:' + (100 / bh).toFixed(2) + '%;left:' + (-b[0] / bw * 100).toFixed(2) + '%;top:' + (-b[1] / bh * 100).toFixed(2) + '%';
-    h = '<span class="gb-mark" data-r="' + wmInkRatio(wm).toFixed(3) + '"><img src="' + esc(wm.url) + '" alt="' + esc(nm) + '" decoding="async" draggable="false" style="' + st + '"></span>';
+    h = '<span class="gb-mark' + (wm.wb ? ' wb' : '') + '" data-r="' + wmInkRatio(wm).toFixed(3) + '"><img src="' + esc(wm.url) + '" alt="' + esc(nm) + '" decoding="async" draggable="false" style="' + st + '"></span>';
   }
   const short = String(nm).replace(/,?\s+(Inc|Corp|Corporation|Ltd|Plc|Co|Company|Holdings|Group)\.?$/i, '');
   return h + '<span class="gb-fb">' + stockLogoHTML(sym) + '<span class="gb-fbn" dir="auto">' + esc(short) + '</span><span class="gb-fbn gb-fbs">' + esc(dispSym(sym).replace(/\.TA$/, '')) + '</span></span>';
@@ -17326,7 +17327,7 @@ function pageSwipeTarget(cur, next) { // next=true → העמוד הבא (שמא
    שורה שהדפדפן גולל (overflow: auto) היא תמיד שכבה נפרדת. בטלפון היא נבנתה מחדש בכל נחיתה, והייתה ריקה עד שנצבעה (עד שתי שניות).
    כאן הגלילה באצבע: גרירה לרוחב מזיזה את scrollLeft, ובשחרור — תנופה שדועכת. גרירה אנכית נשארת של הדף (touch-action: pan-y).
    hsRow(el): השורה עצמה, רק כשיש לה מה לגלול */
-const HS_ROWS = 'main .tabpage :is(.ranges, .chip-row, .stock-sort-row, .wl-tabs, .tx-years, .earn-list):not(.stock-chips)';
+const HS_ROWS = 'main .tabpage :is(.ranges, .chip-row, .stock-sort-row, .wl-tabs, .tx-years, .st-al-chips, .earn-list):not(.stock-chips)';
 function hsRow(el) {
   const r = el && el.closest ? el.closest(HS_ROWS) : null;
   return r && r.scrollWidth > r.clientWidth + 2 ? r : null;
@@ -18417,37 +18418,45 @@ function alertBtn(sym) {
   b.addEventListener('click', (e) => { e.stopPropagation(); openStockAlertFor(sym); });
   return b;
 }
+/* 18/11/2026 (בקשת המשתמש, צילום): ההתראות כשורת שבבים בגובה כותרת המקטע, נגללת לרוחב כמו טאבי רשימת המעקב.
+   בשבב רק המחיר וחץ קטן: ירוק למעלה (עולה מעל), אדום למטה (יורד מתחת), אפור דו־כיווני (חוצה). הופעלה = חיוור.
+   בהתחלה (ימין בעברית) — פעמון עם פלוס קטן להתראה חדשה. ההערה והכיוון — ב־aria-label/title, לא בטקסט הגלוי */
+const BELL_ADD_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 9.5a5.5 5.5 0 0 1 9.2-4.1M15.5 11c0 4.6 2 6.5 2 6.5h-15s2-1.9 2-8"/><path d="M8.3 20.5a1.9 1.9 0 0 0 3.4 0"/><path class="st-al-plus" d="M19 2.5v6M16 5.5h6" stroke-width="2.2"/></svg>';
+const ST_AL_ARR = {
+  up: '<path d="M12 19V5M6.5 10.5 12 5l5.5 5.5"/>',
+  down: '<path d="M12 5v14M6.5 13.5 12 19l5.5-5.5"/>',
+  cross: '<path d="M8 19V5M4.5 8.5 8 5l3.5 3.5M16 5v14M12.5 15.5 16 19l3.5-3.5"/>',
+};
 function stockAlertsEl(sym) {
   const box = el('div', 'st-al');
   box.dataset.sym = sym;
   const list = stockAlertList(sym);
   box.hidden = !list.length;
   if (!list.length) return box;
-  const head = el('div', 'st-al-h');
-  head.appendChild(el('span', 'st-al-t')).textContent = t('kcPriceAlerts');
+  box.setAttribute('role', 'group');
+  box.setAttribute('aria-label', t('kcPriceAlerts'));
   const add = el('button', 'st-al-add');
   add.type = 'button';
   add.setAttribute('aria-label', t('kcAlertNew'));
-  add.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+  add.title = t('kcAlertNew');
+  add.innerHTML = BELL_ADD_SVG;
   add.addEventListener('click', (e) => { e.stopPropagation(); openStockAlertFor(sym); });
-  head.appendChild(add);
-  box.appendChild(head);
-  const ul = el('div', 'st-al-list');
+  box.appendChild(add);
+  const ul = el('div', 'st-al-chips');
   for (const a of list.slice().sort((x, y) => (x.done ? 1 : 0) - (y.done ? 1 : 0) || y.p - x.p)) {
-    const row = el('button', 'st-al-row' + (a.done ? ' done' : ''));
-    row.type = 'button';
-    row.appendChild(el('span', 'st-al-ic', BELL_FILL_SVG));
-    const tx = el('span', 'st-al-tx');
+    const dir = a.dir === 'up' || a.dir === 'down' ? a.dir : 'cross';
+    const chip = el('button', 'st-al-chip ' + dir + (a.done ? ' done' : ''));
+    chip.type = 'button';
+    chip.appendChild(el('span', 'st-al-arr', '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">' + ST_AL_ARR[dir] + '</svg>'));
     const pb = el('b', 'num');
     pb.textContent = fmtPx(+a.p, sym);
-    const sub = el('small');
-    sub.textContent = (a.dir === 'up' ? t('kcAlertUp') : a.dir === 'down' ? t('kcAlertDown') : t('kcAlertCross')) + (a.note ? ' · ' + String(a.note).slice(0, 80) : '');
-    tx.append(pb, sub);
-    row.appendChild(tx);
-    if (a.done) row.appendChild(el('span', 'st-al-st')).textContent = t('kcAlertDone');
-    row.appendChild(el('span', 'st-al-chev', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'));
-    row.addEventListener('click', (e) => { e.stopPropagation(); openStockAlertFor(sym, a.id); });
-    ul.appendChild(row);
+    chip.appendChild(pb);
+    const lbl = (dir === 'up' ? t('kcAlertUp') : dir === 'down' ? t('kcAlertDown') : t('kcAlertCross')) + ' ' + pb.textContent +
+      (a.done ? ' · ' + t('kcAlertDone') : '') + (a.note ? ' · ' + String(a.note).slice(0, 80) : '');
+    chip.setAttribute('aria-label', lbl);
+    chip.title = lbl;
+    chip.addEventListener('click', (e) => { e.stopPropagation(); openStockAlertFor(sym, a.id); });
+    ul.appendChild(chip);
   }
   box.appendChild(ul);
   return box;

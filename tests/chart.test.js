@@ -289,9 +289,13 @@ ok(Object.keys(L.IND).length >= 40, 'לפחות 40 אינדיקטורים נוס
   ok((app.match(/actions\.appendChild\(alertBtn\(sym\)\)/g) || []).length === 2 && /if \(p\.watch \|\| !isIbkrMode\(\) \|\| p\.src === 'manual'\)/.test(app), 'כפתור פעמון בכל סוגי הכרטיס (מעקב וידני בענף אחד, IBKR בשני)');
   ok(/onClose: \(\) => \{ refreshStockAlerts\(\);/.test(app), 'סגירת הגרף מרעננת את ההתראות בכרטיס');
   const se = app.slice(app.indexOf('function stockAlertsEl'), app.indexOf('function refreshStockAlerts'));
-  ok(!/innerHTML = [^'<]/.test(se) && /sub\.textContent = /.test(se), 'הערת ההתראה נכתבת כטקסט (לא HTML)');
+  ok(!/innerHTML = [^'<B]/.test(se) && /pb\.textContent = /.test(se) && /setAttribute\('aria-label', lbl\)/.test(se) && !/innerHTML[^;]*note/.test(se), 'המחיר וההערה — טקסט ותכונות (לא HTML)');
+  ok(/el\('div', 'st-al-chips'\)/.test(se) && /'st-al-chip ' \+ dir/.test(se) && /BELL_ADD_SVG/.test(se) && !/st-al-row|st-al-t'/.test(se), '18/11: שורת שבבים — מחיר וחץ בלבד, פעמון־פלוס בהתחלה');
+  ok(/HS_ROWS = '[^']*\.st-al-chips[^']*'/.test(app) && /:is\([^)]*\.st-al-chips[^)]*\):not\(\.stock-chips\) \{ overflow: hidden;/.test(st), 'השבבים נגללים לרוחב כמו טאבי רשימת המעקב (initHScroll, בלי שכבה)');
+  ok(/\.st-al-chip\.up \.st-al-arr \{ color: var\(--gain\)/.test(st) && /\.st-al-chip\.down \.st-al-arr \{ color: var\(--loss\)/.test(st), 'חץ ירוק לעולה, אדום ליורד, אפור לחוצה');
+  ok(/\.wl-tab, \.st-al-chip, /.test(fs.readFileSync(path.join(__dirname, '..', 'glass-btn.css'), 'utf8')), 'השבבים בחומר הזכוכית של הכפתורים');
   ok(/kcPriceAlerts: 'התראות מחיר'/.test(app) && /kcPriceAlerts: 'Price alerts'/.test(app) && /kcAlertNew: 'New price alert'/.test(app), 'מחרוזות המקטע בשתי השפות');
-  ok(/\.st-al-row \{/.test(st) && /\.st-al-list \{[^}]*var\(--radius-sm\)/.test(st), 'עיצוב הרשימה — רדיוס ממשתנה');
+  ok(/\.st-al-chip \{[^}]*var\(--pill\)/.test(st) && /\.st-al-add \{[^}]*var\(--pill\)/.test(st), 'עיגולי הפינות ממשתנים');
 }
 
 /* ---------- שלב 0 במחקר המסחר: חיצי עסקאות וקו הממוצע (28/10/2026) — נתונים סינתטיים בלבד, לא עסקאות אמיתיות ---------- */
