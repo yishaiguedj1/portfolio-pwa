@@ -525,8 +525,11 @@ function tagGap(a, b) {
   return diffs[(diffs.length - 1) >> 1]; // מסכימה לפחות בחצי מהתקופות המשותפות = אותו מדד (עם תיקונים לאחור)
 }
 /* תגית משלימה שאין לה אף תקופה משותפת עם הסדרה: לכל תקופה שלה — התקופה הקרובה בסדרה באותו אורך (עד שנה וחצי לפני/אחרי), באותו
-   סימן. החציון של היחסים רחוק פי NB_FAR ויותר = מדד אחר (רכיב, ביאור) — לא משלימים. בלי שכן להשוואה — כמו היום (משלימים) */
+   סימן (רק במדדים של NB_KEYS). החציון של היחסים רחוק פי NB_FAR ויותר = מדד אחר (רכיב, ביאור) — לא משלימים. בלי שכן להשוואה — כמו היום (משלימים) */
 const NB_FAR = 4;
+// רק מדדים יציבים משנה לשנה. לא רווחים (תנודתיים ומחליפים סימן — Viatris: רבעוני הרווח הנקי 2020–2026 בתגית משלימה, מול Mylan
+// לפני המיזוג), לא דיבידנדים ורכישות (חד־פעמיים — HII ‏2011: ‏$1.43B ל־Northrop עם הפיצול, מודפס) ולא מניות (Viatris — חברת המעטפת)
+const NB_KEYS = new Set(['int', 'cogs', 'rnd', 'dep', 'sbc', 'msec']);
 function nbFar(m, f) {
   const r = [];
   for (const [kk, v] of f.dur) {
@@ -547,7 +550,7 @@ function nbFar(m, f) {
   r.sort((a, b) => a - b);
   return r[(r.length - 1) >> 1] > Math.log(NB_FAR);
 }
-function mergeTags(fs, lock, qclash, best) {
+function mergeTags(fs, lock, qclash, best, nb) {
   const last = (f) => { let e = ''; for (const kk of f.dur.keys()) { const x = kk.split('|')[1]; if (x > e) e = x; } for (const x of f.inst.keys()) if (x > e) e = x; return e; };
   const has = fs.map((f) => f.dur.size + f.inst.size > 0);
   const m = { dur: new Map(), inst: new Map() };
@@ -569,7 +572,7 @@ function mergeTags(fs, lock, qclash, best) {
       const g = tagGap(m, f);
       // בלי תקופה משותפת אין עדות שזה אותו מדד — רק כשהיא סבירה מול השכנים (גל 5 בבדיקת העומק, F21): Howmet ‏2018 — ריבית 19
       // מ־InterestExpenseDebt (רכיב) מול ~300 בשנים הסמוכות
-      if (g == null && nbFar(m, f)) continue;
+      if (g == null && nb && nbFar(m, f)) continue;
       if (g != null && g > MERGE_TOL) {
         // השקעות הוניות (qclash): תגית שנדחתה בגלל שנים שלא מסכימות — המצטברים הרבעוניים שלה עדיין נכנסים בשנים שאין לה
         // בהן ערך שנתי משלה (אין עדות שהיא מודדת שם משהו אחר). WEC: ב־10-K ‏"Capital expenditures" עבר ל־
@@ -862,7 +865,7 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
     // מזומן: החיסור רק כשהסך הכולל אינו שורה במאזן של ה־10-K האחרון (Bank of America, GE, Erie: "Cash and cash equivalents"
     // במאזן בתגית הכוללת, והמזומן המוגבל — ביאור; חיסור שם = מספר שלא הודפס). בלי מאזן מודפס (לא נטען) — לא מחסרים
     const rsub = k === 'cash' && face && face.bs && face.bs.rows && !onFace.includes(list[list.length - 1]);
-    merged[k] = k === 'cash' ? cashMerge(fs, rsub ? RCASH.map((g) => g.map((t) => tagFacts(tax[t], unitOf(k)))) : null) : mergeTags(fs, lock, k === 'capex', k === 'ni'); // רק בהשקעות הוניות: בהכנסות/תזרים התגית המשלימה היא לפעמים הרבעון היחיד (Dollar Tree)
+    merged[k] = k === 'cash' ? cashMerge(fs, rsub ? RCASH.map((g) => g.map((t) => tagFacts(tax[t], unitOf(k)))) : null) : mergeTags(fs, lock, k === 'capex', k === 'ni', NB_KEYS.has(k)); // רק בהשקעות הוניות: בהכנסות/תזרים התגית המשלימה היא לפעמים הרבעון היחיד (Dollar Tree)
     if (merged[k].spine != null) tags[k] = names[merged[k].spine];
   }
   // השקעות הוניות שבתזרים רק בתגית של החברה (Kimco: ‏"Improvements to operating real estate" ‏$347.6M; ‏Weyerhaeuser, Zimmer,
