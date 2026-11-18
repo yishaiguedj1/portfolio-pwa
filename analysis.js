@@ -60,6 +60,7 @@ function prep(d, q, fx) {
   co.name = p.name || d.sym; co.exch = p.exch || ''; co.sector = p.sector || ''; co.industry = p.industry || '';
   co.ind = d.indData || {}; co.indName = d.ind || '';
   // מחיר: הציטוט החי של האפליקציה כשיש (השרתון שומר במטמון עד 12 שעות)
+  co.pxY = co.price; // המחיר של Yahoo ברגע החישוב — המכפיל הצפוי (fpe) מחושב מולו; ממנו הרווח הצפוי של אותו מכפיל (מכפיל באפט)
   if (q && q.close > 0) { co.price = q.close; if (q.prev > 0) co.prev = q.prev; else if (q.regClose > 0 && q.regCh != null) co.prev = q.regClose - q.regCh; }
   // מניה בת״א שמדווחת בדולרים (או ההפך) — המחיר מומר למטבע הדוחות, כדי שהמכפילים והשווי יהיו באותו מטבע
   const pxCur = /\.TA$/.test(d.sym) ? 'ILS' : 'USD';
@@ -224,6 +225,68 @@ function r40Of(co, p) { const g = growthOf(co, p, 'rev'), m = ctx(co, p).om; ret
 const multAvg = (a) => mean(a.filter((x) => x > 0 && x < 300));
 const growthOf = (co, p, k) => { const a = ctx(co, p)[k], b = ctx(co, p, 1, true)[k]; return a != null && b != null && b > 0 ? a / b - 1 : null; };
 const fyVals = (co, k, n) => fyList(co).slice(-n).map((p) => ctx(co, p)[k]);
+/* מכפיל באפט (18/11/2026, בקשת המשתמש; docs/buffett-pe.md). הרווח לפי באפט = "רווח הרחוב" (הרווח בפועל של Yahoo — אותו בסיס
+   שעליו האנליסטים צופים) פחות התגמול במניות אחרי מס. מורידים רק ברבעון שבו הרווח המותאם של החברה מוציא את התגמול (sbcX — ההודעה
+   לעיתונות של אותו רבעון, lib/secsbc.js בשרתון), ועד גובה הפער מול הרווח המדווח (רחוב = GAAP — התגמול כבר בפנים). הפחתת נכסים
+   מרכישות לא יורדת: לפי באפט, לרוב לא עלות כלכלית. הצפוי: תחזית +1y פחות התגמול הצפוי — אותו שיעור מההכנסות × ההכנסות הצפויות,
+   ורק כשההודעה האחרונה לא הודיעה שהרווח המותאם יכלול אותו (fut; NVDA, ‏INTU). הבסיס הצפוי = הרווח שעליו מחושב המכפיל הצפוי
+   של Yahoo (המחיר שלו ÷ fpe; ב־META שונה מממוצע +1y), כדי ששני המכפילים הצפויים ייבדלו רק בתגמול. לא תלוי במחיר (מול pxF).
+   ההודעה מאשרת שהתגמול הוצא — מורידים את כולו (QCOM: רווח חד־פעמי ב־GAAP באותו רבעון לא מקטין את הניכוי); אבל כשהסדרה של Yahoo
+   היא בעצם GAAP (שווה לרווח המדווח ב־3 מ־4 הרבעונים — PLTR) — לא מורידים. מדיניות לא ידועה — עד גובה הפער מול הרווח המדווח.
+   null: מטבע שונה, אין 4 רבעונים רצופים עד "עכשיו", חסר רווח בפועל של Yahoo לרבעון */
+const D864 = 864e5;
+/* מדיניות הרבעון שהסתיים ב־e: 1 מוציא / 0 כולל / null (אין הודעות). כמה הודעות עד 100 יום אחרי הרבעון — הארוכה (ההודעה המלאה,
+   לא הודעה מקדימה); אין בחלון — הקרובה ביותר */
+function sbcPol(co, e) {
+  const L = Array.isArray(co.sbcX) ? co.sbcX : [];
+  if (!L.length) return null;
+  const t = Date.parse(e), w = L.filter((r) => { const d = (Date.parse(r[0]) - t) / D864; return d > 0 && d <= 100; });
+  if (w.length) return w.reduce((a, b) => ((b[3] || 0) > (a[3] || 0) ? b : a))[1] ? 1 : 0;
+  return L.reduce((a, b) => (Math.abs(Date.parse(b[0]) - t - 45 * D864) < Math.abs(Date.parse(a[0]) - t - 45 * D864) ? b : a))[1] ? 1 : 0;
+}
+function bufCalc(co) {
+  if (!co || co.fxMix || co.fxNote || !co.q || !co.Q) return null;
+  const n = co.q.length, L = n - 1, p = nowP(co);
+  if (n < 4 || !p || Math.abs(Date.parse(co.q[L]) - Date.parse(p.end)) > 5 * D864 || !qRun(co, L - 3, L)) return null;
+  const hist = (co.hist || []).filter((x) => x && x.q && x.a != null && isFinite(x.a));
+  const c = ctx(co, p), t = c.t, Q = co.Q;
+  const rows = [];
+  for (let i = L - 3; i <= L; i++) {
+    const e = co.q[i], hq = hist.find((x) => Math.abs(Date.parse(x.q) - Date.parse(e)) <= 20 * D864);
+    const gi = Q.eps ? Q.eps[i] : null, sh = Q.sh ? Q.sh[i] : null;
+    if (!hq || gi == null || !isFinite(gi) || !(sh > 0)) return null;
+    rows.push({ s: hq.a, g: gi, sb: Q.sbc && Q.sbc[i] > 0 ? Q.sbc[i] * (1 - t) / sh : 0, pol: sbcPol(co, e) });
+  }
+  const yGaap = rows.filter((r) => Math.abs(r.s - r.g) <= Math.max(0.02, 0.02 * Math.abs(r.s))).length >= 3;
+  let st = 0, g = 0, ded = 0, sbcAt = 0, exAt = 0, exDed = 0, p1 = 0, p0 = 0;
+  for (const r of rows) {
+    if (r.pol === 1) p1++; else if (r.pol === 0) p0++;
+    const d = r.pol === 0 || yGaap ? 0 : r.pol === 1 ? r.sb : clamp(r.s - r.g, 0, r.sb);
+    st += r.s; g += r.g; ded += d; sbcAt += r.sb;
+    if (r.pol !== 0) { exAt += r.sb; exDed += d; }
+  }
+  // יחידות שונות (אגורות מול שקלים, מניה מול ADR) — לא מחשבים. בסימנים הפוכים (רווח מותאם מול הפסד מדווח — SNOW) היחס לא אומר כלום
+  if (st * g > 0 && Math.abs(st) > 0.05 && Math.abs(g) > 0.05 && (Math.abs(st / g) > 8 || Math.abs(st / g) < 0.125)) return null;
+  const out = { st, g, gap: st - g, ded, eps: st - ded, sbcAt, t, yGaap, pol: p1 && p0 ? 'mix' : p1 ? 'ex' : p0 ? 'in' : '?', f: null };
+  const e1 = (co.est || []).find((e) => e.p === '+1y') || {}, fpe = 'fpe0' in co ? co.fpe0 : co.fpe;
+  const fe = co.pxY > 0 && fpe > 0 ? co.pxY / fpe : e1.eps;
+  if (fe != null && isFinite(fe)) {
+    const er = (Array.isArray(co.sbcX) ? co.sbcX : []).slice(-1)[0], fut = er ? !!er[2] : null;
+    const frac = exAt > 0 ? exDed / exAt : fut ? 1 : 0;
+    const rate = c.sbc > 0 && c.rev > 0 ? c.sbc / c.rev : null;
+    const fs = rate != null ? rate * (e1.rev > 0 ? e1.rev : c.rev) : 0;
+    const fd = fut === false ? 0 : frac * fs * (1 - t) / Q.sh[L];
+    // השנה ומספר האנליסטים — רק כשהרווח של המכפיל הצפוי הוא ממוצע +1y (עד 1%)
+    const same = e1.eps != null && Math.abs(fe - e1.eps) <= 0.01 * Math.max(Math.abs(e1.eps), 0.05);
+    out.f = { base: fe, ded: fd, eps: fe - fd, end: same ? e1.end || null : null, n: same ? e1.n || null : null, rate, fut };
+  }
+  return out;
+}
+const bufEps = (co) => (!co ? null : '_buf' in co ? co._buf : (co._buf = bufCalc(co)));
+const bpeOf = (co) => { const b = bufEps(co), px = pxF(co); return b && px && b.eps > 0 ? px / b.eps : null; };
+const bfpeOf = (co) => { const b = bufEps(co), px = pxF(co); return b && b.f && px && b.f.eps > 0 ? px / b.f.eps : null; };
+// "רווח הרחוב" רחוק מהרווח המדווח — המכפיל הצפוי של Yahoo מחושב על רווח מותאם
+const isAdj = (co) => { const b = bufEps(co); return !!b && Math.abs(b.gap) > 0.05 * Math.max(Math.abs(b.st), 0.05); };
 // צמיחה שנתית ממוצעת בין שתי שנים: כשבדרך יש שנה שהוצגה מחדש — מכפלת הצמיחות שנה אחר שנה (כל אחת באותו דוח),
 // לא הסוף מול ההתחלה (AppLovin: 2025 בלי עסק האפליקציות מול 2020 איתו)
 function cagrBetween(co, k, fy, a, b) {
@@ -1043,7 +1106,7 @@ function wireSwipe() {
 /* ---------- מחיר לבדיקה: הסימון, השורה "מה שונה", הגיליון והחזרה ---------- */
 /* data-dep: ערך שנגזר מהמחיר הערוך — נקודה כתומה קטנה לידו; 'ed' — הנתון שהמשתמש ערך בעצמו (כתום מודגש, בלי נקודה) */
 const DEP = (k) => (S.co && S.co.pxEd ? (k && S.px && S.px.k === 'm' && S.px.key === k ? 'ed' : '') : null);
-const PX_FACT = new Set(['mcap', 'pe', 'fpe', 'fy']), PX_CMP = new Set(['fy', 'pe', 'fpe']);
+const PX_FACT = new Set(['mcap', 'pe', 'fpe', 'bpe', 'bfpe', 'fy']), PX_CMP = new Set(['fy', 'pe', 'fpe', 'bpe', 'bfpe']);
 /* המחיר שנותן את התשואה השנתית הרצויה בתרחיש הבסיס של המחשבון (null — אין מחיר כזה, למשל רווח שלילי) */
 function retPx(co) {
   if (!co || S.reqEd == null || co.fxMix) return null;
@@ -1103,6 +1166,8 @@ const MED = {
   mcap: { u: 'cap', inv: (v, c, sh) => v / sh },
   pe: { u: 'x', inv: (v, c) => (c.eps > 0 ? v * c.eps : null) },
   fpe: { u: 'x', inv: (v, c, sh, r) => (r.fpe > 0 && r.price > 0 ? v * r.price / r.fpe : null) },
+  bpe: { u: 'x', inv: (v, c, sh, r) => { const b = bufEps(r); return b && b.eps > 0 ? v * b.eps : null; } },
+  bfpe: { u: 'x', inv: (v, c, sh, r) => { const b = bufEps(r); return b && b.f && b.f.eps > 0 ? v * b.f.eps : null; } },
   fy: { u: '%', inv: (v, c, sh) => (c.fcf > 0 ? c.fcf / v / sh : null) },
   pfcf: { u: 'x', inv: (v, c, sh) => (c.fcf > 0 ? v * c.fcf / sh : null) },
   ps: { u: 'x', inv: (v, c, sh) => (c.rev > 0 ? v * c.rev / sh : null) },
@@ -1110,13 +1175,15 @@ const MED = {
   pb: { u: 'x', inv: (v, c, sh) => (c.eq > 0 ? v * c.eq / sh : null) },
   pffo: { u: 'x', inv: (v, c, sh) => (c.ffo > 0 ? v * c.ffo / sh : null) },
 };
-const MED_N = { mcap: 'anFMcap', pe: 'anFPe', fpe: 'anFFpe', fy: 'anFFy', pfcf: 'anLPfcf', ps: 'anLPs', evebit: 'anLEv', pb: 'anLPb', pffo: 'anLPffo' };
+const MED_N = { mcap: 'anFMcap', pe: 'anFPe', fpe: 'anFFpe', bpe: 'anFBpe', bfpe: 'anFBfpe', fy: 'anFFy', pfcf: 'anLPfcf', ps: 'anLPs', evebit: 'anLEv', pb: 'anLPb', pffo: 'anLPffo' };
 /* הערך של היום — בדיוק כמו במסך */
 function metNow(co, key) {
   if (!co || !(co.price > 0) || co.fxMix) return null;
   const c = ctx(co, nowP(co)), mc = co.sharesOut ? co.price * co.sharesOut : null;
   if (key === 'mcap') return mc;
   if (key === 'fpe') return co.fpe > 0 ? co.fpe : null;
+  if (key === 'bpe') return bpeOf(co);
+  if (key === 'bfpe') return bfpeOf(co);
   if (key === 'fy') return c.fcf != null && mc ? c.fcf / mc : null;
   if (key === 'pe') return c.eps > 0 ? co.price / c.eps : null;
   const a = multHist(co)[key]; return a && a.length ? a[a.length - 1] : null;
@@ -1316,7 +1383,9 @@ function factsEl(co) {
   const fact = (tt, v, hint, key) => { const ce = PX_FACT.has(key) && canEdM(co, key), d = PX_FACT.has(key) ? DEP(key) : null;
     return h('button', { class: 'an-fact' + (d === 'ed' ? ' ed' : ''), type: 'button', on: { click: () => factSheet(key) } }, h('span', {}, tt, ce ? penI() : null), h('b', { 'data-dep': d }, v), h('small', {}, hint)); };
   return h('div', { class: 'an-facts' }, fact(T('anFMcap'), fmt(mcap, 'money', co), T('anHMcap'), 'mcap'), fact(T('anFPe'), fmt(pe, 'x', co, 1), T('anHPe'), 'pe'),
-    fact(T('anFFpe'), fmt(co.fpe, 'x', co, 1), T('anHFpe'), 'fpe'), fact(T('anFFy'), pct(fy), T('anHFy'), 'fy'),
+    fact(T('anFFpe'), fmt(co.fpe, 'x', co, 1), T(isAdj(co) ? 'anHFpeAdj' : 'anHFpe'), 'fpe'),
+    fact(T('anFBpe'), fmt(bpeOf(co), 'x', co, 1), T('anHBpe'), 'bpe'), fact(T('anFBfpe'), fmt(bfpeOf(co), 'x', co, 1), T('anHBfpe'), 'bfpe'),
+    fact(T('anFFy'), pct(fy), T('anHFy'), 'fy'),
     fact(c.netcash >= 0 ? T('anNetCash') : T('anNetDebt'), fmt(Math.abs(c.netcash || 0), 'money', co), T('anHNc'), 'nc'));
 }
 /* שורת רשימה שפותחת תת־עמוד: שם, הסבר קטן, ערך וחץ */
@@ -1697,6 +1766,7 @@ function peerRow(c) {
   const x = ctx(c, nowP(c)), mc = pxF(c) && c.sharesOut ? pxF(c) * c.sharesOut : null, [g] = cagrN(c, 'rev', 5);
   const fy = fyList(c), old = fy.length > 3 ? ctx(c, fy[fy.length - 4]).sh : null;
   return { sym: c.sym, g, om: x.om, roic: x.roic, fy: x.fcf != null && mc ? x.fcf / mc : null, pe: x.eps > 0 && pxF(c) ? pxF(c) / x.eps : null, fpe: c.fpe,
+    bpe: bpeOf(c), bfpe: bfpeOf(c),
     sh3: old && x.sh ? x.sh / old - 1 : null };
 }
 async function loadPeers() {
@@ -1710,7 +1780,8 @@ async function loadPeers() {
   if (S.tab === 'cmp') render();
 }
 const CMP_MET = [['g', 'anMGrowth', 'anCagr5', 'pct', 1], ['om', 'anMOm', 'anTtm12', 'pct', 1], ['roic', 'anMRoic', 'anTtm12', 'pct', 1],
-  ['fy', 'anMFy', 'anHiCheap', 'pct', 1], ['pe', 'anLPe', 'anLoCheap', 'x', -1], ['fpe', 'anFFpe', 'anLoCheap', 'x', -1], ['sh3', 'anMSh3', 'anMSh3s', 'pct', -1]];
+  ['fy', 'anMFy', 'anHiCheap', 'pct', 1], ['pe', 'anLPe', 'anLoCheap', 'x', -1], ['fpe', 'anFFpe', 'anLoCheap', 'x', -1],
+  ['bpe', 'anFBpe', 'anLoCheap', 'x', -1], ['bfpe', 'anFBfpe', 'anCmpFwd', 'x', -1], ['sh3', 'anMSh3', 'anMSh3s', 'pct', -1]];
 function pageCmp(co, pg) {
   if (!S.peers) {
     pg.append(card(h('h2', {}, T('anCmpTitle')), h('div', { class: 'an-skel an-skel-in' }), sub(T('anCmpLoading'))));
@@ -1944,13 +2015,37 @@ function checkSheet(k) {
   });
 }
 function factSheet(key) {
+  if (key === 'bpe' || key === 'bfpe') { bufSheet(key); return; }
   const co = S.co, c = ctx(co, nowP(co));
   const X = { mcap: [T('anFMcap'), T('anXMcap', { s: strip(fmt(co.sharesOut, 'shares', co)) })],
     pe: [T('anFPe'), T('anXPeF', { e: strip(fmt(c.eps, 'ps', co)) })],
-    fpe: [T('anFFpe'), T('anXFpe')],
+    fpe: [T('anFFpe'), T(isAdj(co) ? 'anXFpeAdj' : 'anXFpe')],
     fy: [T('anFFy'), T('anXFy', { f: strip(fmt(c.fcf, 'money', co)) })],
     nc: [c.netcash >= 0 ? T('anNetCash') : T('anNetDebt'), T(c.netcash >= 0 ? 'anXNc' : 'anXNd', { c: strip(fmt(c.cashT, 'money', co)), d: strip(fmt(c.debt, 'money', co)) })] }[key];
   openSheet(X[0], (b, rec) => { b.append(h('p', { class: 'an-ex an-ex-lg' }, X[1])); if (MED[key]) medForm(b, key, rec); }, { small: true });
+}
+/* מכפיל באפט — החישוב שורה אחר שורה, ומאיפה בא כל מספר (ההודעות לעיתונות, הדוחות, האנליסטים) */
+function bufSheet(key) {
+  const co = S.co, b = bufEps(co), fwd = key === 'bfpe', px = pxF(co), yr = b && b.f && b.f.end ? String(b.f.end).slice(0, 4) : '';
+  openSheet(T(fwd ? 'anFBfpe' : 'anFBpe'), (bd, rec) => {
+    bd.append(h('p', { class: 'an-ex an-ex-lg' }, T(fwd ? 'anXBfpe' : 'anXBpe')));
+    if (!b || (fwd && !b.f)) { bd.append(h('p', { class: 'an-ex' }, T('anXBufNone'))); return; }
+    const ps = (v) => fmt(v, 'ps', co), tx = pct(b.t, 0), eps = fwd ? b.f.eps : b.eps, ded = fwd ? b.f.ded : b.ded;
+    const row = (tt, s, v, strong) => h('div', { class: 'an-row' }, h('div', { class: 'an-rt' }, h('b', {}, tt), s ? h('span', {}, s) : null),
+      h('div', { class: 'an-rv', style: strong ? 'font-weight:800' : null }, v));
+    const rows = fwd
+      ? [row(yr ? T('anBFwd', { y: yr }) : T('anBFwd0'), b.f.n ? T('anNAnalysts', { n: b.f.n }) : T('anBFwdY'), ps(b.f.base)),
+        row(T('anBSbcF'), ded > 0 && b.f.rate != null ? T('anBSbcFS', { r: strip(pct(b.f.rate)), t: strip(tx) }) : null, ps(-ded))]
+      : [row(T('anBStreet'), T('anBStreetS'), ps(b.st)), row(T('anBSbc'), ded > 0 ? T('anBSbcS', { t: strip(tx) }) : null, ps(-ded))];
+    rows.push(row(T('anBEps'), null, ps(eps), true),
+      row(T(fwd ? 'anFBfpe' : 'anFBpe'), px ? T('anBMultS', { p: strip(ps(px)) }) : null, eps > 0 && px ? fmt(px / eps, 'x', co, 1) : T('anBNeg'), true));
+    if (!fwd) rows.push(row(T('anBGaap'), T('anBGaapS'), ps(b.g)));
+    bd.append(h('div', { class: 'an-list' }, ...rows));
+    const same = Math.abs(b.gap) <= 0.02 * Math.max(Math.abs(b.st), 0.05);
+    const note = fwd && b.f.fut === false ? 'anBFutIn' : same ? 'anBPolGaap' : { ex: 'anBPolEx', in: 'anBPolIn', mix: 'anBPolMix' }[b.pol] || 'anBPolUnk';
+    bd.append(h('p', { class: 'an-ex' }, T(note)));
+    if (MED[key] && canEdM(co, key)) medForm(bd, key, rec);
+  }, { small: true });
 }
 function estSheet() {
   const co = S.co;
@@ -1971,5 +2066,5 @@ function estSheet() {
 }
 
 /* בדיקות (node) — הפונקציות הטהורות */
-export const _test = { r40Of, multAvg, calcDefaults, calcRun, calcMults, irr, estGrowth, qRun, qBack, ttmPoints, cmpPrev, restated, cagrBetween, growthOf, finInputs, riValue, impliedRoe, reitInputs, lossView, fairOf, flagsAt, srcDef, rawName, RAWK, OWN_TAG, prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath, setPx, real, pxReal, MED, metNow, pxFrom, canEdM, medTxt, medVal, medHist,
+export const _test = { bufCalc, bufEps, bpeOf, bfpeOf, sbcPol, isAdj, r40Of, multAvg, calcDefaults, calcRun, calcMults, irr, estGrowth, qRun, qBack, ttmPoints, cmpPrev, restated, cagrBetween, growthOf, finInputs, riValue, impliedRoe, reitInputs, lossView, fairOf, flagsAt, srcDef, rawName, RAWK, OWN_TAG, prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath, setPx, real, pxReal, MED, metNow, pxFrom, canEdM, medTxt, medVal, medHist,
   setEnv: (e) => { E = e; } };
