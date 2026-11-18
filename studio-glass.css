@@ -1,0 +1,210 @@
+/* Studio בזכוכית (18/11/2026) — שכבת העיצוב שאושרה בתצוגה המקדימה (17 הפריטים, לפי ת־עיצוב). נטען רק ב־studio.html.
+   אותו מבנה, אותם מסכים, אותה חוגה ואותם כפתורים — רק חומר, טיפוגרפיה ותנועה. האסימונים (--lg-*) כמו ב־Invest וב־Academy; המבטא — האדום של Studio.
+   בשכבה stglass (מוצהרת ראשונה ב־styles.css, **אחרי** glassbtn — כמו בתצוגה שאושרה): חומר הכפתורים המשותפים (רקע/צל/טשטוש) בא מ־glass-btn.css,
+   וכאן רק מה שמשלים אותו — מידות, פינות, טיפוגרפיה. ה־!important כאן גובר על כל ה־!important שמחוץ לשכבות (studio.css, desktop.css).
+   זכוכית רק על מה שצף (הדר, חוגה, סרגל הדף, נגן, תפריט, הודעה); כרטיסים ורשימות — מילוי רך בלי טשטוש. התוכנית: docs/studio-design-plan.md */
+@layer stglass {
+html {
+  --lg-body: linear-gradient(180deg, rgba(255, 255, 255, .60), rgba(255, 255, 255, .30));
+  --lg-fx: blur(14px) saturate(190%) brightness(1.04);
+  --lg-rim: inset 0 1.5px 0 -.5px rgba(255, 255, 255, 1), inset 0 -1px 0 rgba(255, 255, 255, .45), inset 1px 0 0 rgba(255, 255, 255, .3), inset -1px 0 0 rgba(255, 255, 255, .3),
+    inset 0 0 14px rgba(255, 255, 255, .35), 0 0 0 .5px rgba(0, 0, 0, .07), 0 6px 18px -8px rgba(0, 0, 0, .22);
+  --lg-tint: linear-gradient(180deg, rgba(255, 92, 102, .96), rgba(235, 52, 70, .92));
+  --lg-tint-rim: inset 0 1.5px 0 -.5px rgba(255, 255, 255, .8), inset 0 -2px 6px rgba(120, 0, 20, .18), inset 0 0 12px rgba(255, 255, 255, .25), 0 8px 20px -8px rgba(230, 40, 60, .6);
+  --lg-card: rgba(255, 255, 255, .80);
+  --lg-card-sh: 0 0 0 .5px rgba(0, 0, 0, .04), 0 1px 2px rgba(0, 0, 0, .03), 0 12px 32px -16px rgba(0, 0, 0, .14);
+  --lg-fill: rgba(118, 118, 128, .12);
+  --lg-knob: #fff; --lg-knob-sh: 0 3px 8px rgba(0, 0, 0, .12), 0 0 0 .5px rgba(0, 0, 0, .04);
+  --lg-sep: rgba(60, 60, 67, .14);
+  --lg-spring: linear(0, .009, .035 2.1%, .141 4.4%, .723 12.9%, .938 16.7%, 1.017 19.7%, 1.051 22.6%, 1.055 25.7%, 1.033 30.7%, 1.006 37.3%, .995 44.6%, 1);
+  --lg-round: ui-rounded, "SF Pro Rounded", var(--font);
+  --lg-dark: linear-gradient(180deg, rgba(60, 60, 64, .52), rgba(30, 30, 32, .42));
+  --lg-dark-rim: inset 0 1px 0 -.25px rgba(255, 255, 255, .38), inset 0 0 10px rgba(255, 255, 255, .06), 0 0 0 .5px rgba(255, 255, 255, .12), 0 6px 16px -8px rgba(0, 0, 0, .6);
+}
+html[data-theme="dark"] {
+  --lg-body: linear-gradient(180deg, rgba(255, 255, 255, .17), rgba(255, 255, 255, .07));
+  --lg-rim: inset 0 1.5px 0 -.5px rgba(255, 255, 255, .42), inset 0 -1px 0 rgba(255, 255, 255, .10), inset 0 0 12px rgba(255, 255, 255, .07), 0 0 0 .5px rgba(255, 255, 255, .10), 0 8px 20px -8px rgba(0, 0, 0, .8);
+  --lg-card: #1C1C1E; --lg-card-sh: 0 0 0 .5px rgba(255, 255, 255, .07);
+  --lg-fill: rgba(118, 118, 128, .24); --lg-knob: rgba(99, 99, 102, .95); --lg-knob-sh: 0 3px 8px rgba(0, 0, 0, .3);
+  --lg-sep: rgba(84, 84, 88, .55);
+}
+
+/* ===== 1. חומר הזכוכית: זכוכית רק על מה שצף; כרטיסים ורשימות במילוי רך, בלי טשטוש ===== */
+html { --gb-body: var(--lg-body) !important; --gb-sh: var(--lg-rim) !important; --gb-fx: var(--lg-fx) !important;
+  --gb-hdr-body: var(--lg-body) !important; --gl-btn: rgba(255, 255, 255, .45) !important; --gl-btn-sh: var(--lg-rim) !important; --gl-fx: var(--lg-fx) !important; }
+html[data-theme="dark"] { --gl-btn: rgba(255, 255, 255, .12) !important; }
+html .st-root :is(.st-list, .st-newcard, .st-jhero, .st-stages) { background: var(--lg-card) !important; box-shadow: var(--lg-card-sh) !important; border-color: transparent !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border-radius: 24px !important; }
+
+/* ===== 2. ההדר: אותו מבנה; סמלים בצבע הטקסט; "השרת · מחובר" בקפסולת זכוכית בשורה אחת ===== */
+html .appbar .icon-btn { color: var(--on-surface) !important; }
+html .appbar .icon-btn svg { stroke: var(--on-surface) !important; color: var(--on-surface) !important; }
+html .appbar .st-cpill { border-radius: 999px !important; border: 0 !important; height: 40px !important; min-height: 0 !important; margin-top: 4px !important; flex-direction: row !important; align-items: center !important; gap: 6px !important; padding: 0 14px !important; width: max-content !important; max-width: none !important; white-space: nowrap !important; overflow: visible !important; }
+html .appbar .st-cpill * { white-space: nowrap !important; overflow: visible !important; text-overflow: clip !important; max-width: none !important; }
+html .appbar .st-cpill :is(small, .sub-cap, span:first-child) { font-size: 13px !important; font-weight: 500 !important; color: var(--on-surface-var) !important; }
+html .appbar .st-cpill :is(b, strong, .sub-val) { font-size: 15px !important; font-weight: 600 !important; }
+
+/* ===== 3. החוגה: אותה חוגה ואותה תנועה, על מסילת זכוכית צפה; הנבחר = טיפת זכוכית אדומה מורמת ===== */
+html .tabs::after { display: none !important; }
+html .tabs::before { inset: auto 10px calc(8px + env(safe-area-inset-bottom, 0px)) 10px !important; height: 80px !important; border-radius: 40px !important;
+  background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important;
+  -webkit-mask-image: none !important; mask-image: none !important; z-index: -1 !important; content: '' !important; position: absolute !important; display: block !important; }
+html .tabs :is(.tab-disc, .tab-bub) { top: 23px !important; scale: .83 !important; transition: scale .45s var(--lg-spring), translate .45s var(--lg-spring) !important; }
+html .tabs .tab.active :is(.tab-disc, .tab-bub) { scale: .86 !important; translate: 0 -11px !important; }
+html .tabs .tab-disc svg { stroke: var(--on-surface) !important; color: var(--on-surface) !important; }
+html .tabs .tab-lbl { top: 87px !important; font-size: 11.5px !important; font-weight: 600 !important; text-shadow: none !important; color: var(--on-surface-var) !important; }
+html .tabs .tab.active .tab-lbl { color: var(--primary) !important; font-weight: 700 !important; }
+
+/* ===== 4. רשימת העבודות: תמונה ממוזערת עם פס התקדמות בתוכה, שם בשורה אחת, מצב בנקודה צבעונית ===== */
+html .st-root .st-proj { gap: 14px !important; padding: 12px 14px !important; }
+html .st-root .st-proj + .st-proj::before { inset-inline-start: 124px !important; border-top: .5px solid var(--lg-sep) !important; }
+html .st-root .st-thumb { width: 98px !important; border-radius: 12px !important; box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .12) !important; }
+html .st-root .st-thumb .st-tprog { inset-inline: 6px !important; bottom: 6px !important; height: 4px !important; border-radius: 9px !important; overflow: hidden !important;
+  background: rgba(255, 255, 255, .45) !important; -webkit-backdrop-filter: blur(6px) !important; backdrop-filter: blur(6px) !important; }
+html .st-root .st-pinfo b { font-size: 15.5px !important; font-weight: 600 !important; }
+html .st-root .st-pinfo small { font-size: 13px !important; }
+html .st-root .st-pstat .st-badge { background: transparent !important; padding: 0 !important; font-weight: 600 !important; font-size: 12.5px !important; gap: 5px !important; }
+html .st-root .st-pstat .st-badge::before { content: '' !important; width: 7px !important; height: 7px !important; border-radius: 50% !important; background: currentColor !important; }
+html .st-root .st-pstat .st-ptx { font-family: var(--lg-round) !important; }
+html .st-root .st-jobs-more { color: var(--on-surface) !important; }
+
+/* ===== 5. "פרויקט חדש": הכפתור + כטיפת זכוכית אדומה; מצב ריק עם סמל בזכוכית ===== */
+html .st-root .st-plus { border-radius: 50% !important; }
+html .st-root .st-newcard { padding: 16px !important; }
+html .st-root .st-newcard .st-l b { font-weight: 650 !important; }
+html .st-root .st-empty-ic { border-radius: 50% !important; width: 72px !important; height: 72px !important; background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; color: var(--on-surface-var) !important; }
+html .st-root .st-empty b { font-size: 20px !important; font-weight: 700 !important; }
+
+/* ===== 6. סרגל הדף: "‹ חזור" בקפסולת זכוכית ניטרלית; כותרת גדולה קלה יותר; בגיליון — "ביטול/שמירה" בקפסולות ===== */
+html .st-root .st-nav { background: transparent !important; }
+html .st-root .st-nav::before { content: '' !important; position: absolute !important; inset: 0 0 -18px !important; z-index: -1 !important; pointer-events: none !important;
+  background: linear-gradient(var(--bg) 40%, transparent) !important; }
+html .st-root .st-nav :is(.st-back, .st-txt) { min-height: 40px !important; padding: 0 14px !important; border-radius: 999px !important; background: var(--lg-body) !important;
+  box-shadow: var(--lg-rim) !important; -webkit-backdrop-filter: var(--gb-fx) !important; backdrop-filter: var(--gb-fx) !important; color: var(--on-surface) !important; font-weight: 600 !important; }
+html .st-root .st-nav .st-back svg { stroke-width: 2.6 !important; width: 19px !important; height: 19px !important; }
+html .st-root .st-nav .st-txt.bold, html .st-root .st-nav .st-nav-e .st-txt:not(:disabled) { color: var(--primary) !important; }
+html .st-root .st-nav .st-txt:disabled { opacity: .55 !important; }
+html .st-root:has(.st-pl) .st-nav :is(.st-back, .st-txt) { color: #fff !important; }
+html .st-root:has(.st-pl) .st-nav .st-txt { background: var(--lg-dark) !important; box-shadow: var(--lg-dark-rim) !important; }   /* החזור עצמו — כפתור זכוכית משותף (חומר כהה משלו) */
+html .st-root:has(.st-pl) .st-nav::before { background: linear-gradient(#000 40%, transparent) !important; }
+html .st-root .st-large { font-size: 32px !important; font-weight: 700 !important; letter-spacing: -.4px !important; }
+html .st-root .st-large.clamp { font-size: 26px !important; }
+html .st-root .st-sec-t { font-size: 13px !important; font-weight: 500 !important; margin-inline: 20px !important; }
+
+/* ===== 7. מסך ההתקדמות: טבעת דקה ועגולה, מספרים מעוגלים, שלבים נקיים ===== */
+html .st-root .st-ring circle { stroke-width: 5 !important; }
+html .st-root .st-ring .arc { stroke: var(--primary) !important; }
+html .st-root .st-ring.ok .arc, html .st-root .st-ring.ok circle { stroke: var(--st-ok) !important; }
+html .st-root :is(.st-ring b, .st-left-big, .st-stg-t, .st-left-sub, .st-ptx) { font-family: var(--lg-round) !important; font-variant-numeric: tabular-nums !important; }
+html .st-root .st-left-big { font-weight: 700 !important; letter-spacing: -.3px !important; }
+html .st-root .st-ring b { font-weight: 650 !important; }
+html .st-root .st-stg { border-color: var(--lg-sep) !important; }
+html .st-root .st-stg + .st-stg { border-top-width: .5px !important; }
+html .st-root .st-stg .dot { width: 22px !important; height: 22px !important; background: transparent !important; box-shadow: inset 0 0 0 1.5px var(--lg-sep) !important; }
+html .st-root .st-stg.done .dot { background: var(--st-ok) !important; box-shadow: none !important; color: #fff !important; }
+html .st-root .st-stg.wait .st-stg-t { font-weight: 500 !important; opacity: .8 !important; }
+
+/* ===== 8. רשימות מקובצות: קו דק שמתחיל אחרי הסמל, כיתובים במשקל רגיל, אריחי סמלים קטנים ===== */
+html .st-root .st-row + .st-row::before { border-top: .5px solid var(--lg-sep) !important; }
+html .st-root .st-row:has(.st-tile) + .st-row::before, html .st-root .st-row.st-ric + .st-row::before { inset-inline-start: 58px !important; }
+html .st-root .st-l b { font-weight: 500 !important; font-size: 16.5px !important; }
+html .st-root .st-tile { width: 30px !important; height: 30px !important; border-radius: 8px !important; }
+html .st-root .st-tile svg { width: 17px !important; height: 17px !important; }
+html .st-root .st-v { font-size: 16px !important; }
+html .st-root .st-chev { width: 14px !important; height: 14px !important; opacity: .7 !important; }
+html .st-root .st-outb { color: var(--primary) !important; }
+
+/* ===== 9. בוררים: מסילה עדינה וידית לבנה שעוברת בקפיץ (מצב התרגום, צורת הכתוביות) ===== */
+html .st-root .st-seg2 { background: var(--lg-fill) !important; border-radius: 999px !important; padding: 3px !important; box-shadow: none !important; border: 0 !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+html .st-root .st-seg2 button { border-radius: 999px !important; background: transparent !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  transition: background .35s var(--lg-spring), box-shadow .35s, transform .45s var(--lg-spring) !important; }
+html .st-root .st-seg2 button[aria-checked="true"] { background: var(--lg-knob) !important; box-shadow: var(--lg-knob-sh) !important; color: var(--on-surface) !important; }
+html .st-root .st-seg2 button[aria-checked="true"] b { font-weight: 650 !important; }
+
+/* ===== 10. כפתור הפעולה: קפסולת זכוכית אדומה; פעולה הרסנית — זכוכית ניטרלית עם טקסט אדום ===== */
+html .st-root .st-btn:not(.danger):not(.ghost):not(.tint):not(:disabled) { font-weight: 650 !important; font-size: 17px !important; min-height: 52px !important; border-radius: 999px !important; }
+html .st-root .st-btn.danger { border-radius: 999px !important; }
+html .st-root .st-btn:disabled { border-radius: 999px !important; }
+
+/* ===== 11. הנגן: בקרות בזכוכית כהה מעל התמונה, פס דק שמתעבה במגע, הזמן בספרות מעוגלות ===== */
+html .st-pl .st-pl-b.bg { width: 68px !important; height: 68px !important; }
+html .st-pl .st-pl-b.bg svg { width: 30px !important; height: 30px !important; }
+html .st-pl .st-pl-tbox { background: var(--lg-dark) !important; box-shadow: var(--lg-dark-rim) !important; font-family: var(--lg-round) !important; font-variant-numeric: tabular-nums !important; font-weight: 600 !important; }
+html .st-pl .st-pl-track { height: 3px !important; border-radius: 9px !important; transition: height .25s var(--lg-spring) !important; }
+html .st-pl .st-pl-bar:active .st-pl-track, html .st-pl .st-pl-bar.cmt-drag .st-pl-track { height: 9px !important; }
+html .st-pl .st-pl-ui { background: linear-gradient(rgba(0, 0, 0, .34), transparent 30%, transparent 58%, rgba(0, 0, 0, .5)) !important; }
+
+/* ===== 13. עורך הכתוביות: הזמן בקפסולה בספרות מעוגלות, הכתובית הפעילה במילוי עדין, סרגל כלים בזכוכית ===== */
+html .st-se-bar { border-bottom: 0 !important; }
+html .st-se-row { border-bottom-color: var(--lg-sep) !important; border-bottom-width: .5px !important; }
+html .st-se-tm, html .st-se-b.sm { font-family: var(--lg-round) !important; font-variant-numeric: tabular-nums !important; }
+html .st-se-row.act { background: color-mix(in srgb, var(--primary) 12%, transparent) !important; border-inline-start-color: transparent !important; border-radius: 14px !important; }
+
+/* ===== 14. מגדל הפיקוח: כרטיס המצב בגדול, נקודות מצב קטנות, אותן רשימות ===== */
+html .st-root .st-tw-hero, html .st-root .st-hs { background: var(--lg-card) !important; box-shadow: var(--lg-card-sh) !important; border-radius: 24px !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+html .st-root :is(.st-dot, .st-sdot, .st-row > i.dot) { width: 8px !important; height: 8px !important; }
+html .st-root .st-mini { border-radius: 999px !important; color: var(--on-surface) !important; font-weight: 600 !important; }
+
+/* ===== 15. התפריט: זכוכית שצומחת מכפתור ☰ בקפיץ, שורות בלי קווים ===== */
+html .appbar .menu-drop { background: var(--lg-body) !important; box-shadow: var(--lg-rim), 0 24px 60px -12px rgba(0, 0, 0, .32) !important; border: 0 !important; border-radius: 30px !important;
+  -webkit-backdrop-filter: blur(30px) saturate(190%) !important; backdrop-filter: blur(30px) saturate(190%) !important; transform-origin: top left !important; }
+html .appbar .menu-drop:not(.hidden) { animation: stGrow .5s var(--lg-spring) both !important; }
+@keyframes stGrow { from { transform: scale(.2); opacity: .2; } to { transform: none; opacity: 1; } }
+html .appbar .menu-drop :is(.menu-section, .row-card) { border: 0 !important; background: transparent !important; box-shadow: none !important; }
+html .appbar .menu-drop .row-link { border: 0 !important; border-radius: 16px !important; background: transparent !important; box-shadow: none !important; }
+html .appbar .menu-drop .row-link::before, html .appbar .menu-drop .row-link::after { display: none !important; }
+html .menu-veil { -webkit-backdrop-filter: blur(5px) saturate(1.2) !important; backdrop-filter: blur(5px) saturate(1.2) !important; background: rgba(0, 0, 0, .05) !important; }
+
+/* ===== 16. הודעה קופצת: גלולת זכוכית שצונחת מראש המסך — לא מסתירה את החוגה ===== */
+html .toast { bottom: auto !important; top: calc(10px + env(safe-area-inset-top, 0px)) !important; transform: translateX(-50%) translateY(-90px) scale(.6) !important;
+  background: var(--lg-body) !important; color: var(--on-surface) !important; box-shadow: var(--lg-rim), 0 12px 30px -10px rgba(0, 0, 0, .3) !important; border: 0 !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important; backdrop-filter: blur(24px) saturate(190%) !important; transition: transform .55s var(--lg-spring), opacity .25s !important; z-index: 1200 !important; }
+html .toast.show { transform: translateX(-50%) translateY(0) scale(1) !important; }
+
+/* ===== 1א. דף כהה (נגן של פריט בספרייה, נגן מלא): אותו חומר בגרסה כהה — לא כרטיס בהיר על שחור ===== */
+html .st-page.st-dark { --lg-card: rgba(44, 44, 48, .78); --lg-card-sh: inset 0 .5px 0 rgba(255, 255, 255, .12); --lg-sep: rgba(255, 255, 255, .12); }
+
+/* ===== 18. הספרייה (הרשת, השבבים ודף הפריט של הציור שאושר): אותו מבנה; פוסטר עם צל של תמונה, תגיות בזכוכית כהה, פעולה ראשית בגוון ===== */
+html .st-root .st-lchip { min-height: 34px !important; padding: 6px 15px !important; background: var(--lg-fill) !important; font-weight: 500 !important; transition: background .25s, color .25s !important; }
+html .st-root .st-lchip.on { background: var(--on-surface) !important; color: var(--bg) !important; font-weight: 650 !important; box-shadow: 0 4px 12px -6px rgba(0, 0, 0, .4) !important; }
+html .st-root .st-lgrid { gap: 18px 12px !important; }
+html .st-root .st-lp { border-radius: 12px !important; box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 1px 2px rgba(0, 0, 0, .08), 0 8px 18px -8px rgba(0, 0, 0, .32) !important; }
+html .st-root .st-lp-dur, html .st-root .st-lp-lang { background: rgba(28, 28, 30, .45) !important; -webkit-backdrop-filter: blur(10px) saturate(160%); backdrop-filter: blur(10px) saturate(160%); border-radius: 999px !important; padding-inline: 7px !important;
+  box-shadow: inset 0 .5px 0 rgba(255, 255, 255, .28) !important; font-family: var(--lg-round) !important; }
+html .st-root .st-lib-hero .st-lp.big { border-radius: 0 !important; box-shadow: none !important; }
+html .st-root .st-lp-state { border-radius: 999px !important; background: var(--lg-tint) !important; }
+html .st-root .st-lp-prog { block-size: 3px !important; }
+html .st-root .st-lc-t { margin-top: 8px !important; font-size: 15px !important; letter-spacing: -.1px !important; }
+html .st-root .st-lc-m { margin-top: 1px !important; font-size: 12.5px !important; }
+html .st-root .st-lc:active { transform: scale(.96) !important; transition: transform .45s var(--lg-spring) !important; }
+html .st-root .st-lib-meter { margin: 24px 20px 10px !important; gap: 8px !important; font-family: var(--lg-round) !important; font-variant-numeric: tabular-nums !important; }
+html .st-root .st-lib-bar { block-size: 4px !important; background: var(--lg-fill) !important; }
+html .st-root .st-lib-bar i.mine { background: var(--lg-tint) !important; }
+html .st-root .st-lib-back { background: var(--lg-body) !important; -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important; box-shadow: var(--lg-rim) !important; inline-size: 44px !important; block-size: 44px !important; }
+html .st-root .st-lib-tint { padding: 18px 20px 8px !important; }
+html .st-root .st-lib-t { font-size: 26px !important; font-weight: 800 !important; letter-spacing: -.4px !important; }
+html .st-root .st-lib-meta { margin-top: 6px !important; font-family: var(--lg-round) !important; font-variant-numeric: tabular-nums !important; }
+html .st-root .st-lib-pri { block-size: 50px !important; background: var(--lg-tint) !important; box-shadow: var(--lg-tint-rim) !important; font-size: 16px !important; }
+html .st-root .st-lib-sec { inline-size: 50px !important; block-size: 50px !important; background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; }
+html .st-root .st-litem .st-pl-tm { font-family: var(--lg-round) !important; font-variant-numeric: tabular-nums !important; color: var(--on-surface-var) !important; }
+
+/* ===== 17. לחיצה גמישה: מתכווץ וחוזר בקפיץ; שורת עבודה שוקעת מעט ===== */
+html :is(.st-root, .appbar) :is(.icon-btn, .st-btn, .st-back, .st-txt, .st-mini, .st-jobs-more, .st-pl-b, .st-se-b, .st-plus, .st-cpill, .st-outb) { transition: transform .5s var(--lg-spring), background .25s, color .2s !important; }
+html :is(.st-root, .appbar) :is(.icon-btn, .st-btn, .st-back, .st-txt, .st-mini, .st-jobs-more, .st-pl-b, .st-se-b, .st-cpill, .st-outb):active { transform: scale(.88) !important; opacity: 1 !important; }
+html .st-root :is(.st-proj, .st-newcard):active { transform: scale(.985) !important; transition: transform .5s var(--lg-spring) !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  html .appbar .menu-drop:not(.hidden) { animation: none !important; }
+  html :is(.st-root, .appbar) :is(.icon-btn, .st-btn, .st-back, .st-txt, .st-mini, .st-jobs-more, .st-pl-b, .st-se-b, .st-cpill, .st-outb):active { transform: none !important; }
+}
+
+/* מוצקה: הגדרת הנגישות "הפחתת שקיפות" */
+@media (prefers-reduced-transparency: reduce) {
+  html { --lg-body: linear-gradient(180deg, #FBFBFD, #F2F2F6); --lg-fx: none; --lg-dark: rgba(40, 40, 42, .94); }
+  html[data-theme="dark"] { --lg-body: linear-gradient(180deg, #3A3A3C, #2C2C2E); }
+  html .st-root .st-lp :is(.st-lp-dur, .st-lp-lang) { background: rgba(28, 28, 30, .86) !important; -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+/* בזמן סיבוב/גרירה של הקובייה — בלי טשטוש (כמו --gb-fx ב־glass-btn.css) */
+html .st-root:is(.cube-face, .cube-ghost), html .cube-flat { --lg-fx: none; }
+}

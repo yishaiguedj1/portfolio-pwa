@@ -4,16 +4,17 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v812';
+const CACHE_NAME = 'portfolio-pwa-v815';
 const HASHES = {
   "./": "a4c10604dc53d9719855cb70d87ca9ff",
   "./index.html": "a4c10604dc53d9719855cb70d87ca9ff",
-  "./styles.css": "8ea7f0ebabbcc4963e3dea6f327426ce",
-  "./glass-btn.css": "40916bc7f51ba17be27ae56ed9b23902",
+  "./styles.css": "07e1e3c2444079fdf232e0d3f7d50a37",
+  "./glass-btn.css": "0a9285c51375f8b19be68e5b0bfe7e7d",
   "./invest-glass.css": "bb7073d34f0cae3eb2861ef0f6083002",
   "./academy-glass.css": "ae0f0a4c37f00512734308010a546a77",
+  "./studio-glass.css": "f7e2d758d97466a2c3625e5949e9d5f0",
   "./desktop.css": "22dcb3bea6e645027d3146b31d66712a",
-  "./app.js": "c2e16450339ca297f91a20c3864352e8",
+  "./app.js": "b8e71614c42f3112a644e8a02f5ce920",
   "./returns.js": "afe0d262348852fd10982ef2d0239545",
   "./cloud.js": "d403f6c76884375dc9999b80660f1ddf",
   "./firebase-config.js": "a4adfadcd5fe3b79a29e9fa0eeb94df0",
@@ -78,8 +79,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "9c6de2f5fd2634d07d9c0e0a6dc9ebe7",
   "./academy-app.js": "8f943cfa4b1bbb60bc8d83d4304d9978",
-  "./strings-academy.js": "f7260bd8dac6e0208f77728502044b1f",
-  "./core.js": "6565d3488e18d3df949b08dc2f7e3382",
+  "./strings-academy.js": "c91104108d6fb292b754ce61349cf86c",
+  "./core.js": "81fb67b6f9961d6e948a9d1b038e4863",
   "./auth.js": "465d3bc983806d8a2f462e567725df21",
   "./shell.js": "04e4e9bb8b1a12538f4b12ac699dabd5",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -88,9 +89,9 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "5e81ed33c3536f18a0b57d8616687d5f",
-  "./studio.css": "12c8478f17b5ea9643225b5f8fb92ee0",
-  "./studionet.js": "fd059ac07d83de86b8561b5b203daeaf",
+  "./studio.js": "70a708349614a15c6e6b45785abe0d13",
+  "./studio.css": "8d5421e3c30151ff5cb1856e99839e5b",
+  "./studionet.js": "4dea5de0875343834963eb187a1e7718",
   "./studioplay.js": "0b89b8c22e6e7b388bbb8c9a4820c64c",
   "./studiovi.js": "985efcace5223c3240673be8328b86b2",
   "./studiospk.js": "d2da9bbef05bf9bfcd5b14bfd24b476a",
@@ -100,9 +101,9 @@ const HASHES = {
   "./studioai.js": "502135c0ce4081b799899698fa62d333",
   "./studiostore.js": "eb4e76572b8551fe2b2c149d483fb6e9",
   "./studiobg.js": "9013d96cee956642e0735806ea1e60c3",
-  "./studio.html": "16d5cfad60f248fdf24c3c0eae5982fa",
+  "./studio.html": "53863190ddbad03a89972f31cf047782",
   "./studio-app.js": "5cea50dc7d3b80183b943e4f5ad36df9",
-  "./strings-studio.js": "e15d98555675ed73cedfe42bf0cbf55f",
+  "./strings-studio.js": "e3e74169f54fa5807bcf3573ff5c26b2",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
@@ -113,7 +114,7 @@ const HASHES = {
   "./cashflow-app.js": "f13b3182dc0da5df43922c5c79d13bdb",
   "./cashflow.js": "3f9ed14bc733ab8a72f08e954e32080b",
   "./cashflow.css": "6d697a67077c9631f7a849a55b9283cd",
-  "./strings-cashflow.js": "ab16a615089657d281a32e1fa7c12a0f",
+  "./strings-cashflow.js": "1be84f8ccbf7572c9a52620f847905f4",
   "./logo-cashflow.webp": "fdd001e0dc9d0a80c30961d58864ad96",
   "./logo-cashflow-lg.webp": "4988d060c48fbdf3f6de792f1237c710",
   "./icon-cashflow-192.png": "cf3bed681a924e2fbecc04893a92f5bf",
@@ -129,6 +130,7 @@ const APP_SHELL = [
   './glass-btn.css',   // 31/10/2026: כפתורי זכוכית בכל המערכת
   './invest-glass.css',   // 17/11/2026: Invest בזכוכית — שכבת העיצוב שאושרה + החיפוש בטלפון
   './academy-glass.css',  // 17/11/2026: Academy בזכוכית — שכבת העיצוב שאושרה (רק ב־academy.html)
+  './studio-glass.css',   // 18/11/2026: Studio בזכוכית — שכבת העיצוב שאושרה (רק ב־studio.html)
   './desktop.css',     // 11/11/2026: תצוגת מחשב — משותף לכל האפליקציות (נטען מ־600px)
   './app.js',
   './returns.js',

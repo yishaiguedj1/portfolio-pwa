@@ -4542,6 +4542,16 @@ async function handler(req, res, deps = {}) {
       await patchJob(deps, d.id, d);
       return res.status(200).json({ ok: true, job: view(d) });
     }
+    if (op === 'libDrop') {
+      // 18/11/2026 (בקשת המשתמש): פריט נמחק מהספרייה (התיקייה לפח של Drive) — העבודה כבר לא "בספרייה": דף העבודה חוזר ל"הוספה
+      // לספרייה", וכשהעותק ב־R2 יפוג היא לא תעבור לקבצים שבפח (libSwap). רק עם המניפסט של העבודה; עבודה שכבר עברה הביתה (הקבצים
+      // שלה הם אלה שבפח) נשארת כמו שהיא — הטלפון מזהיר לפני המחיקה
+      const lb = job.vlib;
+      if (!lb || lb.home || String(lb.m || '') !== String(body.m || '')) return res.status(200).json({ ok: true, job: view(job) });
+      const patch = { vlib: null, updated: now };
+      await patchJob(deps, job.id, patch);
+      return res.status(200).json({ ok: true, job: view(Object.assign({}, job, patch)) });
+    }
     if (op === 'aiRun') {
       // מ7: גיליון ה־AI בהפעלה אחת — הבקשה כבר בתיקיית העבודה (הטלפון העלה); עבודה "חדשה" שמתחילים ב־start (אחרי אומדן ואישור בטלפון)
       if (job.kind !== 'tr' || st !== 'done' || !S.FILE_ID_RE.test(String(job.folder || ''))) return res.status(409).json({ ok: false, error: 'state' });

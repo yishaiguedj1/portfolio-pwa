@@ -18,7 +18,7 @@ const academy = R('academy.html');
 
 /* ---------- חיבור ---------- */
 const firstLayer = styles.match(/@layer\s+[^;{]+[;{]/);
-ok(firstLayer && /^@layer\s+invglass,\s*acglass,\s*glassbtn;$/.test(firstLayer[0]), 'styles.css: acglass מוצהרת ראשונה, לפני glassbtn');
+ok(firstLayer && /^@layer\s+invglass,\s*acglass,\s*glassbtn(,\s*stglass)?;$/.test(firstLayer[0]), 'styles.css: acglass מוצהרת ראשונה, לפני glassbtn');
 const gi = academy.indexOf('href="glass-btn.css"'), ai = academy.indexOf('<link rel="stylesheet" href="academy-glass.css">'), li = academy.indexOf('href="library.css"');
 ok(gi > 0 && ai > gi && li > ai, 'academy.html: academy-glass.css אחרי glass-btn.css ולפני library.css');
 for (const f of ['index.html', 'studio.html', 'admin.html', 'cashflow.html', 'move.html']) ok(!R(f).includes('academy-glass.css'), f + ' לא טוען את academy-glass.css (רק Academy)');

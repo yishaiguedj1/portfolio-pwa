@@ -2590,6 +2590,19 @@ function stubFetch(text, status = 200) {
         const sw = SR.libSwap(SR.fromFields(db.get('studioJobs/' + LP).fields));
         ok(sw && sw.folder === 'libProj1234567' && sw.fo.map((o) => o.id).join() === 'drvV1234567890,drvS1234567890' && sw.fv.id === 'drvR1234567890' && sw.vlib.home === 1, 'ספרייה: libSwap — התוצרים, המקור והתיקייה עוברים ל־Drive');
         ok(SR.libSwap({ fo: [] }) === null && SR.normLibDone({ m: 'manif123456789', fd }, { lib: 0, it: [] }) === null, 'ספרייה: בלי שמירה — אין החלפה');
+        // 18/11/2026: מחיקה מהספרייה (libDrop) — רק עם המניפסט של העבודה; מי שלא הבעלים — לא מוצא; עבודה שעברה הביתה נשארת
+        const vlOf = () => SR.fromFields(db.get('studioJobs/' + LP).fields).vlib;
+        rr = await run({ op: 'libDrop', idToken: OWNER, job: LP, m: 'otherManif12345' });
+        ok(rr.payload.ok && vlOf() && vlOf().m === 'manif123456789', 'ספרייה: libDrop עם מניפסט אחר — לא נוגע');
+        rr = await run({ op: 'libDrop', idToken: READER, job: LP, m: 'manif123456789' });
+        ok(!rr.payload.ok && vlOf() && vlOf().m === 'manif123456789', 'ספרייה: libDrop — רק הבעלים');
+        await patchJobRaw(LP, { vlib: Object.assign({}, vlOf(), { home: 1 }) });
+        rr = await run({ op: 'libDrop', idToken: OWNER, job: LP, m: 'manif123456789' });
+        ok(rr.payload.ok && vlOf() && vlOf().home === 1, 'ספרייה: libDrop — עבודה שעברה הביתה נשארת כמו שהיא');
+        await patchJobRaw(LP, { vlib: Object.assign({}, vlOf(), { home: 0 }) });
+        rr = await run({ op: 'libDrop', idToken: OWNER, job: LP, m: 'manif123456789' });
+        ok(rr.payload.ok && !vlOf() && !rr.payload.job.lib && SR.libSwap(SR.fromFields(db.get('studioJobs/' + LP).fields)) === null,
+          'ספרייה: libDrop — העבודה כבר לא בספרייה, ובפקיעה לא תעבור לקבצים שבפח');
       }
       for (const id of [JP, JN]) await run({ op: 'remove', idToken: OWNER, job: id });
       ok(!db.get('studioJobs/' + R3), 'סטודיו: הפקה מחדש — נמחקת יחד עם העבודה המקורית');
