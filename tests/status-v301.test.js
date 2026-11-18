@@ -69,4 +69,6 @@ for (const [nm, css2, sel] of [['Invest', ig, ':is(#sourceLabel .st-pill, .fx-pi
   ok(/height: 40px !important/.test(r) && /gap: 4px !important/.test(r) && /padding: 0 10px !important/.test(r) && /flex-wrap: nowrap !important/.test(r) && /overflow: hidden !important/.test(r) && !/max-content/.test(r), nm + ': אותה בועה — 40, שורה אחת, ברוחב העמודה');
 }
 ok(!/lib-bkpill \.sub-cap::after/.test(ag), 'Academy: בלי "·" בין "גיבוי" למצב');
+// 18/11/2026 (בקשת המשתמש — הנקודה נחתכה): אותה נקודה של בועת השער — 6px, מהבהבת, צבע לפי המצב, דיליי אפורה עם טבעת; בלי חיתוך
+ok(/#sourceLabel \.st-pill i \{ width: 6px !important; height: 6px !important;[^}]*animation: livePulse 2s ease-in-out infinite !important;/.test(ig) && /\.st-pill\.pre i \{ background: #FF9F0A/.test(ig) && /\.st-pill\.delay i \{ animation: none !important; background: #8E8E93/.test(ig) && /:is\(#sourceLabel \.st-pill \.sub-cap, #fxPill \.fx-pill-label\) \{ overflow: visible !important; \}/.test(ig), 'נקודת השוק = נקודת השער (מהבהבת, לא נחתכת)');
 console.log('# ' + n + ' בדיקות עברו');
