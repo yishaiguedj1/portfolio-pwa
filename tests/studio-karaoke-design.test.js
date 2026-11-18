@@ -38,11 +38,11 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(pv[1].t === 'שורה שנייה כאן', 'הסימון יורד מהשורה');
   ok(st.kyPvLines('no tags\nat all').every((x) => x.sg === null), 'בלי סימון — זמר לא ידוע');
   ok(st.kySchemeOf(st.normKy({})) === 'gold' && st.kySchemeOf(st.normKy({ c: '#123456' })) === 'custom', 'ערכה לפי הצבעים');
-  ok(st.normSettings({ ky: { c: '#3DD6FF' } }).ky.c === '#3DD6FF' && !('ky' in st.normSettings({})), 'ההגדרות שומרות את העיצוב');
+  ok(!('ky' in st.normSettings({ ky: { c: '#3DD6FF' } })) && !('ky' in st.normSettings({})), 'ההגדרות לא שומרות את העיצוב — שיר חדש מתחיל מהרגיל (18/11/2026)');
 
   /* החיבורים */
   const sj = read('studio.js');
-  ok(/ky: normKy\(f\.ky \|\| store\.settings\.ky\)/.test(sj), 'kaSpec שולח את העיצוב');
+  ok(/ky: normKy\(f\.ky\),/.test(sj) && /form\.ky = normKy\(/.test(sj) && !/settings\.ky/.test(sj), 'kaSpec שולח את העיצוב של הטופס בלבד (בלי ברירת מחדל שמורה)');
   ok(/go\('kasty'\)/.test(sj) && /ui\.view === 'kasty' && kaOk\(\)\) pageKaSty\(p\)/.test(sj) && /x === 'kasty' \? \['new', 'ka'\]/.test(sj), 'הדף: מהטופס, בניתוב, וחזרה לטופס');
   ok(!/f\.ka[\s\S]{0,400}stylePicker\(f\.style/.test(sj.slice(sj.indexOf('if (f.ka) {   // 26/10/2026'), sj.indexOf('// שפות'))), 'בטופס של שיר — בלי "עיצוב הכתוביות"');
   const jp = read('translator/job.py');
