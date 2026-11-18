@@ -221,6 +221,8 @@ html .an-root .an-card .an-card { box-shadow: none !important; }
 html .an-root .an-back { color: var(--on-surface) !important; }
 html .an-root .an-back .an-chev { border-color: var(--on-surface) !important; }
 html .an-root .an-back { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important; }
+/* עריכת המחיר (18/11/2026): אותו עיגול זכוכית כמו "חזור"; פעיל (המחיר נערך) — נשאר כתום מ־glass-btn.css */
+html .an-root .an-pxed:not(.on) { color: var(--on-surface) !important; background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important; }
 html .an-root :is(.an-px, .an-nav-q) b { color: var(--on-surface) !important; font-family: var(--lg-round) !important; font-weight: 650 !important; font-variant-numeric: tabular-nums !important; }
 html .an-root :is(.an-px, .an-nav-q) span { display: inline-block !important; padding: 1px 8px !important; border-radius: 999px !important; font-weight: 600 !important; font-variant-numeric: tabular-nums !important;
   background: color-mix(in srgb, currentColor 14%, transparent) !important; }

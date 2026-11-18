@@ -6,6 +6,7 @@
   --an-card: #FFFFFF; --an-fill: #EEEEF3; --an-sep: var(--separator); --an-grid: rgba(60, 60, 67, .10); --an-band: rgba(60, 60, 67, .07);
   --an-c1: var(--primary); --an-c2: var(--sys-blue); --an-c3: var(--sys-purple); --an-c4: #E5352B; --an-c5: #F08A00;
   --an-good: var(--gain); --an-good-c: rgba(48, 209, 88, .15); --an-mid: #9A5B00; --an-mid-c: rgba(255, 149, 0, .15); --an-bad: var(--loss); --an-bad-c: rgba(255, 59, 48, .12);
+  --an-ed: #C25E00; --an-ed-fill: #FF9500; --an-ed-c: rgba(255, 149, 0, .13);   /* מחיר לבדיקה — כתום המערכת */
   --an-edit: var(--primary-container); --an-tip: #FFFFFF; --an-veil: rgba(0, 0, 0, .28); --an-thumb: #FFFFFF;
   position: fixed; inset: 0; z-index: 900; background: var(--bg); color: var(--an-ink); overflow-y: auto; overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch; font-family: var(--font); font-size: 16px; line-height: 1.4; -webkit-tap-highlight-color: transparent;
@@ -15,6 +16,7 @@
   --an-ink3: #6C6C70; --an-card: #1C1C1E; --an-fill: #2C2C2E; --an-grid: rgba(255, 255, 255, .09); --an-band: rgba(255, 255, 255, .07);
   --an-c4: #FF453A; --an-c5: #FF9F0A;
   --an-good: var(--gain); --an-good-c: rgba(48, 209, 88, .17); --an-mid: #FFB340; --an-mid-c: rgba(255, 159, 10, .16); --an-bad: var(--loss); --an-bad-c: rgba(255, 69, 58, .16);
+  --an-ed: #FFAA33; --an-ed-fill: #FF9F0A; --an-ed-c: rgba(255, 159, 10, .16);
   --an-edit: var(--primary-container); --an-tip: #2C2C2E; --an-veil: rgba(0, 0, 0, .55); --an-thumb: #636366;
 }
 html.an-open { overflow: hidden; }
@@ -508,3 +510,31 @@ html .an-nav { background: none; -webkit-backdrop-filter: none; backdrop-filter:
 .an-hrng > .range-btn { flex: 1 1 0; min-width: 0; padding-block: 6px; padding-inline: 4px; font-size: 13px; text-align: center; white-space: nowrap; }
 .an-nav-q b { font-size: 32px; letter-spacing: -.8px; line-height: 1.05; }
 .an-nav-q span { font-size: 15px; }
+
+/* ===== מחיר לבדיקה (18/11/2026, בקשת המשתמש) — לפי ת־עיצוב: עיגול זכוכית עם עיפרון ליד המחיר; כשהמחיר נערך —
+   העיגול מתמלא בכתום (כלי פעיל), המחיר עצמו בכתום ובמקום השינוי היומי "במקום $X" (בולט), ערך שנגזר ממנו —
+   רק נקודה כתומה קטנה (data-dep, עדין), ובראש כל עמוד שורה אחת: מה שונה, המחיר האמיתי ו"החזר" בלחיצה אחת ===== */
+.an-pxed { flex: none; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--an-ink); background: var(--an-fill); }
+.an-pxed svg { width: 17px; height: 17px; }
+.an-pxed.on { background: var(--an-ed-fill); color: #fff; }
+.an-pxed + .an-nav-q { cursor: pointer; }
+.an-pxv { font-style: normal; color: var(--an-ed); }
+.an-pxwas { font-style: normal; display: inline-block; margin-top: 2px; padding: 1px 8px; border-radius: var(--pill, 999px); font-size: 14px; font-weight: 600;
+  color: var(--an-ed); background: var(--an-ed-c); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.an-root [data-dep]::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--an-ed-fill);
+  margin-inline-end: 5px; vertical-align: .2em; }
+.an-edrow { display: flex; align-items: center; gap: 12px; margin: 2px 0 12px; padding-block: 10px; padding-inline: 12px 10px; border-radius: var(--radius-sm);
+  background: var(--an-ed-c); }
+.an-subw > .an-edrow { margin-top: 0; }
+.an-edrow-ic { flex: none; width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--an-ed-fill); color: #fff; }
+.an-edrow-ic svg { width: 15px; height: 15px; }
+.an-edrow-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; text-align: start; }
+.an-edrow-t b { font-size: 15px; font-weight: 700; color: var(--an-ink); }
+.an-edrow-t span { font-size: 12.5px; line-height: 1.35; color: var(--an-ink2); }
+.an-edrow-b { flex: none; border: 0; border-radius: var(--pill, 999px); padding: 7px 16px; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
+  background: var(--an-ed-fill); color: #fff; }
+.an-pxf .an-pxbox { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; direction: ltr; }
+.an-pxbox .an-in { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.an-pxcur { font-size: 22px; font-weight: 700; color: var(--an-ink2); }
+.an-pxreal { margin-top: 14px; }
