@@ -1081,7 +1081,7 @@ function normLibMeta(m) {
   }
   const lang = (x) => (/^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(String(x || '')) ? String(x) : '');
   return { t: dxName(m.t).slice(0, 120), k: ['tr', 'ka', 'vi'].includes(m.k) ? m.k : 'tr', fr: lang(m.fr), to: (Array.isArray(m.to) ? m.to : []).map(lang).filter(Boolean).slice(0, 4),
-    d: Math.max(0, Math.min(86400, Math.round(Number(m.d) || 0))), ch };
+    d: Math.max(0, Math.min(86400, Math.round(Number(m.d) || 0))), ch, ...(m.tv === 1 && m.k === 'vi' ? { tv: 1 } : {}) };   // tv: ניתוח שגם תורגם (18/11/2026)
 }
 function normLibDx(o, job) {
   if (!o || typeof o !== 'object' || !FILE_ID_RE.test(String(o.f || '')) || String(o.f).startsWith('R2_')) return null;
