@@ -50,6 +50,23 @@ html .appbar .lib-bkpill .sub-val { flex: none !important; max-width: none !impo
 html .appbar .lib-bkpill.pf1 .sub-cap { font-size: 0 !important; gap: 0 !important; }   /* hdrPillFit — לא נכנס: בלי הכיתוב המשני */
 html .appbar .lib-bkpill.pf3 .sub-val { font-size: 13px !important; }
 
+/* 18/11/2026 (בקשת המשתמש — "בדיוק כמו ב־Invest"): גלילה — הלוגו מתכווץ, הבועה מתקפלת למעלה ונעלמת, והרצועה שמתחת להדר עולה.
+   אותה אנימציה של invest-glass.css, אבל הדף כאן נגלל בתוך .lib-root (לא בשורש) — לכן scroll(nearest block). בלי ציר גלילה ההדר נשאר מלא */
+@keyframes acLogo { to { scale: .6; } }
+@keyframes acBub { 55% { opacity: 0; } to { translate: 0 -34px; scale: .8; opacity: 0; visibility: hidden; } }
+@keyframes acScrimUp { to { translate: 0 -44px; } }
+@media (min-height: 501px) {
+  html:not(.dk) .appbar { pointer-events: none !important; }
+  html:not(.dk) .appbar :is(button, input, select, a, label, .appbar-sub, .menu-drop, .lang-menu, h1.brand .brand-art) { pointer-events: auto !important; }
+  @supports (animation-timeline: scroll()) {
+    html:not(.dk) .appbar .brand-art { transform-origin: 50% 0 !important;
+      animation: artFloat 6.5s cubic-bezier(.45, 0, .55, 1) infinite, acLogo linear both, artLean 9s cubic-bezier(.45, 0, .55, 1) infinite, artAct 20s linear infinite !important;
+      animation-timeline: auto, scroll(nearest block), auto, auto !important; animation-range: normal, 0 110px, normal, normal !important; }
+    html:not(.dk) .appbar .appbar-sub { animation: acBub linear both !important; animation-timeline: scroll(nearest block) !important; animation-range: 0 70px !important; }
+    html:not(.dk) .appbar::before { animation: hdrScrim linear both, acScrimUp linear both !important; animation-timeline: scroll(nearest block), scroll(nearest block) !important; animation-range: 0 72px, 0 110px !important; }
+  }
+}
+
 /* ===== 3. החוגה: אותה חוגה ואותה תנועה, על מסילת זכוכית צפה; הנבחר = טיפת זכוכית כחולה מורמת ===== */
 html .tabs::after { display: none !important; }
 html .tabs::before { inset: auto 10px calc(8px + env(safe-area-inset-bottom, 0px)) 10px !important; height: 80px !important; border-radius: 40px !important;
