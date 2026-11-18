@@ -1606,5 +1606,16 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     const ok2 = F.normalizeSec(facts([...base, ['InterestExpense', 'USD', yrs([300, 310, 320], 2019)], ['InterestExpenseDebt', 'USD', yrs([280], 2018)]]), [], null);
     ok(ok2.A.int[ok2.fy.indexOf('2018-12-31')] === 280, '(32) השלמה סבירה מול השכנה — נכנסת כמו היום');
   }
+  /* ---------- (33) הראשית במאזן כשאף תגית לא מודפסת בדוח האחרון (18/11/2026, גל 5 — F22, Brown & Brown) ---------- */
+  {
+    const I = (a) => a.map(([e, v]) => [null, e, v, '10-K', e.slice(0, 4) * 1 + 1 + '-02-15']);
+    const fx = facts([['Revenues', 'USD', yrs([500, 510, 520, 530, 540], 2020)], ['NetIncomeLoss', 'USD', yrs([50, 51, 52, 53, 54], 2020)],
+      ['Assets', 'USD', I([['2024-12-31', 900], ['2025-12-31', 950]])],
+      ['AvailableForSaleSecuritiesDebtSecuritiesCurrent', 'USD', I([['2021-12-31', 7], ['2022-12-31', 6], ['2023-12-31', 11]])],
+      ['ShortTermInvestments', 'USD', I([['2020-12-31', 18], ['2021-12-31', 13], ['2022-12-31', 12], ['2023-12-31', 11], ['2024-12-31', 10]])]]);
+    const face = { bs: { cols: [{ end: '2025-12-31' }], scale: { cur: 1, sh: 1 }, rows: [{ ns: 'us-gaap', tag: 'Assets', label: 'Total assets', total: true, v: [950] }] } };
+    const b = F.normalizeSec(fx, [], face);
+    ok(b.A.msec[b.fy.indexOf('2021-12-31')] === 13 && b.A.msec[b.fy.indexOf('2020-12-31')] === 18, '(33) בלי שורה מודפסת — הראשית היא זו שדיווחה אחרונה, לא תגית ביאור שנעצרה שנה קודם');
+  }
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });

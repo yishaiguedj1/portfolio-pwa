@@ -550,14 +550,16 @@ function nbFar(m, f) {
   r.sort((a, b) => a - b);
   return r[(r.length - 1) >> 1] > Math.log(NB_FAR);
 }
-function mergeTags(fs, lock, qclash, best, nb) {
+function mergeTags(fs, lock, qclash, best, nb, win) {
   const last = (f) => { let e = ''; for (const kk of f.dur.keys()) { const x = kk.split('|')[1]; if (x > e) e = x; } for (const x of f.inst.keys()) if (x > e) e = x; return e; };
   const has = fs.map((f) => f.dur.size + f.inst.size > 0);
   const m = { dur: new Map(), inst: new Map() };
   // הראשית = הראשונה בסדר העדיפות מבין התגיות שעדיין מדווחות (עד שנה מהתקופה המאוחרת ביותר)
   const top = Math.max(...fs.map((f, i) => (has[i] ? day(last(f)) : -Infinity)));
   if (!isFinite(top)) return m;
-  const spine = fs.findIndex((f, i) => has[i] && day(last(f)) >= top - 400);
+  // win: חלון קצר יותר כשאף מועמדת לא מודפסת במאזן של הדוח האחרון (גל 5, F22 — Brown & Brown: ‏ShortTermInvestments המודפסת עד
+  // 12/2024, מול תגית מביאור שנעצרה ב־12/2023 ונבחרה כי קודמת ברשימה). לא ברכיבי החוב (Cintas ‏2016: ההלוואות לזמן קצר נעלמו)
+  const spine = fs.findIndex((f, i) => has[i] && day(last(f)) >= top - (win || 400));
   m.spine = spine; m.fs = fs; // כל המועמדות — לזיהוי הצגה מחדש בכל תגית (subPick)
   // best (הרווח הנקי): התגיות המשלימות לפי ההתאמה לראשית — הקרובה קודם, לא לפי סדר העדיפות. ‏CME: ‏ProfitLoss = הרווח הנקי
   // בכל תקופה משותפת, והרווח "לבעלי המניות הרגילות" (אחרי ניירות משתתפים) נמוך ב־1.3% — עד 26/10/2026 הוא השלים את הרבעונים,
@@ -865,7 +867,7 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
     // מזומן: החיסור רק כשהסך הכולל אינו שורה במאזן של ה־10-K האחרון (Bank of America, GE, Erie: "Cash and cash equivalents"
     // במאזן בתגית הכוללת, והמזומן המוגבל — ביאור; חיסור שם = מספר שלא הודפס). בלי מאזן מודפס (לא נטען) — לא מחסרים
     const rsub = k === 'cash' && face && face.bs && face.bs.rows && !onFace.includes(list[list.length - 1]);
-    merged[k] = k === 'cash' ? cashMerge(fs, rsub ? RCASH.map((g) => g.map((t) => tagFacts(tax[t], unitOf(k)))) : null) : mergeTags(fs, lock, k === 'capex', k === 'ni', NB_KEYS.has(k)); // רק בהשקעות הוניות: בהכנסות/תזרים התגית המשלימה היא לפעמים הרבעון היחיד (Dollar Tree)
+    merged[k] = k === 'cash' ? cashMerge(fs, rsub ? RCASH.map((g) => g.map((t) => tagFacts(tax[t], unitOf(k)))) : null) : mergeTags(fs, lock, k === 'capex', k === 'ni', NB_KEYS.has(k), INST[k] && !/^(debt|stb)/.test(k) && face && face.bs && face.bs.rows && !list.some((t) => onFace.includes(t)) ? 200 : 0); // רק בהשקעות הוניות: בהכנסות/תזרים התגית המשלימה היא לפעמים הרבעון היחיד (Dollar Tree)
     if (merged[k].spine != null) tags[k] = names[merged[k].spine];
   }
   // השקעות הוניות שבתזרים רק בתגית של החברה (Kimco: ‏"Improvements to operating real estate" ‏$347.6M; ‏Weyerhaeuser, Zimmer,
