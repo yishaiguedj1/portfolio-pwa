@@ -1635,6 +1635,15 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     ok(r.printed.get('2020-12-31').includes(300e6), '(34) כל ערך שהודפס בשנה — לבדיקת הצגה מחדש');
     const r2 = F.bsfIs(have, 'USD', { int: M({ '2025-12-31': 176, '2024-12-31': 199, '2023-12-31': 226 }) });
     ok(!r2.int, '(34) שער: הסדרה לא עוקבת היום אחרי השורה — לא נוגעים');
+    ok(r.own.join() === '2025-12-31,2023-12-31,2021-12-31', '(34) השנה של כל 10-K');
+    // מקצה לקצה: 2019 הודפס (971) רק בדוח של 2021 — אחרי הצגה מחדש, והדוח של 2019 לפני החלון: 509 שלנו נשאר. ‏2020 — הדוח של
+    // 2020 בחלון ומדפיס 300 (אצלנו 305 מביאור) — מתוקן
+    const HX = facts([['InterestExpense', 'USD', yrs([509e6, 305e6, 310e6, 320e6, 330e6], 2019)], ['Revenues', 'USD', yrs([5e9, 5e9, 5e9, 5e9, 5e9], 2019)]]);
+    const hb = { a: K('2024-02-10', ['2023-12-31', '2022-12-31', '2021-12-31'], [['us-gaap', 'InterestExpense', [330, 320, 310]]]),
+      b: K('2022-02-10', ['2021-12-31', '2020-12-31', '2019-12-31'], [['us-gaap', 'InterestExpense', [310, 300, 971]]]),
+      c: K('2021-02-10', ['2020-12-31', '2019-12-31'], [['us-gaap', 'InterestExpense', [300, 290]]]) };
+    const hx = F.normalizeSec(HX, [], null, hb), hi = (e) => hx.A.int[hx.fy.indexOf(e)];
+    ok(hi('2019-12-31') === 509e6 && hi('2020-12-31') === 300e6 && hi('2023-12-31') === 330e6, '(34) תיקון רק כשהדוח של אותה שנה בחלון');
     // bsfiled: ‏10-K — גם דף רווח והפסד (בלי שורות למניה), והגשה שכבר נשמרה בלעדיו — משלימים רק אותו
     const BS2 = require('../ibkr-proxy/lib/bsfiled.js');
     const FS3 = '<FilingSummary><MyReports>' + [['R2.htm', 'Consolidated Statements of Operations'], ['R4.htm', 'Consolidated Balance Sheets'], ['R7.htm', 'Consolidated Statements of Cash Flows']]
@@ -1649,6 +1658,21 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     const old0 = { form: '10-K', filed: '2025-02-10', bs: r1.bs, cf: r1.cf }, n0 = got.length;
     const add0 = await BS2.readMissing(old0, 'https://x/', null, gt3);
     ok(add0.is && !add0.cf && got.length - n0 === 2 && BS2.needIs(old0) && !BS2.needX({ ...old0, ...add0 }), '(34) הגשה ישנה: רק דף רווח והפסד (FilingSummary + דף אחד)');
+  }
+  /* ---------- (35) קבוצת העמודה לפי המיקום הפיזי (18/11/2026, גל 5 — parseR) ---------- */
+  {
+    // ‏ADI ‏10-K ‏2019: שמונה רבעונים ושלוש שנים; תאריך ב־colspan=2 ועמודות הערות שוליים — הקבוצות נספרות בעמודות פיזיות
+    const d2 = (d) => `<th class="th" colspan="2"><div>${d}</div></th>`, fn = '<th class="th"><sup>[1]</sup></th>', d1 = (d) => `<th class="th"><div>${d}</div></th>`;
+    const q = ['Nov. 02, 2019', 'Aug. 03, 2019', 'May 04, 2019', 'Feb. 02, 2019', 'Nov. 03, 2018', 'Aug. 04, 2018', 'May 05, 2018', 'Feb. 03, 2018'];
+    const adi = SF.parseR(`<table><tr><th class="tl" colspan="1" rowspan="2"><div><strong>Income - USD ($)<br> $ in Thousands</strong></div></th><th class="th" colspan="16">3 Months Ended</th><th class="th" colspan="5">12 Months Ended</th></tr>
+<tr>${q.map(d2).join('')}${d2('Nov. 02, 2019')}${fn}${d1('Nov. 03, 2018')}${d1('Oct. 28, 2017')}</tr>
+${row('ro', 'us-gaap_CostOfRevenue', 'Cost of sales', ['1', '2', '3', '4', '5', '6', '7', '8', '1,977,315', '2,045,907', '2,078,110'])}</table>`);
+    const ms = adi.cols.map((c) => c.months);
+    ok(ms.slice(0, 8).every((m) => m === 3) && ms.slice(8).join() === '12,12,12' && adi.cols[10].end === '2017-10-28', '(35) ‏colspan=2 והערת שוליים — שלוש השנים מקבלות "12 חודשים"');
+    // תאריך באותה שורה עם הקבוצות (rowspan) — לפי המספר הסידורי, כמו עד היום
+    const rs = SF.parseR(`<table><tr><th class="tl" colspan="1" rowspan="2"><div><strong>Income - USD ($)<br> $ in Millions</strong></div></th><th class="th" colspan="2">12 Months Ended</th><th class="th" rowspan="2"><div>Dec. 31, 2023</div></th></tr>
+<tr>${d1('Dec. 31, 2025')}${d1('Dec. 31, 2024')}</tr>${row('ro', 'us-gaap_Revenues', 'Revenue', ['1', '2', '3'])}</table>`);
+    ok(rs.cols.length === 3 && rs.cols.filter((c) => c.months === 12).length === 2, '(35) תאריך בשורת הקבוצות — ההתנהגות הקודמת');
   }
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });

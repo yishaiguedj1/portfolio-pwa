@@ -374,7 +374,7 @@ function bsfCf(have, cur, tags) {
    השורה = "אותה שורה" בשרשור לפי חפיפה, לא לפי תגית: בדוח האחרון — השורה היחידה ששווה לסדרה שלנו בכל השנים שהוא מדפיס (לפחות
    שתיים; זה גם השער — הסדרה כבר עוקבת היום אחרי השורה); בכל 10-K ישן יותר — השורה היחידה שערכיה בשנים שכבר נקבעו שווים להם, והשנים
    החדשות שלה נקבעות (השנה שייכת ל־10-K האחרון שמדפיס אותה). ours: k → Map(סוף → ערך). abs — מדדים שמודפסים לפעמים במינוס.
-   → {k: Map(סוף → {v, filed})}, ‏printed: Map(סוף → כל הערכים שהודפסו בדוח רווח והפסד בשנה הזו, בכל שורה) */
+   → {k: Map(סוף → {v, filed})}, ‏printed: Map(סוף → כל הערכים שהודפסו בדוח רווח והפסד בשנה הזו, בכל שורה), ‏own: השנה של כל 10-K */
 const IS_KEYS = ['int', 'pretax', 'cogs', 'rnd', 'tax', 'op'], IS_ABS = new Set(['int', 'cogs', 'rnd']);
 function bsfIs(have, cur, ours) {
   const ann = Object.values(have || {}).filter((x) => x && x.is && x.is.rows && /^10-K/.test(x.form)).sort((a, b) => (a.filed < b.filed ? 1 : -1));
@@ -387,6 +387,9 @@ function bsfIs(have, cur, ours) {
   const printed = new Map();
   for (const rows of Y) for (const o of rows) for (const [e, v] of o) { if (!printed.has(e)) printed.set(e, []); printed.get(e).push(Math.abs(v)); }
   out.printed = printed;
+  // השנה של כל 10-K (סוף העמודה המאוחרת של 12 חודשים) — תיקון של ערך קיים רק כשהדוח של אותה שנה עצמה בחלון (AMD ‏2010,
+  // ‏CCI ‏2009–2012: הדוח המקורי לפני החלון, והשנה הודפסה רק אחר כך — אחרי הצגה מחדש; הערך שלנו מהדוח המקורי ולא שגוי)
+  out.own = Y.map((rows) => { let m = null; for (const o of rows) for (const e of o.keys()) if (!m || e > m) m = e; return m; }).filter(Boolean);
   const at = (M, e) => { if (M.has(e)) return M.get(e); for (const [k, v] of M) if (Math.abs(day(k) - day(e)) <= 7) return v; return null; };
   for (const k of IS_KEYS) {
     const S = ours[k]; if (!S || !S.size) continue;
@@ -1504,6 +1507,7 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
         const p = bsfAt(M, e); if (!p) continue;
         const old = A[k] && A[k][e];
         if (old != null && near(IS_ABS.has(k) ? Math.abs(old) : old, p.v)) continue;
+        if (old != null && !IS.own.some((x) => Math.abs(day(x) - day(e)) <= 7)) continue;
         if (old != null) { let pr = IS.printed.get(e); if (!pr) for (const [k2, v2] of IS.printed) if (Math.abs(day(k2) - day(e)) <= 7) { pr = v2; break; } if (pr && pr.some((v) => near(Math.abs(old), v))) continue; }
         if (!A[k]) A[k] = {};
         A[k][e] = p.v; cfy.push({ k: old == null ? 'ffill' : 'ffix', m: k, p: e, f: p.v, v: old == null ? null : old });
