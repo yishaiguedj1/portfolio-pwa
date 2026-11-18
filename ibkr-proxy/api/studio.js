@@ -2072,7 +2072,8 @@ async function server(req, res, body, deps) {
       if (!got) continue;
       await patchDoc(deps, 'studioServers', p.sid, Object.assign(seen, { job: job.id }));
       const dur = job.spec && job.spec.dur > 0 ? Math.round(job.spec.dur) : 0;
-      return res.status(200).json({ ok: true, job: Object.assign({ id: job.id, key, kind: job.kind }, dur ? { dur } : {}, job.spec && job.spec.vi === 1 ? Object.assign({ vi: 1 }, job.spec.vo === 1 || job.spec.vj === 1 || job.spec.vp === 1 ? { vo: 1 } : {}) : {}), now });   // vi — הסוכן: perf_kind / MEM_PRIOR['vi']; vo — "אמת שוב", השופט בזוגות וטיוטת הייחוס (PR 1.6): קל, בלי סרטון, לא מלמד את הזיכרון
+      const mk = S.memClass(job);   // 18/11/2026: המסלול לזיכרון (קריוקי / ניתוח בעברית / אוטומטי) — agent.py ‏mem_kind
+      return res.status(200).json({ ok: true, job: Object.assign({ id: job.id, key, kind: job.kind }, dur ? { dur } : {}, mk ? { mk } : {}, job.spec && job.spec.vi === 1 ? Object.assign({ vi: 1 }, job.spec.vo === 1 || job.spec.vj === 1 || job.spec.vp === 1 ? { vo: 1 } : {}) : {}), now });   // vi — הסוכן: perf_kind / MEM_PRIOR['vi']; vo — "אמת שוב", השופט בזוגות וטיוטת הייחוס (PR 1.6): קל, בלי סרטון, לא מלמד את הזיכרון
     }
     // שרת שעדיין מריץ עבודה (nj) ושאל אם יש עוד — העבודה שלו נשארת רשומה. 27/10/2026: בלי שינוי — לא כותבים (seenDue)
     const clr = !(hb.nj > 0) && !!srv.job;
