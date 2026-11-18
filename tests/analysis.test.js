@@ -275,6 +275,47 @@ ok(/z-index: 900/.test(css) && /\.an-sheet \{[^}]*z-index: 941/.test(css), 'שכ
 
 // מניה שלא נסחרת — שורה מתחת לראש, לא נתונים ישנים בשקט
 ok(/co\.gone \? h\('p', \{ class: 'an-gone' \}, T\('anGone'/.test(src), 'מניה שלא נסחרת — שורה בראש המסך');
+/* ---------- מחיר לבדיקה (18/11/2026, בקשת המשתמש): המחיר הערוך מזיז את מה שנמדד מול המחיר, ההנחות והשווי — לא ---------- */
+{
+  const e = A.indFix(A.prep(D, null, 3.7), MAC);
+  const pe0 = A.checks(e, MAC).value.chk[0].v, H0 = A.multHist(e), now0 = H0.pe[H0.pe.length - 1];
+  const D0 = A.calcDefaults(e), F0 = JSON.stringify(A.fairOf(e, MAC)), ke0 = A.autoInputs(e, MAC).val.ke, pr0 = A.peerRow(e);
+  A.setPx(e, 200);
+  ok(e.pxEd && e.price === 200 && e.price0 === 400, 'מחיר לבדיקה: המחיר החדש, והאמיתי נשמר');
+  ok(Math.abs(e.fpe - 9) < 1e-9 && e.fpe0 === 18, 'המכפיל הצפוי זז ביחס ישר למחיר');
+  const H1 = A.multHist(e);
+  ok(Math.abs(H1.pe[H1.pe.length - 1] - now0 / 2) < 1e-9, 'נקודת "היום" בהיסטוריית המכפילים — לפי המחיר הערוך (המטמון מתאפס)');
+  ok(H1.pe.slice(0, -1).join() === H0.pe.slice(0, -1).join(), 'ההיסטוריה עצמה לא זזה');
+  const pr1 = A.peerRow(e);
+  ok(Math.abs(pr1.pe - pr0.pe / 2) < 1e-9 && Math.abs(pr1.fy - pr0.fy * 2) < 1e-9 && Math.abs(pr1.fpe - pr0.fpe / 2) < 1e-9, 'ההשוואה: מכפיל, מכפיל צפוי ותשואת תזרים לפי המחיר הערוך');
+  ok(JSON.stringify(A.calcDefaults(e).val) === JSON.stringify(D0.val), 'הערכים המוצעים במחשבון — לפי המחיר האמיתי');
+  ok(A.autoInputs(e, MAC).val.ke === ke0 && JSON.stringify(A.fairOf(e, MAC)) === F0, 'מחיר ההון והשווי — לא תלויים במחיר לבדיקה');
+  const C1 = A.checks(e, MAC).value.chk;
+  ok(C1.every((x) => x.d) && C1[0].v !== pe0, 'בדיקות התמחור — מסומנות כתלויות במחיר ומחושבות מחדש');
+  ok(A.pxReal(e) === 400 && A.real(e).price === 400 && A.real(e) === A.real(e) && A.real(e).fpe === 18, 'real — עותק אחד במחיר האמיתי');
+  A.setPx(e, null);
+  ok(!e.pxEd && e.price === 400 && e.fpe === 18 && A.real(e) === e, 'החזר — הכל חוזר לאמיתי');
+  A.setPx(e, 400);
+  ok(!e.pxEd, 'מחיר שווה לאמיתי = לא ערוך');
+  // התשואה הרצויה במחשבון → המחיר: "המחיר לתשואה של X" בתרחיש הבסיס נותן בדיוק X (וגם עם דיבידנדים)
+  for (const dv of [0, 0.4]) {
+    const V = { ...D0.val, dv, req: 0.15 }, p = A.calcRun(V, D0.shares, 1)[1].buy;
+    ok(p > 0 && Math.abs(A.calcRun(V, D0.shares, p)[1].ret - 0.15) < 1e-6, 'מחיר לתשואה רצויה של 15% — התשואה בתרחיש הבסיס יוצאת 15%' + (dv ? ' (עם דיבידנד)' : ''));
+  }
+  ok(A.prep(D, null, 3.7).price === 400 && !('price0' in D), 'כל כניסה לניתוח בונה מחדש מהתשובה — המחיר האמיתי');
+}
+{
+  const s = src, g = fs.readFileSync(path.join(root, 'glass-btn.css'), 'utf8');
+  ok(/S\.cv = \{\}; S\.px = null; S\.reqEd = null;/.test(s) && /S\.px = null; S\.reqEd = null; S\.pxHook = null;[^\n]*\n\s*const r = ROOT; ROOT = null/.test(s), 'כל כניסה ויציאה מהניתוח מאפסות את המחיר לבדיקה');
+  ok((s.match(/'data-dep'/g) || []).length >= 9, 'ערכים שנגזרים מהמחיר מסומנים (data-dep)');
+  ok(/function edRow\(co\)[\s\S]{0,900}pxReset/.test(s) && /edRow\(co\),\s*\n\s*h\('div', \{ class: 'an-hero' \}/.test(s), 'שורת "מה שונה" עם "החזר" בראש העמוד הראשי');
+  ok(/if \(S\.co && S\.px && S\.px\.k === 'ret'\) setPx\(S\.co, retPx\(S\.co\)\)/.test(s), 'המחיר לפי התשואה הרצויה מחושב לפני הציור');
+  ok(/\.an-pxed\b/.test(g) && /\.an-edrow-b\b/.test(g) && /\.an-pxed\.on, \.an-edrow-b\) \{ --gb-force/.test(g), 'הכפתורים החדשים בזכוכית (כתומה כשפעיל)');
+  for (const k of ['anPxEdit', 'anPxT', 'anPxEx', 'anPxApply', 'anPxErr', 'anPxReal', 'anPxWas', 'anPxRowT', 'anPxRowR', 'anPxRowS', 'anPxBack', 'anCReqPx'])
+    ok((app.match(new RegExp('\\n  ' + k + ': ', 'g')) || []).length === 2, 'מחרוזת בשתי השפות: ' + k);
+  ok(/\[data-dep\]::before/.test(css) && /--an-ed-fill:/.test(css), 'הנקודה הכתומה והצבעים בבהיר ובכהה');
+}
+
 console.log('\nכל בדיקות מנתח החברות עברו: ' + n);
 
 /* ---------- מחשבון השווי (27/10/2026, לפי ת־ניתוח) ---------- */
