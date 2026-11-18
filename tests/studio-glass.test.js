@@ -60,5 +60,11 @@ ok(/\n\s*redo: '<path /.test(icons), 'הסמל redo בשורה משלו (לא ב
 const sc = R('studio.css');
 ok(/\.st-lc-t \{[^}]*overflow-wrap: anywhere/.test(sc) && /\.st-lib-t \{[^}]*overflow-wrap: anywhere/.test(sc), 'שם קובץ ארוך בלי רווחים נשבר בכרטיס ובדף הפריט (לא נחתך מההתחלה)');
 
+// 18/11/2026: ההדר המתכווץ בגלילה — כמו ב־Invest, אבל על המכל הגולל (scroll(nearest block)), לא על השורש
+ok(/html:not\(\.dk\) \.appbar \.brand-art \{[^}]*stLogo linear both[^}]*animation-timeline: auto, scroll\(nearest block\), auto, auto/.test(body), 'הלוגו מתכווץ בגלילה, ושאר אנימציות הלוגו נשמרות');
+ok(/html:not\(\.dk\) \.appbar \.appbar-sub \{[^}]*stBub linear both[^}]*scroll\(nearest block\)/.test(body), 'הבועה בהדר מתקפלת ונעלמת בגלילה');
+ok(/@keyframes stLogo \{ to \{ scale: \.6; \} \}/.test(body) && /@keyframes stBub/.test(body) && /stScrimUp linear both/.test(body), 'אותם ערכים של Invest (0.6, הבועה, הרצועה עולה)');
+ok(!/scroll\(root/.test(body), 'בלי scroll(root) — הדף נגלל בתוך המכל, לא בשורש');
+
 if (fails.length) { console.log('\n' + fails.length + '/' + n + ' נכשלו:\n- ' + fails.join('\n- ')); process.exit(1); }
 console.log('\n' + n + ' בדיקות עברו');

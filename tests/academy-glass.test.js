@@ -47,5 +47,11 @@ ok(/html\[data-theme="dark"\]/.test(body), 'אסימונים לערכה הכהה
 ok(/--lg-tint: linear-gradient\(180deg, rgba\(96, 168, 255/.test(body), 'המבטא הכחול של Academy');
 ok(!/apple|(?<![-\w])ios\b|iphone|liquid glass|books app/i.test(css), 'בלי שמות מוצרים (לפי ת־עיצוב)');
 
+// 18/11/2026: ההדר המתכווץ בגלילה — כמו ב־Invest, אבל על המכל הגולל (scroll(nearest block)), לא על השורש
+ok(/html:not\(\.dk\) \.appbar \.brand-art \{[^}]*acLogo linear both[^}]*animation-timeline: auto, scroll\(nearest block\), auto, auto/.test(body), 'הלוגו מתכווץ בגלילה, ושאר אנימציות הלוגו נשמרות');
+ok(/html:not\(\.dk\) \.appbar \.appbar-sub \{[^}]*acBub linear both[^}]*scroll\(nearest block\)/.test(body), 'הבועה בהדר מתקפלת ונעלמת בגלילה');
+ok(/@keyframes acLogo \{ to \{ scale: \.6; \} \}/.test(body) && /@keyframes acBub/.test(body) && /acScrimUp linear both/.test(body), 'אותם ערכים של Invest (0.6, הבועה, הרצועה עולה)');
+ok(!/scroll\(root/.test(body), 'בלי scroll(root) — הדף נגלל בתוך המכל, לא בשורש');
+
 if (fails.length) { console.log('\n' + fails.length + '/' + n + ' נכשלו:\n- ' + fails.join('\n- ')); process.exit(1); }
 console.log('\n' + n + ' בדיקות עברו');
