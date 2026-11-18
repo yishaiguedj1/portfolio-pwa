@@ -75,7 +75,17 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(ST.hsOuts(parent.srv.out, rrd).map((o) => o.id).join() === 'r1,p2,p3', 'התוצרים: הסרטון המוסתר במקום הישן; הכתוביות וה־MKV — של העבודה');
   ok(ST.hsOuts(parent.srv.out, rr('done')).map((o) => o.id).join() === 'p1,p2,p3' && ST.hsPick(parent, rr('running')) === '', 'בלי הסתרה בהפקה מחדש — כרגיל');
   ok(ST.hsState(parent, rrd, true).rr === 1, 'הכרטיס יודע שהתוצאה מההפקה מחדש');
-  /* ---------- 6. בזמן הריצה, לפני הצריבה — מציעים רקע כהה (18/11/2026: canEdit דורש עבודה שהסתיימה, והכרטיס אמר "כבר התחילה") ---------- */
+  /* ---------- 6. העיצוב שייך לעבודה (18/11/2026, "בפרויקט הבא זה שמר לי את הרקע הכהה") ---------- */
+  ok(!('sty' in ST.normSettings({ sty: { bx: 1, k: 120, c: 'y' } })), 'ההגדרות לא שומרות עיצוב — עבודה חדשה מהרגיל');
+  ok(!/store\.settings\.sty/.test(sj), 'שום מקום לא כותב את העיצוב כברירת מחדל');
+  ok(JSON.stringify(ST.rrBaseSty(job('done'))) === '{"bx":1}', 'הפקה מחדש בסרטון עם כתוביות צרובות — רקע כהה מעצמו');
+  ok(JSON.stringify(ST.rrBaseSty(job('done', { spec: { sty: { k: 120, c: 'y' } } }))) === '{"k":120,"c":"y","bx":1}', 'הפקה מחדש — העיצוב של העבודה עצמה, ועוד רקע כהה');
+  ok(ST.rrBaseSty(job('done', { srv: { hs: null } })) === null && JSON.stringify(ST.rrBaseSty(job('done', { srv: { hs: null }, spec: { sty: { k: 80 } } }))) === '{"k":80}', 'בלי כתוביות צרובות — העיצוב של העבודה בלבד');
+  ok(ST.rrBaseSty(job('done', { spec: { ka: 1 } })) === null && ST.rrBaseSty(null) === null, 'קריוקי / בלי עבודה — בלי רקע כהה');
+  ok(/function rrFor\(rec\) \{ if \(rec && rrOpt\.id !== rec\.id\) Object\.assign\(rrOpt, \{ id: rec\.id, out: \{ compact: true \}, style: '', sty: undefined \}\); \}/.test(sj)
+    && /back\(\); return; \}   \/\/ 26\/10\/2026: בלי מקור אין הפקה מחדש\n  rrFor\(rec\);/.test(sj), 'אפשרויות ההפקה מחדש מתאפסות במעבר לעבודה אחרת');
+
+  /* ---------- 7. בזמן הריצה, לפני הצריבה — מציעים רקע כהה (18/11/2026: canEdit דורש עבודה שהסתיימה, והכרטיס אמר "כבר התחילה") ---------- */
   const hsCalls = sj.match(/hsState\(rec, rrJobs\.get\(rec\.id\), [^)]*\)\)?/g) || [];
   ok(hsCalls.length === 2 && hsCalls.every((c) => c === 'hsState(rec, rrJobs.get(rec.id), styEditable(rec))'), 'הכרטיס: "אפשר עוד לשנות" = styEditable בלבד (בלי canEdit)');
   for (const kk of ['studioHsT', 'studioHsS', 'studioHsGo', 'studioHsOnT', 'studioHsOnS', 'studioHsLate', 'studioHsRrS', 'studioHsRr', 'studioHsGone', 'studioHsRrRun', 'studioHsDone', 'studioHsChk', 'studioHsBadT', 'studioHsBad', 'studioHsNoChk']) {

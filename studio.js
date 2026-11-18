@@ -115,8 +115,8 @@ export function normSettings(o) {
   const stale = Number(o.bgSt) >= 2;
   if (!stale && Number.isFinite(+o.bgNo) && +o.bgNo > 0) s.bgNo = Math.floor(+o.bgNo);   // 23/10/2026: מתי הדפדפן סירב להעלאה ברקע (ננסה שוב אחרי חודש)   // מתי Google סירב לבורר במסך מלא (ננסה שוב אחרי חודש)
   if (Number.isFinite(+o.bgSl) && +o.bgSl > 0) s.bgSl = Math.floor(+o.bgSl);   // 28/10/2026: מתי העלאה ברקע הייתה איטית (ACCOUNT_KEYS — pwa_studio_v1 כולו)
-  if (o.ky && typeof o.ky === 'object') s.ky = normKy(o.ky);   // 31/10/2026: עיצוב הקריוקי (ברירת המחדל לשיר הבא)
-  const sty = normSty(o.sty); if (sty) s.sty = sty;   // סבב 5: עיצוב הכתוביות האחרון (ברירת המחדל להפקה הבאה)
+  // 18/11/2026 (בקשת המשתמש): עיצוב הכתוביות (sty) ועיצוב הקריוקי (ky) שייכים לעבודה — לא ברירת מחדל לעבודה הבאה.
+  // ערך שנשמר לפני כן נזרק כאן, ונמחק בשמירה הבאה
   if (o.lg && typeof o.lg === 'object') { const ov = normOv({ lg: o.lg.d, lp: o.lg.p, ls: o.lg.s }); if (ov) s.lg = { d: ov.lg, p: ov.lp, s: ov.ls }; }   // סבב 7: הלוגו שלך
   return s;
 }
@@ -1373,7 +1373,7 @@ function freshForm(d) {
     drive: d && d.drive && d.name ? Object.assign({ id: d.drive.id, name: d.name, size: d.size, type: d.type, dur: d.drive.dur || 0 }, d.drive.bx ? { bx: true } : {}) : null,   // או סרטון שכבר ב־Drive
     from: d ? d.from : 'auto',
     to: s.to.slice(), mode: s.mode, out: Object.assign({}, s.out), style: s.style === 'karaoke' ? 'bold' : s.style,
-    sty: normSty(store.settings.sty),   // 26/10/2026: העיצוב האחרון שבחרת = ברירת המחדל
+    sty: null,   // 18/11/2026 (בקשת המשתמש): כל עבודה חדשה מתחילה מהעיצוב הרגיל, לא ממה שבחרת בעבודה הקודמת
     terms: d ? d.terms : '',
     more: [], bt: 0,   // 01/11/2026 (סבב 3, I3): עוד סרטונים מהטלפון באותן הגדרות (רק בזיכרון) · חצי מחיר
     subs: null, sdh: 'rm', trk: null,   // שלב 4: רצועות הכתוביות שבתוך הסרטון (רק בזיכרון)   // 22/10/2026: קובץ כתוביות קיים (בזיכרון בלבד — בלי טיוטה) ומה עושים עם SDH
@@ -2425,7 +2425,7 @@ function leaving() {              // יציאה מדף: המפתח שהודבק 
   if (ui.view === 'litem') lpStop();   // 17/11/2026: הנגן של פריט בספרייה       // PR 1.5ב: דף הניתוח — המקום נשמר, הנגן נעצר, תמונות השקפים משוחררות
   if (ui.view === 'subs') seStop();      // מ2: הנגן של העורך נעצר; העריכה נשארת בזיכרון
   if (ui.view === 'cut' || ui.view === 'cutsrc') ceStop();   // מ4–מ5: החיתוך עצמו נשמר (rrEdl / form.edl)
-  if (ui.view === 'sty') syStop();   // סבב 5: העיצוב עצמו נשמר (rrOpt.sty / ההגדרות)
+  if (ui.view === 'sty') syStop();   // סבב 5: העיצוב עצמו נשמר (rrOpt.sty — לעבודה הזו)
   if (ui.view === 'ov') ovpStop();   // סבב 7: הכותרת והלוגו נשמרים (ovT / ההגדרות)
   if (ui.view === 'connect') ui.wiz = { url: ui.wiz.url, key: '', busy: false, err: '' };
   if (ui.view === 'server') ui.newToken = '';   // טוקן שרת מוצג פעם אחת — יציאה מהדף מוחקת אותו מהזיכרון
@@ -3748,7 +3748,7 @@ function pageForm(p, editing) {
   if (f.ka) {   // 26/10/2026: קריוקי — המילים, הקול, ומה לקבל (בלי שפות ובלי מצב תרגום)
     kaSection(p, f);
     p.append(secT(T('studioSecOut')), list(...KA_OUTS.map((k) => rowCheck({ label: outName(k), sub: outSub(k), on: !!f.out[k], onClick: () => { f.out[k] = !f.out[k]; render('none'); }, k: 'o:' + k }))), note(T('studioKaOutNote')));
-    const ky = normKy(store.settings.ky);   // 31/10/2026: עיצוב הקריוקי — דף משלו (במקום עיצוב הכתוביות של הסרטונים)
+    const ky = kyCur();   // 31/10/2026: עיצוב הקריוקי — דף משלו (במקום עיצוב הכתוביות של הסרטונים)
     p.append(list(rowNav({ tile: tile('edit', 'purple'), label: T('studioKyT'), value: kySchName(kySchemeOf(ky)), onClick: () => go('kasty'), k: 'kasty' })));
     const startKa = btn('st-btn wide', ui.starting ? T('studioStarting') : T('studioKaStart'), startFromForm, 'start');
     startKa.disabled = !(f.fileObj || f.drive || (f.link && f.linkOk)) || ui.starting;   // 01/11/2026: בלי מילים = תמלול אוטומטי
@@ -3783,8 +3783,7 @@ function pageForm(p, editing) {
     if (OUTS.some((k) => f.out[k])) p.append(styFold('form', f.sty || {}, (patch) => {
       fnlAdd('sty');
       const next = normSty(Object.assign({}, f.sty || {}, patch));
-      f.sty = next || null;
-      store.settings.sty = next || undefined; if (!next) delete store.settings.sty; save();   // ברירת המחדל לעבודה הבאה
+      f.sty = next || null;   // רק לעבודה הזו
       render('none');
     }));
   }
@@ -3904,7 +3903,7 @@ const viLrnSaved = () => !!(ui.lat > 0 && ui.lrn !== false && ui.api && ui.api.a
 function kaSpec(f, spec) {
   if (!f.ka) return spec;
   const out = KA_OUTS.filter((k) => f.out[k]);
-  Object.assign(spec, { ka: 1, lyr: kaLyr(f.lyr), ky: normKy(f.ky || store.settings.ky), out: out.length ? out : ['compact'], eng: 'api', cap: store.settings.cap },
+  Object.assign(spec, { ka: 1, lyr: kaLyr(f.lyr), ky: normKy(f.ky), out: out.length ? out : ['compact'], eng: 'api', cap: store.settings.cap },
     f.bv === true ? { bv: 1 } : {}, f.gv > 0 ? { gv: f.gv } : {}, kaLyr(f.lyr).trim() ? {} : { al: kaAlOf(f) });
   delete spec.cp; delete spec.ry; delete spec.edl;
   return spec;
@@ -3967,7 +3966,7 @@ function kaSection(p, f) {
 }
 /* ---------- 31/10/2026: עיצוב הקריוקי (ת־קריוקי, docs/standards.md) — דף משלו במקום "עיצוב הכתוביות" של הסרטונים.
    תצוגה חיה בראש הדף (אותה פריסה של vt/karaoke.py: שתי שורות מתחלפות, מילוי לאורך המילה, ספירה, סמן זמר), ההגדרות
-   נשמרות ב־store.settings.ky (ברירת המחדל לשיר הבא) ונשלחות ב־spec.ky ---------- */
+   נשמרות בטופס (form.ky — רק לשיר הזה; 18/11/2026: שיר חדש מתחיל מהעיצוב הרגיל) ונשלחות ב־spec.ky ---------- */
 export const KY_SCHEMES = [
   { k: 'gold', u: '#FFFFFF', c: '#FFC83D' }, { k: 'sky', u: '#FFFFFF', c: '#3DD6FF' }, { k: 'rose', u: '#FFFFFF', c: '#FF5CA8' },
   { k: 'mint', u: '#FFFFFF', c: '#30D158' }, { k: 'night', u: '#9AA6B8', c: '#FFFFFF' }];
@@ -3988,9 +3987,10 @@ export function kyPvLines(text) {
   }
   return out;
 }
-function kySet(patch) { store.settings.ky = normKy(Object.assign({}, normKy(store.settings.ky), patch)); save(); render('none'); }
+const kyCur = () => normKy(form && form.ka ? form.ky : null);
+function kySet(patch) { if (form && form.ka) form.ky = normKy(Object.assign({}, kyCur(), patch)); render('none'); }
 function kyPreview(f) {
-  const ky = normKy(store.settings.ky);
+  const ky = kyCur();
   let lines = kyPvLines(f && f.lyr);
   if (lines.length < 2) lines = [T('studioKyS1'), T('studioKyS2'), T('studioKyS3'), T('studioKyS4')].map((t, i) => ({ t, sg: [1, 2, 1, 0][i] }));
   const rtl = /[֐-׿]/.test(lines.map((x) => x.t).join(''));
@@ -4075,7 +4075,7 @@ function kyColor(val, aria, onSet, k) {
   return i;
 }
 function pageKaSty(p) {
-  const ky = normKy(store.settings.ky), f = form && form.ka ? form : null;
+  const ky = kyCur(), f = form && form.ka ? form : null;
   p.append(navBar({ back: T('studioKaNew') }), large(T('studioKyT')), kyPreview(f));
   // צבעים — ערכות מוכנות + מותאם (שני צבעים)
   const sch = kySchemeOf(ky), custom = sch === 'custom' || ui.kyCustom;
@@ -6518,7 +6518,7 @@ function hsCard(rec) {
   hd.append(ico(good ? 'check' : 'cc'), h('b', null, tt));
   c.append(hd, h('span', 'st-hs-s', ts));
   if (s.k === 'ask') c.append(btn('st-btn wide', T('studioHsGo'), () => jobStySet(rec, { bx: 1 }), 'hs-go'));
-  else if (s.k === 'rr' && canEdit(rec)) c.append(btn('st-btn wide', T('studioHsRr'), () => { rrOpt.sty = normSty(Object.assign({}, rrSty() || {}, { bx: 1 })); go('rr', rec.id); }, 'hs-rr'));
+  else if (s.k === 'rr' && canEdit(rec)) c.append(btn('st-btn wide', T('studioHsRr'), () => { rrFor(rec); rrOpt.sty = normSty(Object.assign({}, rrSty(rec) || {}, { bx: 1 })); go('rr', rec.id); }, 'hs-rr'));
   return c;
 }
 function towerLine(rec) {
@@ -9447,7 +9447,7 @@ async function rrStart(rec, prv) {
   const edl = prv ? previewEdl(rrEdl.get(rec.id) || null, rec.spec.dur || 0, t0) : rrEdl.get(rec.id) || null;
   rrBusy = true; repaint();
   try {
-    const j = await net.api('rerender', Object.assign({ job: rec.id, out, style: rrOpt.style || (RR_STYLES.includes(rec.spec.style) ? rec.spec.style : 'bold'), edl, sty: rrSty(), ov: rrOv(rec.id) }, prv ? { prv: true } : {}));
+    const j = await net.api('rerender', Object.assign({ job: rec.id, out, style: rrOpt.style || (RR_STYLES.includes(rec.spec.style) ? rec.spec.style : 'bold'), edl, sty: rrSty(rec), ov: rrOv(rec.id) }, prv ? { prv: true } : {}));
     if (!j.ok || !j.job) { flashSafe(j.error === 'rr_busy' ? T('studioRrBusy') : errText(j.error)); return; }
     const x = normJob({ id: j.job.id, srv: j.job });
     if (x) (prv ? rrPv : rrJobs).set(rec.id, x);
@@ -9480,7 +9480,15 @@ async function rrKick(x) {   // הפקה שנוצרה ולא התחילה — מ
   finally { rrBusy = false; repaint(); schedulePoll(); }
 }
 /* ---------- סבב 5: עיצוב הכתוביות (גודל, צבע, רקע, גובה) — תצוגה חיה על הסרטון, ואותה הגדרה בצריבה ---------- */
-const rrSty = () => normSty(rrOpt.sty !== undefined ? rrOpt.sty : store.settings.sty);
+/* 18/11/2026 (בקשת המשתמש): העיצוב שייך לעבודה. ההפקה מחדש מתחילה מהעיצוב של העבודה עצמה, ולא ממה שנבחר בעבודה אחרת.
+   כשבמקור יש כתוביות צרובות (hs), מתחילים עם רקע כהה שיסתיר אותן. טהור */
+export function rrBaseSty(rec) {
+  const sp = (rec && rec.spec) || {}, sv = rec && rec.srv;
+  return normSty(Object.assign({}, normSty(sp.sty) || {}, sv && sv.hs && !sp.ka ? { bx: 1 } : {}));
+}
+/* האפשרויות של ההפקה מחדש (תוצרים, סגנון, עיצוב) — לעבודה אחת. מעבר לעבודה אחרת = ברירת המחדל */
+function rrFor(rec) { if (rec && rrOpt.id !== rec.id) Object.assign(rrOpt, { id: rec.id, out: { compact: true }, style: '', sty: undefined }); }
+const rrSty = (rec) => normSty(rec && rrOpt.id === rec.id && rrOpt.sty !== undefined ? rrOpt.sty : rrBaseSty(rec));
 function stySum(st) {
   if (!st) return T('studioStyDef');
   const parts = [];
@@ -9500,10 +9508,10 @@ function syPeek(me) {   // עוצרים על כתובית של שתי שורות
   const go = () => { try { me.ctl.pause(); me.ctl.seek((c.s + c.e) / 2); } catch (e) {} };
   if (me.ctl.video.readyState >= 1) go(); else me.ctl.video.addEventListener('loadedmetadata', go, { once: true });
 }
-function stySet(patch) {
-  const next = normSty(Object.assign({}, rrSty() || {}, patch));
-  rrOpt.sty = next;
-  store.settings.sty = next || undefined; if (!next) delete store.settings.sty; save();   // ההגדרה האחרונה = ברירת המחדל להפקה הבאה
+function stySet(rec, patch) {
+  rrFor(rec);
+  const next = normSty(Object.assign({}, rrSty(rec) || {}, patch));
+  rrOpt.sty = next;   // רק להפקה הזו (18/11/2026: לא ברירת מחדל לעבודה הבאה)
   if (sy && sy.ctl) sy.ctl.setStyle(next);
   render('none');
 }
@@ -9549,8 +9557,7 @@ function styFold(key, st, set) {
 const styT = new Map();
 function jobStySet(rec, patch) {
   const next = normSty(Object.assign({}, rec.spec.sty || {}, patch));
-  if (next) rec.spec.sty = next; else delete rec.spec.sty;
-  store.settings.sty = next || undefined; if (!next) delete store.settings.sty;   // גם ברירת המחדל לעבודה הבאה
+  if (next) rec.spec.sty = next; else delete rec.spec.sty;   // רק לעבודה הזו (18/11/2026: לא ברירת מחדל לעבודה הבאה)
   save();
   clearTimeout(styT.get(rec.id));
   styT.set(rec.id, setTimeout(() => {
@@ -9582,11 +9589,12 @@ function pageSty(p) {
     if (!me.cues && co) net.driveJson(co.id).then((j) => { if (sy === me) { me.cues = normCues(j); if (me.ctl) { me.ctl.setCues(me.cues); syPeek(me); } } }, () => {});
     else syPeek(me);
   }
-  const st = rrSty() || {};
+  rrFor(rec);
+  const st = rrSty(rec) || {};
   if (sy.ctl) { sy.ctl.setStyle(st); const top = h('div', 'st-se-top'); top.append(sy.ctl.el); p.append(top); }
   else p.append(h('div', 'st-pl-ph', T('studioPlNoSw')));
-  p.append(...styControls(st, stySet));
-  if (rrSty()) p.append(btn('st-btn ghost wide', T('studioStyReset'), () => { rrOpt.sty = null; delete store.settings.sty; save(); if (sy && sy.ctl) sy.ctl.setStyle(null); render('none'); }, 'sty-reset'));
+  p.append(...styControls(st, (patch) => stySet(rec, patch)));
+  if (rrSty(rec)) p.append(btn('st-btn ghost wide', T('studioStyReset'), () => { rrOpt.sty = null; if (sy && sy.ctl) sy.ctl.setStyle(null); render('none'); }, 'sty-reset'));
   p.append(note(T('studioStyNote')));
 }
 /* ---------- סבב 7: כותרת ולוגו (בהפקה מחדש) — הכותרת לכל עבודה, הלוגו נשמר בהגדרות (המותג שלך) ---------- */
@@ -9682,6 +9690,7 @@ function pageRr(p) {
   const rec = jobRec(ui.param);
   if (!rec || !canEdit(rec)) { back(); return; }
   if (srcGone(rec) && !rrJobs.get(rec.id)) { flashSafe(T('studioSrcGone')); back(); return; }   // 26/10/2026: בלי מקור אין הפקה מחדש
+  rrFor(rec);
   p.append(navBar({ back: fileTitle(rec.spec.name) || T('studioUntitled') }), large(T('studioRrTitle')));
   const r = rrJobs.get(rec.id), st = r ? r.srv.state : '';
   if (r && (st === 'new' || st === 'queued' || st === 'running')) {
@@ -9713,7 +9722,7 @@ function pageRr(p) {
     onClick: () => { rrOpt.out[k] = !rrOpt.out[k]; repaint(); }, k: 'rr-o:' + k }))));
   const cur = rrOpt.style || (RR_STYLES.includes(rec.spec.style) ? rec.spec.style : 'bold');
   p.append(secT(T('studioSecStyle')), list(...RR_STYLES.map((k) => rowRadio({ label: styleName(k), on: k === cur, onClick: () => { rrOpt.style = k; repaint(); }, k: 'rr-s:' + k })),
-    rowNav({ tile: tile('edit', 'purple'), label: T('studioStyT'), value: stySum(rrSty()), onClick: () => go('sty', rec.id), k: 'rr-sty' }),   // סבב 5
+    rowNav({ tile: tile('edit', 'purple'), label: T('studioStyT'), value: stySum(rrSty(rec)), onClick: () => go('sty', rec.id), k: 'rr-sty' }),   // סבב 5
     rowNav({ tile: tile('film', 'orange'), label: T('studioOvT'), value: ovSum(rrOv(rec.id)), onClick: () => go('ov', rec.id), k: 'rr-ov' })));   // סבב 7
   if (dirty) p.append(note(T('studioRrDirty')));
   p.append(btn('st-btn wide', rrBusy ? T('studioStarting') : dirty ? T('studioRrSaveGo') : T('studioRrGo'), rrBusy ? null : () => (dirty ? seSave(() => rrStart(rec)) : rrStart(rec)), 'rr-go'));
@@ -9902,7 +9911,7 @@ function pageIdeas(p) {
       const rs = parseRanges(idea.text);
       shown = rs.length > 0;
       if (rs.length) p.append(secT(T('studioIdHlT')), list(...rs.map((r, i) => rowNav({ tile: tile('film', 'blue'), label: r.title || fmtT(r.a), sub: '\u2066' + fmtT(r.a) + '–' + fmtT(r.b) + '\u2069 · ' + T('studioIdHlGo'),   // טווח מבודד — לא מתהפך ב־RTL
-        onClick: () => { rrEdl.set(rec.id, normEdl({ k: [[r.a, r.b]], ar: '9:16', x: 0.5, af: true }, rec.spec.dur || 0)); rrOpt.out = { compact: true }; go('rr', rec.id); }, k: 'id-hl:' + i }))));   // סבב 9: שורטס — המסגרת עוקבת אחרי הדובר (af)
+        onClick: () => { rrEdl.set(rec.id, normEdl({ k: [[r.a, r.b]], ar: '9:16', x: 0.5, af: true }, rec.spec.dur || 0)); rrFor(rec); rrOpt.out = { compact: true }; go('rr', rec.id); }, k: 'id-hl:' + i }))));   // סבב 9: שורטס — המסגרת עוקבת אחרי הדובר (af)
     }
     if (idea.k === 'chap') {   // פרקים → לנגן: פס עם מפרידים, שם הפרק בשורת הזמן ורשימה בגלגל השיניים
       const chs = normChapters(parseChapters(idea.text));
