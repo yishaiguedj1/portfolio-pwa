@@ -94,12 +94,12 @@ function q4From(rows, ni, est, post, ann) {
           const err = Math.abs(e * s - ni), tol = 0.0051 * s + 0.02 * Math.abs(ni);
           if (err > tol) continue;
           const sc = err / (tol || 1) + Math.abs(s / est - 1);
-          if (!best || sc < best.sc) best = { eps: Math.round(e * 1e4) / 1e4, sh: s, sc, i };
+          if (!best || sc < best.sc) best = { eps: Math.round(e * 1e4) / 1e4, sh: s, sc, i, row: rs.v.map((x) => (x == null ? null : x * f * pf)) };
         }
       }
     }
   }
-  return best && { eps: best.eps, sh: best.sh, col: best.i };
+  return best && { eps: best.eps, sh: best.sh, col: best.i, row: best.row }; // row — שורת המניות כולה (בקנה המידה שלנו), לבדיקת הבסיס בשנה
 }
 
 const annOk = (re, rs, i, f, pf, ann) => !!ann && ann.sh > 0 && re.v.some((e0, j) => {

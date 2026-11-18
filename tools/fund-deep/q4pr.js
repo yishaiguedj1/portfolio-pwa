@@ -85,6 +85,8 @@ function report(sym, cik, p) {
     out.push({ sym, e: s.q[i], kind: 'xbrl', ok: !!m && Math.abs(m.eps - s.Q.eps[i]) < 0.005 && Math.abs(m.sh / s.Q.sh[i] - 1) < 0.002, ours: [s.Q.eps[i], s.Q.sh[i]], pr: m && [m.eps, m.sh] });
   }
   const ch = F.q4Press(s, p);
+  // גל 4: רבעון מתויג שהרווח למניה שלו הוחלף (לא עקבי עם הרווח — Sempra ‏2019)
+  for (const c of ch) if (!est0.includes(c.p)) { const i = s.q.indexOf(c.p); out.push({ sym, e: c.p, kind: 'tag', eps: [c.v, c.f], sh: s.Q.sh[i], ni: s.Q.ni && s.Q.ni[i] }); }
   for (const e of est0) {
     if (!s.fy.some((f) => Math.abs(Date.parse(f) - Date.parse(e)) <= 5 * 864e5)) continue;
     const i = s.q.indexOf(e), hasPr = Object.values(p).some((r) => r.rows && Math.abs(Date.parse(r.end) - Date.parse(e)) <= 5 * 864e5);
@@ -109,6 +111,7 @@ function report(sym, cik, p) {
   for (const r of all) {
     if (r.kind === 'err') T.err[r.err] = (T.err[r.err] || 0) + 1;
     else if (r.kind === 'xbrl') { T.xbrl++; if (r.ok) T.xbrlOk++; }
+    else if (r.kind === 'tag') T.tagCh = (T.tagCh || 0) + 1;
     else { T.est++; if (r.hasPr) T.estPr++; if (r.hit) T.hit++; if (r.eps[0] !== r.eps[1]) T.epsCh++; }
   }
   console.log(JSON.stringify(T), '· בקשות:', nReq);

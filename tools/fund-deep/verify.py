@@ -71,9 +71,10 @@ MET = {
     'int': dict(st=('IS',), kind='flow', u='money', tags=['InterestExpense', 'InterestExpenseNonoperating', 'InterestExpenseDebt', 'InterestAndDebtExpense',
                                                           'InterestExpenseOperating'],
                 lab=r'^interest expense'),
-    'eps': dict(st=('IS',), kind='flow', u='ps', tags=['EarningsPerShareDiluted', 'EarningsPerShareBasicAndDiluted'], lab=r'diluted'),
-    'sh': dict(st=('IS',), kind='flow', u='sh', tags=['WeightedAverageNumberOfDilutedSharesOutstanding', 'WeightedAverageNumberOfShareOutstandingBasicAndDiluted'],
-               lab=r'diluted'),
+    'eps': dict(st=('IS',), kind='flow', u='ps', tags=['EarningsPerShareDiluted', 'EarningsPerShareBasicAndDiluted',
+                                                                   'NetIncomeLossNetOfTaxPerOutstandingLimitedPartnershipUnitDiluted'], lab=r'diluted'),  # שותפות (גל 4)
+    'sh': dict(st=('IS',), kind='flow', u='sh', tags=['WeightedAverageNumberOfDilutedSharesOutstanding', 'WeightedAverageNumberOfShareOutstandingBasicAndDiluted',
+                                                                  'WeightedAverageLimitedPartnershipUnitsOutstandingDiluted'], lab=r'diluted'),
     'ocf': dict(st=('CF',), kind='flow', u='money', tags=['NetCashProvidedByUsedInOperatingActivities', 'NetCashProvidedByUsedInOperatingActivitiesContinuingOperations'],
                 lab=r'net cash.{0,30}operating activities|cash (generated|provided) by operating'),
     'capex': dict(st=('CF',), kind='flow', u='money', tags=[
@@ -95,7 +96,8 @@ MET = {
     'cash': dict(st=('BS',), kind='inst', u='money', tags=['CashAndCashEquivalentsAtCarryingValue', 'CashAndDueFromBanks', 'Cash',
                                                            'CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents'],
                  lab=r'^cash and (cash )?equivalents|^cash$|^cash and due from banks'),
-    'msec': dict(st=('BS',), kind='inst', u='money', tags=['MarketableSecuritiesCurrent', 'ShortTermInvestments', 'AvailableForSaleSecuritiesDebtSecuritiesCurrent', 'AvailableForSaleSecuritiesCurrent'],
+    'msec': dict(st=('BS',), kind='inst', u='money', tags=['MarketableSecuritiesCurrent', 'ShortTermInvestments', 'AvailableForSaleSecuritiesDebtSecuritiesCurrent', 'AvailableForSaleSecuritiesCurrent',
+                                                                    'DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent', 'OtherShortTermInvestments', 'DebtSecuritiesCurrent'],
                  lab=r'^(short-term|current) (investments|marketable securities)|^marketable securities'),
     'eq': dict(st=('BS',), kind='inst', u='money', tags=['StockholdersEquity'],
                lab=r"^total .{0,30}(stockholders|shareholders|shareowners|share owners)'? (equity|deficit|investment)"),
@@ -119,12 +121,15 @@ DEBT_ST = ['CommercialPaper', 'ShortTermBorrowings', 'OtherShortTermBorrowings',
 DEBT_RE = re.compile(r'borrowing|commercial paper|notes? payable|\bdebt\b|loans? payable|bank loans?|credit facilit|senior (unsecured )?notes|convertible (senior )?notes|debentures|bonds payable|term loan|current (portion|maturities) of long|mortgages? (payable|notes|loans)|lines? of credit|revolving|LongTermDebt|ShortTermBorrowings|CommercialPaper|NotesPayable|LinesOfCredit|LineOfCredit|Debt(Current|Noncurrent)|'
                      # "Unsecured notes" / "Long-term notes" / "Senior unsecured notes" (Invitation Homes, ‏Everest, ‏Welltower — 16/11/2026)
                      r'(long.term|unsecured|secured|subordinated|junior|senior|exchangeable|guaranteed|convertible)( senior| unsecured| subordinated)* notes|notes due|'
-                     r'SeniorNotes|SubordinatedDebt|JuniorSubordinated|SecuredDebt|UnsecuredDebt|ConvertibleDebt|OtherBorrowings|LongtermBorrowings|AdvancesFromFederalHomeLoanBanks|LoansPayable', re.I)
+                     r'SeniorNotes|SubordinatedDebt|JuniorSubordinated|SecuredDebt|UnsecuredDebt|ConvertibleDebt|OtherBorrowings|LongtermBorrowings|AdvancesFromFederalHomeLoanBanks|LoansPayable|'
+                     r'securitization (program|facilit\w*|bonds?|debt|notes|borrowings?|obligations?)', re.I)  # כמו DEBT_LAB במוצר (גל 4: Vistra, ‏DTE)
 # תגיות שאינן חוב גם כשהשם או התווית נשמעים כך (16/11/2026): "סך התחייבויות לא שוטפות חוץ מחוב" (Con Edison — נספר כחוב
-# ו"הצפוי" יצא כפול), סך ההון והחוב, רכיב ההון של אג"ח להמרה, ריבית לשלם, הנחות/עלויות הנפקה, חובות לחברות קשורות, נכסים
+# ו"הצפוי" יצא כפול), סך ההון והחוב, רכיב ההון של אג"ח להמרה, ריבית לשלם, הנחות/עלויות הנפקה, חובות לחברות קשורות, נכסים.
+# הנחות/עלויות הנפקה — רק תגית שמתחילה ב־Unamortized (כמו DEBT_NOTAG במוצר, גל 3): ‏…NetOfUnamortizedDiscount / …AfterUnamortized… הם החוב נטו (Workday, ‏Realty Income)
 NOT_DEBT_TAG = re.compile(r'OtherThanLong|^Capitalization|^EquityAndLongTermDebt|^TemporaryEquity|^ReserveForEsop|^DebtInstrumentInterestRate|'
-                          r'UnamortizedLossReacquiredDebt|UnamortizedDebtIssuance|DebtInstrumentUnamortized|DebtFairValueAdjustment|^ConvertibleDebtEquity|'
-                          r'^InterestPayable|^DueTo(Affiliate|RelatedParties)|Receivable|Investments?\b|Investments?[A-Z]|^MarketableSecurities|^AllowanceFor')
+                          r'^(\w*Instrument)?Unamortized|DebtFairValueAdjustment|^ConvertibleDebtEquity|'
+                          r'^InterestPayable|^DueTo(Affiliate|RelatedParties)|Receivable|Investments?\b|Investments?[A-Z]|^MarketableSecurities|^AllowanceFor|'
+                          r'^Liabilities(Current|Noncurrent)?$|Excluding\w*(Debt|Borrowing)')  # סך התחייבויות — לא חוב גם בתווית של חוב (LH ‏10-Q ‏2016), גם "…ExcludingLongTermDebt" (Con Edison) — גל 4
 # פסוקית "including …" / "net of …" בסוף התווית — לא משנה את סוג השורה (VeriSign: "Convertible debentures, including contingent interest
 # derivative" — חוב, לא נגזר)
 INCL_RE = re.compile(r',?\s*\(?(including|includes|net of)\b.*$', re.I)
@@ -135,6 +140,8 @@ CP_RE = re.compile(r'commercial paper', re.I)
 PAYABLE_LAB = re.compile(r'accounts payable|structured payables?|supplier financ|trade payables?|securities lending|repurchase agreements?', re.I)
 DEBT_EXCL = re.compile(r'operating lease|interest payable|accrued|accounts payable|deferred|debt securities|held.for.sale|derivative|due to (related|affiliat)|guarantee|total liabilities|liabilities of|customer|deposits|payable to(?! banks?\b)|insurance|policy|unearned|pension|tax|dividend|issuance cost', re.I)
 LEASE_RE = re.compile(r'finance lease|capital lease', re.I)
+TOTAL_RE = re.compile(r'^\s*total\b|,\s*total\s*$', re.I)
+FACE_RE = re.compile(r'^\s*(face[- ]?value|principal amount)\b', re.I)  # גל 4 (Kroger)
 ST_RE = re.compile(r'short.?term (borrowings|debt|notes|loans)|commercial paper|notes payable|bank (loans|overdraft)|loans payable|(?<!long.term )borrowings(?! .*long)', re.I)
 CUR_RE = re.compile(r'current (portion|maturities)|due within one year|currently due|current$|, current', re.I)
 LEASE_FIN = ['FinanceLeaseLiabilityNoncurrent', 'FinanceLeaseLiabilityCurrent', 'FinanceLeaseLiability', 'CapitalLeaseObligationsNoncurrent', 'CapitalLeaseObligationsCurrent']
@@ -700,12 +707,16 @@ class Co:
         a0 = ln.get('Assets')
         lc = ln.get('LiabilitiesCurrent')
         parts, used = [], []
+        grp = 0  # הקבוצה: מתחלפת אחרי כל שורת "Total" (חוב או לא) — כמו debtFace במוצר (גל 4)
         for r in rows:
             tag, lab, val, pos = r[6], INCL_RE.sub('', r[7] or ''), r[11], (r[14] or 0, r[5])
             if a0 and pos <= a0:
                 continue
             txt = tag + ' ' + lab
+            # "Total …" / "…, Total" (התווית התקנית — Kenvue ‏"Liabilities, Current, Total"), וסך ההתחייבויות בכל תגית
+            is_tot = bool(TOTAL_RE.search(r[7] or '')) or tag in ('LiabilitiesCurrent', 'LiabilitiesNoncurrent', 'Liabilities')
             if NOT_DEBT_TAG.search(tag) or (DEBT_EXCL.search(txt) and tag not in DEBT_ALL) or (PAYABLE_LAB.search(lab) and not CP_RE.search(lab)):
+                grp += is_tot
                 continue
             if tag in LEASE_FIN or (LEASE_RE.search(lab) and not DEBT_RE.search(re.sub(LEASE_RE, '', lab))):
                 kind = 'lease'
@@ -719,6 +730,22 @@ class Co:
                 else:
                     kind = 'nc'
             else:
+                grp += is_tot
+                continue
+            if is_tot:
+                # שורת "Total" של חוב — במקום שורות הקבוצה שלפניה, גם כשביניהן שורות שאינן חוב (גל 4: AWK "Total long-term debt" כולל
+                # מניות בכורה ‏3M; ‏KMI — התאמת שווי הוגן; ‏DTE — חכירה ועלויות הנפקה). עד גל 4 נספרו גם הפירוט וגם הסך (~130 תאריכים)
+                prev = [u for u in used if u[3] == grp]
+                sm, al = sum(u[2] for u in prev), sum(u[2] for u in used)
+                grp += 1
+                if prev and abs(sm - val) <= max(1e6, 1e-4 * abs(val)):
+                    continue  # הסך = השורות בדיוק — השורות נשארות (הסוגים שלהן); קרוב בלבד (DTE: אגרות איגוח ‏172 שאינן בשורות) — הסך
+                if prev and len(used) > len(prev) and abs(al - val) <= 1e-3 * abs(val):
+                    used = [(kind, lab, val, grp - 1)]  # סך של כל הקבוצות (Regions — כמו במוצר)
+                    continue
+                if not (sm > 0 and val < 0.99 * sm):  # "Total" קטן מהשורות — לא הסך שלהן (Vulcan — כמו במוצר)
+                    used = [u for u in used if u[3] != grp - 1]
+                used.append((kind, lab, val, grp - 1))
                 continue
             # סכום־ביניים: שווה לסכום 2+ השורות האחרונות שנספרו
             acc, sub = 0, False
@@ -729,7 +756,12 @@ class Co:
                     break
             if sub:
                 continue
-            used.append((kind, lab, val))
+            # "Face-value of …" ואחריה (אחרי שורת התאמה שאינה חוב) אותו חוב בערך בספרים, בלי "Total" (Kroger ‏2012–2014:
+            # ‏6,141 ‏+ התאמת גידור = ‏6,145 — נספרו שתיהן) — הערך בספרים במקום הנקוב
+            if used and used[-1][0] == kind and FACE_RE.search(used[-1][1]) and abs(used[-1][2] - val) <= 0.02 * abs(val):
+                used.pop()
+            used.append((kind, lab, val, grp))
+        used = [u[:3] for u in used]
         S = {}
         for kind, lab, val in used:
             S[kind] = S.get(kind, 0) + val
