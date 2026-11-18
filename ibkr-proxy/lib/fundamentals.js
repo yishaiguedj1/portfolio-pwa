@@ -524,6 +524,29 @@ function tagGap(a, b) {
   diffs.sort((x, y) => x - y);
   return diffs[(diffs.length - 1) >> 1]; // מסכימה לפחות בחצי מהתקופות המשותפות = אותו מדד (עם תיקונים לאחור)
 }
+/* תגית משלימה שאין לה אף תקופה משותפת עם הסדרה: לכל תקופה שלה — התקופה הקרובה בסדרה באותו אורך (עד שנה וחצי לפני/אחרי), באותו
+   סימן. החציון של היחסים רחוק פי NB_FAR ויותר = מדד אחר (רכיב, ביאור) — לא משלימים. בלי שכן להשוואה — כמו היום (משלימים) */
+const NB_FAR = 4;
+function nbFar(m, f) {
+  const r = [];
+  for (const [kk, v] of f.dur) {
+    const [s, e] = kk.split('|'), L = day(e) - day(s);
+    let best = null, bd = 550;
+    for (const [k2, h] of m.dur) {
+      const [s2, e2] = k2.split('|'); if (Math.abs(day(e2) - day(s2) - L) > 20) continue;
+      const d = Math.abs(day(e2) - day(e)); if (d < bd) { bd = d; best = h; }
+    }
+    if (best && best.v && v.v && Math.sign(best.v) === Math.sign(v.v)) r.push(Math.abs(Math.log(Math.abs(v.v) / Math.abs(best.v))));
+  }
+  for (const [e, v] of f.inst) {
+    let best = null, bd = 550;
+    for (const [e2, h] of m.inst) { const d = Math.abs(day(e2) - day(e)); if (d < bd) { bd = d; best = h; } }
+    if (best && best.v && v.v && Math.sign(best.v) === Math.sign(v.v)) r.push(Math.abs(Math.log(Math.abs(v.v) / Math.abs(best.v))));
+  }
+  if (!r.length) return false;
+  r.sort((a, b) => a - b);
+  return r[(r.length - 1) >> 1] > Math.log(NB_FAR);
+}
 function mergeTags(fs, lock, qclash, best) {
   const last = (f) => { let e = ''; for (const kk of f.dur.keys()) { const x = kk.split('|')[1]; if (x > e) e = x; } for (const x of f.inst.keys()) if (x > e) e = x; return e; };
   const has = fs.map((f) => f.dur.size + f.inst.size > 0);
@@ -544,6 +567,9 @@ function mergeTags(fs, lock, qclash, best) {
     const f = fs[i];
     if (i !== spine) {
       const g = tagGap(m, f);
+      // בלי תקופה משותפת אין עדות שזה אותו מדד — רק כשהיא סבירה מול השכנים (גל 5 בבדיקת העומק, F21): Howmet ‏2018 — ריבית 19
+      // מ־InterestExpenseDebt (רכיב) מול ~300 בשנים הסמוכות
+      if (g == null && nbFar(m, f)) continue;
       if (g != null && g > MERGE_TOL) {
         // השקעות הוניות (qclash): תגית שנדחתה בגלל שנים שלא מסכימות — המצטברים הרבעוניים שלה עדיין נכנסים בשנים שאין לה
         // בהן ערך שנתי משלה (אין עדות שהיא מודדת שם משהו אחר). WEC: ב־10-K ‏"Capital expenditures" עבר ל־

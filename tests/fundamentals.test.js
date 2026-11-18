@@ -1371,6 +1371,10 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
       const st3 = new Map(), t3 = await BSF.tick({ ...td, store: { get: (k) => st3.get(k), put: (k, o) => st3.set(k, o) }, budgetMs: 1, getText: async (u) => { await new Promise((r) => setTimeout(r, 3)); return gt(u); } });
       const o3 = st3.get(BSF.key('1'));
       ok(t3.i === 0 && (!o3 || !o3.at), '(24) tick בתקרת זמן: החברה לא מסומנת כגמורה, והסבב הבא מתחיל ממנה');
+      // תקלה קבועה בחברה אחת (קובץ שנכשל בכל ניסיון) — לא עוצרת את הסבב: הבאות נקראות, והיא לא מסומנת כגמורה (גל 5)
+      const st4 = new Map(), t4 = await BSF.tick({ ...td, store: { get: (k) => st4.get(k), put: (k, o) => st4.set(k, o) },
+        getText: async (u) => { if (/\/1\/x1\//.test(u)) throw new Error('http_503'); return gt(u); } });
+      ok(t4.done === 3 && t4.failed === 1 && !st4.get(BSF.key('1')).at && st4.get(BSF.key('3')).at, '(24) tick: תקלה קבועה בחברה אחת — ממשיכים לבאות');
     }
   }
 
@@ -1592,6 +1596,15 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     const fr = F.normalizeSec({ facts: { 'ifrs-full': ig } }, [], null), k = fr.fy.indexOf('2024-12-31');
     ok(fr.A.buy[k] === 45 && fr.A.rnd[k] === 75 && fr.A.divp[k] === 33 && fr.A.dep[k] === 22 && fr.A.msec[k] === 9,
       '(31) IFRS: רכישה חוזרת, מו״פ, דיבידנד לבעלי המניות, פחת ("Depreciation") וני״ע לזמן קצר');
+  }
+  /* ---------- (32) השלמה בלי תקופה משותפת — סבירה מול השכנים (18/11/2026, גל 5 — F21) ---------- */
+  {
+    const base = [['Revenues', 'USD', yrs([500, 510, 520, 530], 2018)], ['NetIncomeLoss', 'USD', yrs([50, 51, 52, 53], 2018)]];
+    // Howmet ‏2018: ‏InterestExpenseDebt ‏19 (רכיב) מול ~300 בשנים הסמוכות — לא משלימים
+    const hw = F.normalizeSec(facts([...base, ['InterestExpense', 'USD', yrs([300, 310, 320], 2019)], ['InterestExpenseDebt', 'USD', yrs([19], 2018)]]), [], null);
+    ok(hw.A.int[hw.fy.indexOf('2018-12-31')] == null && hw.A.int[hw.fy.indexOf('2019-12-31')] === 300, '(32) השלמה רחוקה פי 16 מהשכנה — לא נכנסת');
+    const ok2 = F.normalizeSec(facts([...base, ['InterestExpense', 'USD', yrs([300, 310, 320], 2019)], ['InterestExpenseDebt', 'USD', yrs([280], 2018)]]), [], null);
+    ok(ok2.A.int[ok2.fy.indexOf('2018-12-31')] === 280, '(32) השלמה סבירה מול השכנה — נכנסת כמו היום');
   }
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });

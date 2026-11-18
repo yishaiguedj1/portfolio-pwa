@@ -213,19 +213,22 @@ async function tick(deps = {}) {
   const st = deps.store ? deps.store.get(STATE) || {} : await (async () => { const c = deps.r2c || R2.config(); if (!c.ok) return null; try { return JSON.parse((await R2.getText(c, deps, STATE)) || '{}'); } catch (e) { return {}; } })();
   if (!st) return { ok: false, error: 'no_r2' };
   const cmap = await deps.cikMap();
-  let i = (st.i || 0) % syms.length, done = 0, added = 0, k = 0;
+  let i = (st.i || 0) % syms.length, done = 0, added = 0, k = 0, failed = 0;
   for (; k < syms.length && Date.now() - t0 < budget; k++, i = (i + 1) % syms.length) {
     const cik = cmap.get(deps.secSym ? deps.secSym(syms[i]) : syms[i]);
     if (!cik) continue;
     const o = await getObj(cik, deps).catch(() => null);
     if (o && o.at && (deps.now || Date.now()) - Date.parse(o.at) < FRESH) continue;
-    try { const r = await fillAll(cik, { ...deps, getText, budgetMs: budget - (Date.now() - t0) }); done++; added += r.added; if (r.left) break; }
+    // נשאר חסר כי נגמר התקציב — עוצרים, והסבב הבא ממשיך מאותה חברה. נשאר חסר בגלל תקלה (קובץ שנכשל בכל ניסיון: timeout,
+    // ‏403/500) — ממשיכים לחברה הבאה; היא תנוסה שוב בסבב הבא על הרשימה. עד 18/11/2026 גם תקלה עצרה את הסבב, וחברה אחת כזו
+    // תקעה אותו (בכל 10 דק׳ — רק היא; גל 5 בבדיקת העומק)
+    try { const r = await fillAll(cik, { ...deps, getText, budgetMs: budget - (Date.now() - t0) }); done++; added += r.added; if (r.left && Date.now() - t0 >= budget) break; if (r.left) failed++; }
     catch (e) { /* חברה אחת — לא עוצרת את הסבב */ }
   }
   const ns = { i, at: new Date(deps.now || Date.now()).toISOString() };
   if (deps.store) deps.store.put(STATE, ns);
   else { const c = deps.r2c || R2.config(); if (c.ok) await R2.putText(c, deps, STATE, JSON.stringify(ns), 'application/json').catch(() => {}); }
-  return { ok: true, done, added, i, ms: Date.now() - t0 };
+  return { ok: true, done, added, failed, i, ms: Date.now() - t0 };
 }
 
 module.exports = { load, fillAll, tick, slim, slimCf, needCf, periodic, readOne, readCf, readPr, merge8k, key, PRE, V, SINCE_Y, MAX_LIVE };
