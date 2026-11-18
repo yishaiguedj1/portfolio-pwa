@@ -42,6 +42,27 @@ function t(key, vars) {
   }
   return s;
 }
+/* 18/11/2026 (בקשת המשתמש, צילום — הטקסט בבועות ההדר גלש ונחתך): בועה שלא נכנסת בשורה אחת (אנגלית, גופן מוגדל בטלפון) —
+   קודם יורד הכיתוב המשני (pf1: נשארים הסמל והערך), ואז התוספת "· דיליי"/"· חג" (pf2), ובסוף הערך קטן יותר (pf3) — לעולם לא נחתך.
+   נמדד רק כשהתוכן משתנה, בשינוי גודל ואחרי טעינת הגופנים (Invest: app.js, Academy/Studio: statusSet ב־shell.js) */
+function hdrPillFit(p) {
+  if (!p || !p.classList || typeof getComputedStyle === 'undefined') return;
+  p.classList.remove('pf1', 'pf2', 'pf3');
+  if (!p.clientWidth) return;
+  const cs = getComputedStyle(p);
+  const over = () => {
+    const kids = [...p.children].filter((c) => c.getClientRects().length);
+    const need = kids.reduce((a, c) => a + c.scrollWidth, 0) + (parseFloat(cs.columnGap) || 0) * Math.max(0, kids.length - 1);
+    return need > p.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0) + 0.5;
+  };
+  if (over()) { p.classList.add('pf1'); if (over()) { p.classList.add('pf2'); if (over()) p.classList.add('pf3'); } }
+}
+function hdrPillsFit() { if (typeof document !== 'undefined') document.querySelectorAll('.appbar .appbar-sub > *, .appbar .fx-pill').forEach(hdrPillFit); }
+if (typeof window !== 'undefined' && window.addEventListener) {
+  let _pfR = 0;
+  window.addEventListener('resize', () => { cancelAnimationFrame(_pfR); _pfR = requestAnimationFrame(hdrPillsFit); });
+  if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(hdrPillsFit, () => {});
+}
 
 function getThemeMode() {
   try { const v = localStorage.getItem(LS_THEME); return v === 'dark' || v === 'light' ? v : 'system'; }
@@ -388,8 +409,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.178.1';
-const APP_VERSION = 'v825';
+const APP_RELEASE = '2.178.2';
+const APP_VERSION = 'v826';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');

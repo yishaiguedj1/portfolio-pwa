@@ -208,11 +208,18 @@ export function statusSet(sub, node) {
       if (cur.innerHTML !== node.innerHTML) cur.replaceChildren(...node.childNodes);
     }
     sub._fwd = node; sub.hidden = false;
+    pillFitSoon(cur);
     return cur;
   }
   sub._fwd = null;
   sub.textContent = ''; if (node) sub.append(node); sub.hidden = !node;
+  pillFitSoon(node);
   return node;
+}
+/* 18/11/2026: הבועה בשורה אחת — אם לא נכנסת, הכיתוב המשני יורד (hdrPillFit מ־core.js); בפריים הבא, כשההדר כבר בדף */
+function pillFitSoon(p) {
+  if (!p || typeof hdrPillFit !== 'function') return;
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => hdrPillFit(p)); else hdrPillFit(p);
 }
 
 /* מסך הכניסה של Academy ו־Studio (13/10/2026, בקשת המשתמש: "מסך התחברות כזה בכל העמודים") — אותו מסך של Invest

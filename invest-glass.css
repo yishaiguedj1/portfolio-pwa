@@ -49,15 +49,28 @@ main .earn-row.soon .earn-cal { background: color-mix(in srgb, var(--primary) 16
 .appbar .icon-btn { color: var(--on-surface) !important; }
 .appbar .icon-btn svg.ic { stroke: var(--on-surface) !important; }
 .appbar .icon-btn .face-main { font-weight: 600 !important; }
+/* 18/11/2026 (בקשת המשתמש, צילום — הטקסט גלש ונחתך ב־367): בועות ההדר בשורה אחת אחידה — כמו ב־Studio וב־Academy:
+   סמל · כיתוב משני (מתקצר ראשון) · ערך מודגש (לא נחתך), ממורכז; התוכן הקצר (app.js) נכנס ב־360 */
 html:not(.dk) .appbar :is(#sourceLabel .st-pill, .fx-pill) { border-radius: 999px !important; background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important;
   -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important; height: 40px !important; min-height: 0 !important; margin-top: 4px !important;
-  flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 6px !important; padding: 0 14px !important; border: 0 !important; }
-html:not(.dk) .appbar #sourceLabel .st-pill .sub-cap, html:not(.dk) .appbar .fx-pill > :first-child { font-size: 13px !important; font-weight: 500 !important; color: var(--on-surface-var) !important; }
-html:not(.dk) .appbar #sourceLabel .st-pill .sub-val { font-size: 15px !important; font-weight: 600 !important; color: var(--on-surface-var) !important; }
-html:not(.dk) .appbar .fx-pill { white-space: nowrap !important; padding: 0 8px !important; gap: 4px !important; }
-html:not(.dk) .appbar .fx-pill .fx-pill-label { font-size: 11.5px !important; gap: 3px !important; }
-html:not(.dk) .appbar .fx-pill .fx-pill-value { display: inline-flex !important; align-items: baseline !important; gap: 1px !important; font-size: 14px !important; font-weight: 600 !important; }
+  flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important; justify-content: center !important; gap: 4px !important; padding: 0 10px !important;
+  border: 0 !important; white-space: nowrap !important; overflow: hidden !important; min-width: 0 !important; }
+html:not(.dk) .appbar :is(#sourceLabel .st-pill .sub-cap, .fx-pill .fx-pill-label) { display: inline-flex !important; align-items: center !important; gap: 4px !important; flex: 0 1 auto !important;
+  min-width: 0 !important; max-width: none !important; overflow: hidden !important; text-overflow: ellipsis !important; font-size: 13px !important; font-weight: 500 !important; line-height: 1.2 !important; color: var(--on-surface-var) !important; }
+html:not(.dk) .appbar #sourceLabel .st-pill .sub-cap:empty { display: none !important; }
+html:not(.dk) .appbar #sourceLabel .st-pill i { width: 7px !important; height: 7px !important; box-shadow: none !important; background: var(--gain) !important; }   /* נקודה נקייה (הטבעת נחתכה בקצה) — ירוקה = חי */
+html:not(.dk) .appbar #sourceLabel .st-pill.delay i { background: var(--on-surface-var) !important; opacity: .6; }
+html:not(.dk) .appbar :is(#sourceLabel .st-pill .sub-val, .fx-pill .fx-pill-value) { display: inline-flex !important; align-items: baseline !important; gap: 1px !important; flex: none !important; max-width: none !important; overflow: visible !important;
+  font-size: 15px !important; font-weight: 600 !important; line-height: 1.2 !important; }
+html:not(.dk) .appbar #sourceLabel .st-pill .sub-val { color: var(--on-surface) !important; }
+html:not(.dk) .appbar #sourceLabel .st-pill.closed .sub-val { color: var(--on-surface-var) !important; }   /* סגור — מעומעם */
+html:not(.dk) .appbar #sourceLabel .st-pill .sub-val small { font-size: 13px !important; font-weight: 500 !important; opacity: 1 !important; }
 html:not(.dk) .appbar .fx-pill .fx-num { color: var(--on-surface) !important; }
+/* מצב "צפוף" (hdrPillFit): pf1 — בלי הכיתוב המשני (הסמל והערך נשארים), pf2 — גם בלי התוספת, pf3 — ערך קטן יותר */
+html:not(.dk) .appbar :is(#sourceLabel .st-pill, #fxPill).pf1 :is(.sub-cap, .fx-pill-label) { font-size: 0 !important; gap: 0 !important; }
+html:not(.dk) .appbar #fxPill.pf1 .fx-pill-label > :not(.ext-dot) { display: none !important; }
+html:not(.dk) .appbar #sourceLabel .st-pill.pf2 .sub-val small { display: none !important; }
+html:not(.dk) .appbar :is(#sourceLabel .st-pill, #fxPill).pf3 :is(.sub-val, .fx-pill-value) { font-size: 13px !important; }
 .appbar::before { -webkit-backdrop-filter: blur(14px) saturate(1.5) !important; backdrop-filter: blur(14px) saturate(1.5) !important;
   background: color-mix(in srgb, var(--bg) 72%, transparent) !important; }
 

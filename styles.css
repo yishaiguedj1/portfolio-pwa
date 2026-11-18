@@ -618,10 +618,10 @@ html[data-app="academy"] .appbar .brand, html[data-app="studio"] .appbar .brand 
   html:not(.dk):where(:not([data-app="admin"])) .appbar .icon-btn { width: var(--ib); height: var(--ib); }
   html:not(.dk):where(:not([data-app="admin"])) .appbar-row { grid-template-rows: var(--ib) var(--pill-h); row-gap: 8px; }
   html:not(.dk):where(:not([data-app="admin"])) .appbar h1.brand { grid-row: 1 / 3; }
-  html:not(.dk):where(:not([data-app="admin"])) .appbar-left > .appbar-sub { justify-self: stretch; margin-inline-end: 10px; }
-  html:not(.dk):where(:not([data-app="admin"])) .appbar-left > .fx-pill { justify-self: stretch; margin-inline-start: 10px; }
-  html:not(.dk)[dir="ltr"]:where(:not([data-app="admin"])) .appbar-left > .appbar-sub { margin-inline: 10px 0; }   /* הרשת תמיד rtl — בצד של הלוגו */
-  html:not(.dk)[dir="ltr"]:where(:not([data-app="admin"])) .appbar-left > .fx-pill { margin-inline: 0 10px; }
+  html:not(.dk):where(:not([data-app="admin"])) .appbar-left > .appbar-sub { justify-self: stretch; margin-inline-end: 6px; }
+  html:not(.dk):where(:not([data-app="admin"])) .appbar-left > .fx-pill { justify-self: stretch; margin-inline-start: 6px; }
+  html:not(.dk)[dir="ltr"]:where(:not([data-app="admin"])) .appbar-left > .appbar-sub { margin-inline: 6px 0; }   /* הרשת תמיד rtl — בצד של הלוגו */
+  html:not(.dk)[dir="ltr"]:where(:not([data-app="admin"])) .appbar-left > .fx-pill { margin-inline: 0 6px; }
   html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .fx-pill, .appbar .appbar-sub > *) { width: auto; min-height: 0; height: var(--pill-h); }
   html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .appbar-sub > :has(> .sub-cap), .appbar .fx-pill) { padding: 3px 8px; gap: 1px; }
   html:not(.dk):where(:not([data-app="admin"])) :is(.appbar .sub-cap, .fx-pill-label) { font-size: 11.5px; line-height: 1.2; gap: 4px; }
