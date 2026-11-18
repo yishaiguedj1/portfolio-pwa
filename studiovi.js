@@ -436,6 +436,7 @@ export function renderVi(ctx) {
     el.append(h('div', 'st-banner warn st-vi-trunc', T('studioViTrunc', { a: fmtT(v.video.dur), b: fmtT(v.video.decl) })));
   }
   el.append(hd);
+  if (ctx.libAct) el.append(ctx.libAct);   // 18/11/2026: "שמירה לספרייה" — מתחת לכותרת (ctx.libAct מ־studio.js; לא בדף ששותף)
   const mode = placeMode(ctx.place, ctx.now());
   if (mode === 'ask') {
     const rb = btn('st-btn tint sm st-vi-resume', T('studioViResume', { t: fmtT(ctx.place.t) }), () => { rb.remove(); restore(ctx.place); playAt(ctx.place.t); }, 'vi-resume');

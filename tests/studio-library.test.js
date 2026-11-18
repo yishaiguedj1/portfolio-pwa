@@ -91,5 +91,12 @@ const R = 'R2_jLIBjobAAAAAAAAAAAAAA';
   const cssS = read('studio.css');
   ok(/\.st-cm \{[^}]*position: fixed[^}]*backdrop-filter/.test(cssS) && /prefers-reduced-motion: reduce\) \{ \.st-cm \{ animation: none/.test(cssS) && /prefers-reduced-transparency: reduce\) \{ \.st-cm/.test(cssS) && /\.st-rs\.st-cm-veil \{[^}]*blur\(5px\)/.test(cssS),
     'העיצוב: זכוכית צפה, טשטוש עדין מאחור, בלי תנועה/שקיפות לפי הגדרות הנגישות');
+  /* 18/11/2026: "שמירה לספרייה" — בראש דף הניתוח (ctx.libAct, לא בדף ששותף) ובכרטיס הראש של התרגום והקריוקי ליד "צפייה" */
+  const viS = read('studiovi.js');
+  ok(/el\.append\(hd\);\s*if \(ctx\.libAct\) el\.append\(ctx\.libAct\);/.test(viS) && /libAct: libBtn\(rec\)/.test(sj), 'דף הניתוח: "שמירה לספרייה" מיד מתחת לכותרת');
+  ok(/const hacts = h\('div', 'st-hacts'\);[\s\S]{0,300}T\('studioPlWatch'\)[\s\S]{0,120}hacts\.append\(libBtn\(rec, true\)\);\s*hero\.append\(hacts\)/.test(sj) && !/function libRow\(/.test(sj), 'התרגום והקריוקי: "לספרייה" ליד "צפייה" בכרטיס הראש (במקום השורה ברשימה)');
+  ok(/if \(st \+ ':' \+ pc === key\) return;/.test(sj) && /b\.disabled = true;/.test(sj) && /go\('litem', lv\.m\)/.test(sj), 'הכפתור: מצויר מחדש רק כשהמצב משתנה, כבוי בזמן השמירה, "בספרייה" פותח את הפריט');
+  ok(['studioLibSave', 'studioLibRunS'].every((k) => (appS.match(new RegExp(k + ': "', 'g')) || []).length === 2) && !/studioLibAdd/.test(appS), 'מחרוזות הכפתור בעברית ובאנגלית, והישנות הוסרו');
+  ok(/\.st-hacts > \.st-btn, \.st-hlib > \.st-btn \{ flex: 1 1 0/.test(cssS) && /\.st-hlib \{ display: contents; \}/.test(cssS), 'העיצוב: זוג כפתורים ברוחב שווה');
   console.log(n + ' בדיקות עברו');
 })().catch((e) => { console.error('✗', e); process.exit(1); });

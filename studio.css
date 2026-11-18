@@ -1087,7 +1087,13 @@ button.st-fnd:active { background: var(--st-fill); }
 /* הערה ל־Claude — שורה אחת בקבוצה, בלי כותרת מקטע מעליה */
 /* הסתיימה: ✓ גדול בטבעת, וכפתור הצפייה בתוך כרטיס הראש */
 .st-ring.ok b { font-size: 28px; font-weight: 700; color: var(--st-ok); }
-.st-jhero > .st-btn.in-card { margin-top: 0; }
+/* 18/11/2026: "צפייה" ולידו "לספרייה" — זוג כפתורים ברוחב שווה לפי ת־עיצוב (ראשי צבעוני + משני שקוף); כפתור יחיד — ברוחב מלא */
+.st-hacts { display: flex; flex-wrap: wrap; gap: 10px; }
+.st-hacts:not(:has(button)) { display: none; }
+.st-hacts > .st-btn, .st-hlib > .st-btn { flex: 1 1 0; white-space: nowrap; padding-inline: 14px; }   /* בלי שבירת שורה: בטלפון צר הכפתור יורד לשורה מלאה */
+.st-hlib { display: contents; }
+.st-hacts .st-btn svg, .st-vi-lib .st-btn svg { width: 20px; height: 20px; flex: none; }
+.st-hacts .st-lib-err { flex-basis: 100%; font-size: 13px; }
 
 /* ---------- 25/10/2026 — ההגדרות והמגדל באותה שפה ----------
    בחירה אחת מכמה = ✓ בסוף השורה (לפי ת־עיצוב), בלי עיגולים ריקים. הירוק — סימון מצב */
@@ -1296,6 +1302,9 @@ html.st-dock .toast { bottom: calc(var(--dock-pad, var(--dock-h, 120px)) + 12px 
 .st-vi-trust b { color: var(--st-ok-ink); font-weight: 600; }
 [data-theme="dark"] .st-vi-trust b { color: var(--st-ok); }
 .st-vi-resume { margin: 0 16px 12px; }
+.st-vi-lib { margin: 0 0 14px; }   /* 18/11/2026: "שמירה לספרייה" בראש דף הניתוח — כמו "צפייה" */
+.st-vi-lib:empty { display: none; }
+.st-vi-lib .st-lib-err { display: block; margin: 6px 16px 0; font-size: 13px; }
 .st-vi-draft { align-items: center; }
 .st-vi-vv { flex: none; margin-inline-start: auto; }   /* PR 1.2ג: "אמת שוב" בקצה פס הטיוטה */
 .st-vi-vv-busy { font-weight: 500; white-space: nowrap; }
