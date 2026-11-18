@@ -221,6 +221,10 @@ def poll(server: str, tok: str, op: str = 'poll', busy: str = '', fit: dict | No
         if held:
             hb['dl'] = 1                 # מסך השרת: "לא לוקח עבודות — הדיסק מלא"
         body = {'op': op, 'v': 1, 'hb': hb}
+        try:
+            hb['mm'] = mem_view()        # 18/11/2026: מסך השרת — השריון של כל מסלול והשיאים האחרונים (ובאיזה שלב)
+        except Exception:     # noqa: BLE001 — תצוגה בלבד
+            pass
         if fit:
             body['fit'] = fit
         if op == 'poll' and BT_READY:
@@ -248,6 +252,8 @@ def poll(server: str, tok: str, op: str = 'poll', busy: str = '', fit: dict | No
                 out['vi'] = 1                          # 9/11/2026 (גל 0): ניתוח סרטונים — perf_kind / MEM_PRIOR['vi']
             if jb.get('vo') == 1:
                 out['vo'] = 1                          # PR 1.2ג: "אמת שוב" — רק האימות (קל, כמו גיליון ה־AI)
+            if jb.get('mk') in ('ka', 'vh', 'vx'):
+                out['mk'] = jb['mk']                   # 18/11/2026: המסלול לזיכרון — mem_kind
             if isinstance(jb.get('dur'), (int, float)) and 0 < jb['dur'] <= 86400:
                 out['dur'] = jb['dur']                 # 21/10/2026: אורך הסרטון — להזמנת הזיכרון
             return {'job': out}
@@ -848,7 +854,17 @@ MEM_DB = Path(os.environ.get('SNB_MEM_DB', '/cache/snb-mem.json'))
 # השיא הצפוי לפי סוג העבודה: [קבוע MB, MB לדקת סרטון]. תרגום: היישור ב־ONNX תחת gVisor 4.2GB ל־5 דק׳ (נמדד 10/10),
 # ‏CTC לפני השחרור 5.3GB לשעה ועשרים (20/10) — לכן קבוע גבוה ושיפוע מתון. הפקה מחדש = צריבה; גיליון AI = קריאות בלבד.
 # vi (9/11/2026, ניתוח סרטונים — גל 0): כמו tr, כי היישור הוא השיא (התוכנית 3.3); = MEM_VI ב־analyze.py. ה־0.4 מכייל מהמדידה
-MEM_PRIOR = {'tr': (4600, 22), 'rr': (2200, 6), 'ai': (700, 0), 'dx': (400, 0), 'vi': (4600, 22), 'lb': (700, 0)}   # dx — רק העתקה · lb — הורדה וקידוד 240p (= fit.ai בשרתון)
+MEM_PRIOR = {'tr': (4600, 22), 'rr': (2200, 6), 'ai': (700, 0), 'dx': (400, 0), 'vi': (4600, 22), 'lb': (700, 0),   # dx — רק העתקה · lb — הורדה וקידוד 240p (= fit.ai בשרתון)
+             'ka': (4600, 22), 'vh': (4600, 22)}
+# 18/11/2026 (בקשת המשתמש: תרגום של 25 דק׳ מאנגלית "צריך 11GB" ולא נכנס ליד ניתוח בעברית): הזיכרון לפי **מסלול**, לא
+# רק לפי סוג העבודה. המעטפת = השיא הגבוה ביותר שנמדד, ולכן עבודה כבדה אחת קבעה את השריון לכל עבודה מאותו סוג אחריה:
+# קריוקי (הפרדת קול ב־roformer + ivrit + CTC ב־torch) נמדד כ"תרגום" (Parakeet + Qwen ב־ONNX), וניתוח בעברית (ivrit +
+# zipformer + CTC) כמו ניתוח באנגלית. ka = קריוקי, vh = ניתוח בעברית, vx = ניתוח "אוטומטי" (הגבוה מבין vi ו־vh, ונלמד
+# כ־vh). השרתון שולח mk בלקיחה — = memClass ב־ibkr-proxy/lib/studio.js
+MEM_MK = {'tr': ('ka',), 'vi': ('vh', 'vx')}
+MEM_OLD_KA_S = 900                  # מדידה ישנה של "תרגום" (לפני הפיצול) עד 15 דק׳ — כנראה שיר קריוקי
+MEM_VIEW = ('tr', 'ka', 'vi', 'vh', 'rr')   # למסך השרת (hb.mm)
+MEM_ST_RE = re.compile(r'^[a-z0-9_]{1,8}$')
 
 
 def perf_kind(jb: dict) -> str:
@@ -857,7 +873,15 @@ def perf_kind(jb: dict) -> str:
     if jb.get('vo') == 1:
         return 'ai'
     return 'vi' if jb.get('vi') == 1 else (jb.get('kind') or 'tr')
-MEM_MARGIN = 1.1                    # ההזמנה = השיא הצפוי + 10%
+
+
+def mem_kind(jb: dict) -> str:
+    """18/11/2026: המסלול לזיכרון — perf_kind, ומעליו mk מהשרתון (קריוקי / ניתוח בעברית / ניתוח אוטומטי) כשהוא מתאים לסוג.
+    הקבלה החזויה (perf) נשארת לפי perf_kind: המעבד של המסלולים דומה, הזיכרון לא."""
+    k = perf_kind(jb)
+    mk = jb.get('mk')
+    return mk if mk in MEM_MK.get(k, ()) else k
+MEM_MARGIN = 1.1                   # ההזמנה = השיא הצפוי + 10%
 MEM_BASE_MB = 400                   # הסוכן עצמו + ההכנה מראש של המודלים
 PSI_MAX = 10.0                      # some avg10 מעל 10% — הזיכרון כבר בלחץ: לא מכניסים עבודה
 
@@ -914,21 +938,43 @@ def mem_pressure() -> float:
     return 0.0
 
 
-def mem_samples() -> list:
+def _mem_raw() -> list:
+    """המדידות כפי שנשמרו: [סוג, שניות, שיא MB] (עד 18/11/2026) או [סוג, שניות, שיא MB, השלב בשיא] — 60 האחרונות."""
     try:
         d = json.loads(MEM_DB.read_text(encoding='utf-8'))
-        return [x for x in d if isinstance(x, list) and len(x) == 3 and x[0] in MEM_PRIOR and all(isinstance(v, (int, float)) for v in x[1:])][-60:]
+        return [x for x in d if isinstance(x, list) and len(x) in (3, 4) and x[0] in MEM_PRIOR
+                and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in x[1:3])
+                and (len(x) == 3 or isinstance(x[3], str))][-60:]
     except (OSError, ValueError, TypeError):
         return []
 
 
-def mem_note(kind: str, dur_s: float, peak_mb: float):
-    """שיא אמיתי של עבודה שהסתיימה → המאגר של השרת (בתיקיית המטמון — שורד הפעלה מחדש). מספרים בלבד."""
+def mem_samples() -> list:
+    """[מסלול, שניות, שיא MB] למודל. מדידה בפורמט הישן (3 שדות — לפני שקריוקי וניתוח בעברית קיבלו מודל משלהם):
+    "תרגום" עד 15 דק׳ → קריוקי (שיר; הכבד בעבודות הקצרות — תרגום קצר חוזר ל־prior ולומד מחדש), ארוך → תרגום;
+    "ניתוח" → גם ניתוח וגם ניתוח בעברית (לא ידוע מה הוא היה — שמרני לשניהם). מדידה חדשה — רק למסלול שלה."""
+    out = []
+    for x in _mem_raw():
+        k, d, pk = x[0], x[1], x[2]
+        if len(x) == 3 and k == 'tr' and d <= MEM_OLD_KA_S:
+            out.append(['ka', d, pk])
+        elif len(x) == 3 and k == 'vi':
+            out += [['vi', d, pk], ['vh', d, pk]]
+        else:
+            out.append([k, d, pk])
+    return out
+
+
+def mem_note(kind: str, dur_s: float, peak_mb: float, st: str = ''):
+    """שיא אמיתי של עבודה שהסתיימה → המאגר של השרת (בתיקיית המטמון — שורד הפעלה מחדש). מספרים וקוד שלב בלבד.
+    st (18/11/2026) = השלב שבו נמדד השיא (prog.json) — כדי לדעת מה באמת כבד. ניתוח "אוטומטי" נלמד כניתוח בעברית."""
+    kind = 'vh' if kind == 'vx' else kind
     if kind not in MEM_PRIOR or not (peak_mb > 0):
         return
+    st = st if isinstance(st, str) and MEM_ST_RE.match(st) else ''
     try:
         MEM_DB.parent.mkdir(parents=True, exist_ok=True)
-        MEM_DB.write_text(json.dumps((mem_samples() + [[kind, round(dur_s or 0), round(peak_mb)]])[-60:]), encoding='utf-8')
+        MEM_DB.write_text(json.dumps((_mem_raw() + [[kind, round(dur_s or 0), round(peak_mb), st]])[-60:]), encoding='utf-8')
     except OSError:
         pass
 
@@ -937,19 +983,30 @@ MEM_LEARN_N = 3                     # 05/11/2026: מכמה מדידות של א�
 MEM_FLOOR = 0.8                     # ולא מתחת ל־80% מהקבוע של ה־prior (תחת gVisor חריגה = כל הקונטיינר)
 
 
-def mem_model(kind: str) -> tuple[int, float]:
+def mem_model(kind: str, samples: list | None = None) -> tuple[int, float]:
     """[קבוע, לדקה] לסוג העבודה: המעטפת של מה שנמדד בשרת הזה — כל שיא שנמדד נכנס מתחת לקו. השיפוע נשאר של ה־prior.
     עד MEM_LEARN_N מדידות — לא מתחת ל־prior (שמרני). מ־05/11/2026, מ־MEM_LEARN_N ומעלה — גם למטה, עד MEM_FLOOR
     מהקבוע: ה־prior נקבע לפני ONNX (שיא אמיתי ~5.3GB לשעה ועשרים מול 7.2 שהוזמנו), והוא שהשאיר 2 עבודות ארוכות ב־CX53."""
     a0, b = MEM_PRIOR.get(kind, MEM_PRIOR['tr'])
-    seen = [pk - b * (d / 60) for k, d, pk in mem_samples() if k == kind]
+    seen = [pk - b * (d / 60) for k, d, pk in (mem_samples() if samples is None else samples) if k == kind]
     a = max(max(seen), a0 * MEM_FLOOR) if len(seen) >= MEM_LEARN_N else max([a0] + seen)
     return int(round(a)), b
 
 
-def mem_need(kind: str, dur_s: float) -> int:
-    a, b = mem_model(kind)
+def mem_need(kind: str, dur_s: float, samples: list | None = None) -> int:
+    if kind == 'vx':                                  # ניתוח "אוטומטי" — השפה עוד לא ידועה: הגבוה מבין שני המסלולים
+        return max(mem_need('vi', dur_s, samples), mem_need('vh', dur_s, samples))
+    a, b = mem_model(kind, samples)
     return int(round((a + b * max(0.0, dur_s or 0) / 60) * MEM_MARGIN))
+
+
+def mem_view() -> dict:
+    """18/11/2026: למסך השרת (hb.mm) — לכל מסלול השריון לשעת סרטון (MB) וכמה מדידות יש לו, ו־pk = 6 השיאים האחרונים
+    [מסלול, דק׳, MB, שלב]. מספרים וקודים בלבד — בלי מזהים."""
+    s = mem_samples()
+    out = {k: [mem_need(k, 3600, s), sum(1 for x in s if x[0] == k)] for k in MEM_VIEW}
+    out['pk'] = [[x[0], round(x[1] / 60), round(x[2]), x[3] if len(x) == 4 else ''] for x in _mem_raw()[-6:]]
+    return out
 
 
 def _children() -> dict:
@@ -993,9 +1050,11 @@ class Slot:
         self.state = J.STATE.parent / ('s%d' % n)
         self.work = J.VT_WORK / ('s%d' % n)
         self.kind = perf_kind(jb)
+        self.mk = mem_kind(jb)                           # 18/11/2026: המסלול לזיכרון (קריוקי, ניתוח בעברית)
         self.dur = float(jb.get('dur') or 0)
-        self.need = mem_need(self.kind, self.dur)
+        self.need = mem_need(self.mk, self.dur)
         self.peak = 0.0
+        self.pst = ''                                    # השלב שבו נמדד השיא (prog.json)
         self.p = None
         self.t0 = time.time()
 
@@ -1013,11 +1072,15 @@ class Slot:
 
     def sample(self, kids=None):
         if self.p and self.p.poll() is None:
-            self.peak = max(self.peak, tree_rss_mb(self.p.pid, kids))
+            rss = tree_rss_mb(self.p.pid, kids)
+            if rss > self.peak:
+                self.peak = rss
+                st = _prog(self.state).get('st')
+                self.pst = st if isinstance(st, str) and MEM_ST_RE.match(st) else self.pst
             if not self.dur:                             # האורך — מקובץ המצב של job.py (נכתב בלקיחה)
                 try:
                     self.dur = float(((json.loads((self.state / 'job.json').read_text(encoding='utf-8')).get('spec') or {}).get('dur')) or 0)
-                    self.need = mem_need(self.kind, self.dur)
+                    self.need = mem_need(self.mk, self.dur)
                 except (OSError, ValueError, TypeError, AttributeError):
                     pass
 
@@ -1064,14 +1127,19 @@ def mem_fit(slots: dict) -> dict | None:
     free = lim - MEM_BASE_MB - head - res
     if av:
         free = min(free, av - head - grow)
+    s = mem_samples()
     if psi or free < mem_need('ai', 0):
         free = 0
-    a, b = mem_model('tr')
-    ra, rb = mem_model('rr')
-    va, vb = mem_model('vi')
-    out = {'mb': int(free), 'a': int(round(a * MEM_MARGIN)), 'b': round(b * MEM_MARGIN, 1), 'ra': int(round(ra * MEM_MARGIN)),
-           'rb': round(rb * MEM_MARGIN, 1), 'ai': mem_need('ai', 0),
-           'va': int(round(va * MEM_MARGIN)), 'vb': round(vb * MEM_MARGIN, 1)}   # 9/11/2026: ניתוח — שדות רשות בשרתון (normFit)
+    a, b = mem_model('tr', s)
+    ra, rb = mem_model('rr', s)
+    va, vb = mem_model('vi', s)
+    ka, kb = mem_model('ka', s)
+    ha, hb = mem_model('vh', s)
+    m = lambda x: int(round(x * MEM_MARGIN))       # noqa: E731
+    out = {'mb': int(free), 'a': m(a), 'b': round(b * MEM_MARGIN, 1), 'ra': m(ra),
+           'rb': round(rb * MEM_MARGIN, 1), 'ai': mem_need('ai', 0, s),
+           'va': m(va), 'vb': round(vb * MEM_MARGIN, 1),   # 9/11/2026: ניתוח — שדות רשות בשרתון (normFit)
+           'ka': m(ka), 'ks': round(kb * MEM_MARGIN, 1), 'ha': m(ha), 'hs': round(hb * MEM_MARGIN, 1)}   # 18/11/2026: קריוקי, ניתוח בעברית
     if psi:
         out['ps'] = 1                                # 17/11/2026: הזיכרון בלחץ (PSI) — הסיבה בשורת התור
     dm = perf_dmax(slots)
@@ -1147,10 +1215,11 @@ def run_slots(server: str, tok: str, warm, nmax: int, stop_after: int = 0) -> in
             rc = sl.done()
             if rc is None:
                 continue
-            print('← סיום ' + sl.id[:6] + '… (' + str(rc) + ') · שיא זיכרון ' + str(int(sl.peak)) + 'MB', flush=True)
+            print('← סיום ' + sl.id[:6] + '… (' + str(rc) + ') · שיא זיכרון ' + str(int(sl.peak)) + 'MB · ' + sl.mk
+                  + (' בשלב ' + sl.pst if sl.pst else ''), flush=True)
             ev(end_code(rc))
             if rc in (0, 1, 2) and sl.peak > 0 and sl.jb.get('vo') != 1:   # PR 1.2ג: "אמת שוב" לא מלמד את הזיכרון
-                mem_note(sl.kind, sl.dur, sl.peak)
+                mem_note(sl.mk, sl.dur, sl.peak, sl.pst)
             try:
                 flight_send(server, tok, sl.id)          # תהליך המשבצת מת בלי לסיים (נהרג) — היומן שלו עכשיו, לא בעלייה הבאה
             except Exception:     # noqa: BLE001

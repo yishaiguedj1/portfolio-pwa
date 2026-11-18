@@ -489,6 +489,10 @@ const SV_EV = { up: () => t('studioSrvEvUp'), job: () => t('studioSrvEvJob'), do
   warm: () => t('studioSrvEvWarm'), lost: () => t('studioSrvEvLost'), park: () => t('studioSrvEvPark'), bt: () => t('studioSrvEvBt') };
 const ISO = { mem: () => t('studioIsoMem'), missing: () => t('studioIsoMissing'), selftest: () => t('studioIsoSelftest'), manual: () => t('studioIsoManual') };
 const STG = { up: () => t('studioStgUp'), tr: () => t('studioStgTr'), al: () => t('studioStgAl'), tl: () => t('admRoleTl'), rv: () => t('studioStgRv'), bn: () => t('studioStgBn'), sv: () => t('studioStgSv') };
+const MM_K = ['tr', 'ka', 'vi', 'vh', 'rr'];   // = MM_K ב־ibkr-proxy/lib/studio.js
+const MM_N = { tr: () => t('admMmTr'), ka: () => t('admMmKa'), vi: () => t('admMmVi'), vh: () => t('admMmVh'), rr: () => t('admMmRr'), ai: () => t('admMmAi'), dx: () => t('admMmDx'), lb: () => t('admMmLb') };
+const MM_ST = { up: () => t('admMmStUp'), tr: () => t('admMmStTr'), al: () => t('admMmStAl'), tl: () => t('admMmStTl'), rv: () => t('admMmStRv'), bn: () => t('admMmStBn'), sv: () => t('admMmStSv') };
+const mmGb = (mb) => (mb / 1024).toFixed(1);
 const upTxt = (s) => (s == null ? '—' : s < 3600 ? fmt(t('admMinAgo'), { n: Math.round(s / 60) }) : s < 86400 ? fmt(t('admHrAgo'), { n: Math.round(s / 3600) }) : fmt(t('admDayAgo'), { n: Math.round(s / 86400) }));
 page('servers', { tab: 'apps', parent: 'studio', title: () => t('admStudioSrv'), render(p) {
   const V = D.srv;
@@ -501,6 +505,13 @@ page('servers', { tab: 'apps', parent: 'studio', title: () => t('admStudioSrv'),
     const rows = [row({ c: st[0], ic: '◉', t: st[1], s: fmt(t('admItLast'), { a: ago(x.seen) }) + (hb.v ? ' · ' + hb.v : '') })];
     if (hb.disk != null) rows.push(row({ c: x.warn.includes('disk') ? 'orange' : 'gray', ic: '▤', t: t('admSvDisk'), s: hb.dl ? t('admSvDiskHold') : hb.free != null ? fmt(t('admSvFree'), { n: hb.free }) : '', v: Math.round(hb.disk) + '%', meter: [hb.disk, hb.disk >= 85 ? 'w' : ''] }));
     if (hb.mem != null) rows.push(row({ c: x.warn.includes('mem') ? 'orange' : 'gray', ic: '▦', t: t('admSvMem'), v: Math.round(hb.mem) + '%', meter: [hb.mem, hb.mem >= 90 ? 'w' : ''] }));
+    // 18/11/2026: השריון של כל מסלול לשעת סרטון והשיאים האחרונים (ובאיזה שלב) — למה עבודה מחכה לזיכרון (agent.py — mem_view)
+    if (hb.mm) {
+      const mmL = MM_K.filter((k) => hb.mm[k]).map((k) => MM_N[k]() + ' ' + mmGb(hb.mm[k][0]) + 'GB');
+      if (mmL.length) rows.push(row({ c: 'gray', ic: '▥', t: t('admSvMm'), s: mmL.join(' · ') }));
+      if (hb.mm.pk) rows.push(row({ c: 'gray', ic: '▲', t: t('admSvMmPk'), s: hb.mm.pk.slice().reverse().map((x) => fmt(t('admMmPkI'),
+        { k: (MM_N[x[0]] || (() => x[0]))(), d: x[1], g: mmGb(x[2]), s: MM_ST[x[3]] ? MM_ST[x[3]]() : '' }).trim()).join(' · ') }));
+    }
     if (hb.load != null) rows.push(row({ c: 'gray', ic: '∿', t: t('admSvLoad'), s: hb.up != null ? fmt(t('admSvUp'), { a: upTxt(hb.up) }) : '', v: hb.load }));
     if (hb.iso) rows.push(row({ c: hb.iso === 'g' ? 'green' : 'orange', ic: '⛨', t: hb.iso === 'g' ? t('studioIsoG') : (ISO[hb.iw] || (() => t('studioIsoR')))(), s: hb.al === 'o' ? t('admSvAlO') : hb.al === 't' ? t('admSvAlT') : '' }));
     // 2/11/2026: תור החיסכון — רק כשיש בו משהו או כשהוא נכשל (בקשות שמחכות לשליחה, batches בדרך ומאז מתי, תקלה)

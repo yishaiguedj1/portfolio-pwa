@@ -4078,6 +4078,29 @@ function stubFetch(text, status = 200) {
         && !SC.perfBlock({ kind: 'ai', spec: { dur: 7200 } }, FD) && !SC.perfBlock({ kind: 'tr', spec: { dur: 3600 } }, SC.normFit(FIT))
         && SC.perfBlock({ kind: 'rr', spec: { dur: 3600 } }, FD) && !SC.perfBlock({ kind: 'tr', spec: { dur: 3600, src: 'subs' } }, FD)
         && SC.perfBlock({ kind: 'tr', spec: {} }, FD), 'perfBlock: לפי האורך מול dm; בלי dm — בלי הגבלה');
+      {
+        // 18/11/2026 (תרגום של 25 דק׳ "צריך 11GB" ליד ניתוח בעברית): זיכרון לפי מסלול — קריוקי וניתוח בעברית במודל משלהם
+        const F2 = SC.normFit({ ...FIT, va: 5060, vb: 24.2, ka: 10800, ks: 24.2, ha: 9700, hs: 24.2 });
+        ok(F2.ka === 10800 && F2.ks === 24.2 && F2.ha === 9700 && F2.hs === 24.2 && SC.normFit({ ...FIT, ka: 10800 }).ka === undefined
+          && SC.normFit({ ...FIT, ha: 1e9, hs: 1 }).ha === undefined, 'fit: ka/ks ו־ha/hs — רשות, בזוגות, בגבולות');
+        const TR25 = { kind: 'tr', spec: { dur: 1500, from: 'auto' } }, KA = { kind: 'tr', spec: { dur: 240, ka: 1 } };
+        const VH = { kind: 'tr', spec: { dur: 2700, vi: 1, from: 'he' } }, VE = { kind: 'tr', spec: { dur: 2700, vi: 1, from: 'en' } };
+        const VX = { kind: 'tr', spec: { dur: 2700, vi: 1, from: 'auto' } }, VO = { kind: 'tr', spec: { dur: 2700, vi: 1, from: 'he', vo: 1 } };
+        ok(SC.memClass(TR25) === '' && SC.memClass(KA) === 'ka' && SC.memClass(VH) === 'vh' && SC.memClass(VE) === '' && SC.memClass(VX) === 'vx'
+          && SC.memClass(VO) === '' && SC.memClass({ kind: 'rr', spec: { ka: 1 } }) === '' && SC.memClass({ kind: 'ai', spec: { vi: 1 } }) === '', 'memClass: = mem_kind בסוכן');
+        ok(SC.peakNeed(TR25, F2) === 5060 + 24.2 * 25 && SC.peakNeed(KA, F2) === 10800 + 24.2 * 4 && SC.peakNeed(VH, F2) === 9700 + 24.2 * 45
+          && SC.peakNeed(VE, F2) === 5060 + 24.2 * 45 && SC.peakNeed(VX, F2) === 9700 + 24.2 * 45 && SC.peakNeed(VO, F2) === 770,
+          'peakNeed: תרגום לא מושפע מקריוקי; ניתוח בעברית/באנגלית/אוטומטי; "אמת שוב" — קל');
+        ok(SC.peakNeed(KA, FIT) === 5060 + 24.2 * 4 && SC.peakNeed(VH, SC.normFit({ ...FIT, va: 6000, vb: 24.2 })) === 6000 + 24.2 * 45,
+          'peakNeed: סוכן ישן (בלי ka/ha) — כמו היום');
+        ok(SC.peakNeed(TR25, F2) < 10240 && !SC.qwOf(TR25, SC.normFit({ ...F2, mb: 10240 })), 'המקרה מהטלפון: 25 דק׳ מאנגלית נכנסת ב־10GB פנויים');
+        ok(!SC.perfBlock(VO, SC.normFit({ ...FIT, dm: 1, dv: 1 })), 'perfBlock: "אמת שוב" — בלי מעבד');
+        const MM = SC.normMm({ tr: [6512, 4], ka: [11300, 2], vi: [7000, 0], vh: [11000, 3], rr: [3000, 1], zz: [1, 1], x: 'y',
+          pk: [['tr', 25, 4800, 'al'], ['ka', 4, 9900, 'tr'], ['vh', 45, 9800, ''], ['zz', 1, 1, ''], ['tr', 1, 1, '<b>'], ['tr', -1, 1, ''], ['tr', 1, 1]] });
+        ok(JSON.stringify(MM) === JSON.stringify({ tr: [6512, 4], ka: [11300, 2], vi: [7000, 0], vh: [11000, 3], rr: [3000, 1],
+          pk: [['tr', 25, 4800, 'al'], ['ka', 4, 9900, 'tr'], ['vh', 45, 9800, '']] }) && SC.normMm(null) === null && SC.normMm([]) === null
+          && SC.normMm({ tr: ['1', 2] }) === null && SC.normHb({ mm: { tr: [1, 1] } }).mm.tr[0] === 1 && SC.normHb({}).mm === null, 'normMm: מספרים וקודים מקטלוג בלבד');
+      }
       rr = await run({ op: 'create', idToken: OWNER, spec: Object.assign({}, SPECA, { px: 1 }) });
       const JF = rr.payload.job.id;
       await run({ op: 'file', idToken: OWNER, job: JF, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
@@ -4100,6 +4123,7 @@ function stubFetch(text, status = 200) {
       ok(JSON.stringify(qwOf()) === JSON.stringify({ r: 'perf', d: 30 }), 'qw: הקבלה החזויה — כדי לא להאט את מה שרץ');
       rr = await srvRun({ op: 'poll', hb: { nj: 1, cpu: 16 }, fit: Object.assign({}, FIT, { mb: 9000 }) }, STOK);
       ok(rr.payload.job && rr.payload.job.id === JF && rr.payload.job.dur === 4620, 'fit: נכנסת — נלקחת, עם האורך (להזמנת הזיכרון בסוכן)');
+      ok(rr.payload.job.mk === undefined, 'תרגום רגיל — בלי mk (המסלול לפי הסוג)');
       const KF = rr.payload.job.key;
       let fl = db.get('studioJobs/' + JF).fields;
       ok(qwOf() === null, 'qw: נלקחה — הסיבה נמחקת');
