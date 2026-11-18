@@ -2120,8 +2120,9 @@ def vi_run(J, args, engine=None) -> int:
     cs = cues(words, info.get('fps') or 0.0)
     (pd / 'cues.json').write_text(json.dumps(cs, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     sj = same_join(sb, ctx)                          # 18/11/2026: בדרך כלל כבר מוכן (ומועלה) — רץ ברקע בזמן Claude
-    if info['video'] and spec.get('vg') != 1 and not sj.get('ok'):   # PR 1.6: הרצת זהב (vg) — בלי הסרטון באיכות מלאה
-        J.vt(ctx, ['vi-same', str(src), '--out', str(pd / 'same.mp4')], 'bn', 0.1, 1.0)
+    if info['video'] and spec.get('vg') != 1:        # PR 1.6: הרצת זהב (vg) — בלי הסרטון באיכות מלאה (רק ה־vi.json נמדד)
+        if not sj.get('ok'):                          # הרקע לא הספיק / נכשל / כבוי — עכשיו, בטור
+            J.vt(ctx, ['vi-same', str(src), '--out', str(pd / 'same.mp4')], 'bn', 0.1, 1.0)
     # 6. שמירה
     S.go('sv', 'שומרים')
     res = [(k, pd / fn, title + sfx, mime) for k, fn, sfx, mime in VI_FILES if (pd / fn).is_file() and (pd / fn).stat().st_size > 0
