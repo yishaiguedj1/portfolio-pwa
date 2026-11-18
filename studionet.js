@@ -256,7 +256,7 @@ async function driveErr(r) {
   let j = null; try { j = await r.json(); } catch (e) {}
   const reason = (((j && j.error && j.error.errors) || [])[0] || {}).reason || '';
   if (/storageQuotaExceeded|quotaExceeded/.test(reason)) return fatal('drive_full');
-  const e = new Error('drive_http_' + r.status); e.code = e.message; e.status = r.status; return e;
+  const e = new Error('drive_http_' + r.status); e.code = e.message; e.status = r.status; e.reason = String(reason).slice(0, 40); return e;
 }
 
 /* PUT של חתיכה עם התקדמות בתוך החתיכה (XHR — ל־fetch אין התקדמות העלאה) וזיהוי חיבור תקוע.
@@ -843,12 +843,21 @@ export function createNet(env) {
     if (!r.ok) throw new Error('upload');
     return j;
   }
+  /* 18/11/2026: גישה חדשה (force, אחרי 401) — לא יותר מפעם ב־30 שניות, ובקשה אחת בכל רגע. הנגן ניסה שוב ושוב קובץ שלא נטען,
+     וכל ניסיון ביקש מהשרתון גישה חדשה (= קריאה ב־Firestore) */
+  let dtokP = null;
   async function driveToken(force) {
-    if (!force && dtok && dtok.exp - 120e3 > E.now()) return dtok.at;
-    const j = await api('drive');
-    if (!j.ok || !j.token) { const e = new Error(j.error || 'drive'); e.code = j.error || 'drive'; e.detail = j.detail || j.why || ''; e.fatal = j.error === 'not_connected' || j.error === 'revoked' || j.error === 'not_allowed'; throw e; }
-    dtok = { at: j.token, exp: Math.min(j.exp || 0, E.now() + 3500e3) || E.now() + 3000e3 };
-    return dtok.at;
+    if (dtok && dtok.exp - 120e3 > E.now() && (!force || E.now() - dtok.got < 30e3)) return dtok.at;
+    if (!dtokP) {
+      dtokP = (async () => {
+        const j = await api('drive');
+        if (!j.ok || !j.token) { const e = new Error(j.error || 'drive'); e.code = j.error || 'drive'; e.detail = j.detail || j.why || ''; e.fatal = j.error === 'not_connected' || j.error === 'revoked' || j.error === 'not_allowed'; throw e; }
+        dtok = { at: j.token, exp: Math.min(j.exp || 0, E.now() + 3500e3) || E.now() + 3000e3, got: E.now() };
+        return dtok.at;
+      })();
+      dtokP.then(() => { dtokP = null; }, () => { dtokP = null; });
+    }
+    return dtokP;
   }
   /* בקשה ל־Drive עם הגישה הזמנית: 401 = גישה חדשה פעם אחת; 429/5xx = עוד שני ניסיונות */
   async function dreq(method, url, body) {
@@ -1231,6 +1240,7 @@ export function createNet(env) {
   function mediaUrl(id) {
     if (!/^[A-Za-z0-9_-]{10,200}$/.test(String(id || ''))) return '';
     mediaAllow.add(id);
+    mediaFail.delete(id);   // ניסיון חדש
     const sw = E.sw || (typeof navigator !== 'undefined' && navigator.serviceWorker);
     if (!sw || !sw.controller) return '';               // בלי SW שולט — הקורא יבחר דרך אחרת (הורדה / פתיחה ב־Drive)
     if (!mediaWired && typeof sw.addEventListener === 'function') {
@@ -1238,9 +1248,15 @@ export function createNet(env) {
       sw.addEventListener('message', (e) => {
         const d = e && e.data;
         const port = e && e.ports && e.ports[0];
-        if (!d || typeof d.snbMedia !== 'string' || !port) return;
+        if (!d || !port) return;
+        if (typeof d.snbBytes === 'string') {   // 18/11/2026: ה־SW לא הצליח מול Drive — הטווח מהדף (sw.js askBytes)
+          if (!mediaAllow.has(d.snbBytes)) { port.postMessage({}); return; }
+          mediaRelay(d.snbBytes, d.a, d.b).then((buf) => port.postMessage({ buf }, [buf]), () => port.postMessage({}));
+          return;
+        }
+        if (typeof d.snbMedia !== 'string') return;
         if (!mediaAllow.has(d.snbMedia)) { port.postMessage({ t: '' }); return; }
-        mediaInfo(d.snbMedia, !!d.fresh).then((x) => port.postMessage(x), () => port.postMessage({ t: '' }));
+        mediaInfo(d.snbMedia, !!d.fresh).then((x) => port.postMessage(x), (x) => { mediaNote(d.snbMedia, x); port.postMessage({ t: '' }); });
       });
     }
     return MEDIA_PATH + id;
@@ -1268,6 +1284,29 @@ export function createNet(env) {
       mediaMeta.set(id, m);
     }
     return { t: t || '', exp: (dtok && dtok.exp) || 0, size: m.size, type: m.type };
+  }
+  /* 18/11/2026: טווח בתים מ־Drive מהדף (כמו הכתוביות) — כשהבקשה של ה־SW נכשלה. עד 8MB (= MEDIA_RELAY_CAP ב־sw.js).
+     נכשל — הסיבה נשמרת (mediaWhy) והנגן מציג אותה במקום מסך שחור */
+  const mediaFail = new Map();
+  function mediaNote(id, x) {
+    const s = x && x.status ? 'drive ' + x.status + (x.reason ? ' · ' + x.reason : '') : String((x && x.code) || 'net');
+    mediaFail.set(id, { s: s.slice(0, 80), at: E.now() });
+  }
+  const mediaWhy = (id) => (mediaFail.get(id) || {}).s || '';
+  async function mediaRelay(id, a, b) {
+    if (isR2Id(id) || !Number.isInteger(a) || !Number.isInteger(b) || a < 0 || b < a || b - a >= 8 * 1048576) throw new Error('range');
+    const f = mediaFail.get(id);
+    if (f && E.now() - f.at < 10e3) throw new Error('recent');   // הדפדפן מנסה שוב ושוב — בלי עוד בקשה ל־Drive
+    try {
+      for (let i = 0; ; i++) {
+        const r = await E.fetch(API + '/' + encodeURIComponent(id) + '?alt=media', { headers: { Authorization: 'Bearer ' + await driveToken(i > 0), Range: 'bytes=' + a + '-' + b } });
+        if ((r.status === 401 || r.status === 429 || r.status >= 500) && i < 2) continue;
+        if (r.status !== 206 && !(r.status === 200 && a === 0)) throw await driveErr(r);
+        const buf = await r.arrayBuffer();
+        mediaFail.delete(id);
+        return buf.byteLength > b - a + 1 ? buf.slice(0, b - a + 1) : buf;
+      }
+    } catch (x) { mediaNote(id, x); throw x; }
   }
   async function driveJson(id) { return JSON.parse(await driveText(id)); }
   /* קובץ טקסט קטן לתיקיית העבודה (multipart) — הייחוס של סט הזהב, גרסה ערוכה של הכתוביות (מ2) */
@@ -1362,5 +1401,5 @@ export function createNet(env) {
   const goldUpload = (folderId, text) => textUpload(folderId, GOLD_REF_NAME, 'application/x-subrip', text, { snbRef: '1' });
 
 
-  return { api, signedPut, driveApi, driveToken, browseList, rangeBlob, vidsRoot, vidsList, vidsFolder, vidsSub, libList, libThumbs, driveQuota, driveRename, driveTrash, driveMoveTo, jobFolder, upload, r2ToDrive, r2Get, cloudInitTemplate, glossLoad, glossSave, driveText, driveBlob, driveJson, goldUpload, textUpload, mediaUrl, mediaBytes, driveMeta, driveMove, driveCopy, lyricsSearch, subsFind, subsGet, _forget: () => { dtok = null; } };
+  return { api, signedPut, driveApi, driveToken, browseList, rangeBlob, vidsRoot, vidsList, vidsFolder, vidsSub, libList, libThumbs, driveQuota, driveRename, driveTrash, driveMoveTo, jobFolder, upload, r2ToDrive, r2Get, cloudInitTemplate, glossLoad, glossSave, driveText, driveBlob, driveJson, goldUpload, textUpload, mediaUrl, mediaBytes, mediaWhy, driveMeta, driveMove, driveCopy, lyricsSearch, subsFind, subsGet, _forget: () => { dtok = null; } };
 }

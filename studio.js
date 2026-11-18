@@ -6216,7 +6216,7 @@ async function lbFixSave() {
   lb.err = (String(j.drive || 'drive') + (j.why ? ' · ' + j.why : '')).slice(0, 110); lbFx.msg = T('studioLibFixDrive'); lbPaint();
 }
 /* ---- פריט בספרייה (לפי הציור: פוסטר גדול, כותרת, ניגון + שיתוף + פתיחה בסטודיו, פרקים, קבצים, מצב השמירה) ---- */
-let lp = null;   // { id, st: 'load' | 'ok' | 'err', ctl, err } — הנגן בתוך הדף, כשאין עבודה לנגן ממנה
+let lp = null;   // { id, st: 'load' | 'ok' | 'err', ctl, err, why } — הנגן בתוך הדף, כשאין עבודה לנגן ממנה
 function lpStop() { if (lp && lp.ctl) { lp.ctl.destroy(); lp.ctl = null; } lp = null; }
 const lbItem = (id) => lb.items.find((x) => x.id === id) || null;
 async function lpLoad(it) {
@@ -6230,12 +6230,32 @@ async function lpLoad(it) {
     if (lp !== me) return;
     const src = v ? net.mediaUrl(v.id) : '', fb = b ? net.mediaUrl(b.id) : '';
     if (!src && !fb) { me.st = 'err'; me.err = 'nosw'; lbPaint(); return; }
-    me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: [], T,
+    /* 18/11/2026 (בקשת המשתמש: "אחרי שעושים play לא קורה כלום"): הסרטון לא נטען — במקום מסך שחור, ההודעה עם הסיבה
+       (net.mediaWhy — הקוד של Drive), "לנסות שוב" ו"צפייה ב־Drive" */
+    const fail = () => {
+      if (lp !== me) return;
+      me.st = 'err'; me.err = 'play'; me.why = (b && net.mediaWhy(b.id)) || (v && net.mediaWhy(v.id)) || '';
+      if (me.ctl) { me.ctl.destroy(); me.ctl = null; }
+      lbPaint();
+    };
+    const dead = (u) => !!net.mediaWhy(String(u || '').split('/').pop());
+    me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: [], T, onError: fail, dead,
       chapters: normChapters(m.ch.map((c) => ({ t: c.t, title: c.n })), m.d), pref: store.settings.pt, onPref: ptSave });
     me.st = 'ok';
     try { me.ctl.play(); } catch (e) {}
-  } catch (e) { if (lp !== me) return; me.st = 'err'; me.err = (e && e.code) || 'drive'; }
+  } catch (e) { if (lp !== me) return; me.st = 'err'; me.err = 'cues'; me.why = String((e && e.code) || ''); }
   lbPaint();
+}
+function lpErr(it) {
+  const f = it.m.f.find((x) => x.r === 'v') || it.m.f.find((x) => x.r === 'b');
+  const box = h('div', 'st-pl-ph st-lp-err');
+  box.append(h('div', null, lp.err === 'nosw' ? T('studioPlNoSw') : lp.err === 'cues' ? T('studioPlLoadErr') : T('studioPlErr')));
+  if (lp.why) { const w = h('small', 'st-lp-why', lp.why); w.dir = 'ltr'; box.append(w); }
+  const row = h('div', 'st-lp-acts');
+  row.append(btn('st-lp-a', T('studioLibRetry'), () => { lpStop(); lp = { id: it.id, st: 'load', ctl: null, err: '', why: '' }; lbPaint(); lpLoad(it); }, 'lp-retry'));
+  if (f) { const a = h('a', 'st-lp-a', T('studioPlOpenDrive')); a.href = 'https://drive.google.com/file/d/' + f.id + '/view'; a.target = '_blank'; a.rel = 'noopener noreferrer'; row.append(a); }
+  box.append(row);
+  return box;
 }
 const libRoleT = (r) => (r === 'v' ? T('studioLibRv') : r === 'a' ? T('studioLibRa') : r === 'b' ? T('studioLibRb') : r === 's' ? T('studioLibRs') : r === 'p' ? T('studioLibRp') : T('studioLibRx'));
 const LANG_NAME = (c) => { try { return new Intl.DisplayNames([uiLang()], { type: 'language' }).of(c) || c; } catch (e) { return c; } };
@@ -6255,7 +6275,8 @@ function pageLibItem(p) {
   const hero = h('div', 'st-lib-hero');
   if (lp && lp.id === it.id) {
     if (lp.st === 'ok') hero.append(lp.ctl.el);
-    else hero.append(h('div', 'st-pl-ph', lp.st === 'err' ? (lp.err === 'nosw' ? T('studioPlNoSw') : T('studioPlLoadErr')) : T('studioPlLoading')));
+    else if (lp.st === 'err') hero.append(lpErr(it));
+    else hero.append(h('div', 'st-pl-ph', T('studioPlLoading')));
   } else hero.append(lbPoster({ k: m.k, th: tv && tv.th, big: true }));
   const bk = btn('st-lib-back', null, back, 'nav-back'); bk.setAttribute('aria-label', T('studioLibT')); bk.append(ico('back'));
   hero.append(bk);
@@ -6266,7 +6287,7 @@ function pageLibItem(p) {
   const langs = m.to.length ? (m.fr ? LANG_NAME(m.fr) + ' → ' : '') + m.to.map(LANG_NAME).join(', ') : '';
   const meta = h('div', 'st-lib-meta', [m.d ? fmtDur(m.d) : '', langs, size ? fmtSize(size) : ''].filter(Boolean).join(' · '));
   const acts = h('div', 'st-lib-acts');
-  const play = btn('st-lib-pri', null, () => { if (live) { go('play', rec.id); return; } if (lp && lp.id === it.id && lp.ctl) { try { lp.ctl.play(); } catch (e) {} return; } lpStop(); lp = { id: it.id, st: 'load', ctl: null, err: '' }; lbPaint(); lpLoad(it); }, 'lib-play');
+  const play = btn('st-lib-pri', null, () => { if (live) { go('play', rec.id); return; } if (lp && lp.id === it.id && lp.ctl) { try { lp.ctl.play(); } catch (e) {} return; } lpStop(); lp = { id: it.id, st: 'load', ctl: null, err: '', why: '' }; lbPaint(); lpLoad(it); }, 'lib-play');
   play.append(ico('play'), h('span', null, T('studioLibPlay')));
   acts.append(play);
   if (rec && shrOk(rec)) acts.append(lbIcoBtn('share', T('studioLibShare'), () => go('shr', rec.id), 'lib-share'));
