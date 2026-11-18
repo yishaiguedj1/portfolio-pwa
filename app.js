@@ -18610,10 +18610,34 @@ function dockTop() {
   } catch (e) {}
   return top + off;
 }
+// 18/11/2026 (בקשת המשתמש, צילום מסומן: "לפי המרחק מהלוגו — זה הכי חשוב"): בטלפון ההדר מתכווץ בגלילה (invest-glass.css, igLogo —
+// הלוגו ל־0.6, הבועות נעלמות, הרצועה עולה), אבל האלמנט .appbar שומר את הגובה המלא — הכרטיס עמד ~50px מתחת ללוגו.
+// מה שנראה בפועל = תחתית הלוגו המכווץ: הכרטיס הפתוח מתחיל 12px מתחתיה. רק כשהדף ייגלל עד סוף ההתכווצות (110px);
+// אחרת (כרטיס ראשון בדף קצר) — מתחת להדר המלא, כמו קודם.
+const HDR_SHRINK_END = 110, HDR_LOGO_SCALE = 0.6, CARD_LOGO_GAP = 12;
+function hdrShrunkBottom() {
+  if (typeof document === 'undefined' || !document.querySelector || typeof getComputedStyle !== 'function') return 0;
+  const bar = document.querySelector('.appbar'), art = bar && bar.querySelector('.brand-art');
+  if (!art || !art.offsetHeight || !/igLogo/.test(getComputedStyle(art).animationName || '')) return 0;
+  // ראש הלוגו בלי הטרנספורמציות (scale מהראש, transform-origin 50% 0) — מרשת ה־offsetTop עד ההדר
+  let top = 0, e = art;
+  while (e && e !== bar) { top += e.offsetTop; e = e.offsetParent; }
+  if (e !== bar) return 0;
+  return bar.getBoundingClientRect().top + top + art.offsetHeight * HDR_LOGO_SCALE;
+}
+// ההיסט מראש המסך שבו עומד ראש הכרטיס הפתוח; docTop — מיקום הכרטיס בדף (ברירת מחדל: מהכרטיס עצמו)
+function cardTopOff(card, docTop) {
+  const base = topCover() + 10;
+  const hb = hdrShrunkBottom();
+  if (!hb) return base;
+  const off = Math.min(base, Math.round(hb + CARD_LOGO_GAP));
+  if (docTop == null && card && card.getBoundingClientRect) docTop = card.getBoundingClientRect().top + (window.scrollY || 0);
+  return docTop != null && docTop - off < HDR_SHRINK_END ? base : off;
+}
 function scrollCardToTop(card) {
   if (!card || !card.getBoundingClientRect || typeof window === 'undefined' || !window.scrollTo) return;
   if (state.cardAnim) return; // v272: אנימציית הכרטיס כבר מנווטת את הגלילה — גלילה נוספת הייתה נלחמת בה
-  const off = topCover() + 10;
+  const off = cardTopOff(card);
   const top = card.getBoundingClientRect().top;
   if (Math.abs(top - off) < 4) return;
   cancelScrollRestore();
@@ -18640,8 +18664,8 @@ function fitCardToScreen(sym, card, smooth) {
     const head = card.querySelector('.stock-head');
     if (head) card._fitRO.observe(head);
   }
-  // 10px מתחת להדר (cardAnimOffset) ו־10px מעל המסילה של החוגה. בטלפון בלי תקרה — הגרף משלים כל גובה מסך (תקרה רק בתצוגת מחשב)
-  const avail = dockTop() - topCover() - 20;
+  // מתחת ללוגו (cardTopOff) ו־10px מעל המסילה של החוגה. בטלפון בלי תקרה — הגרף משלים כל גובה מסך (תקרה רק בתצוגת מחשב)
+  const avail = dockTop() - cardTopOff(card) - 10;
   const cardH = card.getBoundingClientRect().height - body.getBoundingClientRect().height + Math.max(inner.offsetHeight, inner.scrollHeight);
   const dk = document.documentElement && document.documentElement.classList && document.documentElement.classList.contains('dk');
   const h = Math.round(Math.max(140, Math.min(dk ? 560 : 4000, cv.clientHeight + avail - cardH)));
@@ -18688,8 +18712,8 @@ function holdCardTop(sym) {
   };
   [350, 900, 1700, 3000].forEach((ms, i, a) => setTimeout(() => pin(i === a.length - 1), ms));
 }
-function cardAnimOffset() {
-  return topCover() + 10;
+function cardAnimOffset(docTop) {
+  return cardTopOff(null, docTop);
 }
 /* לוח הפקודות (תצוגת מחשב): כשמקלידים — האחזקות והמעקב של הרשימה הפעילה; בחירה פותחת את הכרטיס בעמוד שלו */
 function deskInvestCmds(q) {
@@ -18917,7 +18941,7 @@ function toggleStock(sym, card) {
   for (const it of items) { it.card.classList.add('anim'); it.body.style.height = it.from + 'px'; if (it.closing) it.card.classList.remove('open'); }
   const maxFinal = Math.max(0, docH0 + docDelta - vh);
   const S1 = opening
-    ? Math.min(maxFinal, Math.max(0, cardTop0 + S0 + aboveDelta - cardAnimOffset()))
+    ? Math.min(maxFinal, Math.max(0, cardTop0 + S0 + aboveDelta - cardAnimOffset(cardTop0 + S0 + aboveDelta)))
     : Math.min(S0, maxFinal);
   let t0 = null, raf = 0, steer = Math.abs(S1 - S0) > 0.5;
   const stopSteer = () => { steer = false; };
