@@ -1093,6 +1093,10 @@ html[dir="ltr"] .stock-foot .kc-open-btn { order: -1; }   /* באנגלית (כ�
   border: 1px solid var(--outline); border-radius: var(--pill); background: var(--surface); color: var(--on-surface); font: inherit; cursor: pointer; white-space: nowrap; transition: transform .15s ease; }
 .st-al-chip:active { transform: scale(.96); }
 .st-al-chip b { font-size: 15px; font-weight: 600; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+.st-al-d { font-size: 12.5px; font-weight: 500; color: var(--on-surface-var); unicode-bidi: isolate; font-variant-numeric: tabular-nums; margin-inline-start: 3px; }
+.st-al-d:empty { display: none; }
+.st-al-d.pos { color: var(--gain); }
+.st-al-d.neg { color: var(--loss); }
 .st-al-arr { display: grid; color: var(--on-surface-var); }
 .st-al-arr svg { inline-size: 13px; block-size: 13px; display: block; }
 .st-al-chip.up .st-al-arr { color: var(--gain); }

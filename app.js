@@ -8245,8 +8245,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.182.1';
-const APP_VERSION = 'v836';
+const APP_RELEASE = '2.183.1';
+const APP_VERSION = 'v837';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -9801,6 +9801,7 @@ function renderLive(syms) {
     if (state.open[s]) {
       const g = card.querySelector('.stock-body .kv-grid');
       if (g) { setKvGrid(g, kvGridHTML(p, m)); ensureChartData(s, true); }
+      stAlLive(card, s, m.price);
     }
   }
   try { fitNumbers(); } catch (e) {}
@@ -18427,6 +18428,21 @@ const ST_AL_ARR = {
   down: '<path d="M12 5v14M6.5 13.5 12 19l5.5-5.5"/>',
   cross: '<path d="M8 19V5M4.5 8.5 8 5l3.5 3.5M16 5v14M12.5 15.5 16 19l3.5-3.5"/>',
 };
+/* המרחק מהמחיר הנוכחי ליעד, באחוזים (טהורה): יעד 90 ממחיר 100 → −10. בלי מחיר — null */
+function stAlDist(target, px) { return target > 0 && px > 0 ? (target / px - 1) * 100 : null; }
+function stAlDistTxt(target, px) { const d = stAlDist(target, px); return d === null ? '' : fmtPct(d, true); }
+/* הטקסט והצבע: ירוק — צריכה לעלות עד היעד, אדום — לרדת (בקשת המשתמש) */
+function stAlDistSet(n, target, px) {
+  const tx = stAlDistTxt(target, px), d = stAlDist(target, px);
+  if (n.textContent !== tx) n.textContent = tx;
+  n.classList.toggle('pos', d > 0); n.classList.toggle('neg', d < 0);
+}
+/* מחיר חי (renderLive): רק טקסט האחוז בשבבים הפעילים — בלי לבנות את השורה מחדש */
+function stAlLive(card, sym, px) {
+  if (!(px > 0)) return;
+  stAlPx[sym] = px;
+  for (const c of card.querySelectorAll('.st-al-chip[data-p]')) { const d = c.querySelector('.st-al-d'); if (d) stAlDistSet(d, +c.dataset.p, px); }
+}
 function stockAlertsEl(sym) {
   const box = el('div', 'st-al');
   box.dataset.sym = sym;
@@ -18451,6 +18467,8 @@ function stockAlertsEl(sym) {
     const pb = el('b', 'num');
     pb.textContent = fmtPx(+a.p, sym);
     chip.appendChild(pb);
+    // 18/11/2026 (בקשת המשתמש): כמה אחוז נשאר למניה לזוז מהמחיר הנוכחי עד היעד — משני ואפור; מתעדכן בכל טיק (stAlLive)
+    if (!a.done) { chip.dataset.p = String(+a.p); stAlDistSet(chip.appendChild(el('small', 'st-al-d num')), +a.p, stAlPx[sym]); }
     const lbl = (dir === 'up' ? t('kcAlertUp') : dir === 'down' ? t('kcAlertDown') : t('kcAlertCross')) + ' ' + pb.textContent +
       (a.done ? ' · ' + t('kcAlertDone') : '') + (a.note ? ' · ' + String(a.note).slice(0, 80) : '');
     chip.setAttribute('aria-label', lbl);
