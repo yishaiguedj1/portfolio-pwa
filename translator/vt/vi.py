@@ -289,11 +289,12 @@ def detect_main(wav: str, model=None) -> dict:
         return {"lg": "en", "p": 0.0, "n": 0, "src": "err"}
 
 
-def asr(wav: str, lang: str, lid_model=None, tl_model=None) -> dict:
+def asr(wav: str, lang: str, lid_model=None, tl_model=None, en_fn=None) -> dict:
     """שמע 16kHz → מילים עם זמן. עברית — vt/asr_he.py (‏VAD → ivrit → zipformer); אנגלית — Parakeet, כמו בתרגום.
     16/11/2026: קודם ציר השפות (lang_timeline) — השפה הראשית לפי זמן הדיבור, והקטעים בשפה אחרת. "auto" — השפה הראשית
     מהציר (בלי ציר — detect_main); נבחרה שפה, אבל רוב הדיבור (‏≥ SWITCH_MAIN) בעברית/אנגלית האחרת — מתמללים בשפה של הקול
-    (בקשת המשתמש: "גם אם המשתמש בחר רק אנגלית ויש גם מידע בעברית"). שפה שאינה עברית/אנגלית — בלי תמלול (vi_lang)."""
+    (בקשת המשתמש: "גם אם המשתמש בחר רק אנגלית ויש גם מידע בעברית"). שפה שאינה עברית/אנגלית — בלי תמלול (vi_lang).
+    18/11/2026: en_fn(t0, tl) — התמלול באנגלית ממקור אחר (התמלול של התרגום, "גם תרגום" — vt/cli._vi_asr_proj)."""
     t0 = time.time()
     auto, chosen = None, ""
     tl = lang_timeline(wav, lang, tl_model, lid_model)
@@ -310,7 +311,7 @@ def asr(wav: str, lang: str, lid_model=None, tl_model=None) -> dict:
     elif tl and tl["main"] in ("he", "en") and tl["main"] != lang and tl["share"].get(tl["main"], 0) >= SWITCH_MAIN:
         log(f"נבחרה {lang}, אבל {round(tl['share'][tl['main']] * 100)}% מהדיבור ב־{tl['main']} — מתמללים בשפה של הקול")
         chosen, lang = lang, tl["main"]
-    r = _asr(wav, lang, t0, tl)
+    r = en_fn(t0, tl) if en_fn is not None and lang == "en" else _asr(wav, lang, t0, tl)
     if auto:
         r["stats"]["auto"] = auto
     if tl:
@@ -335,6 +336,47 @@ def _asr(wav: str, lang: str, t0: float, tl: dict | None = None) -> dict:
     words, lid = lang_mix(wav, words, None, "en", tl=tl)
     return {"v": V, "lang": "en", "engine": "parakeet", "quality": "ok" if words else "low", "words": words,
             "stats": dict(lid, n=len(words), s=round(time.time() - t0, 1))}
+
+
+def from_asr(res: dict, seg: list[dict], t0: float) -> dict:
+    """18/11/2026 ("גם תרגום" בניתוח, בלי כפילויות): המילים של הניתוח מהתמלול של התרגום (vt asr — Parakeet והדוברים)
+    ומהקטעים בשפה אחרת שלו (foreign.json — מאותו ציר שפות) — במקום Parakeet ו־lang_mix שניים. אותה צורה של _asr באנגלית,
+    ועם הדוברים (spk) ורמז המגדר (voice): היישור לא מזהה דוברים שוב. מילה בשפה אחרת — הדובר של המילה הקרובה."""
+    from . import lang as L
+    words = [dict({"w": str(w["w"]), "s": round(float(w["s"]), 3), "e": round(float(w["e"]), 3)},
+                  **({"p": w["conf"]} if isinstance(w.get("conf"), (int, float)) else {}),
+                  **({"spk": w["spk"]} if isinstance(w.get("spk"), str) and re.fullmatch(r"S\d{1,2}", w["spk"]) else {}))
+             for w in res.get("words") or [] if w.get("w") and w.get("e") is not None and w.get("s") is not None]
+    seg = [g for g in seg or [] if isinstance(g, dict)]
+    if seg:
+        words = L.merge_words(words, seg)
+        fill_spk(words)
+    st: dict = {"lid_n": len([g for g in seg if g.get("wd")]), "lid_src": "vt"}
+    dz = res.get("diarize") if isinstance(res.get("diarize"), dict) else {}
+    st.update({"spk_" + k: v for k, v in dz.items() if isinstance(v, (int, float)) and not isinstance(v, bool)})
+    out = {"v": V, "lang": "en", "engine": "parakeet", "quality": "ok" if words else "low", "words": words,
+           "stats": dict(st, n=len(words), s=round(time.time() - t0, 1))}
+    if isinstance(dz.get("voice"), dict):
+        out["voice"] = dz["voice"]
+    return out
+
+
+def fill_spk(words: list[dict]) -> int:
+    """מילים בלי דובר (קטע בשפה אחרת שנכנס אחרי זיהוי הדוברים) — הדובר של המילה הקרובה בזמן שיש לה דובר. מחזיר כמה."""
+    has = [k for k, w in enumerate(words) if w.get("spk")]
+    if not has:
+        return 0
+    n, j = 0, 0
+    for k, w in enumerate(words):
+        if w.get("spk"):
+            continue
+        while j + 1 < len(has) and has[j + 1] < k:
+            j += 1
+        c = [has[j]] + ([has[j + 1]] if j + 1 < len(has) else [])
+        best = min(c, key=lambda i: min(abs(words[i]["s"] - w["e"]), abs(w["s"] - words[i]["e"])))
+        w["spk"] = words[best]["spk"]
+        n += 1
+    return n
 
 
 HE_TOL = 0.5                   # זמן CTC עד חצי שנייה מחוץ לקטע של ivrit — עוד סביר (ריפוד ה־VAD)
@@ -438,7 +480,10 @@ def align(tr: dict, wav: str) -> dict:
     st["coarse"] = sum(1 for w in words if w.get("c"))
     st["align_s"] = round(time.time() - t0, 1)
     voice: dict = {}
-    if words:
+    if words and any(w.get("spk") for w in words):
+        voice = voice_doc(tr.get("voice"))    # 18/11/2026: הדוברים כבר מהתמלול (המשותף עם התרגום — from_asr); לא שוב
+        st.update({k: v for k, v in (tr.get("stats") or {}).items() if k.startswith("spk_") and isinstance(v, (int, float))})
+    elif words:
         try:
             from . import diarize
             ds = diarize.diarize(words, wav)

@@ -126,17 +126,22 @@ def _api_audio(pr):
 
 
 def cmd_asr(a):
-    pr = Project(a.name)
+    _asr_run(Project(a.name), a.engine, a.fp32, a.num_speakers)
+
+
+def _asr_run(pr, engine: str, fp32: bool = False, num_speakers=None) -> dict:
+    """התמלול של התרגום (vt asr): המנוע, הדוברים מהקול → asr/<מנוע>.json. 18/11/2026: גם מהניתוח עם "גם תרגום"
+    (_vi_asr_proj) — אותה פונקציה, כדי שהתרגום ימשיך מתמלול זהה לשלו."""
     meta = pr.load()
     terms = meta.get("keyterms", [])
-    n_spk = a.num_speakers or meta.get("settings", {}).get("num_speakers")
-    if a.engine == "parakeet":
+    n_spk = num_speakers or meta.get("settings", {}).get("num_speakers")
+    if engine == "parakeet":
         from . import asr_parakeet
-        res = asr_parakeet.transcribe(str(pr.p("audio16k.wav")), quantization=None if a.fp32 else "int8")
-    elif a.engine == "elevenlabs":
+        res = asr_parakeet.transcribe(str(pr.p("audio16k.wav")), quantization=None if fp32 else "int8")
+    elif engine == "elevenlabs":
         from . import asr_api
         res = asr_api.elevenlabs(_api_audio(pr), terms, n_spk)
-    elif a.engine == "assemblyai":
+    elif engine == "assemblyai":
         from . import asr_api
         ctx = meta.get("asr_context") or meta.get("title")
         res = asr_api.assemblyai(_api_audio(pr), terms, n_spk, ctx)
@@ -146,9 +151,10 @@ def cmd_asr(a):
     st = diarize.diarize(res["words"], str(pr.p("audio16k.wav")))
     if st:
         res["diarize"] = st
-    write_json(pr.p("asr", f"{a.engine}.json"), res)
-    log(f"נשמר asr/{a.engine}.json — {len(res['words'])} מילים, דוברים: {sorted({w.get('spk') for w in res['words'] if w.get('spk')})}")
-    pr.mark("asr", engine=a.engine, words=len(res["words"]))
+    write_json(pr.p("asr", f"{engine}.json"), res)
+    log(f"נשמר asr/{engine}.json — {len(res['words'])} מילים, דוברים: {sorted({w.get('spk') for w in res['words'] if w.get('spk')})}")
+    pr.mark("asr", engine=engine, words=len(res["words"]))
+    return res
 
 
 def cmd_compare(a):
@@ -184,24 +190,31 @@ def cmd_lang(a):
     בלי המודל בתמונה / בלי מועמדים — קובץ ריק, ושום דבר לא נופל.
     16/11/2026: עם ציר השפות (vt/lid.py) — על כל הדיבור, לא רק על מילים בביטחון נמוך (עברית שנשמעה "בטוחה" ל־Parakeet
     לא נמצאה, ומעל 30 מועמדים — כלום). הקטעים: עברית ב־ivrit, אחרת whisper-small; ‏tl = תקציר הציר (share, ‏regions)."""
+    _lang_run(Project(a.name))
+
+
+def _lang_run(pr, tl=None, have_tl: bool = False) -> dict:
+    """vt lang → foreign.json (ומחזיר אותו). 18/11/2026 ("גם תרגום" בניתוח): have_tl — ציר השפות כבר חושב (tl; None = אין
+    ציר — הדרך הישנה), ולא מחשבים אותו שוב."""
     from . import lang as L
     from . import lid
-    pr = Project(a.name)
     pr.load()
     out = pr.p("foreign.json")
     eng, res = _asr_preferred(pr, None)
-    use_tl = lid.ready() and os.environ.get("SNB_LID") != "off"
+    use_tl = (tl is not None) if have_tl else lid.ready() and os.environ.get("SNB_LID") != "off"
     if eng != "parakeet" or not (use_tl or L.ready()):
-        write_json(out, {"v": 1, "seg": []})
+        doc0 = {"v": 1, "seg": []}
+        write_json(out, doc0)
         log("שפות: " + ("המנוע רב־לשוני" if eng != "parakeet" else "אין מודל זיהוי בתמונה") + " — מדלגים")
-        return
+        return doc0
     wav = str(pr.p("audio16k.wav"))
     doc: dict = {"v": 1, "seg": []}
     try:
         if use_tl:
             from .vi import _load16, langs_doc, verify_fn
             audio = _load16(wav)
-            tl = lid.timeline(audio, prefer="en", verify_fn=verify_fn())
+            if tl is None:
+                tl = lid.timeline(audio, prefer="en", verify_fn=verify_fn())
             found = L.foreign_regions(tl, "en", audio=audio)
             doc["seg"] = L.transcribe_spans(audio, found) if found else []
             doc["tl"] = {k: v for k, v in langs_doc(tl).items() if k in ("src", "main", "share", "n", "s", "vf")}
@@ -214,6 +227,7 @@ def cmd_lang(a):
     seg = doc["seg"]
     write_json(out, doc)
     log(f"שפות: {len(seg)} קטעים שאינם באנגלית" + (" — " + ", ".join(sorted({g['lg'] for g in seg})) if seg else ""))
+    return doc
 
 
 def cmd_edit_export(a):
@@ -430,13 +444,44 @@ def _is_16k_mono(p: Path) -> bool:
 def cmd_vi_asr(a):
     """ניתוח סרטונים, שלב tr: שמע 16kHz → מילים עם זמן (עברית — vt/asr_he.py, אנגלית — Parakeet). PR 0.2."""
     from . import vi
-    if not Path(a.wav).is_file():
+    if a.proj:
+        return _vi_asr_proj(a)
+    if not a.wav or not Path(a.wav).is_file():
         die(f"אין קובץ: {a.wav}")
     try:
         r = vi.asr(a.wav, a.lang)
     except RuntimeError as e:
         die(str(e))
     log(f"תמלול ({r['lang']}, {r['engine']}, איכות {r['quality']}): {len(r['words'])} מילים · {r['stats'].get('s')} שנ׳")
+    vi.write(Path(a.out), r)
+
+
+def _vi_asr_proj(a):
+    """18/11/2026 (בקשת המשתמש: "גם תרגום" בניתוח — "שאין כפילויות בין הכלים של התמלול"): הניתוח והתרגום על אותו פרויקט
+    (vt new + ingest — הקול שלו הוא הקול של הניתוח). ציר השפות פעם אחת (vi.asr); כשהשפה אנגלית — התמלול של התרגום עצמו
+    (_asr_run: ‏Parakeet + הדוברים → asr/parakeet.json, ו־_lang_run מאותו ציר → foreign.json), והמילים של הניתוח נגזרות
+    ממנו (vi.from_asr) במקום Parakeet ו־lang_mix שניים. עברית / שפה אחרת — התמלול של הניתוח כרגיל, בלי קבצי התרגום.
+    vt בתוצאה: 1 = הפרויקט מוכן להמשך התרגום (job.vt_hand)."""
+    from . import vi
+    pr = Project(a.proj)
+    pr.load()
+    wav = str(pr.p("audio16k.wav"))
+    if not Path(wav).is_file():
+        die(f"אין קול בפרויקט: {wav}")
+    box: dict = {}
+
+    def en_fn(t0, tl):
+        res = _asr_run(pr, "parakeet")
+        doc = _lang_run(pr, tl, have_tl=True)
+        box["vt"] = 1
+        return vi.from_asr(res, doc.get("seg") or [], t0)
+    try:
+        r = vi.asr(wav, a.lang, en_fn=en_fn)
+    except RuntimeError as e:
+        die(str(e))
+    r["vt"] = box.get("vt", 0)
+    log(f"תמלול ({r['lang']}, {r['engine']}, איכות {r['quality']}): {len(r['words'])} מילים · {r['stats'].get('s')} שנ׳"
+        + (" · משותף עם התרגום" if r["vt"] else ""))
     vi.write(Path(a.out), r)
 
 
@@ -1055,7 +1100,8 @@ def main(argv=None):
     p.add_argument("--no-zf", action="store_true", help="ivrit לבד, בלי בדיקת הכיסוי")
     p.add_argument("--out")
     p = add("vi-asr", cmd_vi_asr, help="ניתוח סרטונים: תמלול לשלב tr (JSON)")
-    p.add_argument("wav")
+    p.add_argument("wav", nargs="?")
+    p.add_argument("--proj", help="18/11/2026: על פרויקט התרגום (\"גם תרגום\") — הקול והתמלול שלו, פעם אחת")
     p.add_argument("--lang", choices=("auto", "he", "en"), required=True)
     p.add_argument("--out", required=True)
     p = add("vi-align", cmd_vi_align, help="ניתוח סרטונים: זמן לכל מילה ודוברים (JSON)")

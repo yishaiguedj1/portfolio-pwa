@@ -882,6 +882,7 @@ def mem_kind(jb: dict) -> str:
     mk = jb.get('mk')
     return mk if mk in MEM_MK.get(k, ()) else k
 MEM_MARGIN = 1.1                   # ההזמנה = השיא הצפוי + 10%
+MEM_TAIL_MAX = 64000                # 18/11/2026: lt (הזנב, MB) סביר — ערך משובש לא נכנס
 MEM_BASE_MB = 400                   # הסוכן עצמו + ההכנה מראש של המודלים
 PSI_MAX = 10.0                      # some avg10 מעל 10% — הזיכרון כבר בלחץ: לא מכניסים עבודה
 
@@ -1054,6 +1055,7 @@ class Slot:
         self.dur = float(jb.get('dur') or 0)
         self.need = mem_need(self.mk, self.dur)
         self.peak = 0.0
+        self.rss, self.lt = 0.0, 0.0                     # 18/11/2026: מה שהיא תופסת עכשיו, והזנב שהודיעה עליו (lt)
         self.pst = ''                                    # השלב שבו נמדד השיא (prog.json)
         self.p = None
         self.t0 = time.time()
@@ -1073,10 +1075,15 @@ class Slot:
     def sample(self, kids=None):
         if self.p and self.p.poll() is None:
             rss = tree_rss_mb(self.p.pid, kids)
+            self.rss = rss
+            pg = _prog(self.state)
             if rss > self.peak:
                 self.peak = rss
-                st = _prog(self.state).get('st')
+                st = pg.get('st')
                 self.pst = st if isinstance(st, str) and MEM_ST_RE.match(st) else self.pst
+            lt = pg.get('lt')
+            if isinstance(lt, (int, float)) and not isinstance(lt, bool) and 0 < lt < MEM_TAIL_MAX:
+                self.lt = float(lt)
             if not self.dur:                             # האורך — מקובץ המצב של job.py (נכתב בלקיחה)
                 try:
                     self.dur = float(((json.loads((self.state / 'job.json').read_text(encoding='utf-8')).get('spec') or {}).get('dur')) or 0)
@@ -1085,7 +1092,11 @@ class Slot:
                     pass
 
     def reserved(self) -> float:
-        """כמה מהזיכרון שמור לה: השיא הצפוי, או מה שהיא כבר תופסת אם עברה אותו"""
+        """כמה מהזיכרון שמור לה: השיא הצפוי, או מה שהיא כבר תופסת אם עברה אותו.
+        18/11/2026: בזנב (lt ב־prog.json — job.mem_tail: החלק הכבד מאחוריה) — רק השיא הצפוי של מה שנשאר, או מה שהיא תופסת
+        עכשיו ×1.1 אם יותר. השיא שכבר עבר לא נשמר יותר לשווא, ועבודה אחרת נכנסת (mem_fit — עדיין גם מול מה שבאמת פנוי)."""
+        if self.lt > 0:
+            return min(max(self.lt, self.rss * MEM_MARGIN), max(self.need, self.peak * MEM_MARGIN))
         return max(self.need, self.peak * MEM_MARGIN)
 
     def done(self) -> int | None:

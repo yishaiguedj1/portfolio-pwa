@@ -593,6 +593,74 @@ class FakeJ:
         return "r2:" + k
 
 
+class TestVtShare(unittest.TestCase):
+    """18/11/2026 ("גם תרגום"): הניתוח גוזר את המילים, הדוברים והקטעים בשפה אחרת מהתמלול של התרגום — בלי לחשב שוב"""
+
+    def test_from_asr(self):
+        import time
+        res = {"words": [{"w": "Hello", "s": 0.0, "e": 0.5, "conf": 0.9, "spk": "S1"}, {"w": "world.", "s": 0.6, "e": 1.0, "spk": "S1"},
+                         {"w": "Next", "s": 5.0, "e": 5.4, "spk": "S2"}, {"w": "x", "s": 9.0, "e": None}, {"w": "y", "s": 9.5, "e": 9.9, "spk": "S?"}],
+               "diarize": {"speakers": 2, "units": 2, "seconds": 1.5, "voice": {"S1": {"g": "m", "hz": 120.4}}}}
+        seg = [{"s": 2.0, "e": 4.0, "lg": "he", "wd": [["שלום", 2.1, 2.6, 0.8], ["לכם", 2.7, 3.2]]}, {"s": 7, "e": 8, "lg": "ru"}]
+        r = VI.from_asr(res, seg, time.time())
+        self.assertEqual([(w["w"], w.get("spk"), w.get("lg")) for w in r["words"]],
+                         [("Hello", "S1", None), ("world.", "S1", None), ("שלום", "S1", "he"), ("לכם", "S1", "he"), ("Next", "S2", None), ("y", "S2", None)],
+                         "מילה בשפה אחרת — הדובר הקרוב; S? — בלי דובר, ומקבלת את הקרוב")
+        self.assertEqual(r["words"][0]["p"], 0.9)
+        self.assertEqual((r["lang"], r["engine"], r["quality"]), ("en", "parakeet", "ok"))
+        st = r["stats"]
+        self.assertEqual((st["lid_n"], st["lid_src"], st["spk_speakers"], st["spk_seconds"], st["n"]), (1, "vt", 2, 1.5, 6))
+        self.assertEqual(r["voice"], {"S1": {"g": "m", "hz": 120.4}})
+        self.assertEqual(VI.fill_spk([{"w": "a", "s": 0, "e": 1}]), 0, "בלי אף דובר — כלום")
+
+    def test_align_keeps_speakers(self):
+        """מילים שכבר עם דוברים (מהתמלול המשותף) — היישור לא מזהה דוברים שוב, ורמז המגדר עובר מהתמלול"""
+        import types
+        fake = types.ModuleType("vt.align_he")
+        fake.load_ctc = lambda: (_ for _ in ()).throw(RuntimeError("no model"))
+        dz = types.ModuleType("vt.diarize")
+        dz.diarize = lambda *a, **k: self.fail("זיהוי דוברים שני")
+        saved = {k: sys.modules.get(k) for k in ("vt.align_he", "vt.diarize")}
+        sys.modules.update({"vt.align_he": fake, "vt.diarize": dz})
+        try:
+            r = VI.align({"lang": "he", "words": [W("א", 0, 1, spk="S1"), W("ב", 1, 2, spk="S2")], "voice": {"S1": {"g": "f", "hz": 210}},
+                          "stats": {"spk_speakers": 2}}, "/nonexistent.wav")
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    sys.modules.pop(k, None)
+                else:
+                    sys.modules[k] = v
+        self.assertEqual(r["voice"], {"S1": {"g": "f", "hz": 210}})
+        self.assertEqual(r["stats"]["spk_speakers"], 2)
+        self.assertEqual([w["spk"] for w in r["words"]], ["S1", "S2"])
+
+    def test_lang_run_reuses_timeline(self):
+        """vt lang על ציר שכבר חושב (have_tl): לא מחשבים אותו שוב — גם כשאין ציר (None)"""
+        from vt import cli, lid
+        td = tempfile.TemporaryDirectory()
+        old = os.environ.get("VT_WORK")
+        os.environ["VT_WORK"] = td.name
+        real = lid.timeline
+        lid.timeline = lambda *a, **k: self.fail("ציר שני")
+        try:
+            from vt.project import Project
+            pr = Project("p1")
+            pr.create(str(Path(td.name) / "in.m4a"), "t")
+            (pr.dir / "asr").mkdir(parents=True, exist_ok=True)
+            (pr.dir / "asr" / "parakeet.json").write_text(json.dumps({"words": [W("a", 0, 1)]}))
+            doc = cli._lang_run(pr, None, have_tl=True)
+            self.assertEqual(doc["seg"], [])
+            self.assertTrue((pr.dir / "foreign.json").exists())
+        finally:
+            lid.timeline = real
+            if old is None:
+                os.environ.pop("VT_WORK", None)
+            else:
+                os.environ["VT_WORK"] = old
+            td.cleanup()
+
+
 @unittest.skipUnless(HAS_FF, "ffmpeg לא מותקן")
 class TestViRun(unittest.TestCase):
     def setUp(self):
@@ -604,11 +672,11 @@ class TestViRun(unittest.TestCase):
     def tearDown(self):
         self.td.cleanup()
 
-    def run_vi(self, engine=None, lid="en", files=None, asrc=None, **spec):
+    def run_vi(self, engine=None, lid="en", files=None, asrc=None, jcls=None, **spec):
         st = {"job": "jtestvi", "spec": dict({"vi": 1, "dry": 1, "from": "en", "to": ["he"], "name": "הרצאה.mp4", "mode": ""}, **spec),
               "files": files if files is not None else {"v": {"id": "r2:v", "size": 1}}}
         ctx = Ctx(st, self.dir / "proj")
-        J = FakeJ(ctx, self.src)
+        J = (jcls or FakeJ)(ctx, self.src)
         J.lid = lid
         if asrc:
             J.asrc = asrc
@@ -819,6 +887,93 @@ class TestViRun(unittest.TestCase):
         self.assertEqual(lx["out"], {"st": "failed", "err": "vi_schema"}, "הרשומה המספרית גם בכישלון")
         self.assertNotIn("counts", lx)
         self.assertEqual(self.ctx.c.put, [], "בלי קורפוס כשאין ניתוח")
+
+    def test_vt_handoff(self):
+        """18/11/2026 ("גם תרגום"): הקליטה והתמלול על הפרויקט של התרגום (vt_project, ‏vi-asr --proj) ומסירה מיד אחרי התמלול —
+        לפני Claude (גם כשהניתוח נכשל אחר כך). עברית — הודעה בלי תרגום; יבש — בלי; תקלה בפרויקט — מסירה בלי נקודה"""
+        import llm
+
+        class VJ(FakeJ):
+            boom = False
+
+            def vt_project(s, ctx, src, kind):
+                s.calls.append(("proj", kind))
+                if s.boom:
+                    raise SystemExit("✗ vt")
+                subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(src), "-vn", "-ac", "1", "-ar", "16000",
+                                str(ctx.pdir / "audio16k.wav")], check=True)
+                return True
+
+            def vt_hand(s, ctx, kind, lg):
+                s.calls.append(("hand", kind, lg))
+                return "jT"
+
+            def vt_call(s, ctx, lg, ck=None):
+                s.calls.append(("call", lg))
+                return ""
+
+            def vt(s, ctx, args, *a, **k):
+                FakeJ.vt(s, ctx, args, *a, **k)
+                if args[0] == "vi-asr":
+                    s.calls.append(("asr", "--proj" in args))
+                    out = Path(args[args.index("--out") + 1])
+                    d = json.loads(out.read_text())
+                    d["vt"] = 1 if "--proj" in args and d["lang"] == "en" else 0
+                    out.write_text(json.dumps(d))
+        bad = llm.ManualEngine(lambda k, t: "not json")
+
+        def go(cls, **kw):
+            if not self.src.exists():                  # ריצה שהסתיימה מוחקת את המקור (vi_run)
+                _video(self.src)
+            try:
+                return self.run_vi(jcls=cls, vt=1, **kw)[2].calls
+            except SystemExit:
+                return self.J.calls
+        c = go(VJ, engine=bad, dry=0)
+        self.assertIn(("proj", "v"), c)
+        self.assertIn(("asr", True), c, "התמלול על הפרויקט המשותף")
+        self.assertIn(("hand", "v", "en"), c, "המסירה — לפני Claude, גם כשהניתוח נכשל אחריה")
+        self.assertLess(c.index(("hand", "v", "en")), c.index("vi-align"))
+        c = go(VJ, engine=bad, dry=0, lid="he", **{"from": "auto"})
+        self.assertIn(("call", "he"), c, "עברית — בלי תרגום (השרתון: vtx lang)")
+        self.assertNotIn(("hand", "v", "en"), c)
+        c = go(VJ)
+        self.assertFalse([x for x in c if isinstance(x, tuple) and x[0] in ("proj", "hand", "call")], "יבש — בלי תרגום")
+        VJ.boom = True
+        c = go(VJ, engine=bad, dry=0)
+        self.assertIn(("asr", False), c, "תקלה בפרויקט — הניתוח במסלול שלו")
+        self.assertIn(("call", "en"), c, "ומסירה בלי נקודה — התרגום מההתחלה")
+
+    def test_same_bg(self):
+        """18/11/2026: הסרטון לנגן והעלאתו ברקע (same_bg) — same_join מחזיר את מה שהועלה; תקלה ברקע — {} (המסלול הרגיל)"""
+        out = self.dir / "same.mp4"
+
+        class Q:
+            pass
+
+        class C:
+            def quiet(self):
+                return Q()
+
+            def report(self, *a, **k):
+                pass
+
+        class JJ:
+            fail = False
+
+            def vt(self, q, args, *a):
+                if self.fail:
+                    raise SystemExit("✗")
+                out.write_bytes(b"\0" * 10)
+
+            def put_output_retry(self, q, p, name, k, mime):
+                return "r2:" + k
+        j = JJ()
+        r = A.same_join(A.same_bg(j, C(), self.src, out, "x (איכות מקור).mp4"), C())
+        self.assertEqual(r["up"], {"id": "r2:same", "name": "x (איכות מקור).mp4", "size": 10, "k": "same"})
+        j.fail = True
+        self.assertEqual(A.same_join(A.same_bg(j, C(), self.src, out, "x"), None), {})
+        self.assertIsNone(A.same_bg(j, object(), self.src, out, "x"), "בלי quiet (עובד ישן / בדיקה) — בטור")
 
     def test_live_gate_env(self):
         os.environ["SNB_VI_LIVE"] = "1"

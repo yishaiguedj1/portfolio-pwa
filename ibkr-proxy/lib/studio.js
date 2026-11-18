@@ -320,6 +320,9 @@ function normSpec(s) {
   }, subs ? Object.assign({ src: 'subs', sdh: s.sdh === 'keep' ? 'keep' : 'rm' }, SUBS_FPS.includes(String(s.fps)) ? { fps: String(s.fps) } : {}) : {},
   link ? Object.assign({ src: 'url', url, pick }, ref ? { ref } : {}) : {},
   vi || {},
+  // 18/11/2026 (בקשת המשתמש): "גם תרגום" בניתוח — עבודת תרגום רגילה ומקושרת (vtJob). רק ניתוח עם Claude, מקור אנגלית /
+  // אוטומטי (= LANG_READY של התרגום); vto = התוצרים של התרגום (כמו out בטופס התרגום — ריק = כתוביות בלבד)
+  vi && vi.vr === 1 && s.vt === 1 && LANG_READY.from.includes(s.from) ? { vt: 1, vto: uniq(s.vto, (k) => OUTS.includes(k)) } : {},
   ka ? Object.assign({ ka: 1, lyr: normLyr(s.lyr), ky: normKy(s.ky) }, al ? { al } : {}, s.bv === 1 ? { bv: 1 } : {}, Number.isFinite(+s.gv) && +s.gv > 0 ? { gv: Math.min(60, Math.round(+s.gv)) } : {}) : {},   // קריוקי: עם קולות רקע, קול מנחה ב־%
   // 25/10/2026 (שלב 2): pw = גם התמלול והיישור בטלפון — עולים רק המילים עם הזמנים (w) והמדידות (m), בלי קול
   // 25/10/2026 (שלב 3): pt = גם שלבי הטקסט בטלפון (vt בפייתון של Studio) — השרת רק מעביר את הקריאות ל־Claude (התור, המפתח של
@@ -883,6 +886,7 @@ function publicJob(job, now) {
     fired: job.fired || 0, claimed: job.claimed || 0, ended: job.ended || e.at || 0,
     spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), s: fileView(job.fsu), r: fileView(job.fsr), o: Array.isArray(job.fo) ? job.fo : [], c: fileView(job.fc), q: fileView(job.fq), m: fileView(job.fph), w: fileView(job.fpw) },
     folder: FILE_ID_RE.test(String(job.folder || '')) ? job.folder : '',
+    vtj: JOB_RE.test(String(job.vtj || '')) ? job.vtj : '', va: JOB_RE.test(String(job.va || '')) ? job.va : '', vtx: VT_X.includes(job.vtx) ? job.vtx : '',   // 18/11/2026: "גם תרגום" — הניתוח ↔ עבודת התרגום שלו
     rp: job.rp || '', ev: job.ev || 0, vh: Array.isArray(job.vh) ? job.vh.map((x) => (x && x.at) || 0) : [], vc: Array.isArray(job.vh) ? job.vh.map((x) => (x && FILE_ID_RE.test(String(x.c || '')) ? x.c : '')) : [],   /* C4 (2/11/2026): קובץ הכתוביות של כל גרסה — להשוואה בטלפון */   // מ2: הפקה מחדש (העבודה המקורית), גרסת הכתוביות, מתי נשמרה כל גרסה קודמת
     sess: job.sess && job.sess.url ? { url: job.sess.url } : null,
     prog: job.prog || null, ed: job.ed || '',
@@ -1159,6 +1163,26 @@ function vvJob(parent, id, uid, now) {
     spec: { name: sp.name || '', size: 0, type: '', dur: 0, from: sp.from || 'auto', to: ['he'], mode: modeNow(sp.mode || DEFAULT_MODE), out: [], style: STYLES[0], terms: '',
       vi: 1, vo: 1, eng: 'api', cap: CAP_MIN_JOB } };
 }
+/* 18/11/2026 (בקשת המשתמש: "לבחור בניתוח גם תרגום של הסרטון... בדיוק כמו מערכת התרגום, בלי כפילויות בין הכלים"):
+   ניתוח עם spec.vt = 1 → עבודת תרגום **רגילה** שהשרתון יוצר כשהעובד של הניתוח מוסר לו את הפרויקט (op vtHand). העובד של
+   הניתוח כבר הוריד, קלט ותמלל פעם אחת (Parakeet, הדוברים, ציר השפות — אותן פקודות של התרגום) ושמר נקודת שמירה של
+   התמלול (ck 'asr'); עבודת התרגום ממשיכה ממנה כמו "המשך" — ההגהה, היישור, התרגום, הביקורת, הצריבה ואיכויות הצפייה, בקוד
+   של התרגום בלי שינוי. אותה תיקייה ואותם קבצים (fa/fv — הסרטון שעולה מאוחר יותר נרשם גם בה: vtFiles), עבודה עצמאית
+   ברשימה (בלי rp — מחיקת הניתוח לא מוחקת אותה, והתיקייה נשמרת כל עוד אחת מהן קיימת): va = הניתוח, ובניתוח vtj = היא.
+   ck = null (המסירה נכשלה) — תרגום מלא מההתחלה, מאותם קבצים. vtx בניתוח = למה לא תורגם (lang: הסרטון לא באנגלית) */
+const VT_X = ['lang'];
+function vtJob(a, ck, id, now, lg) {
+  const sp = a.spec || {}, f = (x) => (x && FILE_ID_RE.test(String(x.id || '')) ? Object.assign({}, x) : null);
+  const spec = { name: sp.name || '', size: Math.max(0, Math.floor(+sp.size || 0)), type: sp.type || '', dur: Math.max(0, Math.floor(+sp.dur || 0)),
+    from: ck || lg === 'en' ? 'en' : LANG_READY.from.includes(sp.from) ? sp.from : 'auto', to: ['he'], mode: modeNow(sp.mode || DEFAULT_MODE),
+    out: uniq(sp.vto, (k) => OUTS.includes(k)), style: STYLES.includes(sp.style) ? sp.style : STYLES[0], terms: String(sp.terms || ''),
+    eng: 'api', cap: normCap(sp.cap) };
+  const j = { id, uid: a.uid, kind: 'tr', state: 'new', created: now, updated: now, folder: a.folder, va: a.id, ck: ck ? [Object.assign({}, ck, { at: now })] : [], spec };
+  if (f(a.fa)) j.fa = f(a.fa);
+  if (f(a.fv)) j.fv = f(a.fv);
+  return j;
+}
+const vtOn = (job) => !!(job && job.kind === 'tr' && job.spec && job.spec.vi === 1 && job.spec.vt === 1 && job.spec.dry !== 1 && !isVv(job) && !isVj(job) && !isVp(job));
 /* התוצרים של ההורה עם ה־vi החדש של עבודת־הבת במקום הישן (השאר — כמו שהם), או null */
 function vvAdopt(parent, outs) {
   const nv = (Array.isArray(outs) ? outs : []).find((o) => o && o.k === 'vi' && FILE_ID_RE.test(String(o.id || '')));
@@ -2046,7 +2070,7 @@ function fromFields(f) {
 module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, smAlias, smResolve, smRowsMerge, smEvict, smIsName, chKey, jobSeries, SM_BYTES, SM_READ, SM_GL, SM_CH, SM_NEW, SM_DONE, SM_LOCK, SM_UNSURE, SM_FIX, SM_WORKER, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, legacyMode, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
-  GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, isGold, isViGold, goldClone, normXe, XF_KEYS, XF_MAX, normXf, GOLD_ARMS, normArms, waveOrder, waveClone, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, LIB_MAX, libRole, libIds, normLibMeta, normLibDx, normLibDone, libSwap, libView, burnSuspect, lbJob, cuesSwap, rrSpec, rrJob, VV_MAX, viOut, isVv, canViVerify, vvJob, vvAdopt, isVj, VJ_USD, isVp, VP_MODES, VP_USD, vpJob, viWave, vjPairs, normVjp, vjJob, vjRows, vjDecide,
+  GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, isGold, isViGold, goldClone, normXe, XF_KEYS, XF_MAX, normXf, GOLD_ARMS, normArms, waveOrder, waveClone, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, LIB_MAX, libRole, libIds, normLibMeta, normLibDx, normLibDone, libSwap, libView, burnSuspect, lbJob, cuesSwap, rrSpec, rrJob, VV_MAX, viOut, isVv, canViVerify, vvJob, vvAdopt, VT_X, vtJob, vtOn, isVj, VJ_USD, isVp, VP_MODES, VP_USD, vpJob, viWave, vjPairs, normVjp, vjJob, vjRows, vjDecide,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normHs, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,

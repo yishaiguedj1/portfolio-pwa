@@ -209,3 +209,8 @@
 - **סולמות שונים לאותו מדד**: ‏`worker_extra.ocr_conf` הוא 0–100 (כמו OCR), ‏`normViLx.scr.ocr_conf` — 0–1. ההמרה ב־`vi_facts`.
 - **ייחוס בלי בקשה נוספת ליוטיוב**: ‏`get_subs(meta=True)` מוסיף `--write-info-json` לבקשת הכתוביות שכבר רצה. ה־info.json (עם קישורים חתומים) נמחק מיד; נשמרים רק התיאור והפרקים (`ref/desc.json`).
 - **`same` במקום `small`**: ‏H.264 — העתקה (שניות). אחרת קידוד ברזולוציה של המקור — בהרצאה של שעה ב־VP9/AV1 זה כמה דקות, וזה נכנס לזמן `bn`.
+
+## "גם תרגום" — ניתוח שמוסר את התמלול לעבודת תרגום (18/11/2026, ‏2.176.0, ‏821)
+- `analyze.vi_run` עם `spec.vt=1`: ‏`vt_ingest` (‏`job.vt_project` — ‏`vt new` + ‏`ingest` על המקור; ‏`'v'` = הקול שעלה ראשון כמעט בלי דיבור → מהסרטון), ‏`vi-asr --proj` (התמלול, הדוברים וציר השפות של התרגום — פעם אחת), ואז `vt_after_asr`: אנגלית → ‏`job.vt_hand` (‏edit-export, ‏inject_guard, ‏`ck_upload('asr')` בלי דיווח, ‏`vt_call` → ‏`vtHand`); אחרת `vt_call(lg)` בלי נקודה (‏he / ‏x → ‏`vtx: 'lang'` בשרתון).
+- עבודת התרגום ממשיכה מנקודה של עבודה אחרת כמו "המשך" (restore). בלי shots.json במקור `v` — ‏`early_shots_start` + ‏`hs_probe_bg` כבר ב־restore, ו־`_shots_join` מאמץ (`early_shots_take`).
+- `job.mem_tail(mb)` — הזנב (‏`lt` ב־prog.json; ‏`mirror_prog` שומר אותו). הפירוט וההחלטות: `docs/studio-video-analysis-plan.md` 16.11.
