@@ -40,12 +40,15 @@ html .lib-root :is(.lib-cont, .col-card:not(.add), .bk-card, .lib-card, .lib-set
 /* ===== 2. ההדר: סמלים בצבע הטקסט; "גיבוי · כבוי" בקפסולת זכוכית בשורה אחת ===== */
 html .appbar .icon-btn { color: var(--on-surface) !important; }
 html .appbar .icon-btn svg { stroke: var(--on-surface) !important; color: var(--on-surface) !important; }
+/* 18/11/2026 (בקשת המשתמש — בועות ההדר "מיושרות ונקיות"): אותה בועה בדיוק של Invest ו־Studio — גובה 40, ענן · "גיבוי" · מצב מודגש, בלי "·" (נחתך ב־367) */
 html .appbar .lib-bkpill { border-radius: 999px !important; background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; border: 0 !important;
-  -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important; height: 36px !important; flex-direction: row !important; align-items: center !important;
-  gap: 6px !important; padding: 0 14px !important; white-space: nowrap !important; color: var(--on-surface) !important; }
-html .appbar .lib-bkpill .sub-cap { font-size: 13px !important; font-weight: 500 !important; color: var(--on-surface-var) !important; display: inline-flex !important; align-items: center; gap: 4px; }
-html .appbar .lib-bkpill .sub-cap::after { content: "·"; margin-inline-start: 2px; }
-html .appbar .lib-bkpill .sub-val { font-size: 14px !important; font-weight: 600 !important; }
+  -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important; height: 40px !important; min-height: 0 !important; margin-top: 4px !important; flex-direction: row !important; flex-wrap: nowrap !important;
+  align-items: center !important; justify-content: center !important; gap: 4px !important; padding: 0 10px !important; min-width: 0 !important; white-space: nowrap !important; overflow: hidden !important; color: var(--on-surface) !important; }
+html .appbar .lib-bkpill .sub-cap { display: inline-flex !important; align-items: center !important; gap: 4px !important; flex: 0 1 auto !important; min-width: 0 !important; max-width: none !important;
+  overflow: hidden !important; text-overflow: ellipsis !important; font-size: 13px !important; font-weight: 500 !important; line-height: 1.2 !important; color: var(--on-surface-var) !important; }
+html .appbar .lib-bkpill .sub-val { flex: none !important; max-width: none !important; overflow: visible !important; font-size: 15px !important; font-weight: 600 !important; line-height: 1.2 !important; }
+html .appbar .lib-bkpill.pf1 .sub-cap { font-size: 0 !important; gap: 0 !important; }   /* hdrPillFit — לא נכנס: בלי הכיתוב המשני */
+html .appbar .lib-bkpill.pf3 .sub-val { font-size: 13px !important; }
 
 /* ===== 3. החוגה: אותה חוגה ואותה תנועה, על מסילת זכוכית צפה; הנבחר = טיפת זכוכית כחולה מורמת ===== */
 html .tabs::after { display: none !important; }

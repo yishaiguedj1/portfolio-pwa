@@ -29,8 +29,8 @@ if (kb && bc) {
 
 // 3. הבועה של Invest — אותו צומת כשהמצב מתחלף
 const usl = app.slice(app.indexOf('function updateSourceLabel()'), app.indexOf('const FX_SYM'));
-ok(/const cur = el\.firstElementChild;/.test(usl) && /cur\.className = nx\.className/.test(usl) && /cur\.innerHTML = nx\.innerHTML; return;/.test(usl), 'updateSourceLabel מעדכן את הבועה הקיימת');
-ok(/el\.innerHTML = html;\n\}/.test(usl), 'בלי בועה קיימת — ציור רגיל');
+ok(/const cur = el\.firstElementChild;/.test(usl) && /cur\.className = nx\.className/.test(usl) && /cur\.innerHTML = nx\.innerHTML; hdrPillFit\(cur\); return;/.test(usl), 'updateSourceLabel מעדכן את הבועה הקיימת');
+ok(/el\.innerHTML = html;\n  hdrPillFit\(el\.firstElementChild\);\n\}/.test(usl), 'בלי בועה קיימת — ציור רגיל');
 
 // 4. כרטיס הביצועים — הכפתור לא נבנה מחדש, ושכבת הטעינה לא מכסה גרף קיים
 const pt = app.slice(app.indexOf('function renderPfTools()'), app.indexOf('function renderPfTools()') + 1400);

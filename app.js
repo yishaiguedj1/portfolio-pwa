@@ -463,6 +463,28 @@ he: {
   anCsDvNone: 'החברה לא מחלקת דיבידנד',
   anCsYrs: 'מקובל בהשקעות ערך: 5 שנים',
   anCsReq: 'הרף של באפט ומנגר: לפחות מה שהמדד נותן לאורך זמן',
+  anCReqPx: 'מחיר המניה מחושב לפי התשואה הזו (בתרחיש הבסיס) · הערך המוצע: {v}',
+  anPxEdit: 'עריכת המחיר',
+  anPxT: 'מחיר לבדיקה',
+  anPxEx: 'שווי השוק, המכפילים, המכפיל הצפוי, בדיקות התמחור והמחשבון יחושבו לפי המחיר הזה. המחיר האמיתי: {p}. ביציאה מהניתוח המחיר חוזר לאמיתי.',
+  anPxApply: 'החל',
+  anPxErr: 'צריך מחיר גדול מאפס',
+  anPxReal: 'חזרה למחיר האמיתי ({p})',
+  anPxWas: 'במקום {p}',
+  anPxRowT: 'המחיר שונה ל־{p}',
+  anPxRowR: 'מחיר לתשואה של {r} בשנה: {p}',
+  anPxRowS: 'המחיר האמיתי: {p} · ערך עם נקודה כתומה מחושב לפי המחיר החדש',
+  anPxBack: 'החזר',
+  anMRowT: '{n} שונה ל־{v}',
+  anMRowS: 'המחיר {p} במקום {r} · נקודה כתומה = חושב מחדש',
+  anMWill: 'מחיר המניה יהיה',
+  anMWas: 'במקום {r} · {d}',
+  anMNow: 'היום',
+  anMLo: 'נמוך',
+  anMHi: 'גבוה',
+  anMYrs: 'לפי {n} השנים האחרונות',
+  anMReal: 'חזרה לנתון האמיתי · {v}',
+  anMErr: 'צריך מספר גדול מאפס',
   anCResT: 'התוצאה',
   anCNow: 'היום: {p} למניה · שווי שוק {m}',
   anCLo: 'נמוך',
@@ -1299,7 +1321,7 @@ he: {
   sessPreTiny: 'מסחר־מוקדם',
   sessNightTiny: 'מסחר־לילי',
   sessClosedTitle: 'השוק סגור — השינוי הוא מהמסחר המאוחר האחרון',
-  hdWeekend: 'סופ״ש',
+  hdWeekend: 'סופ״ש', stShHoliday: 'חג',
   hdNewYear: '1 בינואר',
   hdMlk: 'יום MLK',
   hdPresidents: 'יום הנשיאים',
@@ -1312,7 +1334,7 @@ he: {
   hdChristmas: 'חג המולד',
   staleSuffix: ' · מוצגים נתונים שמורים',
   fxSource: 'שער חליפין',
-  fxRateLabel: 'שער הדולר',
+  fxRateLabel: 'שער הדולר', fxPillCap: 'דולר',
   fxUpd: 'עודכן {time}',
   noPriceConn: 'אין חיבור למקור המחירים — מוצגים נתונים אחרונים מ־{time}.',
   noPrices: 'לא התקבלו מחירים. בדקו חיבור לאינטרנט ונסו לרענן.',
@@ -2371,6 +2393,28 @@ en: {
   anCsDvNone: 'The company pays no dividend',
   anCsYrs: 'Common in value investing: 5 years',
   anCsReq: 'Buffett and Munger’s bar: at least what the index returns over time',
+  anCReqPx: 'The share price follows this return (base case) · suggested: {v}',
+  anPxEdit: 'Edit the price',
+  anPxT: 'Price to test',
+  anPxEx: 'Market cap, multiples, forward P/E, the price checks and the calculator will use this price. Real price: {p}. Leaving the analysis brings the real price back.',
+  anPxApply: 'Apply',
+  anPxErr: 'Enter a price above zero',
+  anPxReal: 'Back to the real price ({p})',
+  anPxWas: 'instead of {p}',
+  anPxRowT: 'Price changed to {p}',
+  anPxRowR: 'Price for a {r} yearly return: {p}',
+  anPxRowS: 'Real price: {p} · values with an orange dot use the new price',
+  anPxBack: 'Reset',
+  anMRowT: '{n} set to {v}',
+  anMRowS: 'Price {p} instead of {r} · orange dot = recalculated',
+  anMWill: 'The share price would be',
+  anMWas: 'instead of {r} · {d}',
+  anMNow: 'Today',
+  anMLo: 'Low',
+  anMHi: 'High',
+  anMYrs: 'Over the last {n} years',
+  anMReal: 'Back to the real value · {v}',
+  anMErr: 'Enter a number above zero',
   anCResT: 'The result',
   anCNow: 'Today: {p} a share · market cap {m}',
   anCLo: 'Low',
@@ -3207,7 +3251,7 @@ en: {
   sessPreTiny: 'Pre',
   sessNightTiny: 'Night',
   sessClosedTitle: 'Market closed — change is from the last extended session',
-  hdWeekend: 'Weekend',
+  hdWeekend: 'Weekend', stShHoliday: 'Holiday',
   hdNewYear: 'New Year',
   hdMlk: 'MLK Day',
   hdPresidents: 'Presidents',
@@ -3220,7 +3264,7 @@ en: {
   hdChristmas: 'Christmas',
   staleSuffix: ' · showing saved data',
   fxSource: 'Exchange rate',
-  fxRateLabel: 'USD rate',
+  fxRateLabel: 'USD rate', fxPillCap: 'USD',
   fxUpd: 'updated {time}',
   noPriceConn: 'No connection to the price source — showing last data from {time}.',
   noPrices: 'No prices received. Check your internet connection and try refreshing.',
@@ -3884,6 +3928,27 @@ function t(key, vars) {
     for (const k of Object.keys(vars)) s = s.split('{' + k + '}').join(String(vars[k]));
   }
   return s;
+}
+/* 18/11/2026 (בקשת המשתמש, צילום — הטקסט בבועות ההדר גלש ונחתך): בועה שלא נכנסת בשורה אחת (אנגלית, גופן מוגדל בטלפון) —
+   קודם יורד הכיתוב המשני (pf1: נשארים הסמל והערך), ואז התוספת "· דיליי"/"· חג" (pf2), ובסוף הערך קטן יותר (pf3) — לעולם לא נחתך.
+   נמדד רק כשהתוכן משתנה, בשינוי גודל ואחרי טעינת הגופנים (Invest: app.js, Academy/Studio: statusSet ב־shell.js) */
+function hdrPillFit(p) {
+  if (!p || !p.classList || typeof getComputedStyle === 'undefined') return;
+  p.classList.remove('pf1', 'pf2', 'pf3');
+  if (!p.clientWidth) return;
+  const cs = getComputedStyle(p);
+  const over = () => {
+    const kids = [...p.children].filter((c) => c.getClientRects().length);
+    const need = kids.reduce((a, c) => a + c.scrollWidth, 0) + (parseFloat(cs.columnGap) || 0) * Math.max(0, kids.length - 1);
+    return need > p.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0) + 0.5;
+  };
+  if (over()) { p.classList.add('pf1'); if (over()) { p.classList.add('pf2'); if (over()) p.classList.add('pf3'); } }
+}
+function hdrPillsFit() { if (typeof document !== 'undefined') document.querySelectorAll('.appbar .appbar-sub > *, .appbar .fx-pill').forEach(hdrPillFit); }
+if (typeof window !== 'undefined' && window.addEventListener) {
+  let _pfR = 0;
+  window.addEventListener('resize', () => { cancelAnimationFrame(_pfR); _pfR = requestAnimationFrame(hdrPillsFit); });
+  if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(hdrPillsFit, () => {});
 }
 /* </core> */
 
@@ -8178,8 +8243,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.177.0';
-const APP_VERSION = 'v823';
+const APP_RELEASE = '2.179.0';
+const APP_VERSION = 'v828';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -9338,7 +9403,7 @@ function paintFxPill(changed) {
   const fresh = el('span');
   fresh.dataset.px = String(state.fx);
   fresh.textContent = state.fx.toFixed(2);
-  if (num.textContent === '—' || !changed) { num.dataset.px = fresh.dataset.px; num.textContent = fresh.textContent; return; }
+  if (num.textContent === '—' || !changed) { num.dataset.px = fresh.dataset.px; num.textContent = fresh.textContent; hdrPillFit(document.getElementById('fxPill')); return; }
   livePriceSwap(num, fresh);
 }
 
@@ -9866,15 +9931,19 @@ function sourceLabelHTML(st, nowMs) { // טהורה (נבדקת)
   const m = marketStatusKind(s.session, nowMs);
   // 29/10/2026 (בקשת המשתמש — "נקי ומסודר בגודל ובצורה", לפי ת־עיצוב): אותו מבנה של בועת השער — כיתוב קטן למעלה
   // (נקודה/אייקון + "השוק", או שם החג/סופ״ש, או "· דיליי"), והמצב עצמו מודגש למטה ("פתוח" / "סגור" / "מוקדם")
-  const pill = (cls, cap, val) => '<span class="st-pill ' + cls + '"><span class="sub-cap">' + cap + '</span><b class="sub-val">' + esc(val) + '</b></span>';
+  /* 18/11/2026 (בקשת המשתמש, צילום — "מיושרות ונקיות"): שורה אחת קצרה שנכנסת בבועה גם ב־360 — סמל + כיתוב משני + המצב מודגש.
+     חג = "סגור · חג" (בלי שם החג — הוא ארוך ונחתך), סופ״ש = "סגור · סופ״ש"; דיליי = "פתוח · דיליי" (בלי "השוק"/"מסחר").
+     תוספת (חג/דיליי) בתוך ה־sub-val — במחשב (שתי שורות) היא נשארת בשורת המצב */
+  const pill = (cls, cap, val, tail) => '<span class="st-pill ' + cls + '"><span class="sub-cap">' + cap + '</span><b class="sub-val">' + esc(val) + (tail ? '<small> · ' + esc(tail) + '</small>' : '') + '</b></span>';
   if (m.kind === 'closed') {
-    const names = { hdWeekend: t('hdWeekend'), hdNewYear: t('hdNewYear'), hdMlk: t('hdMlk'), hdPresidents: t('hdPresidents'), hdGoodFriday: t('hdGoodFriday'), hdMemorial: t('hdMemorial'), hdJuneteenth: t('hdJuneteenth'), hdIndependence: t('hdIndependence'), hdLabor: t('hdLabor'), hdThanksgiving: t('hdThanksgiving'), hdChristmas: t('hdChristmas') };
-    const r = m.reason && names[m.reason];
-    return pill('closed', (SRC_SESS_ICONS.closed || '') + esc(r || t('stCapMkt')), t('stVClosed'));
+    const r = m.reason ? (m.reason === 'hdWeekend' ? t('hdWeekend') : t('stShHoliday')) : '';
+    return pill('closed', (SRC_SESS_ICONS.closed || '') + (r ? '' : esc(t('stCapMkt'))), t('stVClosed'), r);
   }
   const val = m.kind === 'pre' ? t('stVPre') : m.kind === 'post' ? t('stVPost') : m.kind === 'night' ? t('stVNight') : t('stVOpen');
-  const cap = '<i></i>' + (SRC_SESS_ICONS[m.kind] || '') + esc(m.kind === 'open' ? t('stCapMkt') : t('stCapSess')) + (live ? '' : '<small> · ' + esc(t('srcDelayed')) + '</small>');
-  return pill(m.kind + (live ? '' : ' delay'), cap, val);
+  const capTxt = m.kind === 'open' ? t('stCapMkt') : t('stCapSess');
+  const showCap = live && !val.toLowerCase().includes(capTxt.toLowerCase());   // באנגלית "Pre-market" כבר אומר "Market"
+  const cap = '<i></i>' + (SRC_SESS_ICONS[m.kind] || '') + (showCap ? esc(capTxt) : '');   // הנקודה (ירוקה/אפורה) — האייקון מוסתר לידה ב־CSS
+  return pill(m.kind + (live ? '' : ' delay'), cap, val, live ? '' : t('srcDelayed'));
 }
 function updateSourceLabel() {
   const el = document.getElementById('sourceLabel');
@@ -9890,9 +9959,10 @@ function updateSourceLabel() {
   if (cur && el.childElementCount === 1 && typeof document !== 'undefined') {
     const tp = document.createElement('template'); tp.innerHTML = html;
     const nx = tp.content.firstElementChild;
-    if (nx && tp.content.childElementCount === 1 && nx.tagName === cur.tagName) { if (cur.className !== nx.className) cur.className = nx.className; if (cur.innerHTML !== nx.innerHTML) cur.innerHTML = nx.innerHTML; return; }
+    if (nx && tp.content.childElementCount === 1 && nx.tagName === cur.tagName) { if (cur.className !== nx.className) cur.className = nx.className; if (cur.innerHTML !== nx.innerHTML) cur.innerHTML = nx.innerHTML; hdrPillFit(cur); return; }
   }
   el.innerHTML = html;
+  hdrPillFit(el.firstElementChild);
 }
 
 const FX_SYM = 'USDILS=X';
