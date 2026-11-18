@@ -715,7 +715,7 @@ const M = {
   de: { n: 'anMDe', u: 'num', c: 'c4', ratio: 1, q: 'anQDe' },
   ocf: { n: 'anMOcf', u: 'money', c: 'c1', g: 1 },
   fcf: { n: 'anMFcf', u: 'money', c: 'c2', q: 'anQFcf', g: 1 },
-  fcfsbc: { n: 'anMOwn', u: 'money', c: 'c2', q: 'anQOwn', g: 1 },
+  fcfsbc: { n: 'anMOwn', u: 'money', c: 'c5', q: 'anQOwn', g: 1 },
   sbcN: { n: 'anMSbc', u: 'money', c: 'c3', f: (co, p) => { const s = ctx(co, p).sbc; return s == null ? null : -s; } },
   capexN: { n: 'anMCapex', u: 'money', c: 'c4', f: (co, p) => { const s = ctx(co, p).capex; return s == null ? null : -s; } },
   buy: { n: 'anMBuy', u: 'money', c: 'c3', q: 'anQBuy' },
@@ -727,7 +727,7 @@ const mval = (co, k, p) => (M[k].f ? M[k].f(co, p) : ctx(co, p)[k]);
 const ROWS = {
   is: [['rev'], ['gp'], ['op'], ['ni'], ['eps'], ['sh'], ['margins', 'anRMargins', ['gm', 'om', 'nm']], ['r40']],
   bs: [['cvd', 'anRCashDebt', ['cashT', 'debt']], ['eq'], ['struct', 'anRStruct', ['ta', 'tl']], ['cr'], ['de']],
-  cf: [['cfb', 'anRCfb', ['ocf', 'fcf', 'sbcN', 'capexN']], ['fcf'], ['fcfsbc'], ['ocfni', 'anROcfNi', ['ocf', 'ni']], ['buy'], ['dps']],
+  cf: [['cfb', 'anRCfb', ['ocf', 'fcf', 'fcfsbc', 'sbcN', 'capexN']], ['fcf'], ['fcfsbc'], ['ocfni', 'anROcfNi', ['ocf', 'ni']], ['buy'], ['dps']],
   rt: [['pe~'], ['pfcf~'], ['ps~'], ['evebit~'], ['roic'], ['roe']],
 };
 const LINES = { 'pe~': ['anLPe', 'pe', 'c1', 'anXPe'], 'pfcf~': ['anLPfcf', 'pfcf', 'c2', 'anXPfcf'], 'ps~': ['anLPs', 'ps', 'c3', 'anXPs'], 'evebit~': ['anLEv', 'evebit', 'c4', 'anXEv'] };
@@ -1805,8 +1805,9 @@ function tipBox(k) {
   return slot;
 }
 /* 27/10/2026 (בקשת המשתמש): מדד שאתרים מחשבים בכמה דרכים — שורה גלויה איך הוא מחושב אצלנו ולמה במקום אחר המספר שונה */
-const DEF_NOTE = { r40: 'anDnR40', eps: 'anDnEps', fcf: 'anDnFcf', debt: 'anDnDebt', de: 'anDnDebt', cr: 'anDnCr', roic: 'anDnRoic', roe: 'anDnRoe' };
-const defNote = (keys) => { const k = keys.find((x) => DEF_NOTE[x]); return k ? h('p', { class: 'an-ex an-defn' }, T(DEF_NOTE[k])) : null; };
+const DEF_NOTE = { r40: 'anDnR40', eps: 'anDnEps', fcf: 'anDnFcf', fcfsbc: 'anDnOwn', debt: 'anDnDebt', de: 'anDnDebt', cr: 'anDnCr', roic: 'anDnRoic', roe: 'anDnRoe' };
+/* 18/11/2026: בפירוק התזרים — הערה לכל מדד שיש לו (תזרים חופשי וגם מזומן לבעלים) */
+const defNote = (keys) => { const n = [...new Set(keys.map((x) => DEF_NOTE[x]).filter(Boolean))]; return n.length ? h('p', { class: 'an-ex an-defn' }, n.map((x) => T(x)).join(' ')) : null; };
 function chartSheet(def) {
   const co = S.co;
   if (def.line) {
