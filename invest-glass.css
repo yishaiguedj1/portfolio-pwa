@@ -58,8 +58,18 @@ html:not(.dk) .appbar :is(#sourceLabel .st-pill, .fx-pill) { border-radius: 999p
 html:not(.dk) .appbar :is(#sourceLabel .st-pill .sub-cap, .fx-pill .fx-pill-label) { display: inline-flex !important; align-items: center !important; gap: 4px !important; flex: 0 1 auto !important;
   min-width: 0 !important; max-width: none !important; overflow: hidden !important; text-overflow: ellipsis !important; font-size: 13px !important; font-weight: 500 !important; line-height: 1.2 !important; color: var(--on-surface-var) !important; }
 html:not(.dk) .appbar #sourceLabel .st-pill .sub-cap:empty { display: none !important; }
-html:not(.dk) .appbar #sourceLabel .st-pill i { width: 7px !important; height: 7px !important; box-shadow: none !important; background: var(--gain) !important; }   /* נקודה נקייה (הטבעת נחתכה בקצה) — ירוקה = חי */
-html:not(.dk) .appbar #sourceLabel .st-pill.delay i { background: var(--on-surface-var) !important; opacity: .6; }
+/* 18/11/2026 (בקשת המשתמש, צילום — הנקודה נחתכה בקצה): אותה נקודה של בועת השער (.ext-dot) — 6px, מהבהבת (livePulse), ובדיליי
+   אפורה קבועה עם הטבעת; הצבעים של המצב: פתוח ירוק, מוקדם כתום, מאוחר סגול, לילי כחול. הכיתוב overflow:visible — שום דבר לא נחתך
+   (ההתאמה לרוחב היא hdrPillFit, לא חיתוך) */
+html:not(.dk) .appbar #sourceLabel .st-pill i { width: 6px !important; height: 6px !important; border-radius: 50% !important; flex: none !important; opacity: 1 !important; box-shadow: none !important;
+  background: var(--gain) !important; animation: livePulse 2s ease-in-out infinite !important; }
+html:not(.dk) .appbar #sourceLabel .st-pill.pre i { background: #FF9F0A !important; }
+html:not(.dk) .appbar #sourceLabel .st-pill.post i { background: #5E5CE6 !important; }
+html:not(.dk) .appbar #sourceLabel .st-pill.night i { background: #0A84FF !important; }
+html:not(.dk) .appbar #sourceLabel .st-pill.delay i { animation: none !important; background: #8E8E93 !important; box-shadow: 0 0 0 2px color-mix(in srgb, #8E8E93 28%, transparent) !important; }
+html:not(.dk)[data-theme="dark"] .appbar #sourceLabel .st-pill.delay i { background: #A1A1A6 !important; box-shadow: 0 0 0 2px rgba(161, 161, 166, .3) !important; }
+html:not(.dk) .appbar :is(#sourceLabel .st-pill .sub-cap, #fxPill .fx-pill-label) { overflow: visible !important; }
+@media (prefers-reduced-motion: reduce) { html:not(.dk) .appbar #sourceLabel .st-pill i { animation: none !important; } }
 html:not(.dk) .appbar :is(#sourceLabel .st-pill .sub-val, .fx-pill .fx-pill-value) { display: inline-flex !important; align-items: baseline !important; gap: 1px !important; flex: none !important; max-width: none !important; overflow: visible !important;
   font-size: 15px !important; font-weight: 600 !important; line-height: 1.2 !important; }
 html:not(.dk) .appbar #sourceLabel .st-pill .sub-val { color: var(--on-surface) !important; }
