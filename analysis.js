@@ -1041,7 +1041,8 @@ function wireSwipe() {
   } });
 }
 /* ---------- מחיר לבדיקה: הסימון, השורה "מה שונה", הגיליון והחזרה ---------- */
-const DEP = () => (S.co && S.co.pxEd ? '' : null);   // data-dep: ערך שנגזר מהמחיר הערוך — נקודה כתומה קטנה לידו
+/* data-dep: ערך שנגזר מהמחיר הערוך — נקודה כתומה קטנה לידו; 'ed' — הנתון שהמשתמש ערך בעצמו (כתום מודגש, בלי נקודה) */
+const DEP = (k) => (S.co && S.co.pxEd ? (k && S.px && S.px.k === 'm' && S.px.key === k ? 'ed' : '') : null);
 const PX_FACT = new Set(['mcap', 'pe', 'fpe', 'fy']), PX_CMP = new Set(['fy', 'pe', 'fpe']);
 /* המחיר שנותן את התשואה השנתית הרצויה בתרחיש הבסיס של המחשבון (null — אין מחיר כזה, למשל רווח שלילי) */
 function retPx(co) {
@@ -1053,11 +1054,12 @@ function retPx(co) {
 /* השורה בראש העמוד כשהמחיר נערך: מה שונה, המחיר האמיתי, וכפתור אחד שמחזיר הכל */
 function edRow(co) {
   if (!co || !co.pxEd) return null;
-  const p = strip(fmt(co.price, 'ps', co)), ret = S.px && S.px.k === 'ret' && S.reqEd != null;
+  const p = strip(fmt(co.price, 'ps', co)), ret = S.px && S.px.k === 'ret' && S.reqEd != null, m = S.px && S.px.k === 'm' && MED[S.px.key] ? S.px : null;
   return h('div', { class: 'an-edrow', role: 'status' },
     h('span', { class: 'an-edrow-ic', 'aria-hidden': 'true' }, icon('pen')),
-    h('div', { class: 'an-edrow-t' }, h('b', {}, ret ? T('anPxRowR', { r: strip(pct(S.reqEd, Math.round(S.reqEd * 1000) % 10 ? 1 : 0)), p }) : T('anPxRowT', { p })),
-      h('span', {}, T('anPxRowS', { p: strip(fmt(co.price0, 'ps', co)) }))),
+    h('div', { class: 'an-edrow-t' }, h('b', {}, m ? T('anMRowT', { n: T(MED_N[m.key]), v: strip(fmtM(co, m.key, m.v)) })
+      : ret ? T('anPxRowR', { r: strip(pct(S.reqEd, Math.round(S.reqEd * 1000) % 10 ? 1 : 0)), p }) : T('anPxRowT', { p })),
+      h('span', {}, m ? T('anMRowS', { p, r: strip(fmt(co.price0, 'ps', co)) }) : T('anPxRowS', { p: strip(fmt(co.price0, 'ps', co)) }))),
     h('button', { class: 'an-edrow-b', type: 'button', on: { click: pxReset } }, T('anPxBack')));
 }
 function pxReset() {
@@ -1093,6 +1095,100 @@ function pxSheet() {
       co.pxEd ? h('div', { class: 'an-pxreal' }, h('button', { class: 'an-link', type: 'button', on: { click: () => { closeSheet(); pxReset(); } } }, T('anPxReal', { p: strip(fmt(co.price0, 'ps', co)) }))) : null].filter(Boolean));
     setTimeout(() => { try { inp.focus(); inp.select(); } catch (e) {} }, 60);
   }, { small: true });
+}
+/* ---------- עריכת נתון שנגזר מהמחיר (18/11/2026): שווי שוק, מכפילים ותשואת מזומן — כל ערך מחזיר מחיר, וממנו מתעדכן כל השאר.
+   ההיפוך לפי אותן נוסחאות של התצוגה (factsEl, הנקודה של היום ב־multHist): c = ctx של השנה האחרונה (לא תלוי במחיר), sh = מניות,
+   r = הנתונים במחיר האמיתי. null — אין מחיר כזה (למשל רווח שלילי), ואז אין עיפרון ---------- */
+const MED = {
+  mcap: { u: 'cap', inv: (v, c, sh) => v / sh },
+  pe: { u: 'x', inv: (v, c) => (c.eps > 0 ? v * c.eps : null) },
+  fpe: { u: 'x', inv: (v, c, sh, r) => (r.fpe > 0 && r.price > 0 ? v * r.price / r.fpe : null) },
+  fy: { u: '%', inv: (v, c, sh) => (c.fcf > 0 ? c.fcf / v / sh : null) },
+  pfcf: { u: 'x', inv: (v, c, sh) => (c.fcf > 0 ? v * c.fcf / sh : null) },
+  ps: { u: 'x', inv: (v, c, sh) => (c.rev > 0 ? v * c.rev / sh : null) },
+  evebit: { u: 'x', inv: (v, c, sh) => (c.op > 0 ? (v * c.op - (c.debt || 0) + (c.cashT || 0)) / sh : null) },
+  pb: { u: 'x', inv: (v, c, sh) => (c.eq > 0 ? v * c.eq / sh : null) },
+  pffo: { u: 'x', inv: (v, c, sh) => (c.ffo > 0 ? v * c.ffo / sh : null) },
+};
+const MED_N = { mcap: 'anFMcap', pe: 'anFPe', fpe: 'anFFpe', fy: 'anFFy', pfcf: 'anLPfcf', ps: 'anLPs', evebit: 'anLEv', pb: 'anLPb', pffo: 'anLPffo' };
+/* הערך של היום — בדיוק כמו במסך */
+function metNow(co, key) {
+  if (!co || !(co.price > 0) || co.fxMix) return null;
+  const c = ctx(co, nowP(co)), mc = co.sharesOut ? co.price * co.sharesOut : null;
+  if (key === 'mcap') return mc;
+  if (key === 'fpe') return co.fpe > 0 ? co.fpe : null;
+  if (key === 'fy') return c.fcf != null && mc ? c.fcf / mc : null;
+  if (key === 'pe') return c.eps > 0 ? co.price / c.eps : null;
+  const a = multHist(co)[key]; return a && a.length ? a[a.length - 1] : null;
+}
+function pxFrom(co, key, v) {
+  const d = MED[key]; if (!d || !co || co.fxMix || !(co.sharesOut > 0) || !(v > 0) || !isFinite(v)) return null;
+  const p = d.inv(v, ctx(co, nowP(co)), co.sharesOut, real(co));
+  return p > 0 && isFinite(p) ? p : null;
+}
+const canEdM = (co, key) => { const m = MED[key] && metNow(real(co), key); return m > 0 && !!pxFrom(co, key, m); };
+const fmtM = (co, key, v) => (MED[key].u === 'x' ? fmt(v, 'x', co, 1) : MED[key].u === '%' ? pct(v) : fmt(v, 'money', co));
+/* שווי שוק נערך באותו סולם שמוצג באריח (T / B / M) */
+const medScale = (co) => { const r = metNow(real(co), 'mcap') || 0; return r >= 1e12 ? [1e12, 'T'] : r >= 1e9 ? [1e9, 'B'] : [1e6, 'M']; };
+function medTxt(co, key, v) {   // [הטקסט בשדה, לפני, אחרי]
+  const u = MED[key].u;
+  if (u === 'x') return [v.toFixed(1), '', '×'];
+  if (u === '%') return [(v * 100).toFixed(1), '', '%'];
+  const [k, s] = medScale(co); return [(v / k).toFixed(2), curSym(co.cur), s];
+}
+function medVal(co, key, txt) {
+  const n = parseFloat(String(txt).replace(/,/g, '').replace(/[^\d.]/g, ''));
+  if (!(n > 0) || !isFinite(n)) return null;
+  const u = MED[key].u; return u === 'x' ? n : u === '%' ? n / 100 : n * medScale(co)[0];
+}
+/* קיצורים מההיסטוריה של המכפיל (כמו בכרטיס "מכפילים מול ההיסטוריה", במחיר האמיתי) */
+function medHist(co, key) {
+  if (!['pe', 'pfcf', 'ps', 'evebit', 'pb', 'pffo'].includes(key)) return null;
+  const Hh = multHist(real(co)), a = (Hh[key] || []).filter((x) => x > 0 && x < 300);
+  return a.length < 6 ? null : { lo: Math.min(...a), avg: mean(a), hi: Math.max(...a), n: Math.round(Hh.t.length / 12) };
+}
+const penI = () => h('i', { class: 'an-pen', 'aria-hidden': 'true' }, icon('pen'));
+const FSZ = typeof CSS !== 'undefined' && !!CSS.supports && CSS.supports('field-sizing', 'content');
+/* טופס העריכה בגיליון: מספר גדול, קיצורים, המחיר שיוצא (חי), "החל", ו"חזרה לנתון האמיתי" כשמשהו ערוך */
+function medForm(b, key, rec) {
+  const co = S.co; if (!co || !canEdM(co, key)) return;
+  if (rec && rec.sh) rec.sh.classList.add('tall');
+  const m0 = metNow(real(co), key), mine = S.px && S.px.k === 'm' && S.px.key === key, cur = mine ? S.px.v : metNow(co, key) || m0;
+  const [t0, pre, suf] = medTxt(co, key, cur), pr = pxReal(co);
+  let pick = { t: t0, v: cur };   // ערך מדויק (קיצור או הערך ההתחלתי) — כדי ש"היום" יחזיר בדיוק למחיר האמיתי
+  const inp = h('input', { class: 'an-mfin', type: 'text', inputmode: 'decimal', autocomplete: 'off', spellcheck: 'false', dir: 'ltr', value: t0, 'aria-label': T(MED_N[key]) });
+  const box = h('label', { class: 'an-mf' }, pre ? h('i', { 'aria-hidden': 'true' }, pre) : null, inp, h('i', { 'aria-hidden': 'true' }, suf));
+  const val = () => (pick && inp.value === pick.t ? pick.v : medVal(co, key, inp.value));
+  const H = medHist(co, key), chips = H ? [['anMNow', m0], ['anAvg', H.avg], ['anMLo', H.lo], ['anMHi', H.hi]].map(([s, x]) =>
+    [h('button', { class: 'an-mchip', type: 'button', on: { click: () => { const t = medTxt(co, key, x)[0]; inp.value = t; pick = { t, v: x }; upd(); } } }, T(s), h('b', {}, fmtM(co, key, x))), x]) : [];
+  const rb = h('b'), rs = h('small'), msg = h('p', { class: 'an-ex an-err', hidden: true }, T('anMErr'));
+  function upd() {
+    const v = val(), p = v && pxFrom(co, key, v);
+    rb.textContent = p ? fmt(p, 'ps', co) : '—';
+    rs.textContent = p ? T('anMWas', { r: fmt(pr, 'ps', co), d: iso((p >= pr ? '+' : '') + strip(pct(p / pr - 1))) }) : '';
+    box.classList.toggle('ed', !!v && Math.abs(v / m0 - 1) > 1e-6);
+    const tv = v ? medTxt(co, key, v)[0] : null;
+    for (const [el, x] of chips) el.classList.toggle('on', tv === medTxt(co, key, x)[0]);
+    if (!FSZ) inp.style.width = Math.max(1.5, inp.value.length - 0.55 * (inp.value.match(/[.,]/g) || []).length) + 0.3 + 'ch';   // בלי field-sizing — רוחב לפי התוכן
+    msg.hidden = true;
+  }
+  inp.addEventListener('input', () => { if (pick && inp.value !== pick.t) pick = null; upd(); });
+  const form = h('form', { class: 'an-mform', on: { submit: (e) => {
+    e.preventDefault();
+    const v = val(), p = v && pxFrom(co, key, v);
+    if (!p) { msg.hidden = false; return; }
+    S.reqEd = null; setPx(co, p); S.px = co.pxEd ? { k: 'm', key, v } : null;
+    closeSheet(); render();
+  } } }, box, chips.length ? h('div', { class: 'an-mchips' }, chips.map((x) => x[0])) : null, H ? h('p', { class: 'an-mcap' }, T('anMYrs', { n: H.n })) : null,
+    h('div', { class: 'an-mres' }, h('span', {}, T('anMWill')), h('div', {}, rb, rs)), msg, h('button', { class: 'an-btn', type: 'submit' }, T('anPxApply')));
+  b.append(form);
+  if (co.pxEd) b.append(h('div', { class: 'an-pxreal' }, h('button', { class: 'an-link', type: 'button', on: { click: () => { closeSheet(); pxReset(); } } }, T('anMReal', { v: fmtM(co, key, m0) }))));
+  upd();
+}
+/* מכפיל מכרטיס ההיסטוריה: מכפיל רווח — אותו גיליון כמו באריח למעלה; השאר — ההסבר הקצר והטופס */
+function medSheet(key) {
+  if (PX_FACT.has(key)) { factSheet(key); return; }
+  openSheet(T(MED_N[key]), (b, rec) => { b.append(h('p', { class: 'an-ex an-ex-lg' }, T(MULT_HINT[key]))); medForm(b, key, rec); }, { small: true });
 }
 function navBar() {
   const inSub = S.sub && S.sub.length, parent = inSub > 1 ? S.sub[inSub - 2].title : inSub ? T(TAB_T[S.tab]) : T('anBack');
@@ -1217,7 +1313,8 @@ function keyTiles(co) {
 }
 function factsEl(co) {
   const c = ctx(co, nowP(co)), mcap = pxF(co) && co.sharesOut ? pxF(co) * co.sharesOut : null, pe = c.eps > 0 && pxF(co) ? pxF(co) / c.eps : null, fy = c.fcf != null && mcap ? c.fcf / mcap : null;
-  const fact = (tt, v, hint, key) => h('button', { class: 'an-fact', type: 'button', on: { click: () => factSheet(key) } }, h('span', {}, tt), h('b', { 'data-dep': PX_FACT.has(key) ? DEP() : null }, v), h('small', {}, hint));
+  const fact = (tt, v, hint, key) => { const ce = PX_FACT.has(key) && canEdM(co, key), d = PX_FACT.has(key) ? DEP(key) : null;
+    return h('button', { class: 'an-fact' + (d === 'ed' ? ' ed' : ''), type: 'button', on: { click: () => factSheet(key) } }, h('span', {}, tt, ce ? penI() : null), h('b', { 'data-dep': d }, v), h('small', {}, hint)); };
   return h('div', { class: 'an-facts' }, fact(T('anFMcap'), fmt(mcap, 'money', co), T('anHMcap'), 'mcap'), fact(T('anFPe'), fmt(pe, 'x', co, 1), T('anHPe'), 'pe'),
     fact(T('anFFpe'), fmt(co.fpe, 'x', co, 1), T('anHFpe'), 'fpe'), fact(T('anFFy'), pct(fy), T('anHFy'), 'fy'),
     fact(c.netcash >= 0 ? T('anNetCash') : T('anNetDebt'), fmt(Math.abs(c.netcash || 0), 'money', co), T('anHNc'), 'nc'));
@@ -1574,7 +1671,9 @@ function multCard(co, pg) {
     const a = Hh[k].filter((x) => x > 0 && x < 300); if (a.length < 6) continue;
     const now = fin(Hh[k]).pop(), mn = Math.min(...a), mx = Math.max(...a), q1 = quant(a, 0.25), q3 = quant(a, 0.75), md = mean(a);
     const P = (v) => ((clamp(v, mn, mx) - mn) / (mx - mn || 1) * 100).toFixed(1) + '%';
-    mc.append(h('div', { class: 'an-mult' }, h('div', { class: 'an-mult-t' }, h('span', { class: 'an-rt' }, h('b', {}, T(n)), h('span', { class: 'an-hint' }, T(MULT_HINT[k]))), h('span', { class: 'an-mv', 'data-dep': DEP() }, fmt(now, 'x', co, 1))),
+    const ce = canEdM(co, k), go = () => medSheet(k);
+    mc.append(h('div', { class: 'an-mult' + (ce ? ' tap' : ''), ...(ce ? { role: 'button', tabindex: '0', on: { click: go, keydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } } } } : {}) },
+      h('div', { class: 'an-mult-t' }, h('span', { class: 'an-rt' }, h('b', {}, T(n)), h('span', { class: 'an-hint' }, T(MULT_HINT[k]))), h('span', { class: 'an-mv', 'data-dep': DEP(k) }, fmt(now, 'x', co, 1), ce ? penI() : null)),
       h('div', { class: 'an-rbar' }, h('div', { class: 'an-tr' }), h('div', { class: 'an-iq', style: `left:${P(q1)};width:calc(${P(q3)} - ${P(q1)})` }), h('div', { class: 'an-md', style: `left:${P(md)}` }), h('div', { class: 'an-nw', style: `left:${P(now)}` })),
       h('div', { class: 'an-lb' }, h('span', {}, strip(fmt(mn, 'x', co, 1))), h('span', {}, T('anAvg') + ' ' + strip(fmt(md, 'x', co, 1))), h('span', {}, strip(fmt(mx, 'x', co, 1))))));
   }
@@ -1629,7 +1728,7 @@ function pageCmp(co, pg) {
   const t = h('table', { class: 'an-ctbl' }, h('thead', {}, h('tr', {}, h('th', {}), ...rows.map((r, i) => h('th', { class: i ? null : 'me' }, h('bdi', {}, r.sym.replace(/\.TA$/, '')))))),
     h('tbody', {}, ...CMP_MET.map(([k, n, st, u]) => {
       const ok = fin(rows.map((r) => r[k])), mx = Math.max(...ok.map(Math.abs), 1e-9);
-      return h('tr', {}, h('th', {}, T(n), h('small', {}, T(st, { n: 5 }))), ...rows.map((r, i) => h('td', { class: i ? null : 'me', 'data-dep': !i && PX_CMP.has(k) ? DEP() : null },
+      return h('tr', {}, h('th', {}, T(n), h('small', {}, T(st, { n: 5 }))), ...rows.map((r, i) => h('td', { class: i ? null : 'me', 'data-dep': !i && PX_CMP.has(k) ? DEP(k) : null },
         r[k] == null ? '—' : fmt(r[k], u, null, 1), r[k] == null ? null : h('i', { style: `--an-w:${(Math.abs(r[k]) / mx * 100).toFixed(0)}%` }))));
     })));
   pg.append(card(h('h2', {}, T('anCmpTitle')), sub(T(loose ? 'anCmpSubAny' : 'anCmpSub')), chips, h('div', { class: 'an-tblw no-swipe' }, t)));
@@ -1850,7 +1949,7 @@ function factSheet(key) {
     fpe: [T('anFFpe'), T('anXFpe')],
     fy: [T('anFFy'), T('anXFy', { f: strip(fmt(c.fcf, 'money', co)) })],
     nc: [c.netcash >= 0 ? T('anNetCash') : T('anNetDebt'), T(c.netcash >= 0 ? 'anXNc' : 'anXNd', { c: strip(fmt(c.cashT, 'money', co)), d: strip(fmt(c.debt, 'money', co)) })] }[key];
-  openSheet(X[0], (b) => b.append(h('p', { class: 'an-ex an-ex-lg' }, X[1])), { small: true });
+  openSheet(X[0], (b, rec) => { b.append(h('p', { class: 'an-ex an-ex-lg' }, X[1])); if (MED[key]) medForm(b, key, rec); }, { small: true });
 }
 function estSheet() {
   const co = S.co;
@@ -1871,5 +1970,5 @@ function estSheet() {
 }
 
 /* בדיקות (node) — הפונקציות הטהורות */
-export const _test = { r40Of, multAvg, calcDefaults, calcRun, calcMults, irr, estGrowth, qRun, qBack, ttmPoints, cmpPrev, restated, cagrBetween, growthOf, finInputs, riValue, impliedRoe, reitInputs, lossView, fairOf, flagsAt, srcDef, rawName, RAWK, OWN_TAG, prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath, setPx, real, pxReal,
+export const _test = { r40Of, multAvg, calcDefaults, calcRun, calcMults, irr, estGrowth, qRun, qBack, ttmPoints, cmpPrev, restated, cagrBetween, growthOf, finInputs, riValue, impliedRoe, reitInputs, lossView, fairOf, flagsAt, srcDef, rawName, RAWK, OWN_TAG, prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath, setPx, real, pxReal, MED, metNow, pxFrom, canEdM, medTxt, medVal, medHist,
   setEnv: (e) => { E = e; } };
