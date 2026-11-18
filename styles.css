@@ -950,6 +950,10 @@ main .tabpage :is(.ranges, .chip-row, .stock-sort-row, .wl-tabs, .tx-years, .st-
 .stock-sub .sub-val, .stock-sub .buy-amt { justify-self: start; font-variant-numeric: tabular-nums; }
 /* 18/11/2026: תווית משנית לפני הנתון ("שווי" / "שינוי") — קטנה, אפורה וקלה; הנתון נשאר הבולט, גם כשהוא צבעוני */
 .stock-sub .sub-lbl { font-size: 12.5px; font-weight: 500; color: var(--on-surface-var); margin-inline-end: 2px; }
+/* 18/11/2026: מעקב — השיא במקום החץ: המחיר בצבע המשני (כמו השווי), האחוז קטן וצבעוני (כמו "מהקנייה") */
+.stock-sub .wl-ath { white-space: nowrap; }
+.stock-sub .wl-ath-pct { font-size: 13.5px; font-weight: 600; margin-inline-start: 4px; }
+.stock-sub .wl-ath-pct:not(.pos):not(.neg) { color: var(--on-surface-var); }
 .stock-sub .buy-chg, .stock-sub .buy-amt { font-weight: 600; font-size: 13.5px; font-variant-numeric: tabular-nums; }
 .stock-sub .buy-chg:not(.pos):not(.neg), .stock-sub .buy-amt:not(.pos):not(.neg) { color: var(--on-surface-var); }
 .day-chg { font-weight: 700; font-variant-numeric: tabular-nums; }
