@@ -575,7 +575,7 @@ def build(pr: Project, style_name: str | None = None, sty: dict | None = None) -
 
 def hide_burned(pr, final, burned_d, hs, st, meas, W, H, od, base_ass, dur, warns):
     """16/11/2026: מצב הסתרה — מלבנים אטומים מעל הכתוביות הצרובות, ובדיקה שבאמת לא רואים אותן (vt/burnin.hide:
-    מציירים על פריימים של המקור ומחפשים טקסט של המקור שמבצבץ; דליפה → מכסים ובודקים שוב; בסוף — פס רציף).
+    מציירים על פריימים של המקור ומחפשים טקסט של המקור שמבצבץ; דליפה → מכסים ובודקים שוב; דליפה ששרדה — ±שנייה וחצי סביבה).
     התוצאה ב־out/hide.json — העובד מדווח אותה לטלפון ("✓ נבדק")."""
     from . import burnin, media
     src = pr.source_path()
@@ -606,7 +606,7 @@ def hide_burned(pr, final, burned_d, hs, st, meas, W, H, od, base_ass, dur, warn
     res = dict(res, ev=len(ev), z=hs["z"])
     write_json(od / "hide.json", res)
     msg = (f"כתוביות צרובות במקור: {len(ev)} מלבנים אטומים מעליהן · נבדקו {res['n']} פריימים"
-           + (f" · {res['lk']} דליפות כוסו" if res["lk"] else "") + (" · פס רציף" if res.get("full") else "")
+           + (f" · {res['lk']} דליפות כוסו" if res["lk"] else "")
            + ("" if res["ok"] else " · ⚠ לא נבדק עד הסוף"))
     log(msg)
     warns.append(msg)

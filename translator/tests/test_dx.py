@@ -96,6 +96,11 @@ class Dx(unittest.TestCase):
                                              [S, 'D0000000000002', job.hashlib.md5(S.encode()).hexdigest()]])
         self.assertEqual(left, [])
 
+    def test_manifest_marks_translated_analysis(self):
+        man = job.lib_manifest('j', {'m': {'k': 'vi', 'fr': 'en', 'to': ['he'], 'tv': 1}}, [], now=1)
+        self.assertEqual((man['k'], man['tv']), ('vi', 1))
+        self.assertNotIn('tv', job.lib_manifest('j', {'m': {'k': 'vi', 'fr': 'en', 'to': ['he']}}, [], now=1), 'בלי תרגום — בלי השדה')
+
     def test_library_md5_mismatch_fails_without_manifest(self):
         rc, ctx, ups, left = self.run_dx([{'id': V, 'n': 'a.mp4', 's': 1, 'r': 'v'}], lib=True, bad_md5=True)
         self.assertEqual((rc, ctx.reports[-1].get('err')), (1, 'dx_md5'))

@@ -2072,7 +2072,8 @@ async function server(req, res, body, deps) {
       if (!got) continue;
       await patchDoc(deps, 'studioServers', p.sid, Object.assign(seen, { job: job.id }));
       const dur = job.spec && job.spec.dur > 0 ? Math.round(job.spec.dur) : 0;
-      return res.status(200).json({ ok: true, job: Object.assign({ id: job.id, key, kind: job.kind }, dur ? { dur } : {}, job.spec && job.spec.vi === 1 ? Object.assign({ vi: 1 }, job.spec.vo === 1 || job.spec.vj === 1 || job.spec.vp === 1 ? { vo: 1 } : {}) : {}), now });   // vi — הסוכן: perf_kind / MEM_PRIOR['vi']; vo — "אמת שוב", השופט בזוגות וטיוטת הייחוס (PR 1.6): קל, בלי סרטון, לא מלמד את הזיכרון
+      const mk = S.memClass(job);   // 18/11/2026: המסלול לזיכרון (קריוקי / ניתוח בעברית / אוטומטי) — agent.py ‏mem_kind
+      return res.status(200).json({ ok: true, job: Object.assign({ id: job.id, key, kind: job.kind }, dur ? { dur } : {}, mk ? { mk } : {}, job.spec && job.spec.vi === 1 ? Object.assign({ vi: 1 }, job.spec.vo === 1 || job.spec.vj === 1 || job.spec.vp === 1 ? { vo: 1 } : {}) : {}), now });   // vi — הסוכן: perf_kind / MEM_PRIOR['vi']; vo — "אמת שוב", השופט בזוגות וטיוטת הייחוס (PR 1.6): קל, בלי סרטון, לא מלמד את הזיכרון
     }
     // שרת שעדיין מריץ עבודה (nj) ושאל אם יש עוד — העבודה שלו נשארת רשומה. 27/10/2026: בלי שינוי — לא כותבים (seenDue)
     const clr = !(hb.nj > 0) && !!srv.job;
@@ -3220,6 +3221,11 @@ async function handler(req, res, deps = {}) {
   if (body.op === 'r2bgDone') return r2BgDone(req, res, body, deps);   // 23/10/2026: Background Fetch — מפתח הסיום במקום התחברות
   if (body.op === 'gbConfig' && gbRemote()) return res.status(421).json({ ok: false, error: 'gb_remote' });
   if (body.op === 'gbConfig') return res.status(200).json({ ok: true, clientId: gbrowse.cfg().id, configured: gbrowse.configured() });   // 26/10/2026: הלקוח של רשימת הקבצים
+  if (body.op === 'gdCheck') {   // 17/11/2026: הבדיקה העצמית של לקוחות ה־Drive מול Google — רק סיווג (ok / bad_secret / …), בלי שום ערך; מטמון 5 דק׳ לכל לקוח
+    if (limited('gdc|' + String(((req.socket || {}).remoteAddress) || ''), 10)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+    const [studio, browse] = await Promise.all([gdrive, gbrowse].map((c) => c.check(deps).catch(() => ({ st: 'failed' }))));
+    return res.status(200).json({ ok: true, ck: { studio, browse } });   // לקוח הגיבוי של Academy — gdCheck ב־api/library.js (הסטודיו לא נוגע בו)
+  }
   if (body.op === 'gdConfig') return res.status(200).json({ ok: true, clientId: gdrive.cfg().id, configured: gdrive.configured(), picker: !!S.pickerCfg(process.env, gdrive.cfg().id) });   // המזהה ציבורי · picker = האם מפתח ה־Picker נטען (רק כן/לא — לאבחון בלי התחברות)
   let user;
   const monTok = String((req.headers || {})['x-mon-token'] || '');
@@ -3429,6 +3435,16 @@ async function handler(req, res, deps = {}) {
       const prs = ((ext.gh && ext.gh.prs) || []).filter((x) => !x.dep);
       const tk = md == null ? null : AO.tasksParse(md, now);
       return res.status(200).json({ ok: true, tk, prs, lane: AO.laneView(prs, ext.gh && ext.gh.waiting), ck: tk ? AO.checksView(tk, await checkAnswers(deps)) : null, at: now });
+    }
+    if (op === 'gdSecret') {
+      // 17/11/2026: סוד חדש ללקוח ה־Drive של הסטודיו — מנהל בלבד. השרתון בודק אותו מול Google לפני השמירה (lib/gdrive.js setSecret),
+      // שומר מוצפן בכספת, ומיד מנסה גישה ל־Drive של המנהל. הסוד לא חוזר לעולם — רק ok והמצב של Drive
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const r = await gdrive.setSecret(deps, typeof body.s === 'string' ? body.s : '').catch(() => ({ ok: false, error: 'failed' }));
+      if (!r.ok) return res.status(200).json({ ok: false, error: r.error });
+      await adminLog(deps, user, 'gd_set', '', now);
+      const t = await gdrive.accessToken(deps, uid).catch(() => ({ ok: false, error: 'gd_failed' }));
+      return res.status(200).json({ ok: true, drive: t.ok ? 'ok' : String(t.error || 'gd_failed'), why: t.ok ? '' : t.why || '' });
     }
     if (op === 'adminYt') {
       // 25/10/2026: חשבון יוטיוב ייעודי לשרת — מנהל בלבד. set = cookies.txt (נבדק ומסונן ל־youtube/google), clear = הסרה.
@@ -4026,8 +4042,11 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json({ ok: true });
     }
     if (op === 'drive') {
-      const t = await gdrive.accessToken(deps, uid);
-      if (!t.ok) return res.status(/^gd_http_/.test(t.error) ? 502 : 200).json({ ok: false, error: t.error });
+      // 17/11/2026: הספרייה לא נטענה ("Failed to fetch") — תשובת 502 הגיעה לטלפון בלי CORS. עכשיו תמיד 200 עם הקוד והסיבה של Google
+      let t;
+      try { t = await gdrive.accessToken(deps, uid); }
+      catch (e) { t = { ok: false, error: /^(fs_http_\d+|vault_[a-z_]+)$/.test(String(e && e.message)) ? String(e.message) : 'gd_failed' }; }
+      if (!t.ok) return res.status(200).json({ ok: false, error: t.error, why: t.why || '' });
       return res.status(200).json({ ok: true, token: t.token, exp: t.exp, email: t.email });
     }
     if (op === 'test') {
@@ -4523,6 +4542,16 @@ async function handler(req, res, deps = {}) {
       const d = S.dxJob(job, dx, S.newJobId(), uid, now);
       await patchJob(deps, d.id, d);
       return res.status(200).json({ ok: true, job: view(d) });
+    }
+    if (op === 'libDrop') {
+      // 18/11/2026 (בקשת המשתמש): פריט נמחק מהספרייה (התיקייה לפח של Drive) — העבודה כבר לא "בספרייה": דף העבודה חוזר ל"הוספה
+      // לספרייה", וכשהעותק ב־R2 יפוג היא לא תעבור לקבצים שבפח (libSwap). רק עם המניפסט של העבודה; עבודה שכבר עברה הביתה (הקבצים
+      // שלה הם אלה שבפח) נשארת כמו שהיא — הטלפון מזהיר לפני המחיקה
+      const lb = job.vlib;
+      if (!lb || lb.home || String(lb.m || '') !== String(body.m || '')) return res.status(200).json({ ok: true, job: view(job) });
+      const patch = { vlib: null, updated: now };
+      await patchJob(deps, job.id, patch);
+      return res.status(200).json({ ok: true, job: view(Object.assign({}, job, patch)) });
     }
     if (op === 'aiRun') {
       // מ7: גיליון ה־AI בהפעלה אחת — הבקשה כבר בתיקיית העבודה (הטלפון העלה); עבודה "חדשה" שמתחילים ב־start (אחרי אומדן ואישור בטלפון)

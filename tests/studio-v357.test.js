@@ -14,8 +14,8 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
 /* ---------- 1. השרתון: שני לקוחות, שתי כספות ---------- */
 const gd = read('ibkr-proxy/lib/gdrive.js');
-ok(/makeDrive\(\{ idEnv: 'GDRIVE_CLIENT_ID', secretEnv: 'GDRIVE_CLIENT_SECRET', col: 'driveVault', aad: 'gdrive' \}\)/.test(gd), 'גיבוי הספרייה — הלקוח והכספת כמו קודם (driveVault, gdrive)');
-ok(/makeDrive\(\{ idEnv: 'STUDIO_GDRIVE_CLIENT_ID', secretEnv: 'STUDIO_GDRIVE_CLIENT_SECRET', col: 'studioDrive', aad: 'sdrive' \}\)/.test(gd), 'הסטודיו — לקוח משלו (STUDIO_GDRIVE_*), כספת משלו (studioDrive) ו־AAD משלו');
+ok(/makeDrive\(\{ name: 'library', idEnv: 'GDRIVE_CLIENT_ID', secretEnv: 'GDRIVE_CLIENT_SECRET', col: 'driveVault', aad: 'gdrive' \}\)/.test(gd), 'גיבוי הספרייה — הלקוח והכספת כמו קודם (driveVault, gdrive)');
+ok(/makeDrive\(\{ name: 'studio', idEnv: 'STUDIO_GDRIVE_CLIENT_ID', secretEnv: 'STUDIO_GDRIVE_CLIENT_SECRET', col: 'studioDrive', aad: 'sdrive' \}\)/.test(gd), 'הסטודיו — לקוח משלו (STUDIO_GDRIVE_*), כספת משלו (studioDrive) ו־AAD משלו');
 const api = read('ibkr-proxy/api/studio.js');
 ok(/require\('\.\.\/lib\/gdrive'\)\.studio;/.test(api) && !/require\('\.\.\/lib\/gdrive'\);/.test(api), 'api/studio.js משתמש רק בלקוח של הסטודיו (גם בגישה שהעובד מקבל)');
 // 11/10/2026: הגיבוי אצל ספק שני — הלקוח של הספרייה רק בתוך lib/offsite.js (לשרתון בלבד), אף פעם לא לעובד

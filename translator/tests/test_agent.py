@@ -97,7 +97,10 @@ class AgentTests(unittest.TestCase):
         hb = self.fake.hb[0]
         self.assertEqual(hb['busy'], '')
         self.assertTrue(0 <= hb['disk'] <= 100 and hb['free'] >= 0 and 'mem' in hb, 'דופק: דיסק, זיכרון — מספרים בלבד')
-        self.assertEqual(set(hb) - {'v', 'busy', 'disk', 'free', 'load', 'mem', 'up', 'iso', 'iw', 'al', 'ev', 'cpu', 'nj', 'mx', 'vi', 'vx', 'lb'}, set(), 'בלי שום שדה מעבר למספרים, לגרסה ולקודים הקבועים')
+        self.assertEqual(set(hb) - {'v', 'busy', 'disk', 'free', 'load', 'mem', 'up', 'iso', 'iw', 'al', 'ev', 'cpu', 'nj', 'mx', 'vi', 'vx', 'lb', 'mm'}, set(), 'בלי שום שדה מעבר למספרים, לגרסה ולקודים הקבועים')
+        mm = hb.get('mm') or {}                     # 18/11/2026: מודל הזיכרון — מסלולים מקטלוג, מספרים וקודי שלב בלבד
+        self.assertTrue(set(mm) <= {'tr', 'ka', 'vi', 'vh', 'rr', 'pk'} and all(isinstance(v, int) for k, x in mm.items() if k != 'pk' for v in x)
+                        and all(isinstance(x[1], int) and isinstance(x[2], int) and len(x) == 4 for x in mm.get('pk', [])), 'mm: מספרים וקודים בלבד')
         self.assertEqual(hb.get('vi'), 1, '9/11/2026: יכולת קבועה — העובד מריץ ניתוח סרטונים (שומר הלקיחה בשרתון)')
         self.assertEqual([k for _, k in hb['ev']], ['up'], 'ת7: יומן השרת — "הסוכן עלה" נשלח כבר בפנייה הראשונה')
         self.assertTrue(all(isinstance(t, int) and t > 1.6e9 for t, _ in hb['ev']))
@@ -503,6 +506,93 @@ class MemUnit(unittest.TestCase):
             A.mem_note('tr', 600, 9000)
             self.assertEqual(A.mem_model('tr')[0], round(9000 - 22 * 10), 'שיא גבוה — המודל עולה מיד')
             self.assertEqual(A.mem_model('rr')[0], 2200, 'סוג אחר — לא מושפע')
+
+    def test_paths_learn_apart(self):
+        # 18/11/2026: קריוקי וניתוח בעברית — מודל משלהם; שיר כבד לא מנפח את השריון של כל תרגום אחריו
+        A = self.A
+        with tempfile.TemporaryDirectory() as d:
+            A.MEM_DB = Path(d) / 'm.json'
+            A.mem_note('ka', 240, 9500, 'tr')
+            self.assertEqual(A.mem_model('tr')[0], 4600, 'תרגום לא מושפע מקריוקי')
+            self.assertEqual(A.mem_model('ka')[0], round(9500 - 22 * 4))
+            A.mem_note('vh', 2700, 9800, 'al')
+            self.assertEqual(A.mem_model('vi')[0], 4600, 'ניתוח באנגלית לא מושפע מניתוח בעברית')
+            self.assertEqual(A.mem_need('vx', 2700), A.mem_need('vh', 2700), 'אוטומטי — הגבוה מבין השניים')
+            A.mem_note('vx', 600, 100, 'BAD stage!')
+            raw = json.loads(A.MEM_DB.read_text())
+            self.assertEqual(raw[-1], ['vh', 600, 100, ''], 'אוטומטי נלמד כעברית; שלב לא תקין — ריק')
+            self.assertEqual(raw[0], ['ka', 240, 9500, 'tr'])
+
+    def test_old_samples_split(self):
+        # מדידות מלפני הפיצול (3 שדות): "תרגום" קצר → קריוקי, ארוך → תרגום; "ניתוח" → שני המסלולים
+        A = self.A
+        with tempfile.TemporaryDirectory() as d:
+            A.MEM_DB = Path(d) / 'm.json'
+            A.MEM_DB.write_text(json.dumps([['tr', 300, 9900], ['tr', 3600, 5000], ['vi', 2700, 9800], ['rr', 600, 1000],
+                                            ['tr', 'x', 1], ['zz', 1, 1], ['tr', 1, 1, 5]]))
+            self.assertEqual(A.mem_model('tr')[0], 4600, 'השיא הכבד הקצר עבר לקריוקי — תרגום חוזר ל־prior')
+            self.assertEqual(A.mem_model('ka')[0], round(9900 - 22 * 5))
+            self.assertEqual(A.mem_model('vi')[0], A.mem_model('vh')[0])
+            self.assertEqual(A.mem_model('vh')[0], round(9800 - 22 * 45))
+            # המקרה מהטלפון: תרגום של 25 דק׳ ליד ניתוח בעברית — צריך ~5.7GB, לא 11
+            self.assertEqual(A.mem_need('tr', 1500), round((4600 + 22 * 25) * 1.1))
+            A.mem_note('tr', 1500, 4000, 'al')
+            raw = json.loads(A.MEM_DB.read_text())
+            self.assertEqual(len(raw), 5, 'הישנות נשמרות כמו שהן (בלי שכפול), לא תקינות נזרקות')
+            self.assertEqual(raw[0], ['tr', 300, 9900])
+
+    def test_mem_kind(self):
+        A = self.A
+        self.assertEqual(A.mem_kind({'kind': 'tr', 'mk': 'ka'}), 'ka')
+        self.assertEqual(A.mem_kind({'kind': 'tr', 'mk': 'vh'}), 'tr', 'mk שלא מתאים לסוג — נזרק')
+        self.assertEqual(A.mem_kind({'kind': 'tr', 'vi': 1, 'mk': 'vx'}), 'vx')
+        self.assertEqual(A.mem_kind({'kind': 'tr', 'vi': 1, 'vo': 1, 'mk': 'vh'}), 'ai', '"אמת שוב" — קל, בלי קשר לשפה')
+        self.assertEqual(A.mem_kind({'kind': 'rr', 'mk': 'ka'}), 'rr')
+
+    def test_view_and_fit_fields(self):
+        A = self.A
+        with tempfile.TemporaryDirectory() as d:
+            A.MEM_DB = Path(d) / 'm.json'
+            A.MEM_DB.write_text(json.dumps([['tr', 300, 9900]]))
+            A.mem_note('vh', 2700, 9800, 'al')
+            v = A.mem_view()
+            self.assertEqual(sorted(k for k in v if k != 'pk'), sorted(A.MEM_VIEW))
+            self.assertEqual(v['ka'][1], 1)
+            self.assertEqual(v['tr'], [round((4600 + 22 * 60) * 1.1), 0])
+            self.assertEqual(v['pk'], [['tr', 5, 9900, ''], ['vh', 45, 9800, 'al']])
+            from unittest import mock
+            with mock.patch.object(A, 'mem_limit_mb', return_value=23808), mock.patch.object(A, 'mem_pressure', return_value=0.0), \
+                    mock.patch.object(A, '_meminfo', return_value={}), mock.patch.object(A, 'perf_dmax', return_value=None):
+                f = A.mem_fit({})
+            self.assertEqual((f['ka'], f['ks']), (round((9900 - 110) * 1.1), round(22 * 1.1, 1)))
+            self.assertEqual((f['ha'], f['hs']), (round((9800 - 990) * 1.1), round(22 * 1.1, 1)))
+            self.assertEqual(f['a'], round(4600 * 1.1))
+
+    def test_peak_stage(self):
+        A = self.A
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            A.MEM_DB = Path(d) / 'm.json'
+            sl = A.Slot(1, {'id': 'j' + 'a' * 20, 'kind': 'tr', 'mk': 'ka', 'dur': 240})
+            self.assertEqual((sl.kind, sl.mk), ('tr', 'ka'))
+            sl.state = Path(d)
+            sl.p = mock.Mock(pid=1)
+            sl.p.poll.return_value = None
+            for rss, st in ((3000, 'tr'), (7000, 'al'), (5000, 'bn')):
+                (Path(d) / 'prog.json').write_text(json.dumps({'st': st}))
+                with mock.patch.object(A, 'tree_rss_mb', return_value=rss):
+                    sl.sample({})
+            self.assertEqual((sl.peak, sl.pst), (7000, 'al'), 'השלב של השיא — לא של הדגימה האחרונה')
+
+    def test_poll_passes_mk(self):
+        A = self.A
+        ans = {'ok': True, 'job': {'id': 'j' + 'b' * 20, 'key': 'k' * 43, 'kind': 'tr', 'mk': 'ka', 'dur': 240}}
+        saved = A.J.http
+        A.J.http = lambda *a, **k: (200, ans, {})
+        self.addCleanup(setattr, A.J, 'http', saved)
+        self.assertEqual(A.poll('https://x', 't')['job'].get('mk'), 'ka')
+        ans['job']['mk'] = '<x>'
+        self.assertNotIn('mk', A.poll('https://x', 't')['job'])
 
     def test_slots_by_cpu(self):
         A = self.A

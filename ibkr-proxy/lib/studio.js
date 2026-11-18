@@ -1081,7 +1081,7 @@ function normLibMeta(m) {
   }
   const lang = (x) => (/^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(String(x || '')) ? String(x) : '');
   return { t: dxName(m.t).slice(0, 120), k: ['tr', 'ka', 'vi'].includes(m.k) ? m.k : 'tr', fr: lang(m.fr), to: (Array.isArray(m.to) ? m.to : []).map(lang).filter(Boolean).slice(0, 4),
-    d: Math.max(0, Math.min(86400, Math.round(Number(m.d) || 0))), ch };
+    d: Math.max(0, Math.min(86400, Math.round(Number(m.d) || 0))), ch, ...(m.tv === 1 && m.k === 'vi' ? { tv: 1 } : {}) };   // tv: ניתוח שגם תורגם (18/11/2026)
 }
 function normLibDx(o, job) {
   if (!o || typeof o !== 'object' || !FILE_ID_RE.test(String(o.f || '')) || String(o.f).startsWith('R2_')) return null;
@@ -1861,7 +1861,26 @@ function normHb(h) {
     lb: h.lb === 1 ? 1 : 0,   // 16/11/2026: העובד מכיר את עבודת־העזר lb (עותק צרוב למאגר) — רק לו היא נמסרת
     vx: h.vx === 1 ? 1 : 0,   // 10/11/2026: הניתוח עם Claude סגור בעובד (SNB_VI_LIVE) — viCreateErr דוחה ניתוח לא יבש לפני ההעלאה
     dl: h.dl === 1 ? 1 : 0,   // 26/10/2026: פחות מ־8GB פנויים — העובד לא לוקח עבודה חדשה (translator/agent.py — disk_low)
+    mm: normMm(h.mm),   // 18/11/2026: מודל הזיכרון של העובד — מסך השרת
     ev: normEv(h.ev) };   // ת7: יומן השרת — האירועים האחרונים (קודים מקטלוג קבוע + זמן)
+}
+/* 18/11/2026 (תרגום של 25 דק׳ "צריך 11GB"): מודל הזיכרון של העובד למסך השרת (translator/agent.py — mem_view): לכל מסלול
+   [השריון לשעת סרטון MB, כמה מדידות], ו־pk = השיאים האחרונים [מסלול, דק׳, MB, השלב בשיא]. מספרים וקודים מקטלוג בלבד */
+const MM_K = ['tr', 'ka', 'vi', 'vh', 'rr'];
+const MM_PK = MM_K.concat(['ai', 'dx', 'lb']);
+function normMm(m) {
+  if (!m || typeof m !== 'object' || Array.isArray(m)) return null;
+  const n = (x, hi) => (typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= hi ? Math.round(x) : null);
+  const o = {};
+  for (const k of MM_K) {
+    const v = m[k];
+    if (Array.isArray(v) && v.length === 2 && n(v[0], 1e5) != null && n(v[1], 60) != null) o[k] = [n(v[0], 1e5), n(v[1], 60)];
+  }
+  const pk = (Array.isArray(m.pk) ? m.pk.slice(-12) : []).filter((x) => Array.isArray(x) && x.length === 4 && MM_PK.includes(x[0])
+    && n(x[1], 1e4) != null && n(x[2], 1e5) != null && typeof x[3] === 'string' && /^[a-z0-9_]{0,8}$/.test(x[3]))
+    .map((x) => [x[0], n(x[1], 1e4), n(x[2], 1e5), x[3]]).slice(-6);
+  if (pk.length) o.pk = pk;
+  return Object.keys(o).length ? o : null;
 }
 /* 21/10/2026: כמה עבודות במקביל בשרת אחד — הסוכן שולח כמה זיכרון פנוי לעוד עבודה (mb) ואת המודל שלו לשיא של כל סוג
    (הוא מודד ולומד את השיא האמיתי; translator/agent.py — mem_fit). מספרים בלבד, בגבולות סבירים */
@@ -1876,6 +1895,10 @@ function normFit(f) {
   const va = n(f.va, 100, 1e5), vb = n(f.vb, 0, 1e4), dv = n(f.dv, 0, 1e4);
   if (va != null && vb != null) { o.va = va; o.vb = vb; }
   if (dv != null) o.dv = dv;
+  // 18/11/2026: רשות — מודל משלהם לקריוקי (ka/ks) ולניתוח בעברית (ha/hs); סוכן ישן — כמו תרגום / ניתוח
+  const ka = n(f.ka, 100, 1e5), ks = n(f.ks, 0, 1e4), ha = n(f.ha, 100, 1e5), hs = n(f.hs, 0, 1e4);
+  if (ka != null && ks != null) { o.ka = ka; o.ks = ks; }
+  if (ha != null && hs != null) { o.ha = ha; o.hs = hs; }
   if (f.ps === 1) o.ps = 1;   // 17/11/2026: הזיכרון בלחץ (PSI) — mb=0
   return o;
 }
@@ -1899,19 +1922,37 @@ function qwView(job) {
 }
 /* 5/11/2026 (קבלה חזויה, docs/studio-parallel-plan.md): fit.dm = האורך המרבי (דק׳ סרטון) של עבודה שנכנסת עכשיו בלי שאף
    עבודה בשרת תאט מעבר לתקרה (הסוכן מריץ קדימה את מה שרץ). בלי dm — בלי הגבלה. גיליון AI / העתקה / קובץ כתוביות — בלי מעבד */
+/* 18/11/2026: עבודה קלה — בלי מודלים כבדים ובלי מעבד: גיליון AI, העתקה, עבודת־העזר lb, קובץ כתוביות, ו"אמת שוב" / השופט /
+   טיוטת הייחוס של ניתוח (vo בלקיחה — בסוכן perf_kind 'ai'; עד היום השרתון חישב להן שריון של ניתוח מלא) */
+const lightJob = (job) => !!job && (job.kind === 'ai' || job.kind === 'dx' || job.kind === 'lb' || !!(job.spec && (job.spec.src === 'subs'
+  || (job.spec.vi === 1 && (job.spec.vo === 1 || job.spec.vj === 1 || job.spec.vp === 1)))));
 function perfBlock(job, fit) {
   if (!fit || !job) return false;
-  if (job.kind === 'ai' || job.kind === 'dx' || job.kind === 'lb' || (job.spec && job.spec.src === 'subs')) return false;
+  if (lightJob(job)) return false;
   const lim = job.spec && job.spec.vi === 1 && fit.dv != null ? fit.dv : fit.dm;   // 9/11/2026: ניתוח — הקבלה החזויה שלו (perf.dmax kind='vi')
   if (lim == null) return false;
   return ((job.spec && job.spec.dur) || 3600) / 60 > lim;
 }
-/* השיא הצפוי של עבודה (MB) לפי המודל של השרת: תרגום / הפקה מחדש לפי האורך, גיליון AI — קבוע */
+/* 18/11/2026 (בקשת המשתמש: תרגום של 25 דק׳ מאנגלית "צריך 11GB" ולא נכנס ליד ניתוח בעברית): המסלול לזיכרון — = mem_kind
+   ב־translator/agent.py (נשלח בלקיחה כ־mk). קריוקי (הפרדת קול ב־roformer + ivrit + CTC ב־torch) וניתוח בעברית כבדים בהרבה
+   מתרגום ומניתוח באנגלית (Parakeet + Qwen ב־ONNX), והמעטפת של השיאים ערבבה ביניהם. vx = ניתוח "אוטומטי": השפה עוד לא ידועה.
+   '' = לפי הסוג (תרגום / ניתוח / הפקה מחדש) */
+function memClass(job) {
+  const s = (job && job.spec) || {};
+  if (lightJob(job)) return '';
+  if (s.vi === 1) return s.from === 'he' ? 'vh' : s.from === 'en' ? '' : 'vx';
+  return s.ka === 1 && (job.kind || 'tr') === 'tr' ? 'ka' : '';
+}
+/* השיא הצפוי של עבודה (MB) לפי המודל של השרת: לפי המסלול והאורך, עבודה קלה — קבוע */
 function peakNeed(job, fit) {
   const m = ((job && job.spec && job.spec.dur) || 3600) / 60;
-  if (job && (job.kind === 'ai' || job.kind === 'dx' || job.kind === 'lb' || (job.spec && job.spec.src === 'subs'))) return fit.ai;   // lb — הורדה וקידוד 240p   // 26/10/2026: dx — רק העתקה   // 22/10/2026: קובץ כתוביות — בלי מודלים כבדים
+  if (lightJob(job)) return fit.ai;   // lb — הורדה וקידוד 240p   // 26/10/2026: dx — רק העתקה   // 22/10/2026: קובץ כתוביות — בלי מודלים כבדים
   if (job && job.kind === 'rr') return fit.ra + fit.rb * m;
-  if (job && job.spec && job.spec.vi === 1 && fit.va != null) return fit.va + fit.vb * m;   // 9/11/2026: ניתוח (סוכן ישן — כמו תרגום)
+  const mk = memClass(job), vi = fit.va != null ? fit.va + fit.vb * m : null, vh = fit.ha != null ? fit.ha + fit.hs * m : null;
+  if (mk === 'ka' && fit.ka != null) return fit.ka + fit.ks * m;   // סוכן ישן (בלי ka) — כמו תרגום
+  if (mk === 'vh' && vh != null) return vh;
+  if (mk === 'vx' && vh != null) return Math.max(vh, vi != null ? vi : 0);
+  if (job && job.spec && job.spec.vi === 1 && vi != null) return vi;   // 9/11/2026: ניתוח (סוכן ישן — כמו תרגום)
   return fit.a + fit.b * m;
 }
 /* ת7 (11/10/2026): יומן השרת במקום אחד — העובד שולח בכל פנייה את 12 האירועים האחרונים שלו ([שניות, קוד]), ומסך השרת
@@ -2014,7 +2055,7 @@ module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, 
   NORM_MIN, NORM_DEF, NORM_FIXED, NORM_DEF_API, NORM_FIXED_API, normDef, normFixed, engKey, normSample, addSample, learnedNorm, normsView,
   FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide, fbRemove,
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, BLOCK_ERRS, BLOCK_WAIT, isBlock, blockWait, EARLY_FAIL_MS, EARLY_WAIT, recoverWait, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
-  effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, excludeWait, toFields, fromFields, normFit, peakNeed, perfBlock, qwOf, qwView,
+  effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, excludeWait, toFields, fromFields, normFit, normMm, memClass, peakNeed, perfBlock, qwOf, qwView,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, BAD_AUTH_GAP, badAuthDue, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
   serverMatches, normHb, normEv, SRV_EV, parkable, bwParkable, BW_MAX, BT_ERRS, normBq, bqView, BQ_SILENT_MS, bwLost, BQ_LOST_MS, BL_MAX, WL_RE, PARK_MAX, serverView, viClosed, monthKey, monthUsed, addMonth, jobCap,
 };

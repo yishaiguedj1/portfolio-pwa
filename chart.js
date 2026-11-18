@@ -992,15 +992,19 @@ function newCell(i, conf) {
 }
 const candleType = (t) => (t === 'line' || t === 'area' ? 'area' : t === 'candle_up_stroke' || t === 'ohlc' ? t : 'candle_solid');
 function palette() {
-  // ברירת המחדל: הצבעים של האפליקציה (iOS — ‎--gain/--loss, רקע מערכת). "קלאסי" = הפלטה של TradingView
-  const dk = isDark(), g = S.store.g;
+  // ברירת המחדל: הצבעים של האפליקציה (‎--gain/--loss, רקע מערכת). "קלאסי" ו"שחור־לבן" — פלטות שהגדרנו בעצמנו.
+  // 17/11/2026 (Invest בזכוכית, docs/analysis-chart-design-plan.md): רשת, צירים, תוויות, גופן ונפח — מטוקנים ‎--kc-cv-*‎
+  // ב־invest-glass.css; בלי הטוקנים — בדיוק הערכים הקודמים. רק צבעים — שום נתון או חישוב לא תלוי בזה.
+  const dk = isDark(), g = S.store.g, tk = (n, d) => css(n) || d;
   let up = css('--gain') || '#30D158', dn = css('--loss') || '#FF453A';
   if (g.colors === 'tv') { up = '#089981'; dn = '#F23645'; }
   if (g.colors === 'mono') { up = dk ? '#E5E5EA' : '#1C1C1E'; dn = dk ? '#636366' : '#AEAEB2'; }
   return {
-    up, dn, text: dk ? '#98989D' : '#636366', grid: dk ? 'rgba(255,255,255,.07)' : 'rgba(60,60,67,.08)', axis: dk ? 'rgba(255,255,255,.14)' : 'rgba(60,60,67,.14)',
-    bg: dk ? '#000000' : '#FFFFFF', cross: dk ? '#8E8E93' : '#8E8E93', tipBg: dk ? '#1C1C1E' : '#FFFFFF', label: dk ? '#48484A' : '#1C1C1E',
-    glass: dk ? 'rgba(58,58,60,.84)' : 'rgba(255,255,255,.86)', glassLine: dk ? 'rgba(255,255,255,.24)' : 'rgba(0,0,0,.08)', glassSh: dk ? 'rgba(0,0,0,.45)' : 'rgba(0,0,0,.10)',   // בועות על הגרף — זכוכית (לפי ת־עיצוב) font: css('--font') || '-apple-system, system-ui, sans-serif',
+    up, dn, text: tk('--kc-cv-text', dk ? '#98989D' : '#636366'), grid: tk('--kc-cv-grid', dk ? 'rgba(255,255,255,.07)' : 'rgba(60,60,67,.08)'), axis: tk('--kc-cv-axis', dk ? 'rgba(255,255,255,.14)' : 'rgba(60,60,67,.14)'),
+    bg: dk ? '#000000' : '#FFFFFF', cross: dk ? '#8E8E93' : '#8E8E93', tipBg: dk ? '#1C1C1E' : '#FFFFFF', label: tk('--kc-cv-label', dk ? '#48484A' : '#1C1C1E'),
+    glass: dk ? 'rgba(58,58,60,.84)' : 'rgba(255,255,255,.86)', glassLine: dk ? 'rgba(255,255,255,.24)' : 'rgba(0,0,0,.08)', glassSh: dk ? 'rgba(0,0,0,.45)' : 'rgba(0,0,0,.10)',   // בועות על הגרף — זכוכית (לפי ת־עיצוב)
+    font: tk('--kc-cv-font', css('--font') || '-apple-system, system-ui, sans-serif'),   // עד 17/11 היה בתוך ההערה שמעל — הצירים קיבלו את גופן ברירת המחדל של הספרייה
+    vol: +css('--kc-cv-vol') || 0.55, rad: +css('--kc-cv-r') || 6,
   };
 }
 /* בטלפון הכותרת היא זכוכית שקופה מעל הגרף — בתא העליון המקרא ובוררי הפינה יורדים מתחתיה.
@@ -1036,14 +1040,14 @@ function chartStyles(c) {
       },
     },
     indicator: {
-      bars: [{ style: 'fill', borderStyle: 'solid', borderSize: 1, borderDashedValue: [2, 2], upColor: rgba(p.up, 0.55), downColor: rgba(p.dn, 0.55), noChangeColor: rgba('#8E8E93', 0.55) }],
+      bars: [{ style: 'fill', borderStyle: 'solid', borderSize: 1, borderDashedValue: [2, 2], upColor: rgba(p.up, p.vol), downColor: rgba(p.dn, p.vol), noChangeColor: rgba('#8E8E93', 0.55) }],
       lines: ['#FF9F0A', '#BF5AF2', '#0A84FF', '#FF375F', '#64D2FF', '#30D158', '#FFD60A'].map((color) => ({ style: 'solid', smooth: false, size: 1.2, dashedValue: [2, 2], color })),
       tooltip: { showRule: 'always', title: { color: p.text, size: 11, family: p.font }, legend: { color: p.text, size: 11, family: p.font } }, lastValueMark: { show: true, text: { show: true, size: 10, family: p.font } } },
     xAxis: Object.assign({}, axis, { size: xSize() }), yAxis: axis,
     separator: { color: p.axis, activeBackgroundColor: 'rgba(10,132,255,.08)' },
     crosshair: {
-      horizontal: { line: { color: p.cross, style: 'dashed', dashedValue: [4, 3] }, text: { backgroundColor: p.label, borderColor: 'transparent', family: p.font, borderRadius: 6 } },
-      vertical: { line: { color: p.cross, style: 'dashed', dashedValue: [4, 3] }, text: { backgroundColor: p.label, borderColor: 'transparent', family: p.font, borderRadius: 6 } },
+      horizontal: { line: { color: p.cross, style: 'dashed', dashedValue: [4, 3] }, text: { backgroundColor: p.label, borderColor: 'transparent', family: p.font, borderRadius: p.rad } },
+      vertical: { line: { color: p.cross, style: 'dashed', dashedValue: [4, 3] }, text: { backgroundColor: p.label, borderColor: 'transparent', family: p.font, borderRadius: p.rad } },
     },
     overlay: { line: { color: DEF_COLOR }, point: { color: DEF_COLOR, borderColor: rgba(DEF_COLOR, 0.35), activeColor: DEF_COLOR, activeBorderColor: rgba(DEF_COLOR, 0.35) }, text: { backgroundColor: DEF_COLOR, borderColor: DEF_COLOR } },
   };

@@ -115,8 +115,8 @@ export function normSettings(o) {
   const stale = Number(o.bgSt) >= 2;
   if (!stale && Number.isFinite(+o.bgNo) && +o.bgNo > 0) s.bgNo = Math.floor(+o.bgNo);   // 23/10/2026: מתי הדפדפן סירב להעלאה ברקע (ננסה שוב אחרי חודש)   // מתי Google סירב לבורר במסך מלא (ננסה שוב אחרי חודש)
   if (Number.isFinite(+o.bgSl) && +o.bgSl > 0) s.bgSl = Math.floor(+o.bgSl);   // 28/10/2026: מתי העלאה ברקע הייתה איטית (ACCOUNT_KEYS — pwa_studio_v1 כולו)
-  if (o.ky && typeof o.ky === 'object') s.ky = normKy(o.ky);   // 31/10/2026: עיצוב הקריוקי (ברירת המחדל לשיר הבא)
-  const sty = normSty(o.sty); if (sty) s.sty = sty;   // סבב 5: עיצוב הכתוביות האחרון (ברירת המחדל להפקה הבאה)
+  // 18/11/2026 (בקשת המשתמש): עיצוב הכתוביות (sty) ועיצוב הקריוקי (ky) שייכים לעבודה — לא ברירת מחדל לעבודה הבאה.
+  // ערך שנשמר לפני כן נזרק כאן, ונמחק בשמירה הבאה
   if (o.lg && typeof o.lg === 'object') { const ov = normOv({ lg: o.lg.d, lp: o.lg.p, ls: o.lg.s }); if (ov) s.lg = { d: ov.lg, p: ov.lp, s: ov.ls }; }   // סבב 7: הלוגו שלך
   return s;
 }
@@ -515,13 +515,25 @@ export function hsState(rec, rr, ed) {
   if (sv.state !== 'done') return { k: bx ? 'on' : ed ? 'ask' : 'late', n: 0 };
   const ver = (v) => (v.n > 0 ? { k: v.ok ? 'ok' : 'bad', n: v.n } : { k: 'nochk', n: 0 });
   const rs = rr && rr.srv;
-  if (rs && rs.state === 'done' && rs.hs && rs.hs.v) return ver(rs.hs.v);   // ההפקה האחרונה — היא מה שיש לך עכשיו
+  if (rs && rs.state === 'done' && rs.hs && rs.hs.v) return Object.assign(ver(rs.hs.v), { rr: 1 });   // ההפקה האחרונה — היא מה שיש לך עכשיו
   if (rs && ['new', 'queued', 'running'].includes(rs.state) && rr.spec && rr.spec.sty && rr.spec.sty.bx) return { k: 'rrrun', n: 0 };
   if (bx) return sv.hs.v ? ver(sv.hs.v) : null;
   return { k: sv.sx > 0 ? 'gone' : 'rr', n: 0 };
 }
 /* הנגן: הכתוביות הצרובות הוסתרו בקובץ — מנגנים אותו (מעל המקור הן היו מבצבצות). אחרי עריכה — המקור, כי בצרוב הנוסח הישן */
 export const hsPlayBurned = (rec) => !!(rec && rec.srv && rec.srv.hs && rec.srv.hs.v && rec.spec && rec.spec.sty && rec.spec.sty.bx && !(rec.srv.ev > 0));
+/* 17/11/2026 (המשתמש: "הסתרת הכתוביות לא עובדת"): ההפקה מחדש עם רקע כהה הסתירה, אבל דף העבודה המשיך להציע להורדה ולנגן
+   את הקובץ הישן (עם כפל הכתוביות). מי מחזיק את הקובץ המוסתר: 'rr' = ההפקה מחדש האחרונה · 'self' = העבודה עצמה · '' = אין */
+const hsRrDone = (rr) => { const rs = rr && rr.srv; return !!(rs && rs.state === 'done' && rs.hs && rs.hs.v); };
+export const hsPick = (rec, rr) => (hsRrDone(rr) && burnedOut(rr) ? 'rr' : hsPlayBurned(rec) ? 'self' : '');
+/* התוצרים בדף העבודה: כשההפקה מחדש הסתירה — הסרטונים הצרובים שלה במקום הצרובים הישנים (MKV וקבצי הכתוביות — של העבודה;
+   ב־MKV הכתוביות רכות מעל המקור, אין בו הסתרה) */
+const HS_BURN = ['compact', 'same', 'small'];
+export function hsOuts(outs, rr) {
+  if (!hsRrDone(rr)) return outs;
+  const rv = (rr.srv.out || []).filter((o) => HS_BURN.includes(o.k));
+  return rv.length ? rv.concat(outs.filter((o) => !HS_BURN.includes(o.k))) : outs;
+}
 export function afterAdvice(rec, o) {
   const out = [], sv = rec && rec.srv, x = o || {};
   if (!sv || sv.state !== 'done' || sv.kind === 'rr') return out;
@@ -1070,6 +1082,7 @@ export function newDraft(form, created, id) {
 export function fmtSize(n) {
   n = Math.max(0, Number(n) || 0);
   const G = 1073741824, M = 1048576;
+  if (n >= 1024 * G) return (n / 1024 / G).toFixed(n >= 10240 * G ? 0 : 1).replace(/\.0$/, '') + 'TB';   // 18/11/2026: "5124GB" נקרא כמו 500GB — מכסת Drive של 5TB
   if (n >= G) return (n / G).toFixed(n >= 10 * G ? 0 : 1) + 'GB';
   if (n >= M) return Math.round(n / M) + 'MB';
   if (n <= 0) return '0KB';   // 26/10/2026: עד היום "1KB" גם כשלא עלה כלום ("עלו 1KB מתוך 187MB" — נראה כמו תקיעה באמצע)
@@ -1360,7 +1373,7 @@ function freshForm(d) {
     drive: d && d.drive && d.name ? Object.assign({ id: d.drive.id, name: d.name, size: d.size, type: d.type, dur: d.drive.dur || 0 }, d.drive.bx ? { bx: true } : {}) : null,   // או סרטון שכבר ב־Drive
     from: d ? d.from : 'auto',
     to: s.to.slice(), mode: s.mode, out: Object.assign({}, s.out), style: s.style === 'karaoke' ? 'bold' : s.style,
-    sty: normSty(store.settings.sty),   // 26/10/2026: העיצוב האחרון שבחרת = ברירת המחדל
+    sty: null,   // 18/11/2026 (בקשת המשתמש): כל עבודה חדשה מתחילה מהעיצוב הרגיל, לא ממה שבחרת בעבודה הקודמת
     terms: d ? d.terms : '',
     more: [], bt: 0,   // 01/11/2026 (סבב 3, I3): עוד סרטונים מהטלפון באותן הגדרות (רק בזיכרון) · חצי מחיר
     subs: null, sdh: 'rm', trk: null,   // שלב 4: רצועות הכתוביות שבתוך הסרטון (רק בזיכרון)   // 22/10/2026: קובץ כתוביות קיים (בזיכרון בלבד — בלי טיוטה) ומה עושים עם SDH
@@ -2412,7 +2425,7 @@ function leaving() {              // יציאה מדף: המפתח שהודבק 
   if (ui.view === 'litem') lpStop();   // 17/11/2026: הנגן של פריט בספרייה       // PR 1.5ב: דף הניתוח — המקום נשמר, הנגן נעצר, תמונות השקפים משוחררות
   if (ui.view === 'subs') seStop();      // מ2: הנגן של העורך נעצר; העריכה נשארת בזיכרון
   if (ui.view === 'cut' || ui.view === 'cutsrc') ceStop();   // מ4–מ5: החיתוך עצמו נשמר (rrEdl / form.edl)
-  if (ui.view === 'sty') syStop();   // סבב 5: העיצוב עצמו נשמר (rrOpt.sty / ההגדרות)
+  if (ui.view === 'sty') syStop();   // סבב 5: העיצוב עצמו נשמר (rrOpt.sty — לעבודה הזו)
   if (ui.view === 'ov') ovpStop();   // סבב 7: הכותרת והלוגו נשמרים (ovT / ההגדרות)
   if (ui.view === 'connect') ui.wiz = { url: ui.wiz.url, key: '', busy: false, err: '' };
   if (ui.view === 'server') ui.newToken = '';   // טוקן שרת מוצג פעם אחת — יציאה מהדף מוחקת אותו מהזיכרון
@@ -2567,14 +2580,19 @@ function stSwipePage(next) {
   };
 }
 /* ---- החוגה (המנוע ב־core: dialHost/wireDial — אותו של Invest) ---- */
+/* 18/11/2026 (בקשת המשתמש): סמל התרגום, בשפה המקובלת (ת־עיצוב) — שתי בועות דיבור חופפות: שפת המקור בבועה שמאחור
+   (למעלה), שפת היעד בבועה שמלפנים (למטה בסוף). הראשי = מאנגלית לעברית (A → א). ציור שלנו: קווים מעוגלים, האותיות דקות
+   מהמסגרת, הבועה האחורית נקטעת לפני הקדמית. ICO_BUB — הבועות לבד, לסמל של כל סרטון בספרייה (trIco, האותיות כטקסט) */
+const ICO_BUB = '<path d="M9.2 11.5H7.2L4.2 14.2V11.5A2.2 2.2 0 0 1 2 9.3V5A3 3 0 0 1 5 2H10A3 3 0 0 1 13 5V8"/><path d="M14 10.5H19A3 3 0 0 1 22 13.5V18A2.2 2.2 0 0 1 19.8 20.2V22.7L17 20.2H14A3 3 0 0 1 11 17.2V13.5A3 3 0 0 1 14 10.5Z"/>';
+const ICO_TR = ICO_BUB + '<path d="M4.9 9.6L7.5 3.9l2.6 5.7M5.9 7.7h3.2" stroke-width="1.7"/><path d="M14 12.8l4.9 5.2M18.9 12.6v.8c0 1-.8 1.7-2.2 2.1M15.7 14.6c-1 .4-1.6 1.2-1.6 2.6v.9" stroke-width="1.7"/>';
 const ST_DIAL_ICO = {
-  // 30/10/2026 (בקשת המשתמש): הבית = תרגום סרטונים (מסך + כתובית), הקריוקי = תו, העבודה = משותפת לשניהם (פעימה)
-  home: '<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M10.2 7.6v4.8l4-2.4z"/><path d="M7 16h5.5M14.5 16H17"/>',
+  // 30/10/2026 (בקשת המשתמש): הבית = תרגום סרטונים, הקריוקי = תו, העבודה = משותפת לשניהם (פעימה)
+  home: ICO_TR,   // 18/11/2026: התרגום = שתי בועות דיבור (היה מסך עם כתובית)
   job: '<path d="M3 12h3.8l2.4-6.5 5.6 13 2.4-6.5H21"/>',
   tower: '<path d="M9.2 21l.9-8.5h3.8l.9 8.5M7 21h10M6.5 8.5h11l-1.6 4h-7.8zM12 8.5V4.5M9.8 4.5h4.4"/>',
   ka: '<circle cx="8.5" cy="17.5" r="3"/><path d="M11.5 17.5V3.5c0 2.6 4.8 3.4 4.8 7.2"/>',
   vi: '<rect x="3" y="4" width="18" height="12.5" rx="2.5"/><path d="M12 16.5V20M8.5 20h7M7 8.5h5M7 12h3"/><circle cx="15.6" cy="10" r="2.2"/><path d="M17.2 11.6l1.5 1.5"/>',   // 10/11/2026: ניתוח — לוח הרצאה וזכוכית מגדלת
-  lib: '<path d="M4 4.5v15M8 4.5v15"/><path d="M11.5 5.2l3.6-.9 3.9 15-3.6.9z"/>',   // 17/11/2026: הספרייה — מדף (שני כרכים וספר נטוי)
+  lib: '<rect x="3" y="7.5" width="14.5" height="12.5" rx="2.5"/><path d="M6.5 4.5h12A2.5 2.5 0 0 1 21 7v9.5"/><path d="M9 11v5.5l4.4-2.75z"/>',   // 17/11/2026: הספרייה — ערימת סרטונים (לפי הציור שאושר)
 };
 let dialNav = null, dialPrev = null, stDialC = null;
 function stDialNav() {
@@ -2698,12 +2716,15 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   folder: '<path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4.6l2 2.2h8.4A1.5 1.5 0 0 1 21 9.7v8.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/>',   // 26/10/2026: רשימת הקבצים ב־Drive
   bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   back: '<polyline points="9 6 15 12 9 18"/>',
+  play: '<path d="M7 4.5v15l12.5-7.5z" fill="currentColor" stroke="none"/>',   // 17/11/2026: ניגון (דף פריט בספרייה)
   chev: '<polyline points="15 6 9 12 15 18"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   check: '<polyline points="5 12.5 10 17 19 7"/>',
   film: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.2v5.6l4.6-2.8z" fill="currentColor" stroke="none"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
   note: '<circle cx="8.5" cy="17.5" r="3"/><path d="M11.5 17.5V3.5c0 2.6 4.8 3.4 4.8 7.2"/>',   // 30/10/2026: הקריוקי
+  trans: ICO_TR,   // 18/11/2026: תרגום (= ST_DIAL_ICO.home)
+  bub: ICO_BUB,    // הבועות בלי אותיות (trIco)
   lect: '<rect x="3" y="4" width="18" height="12.5" rx="2.5"/><path d="M12 16.5V20M8.5 20h7M7 8.5h5M7 12h3"/><circle cx="15.6" cy="10" r="2.2"/><path d="M17.2 11.6l1.5 1.5"/>',   // 10/11/2026: ניתוח סרטונים (= ST_DIAL_ICO.vi)
   globe: '<circle cx="12" cy="12" r="8.6"/><path d="M3.4 12h17.2M12 3.4c2.4 2.6 3.5 5.5 3.5 8.6s-1.1 6-3.5 8.6c-2.4-2.6-3.5-5.5-3.5-8.6s1.1-6 3.5-8.6z"/>',
   spark: '<path d="M11 2.5l1.9 5.4 5.4 1.9-5.4 1.9L11 17.1l-1.9-5.4-5.4-1.9 5.4-1.9z" fill="currentColor" stroke="none"/><path d="M18.5 14.5l.9 2.4 2.4.9-2.4.9-.9 2.4-.9-2.4-2.4-.9 2.4-.9z" fill="currentColor" stroke="none"/>',
@@ -2730,7 +2751,8 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   thumbUp: '<path d="M7 11v9H4v-9h3zM7 11l4-7c1.5 0 2.5 1 2.2 2.6L12.6 10H19a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 17.8 20H7"/>',   // 25/10/2026: המשוב שלך
   thumbDn: '<path d="M17 13V4h3v9h-3zM17 13l-4 7c-1.5 0-2.5-1-2.2-2.6l.6-3.4H5a2 2 0 0 1-2-2.3l1.2-6A2 2 0 0 1 6.2 4H17"/>',
   flag: '<path d="M5 21V4h11l-1.5 4L16 12H5"/>',
-  clip: '<rect x="8" y="3" width="8" height="4" rx="1.5"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/>',   // 22/10/2026: הדבקה redo: '<path d="M20 8H9a5 5 0 0 0 0 10h3M16 4l4 4-4 4"/>',   // מ2: עריכת כתוביות, הפקה מחדש
+  clip: '<rect x="8" y="3" width="8" height="4" rx="1.5"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/>',   // 22/10/2026: הדבקה
+  redo: '<path d="M20 8H9a5 5 0 0 0 0 10h3M16 4l4 4-4 4"/>',   // מ2: עריכת כתוביות, הפקה מחדש (18/11/2026: היה בתוך ההערה של clip — השורה "הפקה מחדש" יצאה בלי סמל)
 };
 function ico(k, cls) {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -2739,6 +2761,24 @@ function ico(k, cls) {
   s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round');
   if (cls) s.setAttribute('class', cls);
   s.innerHTML = ICON[k];
+  return s;
+}
+/* 18/11/2026 (בקשת המשתמש): אות שמייצגת כל שפה בסמל התרגום (SOURCE_LANGS / TARGET_LANGS) — אות של השפה עצמה,
+   כזו שמבדילה אותה מהשכנות (Ñ ספרדית, Ç צרפתית…). שפה בלי אות — האות הראשונה של הקוד */
+export const LANG_GLYPH = { en: 'A', he: 'א', ar: 'ع', ru: 'Я', uk: 'Ї', es: 'Ñ', fr: 'Ç', de: 'Ä', it: 'È', pt: 'Ã', pl: 'Ł', nl: 'Ë', tr: 'Ğ',
+  fa: 'پ', hi: 'अ', zh: '文', ja: 'あ', ko: '한', am: 'አ' };
+export const langGlyph = (c) => { const k = String(c || '').split('-')[0]; return LANG_GLYPH[k] || (k ? k[0].toUpperCase() : ''); };
+/* סמל התרגום של עבודה: המקור בבועה שמאחור, היעד בבועה שמלפנים. מקור לא ידוע (זיהוי אוטומטי) — בועה ריקה */
+function trIco(fr, to, cls) {
+  const s = ico('bub', cls);
+  for (const [c, x, y] of [[fr, 7.5, 6.9], [to, 16.5, 15.4]]) {
+    const g = langGlyph(c);
+    if (!g) continue;
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', x); t.setAttribute('y', y); t.setAttribute('text-anchor', 'middle'); t.setAttribute('dominant-baseline', 'central');
+    t.setAttribute('fill', 'currentColor'); t.setAttribute('stroke', 'none'); t.setAttribute('font-size', '8.2'); t.setAttribute('font-weight', '700');
+    t.textContent = g; s.append(t);
+  }
   return s;
 }
 function tile(icon, color) { const s = h('span', 'st-tile t-' + color); s.append(ico(icon)); return s; }
@@ -3475,7 +3515,7 @@ function pageHome(p, kaTab, viTab) {   // 10/11/2026: viTab — לשונית ה�
   const mb = majorBanner(); if (mb) p.append(mb);   // v371: תקלה רחבה — במקום הבאנר של ההתראות (היא כבר אומרת את החשוב)
   const ub = mb ? null : urgentBanner(); if (ub) p.append(ub);   // v368: התראה דחופה (P1–P2) — מיד; הקלות — רק בסיכום במגדל
   const nc = btn('st-newcard', null, () => { form = freshForm(null); if (kaTab) form.ka = true; if (viTab) form.vi = true; go('new', kaTab ? 'ka' : viTab ? 'vi' : null); }, 'new');
-  const plus = h('span', 'st-plus'); plus.append(ico(kaTab ? 'note' : viTab ? 'lect' : 'plus'));
+  const plus = h('span', 'st-plus'); plus.append(ico(kaTab ? 'note' : viTab ? 'lect' : 'trans'));   // 18/11/2026: גם בתרגום — הסמל של הלשונית, לא פלוס
   nc.append(plus, kaTab ? rowTxt(T('studioKaNew'), T('studioKaNewSub')) : viTab ? rowTxt(T('studioViNew'), T('studioViNewSub')) : rowTxt(T('studioNew'), T('studioNewSub')));
   p.append(nc);
   const jobs = store.jobs.filter((rec) => !rec.spec.ka === !kaTab && !rec.spec.vi === !viTab);   // 30/10/2026: שירים — רק בלשונית הקריוקי · 10/11: ניתוחים — רק בלשונית הניתוח
@@ -3733,7 +3773,7 @@ function pageForm(p, editing) {
   if (f.ka) {   // 26/10/2026: קריוקי — המילים, הקול, ומה לקבל (בלי שפות ובלי מצב תרגום)
     kaSection(p, f);
     p.append(secT(T('studioSecOut')), list(...KA_OUTS.map((k) => rowCheck({ label: outName(k), sub: outSub(k), on: !!f.out[k], onClick: () => { f.out[k] = !f.out[k]; render('none'); }, k: 'o:' + k }))), note(T('studioKaOutNote')));
-    const ky = normKy(store.settings.ky);   // 31/10/2026: עיצוב הקריוקי — דף משלו (במקום עיצוב הכתוביות של הסרטונים)
+    const ky = kyCur();   // 31/10/2026: עיצוב הקריוקי — דף משלו (במקום עיצוב הכתוביות של הסרטונים)
     p.append(list(rowNav({ tile: tile('edit', 'purple'), label: T('studioKyT'), value: kySchName(kySchemeOf(ky)), onClick: () => go('kasty'), k: 'kasty' })));
     const startKa = btn('st-btn wide', ui.starting ? T('studioStarting') : T('studioKaStart'), startFromForm, 'start');
     startKa.disabled = !(f.fileObj || f.drive || (f.link && f.linkOk)) || ui.starting;   // 01/11/2026: בלי מילים = תמלול אוטומטי
@@ -3768,8 +3808,7 @@ function pageForm(p, editing) {
     if (OUTS.some((k) => f.out[k])) p.append(styFold('form', f.sty || {}, (patch) => {
       fnlAdd('sty');
       const next = normSty(Object.assign({}, f.sty || {}, patch));
-      f.sty = next || null;
-      store.settings.sty = next || undefined; if (!next) delete store.settings.sty; save();   // ברירת המחדל לעבודה הבאה
+      f.sty = next || null;   // רק לעבודה הזו
       render('none');
     }));
   }
@@ -3889,7 +3928,7 @@ const viLrnSaved = () => !!(ui.lat > 0 && ui.lrn !== false && ui.api && ui.api.a
 function kaSpec(f, spec) {
   if (!f.ka) return spec;
   const out = KA_OUTS.filter((k) => f.out[k]);
-  Object.assign(spec, { ka: 1, lyr: kaLyr(f.lyr), ky: normKy(f.ky || store.settings.ky), out: out.length ? out : ['compact'], eng: 'api', cap: store.settings.cap },
+  Object.assign(spec, { ka: 1, lyr: kaLyr(f.lyr), ky: normKy(f.ky), out: out.length ? out : ['compact'], eng: 'api', cap: store.settings.cap },
     f.bv === true ? { bv: 1 } : {}, f.gv > 0 ? { gv: f.gv } : {}, kaLyr(f.lyr).trim() ? {} : { al: kaAlOf(f) });
   delete spec.cp; delete spec.ry; delete spec.edl;
   return spec;
@@ -3952,7 +3991,7 @@ function kaSection(p, f) {
 }
 /* ---------- 31/10/2026: עיצוב הקריוקי (ת־קריוקי, docs/standards.md) — דף משלו במקום "עיצוב הכתוביות" של הסרטונים.
    תצוגה חיה בראש הדף (אותה פריסה של vt/karaoke.py: שתי שורות מתחלפות, מילוי לאורך המילה, ספירה, סמן זמר), ההגדרות
-   נשמרות ב־store.settings.ky (ברירת המחדל לשיר הבא) ונשלחות ב־spec.ky ---------- */
+   נשמרות בטופס (form.ky — רק לשיר הזה; 18/11/2026: שיר חדש מתחיל מהעיצוב הרגיל) ונשלחות ב־spec.ky ---------- */
 export const KY_SCHEMES = [
   { k: 'gold', u: '#FFFFFF', c: '#FFC83D' }, { k: 'sky', u: '#FFFFFF', c: '#3DD6FF' }, { k: 'rose', u: '#FFFFFF', c: '#FF5CA8' },
   { k: 'mint', u: '#FFFFFF', c: '#30D158' }, { k: 'night', u: '#9AA6B8', c: '#FFFFFF' }];
@@ -3973,9 +4012,10 @@ export function kyPvLines(text) {
   }
   return out;
 }
-function kySet(patch) { store.settings.ky = normKy(Object.assign({}, normKy(store.settings.ky), patch)); save(); render('none'); }
+const kyCur = () => normKy(form && form.ka ? form.ky : null);
+function kySet(patch) { if (form && form.ka) form.ky = normKy(Object.assign({}, kyCur(), patch)); render('none'); }
 function kyPreview(f) {
-  const ky = normKy(store.settings.ky);
+  const ky = kyCur();
   let lines = kyPvLines(f && f.lyr);
   if (lines.length < 2) lines = [T('studioKyS1'), T('studioKyS2'), T('studioKyS3'), T('studioKyS4')].map((t, i) => ({ t, sg: [1, 2, 1, 0][i] }));
   const rtl = /[֐-׿]/.test(lines.map((x) => x.t).join(''));
@@ -4060,7 +4100,7 @@ function kyColor(val, aria, onSet, k) {
   return i;
 }
 function pageKaSty(p) {
-  const ky = normKy(store.settings.ky), f = form && form.ka ? form : null;
+  const ky = kyCur(), f = form && form.ka ? form : null;
   p.append(navBar({ back: T('studioKaNew') }), large(T('studioKyT')), kyPreview(f));
   // צבעים — ערכות מוכנות + מותאם (שני צבעים)
   const sch = kySchemeOf(ky), custom = sch === 'custom' || ui.kyCustom;
@@ -5958,7 +5998,7 @@ function pageVids(p) {
    (drive.file). כשהעותק ב־R2 פג (21 יום), השרתון מחליף בעבודה את המזהים לקבצים בספרייה (libSwap) — הנגן, העורכים וההפקה מחדש
    ממשיכים. כל עוד העבודה קיימת — מנגנים ממנה (R2 עדיף: איכויות צפייה); אחרת — מהמניפסט */
 const LIB_KINDS = ['', 'tr', 'ka', 'vi'];
-const lb = { st: '', items: [], old: [], k: '', quota: null, seq: 0, busy: false, man: new Map() };
+const lb = { st: '', err: '', items: [], old: [], k: '', quota: null, seq: 0, busy: false, man: new Map(), th: null };
 const lbPaint = () => { if (root && (ui.view === 'lib' || ui.view === 'litem')) render('none'); };
 const libTabOk = () => driveOk();
 /* המניפסט כמו שהעובד כותב אותו (translator/job.py lib_manifest) — רק השדות המוכרים, בגבולות */
@@ -5969,7 +6009,7 @@ export function normLibMan(m) {
     .map((x) => ({ r: ['v', 'a', 'b', 's', 'p', 'x'].includes(x.r) ? x.r : 'x', k: String(x.k || '').slice(0, 20), n: String(x.n || '').slice(0, 200), id: String(x.id), s: num(x.s) }));
   if (!f.length) return null;
   return { job: JOB_RE.test(String(m.job || '')) ? String(m.job) : '', t: String(m.t || '').slice(0, 120), k: LIB_KINDS.includes(m.k) && m.k ? m.k : 'tr',
-    fr: lang(m.fr), to: (Array.isArray(m.to) ? m.to : []).map(lang).filter(Boolean).slice(0, 4), d: Math.max(0, Math.min(86400, num(m.d))),
+    fr: lang(m.fr), to: (Array.isArray(m.to) ? m.to : []).map(lang).filter(Boolean).slice(0, 4), tv: m.tv === 1 && m.k === 'vi' ? 1 : 0, d: Math.max(0, Math.min(86400, num(m.d))),
     ch: (Array.isArray(m.ch) ? m.ch.slice(0, 60) : []).filter((c) => c && Number(c.t) >= 0 && Number(c.t) <= 86400 && typeof c.n === 'string' && c.n).map((c) => ({ t: num(c.t), n: c.n.slice(0, 100) })),
     at: num(m.at), f };
 }
@@ -5987,26 +6027,157 @@ async function lbLoad() {
     lb.items = r.files.map((x) => ({ id: x.id, folder: x.parent, at: x.at, m: lb.man.get(x.id + ':' + x.at) })).filter((x) => x.m);
     lb.old = o.files.filter((x) => /^video\//.test(x.type));
     lb.st = 'ok';
+    // הפוסטרים והמד — אחרי שהרשת כבר מצוירת (בלעדיהם: פוסטר בצבע הסוג)
+    net.libThumbs().then((L) => { if (seq !== lb.seq) return; const m = new Map(); for (const v of L) { const c = m.get(v.parent); if (!c || (v.r === 'b' && c.r !== 'b' && v.th)) m.set(v.parent, v); } lb.th = m; lbPaint(); }).catch(() => {});
     net.driveQuota().then((q) => { if (seq === lb.seq) { lb.quota = q; lbPaint(); } }).catch(() => {});
   } catch (e) {
     if (seq !== lb.seq) return;
     const c = e && e.code;
+    lb.err = (String(c || (e && e.name) || 'err') + (e && e.detail ? ' · ' + e.detail : !c && e && e.message ? ' · ' + e.message : '')).slice(0, 110);   // קוד קצר על המסך — בלי פרטים אישיים
+    if (typeof console !== 'undefined') console.warn('studio lib load', e);
     lb.st = c === 'not_connected' || c === 'revoked' || c === 'not_allowed' ? 'conn' : lb.st === 'ok' ? 'ok' : 'err';
   } finally { if (seq === lb.seq) { lb.busy = false; lbPaint(); } }
 }
+const LIB_KIND_ICO = { tr: 'trans', ka: 'note', vi: 'lect' };
 const lbKindT = (k) => (k === 'ka' ? T('studioLibKKa') : k === 'vi' ? T('studioLibKVi') : T('studioLibKTr'));
-function lbRow(x) {
-  const m = x.m;
-  const sub = [lbKindT(m.k), m.d ? fmtDur(m.d) : '', (m.fr && m.to.length ? m.fr + '→' + m.to.join(',') : ''), fmtDay(m.at || x.at)].filter(Boolean).join(' · ');
-  return rowNav({ tile: tile(m.k === 'ka' ? 'note' : m.k === 'vi' ? 'lect' : 'film', m.k === 'ka' ? 'purple' : m.k === 'vi' ? 'teal' : 'green'), label: m.t || T('studioUntitled'), sub, onClick: () => go('litem', x.id), k: 'lib:' + x.id });
+/* השפות על הפוסטר: "EN→HE"; קריוקי — תו */
+export const libLangTag = (m) => (m.k === 'ka' ? '♪' : m.to.length ? (m.fr ? m.fr.toUpperCase() + '→' : '') + m.to[0].toUpperCase() : '');
+/* הפוסטר 16:9 — התמונה הממוזערת של Drive, ובלעדיה צבע הסוג; על הפוסטר: שפות למעלה, משך למטה (לפי הציור שאושר) */
+function lbPoster(o) {
+  const ps = h('div', 'st-lp k-' + (o.k || 'f') + (o.big ? ' big' : ''));
+  if (o.th) {
+    const im = h('img'); im.alt = ''; im.decoding = 'async'; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer';
+    im.addEventListener('error', () => im.remove());
+    im.src = o.th; ps.append(im);
+  } else if (o.k === 'f') ps.append(ico('film', 'st-lp-ic'));
+  /* 18/11/2026 (בקשת המשתמש): סוג העבודה בסמל, בתגית שבפינה העליונה. תרגום — הבועות עם האות של שפת המקור ושל היעד;
+     ניתוח — הלוח והשפה, ואם גם תורגם — הלוח והבועות; קריוקי — התו. בשמירה שרצה — בתגית השמירה. לא בדף הפריט (big) */
+  if (!o.big && (o.state || LIB_KIND_ICO[o.k])) {
+    const tr = o.k === 'tr' || (o.k === 'vi' && o.tv === 1);
+    const tg = h('span', o.state ? 'st-lp-state' : 'st-lp-lang'); tg.dir = 'ltr';
+    if (o.k === 'vi') tg.append(ico('lect', 'st-lp-k'));
+    else if (o.k === 'ka') tg.append(ico('note', 'st-lp-k'));
+    if (tr) tg.append(trIco(o.fr, o.to, 'st-lp-k st-lp-tr'));
+    if (o.state) tg.append(h('span', null, o.state));
+    else if (o.k === 'vi' && !tr && o.to) tg.append(h('bdi', null, o.to.toUpperCase()));
+    if (!o.state && tg.childNodes.length === 1) tg.classList.add('ic');
+    if (!o.state) tg.title = lbKindT(o.k) + (tr && o.to ? ' · ' + (o.fr ? langName(o.fr, uiLang()) + ' → ' : '') + langName(o.to, uiLang()) : '');
+    if (tg.childNodes.length) ps.append(tg);
+  } else if (o.lang && !o.big) { const lg = h('span', 'st-lp-lang'); lg.append(h('bdi', null, o.lang)); lg.dir = 'ltr'; ps.append(lg); }
+  if (o.dur) { const tg = h('span', 'st-lp-dur', fmtDur(o.dur)); tg.dir = 'ltr'; ps.append(tg); }
+  if (o.p != null) { const pr = h('div', 'st-lp-prog'); const i = h('i'); i.style.inlineSize = Math.round(o.p * 100) + '%'; pr.append(i); ps.append(pr); }
+  return ps;
+}
+function lbCard(o) {
+  const c = btn('st-lc' + (o.k === 'f' ? ' fileonly' : ''), null, o.onClick, o.key);
+  const tt = h('span', 'st-lc-t'); const tb = h('bdi', null, o.t); tb.dir = 'auto'; tt.append(tb);
+  c.append(lbPoster(o), tt, h('span', 'st-lc-m', o.meta));
+  if (o.href) c.setAttribute('aria-label', o.t);
+  if (!o.menu) return c;
+  /* 18/11/2026 (בקשת המשתמש): עריכה ישר מהרשת — ⋯ ליד השורה התחתונה, ולחיצה ארוכה על הכרטיס (contextmenu; ממקלדת — מהכרטיס) */
+  c.addEventListener('contextmenu', (e) => { e.preventDefault(); o.menu(e.clientX || e.clientY ? { x: e.clientX, y: e.clientY } : c); });
+  const w = h('div', 'st-lcw');
+  const mb = btn('st-lc-more', null, () => o.menu(mb), 'lbm:' + o.key);
+  mb.setAttribute('aria-label', T('studioVidsMore') + ' · ' + o.t); mb.setAttribute('aria-haspopup', 'menu');
+  mb.dir = 'ltr';   // כמו התגיות שעל הפוסטר: השפות תמיד בפינה השמאלית העליונה — ה־⋯ מולן, בימנית (inset-inline-end לפי הכיוון של הכפתור)
+  mb.append(ico('more'));
+  w.append(c, mb);
+  return w;
+}
+/* 18/11/2026 — תפריט ההקשר של כרטיס בספרייה (לפי ת־עיצוב): זכוכית שצומחת בקפיץ מהנקודה (⋯ או לחיצה ארוכה), שורות בלי קווים —
+   כיתוב בהתחלה וסמל בסוף, הפעולה ההרסנית אחרונה ובאדום, טשטוש עדין מאחור. נגיעה בחוץ ו"חזור" סוגרים (st-rs → rsClose).
+   at = אלמנט (הכפתור/הכרטיס) או נקודה {x, y} */
+function lbMenu(at, title, acts) {
+  rsClose();
+  const veil = h('div', 'st-rs st-cm-veil');
+  const box = h('div', 'st-cm'); box.setAttribute('role', 'menu'); box.setAttribute('aria-label', title);
+  acts.filter(Boolean).forEach((a, i) => {
+    if (a.danger && i) box.append(h('div', 'st-cm-sep'));
+    const b = btn('st-cm-i' + (a.danger ? ' danger' : ''), null, () => { rsClose(); a.fn(); }, 'lbm-' + a.k);
+    b.setAttribute('role', 'menuitem');
+    b.append(h('span', 'st-cm-l', a.label), ico(a.icon));
+    box.append(b);
+  });
+  veil.append(box);
+  veil.addEventListener('click', (e) => { if (e.target === veil) rsClose(); });
+  veil.addEventListener('contextmenu', (e) => { e.preventDefault(); if (e.target === veil) rsClose(); });
+  document.body.append(veil);
+  const r = at && typeof at.getBoundingClientRect === 'function' ? at.getBoundingClientRect() : { left: at.x, right: at.x, top: at.y, bottom: at.y };
+  const vw = document.documentElement.clientWidth || window.innerWidth, vh = window.innerHeight, bw = box.offsetWidth, bh = box.offsetHeight, g = 8;
+  const rtl = getComputedStyle(box).direction === 'rtl';
+  const x = Math.max(12, Math.min(vw - bw - 12, rtl ? r.right - bw : r.left));   // הקצה של התפריט בקצה של הכפתור, בתוך המסך
+  const below = r.bottom + g + bh <= vh - g;
+  const y = Math.max(g, Math.min(vh - bh - g, below ? r.bottom + g : r.top - g - bh));
+  box.style.left = Math.round(x) + 'px'; box.style.top = Math.round(y) + 'px';
+  box.style.transformOrigin = Math.round(Math.max(0, Math.min(bw, (rtl ? r.right : r.left) - x))) + 'px ' + Math.round(Math.max(0, Math.min(bh, (below ? r.bottom : r.top) - y))) + 'px';
+  try { box.querySelector('button').focus({ preventScroll: true }); } catch (e) {}
+}
+/* שם באנגלית בתוך משפט בעברית (חלון אישור — טקסט, לא bdi): בידוד כיוון (FSI…PDI) — בלעדיו המירכאות קופצות לצד השני */
+export const bidiIso = (s) => '\u2068' + String(s == null ? '' : s) + '\u2069';
+const lbDriveFolder = (id) => window.open('https://drive.google.com/drive/folders/' + id, '_blank', 'noopener');
+function lbItemMenu(at, it) {
+  const m = it.m, rec = m.job ? jobRec(m.job) : null;
+  lbMenu(at, m.t || T('studioUntitled'), [
+    rec ? { k: 'job', icon: 'edit', label: T('studioLibJob'), fn: () => go('job', rec.id) } : null,
+    it.folder ? { k: 'drive', icon: 'out', label: T('studioVidsOpen'), fn: () => lbDriveFolder(it.folder) } : null,
+    it.folder ? { k: 'del', icon: 'trash', label: T('studioLibDel'), fn: () => lbDel(it), danger: true } : null]);
+}
+/* קובץ ישן מ"הסרטונים שלי": העבודה לפי מזהה עבודת השמירה (snbJob) — ואם השמירה האחרונה של העבודה הייתה אחרת, לפי השם שנתנו לקובץ */
+export function libOldJob(x, jobs) {
+  const L = Array.isArray(jobs) ? jobs : [];
+  const byId = x && x.job ? L.find((r) => r && r.up && r.up.dx && r.up.dx.j === x.job) : null;
+  if (byId) return byId;
+  const n = String((x && x.name) || '');
+  return L.find((r) => { try { const b = shareVideoName(r).replace(/\.mp4$/, ''); return b.length >= 3 && (n === b + '.mp4' || n.startsWith(b + ' — ')); } catch (e) { return false; } }) || null;
+}
+function lbOldMenu(at, x) {
+  const rec = libOldJob(x, store.jobs);
+  lbMenu(at, fileTitle(x.name), [
+    rec ? { k: 'job', icon: 'edit', label: T('studioLibJob'), fn: () => go('job', rec.id) } : null,
+    x.url ? { k: 'drive', icon: 'out', label: T('studioVidsOpen'), fn: () => window.open(x.url, '_blank', 'noopener') } : null,
+    { k: 'del', icon: 'trash', label: T('studioVidsDel'), fn: () => lbOldDel(x), danger: true }]);
+}
+function lbOldDel(x) {
+  const go2 = async () => {
+    try { await net.driveTrash(x.id); lb.old = lb.old.filter((y) => y.id !== x.id); lbPaint(); flashSafe(T('studioVidsDelDone')); } catch (e) { flashSafe(T('studioVidsErr')); }
+  };
+  if (typeof askConfirm === 'function') askConfirm(T('studioVidsDelQ', { n: bidiIso(fileTitle(x.name)) }), go2, { danger: true, ok: T('studioVidsDel') });
+  else go2();
+}
+/* מה ברשת: הפריטים, שמירות שעוד רצות (עם אחוז), והקבצים הישנים — מהחדש לישן. ui: '' / tr / ka / vi / sh (עד דקה) / f (קבצים) */
+const LIB_CHIPS = ['', 'tr', 'ka', 'vi', 'sh', 'f'];
+function lbCards() {
+  const k = lb.k, out = [];
+  if (k !== 'f') {
+    for (const x of lb.items) {
+      const m = x.m;
+      if (k === 'sh' ? !(m.d > 0 && m.d <= 60) : k && m.k !== k) continue;
+      const tv = lb.th && lb.th.get(x.folder);
+      out.push({ at: m.at || x.at, key: 'lib:' + x.id, t: m.t || T('studioUntitled'), k: m.k, th: tv && tv.th, dur: m.d || (tv && tv.dur) || 0, lang: libLangTag(m), fr: libSrc(m.k, m.fr), to: m.to[0], tv: m.tv,
+        meta: lbKindT(m.k) + ' · ' + fmtDay(m.at || x.at), onClick: () => go('litem', x.id), menu: (at) => lbItemMenu(at, x) });
+    }
+    if (!k) for (const r of store.jobs) {
+      const d = r.up && r.up.dx;
+      if (!d || !d.lib || d.st !== 'run' || (r.srv && r.srv.lib)) continue;
+      out.push({ at: Date.now(), key: 'libs:' + r.id, t: fileTitle(r.spec.name) || T('studioUntitled'), k: r.spec.ka ? 'ka' : r.spec.vi ? 'vi' : 'tr', dur: r.spec.dur,
+        fr: libSrc(r.spec.ka ? 'ka' : r.spec.vi ? 'vi' : 'tr', libLang(r.spec.from)), to: libLang((r.spec.to || [])[0]), tv: viTr(r.spec) ? 1 : 0,
+        state: T('studioLibSaving', { p: Math.round((d.p || 0) * 100) }), p: d.p || 0, meta: T('studioLibSavingS'), onClick: () => go('job', r.id) });
+    }
+  }
+  if (!k || k === 'f') for (const x of lb.old) out.push({ at: x.at, key: 'libo:' + x.id, t: fileTitle(x.name), k: 'f', th: x.th, dur: x.dur, meta: T('studioLibOldS') + ' · ' + T('studioLibOld'),
+    onClick: () => { if (x.url) window.open(x.url, '_blank', 'noopener'); }, menu: (at) => lbOldMenu(at, x) });
+  return out.sort((a, b) => b.at - a.at);
 }
 function lbMeter() {
   const q = lb.quota;
   if (!q || !q.limit) return null;
-  const f = Math.max(0, Math.min(1, q.used / q.limit));
-  const w = h('div', 'st-lib-meter' + (f > 0.9 ? ' hi' : ''));
-  const bar = h('span', 'st-lib-bar'); const fill = h('i'); fill.style.inlineSize = (f * 100).toFixed(1) + '%'; bar.append(fill);
-  w.append(bar, h('small', null, T('studioLibStore', { u: fmtSize(q.used), l: fmtSize(q.limit) })));
+  const mine = lb.items.reduce((s, x) => s + x.m.f.reduce((a, f) => a + f.s, 0), 0);
+  const w = h('div', 'st-lib-meter' + (q.used / q.limit > 0.9 ? ' hi' : ''));
+  const bar = h('span', 'st-lib-bar');
+  const a = h('i', 'mine'); a.style.inlineSize = Math.min(100, mine / q.limit * 100).toFixed(1) + '%';
+  const b = h('i', 'rest'); b.style.inlineSize = Math.max(0, Math.min(100, (q.used - mine) / q.limit * 100)).toFixed(1) + '%';
+  bar.append(a, b);
+  w.append(bar, h('small', null, T('studioLibStore', { a: fmtSize(mine), u: fmtSize(q.used), l: fmtSize(q.limit) })));
   return w;
 }
 function pageLib(p) {
@@ -6019,30 +6190,73 @@ function pageLib(p) {
     return;
   }
   if (!lb.st && !lb.busy) lbLoad();
-  const seg = h('div', 'st-seg st-lib-seg'); seg.setAttribute('role', 'tablist');
-  for (const k of LIB_KINDS) {
+  const chips = h('div', 'st-chips'); chips.setAttribute('role', 'tablist');
+  const lbl = { '': T('studioLibAll'), tr: T('studioLibKTr'), ka: T('studioLibKKa'), vi: T('studioLibKVi'), sh: T('studioLibKSh'), f: T('studioLibKF') };
+  for (const k of LIB_CHIPS) {
     const on = lb.k === k;
-    const b = btn('st-seg-b' + (on ? ' on' : ''), k ? lbKindT(k) : T('studioLibAll'), () => { lb.k = k; lbPaint(); }, 'lib-k:' + (k || 'all'));
+    const b = btn('st-lchip' + (on ? ' on' : ''), lbl[k], () => { lb.k = k; lbPaint(); }, 'lib-k:' + (k || 'all'));
     b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', on ? 'true' : 'false');
-    seg.append(b);
+    chips.append(b);
   }
-  p.append(seg);
-  if (lb.st === 'err' && !lb.items.length) { p.append(h('div', 'st-empty st-empty-sm', T('studioLibErr')), btn('st-btn wide', T('studioLibRetry'), lbLoad, 'lib-retry')); return; }
+  p.append(chips);
+  if (lb.st === 'err' && !lb.items.length) {
+    p.append(h('div', 'st-empty st-empty-sm', T('studioLibErr')), h('div', 'st-lib-errc', lb.err || ''));
+    p.append(lbFixable() ? lbFix() : btn('st-btn wide', T('studioLibRetry'), lbLoad, 'lib-retry'));
+    return;
+  }
   if (!lb.st) { p.append(h('div', 'st-empty st-empty-sm', T('studioPlLoading'))); return; }
-  const its = lb.items.filter((x) => !lb.k || x.m.k === lb.k);
-  if (its.length) p.append(list(...its.map(lbRow)));
-  else if (!lb.old.length || lb.k) p.append(h('div', 'st-empty st-empty-sm', T('studioLibEmpty')));
-  if (lb.old.length && !lb.k) {
-    p.append(secT(T('studioLibOld')), list(...lb.old.slice(0, 50).map((x) => {
-      const a = rowExt({ href: x.url || 'https://drive.google.com/file/d/' + x.id + '/view', tile: tile('film', 'gray'), label: fileTitle(x.name), sub: [T('studioLibOldS'), x.size ? fmtSize(x.size) : ''].filter(Boolean).join(' · '), k: 'libo:' + x.id });
-      return a;
-    })));
+  const cards = lbCards();
+  if (!cards.length) p.append(h('div', 'st-empty st-empty-sm', T('studioLibEmpty')));
+  else {
+    const hd = secT(T('studioLibRecent')); hd.append(h('small', null, T('studioLibCount', { n: cards.length })));
+    const g = h('div', 'st-lgrid'); g.append(...cards.map(lbCard));
+    p.append(hd, g);
   }
   const mt = lbMeter(); if (mt) p.append(mt);
 }
-/* ---- פריט בספרייה ---- */
-let lp = null;   // { id, st, ctl, err }
-function lpStop() { if (lp && lp.ctl) { lp.ctl.destroy(); lp.ctl = null; } if (lp && lp.url) lp.url = ''; lp = null; }
+/* 17/11/2026: Google דוחה את הסוד של לקוח ה־Drive בשרת (invalid_client) — המנהל מדביק כאן סוד חדש. השרתון בודק אותו מול
+   Google לפני השמירה (gdSecret), שומר מוצפן ומיד מנסה גישה ל־Drive. הסוד לא נשמר בטלפון; v — רק עד השליחה (ציור מחדש לא מוחק) */
+const lbFx = { v: '', busy: false, msg: '', cid: '' };
+const lbFixable = () => !!(ui.api && ui.api.admin) && /invalid_client|gd_http_401/.test(lb.err || '');
+/* הלקוח במסוף של Google Cloud. הפרויקט — רק כשמספר הפרויקט שבמזהה הוא של Firebase שבדף (appId 1:<מספר>:web:…) */
+export function gcClientUrl(cid, fb) {
+  const c = String(cid || ''), f = fb || {};
+  const pid = c && String(f.appId || '').split(':')[1] === c.split('-')[0] ? String(f.projectId || '') : '';
+  return 'https://console.cloud.google.com/auth/clients' + (c ? '/' + encodeURIComponent(c) : '') + (pid ? '?project=' + encodeURIComponent(pid) : '');
+}
+const lbFixErr = (c) => (c === 'bad_format' ? T('studioLibFixEFmt') : c === 'bad_secret' ? T('studioLibFixEBad') : c === 'no_client' ? T('studioLibFixENo')
+  : c === 'net' || c === 'signin' ? T('studioLibFixENet') : c === 'not_admin' ? T('studioErrNotAdmin') : T('studioLibFixEGen', { c: String(c || '?').slice(0, 30) }));
+function lbFix() {
+  const box = h('div', 'st-lib-fix');
+  if (!lbFx.cid) gd().config().then((c) => { if (c && c.clientId && !lbFx.cid) { lbFx.cid = c.clientId; lbPaint(); } }).catch(() => {});
+  const fb = typeof window !== 'undefined' ? window.FIREBASE_CONFIG : null;
+  box.append(h('div', 'st-lib-fixt', T('studioLibFixT')), h('p', 'st-lib-fixs', T('studioLibFixS')),
+    extLink('st-btn wide tint', gcClientUrl(lbFx.cid, fb), T('studioLibFixOpen'), 'out', 'lib-fix-open'));
+  const inp = h('input', 'st-in'); inp.type = 'password'; inp.dir = 'ltr'; inp.autocomplete = 'off'; inp.spellcheck = false;
+  inp.placeholder = 'GOCSPX-…'; inp.value = lbFx.v; inp.setAttribute('aria-label', T('studioLibFixPh'));
+  inp.addEventListener('input', () => { lbFx.v = inp.value; });
+  const b = btn('st-btn wide', lbFx.busy ? T('studioLibFixBusy') : T('studioLibFixSave'), lbFixSave, 'lib-fix-save'); b.disabled = lbFx.busy;
+  box.append(inp, b);
+  if (lbFx.msg) box.append(h('p', 'st-ferr', lbFx.msg));
+  return box;
+}
+async function lbFixSave() {
+  const s = lbFx.v.trim();
+  if (lbFx.busy) return;
+  if (!s) { lbFx.msg = T('studioLibFixEFmt'); lbPaint(); return; }
+  lbFx.busy = true; lbFx.msg = ''; lbPaint();
+  let j;
+  try { j = await net.api('gdSecret', { s }); } catch (e) { j = { ok: false, error: 'net' }; }
+  lbFx.busy = false;
+  if (!j || !j.ok) { lbFx.msg = lbFixErr(j && j.error); lbPaint(); return; }
+  lbFx.v = ''; lbFx.msg = '';
+  if (j.drive === 'ok') { flashSafe(T('studioLibFixOk')); lb.st = ''; lb.err = ''; lbLoad(); return; }
+  if (j.drive === 'revoked' || j.drive === 'not_connected') { flashSafe(T('studioLibFixRe')); lb.st = 'conn'; lb.err = ''; statusAt = 0; refreshStatus(true); lbPaint(); return; }
+  lb.err = (String(j.drive || 'drive') + (j.why ? ' · ' + j.why : '')).slice(0, 110); lbFx.msg = T('studioLibFixDrive'); lbPaint();
+}
+/* ---- פריט בספרייה (לפי הציור: פוסטר גדול, כותרת, ניגון + שיתוף + פתיחה בסטודיו, פרקים, קבצים, מצב השמירה) ---- */
+let lp = null;   // { id, st: 'load' | 'ok' | 'err', ctl, err, why } — הנגן בתוך הדף, כשאין עבודה לנגן ממנה
+function lpStop() { if (lp && lp.ctl) { lp.ctl.destroy(); lp.ctl = null; } lp = null; }
 const lbItem = (id) => lb.items.find((x) => x.id === id) || null;
 async function lpLoad(it) {
   const me = lp, m = it.m;
@@ -6055,13 +6269,36 @@ async function lpLoad(it) {
     if (lp !== me) return;
     const src = v ? net.mediaUrl(v.id) : '', fb = b ? net.mediaUrl(b.id) : '';
     if (!src && !fb) { me.st = 'err'; me.err = 'nosw'; lbPaint(); return; }
-    me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: [], T,
+    /* 18/11/2026 (בקשת המשתמש: "אחרי שעושים play לא קורה כלום"): הסרטון לא נטען — במקום מסך שחור, ההודעה עם הסיבה
+       (net.mediaWhy — הקוד של Drive), "לנסות שוב" ו"צפייה ב־Drive" */
+    const fail = () => {
+      if (lp !== me) return;
+      me.st = 'err'; me.err = 'play'; me.why = (b && net.mediaWhy(b.id)) || (v && net.mediaWhy(v.id)) || '';
+      if (me.ctl) { me.ctl.destroy(); me.ctl = null; }
+      lbPaint();
+    };
+    const dead = (u) => !!net.mediaWhy(String(u || '').split('/').pop());
+    me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: [], T, onError: fail, dead,
       chapters: normChapters(m.ch.map((c) => ({ t: c.t, title: c.n })), m.d), pref: store.settings.pt, onPref: ptSave });
     me.st = 'ok';
-  } catch (e) { if (lp !== me) return; me.st = 'err'; me.err = (e && e.code) || 'drive'; }
+    try { me.ctl.play(); } catch (e) {}
+  } catch (e) { if (lp !== me) return; me.st = 'err'; me.err = 'cues'; me.why = String((e && e.code) || ''); }
   lbPaint();
 }
+function lpErr(it) {
+  const f = it.m.f.find((x) => x.r === 'v') || it.m.f.find((x) => x.r === 'b');
+  const box = h('div', 'st-pl-ph st-lp-err');
+  box.append(h('div', null, lp.err === 'nosw' ? T('studioPlNoSw') : lp.err === 'cues' ? T('studioPlLoadErr') : T('studioPlErr')));
+  if (lp.why) { const w = h('small', 'st-lp-why', lp.why); w.dir = 'ltr'; box.append(w); }
+  const row = h('div', 'st-lp-acts');
+  row.append(btn('st-lp-a', T('studioLibRetry'), () => { lpStop(); lp = { id: it.id, st: 'load', ctl: null, err: '', why: '' }; lbPaint(); lpLoad(it); }, 'lp-retry'));
+  if (f) { const a = h('a', 'st-lp-a', T('studioPlOpenDrive')); a.href = 'https://drive.google.com/file/d/' + f.id + '/view'; a.target = '_blank'; a.rel = 'noopener noreferrer'; row.append(a); }
+  box.append(row);
+  return box;
+}
 const libRoleT = (r) => (r === 'v' ? T('studioLibRv') : r === 'a' ? T('studioLibRa') : r === 'b' ? T('studioLibRb') : r === 's' ? T('studioLibRs') : r === 'p' ? T('studioLibRp') : T('studioLibRx'));
+const LANG_NAME = (c) => { try { return new Intl.DisplayNames([uiLang()], { type: 'language' }).of(c) || c; } catch (e) { return c; } };
+function lbIcoBtn(icon, label, fn, k) { const b = btn('st-lib-sec', null, fn, k); b.setAttribute('aria-label', label); b.append(ico(icon)); return b; }
 function pageLibItem(p) {
   const it = lbItem(ui.param);
   if (!it) {   // רענון בדף — הרשימה נטענת, ואז הדף מצויר שוב
@@ -6072,41 +6309,61 @@ function pageLibItem(p) {
     return;
   }
   const m = it.m, rec = m.job ? jobRec(m.job) : null, live = !!(rec && canPlay(rec));
-  p.append(navBar({ back: T('studioLibT'), title: m.t || T('studioUntitled') }));
-  if (live) {
-    const hero = h('div', 'st-lib-hero');
-    const t = h('h2', 'st-lib-t'); const tb = h('bdi', null, m.t || T('studioUntitled')); tb.dir = 'auto'; t.append(tb);
-    hero.append(t, h('small', null, [lbKindT(m.k), m.d ? fmtDur(m.d) : ''].filter(Boolean).join(' · ')), btn('st-btn in-card', T('studioPlWatch'), () => go('play', rec.id), 'lib-play'));
-    p.append(hero);
-  } else {
-    p.classList.add('st-dark');
-    if (!lp || lp.id !== it.id) { lpStop(); lp = { id: it.id, st: 'load', ctl: null, err: '' }; lpLoad(it); }
-    if (lp.st === 'load') p.append(h('div', 'st-pl-ph', T('studioPlLoading')));
-    else if (lp.st === 'err') p.append(h('div', 'st-empty st-empty-sm', lp.err === 'nosw' ? T('studioPlNoSw') : T('studioPlLoadErr')));
-    else p.append(lp.ctl.el);
-  }
-  if (m.ch.length && live) {
+  const tv = lb.th && lb.th.get(it.folder);
+  p.classList.add('st-litem');
+  const hero = h('div', 'st-lib-hero');
+  if (lp && lp.id === it.id) {
+    if (lp.st === 'ok') hero.append(lp.ctl.el);
+    else if (lp.st === 'err') hero.append(lpErr(it));
+    else hero.append(h('div', 'st-pl-ph', T('studioPlLoading')));
+  } else hero.append(lbPoster({ k: m.k, th: tv && tv.th, big: true }));
+  const bk = btn('st-lib-back', null, back, 'nav-back'); bk.setAttribute('aria-label', T('studioLibT')); bk.append(ico('back'));
+  hero.append(bk);
+  p.append(hero);
+  const tint = h('div', 'st-lib-tint');
+  const t = h('h1', 'st-lib-t'); const tb = h('bdi', null, m.t || T('studioUntitled')); tb.dir = 'auto'; t.append(tb);
+  const size = m.f.reduce((a, f) => a + f.s, 0);
+  const langs = m.to.length ? (m.fr ? LANG_NAME(m.fr) + ' → ' : '') + m.to.map(LANG_NAME).join(', ') : '';
+  const meta = h('div', 'st-lib-meta', [m.d ? fmtDur(m.d) : '', langs, size ? fmtSize(size) : ''].filter(Boolean).join(' · '));
+  const acts = h('div', 'st-lib-acts');
+  const play = btn('st-lib-pri', null, () => { if (live) { go('play', rec.id); return; } if (lp && lp.id === it.id && lp.ctl) { try { lp.ctl.play(); } catch (e) {} return; } lpStop(); lp = { id: it.id, st: 'load', ctl: null, err: '', why: '' }; lbPaint(); lpLoad(it); }, 'lib-play');
+  play.append(ico('play'), h('span', null, T('studioLibPlay')));
+  acts.append(play);
+  if (rec && shrOk(rec)) acts.append(lbIcoBtn('share', T('studioLibShare'), () => go('shr', rec.id), 'lib-share'));
+  if (rec) acts.append(lbIcoBtn('edit', T('studioLibOpen'), () => go('job', rec.id), 'lib-job'));
+  tint.append(t, meta, acts);
+  p.append(tint);
+  if (m.ch.length) {
     p.append(secT(T('studioLibCh')), list(...m.ch.map((c, i) => {
-      const r = h('div', 'st-row st-ric'); const tm = h('span', 'st-pl-tm'); tm.append(h('bdi', null, fmtT(c.t)));
-      r.append(tm, rowTxt(c.n, '')); r.dataset.k = 'lch:' + i;
+      const r = btn('st-row st-ric', null, () => { if (lp && lp.id === it.id && lp.ctl) { lp.ctl.seek(c.t); lp.ctl.play(); } }, 'lch:' + i);
+      const tm = h('span', 'st-pl-tm'); tm.append(h('bdi', null, fmtT(c.t)));
+      r.append(tm, rowTxt(c.n, ''));
       return r;
     })));
   }
-  p.append(secT(T('studioLibFiles')), list(...m.f.map((f) => rowExt({ href: 'https://drive.google.com/file/d/' + f.id + '/view', tile: tile(f.r === 's' ? 'globe' : 'film', f.r === 's' ? 'blue' : 'green'),
-    label: libRoleT(f.r), sub: [fileTitle(f.n), f.s ? fmtSize(f.s) : ''].filter(Boolean).join(' · '), k: 'lf:' + f.id }))));
-  const acts = list(
-    rec ? rowNav({ tile: tile('edit', 'blue'), label: T('studioLibOpen'), sub: T('studioLibOpenS'), onClick: () => go('job', rec.id), k: 'lib-job' }) : null,
-    it.folder ? rowExt({ href: 'https://drive.google.com/drive/folders/' + it.folder, tile: tile('cloud', 'teal'), label: T('studioLibDrive'), k: 'lib-drive' }) : null,
+  p.append(secT(T('studioLibFilesT')), list(...m.f.map((f) => rowExt({ href: 'https://drive.google.com/file/d/' + f.id + '/view', label: libRoleT(f.r), sub: fileTitle(f.n), k: 'lf:' + f.id }))
+    .map((a, i) => { if (m.f[i].s) a.insertBefore(h('span', 'st-v', fmtSize(m.f[i].s)), a.lastChild); return a; })));
+  const until = rec && rec.srv && rec.srv.ended && !(rec.srv.lib && rec.srv.lib.home) ? rec.srv.ended + 21 * 864e5 : 0;
+  const stRow = (label, value, cls) => { const r = h('div', 'st-row'); r.append(rowTxt(label, '')); r.append(h('span', 'st-v' + (cls ? ' ' + cls : ''), value)); return r; };
+  const ok = stRow(T('studioLibOk'), '✓ ' + fmtDay(m.at || it.at), 'st-ok-v');
+  const acts2 = list(ok, stRow(T('studioLibFrom'), until > Date.now() ? T('studioLibFromR2', { d: fmtDay(until) }) : 'Google Drive'),
+    it.folder ? rowExt({ href: 'https://drive.google.com/drive/folders/' + it.folder, label: T('studioLibDrive'), k: 'lib-drive' }) : null,
     it.folder ? btn('st-row st-act st-vl-danger', T('studioLibDel'), () => lbDel(it), 'lib-del') : null);
-  acts.classList.add('st-lib-acts');
-  p.append(acts);
+  acts2.classList.add('st-lib-gap');
+  p.append(acts2);
 }
 function lbDel(it) {
+  const m = it.m, rec = m.job ? jobRec(m.job) : null, lv = rec && rec.srv && rec.srv.lib;
+  const home = !!(lv && lv.m === it.id && lv.home);   // העבודה כבר מנגנת מהקבצים שבתיקייה (העותק ב־R2 פג)
   const go2 = async () => {
-    try { await net.driveTrash(it.folder); lb.items = lb.items.filter((x) => x.id !== it.id); flashSafe(T('studioVidsDelDone')); back(); }
-    catch (e) { flashSafe(T('studioVidsErr')); }
+    try { await net.driveTrash(it.folder); } catch (e) { flashSafe(T('studioVidsErr')); return; }
+    lb.items = lb.items.filter((x) => x.id !== it.id); flashSafe(T('studioVidsDelDone'));
+    if (ui.view === 'litem') back(); else lbPaint();   // 18/11/2026: גם מהתפריט ברשת — שם נשארים
+    // העבודה מתנתקת מהפריט (libDrop): דף העבודה חוזר ל"הוספה לספרייה", והיא לא תעבור לקבצים שבפח כשהעותק ב־R2 יפוג
+    if (m.job && !home) net.api('libDrop', { job: m.job, m: it.id }).then((j) => { const r = jobRec(m.job); if (r && j && j.ok && j.job) { r.srv = normJob({ id: r.id, srv: j.job }).srv; save(); repaint(); } }).catch(() => {});
   };
-  if (typeof askConfirm === 'function') askConfirm(T('studioLibDelQ', { n: it.m.t || T('studioUntitled') }), go2, { danger: true, ok: T('studioLibDel') });
+  const n = bidiIso(m.t || T('studioUntitled'));
+  if (typeof askConfirm === 'function') askConfirm(home ? T('studioLibDelQHome', { n }) : T('studioLibDelQ', { n }), go2, { danger: true, ok: T('studioLibDel') });
   else go2();
 }
 /* ---- "הוספה לספרייה" בדף העבודה (במקום "הסרטונים שלי") ---- */
@@ -6120,10 +6377,16 @@ export function libItems(rec) {
   if (fv && isR2Id(fv) && !srcGone(rec)) it.unshift({ id: fv, n: (fileTitle(rec.spec.name) || 'video') + ' (' + T('studioLibRv') + ')' + ((/\.[A-Za-z0-9]{2,4}$/.exec(rec.spec.name || '') || ['.mp4'])[0]) });
   return it.slice(0, 16);
 }
+/* 18/11/2026: ניתוח שגם תרגם את הסרטון — בספרייה גם סמל התרגום (tv במניפסט: libMeta → normLibMeta בשרתון → lib_manifest
+   בעובד → normLibMan). ניתוח לבד תמיד בעברית, גם מסרטון באנגלית — לכן לא לפי "מקור ≠ יעד". הדגל של התרגום בניתוח: spec.vt */
+/* 18/11/2026 (הצילום: בתרגום מ"זיהוי אוטומטי" הבועה העליונה ריקה): העובד מתרגם רק מאנגלית (job.py: lang_unsupported) —
+   "אוטומטי" בתרגום = אנגלית, עם זיהוי של קטעים בשפות אחרות בתוכה. כשיהיו מקורות נוספים — העובד ידווח את השפה שזוהתה */
+export const libSrc = (k, fr) => fr || (k === 'tr' ? 'en' : '');
+export const viTr = (sp) => !!(sp && sp.vi === 1 && sp.vt === 1);
 export function libMeta(rec) {
   const sp = rec.spec || {};
   return { t: (fileTitle(sp.name) || '').slice(0, 120), k: sp.ka ? 'ka' : sp.vi ? 'vi' : 'tr', fr: libLang(sp.from), to: (sp.to || []).map(libLang).filter(Boolean).slice(0, 4),
-    d: Math.max(0, Math.round(Number(sp.dur) || 0)), ch: (rec.chap || []).slice(0, 60).map((c) => ({ t: Math.max(0, Math.round(Number(c.t) || 0)), n: String(c.title || '').slice(0, 100) })).filter((c) => c.n) };
+    ...(viTr(sp) ? { tv: 1 } : {}), d: Math.max(0, Math.round(Number(sp.dur) || 0)), ch: (rec.chap || []).slice(0, 60).map((c) => ({ t: Math.max(0, Math.round(Number(c.t) || 0)), n: String(c.title || '').slice(0, 100) })).filter((c) => c.n) };
 }
 async function libAdd(rec) {
   if (libBusy === rec.id || (rec.up.dx && rec.up.dx.st === 'run')) return;
@@ -6142,11 +6405,30 @@ async function libAdd(rec) {
   } catch (e) { flashSafe(T('studioLibFail')); }
   finally { libBusy = ''; repaint(); }
 }
-function libRow(rec) {
-  const d = rec.up.dx, lv = rec.srv && rec.srv.lib, run = libBusy === rec.id || (d && d.lib && d.st === 'run');
-  if (lv) return rowNav({ tile: tile('folder', 'green'), label: T('studioLibIn'), sub: T('studioLibInS'), onClick: () => { lb.st = ''; go('litem', lv.m); }, k: 'lib-in' });
-  const sub = run ? (d && d.st === 'run' ? T('studioLibRun', { p: Math.round((d.p || 0) * 100) }) : T('studioDxBusy')) : d && d.lib && d.st === 'err' ? T('studioLibFail') : T('studioLibAddS');
-  return rowNav({ tile: tile('folder', 'blue'), label: T('studioLibAdd'), sub, onClick: () => (run ? null : libAdd(rec)), k: 'lib-add' });
+/* 18/11/2026 (המשתמש: "אין אופציה לשמור ניתוח לספרייה — לחצן בתחילת העמוד, בעיצוב של צפייה"; ואחר כך: "גם בתרגום ובקריוקי,
+   ליד צפייה, מסודר לפי ת־עיצוב"): במקום השורה "הוספה לספרייה" ברשימת התוצרים — שמירה / שומרים % / בספרייה (פותח את הפריט).
+   pair — בכרטיס הראש של התרגום והקריוקי, זוג כפתורים כמו ת־עיצוב: "צפייה" (זכוכית צבעונית) ו"לספרייה" (זכוכית שקופה);
+   בלי pair — בראש דף הניתוח, כפתור ראשי ברוחב מלא. העוטף display:contents — הכפתור עצמו הוא הפריט בשורה.
+   מצויר מחדש רק כשהמצב משתנה, כדי שנגיעה לא תיפול בין שני ציורים */
+function libBtn(rec, pair) {
+  const w = h('div', pair ? 'st-hlib' : 'st-vi-lib');
+  let key = '';
+  const lbl = (ic, t) => { const f = document.createDocumentFragment(); f.append(ico(ic), h('span', null, t)); return f; };
+  return live(w, () => {
+    const r = jobRec(rec.id) || rec;
+    const d = r.up && r.up.dx, lv = r.srv && r.srv.lib, run = libBusy === r.id || !!(d && d.lib && d.st === 'run');
+    const st = lv ? 'in' : !driveOk() || !libItems(r).length ? '' : run ? 'run' : d && d.lib && d.st === 'err' ? 'err' : 'add';
+    const pc = st === 'run' && d && d.st === 'run' ? Math.round((d.p || 0) * 100) : -1;
+    if (st + ':' + pc === key) return;
+    key = st + ':' + pc;
+    if (!st) { w.replaceChildren(); return; }
+    if (st === 'in') { const b = btn(pair ? 'st-btn tint' : 'st-btn wide tint', null, () => { lb.st = ''; go('litem', lv.m); }, 'lib-in'); b.append(lbl('check', T('studioLibIn'))); w.replaceChildren(b); return; }
+    const b = btn(pair ? 'st-btn tint' : 'st-btn wide', null, () => libAdd(jobRec(rec.id) || rec), 'lib-add');
+    if (st === 'run') { b.disabled = true; b.textContent = pc >= 0 ? (pair ? T('studioLibRunS', { p: pc }) : T('studioLibRun', { p: pc })) : T('studioDxBusy'); }
+    else b.textContent = T('studioLibSave');   // המשתמש: "שהשם של הלחצן יהיה שמירה לספרייה" — גם בזוג; טקסט בלבד כמו "צפייה" (כך שניהם נכנסים ברוחב שווה)
+    w.replaceChildren(b);
+    if (st === 'err') w.append(h('small', 'st-warn st-lib-err', T('studioLibFail')));
+  });
 }
 
 function pageLang(p) {
@@ -6286,9 +6568,11 @@ const fmtX = (x) => (Math.round(x * 10) / 10).toLocaleString(uiLang() === 'en' ?
 const hsTxt = (k, n) => (k === 'ask' ? [T('studioHsT'), T('studioHsS')] : k === 'on' ? [T('studioHsOnT'), T('studioHsOnS')] : k === 'late' ? [T('studioHsT'), T('studioHsLate')]
   : k === 'rr' ? [T('studioHsT'), T('studioHsRrS')] : k === 'gone' ? [T('studioHsT'), T('studioHsGone')] : k === 'rrrun' ? [T('studioHsRrRun'), T('studioHsOnS')]
   : k === 'ok' ? [T('studioHsDone'), T('studioHsChk', { n })] : k === 'bad' ? [T('studioHsBadT'), T('studioHsBad', { n })] : [T('studioHsDone'), T('studioHsNoChk')]);
-const hsSig = (rec) => { const s = hsState(rec, rrJobs.get(rec.id), styEditable(rec) && canEdit(rec)); return s ? s.k + s.n : ''; };
+/* 18/11/2026 (המשתמש: "רושם שהצריבה התחילה, ולפי השלבים עוד לא"): ed = styEditable בלבד. canEdit דורש עבודה שהסתיימה,
+   ולכן בזמן הריצה הכרטיס תמיד אמר "הצריבה כבר התחילה" ולא הציע רקע כהה. השרתון (op sty) מקבל שינוי עד שהעבודה מסתיימת */
+const hsSig = (rec) => { const s = hsState(rec, rrJobs.get(rec.id), styEditable(rec)); return s ? s.k + s.n : ''; };
 function hsCard(rec) {
-  const s = hsState(rec, rrJobs.get(rec.id), styEditable(rec) && canEdit(rec));
+  const s = hsState(rec, rrJobs.get(rec.id), styEditable(rec));
   if (!s) return null;
   const good = ['on', 'rrrun', 'ok', 'nochk'].includes(s.k);
   const c = h('div', 'st-hs' + (good ? ' ok' : ''));
@@ -6298,7 +6582,7 @@ function hsCard(rec) {
   hd.append(ico(good ? 'check' : 'cc'), h('b', null, tt));
   c.append(hd, h('span', 'st-hs-s', ts));
   if (s.k === 'ask') c.append(btn('st-btn wide', T('studioHsGo'), () => jobStySet(rec, { bx: 1 }), 'hs-go'));
-  else if (s.k === 'rr' && canEdit(rec)) c.append(btn('st-btn wide', T('studioHsRr'), () => { rrOpt.sty = normSty(Object.assign({}, rrSty() || {}, { bx: 1 })); go('rr', rec.id); }, 'hs-rr'));
+  else if (s.k === 'rr' && canEdit(rec)) c.append(btn('st-btn wide', T('studioHsRr'), () => { rrFor(rec); rrOpt.sty = normSty(Object.assign({}, rrSty(rec) || {}, { bx: 1 })); go('rr', rec.id); }, 'hs-rr'));
   return c;
 }
 function towerLine(rec) {
@@ -7619,7 +7903,7 @@ function pageTowerFull(p) {
   // v369: פעולות מהירות — רק מה שקיים
   const qa = h('div', 'st-qa');
   const qbtn = (icon, lbl, fn, k, cls) => { const b = btn('st-qa-b' + (cls ? ' ' + cls : ''), null, fn, k); const i = h('i'); i.append(ico(icon)); b.append(i, h('span', null, lbl)); return b; };
-  qa.append(qbtn('plus', T('studioQaNew'), () => { form = freshForm(null); go('new'); }, 'qa-new'));
+  qa.append(qbtn('trans', T('studioQaNew'), () => { form = freshForm(null); go('new'); }, 'qa-new'));   // 18/11/2026: עבודת תרגום — סמל התרגום, לא פלוס
   const resumable = store.jobs.find((r) => canResume(r));
   if (resumable) qa.append(qbtn('film', T('studioQaResume'), () => go('job', resumable.id), 'qa-resume'));
   qa.append(qbtn('sliders', T('studioRlT'), () => go('rules'), 'qa-rules'));
@@ -8574,8 +8858,9 @@ async function playLoad(rec, phFile) {
       me.wt = bothTrack(watchTrack(rec, me.ctl.video), playStats(rec, me.ctl));
       me.st = 'ok'; plPaint(); return;
     }
-    const hid = !!bo && hsPlayBurned(rec);   // 16/11/2026: הכתוביות הצרובות הוסתרו בקובץ שנבדק — הוא, לא המקור עם שכבה מעליו
-    const src = srcId && !hid ? net.mediaUrl(srcId) : '', fb = bo ? net.mediaUrl(bo.id) : '';
+    const hp = hsPick(rec, rrJobs.get(rec.id));   // 16/11/2026: הכתוביות הצרובות הוסתרו בקובץ שנבדק — הוא, לא המקור עם שכבה מעליו
+    const hb = hp === 'rr' ? burnedOut(rrJobs.get(rec.id)) : hp === 'self' ? bo : null;   // 17/11/2026: גם של ההפקה מחדש
+    const src = srcId && !hb ? net.mediaUrl(srcId) : '', fb = (hb || bo) ? net.mediaUrl((hb || bo).id) : '';
     if (!src && !fb) { me.st = 'err'; me.err = 'nosw'; plPaint(); return; }
     me.cues = cues; me.iss = issuesList(cues);
     me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: me.iss, chapters: rec.chap || [], T,
@@ -8764,6 +9049,7 @@ function viView(rec, me) {
     place: (store.vip || {})[rec.id] || null, now: () => Date.now(), scroller: () => root, flash: flashSafe, t0: me.t0,
     mkPlayer: () => viPlayer(rec, me), slideUrl: (s) => viSlideUrl(rec, me, s),
     draftAct: vvBtn(rec, me),   // PR 1.2ג: "אמת שוב" בפס הטיוטה
+    libAct: libBtn(rec),        // 18/11/2026: "שמירה לספרייה" בראש הדף
     onUx: (k, x) => uxAdd(rec, 'vi', k, x == null ? 1 : x), onVf: (id, why, sec) => vfAdd(rec, id, why, sec),
     onPlace: (x) => { if (!x) return; store.vip = normPlaces(Object.assign({}, store.vip, { [rec.id]: x })); save(); },
     spkOv: () => (store.vsp || {})[rec.id] || {}, spkc: () => spkPrefs(rec.id),   // 16/11/2026: דוברים בכל תמליל
@@ -9226,7 +9512,7 @@ async function rrStart(rec, prv) {
   const edl = prv ? previewEdl(rrEdl.get(rec.id) || null, rec.spec.dur || 0, t0) : rrEdl.get(rec.id) || null;
   rrBusy = true; repaint();
   try {
-    const j = await net.api('rerender', Object.assign({ job: rec.id, out, style: rrOpt.style || (RR_STYLES.includes(rec.spec.style) ? rec.spec.style : 'bold'), edl, sty: rrSty(), ov: rrOv(rec.id) }, prv ? { prv: true } : {}));
+    const j = await net.api('rerender', Object.assign({ job: rec.id, out, style: rrOpt.style || (RR_STYLES.includes(rec.spec.style) ? rec.spec.style : 'bold'), edl, sty: rrSty(rec), ov: rrOv(rec.id) }, prv ? { prv: true } : {}));
     if (!j.ok || !j.job) { flashSafe(j.error === 'rr_busy' ? T('studioRrBusy') : errText(j.error)); return; }
     const x = normJob({ id: j.job.id, srv: j.job });
     if (x) (prv ? rrPv : rrJobs).set(rec.id, x);
@@ -9259,7 +9545,15 @@ async function rrKick(x) {   // הפקה שנוצרה ולא התחילה — מ
   finally { rrBusy = false; repaint(); schedulePoll(); }
 }
 /* ---------- סבב 5: עיצוב הכתוביות (גודל, צבע, רקע, גובה) — תצוגה חיה על הסרטון, ואותה הגדרה בצריבה ---------- */
-const rrSty = () => normSty(rrOpt.sty !== undefined ? rrOpt.sty : store.settings.sty);
+/* 18/11/2026 (בקשת המשתמש): העיצוב שייך לעבודה. ההפקה מחדש מתחילה מהעיצוב של העבודה עצמה, ולא ממה שנבחר בעבודה אחרת.
+   כשבמקור יש כתוביות צרובות (hs), מתחילים עם רקע כהה שיסתיר אותן. טהור */
+export function rrBaseSty(rec) {
+  const sp = (rec && rec.spec) || {}, sv = rec && rec.srv;
+  return normSty(Object.assign({}, normSty(sp.sty) || {}, sv && sv.hs && !sp.ka ? { bx: 1 } : {}));
+}
+/* האפשרויות של ההפקה מחדש (תוצרים, סגנון, עיצוב) — לעבודה אחת. מעבר לעבודה אחרת = ברירת המחדל */
+function rrFor(rec) { if (rec && rrOpt.id !== rec.id) Object.assign(rrOpt, { id: rec.id, out: { compact: true }, style: '', sty: undefined }); }
+const rrSty = (rec) => normSty(rec && rrOpt.id === rec.id && rrOpt.sty !== undefined ? rrOpt.sty : rrBaseSty(rec));
 function stySum(st) {
   if (!st) return T('studioStyDef');
   const parts = [];
@@ -9279,10 +9573,10 @@ function syPeek(me) {   // עוצרים על כתובית של שתי שורות
   const go = () => { try { me.ctl.pause(); me.ctl.seek((c.s + c.e) / 2); } catch (e) {} };
   if (me.ctl.video.readyState >= 1) go(); else me.ctl.video.addEventListener('loadedmetadata', go, { once: true });
 }
-function stySet(patch) {
-  const next = normSty(Object.assign({}, rrSty() || {}, patch));
-  rrOpt.sty = next;
-  store.settings.sty = next || undefined; if (!next) delete store.settings.sty; save();   // ההגדרה האחרונה = ברירת המחדל להפקה הבאה
+function stySet(rec, patch) {
+  rrFor(rec);
+  const next = normSty(Object.assign({}, rrSty(rec) || {}, patch));
+  rrOpt.sty = next;   // רק להפקה הזו (18/11/2026: לא ברירת מחדל לעבודה הבאה)
   if (sy && sy.ctl) sy.ctl.setStyle(next);
   render('none');
 }
@@ -9328,8 +9622,7 @@ function styFold(key, st, set) {
 const styT = new Map();
 function jobStySet(rec, patch) {
   const next = normSty(Object.assign({}, rec.spec.sty || {}, patch));
-  if (next) rec.spec.sty = next; else delete rec.spec.sty;
-  store.settings.sty = next || undefined; if (!next) delete store.settings.sty;   // גם ברירת המחדל לעבודה הבאה
+  if (next) rec.spec.sty = next; else delete rec.spec.sty;   // רק לעבודה הזו (18/11/2026: לא ברירת מחדל לעבודה הבאה)
   save();
   clearTimeout(styT.get(rec.id));
   styT.set(rec.id, setTimeout(() => {
@@ -9361,11 +9654,12 @@ function pageSty(p) {
     if (!me.cues && co) net.driveJson(co.id).then((j) => { if (sy === me) { me.cues = normCues(j); if (me.ctl) { me.ctl.setCues(me.cues); syPeek(me); } } }, () => {});
     else syPeek(me);
   }
-  const st = rrSty() || {};
+  rrFor(rec);
+  const st = rrSty(rec) || {};
   if (sy.ctl) { sy.ctl.setStyle(st); const top = h('div', 'st-se-top'); top.append(sy.ctl.el); p.append(top); }
   else p.append(h('div', 'st-pl-ph', T('studioPlNoSw')));
-  p.append(...styControls(st, stySet));
-  if (rrSty()) p.append(btn('st-btn ghost wide', T('studioStyReset'), () => { rrOpt.sty = null; delete store.settings.sty; save(); if (sy && sy.ctl) sy.ctl.setStyle(null); render('none'); }, 'sty-reset'));
+  p.append(...styControls(st, (patch) => stySet(rec, patch)));
+  if (rrSty(rec)) p.append(btn('st-btn ghost wide', T('studioStyReset'), () => { rrOpt.sty = null; if (sy && sy.ctl) sy.ctl.setStyle(null); render('none'); }, 'sty-reset'));
   p.append(note(T('studioStyNote')));
 }
 /* ---------- סבב 7: כותרת ולוגו (בהפקה מחדש) — הכותרת לכל עבודה, הלוגו נשמר בהגדרות (המותג שלך) ---------- */
@@ -9461,6 +9755,7 @@ function pageRr(p) {
   const rec = jobRec(ui.param);
   if (!rec || !canEdit(rec)) { back(); return; }
   if (srcGone(rec) && !rrJobs.get(rec.id)) { flashSafe(T('studioSrcGone')); back(); return; }   // 26/10/2026: בלי מקור אין הפקה מחדש
+  rrFor(rec);
   p.append(navBar({ back: fileTitle(rec.spec.name) || T('studioUntitled') }), large(T('studioRrTitle')));
   const r = rrJobs.get(rec.id), st = r ? r.srv.state : '';
   if (r && (st === 'new' || st === 'queued' || st === 'running')) {
@@ -9492,7 +9787,7 @@ function pageRr(p) {
     onClick: () => { rrOpt.out[k] = !rrOpt.out[k]; repaint(); }, k: 'rr-o:' + k }))));
   const cur = rrOpt.style || (RR_STYLES.includes(rec.spec.style) ? rec.spec.style : 'bold');
   p.append(secT(T('studioSecStyle')), list(...RR_STYLES.map((k) => rowRadio({ label: styleName(k), on: k === cur, onClick: () => { rrOpt.style = k; repaint(); }, k: 'rr-s:' + k })),
-    rowNav({ tile: tile('edit', 'purple'), label: T('studioStyT'), value: stySum(rrSty()), onClick: () => go('sty', rec.id), k: 'rr-sty' }),   // סבב 5
+    rowNav({ tile: tile('edit', 'purple'), label: T('studioStyT'), value: stySum(rrSty(rec)), onClick: () => go('sty', rec.id), k: 'rr-sty' }),   // סבב 5
     rowNav({ tile: tile('film', 'orange'), label: T('studioOvT'), value: ovSum(rrOv(rec.id)), onClick: () => go('ov', rec.id), k: 'rr-ov' })));   // סבב 7
   if (dirty) p.append(note(T('studioRrDirty')));
   p.append(btn('st-btn wide', rrBusy ? T('studioStarting') : dirty ? T('studioRrSaveGo') : T('studioRrGo'), rrBusy ? null : () => (dirty ? seSave(() => rrStart(rec)) : rrStart(rec)), 'rr-go'));
@@ -9681,7 +9976,7 @@ function pageIdeas(p) {
       const rs = parseRanges(idea.text);
       shown = rs.length > 0;
       if (rs.length) p.append(secT(T('studioIdHlT')), list(...rs.map((r, i) => rowNav({ tile: tile('film', 'blue'), label: r.title || fmtT(r.a), sub: '\u2066' + fmtT(r.a) + '–' + fmtT(r.b) + '\u2069 · ' + T('studioIdHlGo'),   // טווח מבודד — לא מתהפך ב־RTL
-        onClick: () => { rrEdl.set(rec.id, normEdl({ k: [[r.a, r.b]], ar: '9:16', x: 0.5, af: true }, rec.spec.dur || 0)); rrOpt.out = { compact: true }; go('rr', rec.id); }, k: 'id-hl:' + i }))));   // סבב 9: שורטס — המסגרת עוקבת אחרי הדובר (af)
+        onClick: () => { rrEdl.set(rec.id, normEdl({ k: [[r.a, r.b]], ar: '9:16', x: 0.5, af: true }, rec.spec.dur || 0)); rrFor(rec); rrOpt.out = { compact: true }; go('rr', rec.id); }, k: 'id-hl:' + i }))));   // סבב 9: שורטס — המסגרת עוקבת אחרי הדובר (af)
     }
     if (idea.k === 'chap') {   // פרקים → לנגן: פס עם מפרידים, שם הפרק בשורת הזמן ורשימה בגלגל השיניים
       const chs = normChapters(parseChapters(idea.text));
@@ -9965,7 +10260,7 @@ function pageJob(p) {
   const quiet = ph0 === 'ready' && ['', 'worker_not_ready', 'conn_missing'].includes(rec.up.wait);
   // 10/10/2026: עבודה שהסתיימה — התוצרים עצמם במקום כרטיס "התרגום מוכן!" שני (הראש כבר אומר את זה);
   // עד עכשיו הקישורים היו רק בתוך "פרטים טכניים" המקופלים
-  const outs = ph0 === 'done' ? ((rec.srv && rec.srv.out) || []).filter((o) => OUT_MAIN.includes(o.k)) : [];   // קבצי עזר (cues/vtt/ass) — לנגן ולעורך
+  const outs = ph0 === 'done' ? hsOuts(((rec.srv && rec.srv.out) || []).filter((o) => OUT_MAIN.includes(o.k)), rrJobs.get(rec.id)) : [];   // 17/11/2026: הקובץ המוסתר   // קבצי עזר (cues/vtt/ass) — לנגן ולעורך
   // 21/10/2026: התוצרים עלו והעובד עוד משלים ברקע (איכויות צפייה לנגן, עותק למאגר הלמידה) — הם כבר שלך, בלי לחכות
   const early = ph0 !== 'done' && rec.srv && rec.srv.state === 'running' ? (rec.srv.out || []).filter((o) => OUT_MAIN.includes(o.k)) : [];
   // 21/10/2026 (תוכנית השיפור 3.13ג): הכתוביות עולות לפני הצריבה — הנגן זמין עם הסרטון המקורי, בלי לחכות לצריבה
@@ -9973,12 +10268,15 @@ function pageJob(p) {
   if (early.length && burning && canPlay(rec)) p.append(btn('st-btn wide', T('studioPlWatch'), () => go('play', id), 'play'));
   if (early.length) p.append(secT(T('studioSecResults')), list(...early.map((o) => rowOut(rec, o))), note(burning ? T('studioOutEarlySubs') : T('studioOutEarly')));
   if (outs.length) {
-    if (canPlay(rec)) hero.append(btn('st-btn in-card', T('studioPlWatch'), () => go('play', id), 'play'));   // מ1: הנגן — 25/10/2026: בתוך כרטיס הראש
+    // מ1: הנגן — 25/10/2026: בתוך כרטיס הראש. 18/11/2026: ולידו "לספרייה" (במקום השורה ברשימת התוצרים) — בתרגום ובקריוקי
+    const hacts = h('div', 'st-hacts');
+    if (canPlay(rec)) hacts.append(btn('st-btn', T('studioPlWatch'), () => go('play', id), 'play'));
+    hacts.append(libBtn(rec, true));
+    hero.append(hacts);
     p.append(secT(T('studioSecResults')), list(...outs.map((o) => rowOut(rec, o)),
     canEdit(rec) ? rowNav({ tile: tile('edit', 'blue'), label: T('studioSeTitle'), sub: rec.srv.ev ? T('studioSeEdited', { n: rec.srv.ev }) : '', onClick: () => go('subs', id), k: 'subs' }) : null,   // מ2
     canEdit(rec) ? rrRow(rec, 'rr') : null,
     canEdit(rec) ? rowNav({ tile: tile('spark', 'teal'), label: T('studioIdTitle'), sub: T('studioIdSub'), onClick: () => go('ideas', id), k: 'ideas' }) : null,   // מ8
-    driveOk() && libItems(rec).length ? libRow(rec) : null,   // 17/11/2026: "הוספה לספרייה" (במקום "הסרטונים שלי")   // 26/10/2026: ״הסרטונים שלי״ ב־Drive   // התוצר לתיקייה שבחרת ב־Drive
     jobFolder(rec) && !isR2Folder(jobFolder(rec)) ? rowExt({ href: 'https://drive.google.com/drive/folders/' + jobFolder(rec), tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
     outs.some((o) => o.k === 'srt') ? rowNav({ tile: tile('copy', 'orange'), label: T('studioAcRow'), sub: T('studioAcRowS'), onClick: () => sendToAcademy(rec), k: 'academy' }) : null,   // Academy Pro גל 6 (C12)
     btn('st-row st-act', T('studioRcpt'), () => shareReceipt(rec), 'receipt')));   // שלב 4: קבלה
@@ -11033,7 +11331,8 @@ function stKeepTap(e) {
   for (const i of path) { m = m && m.children[i]; }
   o._fwd = null;
   o.replaceWith(f);
-  if (!m) return;                 // מבנה שונה (לא אמור לקרות) — החדש במקום, הלחיצה הבאה תגיע אליו
+  while (m && m !== f && typeof m.click !== 'function') m = m.parentElement;   // 18/11/2026: לחיצה על הסמל (svg — אין לו click()) → הכפתור שלו
+  if (!m || typeof m.click !== 'function') return;                 // מבנה שונה (לא אמור לקרות) — החדש במקום, הלחיצה הבאה תגיע אליו
   e.stopPropagation(); e.preventDefault();
   m.click();
 }

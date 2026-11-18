@@ -4,15 +4,17 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v805';
+const CACHE_NAME = 'portfolio-pwa-v822';
 const HASHES = {
   "./": "a4c10604dc53d9719855cb70d87ca9ff",
   "./index.html": "a4c10604dc53d9719855cb70d87ca9ff",
-  "./styles.css": "94567b26f71b5f515a541e9699f42d67",
-  "./glass-btn.css": "7b3da3fe7844c11efc76054133bbd65a",
-  "./invest-glass.css": "de7c2aa66cd09eac425d7b53793da42e",
+  "./styles.css": "07e1e3c2444079fdf232e0d3f7d50a37",
+  "./glass-btn.css": "eb48f42fbaadd0f9c2a322cfe67bf051",
+  "./invest-glass.css": "bb7073d34f0cae3eb2861ef0f6083002",
+  "./academy-glass.css": "ae0f0a4c37f00512734308010a546a77",
+  "./studio-glass.css": "554073c29e41929f956acb1a3a1e25f3",
   "./desktop.css": "22dcb3bea6e645027d3146b31d66712a",
-  "./app.js": "5a632f0595c8dd4a7adc5dc86be17b6a",
+  "./app.js": "3380fa802fb705591c01ea681e66f852",
   "./returns.js": "afe0d262348852fd10982ef2d0239545",
   "./cloud.js": "d403f6c76884375dc9999b80660f1ddf",
   "./firebase-config.js": "a4adfadcd5fe3b79a29e9fa0eeb94df0",
@@ -39,7 +41,7 @@ const HASHES = {
   "./taxcenter.js": "9f66ea89d2f027260196a7b3d96e876d",
   "./taxcenter.css": "49d72724551122808472e2d92ce76b63",
   "./taxil.js": "7a5d81baa42d2be44782ba667dd89174",
-  "./chart.js": "0f029889491a1d714860608f0d6aed64",
+  "./chart.js": "3f74233649fd86584c01c154e14acc75",
   "./chartlib.js": "5c00c490dac1b09329fa1ce657350a9b",
   "./chart.css": "1a90f5eae0277b64c9f0238c248f20f5",
   "./vendor/klinecharts/klinecharts.min.js": "4202d8661b8302175751d8d072bf6d2f",
@@ -75,10 +77,10 @@ const HASHES = {
   "./vendor/foliate-js/fixed-layout.js": "7aee1d15d8e0479b8a6c59a20304b250",
   "./vendor/foliate-js/vendor/zip.js": "2a0d43157e4a447c6e43351225758795",
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
-  "./academy.html": "4e22225573f3222dc148ea8a9409fd2f",
+  "./academy.html": "9c6de2f5fd2634d07d9c0e0a6dc9ebe7",
   "./academy-app.js": "8f943cfa4b1bbb60bc8d83d4304d9978",
-  "./strings-academy.js": "3b830e73d6036f910fe75304b2dd20e9",
-  "./core.js": "9e33270ffa7df7aeeae8086d07f5c327",
+  "./strings-academy.js": "048d99744c4cb4cce131c0557ce4048a",
+  "./core.js": "178e4ba319672e4dfc46aea4a0274ce2",
   "./auth.js": "465d3bc983806d8a2f462e567725df21",
   "./shell.js": "04e4e9bb8b1a12538f4b12ac699dabd5",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -87,11 +89,11 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "b93c4590a21a1845b156df2f79e7c170",
-  "./studio.css": "2b8cc0541c3365f18e65a821d725115d",
-  "./studionet.js": "dbe26e18ebd4989a47680cf3009c0ab4",
-  "./studioplay.js": "0b89b8c22e6e7b388bbb8c9a4820c64c",
-  "./studiovi.js": "985efcace5223c3240673be8328b86b2",
+  "./studio.js": "46d7e37b7a2223bd275f7cd4dbd3fc7b",
+  "./studio.css": "344bbc2e22e588d07d9697936a40c46e",
+  "./studionet.js": "204b0f8988e2ab721e8c3a4e5eacec13",
+  "./studioplay.js": "15609fe2c3eb0a9364ed585642a8bfaa",
+  "./studiovi.js": "6543f44c9027953030efd525f36aa887",
   "./studiospk.js": "d2da9bbef05bf9bfcd5b14bfd24b476a",
   "./studiosubs.js": "1eeb2f09271dd3288b3144bbf466e128",
   "./studiotracks.js": "45a59e4cedc85da6950554bd2c56289e",
@@ -99,9 +101,9 @@ const HASHES = {
   "./studioai.js": "502135c0ce4081b799899698fa62d333",
   "./studiostore.js": "eb4e76572b8551fe2b2c149d483fb6e9",
   "./studiobg.js": "9013d96cee956642e0735806ea1e60c3",
-  "./studio.html": "16d5cfad60f248fdf24c3c0eae5982fa",
+  "./studio.html": "53863190ddbad03a89972f31cf047782",
   "./studio-app.js": "5cea50dc7d3b80183b943e4f5ad36df9",
-  "./strings-studio.js": "d01dc008b01fa2b5661a213e04edb6d8",
+  "./strings-studio.js": "835fc5ad807b2a4a2cbbaa78d1af09ad",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
@@ -112,7 +114,7 @@ const HASHES = {
   "./cashflow-app.js": "f13b3182dc0da5df43922c5c79d13bdb",
   "./cashflow.js": "3f9ed14bc733ab8a72f08e954e32080b",
   "./cashflow.css": "6d697a67077c9631f7a849a55b9283cd",
-  "./strings-cashflow.js": "61113684c28b38762883cf1570454308",
+  "./strings-cashflow.js": "54447ec6adf6c2e43f49a9c4e01d9c8f",
   "./logo-cashflow.webp": "fdd001e0dc9d0a80c30961d58864ad96",
   "./logo-cashflow-lg.webp": "4988d060c48fbdf3f6de792f1237c710",
   "./icon-cashflow-192.png": "cf3bed681a924e2fbecc04893a92f5bf",
@@ -127,6 +129,8 @@ const APP_SHELL = [
   './styles.css',
   './glass-btn.css',   // 31/10/2026: כפתורי זכוכית בכל המערכת
   './invest-glass.css',   // 17/11/2026: Invest בזכוכית — שכבת העיצוב שאושרה + החיפוש בטלפון
+  './academy-glass.css',  // 17/11/2026: Academy בזכוכית — שכבת העיצוב שאושרה (רק ב־academy.html)
+  './studio-glass.css',   // 18/11/2026: Studio בזכוכית — שכבת העיצוב שאושרה (רק ב־studio.html)
   './desktop.css',     // 11/11/2026: תצוגת מחשב — משותף לכל האפליקציות (נטען מ־600px)
   './app.js',
   './returns.js',
@@ -297,20 +301,61 @@ function askToken(clientId, id, fresh) {
     c.postMessage({ snbMedia: id, fresh: !!fresh }, [ch.port2]);
   }));
 }
+/* 18/11/2026 (בקשת המשתמש: "הסרטון לא מתחיל לעבוד, אחרי שעושים play לא קורה כלום" — ניגון מהספרייה ב־Drive): הבקשה של
+   ה־SW ל־Drive נכשלה או לא ענתה, והנגן נשאר שחור בלי שגיאה. הכתוביות של אותו פריט נטענו מהדף. לכן: בקשה מה־SW ל־Drive
+   שנכשלה (רשת / תשובה לא צפויה) או שלא ענתה תוך MEDIA_WAIT — הדף מביא את אותו טווח בעצמו ומעביר את הבתים (askBytes, עד
+   MEDIA_RELAY_CAP; ArrayBuffer מועבר בלי העתקה). מאז, לאותו קובץ — ישר דרך הדף. נכשל גם שם — הדף שומר את הסיבה ומציג אותה */
+const MEDIA_WAIT = 20000;
+const MEDIA_RELAY_CAP = 8 * 1024 * 1024;
+const mediaBad = new Map();                      // id → עד מתי: גם הדף לא הצליח — הדפדפן מנסה שוב ושוב, בלי עוד בקשות
+function askBytes(clientId, id, a, b) {
+  return self.clients.get(clientId).then((c) => new Promise((ok) => {
+    if (!c) { ok(null); return; }
+    const ch = new MessageChannel();
+    const tm = setTimeout(() => ok(null), 60000);
+    ch.port1.onmessage = (e) => {
+      clearTimeout(tm);
+      const buf = e.data && e.data.buf;
+      ok(buf && typeof buf.byteLength === 'number' && buf.byteLength > 0 && buf.byteLength <= b - a + 1 ? buf : null);
+    };
+    c.postMessage({ snbBytes: id, a, b }, [ch.port2]);
+  }), () => null);
+}
+async function driveRange(id, t, rg) {   // null = נכשלה או לא ענתה בזמן (רק עד הכותרות — הגוף זורם בלי תקרת זמן)
+  const ac = typeof AbortController === 'function' ? new AbortController() : null;
+  const tm = ac ? setTimeout(() => ac.abort(), MEDIA_WAIT) : 0;
+  try { return await fetch('https://www.googleapis.com/drive/v3/files/' + id + '?alt=media', { headers: { Authorization: 'Bearer ' + t, Range: rg }, cache: 'no-store', signal: ac ? ac.signal : undefined }); }
+  catch (x) { return null; }
+  finally { clearTimeout(tm); }
+}
 async function mediaFetch(event, id) {
+  if ((mediaBad.get(id) || 0) > Date.now()) return new Response('', { status: 502 });
   for (let i = 0; i < 2; i++) {
     let e = mediaTok.get(id);
     if (!e || i === 1 || e.exp - 60e3 <= Date.now()) {
+      const relay = !!(e && e.relay);
       e = await askToken(event.clientId, id, i === 1);
       if (!e) return new Response('', { status: 403 });
+      if (relay) e.relay = true;
       mediaTok.set(id, e);
     }
     const r = mediaRange(event.request.headers.get('range'), e.size, MEDIA_CAP);
     if (!r) return new Response('', { status: 416, headers: { 'Content-Range': 'bytes */' + e.size } });
     const rg = 'bytes=' + r[0] + '-' + r[1];
     const res = e.u ? await fetch(e.u, { headers: { Range: rg }, cache: 'no-store', credentials: 'omit' })   // R2: הקישור החתום, בלי Authorization
-      : await fetch('https://www.googleapis.com/drive/v3/files/' + id + '?alt=media', { headers: { Authorization: 'Bearer ' + e.t, Range: rg }, cache: 'no-store' });
-    if ((res.status === 401 || res.status === 403) && i === 0) { mediaTok.delete(id); continue; }   // האסימון פג — פעם אחת חדש
+      : e.relay ? null : await driveRange(id, e.t, rg);
+    if (res && (res.status === 401 || res.status === 403) && i === 0) { mediaTok.delete(id); continue; }   // האסימון פג — פעם אחת חדש
+    if (!e.u && !(res && (res.status === 206 || (res.status === 200 && r[0] === 0)))) {   // Drive מה־SW לא הצליח — דרך הדף
+      const b = Math.min(r[1], r[0] + MEDIA_RELAY_CAP - 1);
+      const buf = await askBytes(event.clientId, id, r[0], b);
+      if (!buf) { mediaBad.set(id, Date.now() + 5000); return new Response('', { status: 502 }); }
+      mediaBad.delete(id);
+      e.relay = true;
+      const end = r[0] + buf.byteLength - 1;
+      return new Response(buf, { status: 206, headers: {
+        'Content-Type': e.type, 'Content-Length': String(buf.byteLength), 'Content-Range': 'bytes ' + r[0] + '-' + end + '/' + e.size,
+        'Accept-Ranges': 'bytes', 'Cache-Control': 'no-store' } });
+    }
     if (res.status !== 206 && !(res.status === 200 && r[0] === 0)) return new Response('', { status: 502 });
     const end = res.status === 200 ? e.size - 1 : r[1];
     return new Response(res.body, { status: 206, headers: {

@@ -18,7 +18,7 @@
 | `GDRIVE_SA_KEY` | Vercel | חשבון השירות: Firestore (כל המסמכים) ותיקיית הספרייה ב־Drive | Google Cloud ← IAM ← Service accounts ← Keys: מפתח חדש ← Vercel ← Redeploy ← למחוק את הישן. **אם `IBKR_VAULT_KEY` לא מוגדר, הכספות מוצפנות במפתח שנגזר מזה** — קודם להגדיר את `IBKR_VAULT_KEY` (בשורה הבאה) |
 | `IBKR_VAULT_KEY` | Vercel (מומלץ להגדיר) | מפתח ההצפנה של הכספות (IBKR, ‏Drive, ‏Routine) | אחרי החלפה הכספות הישנות לא נפתחות. משתמשים מתחברים מחדש (IBKR, ‏Drive, ‏Routine). לא להחליף בלי סיבה |
 | `GDRIVE_CLIENT_ID/SECRET` | Vercel | חיבור Drive של הספרייה (OAuth) | Google Cloud ← Credentials ← Reset secret ← Vercel ← Redeploy |
-| `STUDIO_GDRIVE_CLIENT_ID/SECRET` | Vercel | חיבור Drive של הסטודיו (לקוח נפרד) | כמו בשורה הקודמת |
+| `STUDIO_GDRIVE_CLIENT_ID/SECRET` | Vercel והשרת. מ־17/11/2026 גם סוד חלופי בכספת (`studioVault/_gdc`, ‏AAD ‏`gdclient|studio`), והוא גובר על הסביבה | חיבור Drive של הסטודיו (לקוח נפרד) | בלי פריסה: Google Cloud ← הלקוח THE SNOWBALL Studio ← Add secret ← בסטודיו, בדף הספרייה (כרטיס התיקון, מנהל בלבד) ← הדבקה. השרתון בודק את הסוד מול Google לפני שהוא שומר (`gdSecret`). אחר כך משביתים ומוחקים את הסוד הישן. מצב הלקוח בלי התחברות: `op:gdCheck` |
 | `STUDIO_BROWSE_CLIENT_ID/SECRET` | Vercel | רשימת הקבצים ב־Drive בסטודיו (drive.readonly, לקוח שלישי — לא מגיע לחיבור של הסטודיו ולא ל־Routine) | כמו בשורה הקודמת |
 | `GEMINI_API_KEY`, `MISTRAL_API_KEY`, `GOOGLE_BOOKS_KEY` | Vercel | תרגום, ניתוח מכתבים, פרטי ספרים | יוצרים מפתח חדש אצל הספק ← Vercel ← Redeploy ← מוחקים את הישן |
 | `CRON_SECRET` | Vercel (רשות) | הפעלת הסנכרון היומי של IBKR | מחרוזת אקראית חדשה ← Vercel |

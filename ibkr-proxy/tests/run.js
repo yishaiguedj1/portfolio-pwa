@@ -1315,7 +1315,7 @@ function stubFetch(text, status = 200) {
         const p = new URLSearchParams(opt.body || '');
         if (p.get('grant_type') === 'urn:ietf:params:oauth:grant-type:jwt-bearer' || p.get('assertion')) return J({ access_token: 'SA', expires_in: 3600 });
         if (p.get('grant_type') === 'authorization_code') return p.get('code') === 'GOOD' ? J(Object.assign({ access_token: 'AT1', expires_in: 3599, scope: grant.scope, id_token: idt }, grant.refresh ? { refresh_token: grant.refresh } : {})) : J({ error: 'invalid_grant' }, 400);
-        if (p.get('grant_type') === 'refresh_token') return grant.bad ? J({ error: 'invalid_grant' }, 400) : J({ access_token: 'AT2', expires_in: 3599 });
+        if (p.get('grant_type') === 'refresh_token') return grant.cli ? J({ error: 'invalid_client' }, 401) : grant.bad ? J({ error: 'invalid_grant' }, 400) : J({ access_token: 'AT2', expires_in: 3599 });
       }
       if (url.includes('oauth2.googleapis.com/revoke')) return J({});
       const m = url.match(/documents\/driveVault\/([A-Za-z0-9]+)/);
@@ -1356,6 +1356,14 @@ function stubFetch(text, status = 200) {
     store.delete('userUid00002');
     r = await run({ op: 'gdToken', idToken: U1 });
     ok(r.payload.ok && r.payload.access_token === 'AT2' && calls.some((c) => /refresh_token=RT-SECRET-1/.test(c.body)), 'גיבוי Drive: גישה זמנית חדשה מההרשאה השמורה');
+    grant.cli = true;
+    r = await run({ op: 'gdToken', idToken: U1 });
+    ok(r.statusCode === 200 && r.payload.ok === false && r.payload.error === 'gd_http_401' && r.payload.why === 'invalid_client' && store.has('userUid00001'), 'גיבוי Drive: Google דוחה את הלקוח — 200 עם הקוד והסיבה (502 הגיע לטלפון בלי CORS), הרשומה נשארת');
+    require('../lib/gdrive')._reset();
+    r = await run({ op: 'gdCheck' });   // 17/11/2026: הבדיקה העצמית של לקוח הגיבוי — בלי התחברות, רק סיווג
+    ok(r.statusCode === 200 && r.payload.ok && r.payload.ck.library.st === 'bad_secret' && !JSON.stringify(r.payload).includes('csecret'), 'גיבוי Drive: gdCheck ציבורי — Google דוחה את הסוד → bad_secret, בלי ערך');
+    require('../lib/gdrive')._reset();
+    grant.cli = false;
     grant.refresh = '';
     r = await run({ op: 'gdConnect', idToken: U1, code: 'GOOD', redirect: RED });
     ok(r.payload.ok && store.get('userUid00001'), 'גיבוי Drive: חיבור חוזר בלי הרשאה קבועה חדשה — נשארת הקודמת');
@@ -1479,6 +1487,7 @@ function stubFetch(text, status = 200) {
     const calls = [];
     let fireMode = 'ok', fires = [], driveFiles = new Map(), now = Date.UTC(2026, 9, 7, 9, 0), pushes = [];
     let driveQuota = { limit: '16106127360', usage: '1000' }, driveListFail = false;   // v378: המכסה ותקלה ברשימה
+    let sAccept = null;   // 17/11/2026: הסודות שלקוח הסטודיו מקבל (null = כל סוד — כמו עד היום)
     const J = (o, st = 200, hd = {}) => ({ status: st, json: async () => o, headers: { get: (k) => hd[String(k).toLowerCase()] || null } });
     let fsQuota = false;   // 26/10/2026: "מכסת הקריאות נגמרה" — כל פנייה ל־Firestore עונה 429
     const fake = async (url, opt = {}) => {
@@ -1490,6 +1499,14 @@ function stubFetch(text, status = 200) {
         if (p.get('assertion')) return J({ access_token: 'SA', expires_in: 3600 });
         // v357: לסטודיו לקוח OAuth משלו — ההרשאה של הסטודיו עובדת רק איתו, וזו של גיבוי הספרייה לא מגיעה לסטודיו
         const cid = p.get('client_id');
+        // 17/11/2026: הבדיקה העצמית (הרשאה מזויפת) — Google בודק קודם את הלקוח והסוד (invalid_client), ורק אז את ההרשאה (invalid_grant)
+        if (p.get('refresh_token') === '1//0snb-self-check') {
+          const good = { 'scid.apps.googleusercontent.com': sAccept || ['ssecret'], 'cid.apps.googleusercontent.com': ['csecret'], 'bcid.apps.googleusercontent.com': ['bsecret'] }[cid];
+          if (!good) return J({ error: 'invalid_client', error_description: 'The OAuth client was not found.' }, 401);
+          if (!p.get('client_secret')) return J({ error: 'invalid_request', error_description: 'client_secret is missing.' }, 400);
+          return good.includes(p.get('client_secret')) ? J({ error: 'invalid_grant', error_description: 'Bad Request' }, 400) : J({ error: 'invalid_client', error_description: 'The provided client secret is invalid.' }, 401);
+        }
+        if (sAccept && cid === 'scid.apps.googleusercontent.com' && !sAccept.includes(p.get('client_secret'))) return J({ error: 'invalid_client', error_description: 'The provided client secret is invalid.' }, 401);
         if (p.get('grant_type') === 'refresh_token' && p.get('refresh_token') === 'BRT-1') return cid === 'bcid.apps.googleusercontent.com' ? J({ access_token: 'BROWSE-AT', expires_in: 3599 }) : J({ error: 'invalid_grant' }, 400);   // 26/10/2026: רשימת הקבצים
         if (p.get('grant_type') === 'authorization_code' && p.get('code') === 'BCODE' && cid === 'bcid.apps.googleusercontent.com')
           return J({ access_token: 'B-AT1', expires_in: 3599, refresh_token: 'BRT-1', scope: p.get('client_secret') === 'bsecret' ? 'openid email https://www.googleapis.com/auth/drive.readonly' : 'openid email', id_token: 'x.' + b64u({ email: 'drive.owner@example.com' }) + '.y' });
@@ -1665,6 +1682,51 @@ function stubFetch(text, status = 200) {
     ok(r.statusCode === 400 && calls.filter((c) => c.url.includes('oauth2.googleapis.com/token')).length === nTok, 'PKCE: verifier בצורה לא תקינה — נדחה, בלי פנייה ל־Google');
     r = await run({ op: 'status', idToken: OWNER });
     ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected && r.payload.drive.email === 'drive.owner@example.com' && r.payload.kinds.join() === 'ping,tr,rr,ai,dx', 'סטודיו: מצב — Drive של הסטודיו מחובר, עדיין לא Claude; העובד יודע לבדוק חיבור, לתרגם, להפיק מחדש, לענות על גיליון AI ולשמור ב־Drive');
+
+    // 17/11/2026: הסוד של לקוח ה־Drive של הסטודיו — ניקוי, בדיקה עצמית, וסוד חלופי מוצפן בכספת (הספרייה נדחתה ב־invalid_client)
+    {
+      const G = require('../lib/gdrive');
+      const NEW = 'GOCSPX-' + 'N'.repeat(28);
+      G._reset();
+      process.env.STUDIO_GDRIVE_CLIENT_SECRET = ' "ssecret"\u200f ';
+      ok(G.studio.cfg().secret === 'ssecret' && G.studio.cfg().src === 'env', 'Drive: סוד בסביבה עם מירכאות וסימן כיוון — מנוקה לפני השימוש');
+      let ck = await G.studio.check({ fetch: fake }, true);
+      ok(ck.st === 'ok' && ck.fix === true && ck.src === 'env', 'Drive: בדיקה עצמית — סוד תקין (invalid_grant להרשאה המזויפת); fix מסמן שהניקוי שינה את הערך');
+      process.env.STUDIO_GDRIVE_CLIENT_SECRET = 'ssecret';
+      G._reset();
+      sAccept = [NEW];   // הסוד שבשרת הוחלף / נמחק ב־Google
+      r = await run({ op: 'drive', idToken: OWNER });
+      ok(r.statusCode === 200 && r.payload.ok === false && r.payload.error === 'gd_http_401' && r.payload.why === 'invalid_client' && db.has('studioDrive/ownerUid0001'), 'Drive: הסוד בשרת נדחה — invalid_client כמו בייצור, והחיבור נשאר');
+      r = await run({ op: 'gdCheck' });
+      ok(r.payload.ok && r.payload.ck.studio.st === 'bad_secret' && r.payload.ck.studio.src === 'env' && !('library' in r.payload.ck) && !/ssecret|csecret/.test(JSON.stringify(r.payload)),
+        'Drive: הבדיקה הציבורית — רק סיווג לכל לקוח (bad_secret / ok), בלי שום ערך');
+      ck = await G.studio.check({ fetch: fake });
+      ok(ck.st === 'bad_secret', 'Drive: הבדיקה במטמון — אותה תשובה בלי פנייה נוספת');
+      const lk = await G.check({ fetch: fake }, true);
+      ok(lk.st === 'ok' && lk.src === 'env', 'Drive: הבדיקה העצמית של לקוח הגיבוי של Academy — נפרדת, והסוד שלו תקין');
+      const nTk = calls.filter((c) => c.url.includes('oauth2.googleapis.com/token')).length;
+      r = await run({ op: 'gdSecret', idToken: FRIEND, s: NEW });   // משתמש של הסטודיו שאינו המנהל
+      ok(r.statusCode === 403 && r.payload.error === 'not_admin' && !db.has('studioVault/_gdc'), 'Drive: סוד חדש — רק המנהל');
+      r = await run({ op: 'gdSecret', idToken: OWNER, s: 'abc def' });
+      ok(r.payload.ok === false && r.payload.error === 'bad_format' && !db.has('studioVault/_gdc') && calls.filter((c) => c.url.includes('oauth2.googleapis.com/token')).length === nTk,
+        'Drive: סוד בצורה לא תקינה — נדחה בלי לפנות ל־Google');
+      r = await run({ op: 'gdSecret', idToken: OWNER, s: 'GOCSPX-' + 'W'.repeat(28) });
+      ok(r.payload.ok === false && r.payload.error === 'bad_secret' && !db.has('studioVault/_gdc'), 'Drive: סוד ש־Google דוחה — לא נשמר');
+      r = await run({ op: 'gdSecret', idToken: OWNER, s: '\u200e"' + NEW + '"\n' });
+      const gdc = db.get('studioVault/_gdc');
+      ok(r.payload.ok && r.payload.drive === 'ok' && gdc && !JSON.stringify(gdc).includes(NEW) && vault.open(gdc.fields.studio.stringValue, 'gdclient|studio').s === NEW
+        && vault.open(gdc.fields.studio.stringValue, 'gdclient|library') === null && !JSON.stringify(r.payload).includes(NEW),
+        'Drive: סוד תקין — נבדק מול Google, נשמר מוצפן (AAD לכל לקוח), לא חוזר בתשובה, והגישה ל־Drive חוזרת מיד');
+      ok([...db.keys()].some((k) => k.startsWith('sysLog/') && (db.get(k).fields.k || {}).stringValue === 'gd_set' && !JSON.stringify(db.get(k)).includes(NEW)), 'Drive: הסוד החדש ביומן הפעולות — בלי הערך');
+      r = await run({ op: 'drive', idToken: OWNER });
+      ok(r.payload.ok && r.payload.token === 'DRIVE-AT', 'Drive: אחרי הסוד החדש — הספרייה מקבלת גישה');
+      G._reset();   // אתחול של השרת: הסוד נקרא מהכספת
+      r = await run({ op: 'drive', idToken: OWNER });
+      ok(r.payload.ok && r.payload.token === 'DRIVE-AT' && G.studio.cfg().src === 'vault', 'Drive: אחרי אתחול — הסוד נטען מהכספת וגובר על הסביבה');
+      r = await run({ op: 'gdCheck' });
+      ok(r.payload.ck.studio.st === 'ok' && r.payload.ck.studio.src === 'vault', 'Drive: הבדיקה הציבורית אחרי התיקון — ok מהכספת');
+      sAccept = null; db.delete('studioVault/_gdc'); G._reset();
+    }
 
     // חיבור: כספת
     r = await run({ op: 'connect', idToken: OWNER, url: 'https://evil.example/fire', key: RKEY });
@@ -2528,6 +2590,19 @@ function stubFetch(text, status = 200) {
         const sw = SR.libSwap(SR.fromFields(db.get('studioJobs/' + LP).fields));
         ok(sw && sw.folder === 'libProj1234567' && sw.fo.map((o) => o.id).join() === 'drvV1234567890,drvS1234567890' && sw.fv.id === 'drvR1234567890' && sw.vlib.home === 1, 'ספרייה: libSwap — התוצרים, המקור והתיקייה עוברים ל־Drive');
         ok(SR.libSwap({ fo: [] }) === null && SR.normLibDone({ m: 'manif123456789', fd }, { lib: 0, it: [] }) === null, 'ספרייה: בלי שמירה — אין החלפה');
+        // 18/11/2026: מחיקה מהספרייה (libDrop) — רק עם המניפסט של העבודה; מי שלא הבעלים — לא מוצא; עבודה שעברה הביתה נשארת
+        const vlOf = () => SR.fromFields(db.get('studioJobs/' + LP).fields).vlib;
+        rr = await run({ op: 'libDrop', idToken: OWNER, job: LP, m: 'otherManif12345' });
+        ok(rr.payload.ok && vlOf() && vlOf().m === 'manif123456789', 'ספרייה: libDrop עם מניפסט אחר — לא נוגע');
+        rr = await run({ op: 'libDrop', idToken: READER, job: LP, m: 'manif123456789' });
+        ok(!rr.payload.ok && vlOf() && vlOf().m === 'manif123456789', 'ספרייה: libDrop — רק הבעלים');
+        await patchJobRaw(LP, { vlib: Object.assign({}, vlOf(), { home: 1 }) });
+        rr = await run({ op: 'libDrop', idToken: OWNER, job: LP, m: 'manif123456789' });
+        ok(rr.payload.ok && vlOf() && vlOf().home === 1, 'ספרייה: libDrop — עבודה שעברה הביתה נשארת כמו שהיא');
+        await patchJobRaw(LP, { vlib: Object.assign({}, vlOf(), { home: 0 }) });
+        rr = await run({ op: 'libDrop', idToken: OWNER, job: LP, m: 'manif123456789' });
+        ok(rr.payload.ok && !vlOf() && !rr.payload.job.lib && SR.libSwap(SR.fromFields(db.get('studioJobs/' + LP).fields)) === null,
+          'ספרייה: libDrop — העבודה כבר לא בספרייה, ובפקיעה לא תעבור לקבצים שבפח');
       }
       for (const id of [JP, JN]) await run({ op: 'remove', idToken: OWNER, job: id });
       ok(!db.get('studioJobs/' + R3), 'סטודיו: הפקה מחדש — נמחקת יחד עם העבודה המקורית');
@@ -4003,6 +4078,29 @@ function stubFetch(text, status = 200) {
         && !SC.perfBlock({ kind: 'ai', spec: { dur: 7200 } }, FD) && !SC.perfBlock({ kind: 'tr', spec: { dur: 3600 } }, SC.normFit(FIT))
         && SC.perfBlock({ kind: 'rr', spec: { dur: 3600 } }, FD) && !SC.perfBlock({ kind: 'tr', spec: { dur: 3600, src: 'subs' } }, FD)
         && SC.perfBlock({ kind: 'tr', spec: {} }, FD), 'perfBlock: לפי האורך מול dm; בלי dm — בלי הגבלה');
+      {
+        // 18/11/2026 (תרגום של 25 דק׳ "צריך 11GB" ליד ניתוח בעברית): זיכרון לפי מסלול — קריוקי וניתוח בעברית במודל משלהם
+        const F2 = SC.normFit({ ...FIT, va: 5060, vb: 24.2, ka: 10800, ks: 24.2, ha: 9700, hs: 24.2 });
+        ok(F2.ka === 10800 && F2.ks === 24.2 && F2.ha === 9700 && F2.hs === 24.2 && SC.normFit({ ...FIT, ka: 10800 }).ka === undefined
+          && SC.normFit({ ...FIT, ha: 1e9, hs: 1 }).ha === undefined, 'fit: ka/ks ו־ha/hs — רשות, בזוגות, בגבולות');
+        const TR25 = { kind: 'tr', spec: { dur: 1500, from: 'auto' } }, KA = { kind: 'tr', spec: { dur: 240, ka: 1 } };
+        const VH = { kind: 'tr', spec: { dur: 2700, vi: 1, from: 'he' } }, VE = { kind: 'tr', spec: { dur: 2700, vi: 1, from: 'en' } };
+        const VX = { kind: 'tr', spec: { dur: 2700, vi: 1, from: 'auto' } }, VO = { kind: 'tr', spec: { dur: 2700, vi: 1, from: 'he', vo: 1 } };
+        ok(SC.memClass(TR25) === '' && SC.memClass(KA) === 'ka' && SC.memClass(VH) === 'vh' && SC.memClass(VE) === '' && SC.memClass(VX) === 'vx'
+          && SC.memClass(VO) === '' && SC.memClass({ kind: 'rr', spec: { ka: 1 } }) === '' && SC.memClass({ kind: 'ai', spec: { vi: 1 } }) === '', 'memClass: = mem_kind בסוכן');
+        ok(SC.peakNeed(TR25, F2) === 5060 + 24.2 * 25 && SC.peakNeed(KA, F2) === 10800 + 24.2 * 4 && SC.peakNeed(VH, F2) === 9700 + 24.2 * 45
+          && SC.peakNeed(VE, F2) === 5060 + 24.2 * 45 && SC.peakNeed(VX, F2) === 9700 + 24.2 * 45 && SC.peakNeed(VO, F2) === 770,
+          'peakNeed: תרגום לא מושפע מקריוקי; ניתוח בעברית/באנגלית/אוטומטי; "אמת שוב" — קל');
+        ok(SC.peakNeed(KA, FIT) === 5060 + 24.2 * 4 && SC.peakNeed(VH, SC.normFit({ ...FIT, va: 6000, vb: 24.2 })) === 6000 + 24.2 * 45,
+          'peakNeed: סוכן ישן (בלי ka/ha) — כמו היום');
+        ok(SC.peakNeed(TR25, F2) < 10240 && !SC.qwOf(TR25, SC.normFit({ ...F2, mb: 10240 })), 'המקרה מהטלפון: 25 דק׳ מאנגלית נכנסת ב־10GB פנויים');
+        ok(!SC.perfBlock(VO, SC.normFit({ ...FIT, dm: 1, dv: 1 })), 'perfBlock: "אמת שוב" — בלי מעבד');
+        const MM = SC.normMm({ tr: [6512, 4], ka: [11300, 2], vi: [7000, 0], vh: [11000, 3], rr: [3000, 1], zz: [1, 1], x: 'y',
+          pk: [['tr', 25, 4800, 'al'], ['ka', 4, 9900, 'tr'], ['vh', 45, 9800, ''], ['zz', 1, 1, ''], ['tr', 1, 1, '<b>'], ['tr', -1, 1, ''], ['tr', 1, 1]] });
+        ok(JSON.stringify(MM) === JSON.stringify({ tr: [6512, 4], ka: [11300, 2], vi: [7000, 0], vh: [11000, 3], rr: [3000, 1],
+          pk: [['tr', 25, 4800, 'al'], ['ka', 4, 9900, 'tr'], ['vh', 45, 9800, '']] }) && SC.normMm(null) === null && SC.normMm([]) === null
+          && SC.normMm({ tr: ['1', 2] }) === null && SC.normHb({ mm: { tr: [1, 1] } }).mm.tr[0] === 1 && SC.normHb({}).mm === null, 'normMm: מספרים וקודים מקטלוג בלבד');
+      }
       rr = await run({ op: 'create', idToken: OWNER, spec: Object.assign({}, SPECA, { px: 1 }) });
       const JF = rr.payload.job.id;
       await run({ op: 'file', idToken: OWNER, job: JF, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
@@ -4025,6 +4123,7 @@ function stubFetch(text, status = 200) {
       ok(JSON.stringify(qwOf()) === JSON.stringify({ r: 'perf', d: 30 }), 'qw: הקבלה החזויה — כדי לא להאט את מה שרץ');
       rr = await srvRun({ op: 'poll', hb: { nj: 1, cpu: 16 }, fit: Object.assign({}, FIT, { mb: 9000 }) }, STOK);
       ok(rr.payload.job && rr.payload.job.id === JF && rr.payload.job.dur === 4620, 'fit: נכנסת — נלקחת, עם האורך (להזמנת הזיכרון בסוכן)');
+      ok(rr.payload.job.mk === undefined, 'תרגום רגיל — בלי mk (המסלול לפי הסוג)');
       const KF = rr.payload.job.key;
       let fl = db.get('studioJobs/' + JF).fields;
       ok(qwOf() === null, 'qw: נלקחה — הסיבה נמחקת');
