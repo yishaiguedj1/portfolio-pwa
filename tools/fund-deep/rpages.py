@@ -210,6 +210,7 @@ def ingest(db, cik, name, sic, f):
     reps = re.findall(r'<Report[^>]*>(.*?)</Report>', fs, re.S)
     n_pre = n_num = 0
     taken, skipped = set(), []
+    nseen = set()  # אותה עובדה בשני דפים (המאזן וה־Parenthetical — AEP, Ameren): ערך אחד, לא שניים (החוב נספר כפול)
     db.execute('DELETE FROM pre WHERE adsh=?', (acc,))
     db.execute('DELETE FROM num WHERE adsh=?', (acc,))
     db.execute('INSERT OR REPLACE INTO sub VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
@@ -243,6 +244,9 @@ def ingest(db, cik, name, sic, f):
                 seen.add((tag, line))
                 db.execute('INSERT INTO pre VALUES (?,?,?,?,?,?,?,?,?,?)', (acc, rep, line, st, par, 'H', tag, ver, lab, neg))
                 n_pre += 1
+            if (tag, ver, ddate, qtrs, uom) in nseen:
+                continue
+            nseen.add((tag, ver, ddate, qtrs, uom))
             db.execute('INSERT INTO num VALUES (?,?,?,?,?,?,?)', (acc, tag, ver, ddate, qtrs, uom, val))
             n_num += 1
     db.commit()

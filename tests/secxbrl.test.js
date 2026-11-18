@@ -71,6 +71,10 @@ const NOW = Date.parse('2026-11-05T08:00:00Z');
 const miss = XB.missingFilings(sub, facts, NOW);
 ok(miss.map((m) => m.acc).join() === [META.acc, 'A-Q2', 'A-K'].join(), 'רק דוחות תקופתיים מקוריים שאין להם אף ערך ב־companyfacts, מהחדש לישן (לא 8-K/S-8, לא תיקון ‎/A‎, לא ישן מ־800 יום)');
 ok(miss[0].doc === 'acme-20260930.htm' && miss[0].per === '2026-09-30', 'שם המסמך ותאריך התקופה');
+// גל 2 (17/11/2026, ‏TSMC ‏20-F ל־2025): ב־companyfacts רק dei/srt מההגשה — עדיין חסרה
+const factsDei = { facts: { ...facts.facts, dei: { EntityCommonStockSharesOutstanding: { units: { shares: [{ end: '2025-12-31', val: 9, accn: 'A-K', form: '10-K', filed: '2026-02-20' }] } } },
+  srt: { X: { units: { shares: [{ end: '2024-06-05', val: 1, accn: 'A-K', form: '10-K', filed: '2026-02-20' }] } } } } };
+ok(XB.missingFilings(sub, factsDei, NOW).map((m) => m.acc).includes('A-K'), 'הגשה שב־companyfacts יש לה רק ערכי dei/srt — חסרה (TSMC ‏2025)');
 ok(XB.missingFilings(null, facts).length === 0 && XB.missingFilings({}, facts).length === 0, 'בלי submissions — אין מה להשלים');
 const many = { filings: { recent: { form: Array(9).fill('10-Q'), accessionNumber: [...Array(9).keys()].map((i) => 'M' + i),
   filingDate: Array(9).fill('2026-10-01'), reportDate: Array(9).fill('2026-09-30'), primaryDocument: Array(9).fill('d.htm'), isXBRL: Array(9).fill(1) } } };
