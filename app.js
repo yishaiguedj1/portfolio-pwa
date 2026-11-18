@@ -499,6 +499,7 @@ he: {
   anDnR40: 'אצלנו: צמיחת ההכנסות + שולי הרווח התפעולי (ההגדרה המקובלת). יש אתרים שמחשבים עם שולי התזרים החופשי, ושם המספר שונה.',
   anDnEps: 'אצלנו: רווח מדולל למניה. יש אתרים שמציגים רווח בסיסי, שיוצא מעט גבוה יותר.',
   anDnFcf: 'אצלנו: תזרים מפעילות שוטפת פחות השקעות הוניות. יש אתרים שמורידים גם את התשלום במניות.',
+  anDnOwn: 'מזומן לבעלים: התזרים החופשי פחות התגמול במניות, כמו שבאפט מחשב — מניות שמחולקות לעובדים הן הוצאה אמיתית, גם אם לא יצא עליהן מזומן.',
   anDnDebt: 'אצלנו: כל החוב הפיננסי — לטווח קצר ולטווח ארוך, בלי חכירות. יש אתרים שסופרים רק חוב לטווח ארוך, ושם יוצא נמוך יותר.',
   anDnCr: 'אצלנו: נכסים שוטפים ÷ התחייבויות שוטפות. יש אתרים שמחלקים את כל הנכסים בכל ההתחייבויות, ושם המספר שונה.',
   anDnRoic: 'יש כמה דרכים לחשב. אצלנו: רווח תפעולי אחרי מס ÷ (הון + חוב − מזומן).',
@@ -2429,6 +2430,7 @@ en: {
   anDnR40: 'Here: revenue growth + operating margin (the standard definition). Some sites use the free cash flow margin, so their number differs.',
   anDnEps: 'Here: diluted earnings per share. Some sites show basic EPS, which comes out slightly higher.',
   anDnFcf: 'Here: operating cash flow minus capital expenditures. Some sites also subtract stock-based pay.',
+  anDnOwn: 'Owner cash flow: free cash flow minus stock-based pay, the way Buffett counts it — shares handed to employees are a real cost, even when no cash goes out.',
   anDnDebt: 'Here: all financial debt — short and long term, leases excluded. Some sites count only long-term debt, so theirs is lower.',
   anDnCr: 'Here: current assets ÷ current liabilities. Some sites divide all assets by all liabilities, so their number differs.',
   anDnRoic: 'There are several ways to compute it. Here: after-tax operating income ÷ (equity + debt − cash).',
@@ -8243,8 +8245,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.180.0';
-const APP_VERSION = 'v829';
+const APP_RELEASE = '2.181.0';
+const APP_VERSION = 'v830';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
