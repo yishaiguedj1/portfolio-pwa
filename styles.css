@@ -1081,7 +1081,8 @@ html[dir="ltr"] .stock-foot .kc-open-btn { order: -1; }   /* באנגלית (כ�
 /* תשואה ענקית (מעל 10,000%) מוצגת מקוצרת (‎fmtPct‎ — 12.3K%) — הכפתורים נשארים בגודל נוח ולא נדרסים */
 /* 28/10/2026: התראות המחיר של המניה בכרטיס — רשימה מקובצת לפי ת־עיצוב (כותרת קטנה, שורות עם קו מפריד, חץ) */
 /* 18/11/2026: ההתראות — שורת שבבים בגובה אחד (כמו טאבי רשימת המעקב), פעמון־פלוס בהתחלה; החומר — glass-btn.css */
-.st-al { display: flex; align-items: center; gap: 8px; margin: 2px 14px 10px; }
+/* 18/11/2026 (בקשת המשתמש): ריווח אחיד לפי ת־עיצוב — 12px מעל (משורת הטווחים) ו־12px מתחת (4 + ריפוד הכרטיס 8), מיושר לקצוות שורת הטווחים */
+.st-al { display: flex; align-items: center; gap: 8px; margin: 12px 0 4px; }
 .st-al[hidden] { display: none; }
 .st-al-add { inline-size: 36px; block-size: 36px; flex: none; display: grid; place-items: center; border: 0; border-radius: var(--pill); background: var(--surface); color: var(--on-surface); cursor: pointer; padding: 0; }
 .st-al-add svg { inline-size: 20px; block-size: 20px; }
@@ -1089,7 +1090,8 @@ html[dir="ltr"] .stock-foot .kc-open-btn { order: -1; }   /* באנגלית (כ�
 .st-al-add:active { transform: scale(.92); }
 .st-al-chips { flex: 1; min-inline-size: 0; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-block: -6px; padding: 6px 2px; }
 .st-al-chips::-webkit-scrollbar { display: none; }
-.st-al-chip { flex: none; display: inline-flex; align-items: center; gap: 4px; block-size: 36px; padding: 0 13px 0 11px; box-sizing: border-box;
+/* 18/11/2026 (בקשת המשתמש): המחיר והאחוז (בגדלים שונים) על קו בסיס משותף לפי ת־עיצוב, והשורה כולה ממורכזת בגובה (wrap + align-content — שורה אחת, לא נשברת); החץ ממורכז */
+.st-al-chip { flex: none; display: inline-flex; flex-wrap: wrap; align-content: center; align-items: baseline; gap: 4px; block-size: 36px; padding: 0 13px 0 11px; box-sizing: border-box;
   border: 1px solid var(--outline); border-radius: var(--pill); background: var(--surface); color: var(--on-surface); font: inherit; cursor: pointer; white-space: nowrap; transition: transform .15s ease; }
 .st-al-chip:active { transform: scale(.96); }
 .st-al-chip b { font-size: 15px; font-weight: 600; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
@@ -1097,7 +1099,7 @@ html[dir="ltr"] .stock-foot .kc-open-btn { order: -1; }   /* באנגלית (כ�
 .st-al-d:empty { display: none; }
 .st-al-d.pos { color: var(--gain); }
 .st-al-d.neg { color: var(--loss); }
-.st-al-arr { display: grid; color: var(--on-surface-var); }
+.st-al-arr { display: grid; align-self: center; color: var(--on-surface-var); }
 .st-al-arr svg { inline-size: 13px; block-size: 13px; display: block; }
 .st-al-chip.up .st-al-arr { color: var(--gain); }
 .st-al-chip.down .st-al-arr { color: var(--loss); }
