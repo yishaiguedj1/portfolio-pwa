@@ -4,17 +4,17 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v816';
+const CACHE_NAME = 'portfolio-pwa-v818';
 const HASHES = {
   "./": "a4c10604dc53d9719855cb70d87ca9ff",
   "./index.html": "a4c10604dc53d9719855cb70d87ca9ff",
   "./styles.css": "07e1e3c2444079fdf232e0d3f7d50a37",
-  "./glass-btn.css": "0a9285c51375f8b19be68e5b0bfe7e7d",
+  "./glass-btn.css": "eb48f42fbaadd0f9c2a322cfe67bf051",
   "./invest-glass.css": "bb7073d34f0cae3eb2861ef0f6083002",
   "./academy-glass.css": "ae0f0a4c37f00512734308010a546a77",
   "./studio-glass.css": "f7e2d758d97466a2c3625e5949e9d5f0",
   "./desktop.css": "22dcb3bea6e645027d3146b31d66712a",
-  "./app.js": "a110993eed627d42bce9bd9bfc38682c",
+  "./app.js": "b7b770f56b858525de68ffb8fd845029",
   "./returns.js": "afe0d262348852fd10982ef2d0239545",
   "./cloud.js": "d403f6c76884375dc9999b80660f1ddf",
   "./firebase-config.js": "a4adfadcd5fe3b79a29e9fa0eeb94df0",
@@ -80,7 +80,7 @@ const HASHES = {
   "./academy.html": "9c6de2f5fd2634d07d9c0e0a6dc9ebe7",
   "./academy-app.js": "8f943cfa4b1bbb60bc8d83d4304d9978",
   "./strings-academy.js": "048d99744c4cb4cce131c0557ce4048a",
-  "./core.js": "8f36d45271c316fa38d186a92bdf8173",
+  "./core.js": "d1eefd8c0cbf54af0897c632e1ef8559",
   "./auth.js": "465d3bc983806d8a2f462e567725df21",
   "./shell.js": "04e4e9bb8b1a12538f4b12ac699dabd5",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -89,10 +89,10 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "70a708349614a15c6e6b45785abe0d13",
-  "./studio.css": "8d5421e3c30151ff5cb1856e99839e5b",
-  "./studionet.js": "4dea5de0875343834963eb187a1e7718",
-  "./studioplay.js": "0b89b8c22e6e7b388bbb8c9a4820c64c",
+  "./studio.js": "f56b6a8d2e02d26ee19bf28d06aa5012",
+  "./studio.css": "e45a174ad196f13a3fd56a01a519f970",
+  "./studionet.js": "204b0f8988e2ab721e8c3a4e5eacec13",
+  "./studioplay.js": "15609fe2c3eb0a9364ed585642a8bfaa",
   "./studiovi.js": "985efcace5223c3240673be8328b86b2",
   "./studiospk.js": "d2da9bbef05bf9bfcd5b14bfd24b476a",
   "./studiosubs.js": "1eeb2f09271dd3288b3144bbf466e128",
@@ -301,20 +301,61 @@ function askToken(clientId, id, fresh) {
     c.postMessage({ snbMedia: id, fresh: !!fresh }, [ch.port2]);
   }));
 }
+/* 18/11/2026 (בקשת המשתמש: "הסרטון לא מתחיל לעבוד, אחרי שעושים play לא קורה כלום" — ניגון מהספרייה ב־Drive): הבקשה של
+   ה־SW ל־Drive נכשלה או לא ענתה, והנגן נשאר שחור בלי שגיאה. הכתוביות של אותו פריט נטענו מהדף. לכן: בקשה מה־SW ל־Drive
+   שנכשלה (רשת / תשובה לא צפויה) או שלא ענתה תוך MEDIA_WAIT — הדף מביא את אותו טווח בעצמו ומעביר את הבתים (askBytes, עד
+   MEDIA_RELAY_CAP; ArrayBuffer מועבר בלי העתקה). מאז, לאותו קובץ — ישר דרך הדף. נכשל גם שם — הדף שומר את הסיבה ומציג אותה */
+const MEDIA_WAIT = 20000;
+const MEDIA_RELAY_CAP = 8 * 1024 * 1024;
+const mediaBad = new Map();                      // id → עד מתי: גם הדף לא הצליח — הדפדפן מנסה שוב ושוב, בלי עוד בקשות
+function askBytes(clientId, id, a, b) {
+  return self.clients.get(clientId).then((c) => new Promise((ok) => {
+    if (!c) { ok(null); return; }
+    const ch = new MessageChannel();
+    const tm = setTimeout(() => ok(null), 60000);
+    ch.port1.onmessage = (e) => {
+      clearTimeout(tm);
+      const buf = e.data && e.data.buf;
+      ok(buf && typeof buf.byteLength === 'number' && buf.byteLength > 0 && buf.byteLength <= b - a + 1 ? buf : null);
+    };
+    c.postMessage({ snbBytes: id, a, b }, [ch.port2]);
+  }), () => null);
+}
+async function driveRange(id, t, rg) {   // null = נכשלה או לא ענתה בזמן (רק עד הכותרות — הגוף זורם בלי תקרת זמן)
+  const ac = typeof AbortController === 'function' ? new AbortController() : null;
+  const tm = ac ? setTimeout(() => ac.abort(), MEDIA_WAIT) : 0;
+  try { return await fetch('https://www.googleapis.com/drive/v3/files/' + id + '?alt=media', { headers: { Authorization: 'Bearer ' + t, Range: rg }, cache: 'no-store', signal: ac ? ac.signal : undefined }); }
+  catch (x) { return null; }
+  finally { clearTimeout(tm); }
+}
 async function mediaFetch(event, id) {
+  if ((mediaBad.get(id) || 0) > Date.now()) return new Response('', { status: 502 });
   for (let i = 0; i < 2; i++) {
     let e = mediaTok.get(id);
     if (!e || i === 1 || e.exp - 60e3 <= Date.now()) {
+      const relay = !!(e && e.relay);
       e = await askToken(event.clientId, id, i === 1);
       if (!e) return new Response('', { status: 403 });
+      if (relay) e.relay = true;
       mediaTok.set(id, e);
     }
     const r = mediaRange(event.request.headers.get('range'), e.size, MEDIA_CAP);
     if (!r) return new Response('', { status: 416, headers: { 'Content-Range': 'bytes */' + e.size } });
     const rg = 'bytes=' + r[0] + '-' + r[1];
     const res = e.u ? await fetch(e.u, { headers: { Range: rg }, cache: 'no-store', credentials: 'omit' })   // R2: הקישור החתום, בלי Authorization
-      : await fetch('https://www.googleapis.com/drive/v3/files/' + id + '?alt=media', { headers: { Authorization: 'Bearer ' + e.t, Range: rg }, cache: 'no-store' });
-    if ((res.status === 401 || res.status === 403) && i === 0) { mediaTok.delete(id); continue; }   // האסימון פג — פעם אחת חדש
+      : e.relay ? null : await driveRange(id, e.t, rg);
+    if (res && (res.status === 401 || res.status === 403) && i === 0) { mediaTok.delete(id); continue; }   // האסימון פג — פעם אחת חדש
+    if (!e.u && !(res && (res.status === 206 || (res.status === 200 && r[0] === 0)))) {   // Drive מה־SW לא הצליח — דרך הדף
+      const b = Math.min(r[1], r[0] + MEDIA_RELAY_CAP - 1);
+      const buf = await askBytes(event.clientId, id, r[0], b);
+      if (!buf) { mediaBad.set(id, Date.now() + 5000); return new Response('', { status: 502 }); }
+      mediaBad.delete(id);
+      e.relay = true;
+      const end = r[0] + buf.byteLength - 1;
+      return new Response(buf, { status: 206, headers: {
+        'Content-Type': e.type, 'Content-Length': String(buf.byteLength), 'Content-Range': 'bytes ' + r[0] + '-' + end + '/' + e.size,
+        'Accept-Ranges': 'bytes', 'Cache-Control': 'no-store' } });
+    }
     if (res.status !== 206 && !(res.status === 200 && r[0] === 0)) return new Response('', { status: 502 });
     const end = res.status === 200 ? e.size - 1 : r[1];
     return new Response(res.body, { status: 206, headers: {

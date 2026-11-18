@@ -609,7 +609,7 @@ export function createPlayer(opts) {
   wrap.append(v, sub, rl, rr, ui, fToast, fastL, err);
 
   /* ---- איכות: hls.js על הקבצים שהעובד ארז (opts.ladder), ברירת מחדל = המקור ---- */
-  let pq = normPq(opts.pq), hls = null, levels = [], autoNow = -1, mode = 'file', altsNow = [];
+  let pq = normPq(opts.pq), hls = null, levels = [], autoNow = -1, mode = 'file', altsNow = [], fbOn = !opts.src;   // fbOn — כבר מנגנים את החלופי
   // 17/11/2026: איכות אחת (המקור בלבד) = HLS רק כשיש עותק קול לנגן; אחרת הקובץ כמו שהוא
   const ladder = Array.isArray(opts.ladder) && (opts.ladder.length > 1 || (opts.ladder.length === 1 && opts.alt && (!Array.isArray(opts.alt) || opts.alt.length))) ? opts.ladder : null;
   function qNow() {
@@ -631,7 +631,7 @@ export function createPlayer(opts) {
   function toFile(t) {   // בלי hls (אין MSE / אין hls.js / תקלה) — הקובץ כמו קודם, מאותו מקום
     if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
     mode = 'file'; levels = []; altsNow = [];
-    v.src = opts.src || opts.fallback || '';
+    fbOn = !opts.src; v.src = opts.src || opts.fallback || '';
     if (t) { const go = () => { v.currentTime = t; v.removeEventListener('loadedmetadata', go); }; v.addEventListener('loadedmetadata', go); }
     paintHd();
   }
@@ -1047,18 +1047,42 @@ export function createPlayer(opts) {
   v.addEventListener('progress', paintBar);
   v.addEventListener('loadedmetadata', () => { paintBar(); paintHeat(); paintMarks(); paintFlags(); });
   v.addEventListener('durationchange', () => { paintHeat(); paintMarks(); paintFlags(); });
-  v.addEventListener('play', () => { paintPlay(); poke(); });
+  /* 18/11/2026 (בקשת המשתמש: "אחרי שעושים play לא קורה כלום"): מקור שלא נטען ולא נכשל — בקשה שלא נענית, או ניסיונות
+     חוזרים של הדפדפן בלי אירוע error — השאיר מסך שחור בלי משך ובלי הודעה. אחרי STALL_MS מלחיצת ניגון בלי נתונים: כמו שגיאה */
+  const STALL_MS = 30000;
+  let stallT = 0;
+  const stallArm = () => {   // opts.dead(כתובת) — הקורא כבר יודע שהקובץ לא ייטען (הסיבה מ־Drive): בלי לחכות 30 שניות
+    clearTimeout(stallT);
+    const t0 = Date.now();
+    const tick = () => {
+      if (destroyed || hls || mode !== 'file' || v.error || v.readyState >= 1) return;
+      if (Date.now() - t0 >= STALL_MS || (typeof opts.dead === 'function' && opts.dead(v.currentSrc || v.src))) { srcFail(); return; }
+      stallT = setTimeout(tick, 1500);
+    };
+    stallT = setTimeout(tick, 1500);
+  };
+  v.addEventListener('play', () => { paintPlay(); poke(); if (v.readyState < 1) stallArm(); });
   v.addEventListener('pause', () => { paintPlay(); poke(); });
-  v.addEventListener('error', () => {
-    if (hls) return;   // ב־hls התקלות מגיעות מ־hls.js (ERROR) — שם הנפילה לקובץ
-    if (opts.fallback && v.src.indexOf(opts.fallback) < 0) {   // המקור לא מתנגן (קודק / MKV) — הסרטון הצרוב, בלי כתוביות מעליו
-      const t = v.currentTime || 0;
+  v.addEventListener('loadedmetadata', () => clearTimeout(stallT));
+  /* 18/11/2026: עד היום הבדיקה "כבר בחלופי?" הייתה v.src.indexOf(opts.fallback) — v.src כתובת מלאה ו־fallback יחסית
+     (‎./studio-media/…), כך שהיא אף פעם לא התאימה: חלופי שגם הוא נכשל הוגדר שוב ושוב בלולאה, בלי הודעה. עכשיו דגל */
+  function srcFail() {
+    clearTimeout(stallT);
+    if (opts.fallback && !fbOn) {   // המקור לא מתנגן (קודק / MKV) — הסרטון הצרוב, בלי כתוביות מעליו
+      fbOn = true;
+      const t = v.currentTime || 0, go = !v.paused || !!v.error;
       if (!orig) { cc = 'off'; paintCc(); paintSub(); ccB.disabled = true; }   // הניתוח: החלופי (same/small) בלי כתוביות צרובות — התמליל נשאר
       v.src = opts.fallback; v.currentTime = t;
+      if (go) { try { const p = v.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
       return;
     }
+    try { v.removeAttribute('src'); v.load(); } catch (e) {}   // בלי ניסיונות חוזרים ברקע
     err.hidden = false; err.textContent = T('studioPlErr');
     if (opts.onError) opts.onError();
+  }
+  v.addEventListener('error', () => {
+    if (hls) return;   // ב־hls התקלות מגיעות מ־hls.js (ERROR) — שם הנפילה לקובץ
+    srcFail();
   });
   // רצועת הזמנים של הכתוביות — גם כשהווידאו עומד (seek ידני)
   v.addEventListener('seeked', () => { paintBar(); paintSub(); paintChap(); });
@@ -1109,7 +1133,7 @@ export function createPlayer(opts) {
     audioBridge: () => (bridge ? bridge.state() : fBridge ? fBridge.state() : null),   // QA ובדיקות
     audio: () => ({ list: audList().map((a) => a.l || ''), now: audNow() }),             // QA ובדיקות
     destroy() {
-      if (destroyed) return; destroyed = true; document.removeEventListener('keydown', deskKeys); clearTimeout(hideT); clearTimeout(tapT); clearTimeout(ftT); clearTimeout(holdT); clearTimeout(runT); clearTimeout(ripT);
+      if (destroyed) return; destroyed = true; document.removeEventListener('keydown', deskKeys); clearTimeout(stallT); clearTimeout(hideT); clearTimeout(tapT); clearTimeout(ftT); clearTimeout(holdT); clearTimeout(runT); clearTimeout(ripT);
       if (bridge) { bridge.destroy(); bridge = null; }
       if (fBridge) { fBridge.destroy(); fBridge = null; }
       if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }

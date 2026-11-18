@@ -1483,6 +1483,11 @@ html.st-dock .toast { bottom: calc(var(--dock-pad, var(--dock-h, 120px)) + 12px 
 .st-lib-hero { position: relative; }
 .st-lib-hero .st-lp.big { aspect-ratio: 16 / 10; border-radius: 0; }
 .st-lib-hero .st-pl-ph { aspect-ratio: 16 / 10; display: grid; place-items: center; }
+/* 18/11/2026: הסרטון לא נטען — ההודעה, הסיבה (הקוד של Drive) ושתי פעולות, על הרקע השחור של הנגן */
+.st-lib-hero .st-lp-err { place-items: center; align-content: center; gap: 10px; padding: 16px; text-align: center; color: #fff; }
+.st-lp-why { color: #98989D; font-size: 12px; unicode-bidi: isolate; }
+.st-lp-acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-block-start: 4px; }
+.st-lp-a { display: inline-flex; align-items: center; min-block-size: 38px; padding-inline: 16px; border: 0; border-radius: var(--radius-xl); background: rgba(255, 255, 255, .16); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); color: #fff; font: inherit; font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; }
 .st-lib-back { position: absolute; inset-block-start: calc(12px + env(safe-area-inset-top, 0px)); inset-inline-start: 12px; z-index: 2; display: grid; place-items: center; inline-size: 40px; block-size: 40px;
   border: 0; border-radius: var(--pill); color: var(--on-surface); background: var(--gl-panel); -webkit-backdrop-filter: var(--gl-fx); backdrop-filter: var(--gl-fx); box-shadow: var(--gl-ring); }
 .st-lib-back svg { inline-size: 20px; block-size: 20px; }
