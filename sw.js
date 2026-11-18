@@ -4,17 +4,17 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v835';
+const CACHE_NAME = 'portfolio-pwa-v836';
 const HASHES = {
   "./": "bc34c9382e9d1e5ae834bb4f7fa3e7f3",
   "./index.html": "bc34c9382e9d1e5ae834bb4f7fa3e7f3",
-  "./styles.css": "d5bc272f825fad200cf4ba6aa1315f13",
+  "./styles.css": "ff8915dcee5b4a037e081268ff9947a1",
   "./glass-btn.css": "ebed4bb6e73d488190a601f3344d9c78",
   "./invest-glass.css": "c9ba135fad9786a92d96d71a2793f83d",
   "./academy-glass.css": "689d316e8872779cdf9808f3cf285272",
   "./studio-glass.css": "d54e6727b159ff068609af08418f51a8",
   "./desktop.css": "22dcb3bea6e645027d3146b31d66712a",
-  "./app.js": "d90b1592f0edd26d284ca09f24aa9b17",
+  "./app.js": "043b3d344b0dc6d9311568841588d5e8",
   "./returns.js": "afe0d262348852fd10982ef2d0239545",
   "./cloud.js": "d403f6c76884375dc9999b80660f1ddf",
   "./firebase-config.js": "a4adfadcd5fe3b79a29e9fa0eeb94df0",
@@ -80,7 +80,7 @@ const HASHES = {
   "./academy.html": "9c6de2f5fd2634d07d9c0e0a6dc9ebe7",
   "./academy-app.js": "8f943cfa4b1bbb60bc8d83d4304d9978",
   "./strings-academy.js": "2847f9d77840ebec4da88b84eb1601b9",
-  "./core.js": "1fc93f795619f31583813ee5f9807c38",
+  "./core.js": "289d034d7e1186b72efca8aaf8c24152",
   "./auth.js": "465d3bc983806d8a2f462e567725df21",
   "./shell.js": "568d54e3e8ef15bf5ebba098dabcab24",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
