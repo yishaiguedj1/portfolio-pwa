@@ -1617,5 +1617,38 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     const b = F.normalizeSec(fx, [], face);
     ok(b.A.msec[b.fy.indexOf('2021-12-31')] === 13 && b.A.msec[b.fy.indexOf('2020-12-31')] === 18, '(33) בלי שורה מודפסת — הראשית היא זו שדיווחה אחרונה, לא תגית ביאור שנעצרה שנה קודם');
   }
+  /* ---------- (34) רווח והפסד לפי הגשה (18/11/2026, גל 5 — F20, bsfIs) ---------- */
+  {
+    const K = (filed, ends, rows) => ({ form: '10-K', filed, is: { cols: ends.map((end) => ({ end, months: 12 })), scale: { cur: 1e6 },
+      rows: rows.map(([ns, tag, v]) => ({ ns, tag, label: tag, v })) } });
+    const have = {
+      a: K('2026-02-10', ['2025-12-31', '2024-12-31', '2023-12-31'], [['us-gaap', 'InterestAndDebtExpense', [176, 195, 226]], ['us-gaap', 'OperatingIncomeLoss', [900, 850, 800]]]),
+      // הדוח של 2023: השורה בתגית אחרת; 2021 — ‏380 המודפס (אצלנו 413 מביאור); הרווח התפעולי בתגית פרטית, ו־2021 ריק אצלנו
+      b: K('2024-02-10', ['2023-12-31', '2022-12-31', '2021-12-31'], [['us-gaap', 'InterestExpense', [226, 237, 380]], ['hwm', 'OperatingProfit', [800, 700, 650]]]),
+      // הדוח של 2021 מדפיס 2020 כ־300 — ואצלנו 300 (הודפס): נשאר גם כשהשרשרת לא מגיעה אליו
+      c: K('2022-02-10', ['2021-12-31', '2020-12-31'], [['us-gaap', 'InterestExpense', [390, 300]]]),
+    };
+    const M = (o) => new Map(Object.entries(o).map(([e, v]) => [e, v * 1e6]));
+    const r = F.bsfIs(have, 'USD', { int: M({ '2025-12-31': 176, '2024-12-31': 195, '2023-12-31': 226, '2022-12-31': 237, '2021-12-31': 413 }),
+      op: M({ '2025-12-31': 900, '2024-12-31': 850, '2023-12-31': 800, '2022-12-31': 700 }) });
+    ok(r.int.get('2021-12-31').v === 380e6 && r.op.get('2021-12-31').v === 650e6 && !r.int.has('2020-12-31'), '(34) שרשור לפי חפיפה: תגית אחרת ותגית פרטית — אותה שורה');
+    ok(r.printed.get('2020-12-31').includes(300e6), '(34) כל ערך שהודפס בשנה — לבדיקת הצגה מחדש');
+    const r2 = F.bsfIs(have, 'USD', { int: M({ '2025-12-31': 176, '2024-12-31': 199, '2023-12-31': 226 }) });
+    ok(!r2.int, '(34) שער: הסדרה לא עוקבת היום אחרי השורה — לא נוגעים');
+    // bsfiled: ‏10-K — גם דף רווח והפסד (בלי שורות למניה), והגשה שכבר נשמרה בלעדיו — משלימים רק אותו
+    const BS2 = require('../ibkr-proxy/lib/bsfiled.js');
+    const FS3 = '<FilingSummary><MyReports>' + [['R2.htm', 'Consolidated Statements of Operations'], ['R4.htm', 'Consolidated Balance Sheets'], ['R7.htm', 'Consolidated Statements of Cash Flows']]
+      .map(([f, n]) => '<Report><MenuCategory>Statements</MenuCategory><HtmlFileName>' + f + '</HtmlFileName><ShortName>' + n + '</ShortName></Report>').join('') + '</MyReports></FilingSummary>';
+    const RP = (rows) => '<table><tr><th class="tl"><div><strong>X - USD ($)<br> $ in Millions</strong></div></th><th class="th">12 Months Ended<br>Dec. 31, 2025</th></tr>'
+      + rows.map(([t, l, v]) => '<tr class="re"><td class="pl"><a onclick="x(\'defref_' + t + '\')">' + l + '</a></td><td class="nump">' + v + '</td></tr>').join('') + '</table>';
+    const pages = { 'R2.htm': RP([['us-gaap_InterestExpense', 'Interest expense', '226'], ['us-gaap_EarningsPerShareDiluted', 'Diluted', '1.5']]),
+      'R4.htm': RP([['us-gaap_Assets', 'Total assets', '900'], ['us-gaap_LongTermDebtNoncurrent', 'Long-term debt', '100']]), 'R7.htm': RP([['us-gaap_DepreciationDepletionAndAmortization', 'D&A', '50']]) };
+    const got = [], gt3 = async (u) => { got.push(u); const m = /(R\d+\.htm)$/.exec(u); return m ? pages[m[1]] : FS3; };
+    const r1 = await BS2.readOne('1', { acc: '0000000001-26-000001', form: '10-K', filed: '2026-02-10' }, gt3);
+    ok(r1.bs && r1.cf && r1.is && r1.is.rows.length === 1 && r1.is.rows[0].tag === 'InterestExpense', '(34) readOne ‏10-K: מאזן, תזרים ורווח והפסד (בלי שורות למניה)');
+    const old0 = { form: '10-K', filed: '2025-02-10', bs: r1.bs, cf: r1.cf }, n0 = got.length;
+    const add0 = await BS2.readMissing(old0, 'https://x/', null, gt3);
+    ok(add0.is && !add0.cf && got.length - n0 === 2 && BS2.needIs(old0) && !BS2.needX({ ...old0, ...add0 }), '(34) הגשה ישנה: רק דף רווח והפסד (FilingSummary + דף אחד)');
+  }
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });

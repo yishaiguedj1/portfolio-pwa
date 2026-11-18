@@ -40,17 +40,41 @@ function slimCf(p) {
   const rows = p.rows.filter((r) => CF_ROW.test(r.tag)).map((r) => ({ ns: r.ns, tag: r.tag, label: r.label, v: r.v }));
   return { cols: p.cols, scale: p.scale, rows };
 }
+/* דף רווח והפסד (גל 5 בבדיקת העומק, F20 — bsfIs): כל השורות עם ערכים, בלי שורות למניה ובלי מניות (bsfIs קורא רק סכומים) */
+const IS_SKIP = /PerShare|Shares|PerOutstanding|Units?Outstanding/;
+function slimIs(p) {
+  if (!p || !p.rows) return null;
+  const rows = p.rows.filter((r) => !IS_SKIP.test(r.tag) && r.v && r.v.some((x) => x != null)).map((r) => ({ ns: r.ns, tag: r.tag, label: r.label, v: r.v }));
+  return { cols: p.cols, scale: p.scale, rows };
+}
 const annual = (f) => /^10-K/.test(f.form);
-const needCf = (r) => !!(r && annual(r) && !r.cf && !r.cfErr && !(r.err && r.err !== 'nobs' && r.err !== 'empty'));
-/* דף התזרים של הגשה שנתית: {cf} / {cfErr} (נשמר) / null (תקלת רשת). xml — FilingSummary כשכבר נקרא */
-async function readCf(base, xml, getText) {
-  if (xml == null) { try { xml = await getText(base + 'FilingSummary.xml'); } catch (e) { return /http_404/.test(String(e && e.message)) ? { cfErr: 'nofs' } : null; } }
+const dead = (r) => !!(r.err && r.err !== 'nobs' && r.err !== 'empty');
+const needCf = (r) => !!(r && annual(r) && !r.cf && !r.cfErr && !dead(r));
+const needIs = (r) => !!(r && annual(r) && !r.is && !r.isErr && !dead(r));
+const needX = (r) => needCf(r) || needIs(r);
+/* דף אחד של הגשה שנתית לפי הסוג (cf / is): {cf} / {cfErr} (נשמר) / null (תקלת רשת). xml — FilingSummary כשכבר נקרא */
+async function readSt(k, base, xml, getText) {
+  const E = k + 'Err';
+  if (xml == null) { try { xml = await getText(base + 'FilingSummary.xml'); } catch (e) { return /http_404/.test(String(e && e.message)) ? { [E]: 'nofs' } : null; } }
   const pick = SECFACE.pickStatements(xml);
-  if (!pick.cf) return { cfErr: 'nocf' };
+  if (!pick[k]) return { [E]: 'no' + k };
   let h;
-  try { h = await getText(base + pick.cf); } catch (e) { return /http_404/.test(String(e && e.message)) ? { cfErr: 'nor' } : null; }
-  const cf = slimCf(SECFACE.parseR(h));
-  return cf && cf.cols && cf.cols.length ? { cf } : { cfErr: 'empty' };
+  try { h = await getText(base + pick[k]); } catch (e) { return /http_404/.test(String(e && e.message)) ? { [E]: 'nor' } : null; }
+  const st = (k === 'cf' ? slimCf : slimIs)(SECFACE.parseR(h));
+  return st && st.cols && st.cols.length ? { [k]: st } : { [E]: 'empty' };
+}
+const readCf = (base, xml, getText) => readSt('cf', base, xml, getText);
+/* מה שחסר בהגשה שנתית שכבר נשמרה (התזרים / רווח והפסד) — FilingSummary פעם אחת. {…} / null (תקלת רשת באחד מהם) */
+async function readMissing(r, base, xml, getText) {
+  const out = {};
+  if (xml == null && needX(r)) { try { xml = await getText(base + 'FilingSummary.xml'); } catch (e) { if (!/http_404/.test(String(e && e.message))) return null; return { ...(needCf(r) ? { cfErr: 'nofs' } : {}), ...(needIs(r) ? { isErr: 'nofs' } : {}) }; } }
+  for (const k of ['cf', 'is']) {
+    if (!(k === 'cf' ? needCf : needIs)(r)) continue;
+    const c = await readSt(k, base, xml, getText).catch(() => null);
+    if (!c) return Object.keys(out).length ? out : null;
+    Object.assign(out, c);
+  }
+  return out;
 }
 
 /* ההגשות התקופתיות מ־submissions (recent, ודפי ההמשך כשמועברים) — החדשה ראשונה */
@@ -78,8 +102,8 @@ async function readOne(cik, f, getText) {
   let xml;
   try { xml = await getText(base + 'FilingSummary.xml'); } catch (e) { return /http_404/.test(String(e && e.message)) ? { ...rec, err: 'nofs' } : null; }
   const pick = SECFACE.pickStatements(xml);
-  // 10-K — גם דף התזרים (תקלת רשת בו = בלי cf; יושלם בסבב הבא)
-  const withCf = async (r) => { if (!annual(f) || r.err === 'xml') return r; const c = await readCf(base, xml, getText).catch(() => null); return c ? { ...r, ...c } : r; };
+  // 10-K — גם דף התזרים ודף רווח והפסד (תקלת רשת באחד = בלי הוא; יושלם בסבב הבא)
+  const withCf = async (r) => { if (!annual(f) || r.err === 'xml') return r; const c = await readMissing(r, base, xml, getText).catch(() => null); return c ? { ...r, ...c } : r; };
   if (!pick.bs) return withCf({ ...rec, err: /R\d+\.xml/.test(String(xml)) ? 'xml' : 'nobs' });
   let h;
   try { h = await getText(base + pick.bs); } catch (e) { return /http_404/.test(String(e && e.message)) ? { ...rec, err: 'nor' } : null; }
@@ -142,11 +166,11 @@ async function putObj(cik, o, deps) {
 
 /* משלים עד max הגשות חסרות (החדשות קודם), בתקרת זמן. מחזיר {o, added} */
 async function fill(cik, list, o, deps, max, ms) {
-  const t0 = Date.now(), miss = list.filter((f) => !o.f[f.acc] || needCf(o.f[f.acc])).slice(0, max);
+  const t0 = Date.now(), miss = list.filter((f) => !o.f[f.acc] || needX(o.f[f.acc])).slice(0, max);
   let added = 0;
   const one = async (f) => {
     if (ms && Date.now() - t0 > ms) return;
-    if (o.f[f.acc]) { const c = await readCf(baseOf(cik, f.acc), null, deps.getText).catch(() => null); if (c) { Object.assign(o.f[f.acc], c); added++; } return; }
+    if (o.f[f.acc]) { const c = await readMissing(o.f[f.acc], baseOf(cik, f.acc), null, deps.getText).catch(() => null); if (c && Object.keys(c).length) { Object.assign(o.f[f.acc], c); added++; } return; }
     const r = await readOne(cik, f, deps.getText).catch(() => null);
     if (r) { o.f[f.acc] = r; added++; }
   };
@@ -162,7 +186,7 @@ async function load(cik, sub, deps = {}) {
     const o = (await getObj(cik, deps)) || { v: V, f: {} };
     const list = periodic(sub, null, SINCE_Y, deps.now);
     let added = 0;
-    if (deps.getText && list.some((f) => !o.f[f.acc] || needCf(o.f[f.acc]))) {
+    if (deps.getText && list.some((f) => !o.f[f.acc] || needX(o.f[f.acc]))) {
       const live = Promise.race([fill(cik, list, o, { ...deps, par: MAX_LIVE }, MAX_LIVE, LIVE_MS), new Promise((r) => setTimeout(() => r(null), LIVE_MS + 500))]);
       const r = await live; if (r) added = r.added;
       if (added) await Promise.race([putObj(cik, o, deps).catch(() => false), new Promise((r) => setTimeout(r, 1500))]);
@@ -194,7 +218,7 @@ async function fillAll(cik, deps) {
     const r = await readPr(cik, it, deps.getText).catch(() => null);
     if (r) { o.p[it.end] = r; added++; } else prLeft++;
   }
-  const left = list.filter((f) => !o.f[f.acc] || needCf(o.f[f.acc])).length + prLeft;
+  const left = list.filter((f) => !o.f[f.acc] || needX(o.f[f.acc])).length + prLeft;
   if (!left) o.at = new Date(deps.now || Date.now()).toISOString();
   if (added || !left) await putObj(cik, o, deps);
   return { n: list.length, added, left };
@@ -231,4 +255,4 @@ async function tick(deps = {}) {
   return { ok: true, done, added, failed, i, ms: Date.now() - t0 };
 }
 
-module.exports = { load, fillAll, tick, slim, slimCf, needCf, periodic, readOne, readCf, readPr, merge8k, key, PRE, V, SINCE_Y, MAX_LIVE };
+module.exports = { load, fillAll, tick, slim, slimCf, slimIs, needCf, needIs, needX, readMissing, periodic, readOne, readCf, readPr, merge8k, key, PRE, V, SINCE_Y, MAX_LIVE };

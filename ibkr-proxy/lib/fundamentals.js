@@ -368,6 +368,45 @@ function bsfCf(have, cur, tags) {
   }
   return out;
 }
+/* רווח והפסד לפי הגשה (18/11/2026, גל 5 — F20; ‏lib/bsfiled.js שדה is). כמו F13 בתזרים: companyfacts לא אומר באיזה דוח הופיע ערך,
+   ובשנים שבהן השורה המודפסת הייתה בתגית אחרת (או פרטית של החברה — לא ב־companyfacts) הסדרה לקחה ערך מביאור או נשארה ריקה.
+   Howmet: הריבית 2019–2023 מביאור (371 מול 338 המודפס); Ross: הרווח התפעולי 2013–2022 ריק; Williams-Sonoma: עלות המכר.
+   השורה = "אותה שורה" בשרשור לפי חפיפה, לא לפי תגית: בדוח האחרון — השורה היחידה ששווה לסדרה שלנו בכל השנים שהוא מדפיס (לפחות
+   שתיים; זה גם השער — הסדרה כבר עוקבת היום אחרי השורה); בכל 10-K ישן יותר — השורה היחידה שערכיה בשנים שכבר נקבעו שווים להם, והשנים
+   החדשות שלה נקבעות (השנה שייכת ל־10-K האחרון שמדפיס אותה). ours: k → Map(סוף → ערך). abs — מדדים שמודפסים לפעמים במינוס.
+   → {k: Map(סוף → {v, filed})}, ‏printed: Map(סוף → כל הערכים שהודפסו בדוח רווח והפסד בשנה הזו, בכל שורה) */
+const IS_KEYS = ['int', 'pretax', 'cogs', 'rnd', 'tax', 'op'], IS_ABS = new Set(['int', 'cogs', 'rnd']);
+function bsfIs(have, cur, ours) {
+  const ann = Object.values(have || {}).filter((x) => x && x.is && x.is.rows && /^10-K/.test(x.form)).sort((a, b) => (a.filed < b.filed ? 1 : -1));
+  const out = {};
+  if (!ann.length) return out;
+  const near = (a, b) => Math.abs(a - b) <= Math.max(5e5, 5e-3 * Math.abs(b));
+  // כל שורה: {סוף → ערך} בעמודות של 12 חודשים
+  const yv = (x) => x.is.rows.map((r) => { const o = new Map(); SECFACE.rowVals(x.is, r).forEach((v, ci) => { const c = x.is.cols[ci]; if (v != null && c && c.months === 12 && SECFACE.colOk(c, cur) && !o.has(c.end)) o.set(c.end, v); }); return o; }).filter((o) => o.size);
+  const Y = ann.map(yv);
+  const printed = new Map();
+  for (const rows of Y) for (const o of rows) for (const [e, v] of o) { if (!printed.has(e)) printed.set(e, []); printed.get(e).push(Math.abs(v)); }
+  out.printed = printed;
+  const at = (M, e) => { if (M.has(e)) return M.get(e); for (const [k, v] of M) if (Math.abs(day(k) - day(e)) <= 7) return v; return null; };
+  for (const k of IS_KEYS) {
+    const S = ours[k]; if (!S || !S.size) continue;
+    const f = (v) => (IS_ABS.has(k) ? Math.abs(v) : v);
+    const same = (o, est) => [...est.keys()].some((e) => o.has(e)) && [...o].every(([e, v]) => !est.has(e) || near(f(v), est.get(e)));
+    const c0 = Y[0].filter((o) => o.size >= 2 && [...o].every(([e, v]) => { const x = at(S, e); return x != null && near(f(v), f(x)); }));
+    // שתי שורות זהות (אותו מספר פעמיים בדוח) — אחת
+    const u0 = c0.filter((o, i) => !c0.slice(0, i).some((p) => p.size === o.size && [...o].every(([e, v]) => p.get(e) === v)));
+    if (u0.length !== 1) continue;
+    const est = new Map([...u0[0]].map(([e, v]) => [e, f(v)])), M = new Map([...est].map(([e, v]) => [e, { v, filed: ann[0].filed }]));
+    for (let i = 1; i < ann.length; i++) {
+      const m = Y[i].filter((o) => same(o, est));
+      const u = m.filter((o, j) => !m.slice(0, j).some((p) => p.size === o.size && [...o].every(([e, v]) => p.get(e) === v)));
+      if (u.length !== 1) continue;
+      for (const [e, v] of u[0]) if (!est.has(e)) { est.set(e, f(v)); M.set(e, { v: f(v), filed: ann[i].filed }); }
+    }
+    out[k] = M;
+  }
+  return out;
+}
 /* הפרש של שתי תגיות (רווח כולל פחות זכויות מיעוט): כל תקופה ששתיהן קיימות בה; לכל הגשה שבשתיהן — ההפרש באותה הגשה */
 function diffFacts(a, b) {
   const out = { dur: new Map(), inst: new Map(), unit: a.unit };
@@ -1452,6 +1491,25 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
       }
     }
   }
+  // רווח והפסד לפי הגשה (bsfIs, גל 5 — F20). רק השנתי, כמו F13; ערך שלנו שמודפס בשורה כלשהי של רווח והפסד באותה שנה — לא מוחלף
+  // (הצגה מחדש: פעילות שנמכרה — Agilent אחרי Keysight, ‏Exelon אחרי Constellation)
+  if (!isIfrs && bsf) {
+    const ours = {};
+    for (const k of IS_KEYS) if (A[k]) ours[k] = new Map(fyEnds.filter((e) => A[k][e] != null).map((e) => [e, A[k][e]]));
+    const IS = bsfIs(bsf, rc || cur || 'USD', ours);
+    const near = (a, b) => Math.abs(a - b) <= Math.max(5e5, 5e-3 * Math.abs(b));
+    for (const k of IS_KEYS) {
+      const M = IS[k]; if (!M) continue;
+      for (const e of fyEnds) {
+        const p = bsfAt(M, e); if (!p) continue;
+        const old = A[k] && A[k][e];
+        if (old != null && near(IS_ABS.has(k) ? Math.abs(old) : old, p.v)) continue;
+        if (old != null) { let pr = IS.printed.get(e); if (!pr) for (const [k2, v2] of IS.printed) if (Math.abs(day(k2) - day(e)) <= 7) { pr = v2; break; } if (pr && pr.some((v) => near(Math.abs(old), v))) continue; }
+        if (!A[k]) A[k] = {};
+        A[k][e] = p.v; cfy.push({ k: old == null ? 'ffill' : 'ffix', m: k, p: e, f: p.v, v: old == null ? null : old });
+      }
+    }
+  }
   // צמיחה ברת השוואה (26/10/2026, AppLovin): חברה שהציגה מחדש שנים קודמות (פעילות שנמכרה, שינוי מדיניות) — הערך
   // האחרון של 2023 הוא אחרי ההצגה מחדש (‏$1.84B בלי עסק האפליקציות), ו־2022 נשאר כפי שדווח אז (‏$2.82B כולל אותו):
   // היחס ביניהם = צמיחה מדומה (‎−35% במקום ‎+16.5%). לכל תקופה: היחס מהדוח האחרון שמציג גם אותה וגם את התקופה
@@ -2292,7 +2350,7 @@ async function handle(body, res) {
 
 // בקשה ל־SEC עם המזהה (עבודת הרקע של המאזנים — server.js → startBsf → lib/bsfiled.js)
 const secText = (u) => getText(u, { headers: { 'User-Agent': SEC_UA() } }, 15000);
-module.exports = { handle, fundamentals, holes, q4Press, fxMonthly, adrRatio, FX_FRED, capexNil, debtFace, bsfDebt, bsfCf, secText, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
+module.exports = { handle, fundamentals, holes, q4Press, fxMonthly, adrRatio, FX_FRED, capexNil, debtFace, bsfDebt, bsfCf, bsfIs, secText, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
   industryFor, industryData, _cache: cache,
   // התגיות המועמדות לכל שורה — לכלי ההשוואה (fundxcheck: SEC גולמי גם לתקופות שהושלמו מתגית משנית). נשמט ב־f9db4c74 — tools/fund-xcheck.js מצפה לו
   TAGS: { gaap: { ...FLOW, ...INST }, ifrs: IFRS } };
