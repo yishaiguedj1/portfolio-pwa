@@ -946,6 +946,8 @@ main .tabpage :is(.ranges, .chip-row, .stock-sort-row, .wl-tabs, .tx-years, .st-
 .stock-sub > .buy-chg { grid-area: 2 / 2; justify-self: end; }
 .stock-sub > .buy-amt { grid-area: 2 / 1; }
 .stock-sub .sub-val, .stock-sub .buy-amt { justify-self: start; font-variant-numeric: tabular-nums; }
+/* 18/11/2026: תווית משנית לפני הנתון ("שווי" / "שינוי") — קטנה, אפורה וקלה; הנתון נשאר הבולט, גם כשהוא צבעוני */
+.stock-sub .sub-lbl { font-size: 12.5px; font-weight: 500; color: var(--on-surface-var); margin-inline-end: 2px; }
 .stock-sub .buy-chg, .stock-sub .buy-amt { font-weight: 600; font-size: 13.5px; font-variant-numeric: tabular-nums; }
 .stock-sub .buy-chg:not(.pos):not(.neg), .stock-sub .buy-amt:not(.pos):not(.neg) { color: var(--on-surface-var); }
 .day-chg { font-weight: 700; font-variant-numeric: tabular-nums; }

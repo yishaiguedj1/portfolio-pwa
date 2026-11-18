@@ -1199,6 +1199,8 @@ he: {
   btnEdit: ICON_EDIT + 'ערוך',
   btnDelete: ICON_TRASH + 'מחק',
   todayChg: 'היום {v}',
+  dayToday: 'היום', dayYest: 'אתמול', dayDow1: 'שני', dayDow2: 'שלישי', dayDow3: 'רביעי', dayDow4: 'חמישי', dayDow5: 'שישי',
+  subValLbl: 'שווי', subGlLbl: 'שינוי',
   buyChg: 'מהקנייה {v}',
   kvShares: 'מניות',
   kvAvg: 'מחיר ממוצע',
@@ -3130,6 +3132,8 @@ en: {
   btnEdit: ICON_EDIT + 'Edit',
   btnDelete: ICON_TRASH + 'Delete',
   todayChg: 'Today {v}',
+  dayToday: 'Today', dayYest: 'Yesterday', dayDow1: 'Mon', dayDow2: 'Tue', dayDow3: 'Wed', dayDow4: 'Thu', dayDow5: 'Fri',
+  subValLbl: 'Value', subGlLbl: 'Change',
   buyChg: 'Since purchase {v}',
   kvShares: 'Shares',
   kvAvg: 'Avg price',
@@ -8245,8 +8249,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.183.2';
-const APP_VERSION = 'v838';
+const APP_RELEASE = '2.184.0';
+const APP_VERSION = 'v839';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -9254,6 +9258,62 @@ function taseMarketNow(nowMs) {
     const end = p.dow === 5 ? 14 * 60 : 17 * 60 + 30;
     return { closed: p.mins < 9 * 60 + 59 || p.mins >= end, reason: null };
   } catch (e) { return { closed: false, reason: null }; }
+}
+/* 18/11/2026 (בקשת המשתמש): איזה יום מסחר השינוי היומי מתאר — "היום" רק מפתיחת המסחר הרגיל ועד שמתחיל המסחר הלילי
+   (20:00 ניו־יורק); משם ועד הפתיחה הבאה זה השינוי של יום מסחר שעבר. התווית לפי הלוח של המשתמש (לא של הבורסה):
+   יום המסחר היה אתמול → "אתמול"; לפני 2–6 ימים (אחרי סופ״ש או חג — למשל בראשון/שני בבוקר על יום ו׳) → שם היום ("שישי");
+   מעל שבוע → תאריך. ת״א: אין מסחר לילי — "היום" מפתיחת המסחר (09:59) ועד חצות. קריפטו/מט״ח/חוזים/מדדים/בורסות אחרות — "היום".
+   מחזיר null ("היום") או { k: 'yest' | 'dow' | 'date', dow, key }. טהורה (nowMs, tz לבדיקות). */
+function tzDateKey(ms, tz) {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz || undefined, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(ms));
+  const g = (k) => (parts.find((x) => x.type === k) || {}).value;
+  return g('year') + '-' + g('month') + '-' + g('day');
+}
+function keyUTC(k) { return Date.UTC(+k.slice(0, 4), +k.slice(5, 7) - 1, +k.slice(8, 10)); }
+function nyseTradingDay(ms) { // ms = חצות UTC של התאריך
+  const d = new Date(ms), w = d.getUTCDay();
+  if (w === 0 || w === 6) return false;
+  const y = d.getUTCFullYear(), hol = _nyseHolCache[y] || (_nyseHolCache[y] = nyseHolidays(y));
+  return !hol[d.toISOString().slice(0, 10)];
+}
+function lastSessionKey(sym, nowMs) {
+  const s = String(sym || '').toUpperCase();
+  const now = nowMs || Date.now();
+  if (/\.TA$/.test(s)) {
+    const p = ilDateParts(now);
+    const noon = now - (p.mins - 720) * 60000; // צהריים בישראל — מעבר יום אחורה לא נופל על חצות בשעון קיץ
+    const trading = (ms) => { const q = ilDateParts(ms); return q.dow >= 1 && q.dow <= 5 && !taseHolidayKey(q); };
+    if (trading(now) && p.mins >= 9 * 60 + 59) return null;
+    for (let i = 1; i <= 15; i++) { const ms = noon - i * 864e5; if (trading(ms)) return tzDateKey(ms, 'Asia/Jerusalem'); }
+    return null;
+  }
+  if (s.includes('.') || s.startsWith('^') || mktKind(s)) return null;
+  const actual = etDateParts(now), ref = etDateParts(now + 4 * 3600e3); // מ־20:00 ניו־יורק מתחיל יום המסחר הבא (הלילי)
+  const hm = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(new Date(now));
+  const mins = (+hm.find((x) => x.type === 'hour').value % 24) * 60 + (+hm.find((x) => x.type === 'minute').value);
+  const refMs = keyUTC(ref.key);
+  if (ref.key === actual.key && nyseTradingDay(refMs) && mins >= 9 * 60 + 30) return null;
+  for (let i = 1; i <= 15; i++) { const ms = refMs - i * 864e5; if (nyseTradingDay(ms)) return new Date(ms).toISOString().slice(0, 10); }
+  return null;
+}
+function sessionDayInfo(sym, nowMs, tz) {
+  try {
+    const now = nowMs || Date.now();
+    const key = lastSessionKey(sym, now);
+    if (!key) return null;
+    const diff = Math.round((keyUTC(tzDateKey(now, tz)) - keyUTC(key)) / 864e5);
+    if (diff <= 0) return null;
+    const dow = new Date(keyUTC(key)).getUTCDay();
+    return { k: diff === 1 ? 'yest' : diff < 7 ? 'dow' : 'date', dow: dow, key: key };
+  } catch (e) { return null; }
+}
+/* התווית עצמה: "היום" / "אתמול" / "שישי" / "12/11" */
+function sessionDayLabel(sym, nowMs, tz) {
+  const i = sessionDayInfo(sym, nowMs, tz);
+  if (!i) return t('dayToday');
+  if (i.k === 'yest') return t('dayYest');
+  if (i.k === 'dow') return [t('dayDow1'), t('dayDow2'), t('dayDow3'), t('dayDow4'), t('dayDow5')][i.dow - 1] || t('dayToday');
+  return +i.key.slice(8, 10) + '/' + +i.key.slice(5, 7);
 }
 function etSessionNow(nowMs) {
   try {
@@ -12279,7 +12339,9 @@ function renderOverview(light) {
     else {
       const z = Math.abs(dv) < 0.005 ? 0 : dv;
       const cls = z > 0 ? 'pos' : z < 0 ? 'neg' : '';
-      dEl.innerHTML = '<span class="ov-day-lbl">' + esc(t('ovDayLbl')) + '</span> <span class="ov-day-v ' + cls + '" dir="ltr">' +
+      // 18/11/2026: כמו בכרטיס — "אתמול"/שם היום מחוץ ליום המסחר; תיק משתי בורסות שהתוויות שלהן שונות — "היום"
+      const lbls = Array.from(new Set(POSITIONS.map((p) => sessionDayLabel(/\.TA$/i.test(p.sym) ? 'X.TA' : 'SPY'))));
+      dEl.innerHTML = '<span class="ov-day-lbl">' + esc(lbls.length === 1 ? lbls[0] : t('ovDayLbl')) + '</span> <span class="ov-day-v ' + cls + '" dir="ltr">' +
         esc(fmtSignedMoney(z, cur)) + (d.pct === null || !isFinite(d.pct) ? '' : ' (' + esc(fmtPct(d.pct, true)) + ')') + '</span>';
       dEl.classList.remove('hidden');
     }
@@ -18049,16 +18111,18 @@ function stockSubHTML(p, m) {
   const day = m.dayChg === null ? null : (Math.abs(m.dayChg) < 0.005 ? 0 : m.dayChg);
   // v208→v209: גם השינוי היומי בכסף — למניה אחת (כמו Yahoo: "−2.16 (−1.57%)"), במטבע של המחיר, באותו צבע
   const dayAmtHTML = day === null || m.dayAbs === null || m.dayAbs === undefined || !isFinite(m.dayAbs) ? '' : ' <span class="day-amt">' + fmtSignedPx(m.dayAbs, p && p.sym) + '</span>';
-  let html = '<span class="day-chg ' + cls(day) + '">' + (day === null ? '—' : t('todayChg', { v: fmtPct(day, true) }) + dayAmtHTML) + '</span>';
+  // 18/11/2026: "היום" רק בזמן יום המסחר; מתחילת המסחר הלילי ועד הפתיחה — "אתמול" / שם היום (sessionDayLabel)
+  let html = '<span class="day-chg ' + cls(day) + '">' + (day === null ? '—' : esc(sessionDayLabel(p && p.sym)) + ' ' + fmtPct(day, true) + dayAmtHTML) + '</span>';
   if (p && p.watch) { // v240: מעקב — בלי שווי/רווח; ההערה (אם יש) במקום השווי
     return html + '<span class="sub-val wl-sub-note">' + (p.note ? '<span class="wl-note-txt">' + esc(p.note) + '</span> ' : '') + '<span class="chev">▾</span></span>';
   }
-  html += '<span class="sub-val">' + (m.value === null ? '—' : money(toCur(m.value), cur)) + ' <span class="chev">▾</span></span>';
+  // 18/11/2026 (בקשת המשתמש): תווית משנית לפני הנתון — "שווי" / "שינוי" (ת־עיצוב: תווית אפורה קטנה, הנתון בולט)
+  html += '<span class="sub-val"><span class="sub-lbl">' + esc(t('subValLbl')) + '</span> ' + (m.value === null ? '—' : money(toCur(m.value), cur)) + ' <span class="chev">▾</span></span>';
   let gp = (p && p.avg > 0 && m.price !== null) ? gainPctOf(p, m.price) : null;
   if (gp !== null && Math.abs(gp) < 0.005) gp = 0; // בלי "+0.00%"
   if (gp !== null && isFinite(gp)) {
     html += '<span class="buy-chg ' + cls(gp) + '">' + t('buyChg', { v: fmtPct(gp, true) }) + '</span>' +
-      '<span class="buy-amt ' + cls(gp) + '">' + (m.gl === null ? '—' : fmtSignedMoney(toCur(m.gl), cur)) + '</span>';
+      '<span class="buy-amt ' + cls(gp) + '"><span class="sub-lbl">' + esc(t('subGlLbl')) + '</span> ' + (m.gl === null ? '—' : fmtSignedMoney(toCur(m.gl), cur)) + '</span>';
   }
   return html;
 }
