@@ -6,7 +6,9 @@
    · tick — עבודת רקע בשרת שלנו (server.js → startBsf): משלימה את כל ההגשות מ־SINCE_Y שנים, עד 2 בקשות לשנייה ל־SEC.
    כל תקלה — מחזיר מה שיש (או null), והחוב של אותו תאריך נשאר בכלל של F7. אף פעם לא מפיל את התשובה.
    באותו אובייקט, שדה p (גל 2, F2): ההודעה לעיתונות על התוצאות השנתיות (8-K ‏Item 2.02 ← EX-99.1) לכל סוף שנה — שורות "Diluted"
-   (lib/secpr.js), למניות ולרווח למניה של הרבעון הרביעי. רק בעבודת הרקע (הרבעון האחרון — ממילא מ־Yahoo, qShares). */
+   (lib/secpr.js), למניות ולרווח למניה של הרבעון הרביעי. רק בעבודת הרקע (הרבעון האחרון — ממילא מ־Yahoo, qShares).
+   ובכל 10-K גם שדה cf (גל 3, F13): מדף התזרים — רק שורות הפחת וההשקעות ההוניות כפי שהודפסו (bsfCf ב־fundamentals). הגשה שנקראה
+   לפני כן — משלימים לה רק את התזרים (FilingSummary ← דף התזרים), בלי לקרוא שוב את המאזן. */
 'use strict';
 const zlib = require('zlib');
 const SECFACE = require('./secface');
@@ -31,6 +33,26 @@ function slim(p) {
   return { cols: p.cols, scale: p.scale, rows };
 }
 
+/* דף התזרים — רק השורות של פחת/הפחתות ושל רכישת רכוש קבוע (מה ש־bsfCf קורא); שאר הדף לא נשמר */
+const CF_ROW = /Depreci|Amortiz|PaymentsToAcquire(PropertyPlantAndEquipment|ProductiveAssets)/;
+function slimCf(p) {
+  if (!p || !p.rows) return null;
+  const rows = p.rows.filter((r) => CF_ROW.test(r.tag)).map((r) => ({ ns: r.ns, tag: r.tag, label: r.label, v: r.v }));
+  return { cols: p.cols, scale: p.scale, rows };
+}
+const annual = (f) => /^10-K/.test(f.form);
+const needCf = (r) => !!(r && annual(r) && !r.cf && !r.cfErr && !(r.err && r.err !== 'nobs' && r.err !== 'empty'));
+/* דף התזרים של הגשה שנתית: {cf} / {cfErr} (נשמר) / null (תקלת רשת). xml — FilingSummary כשכבר נקרא */
+async function readCf(base, xml, getText) {
+  if (xml == null) { try { xml = await getText(base + 'FilingSummary.xml'); } catch (e) { return /http_404/.test(String(e && e.message)) ? { cfErr: 'nofs' } : null; } }
+  const pick = SECFACE.pickStatements(xml);
+  if (!pick.cf) return { cfErr: 'nocf' };
+  let h;
+  try { h = await getText(base + pick.cf); } catch (e) { return /http_404/.test(String(e && e.message)) ? { cfErr: 'nor' } : null; }
+  const cf = slimCf(SECFACE.parseR(h));
+  return cf && cf.cols && cf.cols.length ? { cf } : { cfErr: 'empty' };
+}
+
 /* ההגשות התקופתיות מ־submissions (recent, ודפי ההמשך כשמועברים) — החדשה ראשונה */
 function periodic(sub, files, sinceY, now) {
   const since = String(new Date(now || Date.now()).getUTCFullYear() - (sinceY || SINCE_Y)) + '-01-01';
@@ -49,17 +71,20 @@ function periodic(sub, files, sinceY, now) {
 }
 
 /* הגשה אחת: FilingSummary ← דף המאזן. {form, filed, bs} / {form, filed, err} (err נשמר — לא נקרא שוב) / null (תקלת רשת — ינוסה שוב) */
+const baseOf = (cik, acc) => 'https://www.sec.gov/Archives/edgar/data/' + (+cik) + '/' + acc.replace(/-/g, '') + '/';
 async function readOne(cik, f, getText) {
-  const base = 'https://www.sec.gov/Archives/edgar/data/' + (+cik) + '/' + f.acc.replace(/-/g, '') + '/';
+  const base = baseOf(cik, f.acc);
   const rec = { form: f.form, filed: f.filed };
   let xml;
   try { xml = await getText(base + 'FilingSummary.xml'); } catch (e) { return /http_404/.test(String(e && e.message)) ? { ...rec, err: 'nofs' } : null; }
   const pick = SECFACE.pickStatements(xml);
-  if (!pick.bs) return { ...rec, err: /R\d+\.xml/.test(String(xml)) ? 'xml' : 'nobs' };
+  // 10-K — גם דף התזרים (תקלת רשת בו = בלי cf; יושלם בסבב הבא)
+  const withCf = async (r) => { if (!annual(f) || r.err === 'xml') return r; const c = await readCf(base, xml, getText).catch(() => null); return c ? { ...r, ...c } : r; };
+  if (!pick.bs) return withCf({ ...rec, err: /R\d+\.xml/.test(String(xml)) ? 'xml' : 'nobs' });
   let h;
   try { h = await getText(base + pick.bs); } catch (e) { return /http_404/.test(String(e && e.message)) ? { ...rec, err: 'nor' } : null; }
   const bs = slim(SECFACE.parseR(h));
-  return bs && bs.rows.length ? { ...rec, bs } : { ...rec, err: 'empty' };
+  return withCf(bs && bs.rows.length ? { ...rec, bs } : { ...rec, err: 'empty' });
 }
 
 /* ההודעה לעיתונות של סוף שנה אחד: המועמדים (8-K ‏2.02 עד 100 יום אחרי) ← index.json ← עד 3 קבצים, הראשון שיש בו שורות "מדולל".
@@ -117,10 +142,11 @@ async function putObj(cik, o, deps) {
 
 /* משלים עד max הגשות חסרות (החדשות קודם), בתקרת זמן. מחזיר {o, added} */
 async function fill(cik, list, o, deps, max, ms) {
-  const t0 = Date.now(), miss = list.filter((f) => !o.f[f.acc]).slice(0, max);
+  const t0 = Date.now(), miss = list.filter((f) => !o.f[f.acc] || needCf(o.f[f.acc])).slice(0, max);
   let added = 0;
   const one = async (f) => {
     if (ms && Date.now() - t0 > ms) return;
+    if (o.f[f.acc]) { const c = await readCf(baseOf(cik, f.acc), null, deps.getText).catch(() => null); if (c) { Object.assign(o.f[f.acc], c); added++; } return; }
     const r = await readOne(cik, f, deps.getText).catch(() => null);
     if (r) { o.f[f.acc] = r; added++; }
   };
@@ -136,7 +162,7 @@ async function load(cik, sub, deps = {}) {
     const o = (await getObj(cik, deps)) || { v: V, f: {} };
     const list = periodic(sub, null, SINCE_Y, deps.now);
     let added = 0;
-    if (deps.getText && list.some((f) => !o.f[f.acc])) {
+    if (deps.getText && list.some((f) => !o.f[f.acc] || needCf(o.f[f.acc]))) {
       const live = Promise.race([fill(cik, list, o, { ...deps, par: MAX_LIVE }, MAX_LIVE, LIVE_MS), new Promise((r) => setTimeout(() => r(null), LIVE_MS + 500))]);
       const r = await live; if (r) added = r.added;
       if (added) await Promise.race([putObj(cik, o, deps).catch(() => false), new Promise((r) => setTimeout(r, 1500))]);
@@ -168,7 +194,7 @@ async function fillAll(cik, deps) {
     const r = await readPr(cik, it, deps.getText).catch(() => null);
     if (r) { o.p[it.end] = r; added++; } else prLeft++;
   }
-  const left = list.filter((f) => !o.f[f.acc]).length + prLeft;
+  const left = list.filter((f) => !o.f[f.acc] || needCf(o.f[f.acc])).length + prLeft;
   if (!left) o.at = new Date(deps.now || Date.now()).toISOString();
   if (added || !left) await putObj(cik, o, deps);
   return { n: list.length, added, left };
@@ -202,4 +228,4 @@ async function tick(deps = {}) {
   return { ok: true, done, added, i, ms: Date.now() - t0 };
 }
 
-module.exports = { load, fillAll, tick, slim, periodic, readOne, readPr, merge8k, key, PRE, V, SINCE_Y, MAX_LIVE };
+module.exports = { load, fillAll, tick, slim, slimCf, needCf, periodic, readOne, readCf, readPr, merge8k, key, PRE, V, SINCE_Y, MAX_LIVE };

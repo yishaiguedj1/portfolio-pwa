@@ -189,7 +189,7 @@ const DEBT_LAB = /borrowing|commercial paper|notes? payable|\bdebt\b|loans? paya
 const DEBT_NOT = /operating lease|interest payable|accrued|accounts payable|deferred|debt securities|held.for.sale|derivative|guarantee|total liabilities|receivable|investment|due to (related|affiliat)|deposits?\b|repurchase|trading|capitalization|fair value|other than long.?term debt|\bto (\w+ )?parent\b|liabilities of/i;
 // תגיות שאינן חוב גם כשהשם או התווית נשמעים כך: סך ההון והחוב, "התחייבויות לא שוטפות חוץ מחוב", רכיב ההון של אג"ח להמרה,
 // ריבית לשלם, חובות לחברות קשורות, הנחות ועלויות הנפקה, נכסים. תגית מ־DEBT_CAT — תמיד חוב (Hershey: ‏LongTermDebtAndCapitalLeaseObligations)
-const DEBT_NOTAG = /OtherThanLong|^Capitalization|^EquityAndLongTermDebt|^TemporaryEquity|^ReserveForEsop|^InterestPayable|^DueTo(Affiliate|RelatedParties)|Receivable|DebtInstrumentInterestRate|Unamortized|DebtFairValueAdjustment|^ConvertibleDebtEquity/;
+const DEBT_NOTAG = /OtherThanLong|^Capitalization|^EquityAndLongTermDebt|^TemporaryEquity|^ReserveForEsop|^InterestPayable|^DueTo(Affiliate|RelatedParties)|Receivable|DebtInstrumentInterestRate|^(\w*Instrument)?Unamortized|DebtFairValueAdjustment|^ConvertibleDebtEquity/;
 // ...ואלה — רק כשהתווית היא של חוב (Con Edison מתייגת את "LONG-TERM DEBT" שבמאזן ב־LongTermDebtFairValue); חכירה לבדה — לא חוב
 const DEBT_SOFT = /FairValue|^DebtInstrument(Face|Carrying)Amount$|Lease(s)?Liabilit|^(Finance|Operating|Capital)Lease\w*$|^CapitalLeaseObligations?\w*$/;
 // "חוב לזמן ארוך כולל חלויות" — במאזן מסווג שיש בו גם שורת חלויות, השורה היא בפועל החלק הלא שוטף (Xcel)
@@ -231,7 +231,9 @@ function debtFace(face, cur) {
   const c0 = S.cols.findIndex((c) => SECFACE.colOk(c, cur));
   const lines = []; let grp = 0; // grp — מספר הקבוצה: מתחלף אחרי כל שורת "סך"
   for (let i = a0 + 1; i < stop; i++) {
-    const r = rows[i], lab = r.label || '', txt = lab + ' ' + r.tag.replace(/([a-z])([A-Z])/g, '$1 $2');
+    // הערה בסוגריים — "(includes $973 at fair value)" — לא חלק מהשם (גל 3: Goldman ‏"Unsecured short-term borrowings…", ‏JPMorgan ‏"Other
+    // borrowed funds (included $13,306 … at fair value)" נפלו על "fair value"). רק הערה עם סכום — "(including current portion…)" נשארת (debtCat)
+    const r = rows[i], lab = (r.label || '').replace(/\s*\((includ|inclusive|of which)[^)]*\d[^)]*\)/ig, ''), txt = lab + ' ' + r.tag.replace(/([a-z])([A-Z])/g, '$1 $2');
     const cat = r.ns === 'us-gaap' ? DEBT_OF.get(r.tag) || null : null;
     const isTot = r.total || /^total\b/i.test(lab);
     const labD = DEBT_LAB.test(lab) && !DEBT_NOT.test(lab.replace(/,?\s*(measured |carried )?at fair value/ig, ''));
@@ -257,6 +259,10 @@ function debtFace(face, cur) {
       const prev = lines.filter((l) => l.grp === grp), x = c0 >= 0 ? v[c0] : null;
       const sum = prev.reduce((t, l) => t + (c0 >= 0 && l.v[c0] != null ? l.v[c0] : 0), 0);
       if (prev.length && r.ns !== 'us-gaap' && x != null && Math.abs(sum - x) <= 0.01 * Math.abs(x)) { grp++; continue; }
+      // "סך" של כל השורות שנספרו עד כאן, מכל הקבוצות (Regions: ‏"Total short-term borrowings" ‏1,574, ‏"Long-term borrowings" ‏5,861,
+      // ‏"Total borrowed funds" ‏7,435) — במקום כולן, לא רק הקבוצה האחרונה (אחרת הקצרות נספרו פעמיים)
+      const all = lines.reduce((t, l) => t + (c0 >= 0 && l.v[c0] != null ? l.v[c0] : 0), 0);
+      if (r.ns === 'us-gaap' && x != null && lines.length > prev.length && prev.length && Math.abs(all - x) <= Math.max(1e-9, 1e-3 * Math.abs(x))) { lines.length = 0; lines.push({ tag: r.tag, ns: r.ns, cat, label: lab, v, grp }); grp++; continue; }
       // "Total short-term debt" קטן מהשורות שלפניו (Vulcan ‏10-Q ‏2026: חלויות ‏400, ‏"Total short-term debt" ‏0) — הוא לא הסך שלהן
       if (!(x != null && sum > 0 && x < sum - 0.01 * sum)) for (const l of prev) lines.splice(lines.indexOf(l), 1);
     }
@@ -309,6 +315,41 @@ function bsfDebt(have, cur) {
     }
   }
   return per;
+}
+/* פחת והשקעות הוניות לפי דף התזרים המודפס של כל 10-K (17/11/2026, גל 3 — F13; ‏lib/bsfiled.js שדה cf). companyfacts לא אומר באיזה דוח
+   הופיע ערך: בשנים שבהן התזרים הדפיס את השורה בתגית אחרת מהיום, הסדרה לקחה ערך מביאור (Apple ‏2014–2015: ‏9.2B מביאור מול ‏11.26B
+   בתזרים; Tesla, ‏Franklin, ‏RTX, ‏WEC). לכל סוף שנה — ה־10-K האחרון שמדפיס אותו בעמודה של 12 חודשים (ההצגה האחרונה, כמו בשאר
+   הסדרות). רק כשבתזרים יש שורה אחת בלבד מהתגיות שלנו — גם ב־10-K האחרון וגם באותו דוח (כמה שורות פחת = סכום שאינו בדוח, ד);
+   ובפחת — לא כשהשורה (או הסדרה היום) היא "Depreciation" בלבד (הסדרה עוקבת אחרי פחת בלי הפחתות — החלטה קיימת, ד).
+   {have} → {dep: Map(סוף → {v, filed}), capex: …, last: התאריך של ה־10-K האחרון}. השער (הסדרה עוקבת היום אחרי השורה) — בהחלה */
+function bsfCf(have, cur, tags) {
+  const ann = Object.values(have || {}).filter((x) => x && x.cf && x.cf.rows && /^10-K/.test(x.form)).sort((a, b) => (a.filed < b.filed ? 1 : -1));
+  const out = {};
+  if (!ann.length) return out;
+  for (const k of ['dep', 'capex']) {
+    const list = tags[k] || [];
+    const cand = (x) => x.cf.rows.filter((r) => r.ns === 'us-gaap' && list.includes(r.tag));
+    const c0 = cand(ann[0]);
+    if (c0.length !== 1 || (k === 'dep' && c0[0].tag === 'Depreciation')) continue;
+    const M = new Map(), seen = new Set(), printed = new Map();
+    for (const x of ann) {
+      const c = cand(x), bad = c.length !== 1 || (k === 'dep' && c[0].tag === 'Depreciation');
+      // כל ערך שהודפס בשורה מהתגיות שלנו, בכל 10-K (גם דו־משמעי) — ערך כזה בסדרה הוא הצגה מסוימת, לא ביאור
+      for (const r of c) SECFACE.rowVals(x.cf, r).forEach((v, ci) => { const col = x.cf.cols[ci]; if (v == null || !col || col.months !== 12) return; if (!printed.has(col.end)) printed.set(col.end, []); printed.get(col.end).push(k === 'capex' ? Math.abs(v) : v); });
+      const vals = bad ? [] : SECFACE.rowVals(x.cf, c[0]);
+      x.cf.cols.forEach((col, ci) => {
+        if (col.months !== 12 || !SECFACE.colOk(col, cur) || seen.has(col.end)) return;
+        // השנה שייכת לדוח האחרון שמדפיס אותה — גם כשהוא דו־משמעי (שתי שורות: DHI, ‏Devon, ‏Edison) לא יורדים לדוח ישן יותר
+        seen.add(col.end);
+        // השקעה הונית מודפסת כתשלום (במינוס) — ערך מוחלט; פחת — כפי שהודפס (Allstate ‏2009: ‏(91) בשורה של פחת ושאר פריטים)
+        if (!bad && vals[ci] != null) M.set(col.end, { v: k === 'capex' ? Math.abs(vals[ci]) : vals[ci], filed: x.filed });
+      });
+    }
+    M.printed = printed;
+    if (M.size) out[k] = M;
+    out.last = ann[0].filed;
+  }
+  return out;
 }
 /* הפרש של שתי תגיות (רווח כולל פחות זכויות מיעוט): כל תקופה ששתיהן קיימות בה; לכל הגשה שבשתיהן — ההפרש באותה הגשה */
 function diffFacts(a, b) {
@@ -1341,6 +1382,28 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
     // המאזן המודפס של ההגשה (bsfDebt) — אותו יום או עד 3 ימים (שנה של 52/53 שבועות: סוף העמודה מול סוף התקופה)
     if (bsfM && bsfM.size) { const p = bsfAt(bsfM, e); if (p && p.v != null) { if (!D.debt) D.debt = {}; D.debt[e] = p.v; bsfN++; } }
   }
+  // פחת והשקעות הוניות של השנה — מדף התזרים המודפס (bsfCf, גל 3 F13). רק השנתי; הרבעונים נשארים מהסדרה (הרבעון הרביעי — מחושב)
+  const cfy = [];
+  if (!isIfrs && bsf) {
+    const CF = bsfCf(bsf, rc || cur || 'USD', FLOW);
+    for (const k of ['dep', 'capex']) {
+      const M = CF[k]; if (!M) continue;
+      // שער עקביות: הסדרה שלנו כבר עוקבת היום אחרי השורה הזו — בכל השנים שהדוח האחרון מדפיס, הערך שלנו = השורה (AEP: בתגית של
+      // השקעה הונית מודפסת "Acquisitions of Assets", וההשקעה עצמה — ‏$8.5B — בתגית פרטית; בלי השער כל השנים היו מוחלפות ברכישות)
+      const lastE = fyEnds.filter((e) => { const p = bsfAt(M, e); return p && p.filed === CF.last; });
+      if (!lastE.length || !lastE.every((e) => A[k] && A[k][e] != null && Math.abs(A[k][e] - bsfAt(M, e).v) <= Math.max(5e5, 5e-3 * Math.abs(A[k][e])))) continue;
+      for (const e of fyEnds) {
+        const p = bsfAt(M, e); if (!p) continue;
+        if (!A[k]) A[k] = {};
+        const old = A[k][e], near = (a, b) => Math.abs(a - b) <= Math.max(5e5, 5e-3 * Math.abs(b));
+        if (old != null && near(old, p.v)) continue;
+        // הערך שלנו הודפס בתזרים של 10-K אחר — הצגה מחדש (ד), לא מחליפים (YUM ‏2014: ‏1,033 לפני הפיצול של Yum China, כמו ההכנסות
+        // של אותה שנה ב־companyfacts; ‏508 — אחרי)
+        if (old != null) { let pr = M.printed.get(e); if (!pr) for (const [k2, v2] of M.printed) if (Math.abs(day(k2) - day(e)) <= 3) { pr = v2; break; } if (pr && pr.some((v) => near(old, v))) continue; }
+        A[k][e] = p.v; cfy.push({ k: old == null ? 'ffill' : 'ffix', m: k, p: e, f: p.v, v: old == null ? null : old });
+      }
+    }
+  }
   // צמיחה ברת השוואה (26/10/2026, AppLovin): חברה שהציגה מחדש שנים קודמות (פעילות שנמכרה, שינוי מדיניות) — הערך
   // האחרון של 2023 הוא אחרי ההצגה מחדש (‏$1.84B בלי עסק האפליקציות), ו־2022 נשאר כפי שדווח אז (‏$2.82B כולל אותו):
   // היחס ביניהם = צמיחה מדומה (‎−35% במקום ‎+16.5%). לכל תקופה: היחס מהדוח האחרון שמציג גם אותה וגם את התקופה
@@ -1400,7 +1463,7 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
   const pack = (D, ends) => { const o = {}; for (const k of KEEP) { if (!D[k]) continue; const a = ends.map((e) => (D[k][e] != null ? D[k][e] : null)); if (a.some((v) => v != null)) o[k] = a; } return o; };
   const fy = fyEnds.filter((e) => A.rev[e] != null || A.ni[e] != null).slice(-20);
   const C = { A: pack(GA, fy), Q: pack(GQ, qEnds) };
-  return { fy, q: qEnds, shEst: shEst.filter((e) => Q.sh[e] != null), epsNum, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix, cx0, gpx, gpd, opx, splitsUsed, capFace, bsfN };
+  return { fy, q: qEnds, shEst: shEst.filter((e) => Q.sh[e] != null), epsNum, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix, cx0, gpx, gpd, opx, splitsUsed, capFace, bsfN, cfy };
 }
 
 /* השקעה הונית שהחברה לא מציגה בשורה נפרדת (5/11/2026, AppLovin). מ־2024 התזרים של AppLovin בלי "Purchase of property and
@@ -2033,7 +2096,7 @@ async function fundamentals(sym0) {
   const q4p = useSec ? q4Press(sec, secPr) : [];
   const qsh = useSec ? qShares(sec, y) : [];
   const qeps = useSec ? q4Eps(sec, y) : [];
-  const checks = useSec ? validate(sec).concat(crossCheck(sec, y), fcRes.out, ffix, q4p, qsh, qeps) : [];
+  const checks = useSec ? validate(sec).concat(crossCheck(sec, y), fcRes.out, ffix, sec.cfy || [], q4p, qsh, qeps) : [];
   // מידע: דוח שהושלם מקובץ ה־XBRL של ההגשה (לא היה ב־companyfacts) — הבקרה הלילית סופרת אותם
   if (useSec) for (const a of xbAdded) checks.push({ k: 'xbrl', m: a.form, p: a.per || a.filed });
   // שורה שחסרה ב־SEC לגמרי (תגית פרטית של החברה, למשל השקעות הוניות ב־IFRS) — משלימים מ־Yahoo לפי תאריך, ומסמנים
@@ -2157,7 +2220,7 @@ async function handle(body, res) {
 
 // בקשה ל־SEC עם המזהה (עבודת הרקע של המאזנים — server.js → startBsf → lib/bsfiled.js)
 const secText = (u) => getText(u, { headers: { 'User-Agent': SEC_UA() } }, 15000);
-module.exports = { handle, fundamentals, holes, q4Press, fxMonthly, adrRatio, FX_FRED, capexNil, debtFace, bsfDebt, secText, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
+module.exports = { handle, fundamentals, holes, q4Press, fxMonthly, adrRatio, FX_FRED, capexNil, debtFace, bsfDebt, bsfCf, secText, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
   industryFor, industryData, _cache: cache,
   // התגיות המועמדות לכל שורה — לכלי ההשוואה (fundxcheck: SEC גולמי גם לתקופות שהושלמו מתגית משנית). נשמט ב־f9db4c74 — tools/fund-xcheck.js מצפה לו
   TAGS: { gaap: { ...FLOW, ...INST }, ifrs: IFRS } };
