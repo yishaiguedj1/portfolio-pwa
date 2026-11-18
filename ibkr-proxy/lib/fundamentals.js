@@ -1167,8 +1167,12 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
   { const fb = splitAdj(tagFacts(tax[isIfrs ? 'WeightedAverageShares' : 'WeightedAverageNumberOfSharesOutstandingBasic'], 'shares'), splitsUsed, true);
     for (const [kk, h] of fb.dur) { const [s0, e0] = kk.split('|'), L = day(e0) - day(s0); if (L >= 350 && L <= 380) shB.A[e0] = h.v; else if (qLen(L)) shB.Q[e0] = h.v; } }
   // שנים שתויגו "בסיסי ומדולל" במניות — בלי דילול (noDil, גל 6 — F30)
-  const shBD = new Set();
-  if (!isIfrs) for (const [kk] of tagFacts(tax.WeightedAverageNumberOfShareOutstandingBasicAndDiluted, 'shares').dur) { const [s0, e0] = kk.split('|'), L = day(e0) - day(s0); if (L >= 350 && L <= 380) shBD.add(e0); }
+  // ורווח בסיסי שנתי (לבדוק שהוא = המדולל עד הסנט)
+  const shBD = {}, epsBA = {};
+  if (!isIfrs) {
+    for (const [kk, h] of splitAdj(tagFacts(tax.WeightedAverageNumberOfShareOutstandingBasicAndDiluted, 'shares'), splitsUsed, true).dur) { const [s0, e0] = kk.split('|'), L = day(e0) - day(s0); if (L >= 350 && L <= 380) shBD[e0] = h.v; }
+    for (const [kk, h] of splitAdj(tagFacts(tax.EarningsPerShareBasic, unitOf('eps')), splitsUsed, false).dur) { const [s0, e0] = kk.split('|'), L = day(e0) - day(s0); if (L >= 350 && L <= 380) epsBA[e0] = h.v; }
+  }
   // שנים פיסקליות: תקופות של ~שנה בהכנסות או ברווח הנקי (52/53 שבועות נכללים) — רק מדוח שנתי.
   // Amazon מדפיסה ב־10-Q גם עמודה של 12 החודשים האחרונים: בלי התנאי כל רבעון נעשה "סוף שנה" והטבלה השנתית התערבבה
   const yearOf = new Map(); // end → start
@@ -1637,9 +1641,11 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
   const pack = (D, ends) => { const o = {}; for (const k of KEEP) { if (!D[k]) continue; const a = ends.map((e) => (D[k][e] != null ? D[k][e] : null)); if (a.some((v) => v != null)) o[k] = a; } return o; };
   const fy = fyEnds.filter((e) => A.rev[e] != null || A.ni[e] != null).slice(-20);
   const C = { A: pack(GA, fy), Q: pack(GQ, qEnds) };
-  // שנים בלי דילול (גל 6 — F30): המניות הבסיסיות בדוח השנתי = המדוללות (עד 0.1%), או תגית "בסיסי ומדולל" — שם "רווח למניה" בהודעה
-  // בלי המילה "מדולל" הוא גם המדולל (q4Press, שורות b)
-  const noDil = fy.filter((e) => shBD.has(e) || (shB.A[e] > 0 && A.sh[e] > 0 && Math.abs(shB.A[e] / A.sh[e] - 1) <= 0.001));
+  // שנים בלי דילול (גל 6 — F30): המניות הבסיסיות בדוח השנתי (או "בסיסי ומדולל") = המדוללות עד 0.1%, והרווח הבסיסי = המדולל עד
+  // הסנט — שם "רווח למניה" בהודעה בלי המילה "מדולל" הוא גם המדולל (q4Press, שורות b). Loews ‏2025: המניות שונות ב־0.07% והרווח
+  // ‏7.98 מול ‏7.97 — לא; Fox ‏2021: "בסיסי ומדולל" ‏621M (של שנה אחרת) מול ‏595M מדוללות — לא
+  const noDil = fy.filter((e) => { const b = shBD[e] != null ? shBD[e] : shB.A[e];
+    return b > 0 && A.sh[e] > 0 && Math.abs(b / A.sh[e] - 1) <= 0.001 && (epsBA[e] == null || A.eps[e] == null || Math.abs(epsBA[e] - A.eps[e]) < 0.005); });
   return { fy, q: qEnds, shEst: shEst.filter((e) => Q.sh[e] != null), epsNum, noDil, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix, cx0, gpx, gpd, opx, splitsUsed, capFace, bsfN, cfy };
 }
 

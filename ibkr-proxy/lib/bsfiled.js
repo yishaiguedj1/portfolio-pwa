@@ -116,10 +116,10 @@ async function readOne(cik, f, getText) {
    קבצים (בלי נספח — המסמך הראשי), הראשון שיש בו שורות "מדולל" (בטבלה, ובלעדיה — ברצף הטקסט) וגם שורת מניות.
    {end, acc, filed, file, rows} / {end, err} (נשמר) / null (תקלת רשת — ינוסה שוב) */
 const PR_V = 3; // גרסת המפענח של ההודעות (2 — רצף הטקסט, מועמדים בלי 2.02 והמסמך הראשי, גל 5; 3 — רווח למניה בלי "מדולל" ומועמד עם שורת מניות, גל 6): רשומה ישנה בלי מניות נקראת שוב פעם אחת
-const prNeed = (r) => !r || ((!!r.err || (!!r.rows && !r.rows.some(SECPR.isShares))) && (r.pv || 1) < PR_V);
+const prNeed = (r) => !r || ((!!r.err || (!!r.rows && !r.rows.some(SECPR.shRow))) && (r.pv || 1) < PR_V);
 async function readPr(cik, it, getText) {
   let last = { end: it.end, err: 'nofile', pv: PR_V }, first = null, fbr = null;
-  const sh = (x) => !!x && x.rows.some(SECPR.isShares);
+  const sh = (x) => !!x && x.rows.some(SECPR.shRow);
   for (const k of it.cands) {
     const base = 'https://www.sec.gov/Archives/edgar/data/' + (+cik) + '/' + k.acc.replace(/-/g, '') + '/';
     let idx;
@@ -137,7 +137,7 @@ async function readPr(cik, it, getText) {
       // בלי טבלה שיש בה "מדולל" — רצף הטקסט (מצגת, PDF שהומר; גל 5, F24)
       let r0 = SECPR.parse(h); if (!r0.length) r0 = SECPR.parseText(h);
       // בלי "מדולל" בכלל — "רווח למניה" ו"מניות" (גל 6, F30; מסומן b — q4Press מקבל רק בשנה בלי דילול). רק כגיבוי: קובץ אחר עם "מדולל" גובר
-      if (!r0.length) { const e = SECPR.parseEps(h); if (e.length && (!fb || (!sh(fb) && e.some(SECPR.isShares)))) fb = { rows: e, file: nm }; continue; }
+      if (!r0.length) { const e = SECPR.parseEps(h); if (e.length && (!fb || (!sh(fb) && e.some(SECPR.shRow)))) fb = { rows: e, file: nm }; continue; }
       const r = r0.map((x) => ({ ...x, t: x.t + 1000 * files.length }));
       rows = rows.concat(r); files.push(nm);
       if (r.some(SECPR.isShares)) break;

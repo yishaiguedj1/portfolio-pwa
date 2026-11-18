@@ -1768,6 +1768,8 @@ ${row('ro', 'us-gaap_CostOfRevenue', 'Cost of sales', ['1', '2', '3', '4', '5', 
     ok(PR6.parse(FOXH).length === 0, '(38) parse: בלי "מדולל" — אין שורות');
     const fe = PR6.parseEps(FOXH);
     ok(fe.length === 2 && fe.every((x) => x.b) && fe[0].v[0] === 0.73 && PR6.isShares(fe[1]) && !fe.some((x) => /except|Dividend/.test(x.label)), '(38) F30 parseEps: רווח למניה ומניות (מסומנים b); לא כותרת "except per share" ולא דיבידנד');
+    ok(!PR6.shRow({ label: 'is expected to be accretive', v: [2028] }) && PR6.shRow({ label: 'Diluted', v: [879, 870] }) && PR6.shRow({ label: 'Diluted Weighted Average Common Shares Outstanding', v: [2472.2] })
+      && !PR6.shRow({ label: 'Diluted', v: [1.25, 1.09] }), '(38) shRow: שנה בתחזית — לא מניות; שורת "Diluted" במיליונים — כן');
     // F31: מועמד ראשון — תחזית עם "Diluted EPS" בלי מניות; השני — ההודעה המלאה
     const GUID = '<table><tr><td>Diluted EPS Range</td><td>12.12</td><td>12.32</td></tr></table>';
     const FULL = '<table><tr><td>Diluted earnings per share</td><td>1.10</td></tr><tr><td>Diluted weighted average shares</td><td>1770</td></tr></table>';

@@ -159,4 +159,11 @@ const annOk = (re, rs, i, f, pf, ann) => !!ann && ann.sh > 0 && re.v.some((e0, j
 const isShares = (r) => (/share|weight|average|outstanding/i.test(r.label + ' ' + (r.ctx || '')) && !/per (common )?share|earnings per|income per|loss per|\beps\b/i.test(r.label))
   || r.v.some((x) => x != null && Math.abs(x) >= 1000);
 
-module.exports = { parse, parseText, parseEps, pickItems, ALT, exhibits, q4From, isShares, num };
+/* שורה ש־q4From יכול להשתמש בה כמניות (גל 6, F31 — ההחלטה אם להמשיך למועמד הבא): תווית של מניות, או שורה שאינה רווח למניה
+   ואינה רק שנים ("2028" בתחזית — Ecolab ‏2025). isShares לבדו גם החמיץ שורת מניות אמיתית וגם ספר שנה */
+const yearsOnly = (r) => r.v.every((x) => x == null || (Number.isInteger(x) && x >= 1990 && x <= 2100));
+const epsLike = (r) => r.v.every((x) => x == null || Math.abs(x) < 5000) && r.v.some((x) => x != null && Math.round(x) !== x);
+const shLab = (r) => /share|weight|average|outstanding/i.test(r.label + ' ' + (r.ctx || '')) && !/per (common )?share|earnings per|income per|loss per|\beps\b/i.test(r.label);
+const shRow = (r) => !yearsOnly(r) && (shLab(r) || !epsLike(r));
+
+module.exports = { shRow, parse, parseText, parseEps, pickItems, ALT, exhibits, q4From, isShares, num };
