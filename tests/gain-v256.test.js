@@ -74,6 +74,21 @@ ok(JSON.stringify(tm['Mobileye logo (new).svg'].bx) === '[0,0.141,1,0.909]', 'v2
 ok(JSON.stringify(R('wmInkBox([0, 0.141, 1, 0.909])')) === '[0,0.141,1,0.909]' && R('wmInkBox([0, 0, 1, 1])') === null && R('wmInkBox([0, 0.9, 1, 1])') === null && R("wmInkBox('x')") === null, 'באפליקציה: מסגרת רק כשתקינה וחותכת משהו');
 R("_wm = { MBLY: { at: Date.now(), v: { url: 'https://thumb.wikimedia.org/m.png', w: 500, h: 98, bx: [0, 0.141, 1, 0.909] } } };");
 ok(Math.abs(R("wmInkRatio(wordmarkOf('MBLY'))") - 500 / (98 * 0.768)) < 1e-9 && /top:-18\.36%/.test(R("gainMarkHTML('MBLY', 'Mobileye')")), 'יחס הלוגו אחרי החיתוך + הזזה בתוך המסגרת');
+// 18/11/2026 (בקשת המשתמש — "לוגו לוגו"): חברה פעילה לטיקר, רקע לבן נבלע, כהה = אריח בהיר בגוון ברור
+const LB = (t, logo, end, dis) => ({ t: { value: t }, ex: { value: 'http://www.wikidata.org/entity/Q13677' }, logo: { value: 'http://commons.wikimedia.org/wiki/Special:FilePath/' + encodeURIComponent(logo) }, ...(end ? { end: { value: '2010' } } : {}), ...(dis ? { dis: { value: '2001' } } : {}) });
+ok(W.pickFiles(['ROK'], [LB('ROK', 'Rockwell Logo.svg', 1, 1), LB('ROK', 'Rockwell Automation logo (2019).svg')]).ROK === 'Rockwell Automation logo (2019).svg', 'טיקר של חברה שפורקה — קודם החברה הפעילה (ROK)');
+ok(W.pickFiles(['C'], [LB('C', 'Stellantis.svg', 1), LB('C', 'Citi logo March 2023.svg')]).C === 'Citi logo March 2023.svg', 'רישום בורסה שהסתיים — אחרי הפעיל');
+ok(/OPTIONAL \{ \?st pq:P582 \?end \}/.test(W.sparqlFor(['ROK'])) && /OPTIONAL \{ \?item wdt:P576 \?dis \}/.test(W.sparqlFor(['ROK'])), 'השאילתה מביאה תאריך סיום ופירוק');
+ok(W.pickFiles(['BKNG', 'DELL', 'AMAT'], []).BKNG === 'Booking Holdings Inc. Logo.svg' && W.OVERRIDES.DELL && W.OVERRIDES.AMAT, 'BKNG = Booking (לא priceline); DELL/AMAT קבועים');
+ok(['LIN', 'SE', 'VMRK', 'TKO', 'JCI', 'MZTF.TA'].every((s) => W.tickerOf(s) === null), 'לוגו של חברה אחרת / לא קריא בפס → אייקון + שם');
+const wbt = W.pickThumbs({ query: { pages: { 1: { title: 'File:AppLovin-Logo.gif', imageinfo: [{ thumburl: 'https://upload.wikimedia.org/a.gif', thumbwidth: 500, thumbheight: 250 }] }, 2: { title: 'File:Trav umb 5inch.jpg', imageinfo: [{ thumburl: 'https://upload.wikimedia.org/b.jpg', thumbwidth: 500, thumbheight: 101 }] }, 3: { title: 'File:Meta Platforms Inc. logo.svg', imageinfo: [{ thumburl: 'https://upload.wikimedia.org/c.png', thumbwidth: 500, thumbheight: 101 }] } } } });
+ok(wbt['AppLovin-Logo.gif'].wb === 1 && wbt['Trav umb 5inch.jpg'].wb === 1 && !wbt['Meta Platforms Inc. logo.svg'].wb, 'wb: רקע לבן אטום (רשימה + כל JPG), לא לוגו שקוף');
+R("_wm = { APP: { at: Date.now(), v: { url: 'https://upload.wikimedia.org/a.gif', w: 500, h: 250, bx: [0.023, 0.31, 0.93, 0.73], wb: 1 } }, META: { at: Date.now(), v: { url: 'https://upload.wikimedia.org/c.png', w: 500, h: 101, bx: null, wb: 0 } } };");
+ok(/class="gb-mark wb"/.test(R("gainMarkHTML('APP', 'AppLovin')")) && /class="gb-mark"/.test(R("gainMarkHTML('META', 'Meta')")) && /wb: v\.wb \? 1 : 0/.test(app), 'באפליקציה: ‎.wb רק ללוגו עם רקע אטום');
+const ig = fs.readFileSync(path.join(root, 'invest-glass.css'), 'utf8');
+ok(/main \.gb-mark\.wb img \{ mix-blend-mode: multiply; \}/.test(ig) && !/main \.gb-mark img \{ mix-blend-mode/.test(ig) && /main \.gb-row:not\(\.gb-out\) \.gb-bar \{ isolation: isolate; \}/.test(ig), 'מיזוג רק ל־.wb, בתוך פס מבודד');
+ok(/html\[data-theme="dark"\] main \.gb-row\.gb-up:not\(\.gb-out\) \.gb-bar \{ background: color-mix\(in srgb, var\(--gain\) 34%, #ECEEF0\)/.test(ig) && /html\[data-theme="dark"\] main \.gb-bar \.gb-fbn \{ color: #1C1C1E/.test(ig), 'כהה: אריח בהיר בגוון ברור, שם כהה עליו');
+ok(/main \.gb-up\.gb-out \.gb-bar \{ background: var\(--gain\) !important; \}/.test(ig), 'פס דק של רווח — אטום כמו של הפסד');
 const vj = JSON.parse(fs.readFileSync(path.join(root, 'ibkr-proxy/vercel.json'), 'utf8'));
 ok(vj.functions['api/wordmark.js'], 'vercel.json: נקודה חדשה רשומה');
 console.log('\n' + n + ' בדיקות עברו');

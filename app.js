@@ -8245,8 +8245,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.181.2';
-const APP_VERSION = 'v832';
+const APP_RELEASE = '2.181.3';
+const APP_VERSION = 'v833';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -8263,7 +8263,7 @@ const APP_PAGE = (typeof window !== 'undefined' && window.SNB_ENV && window.SNB_
    ושמירת התיק נכשלה בלי שאיש ידע. עכשיו התיק וחיבור IBKR קודמים לכל מטמון: מפנים מטמונים שנטענים שוב מהרשת
    (היסטוריית מחירים, ציטוטים, לוגואים, מדדים), מהגדול לקטן, ומנסים שוב; עדיין לא נכנס → הודעה גלויה (פעם ב־10 דק׳).
    נתונים אישיים (תיק, IBKR, מחסני חשבונות אחרים, הספרייה, הסטודיו) לא נמחקים אף פעם. */
-const LS_CACHE_PREFIXES = ['pwa_hist_v2_', 'pwa_hist_v1_', 'pwa_intra_v1_', 'pwa_quotes_v2', 'pwa_fxhist_v1', 'pwa_bench_v1', 'pwa_wordmarks_v4', 'pwa_logo_meta_v1', 'pwa_earn_v1', 'pwa_earnx_v1', 'pwa_syscfg_v1', 'pwa_kcq_v1'];
+const LS_CACHE_PREFIXES = ['pwa_hist_v2_', 'pwa_hist_v1_', 'pwa_intra_v1_', 'pwa_quotes_v2', 'pwa_fxhist_v1', 'pwa_bench_v1', 'pwa_wordmarks_v5', 'pwa_logo_meta_v1', 'pwa_earn_v1', 'pwa_earnx_v1', 'pwa_syscfg_v1', 'pwa_kcq_v1'];
 function isQuotaErr(e) {
   return !!e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014);
 }
@@ -14851,12 +14851,13 @@ function localStockSearch(query) {
 /* ---------------- v256: גרף "רווח/הפסד מהקנייה" בסקירה — כל מניה = פס שבנוי מהלוגו האופקי שלה ----------------
    לוגואים אופקיים: השרתון (/api/wordmark ← Wikidata → Wikimedia Commons), מטמון בטלפון שבוע (חסר — יום).
    לוגו ריבועי/חסר (Apple, Tesla, מניה בלי לוגו) → "לוגו מורכב": האייקון הרגיל + שם החברה, באותו פס. */
-const LS_WORDMARK = 'pwa_wordmarks_v4'; // v259: עם מסגרת הדיו (bx); v260: v3 — GOOGL = Alphabet (דקות אחרי v259 השרתון החזיר Google)
+const LS_WORDMARK = 'pwa_wordmarks_v5'; // 18/11/2026: v5 — סבב "לוגו לוגו" (חברה פעילה לטיקר, BKNG/ROK, חסימות וחיתוכים); v259: עם מסגרת הדיו (bx); v260: v3 — GOOGL = Alphabet (דקות אחרי v259 השרתון החזיר Google)
 const WM_MIN_RATIO = 1.8; // רוחב/גובה — מתחת לזה הלוגו ריבועי מדי לפס
 let _wm = null, _wmBusy = false;
 function wmStore() {
   if (_wm) return _wm;
   try { _wm = JSON.parse(localStorage.getItem(LS_WORDMARK) || '{}') || {}; } catch (e) { _wm = {}; }
+  try { localStorage.removeItem('pwa_wordmarks_v4'); } catch (e) {} // המטמון הקודם — לא נקרא יותר
   return _wm;
 }
 function wordmarkOf(sym) {
@@ -14886,7 +14887,7 @@ async function wordmarkLoad(syms) {
         if (!j || !j.ok || !j.items) return false;
         for (const s of part) {
           const v = j.items[s];
-          st[s] = { at: now, v: v && /^https:\/\/(upload|thumb)\.wikimedia\.org\//.test(String(v.url)) && +v.w > 0 && +v.h > 0 ? { url: String(v.url), w: +v.w, h: +v.h, bx: wmInkBox(v.bx) } : null };
+          st[s] = { at: now, v: v && /^https:\/\/(upload|thumb)\.wikimedia\.org\//.test(String(v.url)) && +v.w > 0 && +v.h > 0 ? { url: String(v.url), w: +v.w, h: +v.h, bx: wmInkBox(v.bx), wb: v.wb ? 1 : 0 } : null };
         }
         return true;
       } catch (e) { return false; }
@@ -14930,7 +14931,7 @@ function gainMarkHTML(sym, name) {
   if (wm) {
     const b = wm.bx || [0, 0, 1, 1], bw = b[2] - b[0], bh = b[3] - b[1];
     const st = 'width:' + (100 / bw).toFixed(2) + '%;height:' + (100 / bh).toFixed(2) + '%;left:' + (-b[0] / bw * 100).toFixed(2) + '%;top:' + (-b[1] / bh * 100).toFixed(2) + '%';
-    h = '<span class="gb-mark" data-r="' + wmInkRatio(wm).toFixed(3) + '"><img src="' + esc(wm.url) + '" alt="' + esc(nm) + '" decoding="async" draggable="false" style="' + st + '"></span>';
+    h = '<span class="gb-mark' + (wm.wb ? ' wb' : '') + '" data-r="' + wmInkRatio(wm).toFixed(3) + '"><img src="' + esc(wm.url) + '" alt="' + esc(nm) + '" decoding="async" draggable="false" style="' + st + '"></span>';
   }
   const short = String(nm).replace(/,?\s+(Inc|Corp|Corporation|Ltd|Plc|Co|Company|Holdings|Group)\.?$/i, '');
   return h + '<span class="gb-fb">' + stockLogoHTML(sym) + '<span class="gb-fbn" dir="auto">' + esc(short) + '</span><span class="gb-fbn gb-fbs">' + esc(dispSym(sym).replace(/\.TA$/, '')) + '</span></span>';

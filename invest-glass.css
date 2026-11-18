@@ -172,6 +172,16 @@ main .gb-out .gb-bar { background: var(--gain) !important; }
 main .gb-down.gb-out .gb-bar { background: var(--loss) !important; }
 main .gb-fb { background: transparent !important; box-shadow: none !important; }
 main .gb-fbn { color: var(--on-surface) !important; }
+/* 18/11/2026 (בקשת המשתמש): האריח אטום (אותו גוון בבהיר) ומבודד; לוגו שבקובץ שלו רקע לבן אטום (‎.wb מהשרתון — AppLovin,
+   Travelers, Vertex…) במיזוג multiply — הרקע נבלע בגוון הפס. בכהה: אותו אריח בהיר בגוון ברור — לוגואים כהים (Meta, mobileye) קריאים */
+main .gb-row:not(.gb-out) .gb-bar { isolation: isolate; }
+main .gb-mark.wb img { mix-blend-mode: multiply; }
+main .gb-up.gb-out .gb-bar { background: var(--gain) !important; }
+main .gb-row.gb-up:not(.gb-out) .gb-bar { background: color-mix(in srgb, var(--gain) 22%, #FFFFFF) !important; }
+main .gb-row.gb-down:not(.gb-out) .gb-bar { background: color-mix(in srgb, var(--loss) 20%, #FFFFFF) !important; }
+html[data-theme="dark"] main .gb-row.gb-up:not(.gb-out) .gb-bar { background: color-mix(in srgb, var(--gain) 34%, #ECEEF0) !important; }
+html[data-theme="dark"] main .gb-row.gb-down:not(.gb-out) .gb-bar { background: color-mix(in srgb, var(--loss) 30%, #ECEEF0) !important; }
+html[data-theme="dark"] main .gb-bar .gb-fbn { color: #1C1C1E !important; }
 main .gb-grid { opacity: .5 !important; }
 main .gb-pct { font-weight: 600 !important; }
 
