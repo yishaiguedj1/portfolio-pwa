@@ -1516,5 +1516,82 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     ok(tot([['us-gaap', 'FederalFundsPurchasedAndSecuritiesSoldUnderAgreementsToRepurchase', 'Federal funds purchased and repurchase agreements', 3327], ['us-gaap', 'SubordinatedDebt', 'Subordinated debt', 7299],
       ['us-gaap', 'CommercialPaper', 'Commercial paper (includes $0 and $6,045 for VIEs)', 8453], ['us-gaap', 'BorrowedFunds', 'Total borrowed funds', 19079, true]]) === 15752, '(28) PNC: סך שכולל ריפו — הרכיבים');
   }
+
+  /* ---------- (29) רבעון רביעי מתויג שאינו עקבי עם הרווח (18/11/2026, גל 4 — q4Press): Sempra ‏2019 ---------- */
+  {
+    // XBRL: ‏0.21 לפני הפיצול 2:1 (‏0.105 אצלנו), ‏578M מניות, רווח ‏$447M — ‏0.105 × 578 = 61 ≠ 447. בהודעה: ‏1.55 ו־289.0M (‏Q4 ו־שנה)
+    const rows = [{ t: 2, label: 'Diluted', v: [1.55, 1.28, 7.29, 3.42] }, { t: 2, label: 'Weighted-average common shares outstanding, diluted', v: [289012, 283117, 287820, 279824] }];
+    const P = { '2019-12-31': { end: '2019-12-31', filed: '2020-02-25', rows } };
+    const mk = (eps, ni) => ({ fy: ['2019-12-31'], q: ['2019-09-30', '2019-12-31'], shEst: [], derived: { eps: [] }, epsNum: {}, splitsUsed: [['2023-11-03', 2]],
+      A: { sh: [575.6e6], ni: [2055e6] }, Q: { sh: [591.6e6, 578.0e6], eps: [1.42, eps], ni: [813e6, ni] } });
+    const s1 = mk(0.105, 447e6), ch = F.q4Press(s1, P);
+    ok(s1.Q.eps[1] === 0.775 && s1.Q.sh[1] === 578.0e6 && ch.length === 1 && ch[0].m === 'eps' && ch[0].v === 0.105 && ch[0].src === '8k', '(29) Sempra ‏2019: ‏0.105 → ‏0.775 מההודעה (אחרי הפיצול); המניות המתויגות נשארות');
+    const s2 = mk(0.77, 447e6);
+    ok(F.q4Press(s2, P).length === 0 && s2.Q.eps[1] === 0.77, '(29) רווח למניה עקבי עם הרווח — לא נוגעים (גם כשההודעה בסנט אחר)');
+    const s3 = mk(0.03, 2e6);
+    ok(F.q4Press(s3, P).length === 0 && s3.Q.eps[1] === 0.03, '(29) רווח קטן — פער של סנטים ביחס גדול, לא נוגעים');
+    const s4 = mk(0.105, 447e6); s4.Q.sh[1] = 520e6;
+    ok(F.q4Press(s4, P).length === 0, '(29) המניות בהודעה רחוקות מהמתויגות (מעל 2%) — לא אותה טבלה, לא נוגעים');
+    // רבעון הפסד מוערך: בהודעה "Diluted" ‏381.1 ובשנה ‏371.0 (מדוללות מלאות), ה־XBRL השנתי ‏363.7 (בסיסי — אנטי־דילול). הרווח למניה מההודעה,
+    // המניות נשארות הערכה. כשהשנה בהודעה = השנתי שלנו (Ventas) — גם המניות
+    const lrows = [{ t: 1, label: 'Diluted', v: [-0.22, 0.95, -8.61, 2.27] }, { t: 1, label: 'Diluted', v: [381.1, 395.2, 371.0, 401.0] }];
+    const mkL = (annSh) => ({ fy: ['2017-12-31'], q: ['2017-12-31'], shEst: ['2017-12-31'], derived: { eps: ['2017-12-31'] }, epsNum: { '2017-12-31': -81e6 },
+      A: { sh: [annSh], ni: [-3131e6], eps: [-8.61] }, Q: { sh: [376.6e6], eps: [-0.21], ni: [-81e6] } });
+    const PL = { '2017-12-31': { end: '2017-12-31', filed: '2018-02-01', rows: lrows } };
+    const l1 = mkL(363.7e6), c1 = F.q4Press(l1, PL);
+    ok(l1.Q.sh[0] === 376.6e6 && l1.Q.eps[0] === -0.22 && c1.length === 1 && c1[0].m === 'eps' && l1.shEst.includes('2017-12-31'), '(29) הפסד: שורת "Diluted" בבסיס אחר מהשנתי — רק הרווח למניה, המניות נשארות הערכה');
+    const l2 = mkL(371.0e6), c2 = F.q4Press(l2, PL);
+    ok(l2.Q.sh[0] === 381.1e6 && c2.some((c) => c.m === 'sh'), '(29) הפסד: השנה בהודעה = השנתי שלנו — המניות מההודעה (Ventas)');
+  }
+
+  /* ---------- (30) שורות בודדות בחוב (18/11/2026, גל 4 — debtFace) ---------- */
+  {
+    const sh = (rows) => ({ bs: { cols: [{ end: '2016-03-31' }], scale: { cur: 1e6, sh: 1e6 },
+      rows: [{ ns: 'us-gaap', tag: 'Assets', label: 'Total assets', total: true, v: [9e5] },
+        ...rows.map(([ns, tag, label, v, total]) => ({ ns, tag, label, v: [v], total: !!total })),
+        { ns: 'us-gaap', tag: 'LiabilitiesAndStockholdersEquity', label: 'Total liabilities and equity', total: true, v: [9e5] }] } });
+    const tot = (rows) => F.debtFace(sh(rows), 'USD').tot.get('2016-03-31') / 1e6;
+    // LH ‏10-Q ‏2016: התוויות זזו בשורה — ‏LiabilitiesCurrent ‏"Long-term debt, less current portion" (‏1,642.7, סך) מחקה את ‏DebtCurrent ‏425.4
+    ok(tot([['us-gaap', 'DebtCurrent', 'Debt, Current', 425.4], ['us-gaap', 'LiabilitiesCurrent', 'Long-term debt, less current portion', 1642.7, true],
+      ['us-gaap', 'LongTermDebtNoncurrent', 'Long-term Debt, Excluding Current Maturities', 5969.5]]) === 6394.9, '(30) LH: תגית סך התחייבויות — לא חוב גם בתווית של חוב');
+    // Con Edison: ‏ed:LongTermDebtExcludingHeldForSale — חוב; ‏ed:LiabilitiesNoncurrentExcludingLongTermDebt ‏"TOTAL NONCURRENT LIABILITIES" — לא
+    ok(tot([['ed', 'LongTermDebtCurrentMaturitiesExcludingHeldForSale', 'Long-term debt due within one year', 440], ['us-gaap', 'NotesPayableCurrent', 'Notes payable', 1488],
+      ['ed', 'LiabilitiesNoncurrentExcludingLongTermDebt', 'TOTAL NONCURRENT LIABILITIES', 14958, true], ['ed', 'LongTermDebtExcludingHeldForSale', 'LONG-TERM DEBT', 21927]]) === 23855, '(30) Con Edison: "Excluding …" בשם התגית לא נבדק מול "held for sale" / "debt"');
+    // Vistra: ‏ShortTermBorrowings ‏"Accounts receivable securitization program" — חוב
+    ok(tot([['us-gaap', 'ShortTermBorrowings', 'Accounts receivable securitization program', 350], ['us-gaap', 'LongTermDebtAndCapitalLeaseObligationsCurrent', 'Less amounts due currently', 181],
+      ['us-gaap', 'LongTermDebtAndCapitalLeaseObligations', 'Long-term debt, less amounts due currently', 11060]]) === 11591, '(30) Vistra: איגוח חייבים בתגית של הלוואות קצרות נספר');
+    // AIG ‏10-Q ‏2015: ‏OtherLongTermDebt ‏"Long-term debt (portion measured at fair value: 2015 - $4,844; …)"
+    ok(tot([['us-gaap', 'OtherLongTermDebt', 'Long-term debt (portion measured at fair value: 2015 - $4,844; 2014 - $5,466)', 31999]]) === 31999, '(30) AIG: הערת "portion measured at fair value" עם סכום — לא חלק מהשם');
+    // Morgan Stanley: רווח כולל אחר בתגית עם "Debt" (שלילי) — לא חוב, והעמודה לא נפסלת
+    const ms = F.debtFace(sh([['us-gaap', 'ShortTermBorrowings', 'Short-term borrowings (includes $714 and $406 at fair value)', 1122], ['us-gaap', 'LongTermDebt', 'Long-term borrowings', 172688],
+      ['ms', 'AccumulatedOtherComprehensiveIncomeLossNetOfCumulativeDebtValuationAdjustmentsAfterTax', 'Accumulated other comprehensive income (loss)', -2450]]), 'USD');
+    ok(ms.lines.length === 2 && ms.tot.get('2016-03-31') === 173810e6, '(30) Morgan Stanley: רווח כולל אחר — לא שורת חוב');
+  }
+  /* ---------- (31) תגיות במשמעות זהה שלא היו ברשימה (18/11/2026, גל 4 — "חסר") ---------- */
+  {
+    // US GAAP: שותפות (ARES עד 2019) — רווח ומניות "ליחידה"; "Short-term investments" של מבטח ב־OtherShortTermInvestments
+    const base = [['Revenues', 'USD', yrs([500, 510, 520], 2017)], ['NetIncomeLoss', 'USD', yrs([50, 51, 52], 2017)]];
+    const lp = F.normalizeSec(facts([...base, ['NetIncomeLossNetOfTaxPerOutstandingLimitedPartnershipUnitDiluted', 'USD/shares', yrs([0.5, 0.51, 0.52], 2017)],
+      ['WeightedAverageLimitedPartnershipUnitsOutstandingDiluted', 'shares', yrs([100e6, 100e6, 100e6], 2017)],
+      ['OtherShortTermInvestments', 'USD', [[null, '2019-12-31', 77, '10-K', '2020-02-01']]]]), [], null), j = lp.fy.indexOf('2019-12-31');
+    ok(lp.A.eps[j] === 0.52 && lp.A.sh[j] === 100e6, '(31) שותפות: רווח ומניות ליחידה כשאין רווח למניה');
+    ok(lp.A.msec && lp.A.msec[j] === 77, '(31) מבטח: "Short-term investments" ב־OtherShortTermInvestments');
+    const bo = F.normalizeSec(facts([...base, ['InterestAndDebtExpense', 'USD', yrs([20, 21, 22], 2017)], ['CostOfGoodsSoldExcludingDepreciationDepletionAndAmortization', 'USD', yrs([300, 305, 310], 2017)]]), [], null);
+    ok(bo.A.int[bo.fy.indexOf('2019-12-31')] === 22 && bo.A.cogs[bo.fy.indexOf('2019-12-31')] === 310, '(31) "Interest and debt expense" (Boeing) ועלות מכר "בלי פחת" (Ball)');
+    // הרגילה קודמת: כשיש רווח למניה — התגית של השותפות לא נכנסת
+    const lp2 = F.normalizeSec(facts([...base, ['EarningsPerShareDiluted', 'USD/shares', yrs([0.4, 0.41, 0.42], 2017)],
+      ['NetIncomeLossNetOfTaxPerOutstandingLimitedPartnershipUnitDiluted', 'USD/shares', yrs([0.5, 0.51, 0.52], 2017)]]), [], null);
+    ok(lp2.A.eps[lp2.fy.indexOf('2019-12-31')] === 0.42, '(31) רווח למניה רגיל קודם ליחידה');
+    // IFRS: רכישה חוזרת, מו״פ, דיבידנד לבעלי המניות, פחת מהתזרים, ני״ע לזמן קצר — לא היו במפה בכלל
+    const ig = {};
+    const put = (tag, unit, vals) => { ig[tag] = { units: { [unit]: vals.map((v, i) => ({ start: (2023 + i) + '-01-01', end: (2023 + i) + '-12-31', val: v, form: '20-F', filed: (2024 + i) + '-03-01', fy: 2024 + i, fp: 'FY' })) } }; };
+    put('Revenue', 'EUR', [1000, 1100]); put('ProfitLossAttributableToOwnersOfParent', 'EUR', [100, 110]);
+    put('PaymentsToAcquireOrRedeemEntitysShares', 'EUR', [40, 45]); put('ResearchAndDevelopmentExpense', 'EUR', [70, 75]);
+    put('DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities', 'EUR', [30, 33]); put('AdjustmentsForDepreciationExpense', 'EUR', [20, 22]);
+    ig.CurrentInvestments = { units: { EUR: [{ end: '2024-12-31', val: 9, form: '20-F', filed: '2025-03-01', fy: 2024, fp: 'FY' }] } };
+    const fr = F.normalizeSec({ facts: { 'ifrs-full': ig } }, [], null), k = fr.fy.indexOf('2024-12-31');
+    ok(fr.A.buy[k] === 45 && fr.A.rnd[k] === 75 && fr.A.divp[k] === 33 && fr.A.dep[k] === 22 && fr.A.msec[k] === 9,
+      '(31) IFRS: רכישה חוזרת, מו״פ, דיבידנד לבעלי המניות, פחת ("Depreciation") וני״ע לזמן קצר');
+  }
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });
