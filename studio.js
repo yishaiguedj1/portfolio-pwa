@@ -2580,9 +2580,13 @@ function stSwipePage(next) {
   };
 }
 /* ---- החוגה (המנוע ב־core: dialHost/wireDial — אותו של Invest) ---- */
+/* 18/11/2026 (בקשת המשתמש): סמל התרגום, בשפה המקובלת (ת־עיצוב): שתי בועות דיבור חופפות —
+   A בבועה שמאחור ו־文 בבועה שמלפנים (ציור שלנו, קווים מעוגלים, האותיות דקות מהמסגרת, הבועה האחורית נקטעת לפני הקדמית).
+   אחד לחוגה, לכפתור "עבודה חדשה" ולתגית בספרייה (ICON.trans) */
+const ICO_TR = '<path d="M9.2 11.5H7.2L4.2 14.2V11.5A2.2 2.2 0 0 1 2 9.3V5A3 3 0 0 1 5 2H10A3 3 0 0 1 13 5V8"/><path d="M14 10.5H19A3 3 0 0 1 22 13.5V18A2.2 2.2 0 0 1 19.8 20.2V22.7L17 20.2H14A3 3 0 0 1 11 17.2V13.5A3 3 0 0 1 14 10.5Z"/><path d="M4.9 9.6L7.5 3.9l2.6 5.7M5.9 7.7h3.2" stroke-width="1.7"/><path d="M16.5 12.3v.9M13.3 14.1h6.4M18.6 14.1c-.5 1.9-1.7 3.1-4.3 3.9M14.4 14.1c.5 1.9 1.7 3.1 4.3 3.9" stroke-width="1.6"/>';
 const ST_DIAL_ICO = {
-  // 30/10/2026 (בקשת המשתמש): הבית = תרגום סרטונים (מסך + כתובית), הקריוקי = תו, העבודה = משותפת לשניהם (פעימה)
-  home: '<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M10.2 7.6v4.8l4-2.4z"/><path d="M7 16h5.5M14.5 16H17"/>',
+  // 30/10/2026 (בקשת המשתמש): הבית = תרגום סרטונים, הקריוקי = תו, העבודה = משותפת לשניהם (פעימה)
+  home: ICO_TR,   // 18/11/2026: התרגום = שתי בועות דיבור (היה מסך עם כתובית)
   job: '<path d="M3 12h3.8l2.4-6.5 5.6 13 2.4-6.5H21"/>',
   tower: '<path d="M9.2 21l.9-8.5h3.8l.9 8.5M7 21h10M6.5 8.5h11l-1.6 4h-7.8zM12 8.5V4.5M9.8 4.5h4.4"/>',
   ka: '<circle cx="8.5" cy="17.5" r="3"/><path d="M11.5 17.5V3.5c0 2.6 4.8 3.4 4.8 7.2"/>',
@@ -2718,6 +2722,7 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   film: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.2v5.6l4.6-2.8z" fill="currentColor" stroke="none"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
   note: '<circle cx="8.5" cy="17.5" r="3"/><path d="M11.5 17.5V3.5c0 2.6 4.8 3.4 4.8 7.2"/>',   // 30/10/2026: הקריוקי
+  trans: ICO_TR,   // 18/11/2026: תרגום (= ST_DIAL_ICO.home)
   lect: '<rect x="3" y="4" width="18" height="12.5" rx="2.5"/><path d="M12 16.5V20M8.5 20h7M7 8.5h5M7 12h3"/><circle cx="15.6" cy="10" r="2.2"/><path d="M17.2 11.6l1.5 1.5"/>',   // 10/11/2026: ניתוח סרטונים (= ST_DIAL_ICO.vi)
   globe: '<circle cx="12" cy="12" r="8.6"/><path d="M3.4 12h17.2M12 3.4c2.4 2.6 3.5 5.5 3.5 8.6s-1.1 6-3.5 8.6c-2.4-2.6-3.5-5.5-3.5-8.6s1.1-6 3.5-8.6z"/>',
   spark: '<path d="M11 2.5l1.9 5.4 5.4 1.9-5.4 1.9L11 17.1l-1.9-5.4-5.4-1.9 5.4-1.9z" fill="currentColor" stroke="none"/><path d="M18.5 14.5l.9 2.4 2.4.9-2.4.9-.9 2.4-.9-2.4-2.4-.9 2.4-.9z" fill="currentColor" stroke="none"/>',
@@ -3490,7 +3495,7 @@ function pageHome(p, kaTab, viTab) {   // 10/11/2026: viTab — לשונית ה�
   const mb = majorBanner(); if (mb) p.append(mb);   // v371: תקלה רחבה — במקום הבאנר של ההתראות (היא כבר אומרת את החשוב)
   const ub = mb ? null : urgentBanner(); if (ub) p.append(ub);   // v368: התראה דחופה (P1–P2) — מיד; הקלות — רק בסיכום במגדל
   const nc = btn('st-newcard', null, () => { form = freshForm(null); if (kaTab) form.ka = true; if (viTab) form.vi = true; go('new', kaTab ? 'ka' : viTab ? 'vi' : null); }, 'new');
-  const plus = h('span', 'st-plus'); plus.append(ico(kaTab ? 'note' : viTab ? 'lect' : 'plus'));
+  const plus = h('span', 'st-plus'); plus.append(ico(kaTab ? 'note' : viTab ? 'lect' : 'trans'));   // 18/11/2026: גם בתרגום — הסמל של הלשונית, לא פלוס
   nc.append(plus, kaTab ? rowTxt(T('studioKaNew'), T('studioKaNewSub')) : viTab ? rowTxt(T('studioViNew'), T('studioViNewSub')) : rowTxt(T('studioNew'), T('studioNewSub')));
   p.append(nc);
   const jobs = store.jobs.filter((rec) => !rec.spec.ka === !kaTab && !rec.spec.vi === !viTab);   // 30/10/2026: שירים — רק בלשונית הקריוקי · 10/11: ניתוחים — רק בלשונית הניתוח
@@ -6013,6 +6018,7 @@ async function lbLoad() {
     lb.st = c === 'not_connected' || c === 'revoked' || c === 'not_allowed' ? 'conn' : lb.st === 'ok' ? 'ok' : 'err';
   } finally { if (seq === lb.seq) { lb.busy = false; lbPaint(); } }
 }
+const LIB_KIND_ICO = { tr: 'trans', ka: 'note', vi: 'lect' };
 const lbKindT = (k) => (k === 'ka' ? T('studioLibKKa') : k === 'vi' ? T('studioLibKVi') : T('studioLibKTr'));
 /* השפות על הפוסטר: "EN→HE"; קריוקי — תו */
 export const libLangTag = (m) => (m.k === 'ka' ? '♪' : m.to.length ? (m.fr ? m.fr.toUpperCase() + '→' : '') + m.to[0].toUpperCase() : '');
@@ -6024,8 +6030,15 @@ function lbPoster(o) {
     im.addEventListener('error', () => im.remove());
     im.src = o.th; ps.append(im);
   } else if (o.k === 'f') ps.append(ico('film', 'st-lp-ic'));
-  if (o.lang) { const lg = h('span', 'st-lp-lang'); lg.append(h('bdi', null, o.lang)); lg.dir = 'ltr'; ps.append(lg); }
-  if (o.state) ps.append(h('span', 'st-lp-state', o.state));
+  /* 18/11/2026 (בקשת המשתמש): סוג העבודה בסמל — בתגית של השפות (או של השמירה), בפינה העליונה */
+  const ki = o.big ? null : LIB_KIND_ICO[o.k];   // בדף הפריט — לא (כפתור החזרה בפינה, והסוג כתוב מתחת)
+  if (o.state) { const st = h('span', 'st-lp-state'); if (ki) st.append(ico(ki, 'st-lp-k')); st.append(h('span', null, o.state)); ps.append(st); }
+  else if (o.lang || ki) {
+    const lg = h('span', 'st-lp-lang' + (o.lang ? '' : ' ic')); lg.dir = 'ltr';
+    if (ki) { lg.append(ico(ki, 'st-lp-k')); lg.title = lbKindT(o.k); }
+    if (o.lang) lg.append(h('bdi', null, o.lang));
+    ps.append(lg);
+  }
   if (o.dur) { const tg = h('span', 'st-lp-dur', fmtDur(o.dur)); tg.dir = 'ltr'; ps.append(tg); }
   if (o.p != null) { const pr = h('div', 'st-lp-prog'); const i = h('i'); i.style.inlineSize = Math.round(o.p * 100) + '%'; pr.append(i); ps.append(pr); }
   return ps;
@@ -7856,7 +7869,7 @@ function pageTowerFull(p) {
   // v369: פעולות מהירות — רק מה שקיים
   const qa = h('div', 'st-qa');
   const qbtn = (icon, lbl, fn, k, cls) => { const b = btn('st-qa-b' + (cls ? ' ' + cls : ''), null, fn, k); const i = h('i'); i.append(ico(icon)); b.append(i, h('span', null, lbl)); return b; };
-  qa.append(qbtn('plus', T('studioQaNew'), () => { form = freshForm(null); go('new'); }, 'qa-new'));
+  qa.append(qbtn('trans', T('studioQaNew'), () => { form = freshForm(null); go('new'); }, 'qa-new'));   // 18/11/2026: עבודת תרגום — סמל התרגום, לא פלוס
   const resumable = store.jobs.find((r) => canResume(r));
   if (resumable) qa.append(qbtn('film', T('studioQaResume'), () => go('job', resumable.id), 'qa-resume'));
   qa.append(qbtn('sliders', T('studioRlT'), () => go('rules'), 'qa-rules'));
