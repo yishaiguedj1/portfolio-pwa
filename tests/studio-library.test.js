@@ -60,5 +60,36 @@ const R = 'R2_jLIBjobAAAAAAAAAAAAAA';
     'אחרי השמירה: Drive עובד — הספרייה נטענת מחדש; ההרשאה בוטלה — כפתור החיבור');
   const srvS = read('ibkr-proxy/api/studio.js');
   ok(/if \(op === 'gdSecret'\) \{[\s\S]{0,400}if \(!isAdmin\(user\)\) return res\.status\(403\)/.test(srvS) && /body\.op === 'gdCheck'/.test(srvS), 'השרתון: gdSecret — מנהל בלבד; gdCheck — הבדיקה הציבורית');
+
+  /* ---------- 18/11/2026: עריכה ישר מהרשת (⋯ ולחיצה ארוכה), מחיקה שמנתקת את העבודה, והמכסה ב־TB ---------- */
+  ok(st.fmtSize(5124 * 1073741824) === '5TB' && st.fmtSize(466 * 1073741824) === '466GB' && st.fmtSize(1536 * 1073741824) === '1.5TB' && st.fmtSize(12 * 1099511627776) === '12TB',
+    'המד: 5124GB → "5TB" (לא נקרא כמו 500GB), מתחת ל־TB — GB כמו קודם');
+  const jA = { id: 'jAAAAAAAAAAAAAAAAAAAA', spec: { name: 'Talk.mp4', to: ['he'] }, up: { dx: { j: 'jDXdxDXdxDXdxDXdxDXdx' } } };
+  const jB = { id: 'jBBBBBBBBBBBBBBBBBBBB', spec: { name: 'Other.mp4', to: ['he'] }, up: {} };
+  ok(st.libOldJob({ job: 'jDXdxDXdxDXdxDXdxDXdx', name: 'x.mp4' }, [jB, jA]) === jA, 'קובץ ישן → העבודה לפי עבודת השמירה (snbJob)');
+  const nb = st.shareVideoName(jB).replace(/\.mp4$/, '');
+  ok(st.libOldJob({ job: '', name: nb + ' — זהה למקור.mp4' }, [jA, jB]) === jB && st.libOldJob({ job: '', name: nb + 'X — a.mp4' }, [jA, jB]) === null,
+    'קובץ ישן בלי עבודת שמירה תואמת → לפי השם שנתנו לקובץ (רק התאמה מלאה של הבסיס)');
+  ok(st.libOldJob({ name: 'x.mp4' }, null) === null, 'קובץ ישן: בלי עבודות — null');
+  ok(/'nextPageToken,files\(' \+ VID_FIELDS \+ \(old \? ',appProperties' : ''\)/.test(sn) && /appProperties\.snbJob/.test(sn), 'הקבצים הישנים: מזהה עבודת השמירה מ־appProperties');
+  ok(/menu: \(at\) => lbItemMenu\(at, x\)/.test(sj) && /menu: \(at\) => lbOldMenu\(at, x\)/.test(sj), 'הרשת: תפריט לכל פריט ולכל קובץ ישן');
+  const card = sj.slice(sj.indexOf('function lbCard('), sj.indexOf('function lbMenu('));
+  ok(/addEventListener\('contextmenu'/.test(card) && /e\.preventDefault\(\)/.test(card) && /'st-lc-more'/.test(card) && /aria-haspopup', 'menu'/.test(card) && !/btn\('st-lc'[^;]*\.append\([^;]*st-lc-more/.test(card),
+    'הכרטיס: לחיצה ארוכה ו־⋯ (כפתור ליד הכרטיס, לא בתוכו)');
+  const mnu = sj.slice(sj.indexOf('function lbMenu('), sj.indexOf('const lbDriveFolder'));
+  ok(/'st-rs st-cm-veil'/.test(mnu) && /rsClose\(\)/.test(mnu) && /role', 'menu'/.test(mnu) && /role', 'menuitem'/.test(mnu) && /a\.danger && i/.test(mnu), 'התפריט: "חזור" ונגיעה בחוץ סוגרים (st-rs), תפקידי נגישות, קו לפני הפעולה ההרסנית');
+  const im = sj.slice(sj.indexOf('function lbItemMenu('), sj.indexOf('export function libOldJob'));
+  ok(/rec \? \{ k: 'job'/.test(im) && /go\('job', rec\.id\)/.test(im) && /k: 'del'[^}]*lbDel\(it\)[^}]*danger: true/.test(im), 'פריט: פתיחת העבודה (כשהיא קיימת), Drive, הסרה (אחרונה)');
+  const del = sj.slice(sj.indexOf('function lbDel('), sj.indexOf('/* ---- "הוספה לספרייה"'));
+  ok(/if \(ui\.view === 'litem'\) back\(\); else lbPaint\(\)/.test(del) && /net\.api\('libDrop', \{ job: m\.job, m: it\.id \}\)/.test(del) && /m\.job && !home/.test(del) && /studioLibDelQHome/.test(del),
+    'מחיקה: מהרשת נשארים ברשת; העבודה מתנתקת (libDrop); עבודה שמנגנת מהקבצים — אזהרה');
+  ok(st.bidiIso('A "b"') === '⁨A "b"⁩' && /bidiIso\(m\.t \|\| T\('studioUntitled'\)\)/.test(del) && /n: bidiIso\(fileTitle\(x\.name\)\)/.test(sj), 'חלון האישור: שם באנגלית מבודד (המירכאות לא קופצות)');
+  const srvA = read('ibkr-proxy/api/studio.js');
+  ok(/if \(op === 'libDrop'\) \{[\s\S]{0,700}if \(!lb \|\| lb\.home \|\| String\(lb\.m \|\| ''\) !== String\(body\.m \|\| ''\)\)[\s\S]{0,200}vlib: null/.test(srvA), 'השרתון: libDrop — רק המניפסט של העבודה, לא כשעברה הביתה');
+  const appS = read('app.js');
+  ok(['studioLibJob', 'studioLibDelQHome'].every((k) => (appS.match(new RegExp(k + ': "', 'g')) || []).length === 2), 'מחרוזות חדשות בעברית ובאנגלית');
+  const cssS = read('studio.css');
+  ok(/\.st-cm \{[^}]*position: fixed[^}]*backdrop-filter/.test(cssS) && /prefers-reduced-motion: reduce\) \{ \.st-cm \{ animation: none/.test(cssS) && /prefers-reduced-transparency: reduce\) \{ \.st-cm/.test(cssS) && /\.st-rs\.st-cm-veil \{[^}]*blur\(5px\)/.test(cssS),
+    'העיצוב: זכוכית צפה, טשטוש עדין מאחור, בלי תנועה/שקיפות לפי הגדרות הנגישות');
   console.log(n + ' בדיקות עברו');
 })().catch((e) => { console.error('✗', e); process.exit(1); });
