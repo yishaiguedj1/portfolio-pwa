@@ -60,8 +60,14 @@ function prep(d, q, fx) {
   co.name = p.name || d.sym; co.exch = p.exch || ''; co.sector = p.sector || ''; co.industry = p.industry || '';
   co.ind = d.indData || {}; co.indName = d.ind || '';
   // מחיר: הציטוט החי של האפליקציה כשיש (השרתון שומר במטמון עד 12 שעות)
-  co.pxY = co.price; // המחיר של Yahoo ברגע החישוב — המכפיל הצפוי (fpe) מחושב מולו; ממנו הרווח הצפוי של אותו מכפיל (מכפיל באפט)
-  if (q && q.close > 0) { co.price = q.close; if (q.prev > 0) co.prev = q.prev; else if (q.regClose > 0 && q.regCh != null) co.prev = q.regClose - q.regCh; }
+  // המכפיל הצפוי של Yahoo מחושב מול המחיר שלו ברגע השליפה (עד 12 שעות במטמון). הרווח הצפוי שמאחוריו (fe) — קבוע; המכפיל
+  // עובר למחיר החי, כמו שאר המכפילים, ומכפיל באפט הצפוי מחושב מאותו רווח (18/11/2026) — כך ששני המכפילים הצפויים נבדלים רק בתגמול
+  co.pxY = co.price; co.fe = co.pxY > 0 && co.fpe > 0 ? co.pxY / co.fpe : null;
+  if (q && q.close > 0) {
+    co.price = q.close; if (q.prev > 0) co.prev = q.prev; else if (q.regClose > 0 && q.regCh != null) co.prev = q.regClose - q.regCh;
+    const k = co.pxY > 0 ? q.close / co.pxY : 0;
+    if (co.fe > 0 && k > 0.5 && k < 2) co.fpe = q.close / co.fe;   // יחס חריג (פיצול באמצע) — נשאר המכפיל של Yahoo
+  }
   // מניה בת״א שמדווחת בדולרים (או ההפך) — המחיר מומר למטבע הדוחות, כדי שהמכפילים והשווי יהיו באותו מטבע
   const pxCur = /\.TA$/.test(d.sym) ? 'ILS' : 'USD';
   co.pxCur = pxCur; co.fxNote = false;
@@ -268,8 +274,8 @@ function bufCalc(co) {
   // יחידות שונות (אגורות מול שקלים, מניה מול ADR) — לא מחשבים. בסימנים הפוכים (רווח מותאם מול הפסד מדווח — SNOW) היחס לא אומר כלום
   if (st * g > 0 && Math.abs(st) > 0.05 && Math.abs(g) > 0.05 && (Math.abs(st / g) > 8 || Math.abs(st / g) < 0.125)) return null;
   const out = { st, g, gap: st - g, ded, eps: st - ded, sbcAt, t, yGaap, pol: p1 && p0 ? 'mix' : p1 ? 'ex' : p0 ? 'in' : '?', f: null };
-  const e1 = (co.est || []).find((e) => e.p === '+1y') || {}, fpe = 'fpe0' in co ? co.fpe0 : co.fpe;
-  const fe = co.pxY > 0 && fpe > 0 ? co.pxY / fpe : e1.eps;
+  const e1 = (co.est || []).find((e) => e.p === '+1y') || {};
+  const fe = co.fe > 0 ? co.fe : e1.eps;
   if (fe != null && isFinite(fe)) {
     const er = (Array.isArray(co.sbcX) ? co.sbcX : []).slice(-1)[0], fut = er ? !!er[2] : null;
     const frac = exAt > 0 ? exDed / exAt : fut ? 1 : 0;
@@ -1780,7 +1786,7 @@ async function loadPeers() {
   if (S.tab === 'cmp') render();
 }
 const CMP_MET = [['g', 'anMGrowth', 'anCagr5', 'pct', 1], ['om', 'anMOm', 'anTtm12', 'pct', 1], ['roic', 'anMRoic', 'anTtm12', 'pct', 1],
-  ['fy', 'anMFy', 'anHiCheap', 'pct', 1], ['pe', 'anLPe', 'anLoCheap', 'x', -1], ['fpe', 'anFFpe', 'anLoCheap', 'x', -1],
+  ['fy', 'anMFy', 'anHiCheap', 'pct', 1], ['pe', 'anLPe', 'anLoCheap', 'x', -1], ['fpe', 'anFFpe', 'anCmpFwd', 'x', -1],
   ['bpe', 'anFBpe', 'anLoCheap', 'x', -1], ['bfpe', 'anFBfpe', 'anCmpFwd', 'x', -1], ['sh3', 'anMSh3', 'anMSh3s', 'pct', -1]];
 function pageCmp(co, pg) {
   if (!S.peers) {

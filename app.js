@@ -1080,7 +1080,7 @@ he: {
   anBNeg: 'אין (הפסד)',
   anBGaap: 'לשם השוואה: רווח מדווח',
   anBGaapS: 'כולל גם הפחתה מרכישות וחד־פעמי',
-  anBPolEx: 'לפי ההודעות לעיתונות של החברה ב־SEC, הרווח המותאם שלה לא כולל את התגמול במניות, ולכן הורדנו אותו (עד גובה הפער מול הרווח המדווח).',
+  anBPolEx: 'לפי ההודעות לעיתונות של החברה ב־SEC, הרווח המותאם שלה לא כולל את התגמול במניות, ולכן הורדנו את כולו.',
   anBPolIn: 'לפי ההודעות לעיתונות של החברה ב־SEC, הרווח המותאם שלה כבר כולל את התגמול במניות, ולכן אין מה להוריד.',
   anBPolMix: 'החברה שינתה את ההגדרה במהלך השנה. הורדנו את התגמול במניות רק ברבעונים שבהם הרווח המותאם לא כלל אותו.',
   anBPolUnk: 'לא נמצאה הודעה לעיתונות לבדיקה. ההנחה: הרווח המותאם לא כולל את התגמול במניות, ולכן הורדנו אותו עד גובה הפער מול הרווח המדווח.',
@@ -3043,7 +3043,7 @@ en: {
   anBNeg: 'None (loss)',
   anBGaap: 'For comparison: reported profit',
   anBGaapS: 'Also includes acquisition amortization and one-offs',
-  anBPolEx: 'According to the company’s press releases at the SEC, its adjusted profit excludes stock-based pay, so we deducted it (up to the gap to reported profit).',
+  anBPolEx: 'According to the company’s press releases at the SEC, its adjusted profit excludes stock-based pay, so we deducted all of it.',
   anBPolIn: 'According to the company’s press releases at the SEC, its adjusted profit already includes stock-based pay, so there is nothing to deduct.',
   anBPolMix: 'The company changed its definition during the year. We deducted stock-based pay only in the quarters where adjusted profit excluded it.',
   anBPolUnk: 'No press release was found to check. Assumption: adjusted profit excludes stock-based pay, so we deducted it up to the gap to reported profit.',
@@ -8309,8 +8309,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.184.1';
-const APP_VERSION = 'v840';
+const APP_RELEASE = '2.185.0';
+const APP_VERSION = 'v841';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');

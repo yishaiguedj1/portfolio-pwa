@@ -118,6 +118,11 @@ ok(JSON.stringify(fc) === JSON.stringify([['2026-07-22', 0, 0, 800], ['2026-10-2
   b = A.bufCalc(mk({ hist: hist(1), sbcX: last4.map((i) => rel(q[i], 1)), fpe: 400 / 42 }));
   ok(b.f.end === '2027-12-31' && b.f.n === 9, 'הרווח של המכפיל הצפוי = ממוצע +1y — השנה ומספר האנליסטים מוצגים');
 
+  // מחיר חי שונה מהמחיר של Yahoo ברגע השליפה: המכפיל הצפוי עובר למחיר החי, והרווח הצפוי שמאחוריו לא זז
+  co = A.prep({ ...base, hist: hist(1), sbcX: last4.map((i) => rel(q[i], 1)) }, { close: 440 }, 3.7);
+  ok(near(co.fpe, 18 * 1.1) && near(A.bufCalc(co).f.base, fe) && near(A.bfpeOf(co), 440 / (fe - fd), 1e-4), 'מחיר חי — שני המכפילים הצפויים על אותו מחיר, הרווח הצפוי לא משתנה');
+  co = A.prep({ ...base, hist: hist(1) }, { close: 2000 }, 3.7);
+  ok(co.fpe === 18, 'יחס חריג בין המחיר החי למחיר של Yahoo (פיצול באמצע) — נשאר המכפיל של Yahoo');
   b = A.bufCalc(mk({ hist: hist(1), sbcX: last4.map((i) => rel(q[i], 0)) }));
   ok(b.ded === 0 && near(b.eps, gaap + 4) && b.pol === 'in' && b.f.ded === 0, 'הרווח המותאם כולל את התגמול (JNJ, MSFT) — לא יורד כלום, גם לא בצפוי');
   b = A.bufCalc(mk({ hist: hist(0), sbcX: last4.map((i) => rel(q[i], 1)) }));
