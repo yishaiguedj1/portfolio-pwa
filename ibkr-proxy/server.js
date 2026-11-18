@@ -281,7 +281,28 @@ function startAckman(server, opts = {}) {
   return { tick, stop: () => { clearInterval(iv); clearTimeout(first); } };
 }
 
-module.exports = { createServer, startCron, cronOn, loadCrons, startPx, startFsWatch, startAckman, SERVER_ONLY, parseBody, parseCron, cronDue, maxDuration, decorate, unpackEnv };
+/* 17/11/2026 (בדיקת העומק של מנתח החברות, גל 2): המאזן המודפס של כל הגשה ל־517 החברות (lib/bsfiled.js — tick) — כל 10 דק׳,
+   עד 9 דק׳ בסבב ו־2 בקשות לשנייה ל־SEC. בתוך התהליך (לא דרך /api — בלי מגבלת 30 השניות ובלי נקודה חשופה). ב־Vercel לא רץ:
+   שם op:'fund' משלים עד 4 הגשות בכל פתיחה. SNB_BSF=off מכבה */
+const BSF_EVERY = 10 * 60e3;
+function startBsf(opts = {}) {
+  let busy = false;
+  const tick = async () => {
+    if (busy) return null;
+    busy = true;
+    try {
+      const F = require('./lib/fundamentals');
+      return await require('./lib/bsfiled').tick({ getText: F.secText, cikMap: F.cikMap, secSym: F.secSym, ...(opts.deps || {}) });
+    } catch (e) { console.error('[bsf]', e && e.message); return null; } finally { busy = false; }
+  };
+  const iv = setInterval(tick, opts.every || BSF_EVERY);
+  iv.unref();
+  const first = setTimeout(tick, opts.first == null ? 180e3 : opts.first);
+  first.unref();
+  return { tick, stop: () => { clearInterval(iv); clearTimeout(first); } };
+}
+
+module.exports = { createServer, startCron, cronOn, loadCrons, startPx, startFsWatch, startAckman, startBsf, SERVER_ONLY, parseBody, parseCron, cronDue, maxDuration, decorate, unpackEnv };
 
 if (require.main === module) {
   const unpacked = unpackEnv(process.env);
@@ -301,6 +322,7 @@ if (require.main === module) {
   if (process.env.SNB_PXA !== 'off') startPx(server);
   if (process.env.SNB_FSW !== 'off') startFsWatch(server);
   if (process.env.SNB_ACKMAN !== 'off') startAckman(server);
+  if (process.env.SNB_BSF !== 'off') startBsf();
   // לפני יציאה: מה שעוד לא נשלח לעותק ב־Firestore (עד 8 שנ׳)
   const stop = () => Promise.race([LDB.flush(), new Promise((r) => setTimeout(r, 15000))]).finally(() => server.close(() => process.exit(0)));
   process.on('SIGTERM', stop);

@@ -70,9 +70,17 @@ function prep(d, q, fx) {
     if (co.px) co.px = { t: co.px.t, c: co.px.c.map((x) => (x == null ? null : x * r)) };
     co.fxNote = true;
   }
-  // דוחות במטבע שאין לנו שער אליו (Novo Nordisk ב־DKK, TSMC ב־TWD, Alibaba ב־CNY, SAP ו־ASML ב־EUR — המחיר בדולר, ולפעמים
-  // ל־ADR יש כמה מניות): עד 16/11/2026 המכפילים חילקו דולר בקרונות (P/E של Novo ‎1.8, של TSMC ‎8.9). בלי המרה — בלי מכפילים
-  // ובלי שווי שוק (pxF), עדיף ריק משגוי; ההמרה המלאה (שער לכל חודש ויחס ה־ADR מהשרתון) — משימה פתוחה
+  // דוחות במטבע אחר והמחיר בדולר (Novo Nordisk ב־DKK, TSMC ב־TWD, Alibaba ב־CNY, SAP ו־ASML ב־EUR; 17/11/2026, גל 2 — F6):
+  // המחיר למניה רגילה במטבע הדוחות = מחיר ה־ADR ÷ יחס ה־ADR ÷ השער (היום — השער היומי האחרון; ההיסטוריה — הממוצע של אותו
+  // חודש, H.10 דרך השרתון, d.fxm). עד 16/11/2026 המכפילים חילקו דולר בקרונות (P/E של Novo ‎1.8, של TSMC ‎8.9)
+  const X = d.fxm;
+  if (!co.fxNote && co.cur && co.cur !== pxCur && pxCur === 'USD' && X && X.cur === co.cur && X.now > 0 && X.adr > 0) {
+    const M = new Map(X.m || []), k = 1 / X.adr;
+    if (co.price) co.price *= k / X.now; if (co.prev) co.prev *= k / X.now;
+    if (co.px) co.px = { t: co.px.t, c: co.px.c.map((x, i) => { const r = M.get(co.px.t[i]); return x == null || !(r > 0) ? null : x * k / r; }) };
+    co.fxNote = true; co.fxAdr = X.adr;
+  }
+  // מטבע בלי שער או בלי יחס ADR ודאי — בלי מכפילים ובלי שווי שוק (pxF), עדיף ריק משגוי
   co.fxMix = !!co.cur && co.cur !== pxCur && !co.fxNote;
   const keep = new Set(co.fyE);
   co.flags = (d.checks || []).filter((c) => keep.has(c.p));
@@ -1095,6 +1103,7 @@ function footer(co) {
   const extra = [];
   if (co.fill && co.fill.length) extra.push(T('anFillNote', { k: [...new Set(co.fill.map(rawName))].join(', ') }));
   if (co.fxNote) extra.push(T('anFxNote', { c: co.cur }));
+  if (co.fxAdr > 1) extra.push(T('anFxAdr', { n: co.fxAdr }));
   if (co.fxMix) extra.push(T('anFxMix', { c: co.cur }));
   return h('p', { class: 'an-src' }, T('anSources', { s: src, d: dmy(co.asOf) }), extra.length ? h('br') : null, extra.join(' · '));
 }

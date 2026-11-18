@@ -15,9 +15,15 @@ const memo = new Map(); // הגשה לא משתנה אחרי שהוגשה — ה
 const MAX_FILINGS = 4; // הכי חדשים קודם; יותר מזה — כנראה תקלה רחבה ב־SEC, לא מורידים עשרות קבצים לבקשה אחת
 const SINCE_DAYS = 800;
 
+/* הגשות שיש להן ערכים בדוחות עצמם (us-gaap / ifrs-full). ערכי dei/srt לבד לא נחשבים (17/11/2026, גל 2 — F6: ה־20-F של TSMC
+   ל־2025, ‏16/4/2026, נכנס ל־companyfacts רק עם מספר המניות (dei) ותוכנית רכישה (srt) — בלי אף ערך IFRS; השנה חסרה במסך) */
+const FIN_NS = new Set(['us-gaap', 'ifrs-full']);
 const accSet = (facts) => {
   const s = new Set();
-  for (const ns of Object.values((facts && facts.facts) || {})) for (const t of Object.values(ns)) for (const u of Object.values(t.units || {})) for (const x of u) if (x.accn) s.add(x.accn);
+  for (const [k, ns] of Object.entries((facts && facts.facts) || {})) {
+    if (!FIN_NS.has(k)) continue;
+    for (const t of Object.values(ns)) for (const u of Object.values(t.units || {})) for (const x of u) if (x.accn) s.add(x.accn);
+  }
   return s;
 };
 

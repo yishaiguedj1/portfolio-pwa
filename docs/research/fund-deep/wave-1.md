@@ -111,12 +111,26 @@
 - **TSMC 2025** חסרה · ת״א בלבד — מקור נפרד (גל 3).
 
 ## 5. איך משחזרים
+הרשימה: `tools/fund-deep/ciks.tsv` — 517 הסימבולים של `ibkr-proxy/lib/xsyms.txt` ועוד 9 (BABA, CHKP, ESLT, NICE, NVO, SAP, TEVA, TSM,
+‏`XOM-OLD` — ה־CIK הקודם של Exxon); 526 שורות, 523 CIK שונים. הכל (מספרים ציבוריים של SEC) בתיקיית הטיוטה, לא בריפו.
 ```
-SCR=<scratchpad>
-python3 -I tools/fund-deep/fsds.py --db $SCR/fsds.db --ciks $SCR/sec/ciks.tsv          # FSDS 2009–2026
-python3 -I tools/fund-deep/rpages.py --db $SCR/fsds.db --ciks $SCR/sec/ciks.tsv          # הגשות שעוד לא ב־FSDS
-node tools/fund-deep/snap.js --file $SCR/w1/all.txt --out $SCR/w1 --fx <שער בנק ישראל>   # מודל התצוגה מהייצור
-python3 -I tools/fund-deep/verify.py --db $SCR/fsds.db --w $SCR/w1 --ciks $SCR/sec/ciks.tsv
-python3 -I tools/fund-deep/rpages.py --db $SCR/fsds.db --ciks $SCR/sec/ciks.tsv --fix $SCR/w1/cache
+SCR=<scratchpad>; C=tools/fund-deep/ciks.tsv
+python3 -I tools/fund-deep/fsds.py --db $SCR/fsds.db --ciks $C                       # FSDS 2014q1–2026q3 (~10 דק׳)
+python3 -I tools/fund-deep/rpages.py --db $SCR/fsds.db --ciks $C                     # הגשות שעוד לא ב־FSDS
+node tools/fund-deep/snap.js --file <רשימת סימבולים> --out $SCR/w1 --fx <שער בנק ישראל>  # מודל התצוגה מהייצור
+python3 -I tools/fund-deep/verify.py --db $SCR/fsds.db --w $SCR/w1 --ciks $C
+python3 -I tools/fund-deep/rpages.py --db $SCR/fsds.db --ciks $C --fix $SCR/w1/cache
 python3 -I tools/fund-deep/report.py --w $SCR/w1
+
+# החוב (F7) — "לפני/אחרי" על כל היקום; חובה לפני שמאמצים כלל חדש של החוב (אף חברה לא מורעת)
+git worktree add $SCR/main origin/main                                               # הגרסה שבייצור = "ישן"
+node tools/fund-deep/debt.js fetch --w $SCR/w1                                       # companyfacts + submissions + המאזן (secFace), פעם אחת
+python3 -I tools/fund-deep/debt_exp.py --db $SCR/fsds.db --w $SCR/w1                 # הצפוי: החוב המודפס בכל תאריך מאזן (~45 דק׳)
+node tools/fund-deep/debt.js cmp --w $SCR/w1 --old $SCR/main/ibkr-proxy/lib/fundamentals.js   # ok/bad/miss/xtra, השתפר/הורע (~7 דק׳)
+node tools/fund-deep/debt.js diff --w $SCR/w1 --sym PH --old $SCR/main/ibkr-proxy/lib/fundamentals.js
+node tools/fund-deep/debt.js tags --w $SCR/w1 --sym PH --tags LongTermDebtCurrent,CommercialPaper --from 2015-01-01
+node tools/fund-deep/debt.js find --w $SCR/w1 --sym INVH --end 2020-12-31 --v 402 --tol 0.03
 ```
+הבסיס לגל 2 — הרצה חוזרת ב־17/11 (הייצור שלפני F7 ← F7; 820 תאריכים של "צפוי חלקי" לא נספרים): ok ‏12,136←21,072 · bad ‏8,252←2,927 ·
+miss ‏5,346←1,735 · xtra ‏2,025←2,289 · השתפרו 326, הורעו 6 (MCD, PEG, BIIB, DRI, UPS, VMC — §4). מסד FSDS חדש או הורדה חדשה יכולים
+להזיז מעט את הבסיס — מודדים "ישן" ו"חדש" באותה הרצה.
