@@ -450,6 +450,8 @@ const { fakeR2, ENV } = require('./_r2fake');
     'גם תרגום: viTr מהטלפון — עבודת תרגום אחת מאותם קבצים');
   db.get('studioJobs/' + VB.id).fields.state = { stringValue: 'done' };
   ok((await api('viTr', { job: VB.id })).error === 'state' && (await other('viTr', { job: VF.id })).error === 'no_job', 'גם תרגום: viTr — לא כשהסרטון לא באנגלית, ולא למשתמש אחר');
+  const VG = mkVt('G', { state: { stringValue: 'done' }, ended: iv(T0 - 60e3), sx: iv(T0 - 30e3) });
+  ok((await api('viTr', { job: VG.id })).error === 'src_gone' && !allJobs().some((x) => x.va === VG.id), 'גם תרגום: viTr — לא אחרי שסרטון המקור נמחק');
   // מחיקה: הניתוח נמחק — עבודת התרגום (עצמאית, בלי rp) והקבצים שלה נשארים; כשגם היא נמחקת — התיקייה מתנקה
   db.get('studioJobs/' + VA.id).fields.state = { stringValue: 'done' };
   db.get('studioJobs/' + vh.id).fields.state = { stringValue: 'done' };

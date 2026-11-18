@@ -4556,6 +4556,7 @@ async function handler(req, res, deps = {}) {
       // 18/11/2026: "גם תרגום" — המסירה מהעובד לא הגיעה (הניתוח הסתיים / נכשל לפני התמלול): תרגום מלא מאותם קבצים, באותה
       // תיקייה. פעם אחת (vtCreate — כבר נוצרה: אותה עבודה); הסרטון לא באנגלית (vtx lang) — לא
       if (!S.vtOn(job) || !S.FINAL.includes(st) || job.vtx === 'lang' || !(job.fa || job.fv)) return res.status(409).json({ ok: false, error: 'state' });
+      if (job.sx > 0) return res.status(409).json({ ok: false, error: 'src_gone' });   // סרטון המקור נמחק — אין ממה לתרגם
       if ((await readStats(deps, uid)).halt) return res.status(409).json({ ok: false, error: 'halted' });
       const [code, out] = await vtCreate(deps, job, {}, now);
       return res.status(code).json(Object.assign(out, { job: view(Object.assign({}, job, out.id ? { vtj: out.id } : {})) }));

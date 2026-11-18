@@ -1170,7 +1170,7 @@ function vvJob(parent, id, uid, now) {
    של התרגום בלי שינוי. אותה תיקייה ואותם קבצים (fa/fv — הסרטון שעולה מאוחר יותר נרשם גם בה: vtFiles), עבודה עצמאית
    ברשימה (בלי rp — מחיקת הניתוח לא מוחקת אותה, והתיקייה נשמרת כל עוד אחת מהן קיימת): va = הניתוח, ובניתוח vtj = היא.
    ck = null (המסירה נכשלה) — תרגום מלא מההתחלה, מאותם קבצים. vtx בניתוח = למה לא תורגם (lang: הסרטון לא באנגלית) */
-const VT_X = ['lang', 'fail'];
+const VT_X = ['lang'];
 function vtJob(a, ck, id, now, lg) {
   const sp = a.spec || {}, f = (x) => (x && FILE_ID_RE.test(String(x.id || '')) ? Object.assign({}, x) : null);
   const spec = { name: sp.name || '', size: Math.max(0, Math.floor(+sp.size || 0)), type: sp.type || '', dur: Math.max(0, Math.floor(+sp.dur || 0)),
