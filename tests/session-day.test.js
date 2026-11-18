@@ -70,3 +70,4 @@ ok(/subValLbl: 'שווי', subGlLbl: 'שינוי מהקנייה'/.test(src) && /
 ok(/dayYest: 'אתמול'/.test(src) && /dayYest: 'Yesterday'/.test(src), '"אתמול" בשתי השפות');
 ok(/\.stock-sub \.sub-lbl \{[^}]*color: var\(--on-surface-var\)/.test(css), 'התווית אפורה (משתנה צבע)');
 ok(/\.stock-sub \{[^}]*grid-template-columns: minmax\(0, 1fr\)/.test(css) && /\.stock-sub > \.day-chg \{[^}]*white-space: nowrap/.test(css), 'שורות המשנה בעמודה אחת והגלולה לא נשברת (2.184.1)');
+ok(!/<span class="sub-val">[^;]*chev/.test(subSrc), 'בלי החץ ▾ ליד השווי (2.184.1)');

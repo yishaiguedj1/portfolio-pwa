@@ -18117,7 +18117,7 @@ function stockSubHTML(p, m) {
     return html + '<span class="sub-val wl-sub-note">' + (p.note ? '<span class="wl-note-txt">' + esc(p.note) + '</span> ' : '') + '<span class="chev">▾</span></span>';
   }
   // 18/11/2026 (בקשת המשתמש): תווית משנית לפני הנתון — "שווי" / "שינוי" (ת־עיצוב: תווית אפורה קטנה, הנתון בולט)
-  html += '<span class="sub-val"><span class="sub-lbl">' + esc(t('subValLbl')) + '</span> ' + (m.value === null ? '—' : money(toCur(m.value), cur)) + ' <span class="chev">▾</span></span>';
+  html += '<span class="sub-val"><span class="sub-lbl">' + esc(t('subValLbl')) + '</span> ' + (m.value === null ? '—' : money(toCur(m.value), cur)) + '</span>'; // 2.184.1: בלי החץ ▾ ליד השווי (בקשת המשתמש)
   let gp = (p && p.avg > 0 && m.price !== null) ? gainPctOf(p, m.price) : null;
   if (gp !== null && Math.abs(gp) < 0.005) gp = 0; // בלי "+0.00%"
   if (gp !== null && isFinite(gp)) {
