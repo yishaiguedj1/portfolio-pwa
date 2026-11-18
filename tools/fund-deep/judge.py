@@ -79,7 +79,7 @@ def main():
         sts = [STMT[s] for s in ST.get(k, ['is'])]
         inst = sts == ['BS']
         qtrs = 0 if inst else (4 if mode == 'A' else 1)
-        forms = "AND (s.form LIKE '10-K%' OR s.form LIKE '20-F%' OR s.form LIKE '40-F%') " if mode == 'A' and not inst else ''
+        forms = "AND (s.form LIKE '10-K%%' OR s.form LIKE '20-F%%' OR s.form LIKE '40-F%%') " if mode == 'A' and not inst else ''
         q = ('SELECT s.adsh, s.filed, n.tag, n.value FROM sub s JOIN pre p ON p.adsh = s.adsh JOIN num n ON n.adsh = p.adsh AND n.tag = p.tag '
              'AND n.version = p.version WHERE s.cik = ? ' + forms + 'AND p.stmt IN (%s) AND n.ddate = ? AND n.qtrs = ? '
              'AND n.tag IN (%s)') % (','.join('?' * len(sts)), ','.join('?' * len(TAGS[k])))
