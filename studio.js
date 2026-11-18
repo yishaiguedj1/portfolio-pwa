@@ -1082,6 +1082,7 @@ export function newDraft(form, created, id) {
 export function fmtSize(n) {
   n = Math.max(0, Number(n) || 0);
   const G = 1073741824, M = 1048576;
+  if (n >= 1024 * G) return (n / 1024 / G).toFixed(n >= 10240 * G ? 0 : 1).replace(/\.0$/, '') + 'TB';   // 18/11/2026: "5124GB" נקרא כמו 500GB — מכסת Drive של 5TB
   if (n >= G) return (n / G).toFixed(n >= 10 * G ? 0 : 1) + 'GB';
   if (n >= M) return Math.round(n / M) + 'MB';
   if (n <= 0) return '0KB';   // 26/10/2026: עד היום "1KB" גם כשלא עלה כלום ("עלו 1KB מתוך 187MB" — נראה כמו תקיעה באמצע)
@@ -6033,7 +6034,76 @@ function lbCard(o) {
   const tt = h('span', 'st-lc-t'); const tb = h('bdi', null, o.t); tb.dir = 'auto'; tt.append(tb);
   c.append(lbPoster(o), tt, h('span', 'st-lc-m', o.meta));
   if (o.href) c.setAttribute('aria-label', o.t);
-  return c;
+  if (!o.menu) return c;
+  /* 18/11/2026 (בקשת המשתמש): עריכה ישר מהרשת — ⋯ ליד השורה התחתונה, ולחיצה ארוכה על הכרטיס (contextmenu; ממקלדת — מהכרטיס) */
+  c.addEventListener('contextmenu', (e) => { e.preventDefault(); o.menu(e.clientX || e.clientY ? { x: e.clientX, y: e.clientY } : c); });
+  const w = h('div', 'st-lcw');
+  const mb = btn('st-lc-more', null, () => o.menu(mb), 'lbm:' + o.key);
+  mb.setAttribute('aria-label', T('studioVidsMore') + ' · ' + o.t); mb.setAttribute('aria-haspopup', 'menu');
+  mb.dir = 'ltr';   // כמו התגיות שעל הפוסטר: השפות תמיד בפינה השמאלית העליונה — ה־⋯ מולן, בימנית (inset-inline-end לפי הכיוון של הכפתור)
+  mb.append(ico('more'));
+  w.append(c, mb);
+  return w;
+}
+/* 18/11/2026 — תפריט ההקשר של כרטיס בספרייה (לפי ת־עיצוב): זכוכית שצומחת בקפיץ מהנקודה (⋯ או לחיצה ארוכה), שורות בלי קווים —
+   כיתוב בהתחלה וסמל בסוף, הפעולה ההרסנית אחרונה ובאדום, טשטוש עדין מאחור. נגיעה בחוץ ו"חזור" סוגרים (st-rs → rsClose).
+   at = אלמנט (הכפתור/הכרטיס) או נקודה {x, y} */
+function lbMenu(at, title, acts) {
+  rsClose();
+  const veil = h('div', 'st-rs st-cm-veil');
+  const box = h('div', 'st-cm'); box.setAttribute('role', 'menu'); box.setAttribute('aria-label', title);
+  acts.filter(Boolean).forEach((a, i) => {
+    if (a.danger && i) box.append(h('div', 'st-cm-sep'));
+    const b = btn('st-cm-i' + (a.danger ? ' danger' : ''), null, () => { rsClose(); a.fn(); }, 'lbm-' + a.k);
+    b.setAttribute('role', 'menuitem');
+    b.append(h('span', 'st-cm-l', a.label), ico(a.icon));
+    box.append(b);
+  });
+  veil.append(box);
+  veil.addEventListener('click', (e) => { if (e.target === veil) rsClose(); });
+  veil.addEventListener('contextmenu', (e) => { e.preventDefault(); if (e.target === veil) rsClose(); });
+  document.body.append(veil);
+  const r = at && typeof at.getBoundingClientRect === 'function' ? at.getBoundingClientRect() : { left: at.x, right: at.x, top: at.y, bottom: at.y };
+  const vw = document.documentElement.clientWidth || window.innerWidth, vh = window.innerHeight, bw = box.offsetWidth, bh = box.offsetHeight, g = 8;
+  const rtl = getComputedStyle(box).direction === 'rtl';
+  const x = Math.max(12, Math.min(vw - bw - 12, rtl ? r.right - bw : r.left));   // הקצה של התפריט בקצה של הכפתור, בתוך המסך
+  const below = r.bottom + g + bh <= vh - g;
+  const y = Math.max(g, Math.min(vh - bh - g, below ? r.bottom + g : r.top - g - bh));
+  box.style.left = Math.round(x) + 'px'; box.style.top = Math.round(y) + 'px';
+  box.style.transformOrigin = Math.round(Math.max(0, Math.min(bw, (rtl ? r.right : r.left) - x))) + 'px ' + Math.round(Math.max(0, Math.min(bh, (below ? r.bottom : r.top) - y))) + 'px';
+  try { box.querySelector('button').focus({ preventScroll: true }); } catch (e) {}
+}
+/* שם באנגלית בתוך משפט בעברית (חלון אישור — טקסט, לא bdi): בידוד כיוון (FSI…PDI) — בלעדיו המירכאות קופצות לצד השני */
+export const bidiIso = (s) => '\u2068' + String(s == null ? '' : s) + '\u2069';
+const lbDriveFolder = (id) => window.open('https://drive.google.com/drive/folders/' + id, '_blank', 'noopener');
+function lbItemMenu(at, it) {
+  const m = it.m, rec = m.job ? jobRec(m.job) : null;
+  lbMenu(at, m.t || T('studioUntitled'), [
+    rec ? { k: 'job', icon: 'edit', label: T('studioLibJob'), fn: () => go('job', rec.id) } : null,
+    it.folder ? { k: 'drive', icon: 'out', label: T('studioVidsOpen'), fn: () => lbDriveFolder(it.folder) } : null,
+    it.folder ? { k: 'del', icon: 'trash', label: T('studioLibDel'), fn: () => lbDel(it), danger: true } : null]);
+}
+/* קובץ ישן מ"הסרטונים שלי": העבודה לפי מזהה עבודת השמירה (snbJob) — ואם השמירה האחרונה של העבודה הייתה אחרת, לפי השם שנתנו לקובץ */
+export function libOldJob(x, jobs) {
+  const L = Array.isArray(jobs) ? jobs : [];
+  const byId = x && x.job ? L.find((r) => r && r.up && r.up.dx && r.up.dx.j === x.job) : null;
+  if (byId) return byId;
+  const n = String((x && x.name) || '');
+  return L.find((r) => { try { const b = shareVideoName(r).replace(/\.mp4$/, ''); return b.length >= 3 && (n === b + '.mp4' || n.startsWith(b + ' — ')); } catch (e) { return false; } }) || null;
+}
+function lbOldMenu(at, x) {
+  const rec = libOldJob(x, store.jobs);
+  lbMenu(at, fileTitle(x.name), [
+    rec ? { k: 'job', icon: 'edit', label: T('studioLibJob'), fn: () => go('job', rec.id) } : null,
+    x.url ? { k: 'drive', icon: 'out', label: T('studioVidsOpen'), fn: () => window.open(x.url, '_blank', 'noopener') } : null,
+    { k: 'del', icon: 'trash', label: T('studioVidsDel'), fn: () => lbOldDel(x), danger: true }]);
+}
+function lbOldDel(x) {
+  const go2 = async () => {
+    try { await net.driveTrash(x.id); lb.old = lb.old.filter((y) => y.id !== x.id); lbPaint(); flashSafe(T('studioVidsDelDone')); } catch (e) { flashSafe(T('studioVidsErr')); }
+  };
+  if (typeof askConfirm === 'function') askConfirm(T('studioVidsDelQ', { n: bidiIso(fileTitle(x.name)) }), go2, { danger: true, ok: T('studioVidsDel') });
+  else go2();
 }
 /* מה ברשת: הפריטים, שמירות שעוד רצות (עם אחוז), והקבצים הישנים — מהחדש לישן. ui: '' / tr / ka / vi / sh (עד דקה) / f (קבצים) */
 const LIB_CHIPS = ['', 'tr', 'ka', 'vi', 'sh', 'f'];
@@ -6045,7 +6115,7 @@ function lbCards() {
       if (k === 'sh' ? !(m.d > 0 && m.d <= 60) : k && m.k !== k) continue;
       const tv = lb.th && lb.th.get(x.folder);
       out.push({ at: m.at || x.at, key: 'lib:' + x.id, t: m.t || T('studioUntitled'), k: m.k, th: tv && tv.th, dur: m.d || (tv && tv.dur) || 0, lang: libLangTag(m),
-        meta: lbKindT(m.k) + ' · ' + fmtDay(m.at || x.at), onClick: () => go('litem', x.id) });
+        meta: lbKindT(m.k) + ' · ' + fmtDay(m.at || x.at), onClick: () => go('litem', x.id), menu: (at) => lbItemMenu(at, x) });
     }
     if (!k) for (const r of store.jobs) {
       const d = r.up && r.up.dx;
@@ -6055,7 +6125,7 @@ function lbCards() {
     }
   }
   if (!k || k === 'f') for (const x of lb.old) out.push({ at: x.at, key: 'libo:' + x.id, t: fileTitle(x.name), k: 'f', th: x.th, dur: x.dur, meta: T('studioLibOldS') + ' · ' + T('studioLibOld'),
-    onClick: () => { if (x.url) window.open(x.url, '_blank', 'noopener'); } });
+    onClick: () => { if (x.url) window.open(x.url, '_blank', 'noopener'); }, menu: (at) => lbOldMenu(at, x) });
   return out.sort((a, b) => b.at - a.at);
 }
 function lbMeter() {
@@ -6222,11 +6292,17 @@ function pageLibItem(p) {
   p.append(acts2);
 }
 function lbDel(it) {
+  const m = it.m, rec = m.job ? jobRec(m.job) : null, lv = rec && rec.srv && rec.srv.lib;
+  const home = !!(lv && lv.m === it.id && lv.home);   // העבודה כבר מנגנת מהקבצים שבתיקייה (העותק ב־R2 פג)
   const go2 = async () => {
-    try { await net.driveTrash(it.folder); lb.items = lb.items.filter((x) => x.id !== it.id); flashSafe(T('studioVidsDelDone')); back(); }
-    catch (e) { flashSafe(T('studioVidsErr')); }
+    try { await net.driveTrash(it.folder); } catch (e) { flashSafe(T('studioVidsErr')); return; }
+    lb.items = lb.items.filter((x) => x.id !== it.id); flashSafe(T('studioVidsDelDone'));
+    if (ui.view === 'litem') back(); else lbPaint();   // 18/11/2026: גם מהתפריט ברשת — שם נשארים
+    // העבודה מתנתקת מהפריט (libDrop): דף העבודה חוזר ל"הוספה לספרייה", והיא לא תעבור לקבצים שבפח כשהעותק ב־R2 יפוג
+    if (m.job && !home) net.api('libDrop', { job: m.job, m: it.id }).then((j) => { const r = jobRec(m.job); if (r && j && j.ok && j.job) { r.srv = normJob({ id: r.id, srv: j.job }).srv; save(); repaint(); } }).catch(() => {});
   };
-  if (typeof askConfirm === 'function') askConfirm(T('studioLibDelQ', { n: it.m.t || T('studioUntitled') }), go2, { danger: true, ok: T('studioLibDel') });
+  const n = bidiIso(m.t || T('studioUntitled'));
+  if (typeof askConfirm === 'function') askConfirm(home ? T('studioLibDelQHome', { n }) : T('studioLibDelQ', { n }), go2, { danger: true, ok: T('studioLibDel') });
   else go2();
 }
 /* ---- "הוספה לספרייה" בדף העבודה (במקום "הסרטונים שלי") ---- */
@@ -11154,7 +11230,8 @@ function stKeepTap(e) {
   for (const i of path) { m = m && m.children[i]; }
   o._fwd = null;
   o.replaceWith(f);
-  if (!m) return;                 // מבנה שונה (לא אמור לקרות) — החדש במקום, הלחיצה הבאה תגיע אליו
+  while (m && m !== f && typeof m.click !== 'function') m = m.parentElement;   // 18/11/2026: לחיצה על הסמל (svg — אין לו click()) → הכפתור שלו
+  if (!m || typeof m.click !== 'function') return;                 // מבנה שונה (לא אמור לקרות) — החדש במקום, הלחיצה הבאה תגיע אליו
   e.stopPropagation(); e.preventDefault();
   m.click();
 }

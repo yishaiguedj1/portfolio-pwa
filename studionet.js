@@ -1101,7 +1101,7 @@ export function createNet(env) {
   async function libList(o) {
     o = o || {};
     const old = !!o.old, cond = ['trashed = false', old ? "appProperties has { key='snbVid' and value='dx' }" : "appProperties has { key='snbRole' and value='m' }"];
-    const qs = new URLSearchParams({ q: cond.join(' and '), pageSize: '100', orderBy: 'modifiedTime desc', spaces: 'drive', fields: 'nextPageToken,files(' + VID_FIELDS + ')' });
+    const qs = new URLSearchParams({ q: cond.join(' and '), pageSize: '100', orderBy: 'modifiedTime desc', spaces: 'drive', fields: 'nextPageToken,files(' + VID_FIELDS + (old ? ',appProperties' : '') + ')' });
     if (o.page) qs.set('pageToken', String(o.page).slice(0, 2000));
     /* 17/11/2026: הספרייה לא נטענה בטלפון אחרי 2.167.0 — אם Drive דוחה את הבקשה (400), מנסים בלי orderBy וממיינים כאן */
     let j;
@@ -1111,7 +1111,9 @@ export function createNet(env) {
       j = await dreq('GET', API + '?' + qs);
       if (j && Array.isArray(j.files)) j.files.sort((a, b) => String(b.modifiedTime || '').localeCompare(String(a.modifiedTime || '')));
     }
-    return { files: (Array.isArray(j && j.files) ? j.files : []).filter((f) => f && DFID.test(String(f.id || ''))).map(vidOf), next: j && typeof j.nextPageToken === 'string' ? j.nextPageToken : '' };
+    /* 18/11/2026: קובץ ישן מ"הסרטונים שלי" — מזהה עבודת השמירה (snbJob, העובד כותב) כדי לפתוח ממנו את העבודה */
+    const jobOf = (f) => { const v = String((f.appProperties && f.appProperties.snbJob) || ''); return /^j[A-Za-z0-9_-]{20}$/.test(v) ? v : ''; };
+    return { files: (Array.isArray(j && j.files) ? j.files : []).filter((f) => f && DFID.test(String(f.id || ''))).map((f) => (old ? Object.assign(vidOf(f), { job: jobOf(f) }) : vidOf(f))), next: j && typeof j.nextPageToken === 'string' ? j.nextPageToken : '' };
   }
   /* הפוסטרים: הסרטונים של הספרייה (snbLib=1, צרוב או מקור) עם התמונה הממוזערת של Drive — בקשה אחת לכל הספרייה, לפי התיקייה */
   async function libThumbs() {

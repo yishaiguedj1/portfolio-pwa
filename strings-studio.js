@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2548 מפתחות מתוך 7121) */
+/* המחרוזות של studio (2550 מפתחות מתוך 7123) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1159,6 +1159,7 @@ he: {
   "studioLibCount": "{n} פריטים",
   "studioLibDel": "הסרה מהספרייה",
   "studioLibDelQ": "להעביר את \"{n}\" לפח של Drive? אפשר לשחזר תוך 30 יום.",
+  "studioLibDelQHome": "להעביר את \"{n}\" לפח של Drive? העבודה בסטודיו מנגנת מהקבצים האלה, ואחרי המחיקה היא לא תתנגן. אפשר לשחזר תוך 30 יום.",
   "studioLibDone": "נשמר בספרייה ✓",
   "studioLibDrive": "התיקייה ב־Drive",
   "studioLibEmpty": "עוד אין כלום בספרייה. בדף של עבודה שהסתיימה — \"הוספה לספרייה\".",
@@ -1183,6 +1184,7 @@ he: {
   "studioLibFromR2": "R2 עד {d}, אחר כך Drive",
   "studioLibIn": "בספרייה",
   "studioLibInS": "נשמר ב־Drive שלך ונבדק",
+  "studioLibJob": "פתיחת העבודה",
   "studioLibKF": "קבצים",
   "studioLibKKa": "קריוקי",
   "studioLibKSh": "שורטס",
@@ -3709,6 +3711,7 @@ en: {
   "studioLibCount": "{n} items",
   "studioLibDel": "Remove from library",
   "studioLibDelQ": "Move \"{n}\" to the Drive trash? You can restore it within 30 days.",
+  "studioLibDelQHome": "Move \"{n}\" to the Drive trash? The job in Studio plays from these files and will stop playing after this. You can restore it within 30 days.",
   "studioLibDone": "Saved to library ✓",
   "studioLibDrive": "Folder in Drive",
   "studioLibEmpty": "Nothing in your library yet. On a finished job — \"Add to library\".",
@@ -3733,6 +3736,7 @@ en: {
   "studioLibFromR2": "R2 until {d}, then Drive",
   "studioLibIn": "In your library",
   "studioLibInS": "Saved in your Drive and verified",
+  "studioLibJob": "Open the job",
   "studioLibKF": "Files",
   "studioLibKKa": "Karaoke",
   "studioLibKSh": "Shorts",
