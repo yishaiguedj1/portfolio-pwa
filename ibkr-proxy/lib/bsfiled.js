@@ -145,13 +145,14 @@ async function readPr(cik, it, getText) {
   return last;
 }
 
-/* כל ה־8-K של התוצאות מ־submissions (recent ודפי ההמשך) — לבחירה לפי סוף השנה */
+/* כל ה־8-K של התוצאות מ־submissions (recent ודפי ההמשך), וה־8-K רק עם 7.01 / ‏8.01 / ‏9.01 (F25) — לבחירה לפי סוף השנה */
 function merge8k(sub, files) {
   const r = { form: [], items: [], accessionNumber: [], filingDate: [], primaryDocument: [] };
   for (const x of [sub && sub.filings && sub.filings.recent, ...(files || [])]) {
     if (!x || !x.form) continue;
     for (let i = 0; i < x.form.length; i++) {
-      if (!/^8-K/.test(x.form[i]) || !/2\.02/.test((x.items && x.items[i]) || '')) continue;
+      const it = (x.items && x.items[i]) || '';
+      if (!(/^8-K/.test(x.form[i]) && /2\.02/.test(it)) && !(x.form[i] === '8-K' && SECPR.ALT.test(it))) continue; // גם המועמדים בלי 2.02 (F25)
       for (const k of Object.keys(r)) r[k].push(x[k] ? x[k][i] : '');
     }
   }

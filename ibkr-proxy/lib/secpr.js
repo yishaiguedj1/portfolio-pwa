@@ -70,6 +70,9 @@ function parseText(html) {
   return out;
 }
 
+/* 8-K רק עם 7.01 / ‏8.01 / ‏9.01 — מועמד חלופי (F25) */
+const ALT = /^\s*(7\.01|8\.01|9\.01)(\s*,\s*(7\.01|8\.01|9\.01))*\s*$/;
+
 /* ה־8-K של התוצאות לכל סוף שנה: Item 2.02, הראשון שהוגש אחרי סוף השנה ועד 100 יום */
 function pickItems(sub, fyEnds) {
   const r = sub && sub.filings && sub.filings.recent;
@@ -77,7 +80,7 @@ function pickItems(sub, fyEnds) {
   const day = (s) => Date.parse(s + 'T00:00:00Z') / 864e5;
   // בלי Item 2.02 (גל 5, F25): ההודעה הוגשה רק עם 9.01 / ‏7.01 / ‏8.01 (Illinois Tool Works ‏2021, ‏Lilly ‏2015, ‏Expedia ‏2021) —
   // כשאין 8-K של תוצאות בחלון, אלה מועמדים עד 75 יום (q4From מאמת: מכפלה = הרווח, מניות ליד ההערכה)
-  const ks = [], alt = [], ALT = /^\s*(7\.01|8\.01|9\.01)(\s*,\s*(7\.01|8\.01|9\.01))*\s*$/;
+  const ks = [], alt = [];
   for (let i = 0; i < r.form.length; i++) {
     const k = { acc: r.accessionNumber[i], filed: r.filingDate[i], doc: r.primaryDocument[i] };
     if (/^8-K/.test(r.form[i]) && /2\.02/.test(r.items[i] || '')) ks.push(k);
@@ -147,4 +150,4 @@ const annOk = (re, rs, i, f, pf, ann) => !!ann && ann.sh > 0 && re.v.some((e0, j
 const isShares = (r) => (/share|weight|average|outstanding/i.test(r.label + ' ' + (r.ctx || '')) && !/per (common )?share|earnings per|income per|loss per|\beps\b/i.test(r.label))
   || r.v.some((x) => x != null && Math.abs(x) >= 1000);
 
-module.exports = { parse, parseText, pickItems, exhibits, q4From, isShares, num };
+module.exports = { parse, parseText, pickItems, ALT, exhibits, q4From, isShares, num };
