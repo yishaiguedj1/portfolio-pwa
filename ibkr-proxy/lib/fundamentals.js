@@ -1166,6 +1166,9 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
   const shB = { A: {}, Q: {} };
   { const fb = splitAdj(tagFacts(tax[isIfrs ? 'WeightedAverageShares' : 'WeightedAverageNumberOfSharesOutstandingBasic'], 'shares'), splitsUsed, true);
     for (const [kk, h] of fb.dur) { const [s0, e0] = kk.split('|'), L = day(e0) - day(s0); if (L >= 350 && L <= 380) shB.A[e0] = h.v; else if (qLen(L)) shB.Q[e0] = h.v; } }
+  // שנים שתויגו "בסיסי ומדולל" במניות — בלי דילול (noDil, גל 6 — F30)
+  const shBD = new Set();
+  if (!isIfrs) for (const [kk] of tagFacts(tax.WeightedAverageNumberOfShareOutstandingBasicAndDiluted, 'shares').dur) { const [s0, e0] = kk.split('|'), L = day(e0) - day(s0); if (L >= 350 && L <= 380) shBD.add(e0); }
   // שנים פיסקליות: תקופות של ~שנה בהכנסות או ברווח הנקי (52/53 שבועות נכללים) — רק מדוח שנתי.
   // Amazon מדפיסה ב־10-Q גם עמודה של 12 החודשים האחרונים: בלי התנאי כל רבעון נעשה "סוף שנה" והטבלה השנתית התערבבה
   const yearOf = new Map(); // end → start
@@ -1634,7 +1637,10 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
   const pack = (D, ends) => { const o = {}; for (const k of KEEP) { if (!D[k]) continue; const a = ends.map((e) => (D[k][e] != null ? D[k][e] : null)); if (a.some((v) => v != null)) o[k] = a; } return o; };
   const fy = fyEnds.filter((e) => A.rev[e] != null || A.ni[e] != null).slice(-20);
   const C = { A: pack(GA, fy), Q: pack(GQ, qEnds) };
-  return { fy, q: qEnds, shEst: shEst.filter((e) => Q.sh[e] != null), epsNum, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix, cx0, gpx, gpd, opx, splitsUsed, capFace, bsfN, cfy };
+  // שנים בלי דילול (גל 6 — F30): המניות הבסיסיות בדוח השנתי = המדוללות (עד 0.1%), או תגית "בסיסי ומדולל" — שם "רווח למניה" בהודעה
+  // בלי המילה "מדולל" הוא גם המדולל (q4Press, שורות b)
+  const noDil = fy.filter((e) => shBD.has(e) || (shB.A[e] > 0 && A.sh[e] > 0 && Math.abs(shB.A[e] / A.sh[e] - 1) <= 0.001));
+  return { fy, q: qEnds, shEst: shEst.filter((e) => Q.sh[e] != null), epsNum, noDil, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix, cx0, gpx, gpd, opx, splitsUsed, capFace, bsfN, cfy };
 }
 
 /* השקעה הונית שהחברה לא מציגה בשורה נפרדת (5/11/2026, AppLovin). מ־2024 התזרים של AppLovin בלי "Purchase of property and
@@ -1809,6 +1815,9 @@ function q4Press(sec, P) {
     if (!(sec.fy || []).some((f) => Math.abs(day(f) - day(e)) <= 5)) return;
     if (!est.includes(e)) return tagged(e, i);
     const r = at(e), sh = sec.Q.sh && sec.Q.sh[i]; if (!r || !(sh > 0)) return;
+    // "רווח למניה" בלי "מדולל" (גל 6 — F30, שורות b): רק בשנה בלי דילול (noDil), וכשהשנה ברווח או הרבעון בהפסד — בשנת הפסד
+    // (אנטי־דילול) רבעון רביעי ברווח כן מדלל, והבסיסי שלו שונה מהמדולל
+    if (r.rows.some((x) => x.b) && !bOk(e, i)) return;
     // כל מקדמי הפיצול שאחרי תאריך כלשהו (התאריך שלנו הוא לפעמים ההגשה שאחרי הפיצול — Apple ‏4:1: אצלנו 30/10/2020, ההודעה 29/10)
     const sp = (sec.splitsUsed || []).slice().sort((a, b) => (a[0] < b[0] ? -1 : 1)), post = sp.map((_, j) => sp.slice(j).reduce((t, [, x]) => t * x, 1));
     const ns = [sec.epsNum && sec.epsNum[e], sec.Q.nic && sec.Q.nic[i], sec.Q.ni && sec.Q.ni[i]].filter((x) => Number.isFinite(x) && x !== 0);
@@ -1835,9 +1844,15 @@ function q4Press(sec, P) {
      מ־50% ובלפחות 5 סנט למניה. Sempra ‏2019: ‏XBRL מתייג 0.21 (‏0.105 אחרי הפיצול 2:1), והרווח ‏$447M חלקי ‏578M מניות = ‏0.77; בהודעה
      ‏1.55 ו־289M (‏0.775 אחרי הפיצול). מחליפים רק בזוג מההודעה שמכפלתו = הרווח והמניות שלו עד 2% מהמניות המתויגות — אותה טבלה ואותו
      רבעון; המניות המתויגות נשארות. רבעון עם רווח קטן, שבו המכפלה קרובה בסנטים — לא נוגעים */
+  function bOk(e, i) {
+    const fi = sec.fy.findIndex((f) => Math.abs(day(f) - day(e)) <= 5), A = sec.A || {}, f = sec.fy[fi];
+    if (fi < 0 || !(sec.noDil || []).includes(f)) return false;
+    const na = A.nic && A.nic[fi] != null ? A.nic[fi] : A.ni && A.ni[fi], nq = sec.Q.nic && sec.Q.nic[i] != null ? sec.Q.nic[i] : sec.Q.ni && sec.Q.ni[i];
+    return na > 0 || nq < 0;
+  }
   function tagged(e, i) {
     const r = at(e), sh = sec.Q.sh && sec.Q.sh[i], eps = sec.Q.eps && sec.Q.eps[i];
-    if (!r || !(sh > 0) || eps == null || der.includes(e)) return;
+    if (!r || !(sh > 0) || eps == null || der.includes(e) || r.rows.some((x) => x.b)) return;
     const ns = [sec.epsNum && sec.epsNum[e], sec.Q.nic && sec.Q.nic[i], sec.Q.ni && sec.Q.ni[i]].filter((x) => Number.isFinite(x) && x !== 0);
     if (!ns.length || !ns.every((n) => Math.abs(eps * sh - n) > 0.5 * Math.abs(n) && Math.abs(eps - n / sh) >= 0.05)) return;
     const sp = (sec.splitsUsed || []).slice().sort((a, b) => (a[0] < b[0] ? -1 : 1)), post = sp.map((_, j) => sp.slice(j).reduce((t, [, x]) => t * x, 1));

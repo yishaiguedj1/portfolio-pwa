@@ -1690,7 +1690,8 @@ ${row('ro', 'us-gaap_CostOfRevenue', 'Cost of sales', ['1', '2', '3', '4', '5', 
     const p2 = SP.pickItems(sub([['8-K', '9.01', '2022-01-05'], ['8-K', '2.02,9.01', '2022-02-03']]), ['2021-12-31']);
     ok(p1[0].cands.map((c) => c.acc).join() === 'a0' && p2[0].cands.map((c) => c.acc).join() === 'a1', '(36) 8-K בלי 2.02 — רק כשאין 8-K של תוצאות בחלון');
     // רשומת "לא נמצא" מהמפענח הקודם נקראת שוב פעם אחת
-    ok(BS3.prNeed(undefined) && BS3.prNeed({ err: 'nofile' }) && !BS3.prNeed({ err: 'nofile', pv: BS3.PR_V }) && !BS3.prNeed({ rows: [] }), '(36) prNeed: רק רשומה חסרה או "לא נמצא" ישנה');
+    ok(BS3.prNeed(undefined) && BS3.prNeed({ err: 'nofile' }) && !BS3.prNeed({ err: 'nofile', pv: BS3.PR_V }) && !BS3.prNeed({ rows: [{ label: 'Diluted weighted average shares', v: [1000] }] })
+      && BS3.prNeed({ rows: [{ label: 'Diluted EPS', v: [1.5] }] }) && !BS3.prNeed({ rows: [], pv: BS3.PR_V }), '(36) prNeed: רק רשומה חסרה, "לא נמצא" ישנה או ישנה בלי שורת מניות (גל 6)');
     // בלי נספח (Halliburton) — ההודעה בגוף ה־8-K
     const docs = { 'index.json': JSON.stringify({ directory: { item: [{ name: 'hal8k.htm', size: 9000 }, { name: 'index.htm' }] } }),
       'hal8k.htm': '<table><tr><td>Diluted income per share</td><td>$</td><td>0.75</td><td>0.80</td></tr><tr><td>Diluted weighted average shares</td><td>890</td><td>880</td></tr></table>' };
@@ -1757,5 +1758,44 @@ ${row('ro', 'us-gaap_CostOfRevenue', 'Cost of sales', ['1', '2', '3', '4', '5', 
     ok(q1.bs && q1.is && !q1.cf && q1.is.rows[0].tag === 'OperatingIncomeLoss', '(37) readOne ‏10-Q: מאזן ורווח והפסד, בלי תזרים');
     const oq0 = { form: '10-Q', filed: '2025-11-01', bs: q1.bs }, n4 = got4.length, aq = await B4.readMissing(oq0, 'https://x/', null, gt4);
     ok(aq.is && !aq.cf && got4.length - n4 === 2 && !B4.needX({ ...oq0, ...aq }), '(37) ‏10-Q ישן: רק דף רווח והפסד');
+  }
+  /* ---------- (38) גל 6: רווח למניה בלי "מדולל" (F30), מועמד עם שורת מניות (F31) ---------- */
+  {
+    const PR6 = require('../ibkr-proxy/lib/secpr.js'), B6 = require('../ibkr-proxy/lib/bsfiled.js');
+    const FOXH = '<table><tr><td>(In millions, except per share data)</td><td>2019</td><td>2018</td></tr>'
+      + '<tr><td>Net income attributable to stockholders per share:</td><td>$</td><td>0.73</td><td>$</td><td>0.76</td></tr>'
+      + '<tr><td>Weighted average shares:</td><td>624</td><td>621</td></tr><tr><td>Dividends declared per share</td><td>0.23</td><td>0.23</td></tr></table>';
+    ok(PR6.parse(FOXH).length === 0, '(38) parse: בלי "מדולל" — אין שורות');
+    const fe = PR6.parseEps(FOXH);
+    ok(fe.length === 2 && fe.every((x) => x.b) && fe[0].v[0] === 0.73 && PR6.isShares(fe[1]) && !fe.some((x) => /except|Dividend/.test(x.label)), '(38) F30 parseEps: רווח למניה ומניות (מסומנים b); לא כותרת "except per share" ולא דיבידנד');
+    // F31: מועמד ראשון — תחזית עם "Diluted EPS" בלי מניות; השני — ההודעה המלאה
+    const GUID = '<table><tr><td>Diluted EPS Range</td><td>12.12</td><td>12.32</td></tr></table>';
+    const FULL = '<table><tr><td>Diluted earnings per share</td><td>1.10</td></tr><tr><td>Diluted weighted average shares</td><td>1770</td></tr></table>';
+    const it6 = { end: '2024-12-31', cands: [{ acc: 'g', filed: '2025-01-06', doc: 'g.htm' }, { acc: 'f', filed: '2025-01-31', doc: 'f.htm' }, { acc: 'z', filed: '2025-02-20', doc: 'z.htm' }] };
+    const idx6 = (n) => JSON.stringify({ directory: { item: [{ name: n, size: 5 }] } });
+    const got6 = [], g6 = (pages) => async (u) => { got6.push(u); const m = /\/(\w)\/index\.json$/.exec(u); if (m) return idx6(m[1] + 'ex991.htm'); const k = /\/(\w)ex991\.htm$/.exec(u); if (k && pages[k[1]] != null) return pages[k[1]]; throw new Error('http_404'); };
+    const r6 = await B6.readPr('1', it6, g6({ g: GUID, f: FULL, z: FULL }));
+    ok(r6 && r6.acc === 'f' && r6.rows.some(PR6.isShares) && !got6.some((u) => /\/z\//.test(u)), '(38) F31 readPr: מועמד בלי שורת מניות — ממשיכים לבא; עוצרים בראשון שיש בו');
+    const r6b = await B6.readPr('1', it6, g6({ g: GUID, f: '<p>x</p>', z: '<p>x</p>' }));
+    ok(r6b && r6b.acc === 'g' && r6b.pv === B6.PR_V && !B6.prNeed(r6b), '(38) F31: אף מועמד בלי מניות — הראשון שיש בו "מדולל", ולא נקרא שוב');
+    const r6c = await B6.readPr('1', it6, g6({ g: '<p>x</p>', f: FOXH, z: '<p>x</p>' }));
+    ok(r6c && r6c.acc === 'f' && r6c.rows.every((x) => x.b) && !B6.prNeed(r6c), '(38) F30 readPr: בלי "מדולל" בכלל — שורות b מההודעה');
+    // q4Press: שורות b רק בשנה בלי דילול (noDil), ובשנת הפסד — רק כשהרבעון הרביעי בהפסד
+    const mk6 = (noDil, ani, qni) => ({ fy: ['2019-06-30'], q: ['2019-06-30'], shEst: ['2019-06-30'], derived: { eps: ['2019-06-30'] }, epsNum: {}, noDil,
+      A: { sh: [621e6], ni: [ani] }, Q: { sh: [610e6], eps: [0.72], ni: [qni] } });
+    const P6 = (rows) => ({ '2019-06-30': { end: '2019-06-30', filed: '2019-08-07', rows } });
+    const s1 = mk6(['2019-06-30'], 1595e6, 455.5e6), c1 = F.q4Press(s1, P6(fe));
+    ok(s1.Q.sh[0] === 624e6 && s1.Q.eps[0] === 0.73 && c1.length === 2, '(38) F30 q4Press: שנה בלי דילול — המניות והרווח למניה מההודעה');
+    const s2 = mk6([], 1595e6, 455.5e6);
+    ok(F.q4Press(s2, P6(fe)).length === 0 && s2.Q.eps[0] === 0.72, '(38) F30 q4Press: שנה עם דילול — שורות b לא נכנסות');
+    const s3 = mk6(['2019-06-30'], -50e6, 455.5e6);
+    ok(F.q4Press(s3, P6(fe)).length === 0, '(38) F30 q4Press: שנת הפסד ורבעון רביעי ברווח — לא');
+    // noDil מ־normalizeSec: מניות בסיסיות = מדוללות (עד 0.1%) או תגית "בסיסי ומדולל"
+    const nd = (b) => F.normalizeSec(facts([
+      ['Revenues', 'USD', [[...Y(2022), 100, '10-K', '2023-02-01'], [...Y(2023), 100, '10-K', '2024-02-01']]],
+      ['NetIncomeLoss', 'USD', [[...Y(2022), 10, '10-K', '2023-02-01'], [...Y(2023), 10, '10-K', '2024-02-01']]],
+      ['WeightedAverageNumberOfDilutedSharesOutstanding', 'shares', [[...Y(2022), 1000, '10-K', '2023-02-01'], [...Y(2023), 1000, '10-K', '2024-02-01']]],
+      ['WeightedAverageNumberOfSharesOutstandingBasic', 'shares', [[...Y(2022), b, '10-K', '2023-02-01'], [...Y(2023), 999.5, '10-K', '2024-02-01']]]]), []);
+    ok(nd(990).noDil.join() === '2023-12-31' && nd(1000).noDil.length === 2, '(38) noDil: רק שנה שבה הבסיסיות = המדוללות');
   }
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });
