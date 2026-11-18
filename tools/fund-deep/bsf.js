@@ -69,7 +69,7 @@ async function fetchAll() {
     let n = 0;
     for (const x of fl) {
       const base = 'https://www.sec.gov/Archives/edgar/data/' + (+cik) + '/' + x.acc.replace(/-/g, '') + '/';
-      // גל 3 (F13) וגל 5 (F20): להגשה שנתית שכבר נקראה — רק דף התזרים ודף רווח והפסד שחסרים (lib/bsfiled.js readMissing, אותו חיתוך)
+      // גל 3 (F13), גל 5 (F20) וגל 6 (10-Q): להגשה שכבר נקראה — רק דף התזרים (10-K) ודף רווח והפסד (10-K ו־10-Q) שחסרים (lib/bsfiled.js readMissing, אותו חיתוך)
       if (have[x.acc]) {
         if (!o['no-cf'] && BSF.needX(have[x.acc])) {
           try { const c = await BSF.readMissing(have[x.acc], base, null, async (u) => { nReq++; const t = await get(u); if (t == null) throw new Error('http_404'); return t; }); if (c && Object.keys(c).length) { Object.assign(have[x.acc], c); n++; } } catch (e) { /* רשת — בסבב הבא */ }
@@ -84,7 +84,7 @@ async function fetchAll() {
         if (!xml) rec.err = 'nofs';
         else if (!pick.bs) rec.err = /R\d+\.xml/.test(xml) ? 'xml' : 'nobs';
         else { const h = await get(base + pick.bs); nReq++; if (h) { const p = SF.parseR(h); rec.bs = { title: p.title, cols: p.cols, scale: p.scale, rows: p.rows }; } else rec.err = 'nor'; }
-        if (xml && /^10-K/.test(x.form) && !o['no-cf'] && rec.err !== 'xml') { const c = await BSF.readMissing({ form: x.form }, base, xml, async (u) => { nReq++; const t = await get(u); if (t == null) throw new Error('http_404'); return t; }).catch(() => null); if (c) Object.assign(rec, c); }
+        if (xml && !o['no-cf'] && rec.err !== 'xml') { const c = await BSF.readMissing({ form: x.form }, base, xml, async (u) => { nReq++; const t = await get(u); if (t == null) throw new Error('http_404'); return t; }).catch(() => null); if (c) Object.assign(rec, c); }
       } catch (e) { rec.err = 'x:' + String(e.message || e).slice(0, 40); }
       if (rec.err && rec.err.startsWith('x:')) continue; // תקלת רשת — לא נשמר, ינוסה שוב
       have[x.acc] = rec; n++;

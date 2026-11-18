@@ -376,13 +376,16 @@ function bsfCf(have, cur, tags) {
    החדשות שלה נקבעות (השנה שייכת ל־10-K האחרון שמדפיס אותה). ours: k → Map(סוף → ערך). abs — מדדים שמודפסים לפעמים במינוס.
    → {k: Map(סוף → {v, filed})}, ‏printed: Map(סוף → כל הערכים שהודפסו בדוח רווח והפסד בשנה הזו, בכל שורה), ‏own: השנה של כל 10-K */
 const IS_KEYS = ['int', 'pretax', 'cogs', 'rnd', 'tax', 'op'], IS_ABS = new Set(['int', 'cogs', 'rnd']);
-function bsfIs(have, cur, ours) {
-  const ann = Object.values(have || {}).filter((x) => x && x.is && x.is.rows && /^10-K/.test(x.form)).sort((a, b) => (a.filed < b.filed ? 1 : -1));
+/* q (גל 6 — F20 ברבעונים): אותו שרשור על דפי רווח והפסד של 10-Q, בעמודות של 3 חודשים. כל 10-Q מדפיס את הרבעון ואת אותו רבעון
+   בשנה הקודמת, ולכן השרשור הוא לכל רבעון פיסקלי לחוד — וכל שרשרת מתחילה בעוגן (שורה ששווה לסדרה שלנו בשני הרבעונים שלה) */
+function bsfIs(have, cur, ours, q) {
+  const MON = q ? 3 : 12, FORM = q ? /^10-Q/ : /^10-K/;
+  const ann = Object.values(have || {}).filter((x) => x && x.is && x.is.rows && FORM.test(x.form)).sort((a, b) => (a.filed < b.filed ? 1 : -1));
   const out = {};
   if (!ann.length) return out;
   const near = (a, b) => Math.abs(a - b) <= Math.max(5e5, 5e-3 * Math.abs(b));
   // כל שורה: {סוף → ערך} בעמודות של 12 חודשים
-  const yv = (x) => x.is.rows.map((r) => { const o = new Map(); SECFACE.rowVals(x.is, r).forEach((v, ci) => { const c = x.is.cols[ci]; if (v != null && c && c.months === 12 && SECFACE.colOk(c, cur) && !o.has(c.end)) o.set(c.end, v); }); o.tag = r.ns + ':' + r.tag; return o; }).filter((o) => o.size);
+  const yv = (x) => x.is.rows.map((r) => { const o = new Map(); SECFACE.rowVals(x.is, r).forEach((v, ci) => { const c = x.is.cols[ci]; if (v != null && c && c.months === MON && SECFACE.colOk(c, cur) && !o.has(c.end)) o.set(c.end, v); }); o.tag = r.ns + ':' + r.tag; return o; }).filter((o) => o.size);
   const Y = ann.map(yv);
   const printed = new Map();
   for (const rows of Y) for (const o of rows) for (const [e, v] of o) { if (!printed.has(e)) printed.set(e, []); printed.get(e).push(Math.abs(v)); }
@@ -392,7 +395,7 @@ function bsfIs(have, cur, ours) {
   out.own = Y.map((rows) => { let m = null; for (const o of rows) for (const e of o.keys()) if (!m || e > m) m = e; return m; }).filter(Boolean);
   const at = (M, e) => { if (M.has(e)) return M.get(e); for (const [k, v] of M) if (Math.abs(day(k) - day(e)) <= 7) return v; return null; };
   for (const k of IS_KEYS) {
-    const S = ours[k]; if ((!S || !S.size) && k !== 'pretax') continue;
+    const S = ours[k]; if ((!S || !S.size) && (q || k !== 'pretax')) continue;
     const f = (v) => (IS_ABS.has(k) ? Math.abs(v) : v);
     const same = (o, est) => [...est.keys()].some((e) => o.has(e)) && [...o].every(([e, v]) => !est.has(e) || near(f(v), est.get(e)));
     // שתי שורות זהות (אותו מספר פעמיים בדוח) — אחת
@@ -403,7 +406,7 @@ function bsfIs(have, cur, ours) {
     // F28 (גל 6) — עוגן חשבוני לרווח לפני מס, כשהסדרה שלנו ריקה בכל השנים של הדוח האחרון (התגית פרטית: BNY ‏bk:, ‏Oracle ‏orcl:):
     // השורה היחידה R שבכל שנה R − מס = רווח נקי, כשהמס (us-gaap ‏IncomeTaxExpenseBenefit) שווה לסדרת המס שלנו והרווח הנקי הוא שורה
     // של us-gaap ‏(ProfitLoss / ‏NetIncomeLoss / רווח מפעילות נמשכת). מבחן חשבוני, לא לפי השם (לקח גל 2)
-    if (!u0.length && k === 'pretax' && ours.tax && ![...Y[0]].some((o) => [...o.keys()].some((e) => S && at(S, e) != null))) {
+    if (!u0.length && !q && k === 'pretax' && ours.tax && ![...Y[0]].some((o) => [...o.keys()].some((e) => S && at(S, e) != null))) {
       const T = Y[0].filter((o) => o.tag === 'us-gaap:IncomeTaxExpenseBenefit' && o.size >= 2 && [...o].every(([e, v]) => { const x = at(ours.tax, e); return x != null && near(v, x); }));
       const NI = Y[0].filter((o) => /^us-gaap:(ProfitLoss|NetIncomeLoss|IncomeLossFromContinuingOperations(IncludingPortionAttributableToNoncontrollingInterest)?)$/.test(o.tag));
       if (T.length && NI.length) u0 = uniq(Y[0].filter((o) => o.size >= 2 && !T.includes(o) && !NI.includes(o) && T.some((t) => NI.some((n) => [...o].every(([e, v]) => t.has(e) && n.has(e) && near(v - t.get(e), n.get(e)))))));
@@ -1511,7 +1514,7 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
   // רווח והפסד לפי הגשה (bsfIs, גל 5 — F20). רק השנתי, כמו F13; ערך שלנו שמודפס בשורה כלשהי של רווח והפסד באותה שנה — לא מוחלף
   // (הצגה מחדש: פעילות שנמכרה — Agilent אחרי Keysight, ‏Exelon אחרי Constellation)
   if (!isIfrs && bsf) {
-    const ours = {};
+    const ours = {}, chg = {};
     for (const k of IS_KEYS) if (A[k]) ours[k] = new Map(fyEnds.filter((e) => A[k][e] != null).map((e) => [e, A[k][e]]));
     const IS = bsfIs(bsf, rc || cur || 'USD', ours);
     const near = (a, b) => Math.abs(a - b) <= Math.max(5e5, 5e-3 * Math.abs(b));
@@ -1525,6 +1528,50 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
         if (old != null) { let pr = IS.printed.get(e); if (!pr) for (const [k2, v2] of IS.printed) if (Math.abs(day(k2) - day(e)) <= 7) { pr = v2; break; } if (pr && pr.some((v) => near(Math.abs(old), v))) continue; }
         if (!A[k]) A[k] = {};
         A[k][e] = p.v; cfy.push({ k: old == null ? 'ffill' : 'ffix', m: k, p: e, f: p.v, v: old == null ? null : old });
+        (chg[k] = chg[k] || new Set()).add(e);
+      }
+    }
+    // F20 ברבעונים (גל 6): אותו שרשור על דפי 10-Q, ואותן שמירות — ערך שמודפס בשורה כלשהי באותו רבעון לא מוחלף, ערך קיים מתוקן רק
+    // כשה־10-Q של אותו רבעון בחלון. הסדרה שלנו לעוגן — בלי הרבעון הרביעי הנגזר (אינו מודפס ב־10-Q)
+    const oq = {};
+    for (const k of IS_KEYS) if (Q[k]) oq[k] = new Map(qEnds.filter((e) => Q[k][e] != null && !(derived[k] || []).includes(e)).map((e) => [e, Q[k][e]]));
+    const ISQ = bsfIs(bsf, rc || cur || 'USD', oq, true);
+    const prAt = (P, e) => { let pr = P.get(e); if (!pr) for (const [k2, v2] of P) if (Math.abs(day(k2) - day(e)) <= 7) { pr = v2; break; } return pr; };
+    const fyOf = (e) => fyEnds.find((f) => { const s0 = yearOf.get(f); return s0 && e > s0 && e <= f; });
+    for (const k of IS_KEYS) {
+      const M = ISQ[k]; if (!M) continue;
+      for (const e of qEnds) {
+        if (fyEnds.some((f) => Math.abs(day(f) - day(e)) <= 7)) continue; // הרבעון הרביעי — לא ב־10-Q
+        const p = bsfAt(M, e); if (!p) continue;
+        const old = Q[k] && Q[k][e];
+        if (old != null && near(IS_ABS.has(k) ? Math.abs(old) : old, p.v)) continue;
+        if (old != null && !ISQ.own.some((x) => Math.abs(day(x) - day(e)) <= 7)) continue;
+        if (old != null) { const pr = prAt(ISQ.printed, e); if (pr && pr.some((v) => near(Math.abs(old), v))) continue; }
+        if (!Q[k]) Q[k] = {};
+        Q[k][e] = p.v; cfy.push({ k: old == null ? 'ffill' : 'ffix', m: k, p: e, f: p.v, v: old == null ? null : old, q: 1 });
+        const f = fyOf(e); if (f) (chg[k] = chg[k] || new Set()).add(f);
+      }
+    }
+    // F29 (גל 6): הרבעון הרביעי נגזר (השנה פחות שלושה רבעונים) לפני התיקונים של F20 — בשנה שהשנתי או אחד הרבעונים בה השתנו
+    // הוא נשאר מהערכים הישנים (Keysight ‏2015: השנה ‏388 המודפס, הרבעונים ‏124+154+124+157 = ‏559 הישן). גוזרים מחדש רק כששלושת
+    // הרבעונים מודפסים ב־10-Q באותה סדרה (ISQ.printed); אחרת, כשהשנתי תוקן (ffix), הרבעון הרביעי הנגזר יורד — הוא מבסיס אחר
+    for (const k of IS_KEYS) {
+      for (const e of chg[k] || []) {
+        if (!Q[k] || A[k] == null || A[k][e] == null) continue;
+        const der = (derived[k] || []).includes(e);
+        if (Q[k][e] != null && !der) continue; // רבעון רביעי מדווח — לא נגזר
+        const s0 = yearOf.get(e), qs = qEnds.filter((x) => x > s0 && x < e && day(e) - day(x) < 300);
+        const ok = qs.length === 3 && qs.every((x) => Q[k][x] != null) && qs.every((x) => { const pr = prAt(ISQ.printed || new Map(), x); return pr && pr.some((v) => near(Math.abs(Q[k][x]), v)); });
+        const old = Q[k][e];
+        if (ok) {
+          const v = A[k][e] - qs.reduce((t, x) => t + Q[k][x], 0);
+          if (old != null && near(old, v)) continue;
+          Q[k][e] = v; if (!der) (derived[k] = derived[k] || []).push(e);
+          cfy.push({ k: 'q4fix', m: k, p: e, f: v, v: old == null ? null : old });
+        } else if (der && cfy.some((c) => c.k === 'ffix' && c.m === k && c.p === e && !c.q)) {
+          Q[k][e] = null; derived[k] = derived[k].filter((x) => x !== e);
+          cfy.push({ k: 'q4drop', m: k, p: e, f: null, v: old });
+        }
       }
     }
   }

@@ -50,7 +50,8 @@ function slimIs(p) {
 const annual = (f) => /^10-K/.test(f.form);
 const dead = (r) => !!(r.err && r.err !== 'nobs' && r.err !== 'empty');
 const needCf = (r) => !!(r && annual(r) && !r.cf && !r.cfErr && !dead(r));
-const needIs = (r) => !!(r && annual(r) && !r.is && !r.isErr && !dead(r));
+// דף רווח והפסד: 10-K (גל 5, F20) וגם 10-Q (גל 6 — F20 ברבעונים; הגשה שכבר נשמרה בלעדיו מושלמת ב־readMissing)
+const needIs = (r) => !!(r && !r.is && !r.isErr && !dead(r));
 const needX = (r) => needCf(r) || needIs(r);
 /* דף אחד של הגשה שנתית לפי הסוג (cf / is): {cf} / {cfErr} (נשמר) / null (תקלת רשת). xml — FilingSummary כשכבר נקרא */
 async function readSt(k, base, xml, getText) {
@@ -102,8 +103,8 @@ async function readOne(cik, f, getText) {
   let xml;
   try { xml = await getText(base + 'FilingSummary.xml'); } catch (e) { return /http_404/.test(String(e && e.message)) ? { ...rec, err: 'nofs' } : null; }
   const pick = SECFACE.pickStatements(xml);
-  // 10-K — גם דף התזרים ודף רווח והפסד (תקלת רשת באחד = בלי הוא; יושלם בסבב הבא)
-  const withCf = async (r) => { if (!annual(f) || r.err === 'xml') return r; const c = await readMissing(r, base, xml, getText).catch(() => null); return c ? { ...r, ...c } : r; };
+  // 10-K — גם דף התזרים ודף רווח והפסד; ‏10-Q — דף רווח והפסד (גל 6). תקלת רשת באחד = בלי הוא; יושלם בסבב הבא
+  const withCf = async (r) => { if (r.err === 'xml') return r; const c = await readMissing(r, base, xml, getText).catch(() => null); return c ? { ...r, ...c } : r; };
   if (!pick.bs) return withCf({ ...rec, err: /R\d+\.xml/.test(String(xml)) ? 'xml' : 'nobs' });
   let h;
   try { h = await getText(base + pick.bs); } catch (e) { return /http_404/.test(String(e && e.message)) ? { ...rec, err: 'nor' } : null; }
