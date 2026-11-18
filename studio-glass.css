@@ -39,10 +39,16 @@ html .st-root :is(.st-list, .st-newcard, .st-jhero, .st-stages) { background: va
 /* ===== 2. ההדר: אותו מבנה; סמלים בצבע הטקסט; "השרת · מחובר" בקפסולת זכוכית בשורה אחת ===== */
 html .appbar .icon-btn { color: var(--on-surface) !important; }
 html .appbar .icon-btn svg { stroke: var(--on-surface) !important; color: var(--on-surface) !important; }
-html .appbar .st-cpill { border-radius: 999px !important; border: 0 !important; height: 40px !important; min-height: 0 !important; margin-top: 4px !important; flex-direction: row !important; align-items: center !important; gap: 6px !important; padding: 0 14px !important; width: max-content !important; max-width: none !important; white-space: nowrap !important; overflow: visible !important; }
-html .appbar .st-cpill * { white-space: nowrap !important; overflow: visible !important; text-overflow: clip !important; max-width: none !important; }
-html .appbar .st-cpill :is(small, .sub-cap, span:first-child) { font-size: 13px !important; font-weight: 500 !important; color: var(--on-surface-var) !important; }
-html .appbar .st-cpill :is(b, strong, .sub-val) { font-size: 15px !important; font-weight: 600 !important; }
+/* 18/11/2026 (בקשת המשתמש, צילום — "Claudeמחובר" נדבק): אותה בועה בדיוק של Invest — ברוחב שני הכפתורים שמעליה (עד 10px מהלוגו),
+   נקודה · כיתוב משני · מצב מודגש, ממורכז ועם רווח קבוע */
+html .appbar .st-cpill { border-radius: 999px !important; border: 0 !important; height: 40px !important; min-height: 0 !important; margin-top: 4px !important; flex-direction: row !important; flex-wrap: nowrap !important;
+  align-items: center !important; justify-content: center !important; gap: 4px !important; padding: 0 10px !important; min-width: 0 !important; white-space: nowrap !important; overflow: hidden !important; }
+html .appbar .st-cpill .sub-cap { display: inline-flex !important; align-items: center !important; gap: 4px !important; flex: 0 1 auto !important; min-width: 0 !important; max-width: none !important;
+  overflow: hidden !important; text-overflow: ellipsis !important; font-size: 13px !important; font-weight: 500 !important; line-height: 1.2 !important; color: var(--on-surface-var) !important; }
+html .appbar .st-cpill .sub-cap i { flex: none !important; }
+html .appbar .st-cpill .sub-val { flex: none !important; max-width: none !important; overflow: visible !important; font-size: 15px !important; font-weight: 600 !important; line-height: 1.2 !important; }
+html .appbar .st-cpill.pf1 .sub-cap { font-size: 0 !important; gap: 0 !important; }
+html .appbar .st-cpill.pf3 .sub-val { font-size: 13px !important; }   /* hdrPillFit — לא נכנס: בלי הכיתוב המשני */
 
 /* ===== 3. החוגה: אותה חוגה ואותה תנועה, על מסילת זכוכית צפה; הנבחר = טיפת זכוכית אדומה מורמת ===== */
 html .tabs::after { display: none !important; }

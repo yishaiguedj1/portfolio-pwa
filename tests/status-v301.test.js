@@ -22,7 +22,7 @@ const LABOR = Date.parse('2026-09-07T15:00:00Z');
 const open = f({ source: 'Yahoo', live: true, session: '' }, WED);
 ok(/st-pill open"/.test(open) && /<i><\/i>/.test(open) && /<span class="sub-cap"><i><\/i>השוק<\/span><b class="sub-val">פתוח<\/b>/.test(open) && !/Yahoo/.test(open) && !/דיליי/.test(open), 'פתוח וחי: נקודה + "השוק" למעלה, "פתוח" מודגש למטה, בלי שם המקור');
 const openD = f({ source: 'CNBC', live: false, session: '' }, WED);
-ok(/st-pill open delay/.test(openD) && /<small> · דיליי<\/small><\/span><b class="sub-val">פתוח/.test(openD) && !/CNBC/.test(openD), 'פתוח בגיבוי: נקודה אפורה + "· דיליי" בכיתוב');
+ok(/st-pill open delay/.test(openD) && /<span class="sub-cap"><i><\/i><\/span><b class="sub-val">פתוח<small> · דיליי<\/small><\/b>/.test(openD) && !/CNBC/.test(openD), 'פתוח בגיבוי (18/11): נקודה אפורה + "פתוח · דיליי" בשורה אחת, בלי "השוק"');
 ok(/st-pill open delay/.test(f({ source: 'Yahoo', live: true, stale: true, session: '' }, WED)), 'נתונים שמורים = דיליי');
 for (const [k, lbl] of [['pre', 'מוקדם'], ['post', 'מאוחר'], ['night', 'לילי']]) {
   const h = f({ source: 'Yahoo', live: true, session: k }, WED);
@@ -30,9 +30,11 @@ for (const [k, lbl] of [['pre', 'מוקדם'], ['post', 'מאוחר'], ['night',
   ok(new RegExp('st-pill ' + k + ' delay').test(f({ source: 'CNBC', live: false, session: k }, WED)), k + ' בדיליי: נקודה אפורה');
 }
 const sat = f({ source: 'CNBC', live: false, session: 'pre' }, SAT);
-ok(/st-pill closed/.test(sat) && /סופ״ש<\/span><b class="sub-val">סגור<\/b>/.test(sat) && !/<i>/.test(sat) && !/דיליי/.test(sat), 'שבת: סגור + סופ״ש גם כשהגיבוי אומר "מסחר מוקדם"; מנעול בלי נקודה');
-ok(/חג המולד<\/span><b class="sub-val">סגור/.test(f({ source: 'Yahoo', live: true, session: 'closed' }, XMAS)), 'חג: שם החג');
-ok(/יום העבודה<\/span><b class="sub-val">סגור/.test(f({ source: 'Yahoo', live: true, session: '' }, LABOR)), 'שם חג מתוקן: "יום העבודה"');
+ok(/st-pill closed/.test(sat) && /<b class="sub-val">סגור<small> · סופ״ש<\/small><\/b>/.test(sat) && !/<i>/.test(sat) && !/דיליי/.test(sat), 'שבת: "סגור · סופ״ש" גם כשהגיבוי אומר "מסחר מוקדם"; מנעול בלי נקודה');
+// 18/11/2026 (בקשת המשתמש): בחג — "סגור · חג", בלי שם החג (ארוך, נחתך בבועה)
+const xmas = f({ source: 'Yahoo', live: true, session: 'closed' }, XMAS), labor = f({ source: 'Yahoo', live: true, session: '' }, LABOR);
+ok(/<b class="sub-val">סגור<small> · חג<\/small><\/b>/.test(xmas) && !/חג המולד/.test(xmas), 'חג: "סגור · חג" בלי שם החג');
+ok(/<b class="sub-val">סגור<small> · חג<\/small><\/b>/.test(labor) && !/יום העבודה/.test(labor), 'גם ביום העבודה');
 ok(/st-pill night/.test(f({ source: 'Yahoo', live: true, session: 'night' }, SAT)), 'מסחר לילי גובר על "סופ״ש" (יום ראשון בערב)');
 const closedNoReason = f({ source: 'Yahoo', live: true, session: 'closed' }, WED);
 ok(/st-pill closed/.test(closedNoReason) && />השוק<\/span><b class="sub-val">סגור<\/b>/.test(closedNoReason.replace(/<svg.*<\/svg>/, '')), 'סגור בלי סיבה (סגירה מיוחדת/אחרי השעות)');
@@ -43,4 +45,28 @@ ok(/hdNewYear: '1 בינואר'/.test(app) && /hdPresidents: 'יום הנשיא�
 const wm = fs.readFileSync(path.join(root, 'ibkr-proxy/lib/widget-model.js'), 'utf8');
 ok(/hdNewYear: '1 בינואר'/.test(wm) && /hdLabor: 'יום העבודה'/.test(wm), 'ובווידג׳ט');
 ok(/state\.session = sess === 'regular' \? '' : sess;/.test(app), '"סגור" מהמקור נשמר');
+// 18/11/2026 (בקשת המשתמש, צילום — הטקסט בבועות ההדר גלש ונחתך): שורה אחת, ומה שלא נכנס יורד בשלבים
+ok(/stShHoliday: 'חג'/.test(app) && /stShHoliday: 'Holiday'/.test(app) && /fxPillCap: 'דולר'/.test(app) && /fxPillCap: 'USD'/.test(app), 'מחרוזות קצרות: "חג", "דולר"');
+const idx = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+ok(/<span data-i18n="fxPillCap">דולר<\/span>/.test(idx) && /id="fxPill"[^>]*aria-label="שער הדולר"/.test(idx), 'בועת השער: "דולר" בבועה, "שער הדולר" לקורא המסך');
+{
+  const fitSrc = app.slice(app.indexOf('function hdrPillFit('), app.indexOf('function hdrPillsFit('));
+  const mk = (need) => { const cls = new Set(); const kids = [{ w: 30, cap: true }, { w: need }];
+    const p = { classList: { add: (c) => cls.add(c), remove: (...c) => c.forEach((x) => cls.delete(x)) }, clientWidth: 110,
+      get children() { return kids.map((k) => ({ getClientRects: () => [1], get scrollWidth() { return k.cap && cls.has('pf1') ? 7 : !k.cap && cls.has('pf3') ? k.w - 30 : !k.cap && cls.has('pf2') ? k.w - 20 : k.w; } })); } };
+    return { p, cls }; };
+  const c2 = vm.createContext({ getComputedStyle: () => ({ columnGap: '4px', paddingLeft: '10px', paddingRight: '10px' }) });
+  vm.runInContext(fitSrc + ';globalThis.fit = hdrPillFit;', c2);
+  const a = mk(50); c2.fit(a.p); const b = mk(70); c2.fit(b.p); const c = mk(85); c2.fit(c.p); const d = mk(110); c2.fit(d.p);
+  ok(a.cls.size === 0 && [...b.cls].join() === 'pf1' && [...c.cls].join() === 'pf1,pf2' && [...d.cls].join() === 'pf1,pf2,pf3', 'hdrPillFit: נכנס — בלי שינוי; אחרת בלי הכיתוב, ואז בלי התוספת, ואז ערך קטן');
+}
+const core = fs.readFileSync(path.join(root, 'core.js'), 'utf8'), shell = fs.readFileSync(path.join(root, 'shell.js'), 'utf8');
+ok(/function hdrPillFit\(/.test(core) && /pillFitSoon\(cur\);/.test(shell) && /pillFitSoon\(node\);/.test(shell), 'Academy/Studio: אותה התאמה (core.js + statusSet)');
+const ig = fs.readFileSync(path.join(root, 'invest-glass.css'), 'utf8'), sg = fs.readFileSync(path.join(root, 'studio-glass.css'), 'utf8'), ag = fs.readFileSync(path.join(root, 'academy-glass.css'), 'utf8');
+ok(/#fxPill\)\.pf1 :is\(\.sub-cap, \.fx-pill-label\) \{ font-size: 0 !important/.test(ig) && /\.st-pill\.pf2 \.sub-val small \{ display: none/.test(ig) && /\.st-cpill\.pf1 \.sub-cap \{ font-size: 0/.test(sg) && /\.lib-bkpill\.pf1 \.sub-cap \{ font-size: 0/.test(ag), 'CSS: שלבי ההתאמה בשלוש האפליקציות');
+for (const [nm, css2, sel] of [['Invest', ig, ':is(#sourceLabel .st-pill, .fx-pill) {'], ['Studio', sg, '.appbar .st-cpill {'], ['Academy', ag, '.appbar .lib-bkpill {']]) {
+  const r = css2.slice(css2.indexOf(sel), css2.indexOf('}', css2.indexOf(sel)));
+  ok(/height: 40px !important/.test(r) && /gap: 4px !important/.test(r) && /padding: 0 10px !important/.test(r) && /flex-wrap: nowrap !important/.test(r) && /overflow: hidden !important/.test(r) && !/max-content/.test(r), nm + ': אותה בועה — 40, שורה אחת, ברוחב העמודה');
+}
+ok(!/lib-bkpill \.sub-cap::after/.test(ag), 'Academy: בלי "·" בין "גיבוי" למצב');
 console.log('# ' + n + ' בדיקות עברו');
