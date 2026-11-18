@@ -8245,8 +8245,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.183.0';
-const APP_VERSION = 'v836';
+const APP_RELEASE = '2.183.1';
+const APP_VERSION = 'v837';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -18608,17 +18608,61 @@ function bottomCover() {
   if (getComputedStyle(tabs).position !== 'fixed') return 0;
   return Math.max(0, viewH() - tabs.getBoundingClientRect().top);
 }
+// 18/11/2026 (בקשת המשתמש, צילומים: "שהכרטיסיה תכסה את כל המסך — תמיד, עם התראות ובלי"): הקצה התחתון של הכרטיס הפתוח =
+// ראש המסילה הנראית של החוגה (::before), לא ראש האלמנט — מעל המסילה יש עוד 32px שקופים (שם רק העיגול הירוק בולט),
+// והכרטיס נעצר שם עם פס ריק. באפליקציה המותקנת (standalone) — המיקום האמיתי של החוגה; בדפדפן — גם לא נמוך ממה שיהיה
+// כשסרגל הכתובת חוזר (viewH, 27/10).
+function dockTop() {
+  const vh = viewH();
+  if (typeof document === 'undefined' || !document.querySelector || typeof getComputedStyle !== 'function') return vh;
+  const tabs = document.querySelector('.tabs');
+  if (!tabs || !tabs.offsetHeight || !tabs.getBoundingClientRect || getComputedStyle(tabs).position !== 'fixed') return vh;
+  let top = tabs.getBoundingClientRect().top;
+  const solo = typeof matchMedia === 'function' && matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches;
+  if (!solo) top = Math.min(top, vh - tabs.offsetHeight);
+  let off = 0;
+  try {
+    const b = getComputedStyle(tabs, '::before');
+    const bh = parseFloat(b.height), bb = parseFloat(b.bottom);
+    if (b.position === 'absolute' && bh > 0 && bb >= 0 && bh + bb < tabs.offsetHeight) off = tabs.offsetHeight - bh - bb;
+  } catch (e) {}
+  return top + off;
+}
+// 18/11/2026 (בקשת המשתמש, צילום מסומן: "לפי המרחק מהלוגו — זה הכי חשוב"): בטלפון ההדר מתכווץ בגלילה (invest-glass.css, igLogo —
+// הלוגו ל־0.6, הבועות נעלמות, הרצועה עולה), אבל האלמנט .appbar שומר את הגובה המלא — הכרטיס עמד ~50px מתחת ללוגו.
+// מה שנראה בפועל = תחתית הלוגו המכווץ: הכרטיס הפתוח מתחיל 12px מתחתיה. רק כשהדף ייגלל עד סוף ההתכווצות (110px);
+// אחרת (כרטיס ראשון בדף קצר) — מתחת להדר המלא, כמו קודם.
+const HDR_SHRINK_END = 110, HDR_LOGO_SCALE = 0.6, CARD_LOGO_GAP = 12;
+function hdrShrunkBottom() {
+  if (typeof document === 'undefined' || !document.querySelector || typeof getComputedStyle !== 'function') return 0;
+  const bar = document.querySelector('.appbar'), art = bar && bar.querySelector('.brand-art');
+  if (!art || !art.offsetHeight || !/igLogo/.test(getComputedStyle(art).animationName || '')) return 0;
+  // ראש הלוגו בלי הטרנספורמציות (scale מהראש, transform-origin 50% 0) — מרשת ה־offsetTop עד ההדר
+  let top = 0, e = art;
+  while (e && e !== bar) { top += e.offsetTop; e = e.offsetParent; }
+  if (e !== bar) return 0;
+  return bar.getBoundingClientRect().top + top + art.offsetHeight * HDR_LOGO_SCALE;
+}
+// ההיסט מראש המסך שבו עומד ראש הכרטיס הפתוח; docTop — מיקום הכרטיס בדף (ברירת מחדל: מהכרטיס עצמו)
+function cardTopOff(card, docTop) {
+  const base = topCover() + 10;
+  const hb = hdrShrunkBottom();
+  if (!hb) return base;
+  const off = Math.min(base, Math.round(hb + CARD_LOGO_GAP));
+  if (docTop == null && card && card.getBoundingClientRect) docTop = card.getBoundingClientRect().top + (window.scrollY || 0);
+  return docTop != null && docTop - off < HDR_SHRINK_END ? base : off;
+}
 function scrollCardToTop(card) {
   if (!card || !card.getBoundingClientRect || typeof window === 'undefined' || !window.scrollTo) return;
   if (state.cardAnim) return; // v272: אנימציית הכרטיס כבר מנווטת את הגלילה — גלילה נוספת הייתה נלחמת בה
-  const off = topCover() + 10;
+  const off = cardTopOff(card);
   const top = card.getBoundingClientRect().top;
   if (Math.abs(top - off) < 4) return;
   cancelScrollRestore();
   const y = Math.max(0, top + (window.scrollY || 0) - off);
   try { window.scrollTo({ top: y, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, y); }
 }
-// v238: הכרטיס הפתוח = בדיוק גובה המסך שמתחת להדר (10px מעל ומתחת) — לא גדול ולא קטן ממנו:
+// v238: הכרטיס הפתוח = בדיוק גובה המסך שמתחת להדר (10px מעל, ומתחת — עד המסילה של החוגה, dockTop) — לא גדול ולא קטן ממנו:
 // הגרף מתמתח או מתכווץ כדי להשלים. נמדד מהגובה הטבעי של התוכן (גם באמצע אנימציית הפתיחה).
 function fitCardToScreen(sym, card, smooth) {
   if (typeof window === 'undefined' || !window.innerHeight) return false;
@@ -18638,9 +18682,11 @@ function fitCardToScreen(sym, card, smooth) {
     const head = card.querySelector('.stock-head');
     if (head) card._fitRO.observe(head);
   }
-  const avail = viewH() - topCover() - bottomCover() - 16;
+  // מתחת ללוגו (cardTopOff) ו־10px מעל המסילה של החוגה. בטלפון בלי תקרה — הגרף משלים כל גובה מסך (תקרה רק בתצוגת מחשב)
+  const avail = dockTop() - cardTopOff(card) - 10;
   const cardH = card.getBoundingClientRect().height - body.getBoundingClientRect().height + Math.max(inner.offsetHeight, inner.scrollHeight);
-  const h = Math.round(Math.max(140, Math.min(560, cv.clientHeight + avail - cardH)));
+  const dk = document.documentElement && document.documentElement.classList && document.documentElement.classList.contains('dk');
+  const h = Math.round(Math.max(140, Math.min(dk ? 560 : 4000, cv.clientHeight + avail - cardH)));
   if (Math.abs(h - cv.clientHeight) < 2) return false;
   if (!state.chartH) state.chartH = {};
   state.chartH[sym] = h;
@@ -18684,8 +18730,8 @@ function holdCardTop(sym) {
   };
   [350, 900, 1700, 3000].forEach((ms, i, a) => setTimeout(() => pin(i === a.length - 1), ms));
 }
-function cardAnimOffset() {
-  return topCover() + 10;
+function cardAnimOffset(docTop) {
+  return cardTopOff(null, docTop);
 }
 /* לוח הפקודות (תצוגת מחשב): כשמקלידים — האחזקות והמעקב של הרשימה הפעילה; בחירה פותחת את הכרטיס בעמוד שלו */
 function deskInvestCmds(q) {
@@ -18913,7 +18959,7 @@ function toggleStock(sym, card) {
   for (const it of items) { it.card.classList.add('anim'); it.body.style.height = it.from + 'px'; if (it.closing) it.card.classList.remove('open'); }
   const maxFinal = Math.max(0, docH0 + docDelta - vh);
   const S1 = opening
-    ? Math.min(maxFinal, Math.max(0, cardTop0 + S0 + aboveDelta - cardAnimOffset()))
+    ? Math.min(maxFinal, Math.max(0, cardTop0 + S0 + aboveDelta - cardAnimOffset(cardTop0 + S0 + aboveDelta)))
     : Math.min(S0, maxFinal);
   let t0 = null, raf = 0, steer = Math.abs(S1 - S0) > 0.5;
   const stopSteer = () => { steer = false; };
