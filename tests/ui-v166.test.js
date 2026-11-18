@@ -30,7 +30,8 @@ ok(html.includes(LRI + '+$500' + PDI), 'מהקנייה בכסף: +$500 (10 מנ�
 vm.runInContext('state.currency = "ILS";', sb);
 ok(A('stockSubHTML')(p, m('ZZZ')).includes(LRI + '+₪1,525' + PDI), 'במטבע שקל: הרווח בשקלים');
 ok(!/buy-chg/.test(A('stockSubHTML')({ sym: 'ZZZ', shares: 1, avg: 0 }, m('ZZZ'))), 'בלי מחיר קנייה — בלי שורת "מהקנייה"');
-ok(/\.stock-sub \{[^}]*display: grid;[^}]*grid-template-columns: (minmax\(0, 1fr\) auto|auto minmax\(0, 1fr\))/.test(css), 'שורות המשנה: רשת של שתי עמודות (אחוזים / סכומים)');
+// 2.184.1: עמודה אחת — כל שורה מתפרסת לבד (נתון ב־start, גלולה/אחוז ב־end); עמודות משותפות שברו את הגלולה
+ok(/\.stock-sub \{[^}]*display: grid;[^}]*grid-template-columns: minmax\(0, 1fr\);/.test(css) && /\.stock-sub > \.day-chg \{[^}]*justify-self: end/.test(css), 'שורות המשנה: רשת של עמודה אחת, שני פריטים בכל שורה (סכום ב־start, אחוז ב־end)');
 ok(/<span class="sh-r2">[\s\S]*?<span class="stock-ext">' \+ extSessionHTML\(m\.q, m\)/.test(src), 'v204/v206: תג הסשן בשורה השנייה של הכרטיס (ליד שם החברה), מתעדכן בטיק');
 ok(/for \(const cls of \['\.stock-sub', '\.stock-ext'\]\)/.test(src), 'טיק חי מעדכן גם את התג וגם את השורות');
 ok(/ctx\.direction = 'ltr';/.test(src), 'ציר גרף הביצועים: "+18.7%" גם בקנבס');

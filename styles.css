@@ -940,11 +940,13 @@ main .tabpage :is(.ranges, .chip-row, .stock-sort-row, .wl-tabs, .tx-years, .st-
 /* שורות המשנה: שתי עמודות — אחוזים בצד ההתחלה, סכומים בצד הסוף, שורה לכל זוג */
 /* 20/10/2026 (בקשת המשתמש): הצדדים התחלפו — השווי והרווח בכסף בצד של הלוגו (התחלה), השינוי היומי ו"מהקנייה" בצד של
    המחיר (סוף), מתחת למחיר. אותו סדר ב־DOM (היום, שווי, מהקנייה %, מהקנייה בכסף), רק המקום ברשת; גם בכרטיס המעקב */
-.stock-sub { grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 3px 12px; font-size: 14px; color: var(--on-surface-var); }
-.stock-sub > .day-chg { grid-area: 1 / 2; justify-self: end; text-align: end; }
+/* 18/11/2026: עמודה אחת — כל שורה מתפרסת לבד על כל הרוחב (הנתון בהתחלה, הגלולה/האחוז בסוף). בשתי עמודות משותפות
+   "שינוי מהקנייה −$7,531" בשורה השנייה הרחיב את העמודה, והגלולה של השינוי היומי בשורה הראשונה נשברה לשתי שורות */
+.stock-sub { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; gap: 3px 12px; font-size: 14px; color: var(--on-surface-var); }
+.stock-sub > .day-chg { grid-area: 1 / 1; justify-self: end; text-align: end; white-space: nowrap; }
 .stock-sub > .sub-val { grid-area: 1 / 1; }
-.stock-sub > .buy-chg { grid-area: 2 / 2; justify-self: end; }
-.stock-sub > .buy-amt { grid-area: 2 / 1; }
+.stock-sub > .buy-chg { grid-area: 2 / 1; justify-self: end; white-space: nowrap; }
+.stock-sub > .buy-amt { grid-area: 2 / 1; white-space: nowrap; }
 .stock-sub .sub-val, .stock-sub .buy-amt { justify-self: start; font-variant-numeric: tabular-nums; }
 /* 18/11/2026: תווית משנית לפני הנתון ("שווי" / "שינוי") — קטנה, אפורה וקלה; הנתון נשאר הבולט, גם כשהוא צבעוני */
 .stock-sub .sub-lbl { font-size: 12.5px; font-weight: 500; color: var(--on-surface-var); margin-inline-end: 2px; }
