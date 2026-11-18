@@ -25,7 +25,9 @@ ok(/if \(document\.hidden\) \{[\s\S]*?closeStockCards\(\);/.test(src), 'יציא
 ok(/window\.scrollBy\(0, after - before\)/.test(fn('closeStockCards')), 'הכרטיס שנגעת בו לא קופץ (פיצוי גלילה)');
 // v233: פתיחת כרטיס מעלה את ראשו לראש המסך (מתחת להדר), גם אחרי שהאנימציה הגדילה את הדף
 ok(/const S1 = opening\s*\? Math\.min\(maxFinal, Math\.max\(0, cardTop0 \+ S0 \+ aboveDelta - cardAnimOffset\(\)\)\)/.test(fn('toggleStock')) && /window\.scrollTo\(\{ top: S0 \+ \(S1 - S0\) \* e/.test(fn('toggleStock')), 'v233/v272: פתיחת כרטיס גוללת את ראשו לראש המסך — באותה תנועה כמו הגובה');
-ok(/topCover\(\) \+ 10/.test(fn('scrollCardToTop')) && /topCover\(\) \+ 10/.test(fn('cardAnimOffset')) && /viewH\(\) - topCover\(\) - bottomCover\(\) - 16/.test(fn('fitCardToScreen')), 'v233 / 26/10/2026: מתחת להדר ולשורת הלשוניות הדביקה (topCover) — גם בגובה הכרטיס');
+ok(/topCover\(\) \+ 10/.test(fn('scrollCardToTop')) && /topCover\(\) \+ 10/.test(fn('cardAnimOffset')) && /dockTop\(\) - topCover\(\) - 20/.test(fn('fitCardToScreen')), 'v233 / 26/10/2026: מתחת להדר ולשורת הלשוניות הדביקה (topCover) — גם בגובה הכרטיס');
+ok(/'::before'/.test(fn('dockTop')) && /display-mode: standalone/.test(fn('dockTop')) && /Math\.min\(top, vh - tabs\.offsetHeight\)/.test(fn('dockTop')), '18/11/2026: הכרטיס הפתוח נגמר מעל המסילה הנראית של החוגה (dockTop), לא מעל האלמנט השקוף');
+ok(/Math\.min\(dk \? 560 : 4000/.test(fn('fitCardToScreen')), '18/11/2026: בטלפון בלי תקרה לגרף — הכרטיס ממלא כל גובה מסך');
 ok(/position !== 'fixed'/.test(fn('bottomCover')) && /viewH\(\) - tabs\.getBoundingClientRect\(\)\.top/.test(fn('bottomCover')), '29/10/2026: הכרטיס הפתוח נגמר מעל החוגה הקבועה בתחתית (bottomCover)');
 // v234: נתוני הכרטיס — בלי בועות: קו אופקי דק בין השורות + קווים אנכיים קצרים, אחוז קטן ורגיל
 ok(/\.kv \{ position: relative; background: none;/.test(css) && /\.kv::before \{[^}]*top: 22%; bottom: 22%; width: \.5px/.test(css) && /\.kv:nth-child\(n\+4\) \{ border-top: \.5px solid var\(--outline\)/.test(css), 'v234: נתוני הכרטיס — בלי בועות, קווים דקים (הצעה ה׳)');

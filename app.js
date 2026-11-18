@@ -8245,8 +8245,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.182.0';
-const APP_VERSION = 'v835';
+const APP_RELEASE = '2.182.1';
+const APP_VERSION = 'v836';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -18590,6 +18590,26 @@ function bottomCover() {
   if (getComputedStyle(tabs).position !== 'fixed') return 0;
   return Math.max(0, viewH() - tabs.getBoundingClientRect().top);
 }
+// 18/11/2026 (בקשת המשתמש, צילומים: "שהכרטיסיה תכסה את כל המסך — תמיד, עם התראות ובלי"): הקצה התחתון של הכרטיס הפתוח =
+// ראש המסילה הנראית של החוגה (::before), לא ראש האלמנט — מעל המסילה יש עוד 32px שקופים (שם רק העיגול הירוק בולט),
+// והכרטיס נעצר שם עם פס ריק. באפליקציה המותקנת (standalone) — המיקום האמיתי של החוגה; בדפדפן — גם לא נמוך ממה שיהיה
+// כשסרגל הכתובת חוזר (viewH, 27/10).
+function dockTop() {
+  const vh = viewH();
+  if (typeof document === 'undefined' || !document.querySelector || typeof getComputedStyle !== 'function') return vh;
+  const tabs = document.querySelector('.tabs');
+  if (!tabs || !tabs.offsetHeight || !tabs.getBoundingClientRect || getComputedStyle(tabs).position !== 'fixed') return vh;
+  let top = tabs.getBoundingClientRect().top;
+  const solo = typeof matchMedia === 'function' && matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches;
+  if (!solo) top = Math.min(top, vh - tabs.offsetHeight);
+  let off = 0;
+  try {
+    const b = getComputedStyle(tabs, '::before');
+    const bh = parseFloat(b.height), bb = parseFloat(b.bottom);
+    if (b.position === 'absolute' && bh > 0 && bb >= 0 && bh + bb < tabs.offsetHeight) off = tabs.offsetHeight - bh - bb;
+  } catch (e) {}
+  return top + off;
+}
 function scrollCardToTop(card) {
   if (!card || !card.getBoundingClientRect || typeof window === 'undefined' || !window.scrollTo) return;
   if (state.cardAnim) return; // v272: אנימציית הכרטיס כבר מנווטת את הגלילה — גלילה נוספת הייתה נלחמת בה
@@ -18600,7 +18620,7 @@ function scrollCardToTop(card) {
   const y = Math.max(0, top + (window.scrollY || 0) - off);
   try { window.scrollTo({ top: y, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, y); }
 }
-// v238: הכרטיס הפתוח = בדיוק גובה המסך שמתחת להדר (10px מעל ומתחת) — לא גדול ולא קטן ממנו:
+// v238: הכרטיס הפתוח = בדיוק גובה המסך שמתחת להדר (10px מעל, ומתחת — עד המסילה של החוגה, dockTop) — לא גדול ולא קטן ממנו:
 // הגרף מתמתח או מתכווץ כדי להשלים. נמדד מהגובה הטבעי של התוכן (גם באמצע אנימציית הפתיחה).
 function fitCardToScreen(sym, card, smooth) {
   if (typeof window === 'undefined' || !window.innerHeight) return false;
@@ -18620,9 +18640,11 @@ function fitCardToScreen(sym, card, smooth) {
     const head = card.querySelector('.stock-head');
     if (head) card._fitRO.observe(head);
   }
-  const avail = viewH() - topCover() - bottomCover() - 16;
+  // 10px מתחת להדר (cardAnimOffset) ו־10px מעל המסילה של החוגה. בטלפון בלי תקרה — הגרף משלים כל גובה מסך (תקרה רק בתצוגת מחשב)
+  const avail = dockTop() - topCover() - 20;
   const cardH = card.getBoundingClientRect().height - body.getBoundingClientRect().height + Math.max(inner.offsetHeight, inner.scrollHeight);
-  const h = Math.round(Math.max(140, Math.min(560, cv.clientHeight + avail - cardH)));
+  const dk = document.documentElement && document.documentElement.classList && document.documentElement.classList.contains('dk');
+  const h = Math.round(Math.max(140, Math.min(dk ? 560 : 4000, cv.clientHeight + avail - cardH)));
   if (Math.abs(h - cv.clientHeight) < 2) return false;
   if (!state.chartH) state.chartH = {};
   state.chartH[sym] = h;
