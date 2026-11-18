@@ -1371,6 +1371,10 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
       const st3 = new Map(), t3 = await BSF.tick({ ...td, store: { get: (k) => st3.get(k), put: (k, o) => st3.set(k, o) }, budgetMs: 1, getText: async (u) => { await new Promise((r) => setTimeout(r, 3)); return gt(u); } });
       const o3 = st3.get(BSF.key('1'));
       ok(t3.i === 0 && (!o3 || !o3.at), '(24) tick בתקרת זמן: החברה לא מסומנת כגמורה, והסבב הבא מתחיל ממנה');
+      // תקלה קבועה בחברה אחת (קובץ שנכשל בכל ניסיון) — לא עוצרת את הסבב: הבאות נקראות, והיא לא מסומנת כגמורה (גל 5)
+      const st4 = new Map(), t4 = await BSF.tick({ ...td, store: { get: (k) => st4.get(k), put: (k, o) => st4.set(k, o) },
+        getText: async (u) => { if (/\/1\/x1\//.test(u)) throw new Error('http_503'); return gt(u); } });
+      ok(t4.done === 3 && t4.failed === 1 && !st4.get(BSF.key('1')).at && st4.get(BSF.key('3')).at, '(24) tick: תקלה קבועה בחברה אחת — ממשיכים לבאות');
     }
   }
 
@@ -1592,6 +1596,106 @@ ok(vr.some((c) => c.k === 'rst' && c.m === 'rev' && c.p === '2023-12-31') && !vr
     const fr = F.normalizeSec({ facts: { 'ifrs-full': ig } }, [], null), k = fr.fy.indexOf('2024-12-31');
     ok(fr.A.buy[k] === 45 && fr.A.rnd[k] === 75 && fr.A.divp[k] === 33 && fr.A.dep[k] === 22 && fr.A.msec[k] === 9,
       '(31) IFRS: רכישה חוזרת, מו״פ, דיבידנד לבעלי המניות, פחת ("Depreciation") וני״ע לזמן קצר');
+  }
+  /* ---------- (32) השלמה בלי תקופה משותפת — סבירה מול השכנים (18/11/2026, גל 5 — F21) ---------- */
+  {
+    const base = [['Revenues', 'USD', yrs([500, 510, 520, 530], 2018)], ['NetIncomeLoss', 'USD', yrs([50, 51, 52, 53], 2018)]];
+    // Howmet ‏2018: ‏InterestExpenseDebt ‏19 (רכיב) מול ~300 בשנים הסמוכות — לא משלימים
+    const hw = F.normalizeSec(facts([...base, ['InterestExpense', 'USD', yrs([300, 310, 320], 2019)], ['InterestExpenseDebt', 'USD', yrs([19], 2018)]]), [], null);
+    ok(hw.A.int[hw.fy.indexOf('2018-12-31')] == null && hw.A.int[hw.fy.indexOf('2019-12-31')] === 300, '(32) השלמה רחוקה פי 16 מהשכנה — לא נכנסת');
+    const ok2 = F.normalizeSec(facts([...base, ['InterestExpense', 'USD', yrs([300, 310, 320], 2019)], ['InterestExpenseDebt', 'USD', yrs([280], 2018)]]), [], null);
+    ok(ok2.A.int[ok2.fy.indexOf('2018-12-31')] === 280, '(32) השלמה סבירה מול השכנה — נכנסת כמו היום');
+  }
+  /* ---------- (33) הראשית במאזן כשאף תגית לא מודפסת בדוח האחרון (18/11/2026, גל 5 — F22, Brown & Brown) ---------- */
+  {
+    const I = (a) => a.map(([e, v]) => [null, e, v, '10-K', e.slice(0, 4) * 1 + 1 + '-02-15']);
+    const fx = facts([['Revenues', 'USD', yrs([500, 510, 520, 530, 540], 2020)], ['NetIncomeLoss', 'USD', yrs([50, 51, 52, 53, 54], 2020)],
+      ['Assets', 'USD', I([['2024-12-31', 900], ['2025-12-31', 950]])],
+      ['AvailableForSaleSecuritiesDebtSecuritiesCurrent', 'USD', I([['2021-12-31', 7], ['2022-12-31', 6], ['2023-12-31', 11]])],
+      ['ShortTermInvestments', 'USD', I([['2020-12-31', 18], ['2021-12-31', 13], ['2022-12-31', 12], ['2023-12-31', 11], ['2024-12-31', 10]])]]);
+    const face = { bs: { cols: [{ end: '2025-12-31' }], scale: { cur: 1, sh: 1 }, rows: [{ ns: 'us-gaap', tag: 'Assets', label: 'Total assets', total: true, v: [950] }] } };
+    const b = F.normalizeSec(fx, [], face);
+    ok(b.A.msec[b.fy.indexOf('2021-12-31')] === 13 && b.A.msec[b.fy.indexOf('2020-12-31')] === 18, '(33) בלי שורה מודפסת — הראשית היא זו שדיווחה אחרונה, לא תגית ביאור שנעצרה שנה קודם');
+  }
+  /* ---------- (34) רווח והפסד לפי הגשה (18/11/2026, גל 5 — F20, bsfIs) ---------- */
+  {
+    const K = (filed, ends, rows) => ({ form: '10-K', filed, is: { cols: ends.map((end) => ({ end, months: 12 })), scale: { cur: 1e6 },
+      rows: rows.map(([ns, tag, v]) => ({ ns, tag, label: tag, v })) } });
+    const have = {
+      a: K('2026-02-10', ['2025-12-31', '2024-12-31', '2023-12-31'], [['us-gaap', 'InterestAndDebtExpense', [176, 195, 226]], ['us-gaap', 'OperatingIncomeLoss', [900, 850, 800]]]),
+      // הדוח של 2023: השורה בתגית אחרת; 2021 — ‏380 המודפס (אצלנו 413 מביאור); הרווח התפעולי בתגית פרטית, ו־2021 ריק אצלנו
+      b: K('2024-02-10', ['2023-12-31', '2022-12-31', '2021-12-31'], [['us-gaap', 'InterestExpense', [226, 237, 380]], ['hwm', 'OperatingProfit', [800, 700, 650]]]),
+      // הדוח של 2021 מדפיס 2020 כ־300 — ואצלנו 300 (הודפס): נשאר גם כשהשרשרת לא מגיעה אליו
+      c: K('2022-02-10', ['2021-12-31', '2020-12-31'], [['us-gaap', 'InterestExpense', [390, 300]]]),
+    };
+    const M = (o) => new Map(Object.entries(o).map(([e, v]) => [e, v * 1e6]));
+    const r = F.bsfIs(have, 'USD', { int: M({ '2025-12-31': 176, '2024-12-31': 195, '2023-12-31': 226, '2022-12-31': 237, '2021-12-31': 413 }),
+      op: M({ '2025-12-31': 900, '2024-12-31': 850, '2023-12-31': 800, '2022-12-31': 700 }) });
+    ok(r.int.get('2021-12-31').v === 380e6 && r.op.get('2021-12-31').v === 650e6 && !r.int.has('2020-12-31'), '(34) שרשור לפי חפיפה: תגית אחרת ותגית פרטית — אותה שורה');
+    ok(r.printed.get('2020-12-31').includes(300e6), '(34) כל ערך שהודפס בשנה — לבדיקת הצגה מחדש');
+    const r2 = F.bsfIs(have, 'USD', { int: M({ '2025-12-31': 176, '2024-12-31': 199, '2023-12-31': 226 }) });
+    ok(!r2.int, '(34) שער: הסדרה לא עוקבת היום אחרי השורה — לא נוגעים');
+    ok(r.own.join() === '2025-12-31,2023-12-31,2021-12-31', '(34) השנה של כל 10-K');
+    // מקצה לקצה: 2019 הודפס (971) רק בדוח של 2021 — אחרי הצגה מחדש, והדוח של 2019 לפני החלון: 509 שלנו נשאר. ‏2020 — הדוח של
+    // 2020 בחלון ומדפיס 300 (אצלנו 305 מביאור) — מתוקן
+    const HX = facts([['InterestExpense', 'USD', yrs([509e6, 305e6, 310e6, 320e6, 330e6], 2019)], ['Revenues', 'USD', yrs([5e9, 5e9, 5e9, 5e9, 5e9], 2019)]]);
+    const hb = { a: K('2024-02-10', ['2023-12-31', '2022-12-31', '2021-12-31'], [['us-gaap', 'InterestExpense', [330, 320, 310]]]),
+      b: K('2022-02-10', ['2021-12-31', '2020-12-31', '2019-12-31'], [['us-gaap', 'InterestExpense', [310, 300, 971]]]),
+      c: K('2021-02-10', ['2020-12-31', '2019-12-31'], [['us-gaap', 'InterestExpense', [300, 290]]]) };
+    const hx = F.normalizeSec(HX, [], null, hb), hi = (e) => hx.A.int[hx.fy.indexOf(e)];
+    ok(hi('2019-12-31') === 509e6 && hi('2020-12-31') === 300e6 && hi('2023-12-31') === 330e6, '(34) תיקון רק כשהדוח של אותה שנה בחלון');
+    // bsfiled: ‏10-K — גם דף רווח והפסד (בלי שורות למניה), והגשה שכבר נשמרה בלעדיו — משלימים רק אותו
+    const BS2 = require('../ibkr-proxy/lib/bsfiled.js');
+    const FS3 = '<FilingSummary><MyReports>' + [['R2.htm', 'Consolidated Statements of Operations'], ['R4.htm', 'Consolidated Balance Sheets'], ['R7.htm', 'Consolidated Statements of Cash Flows']]
+      .map(([f, n]) => '<Report><MenuCategory>Statements</MenuCategory><HtmlFileName>' + f + '</HtmlFileName><ShortName>' + n + '</ShortName></Report>').join('') + '</MyReports></FilingSummary>';
+    const RP = (rows) => '<table><tr><th class="tl"><div><strong>X - USD ($)<br> $ in Millions</strong></div></th><th class="th">12 Months Ended<br>Dec. 31, 2025</th></tr>'
+      + rows.map(([t, l, v]) => '<tr class="re"><td class="pl"><a onclick="x(\'defref_' + t + '\')">' + l + '</a></td><td class="nump">' + v + '</td></tr>').join('') + '</table>';
+    const pages = { 'R2.htm': RP([['us-gaap_InterestExpense', 'Interest expense', '226'], ['us-gaap_EarningsPerShareDiluted', 'Diluted', '1.5']]),
+      'R4.htm': RP([['us-gaap_Assets', 'Total assets', '900'], ['us-gaap_LongTermDebtNoncurrent', 'Long-term debt', '100']]), 'R7.htm': RP([['us-gaap_DepreciationDepletionAndAmortization', 'D&A', '50']]) };
+    const got = [], gt3 = async (u) => { got.push(u); const m = /(R\d+\.htm)$/.exec(u); return m ? pages[m[1]] : FS3; };
+    const r1 = await BS2.readOne('1', { acc: '0000000001-26-000001', form: '10-K', filed: '2026-02-10' }, gt3);
+    ok(r1.bs && r1.cf && r1.is && r1.is.rows.length === 1 && r1.is.rows[0].tag === 'InterestExpense', '(34) readOne ‏10-K: מאזן, תזרים ורווח והפסד (בלי שורות למניה)');
+    const old0 = { form: '10-K', filed: '2025-02-10', bs: r1.bs, cf: r1.cf }, n0 = got.length;
+    const add0 = await BS2.readMissing(old0, 'https://x/', null, gt3);
+    ok(add0.is && !add0.cf && got.length - n0 === 2 && BS2.needIs(old0) && !BS2.needX({ ...old0, ...add0 }), '(34) הגשה ישנה: רק דף רווח והפסד (FilingSummary + דף אחד)');
+  }
+  /* ---------- (35) קבוצת העמודה לפי המיקום הפיזי (18/11/2026, גל 5 — parseR) ---------- */
+  {
+    // ‏ADI ‏10-K ‏2019: שמונה רבעונים ושלוש שנים; תאריך ב־colspan=2 ועמודות הערות שוליים — הקבוצות נספרות בעמודות פיזיות
+    const d2 = (d) => `<th class="th" colspan="2"><div>${d}</div></th>`, fn = '<th class="th"><sup>[1]</sup></th>', d1 = (d) => `<th class="th"><div>${d}</div></th>`;
+    const q = ['Nov. 02, 2019', 'Aug. 03, 2019', 'May 04, 2019', 'Feb. 02, 2019', 'Nov. 03, 2018', 'Aug. 04, 2018', 'May 05, 2018', 'Feb. 03, 2018'];
+    const adi = SF.parseR(`<table><tr><th class="tl" colspan="1" rowspan="2"><div><strong>Income - USD ($)<br> $ in Thousands</strong></div></th><th class="th" colspan="16">3 Months Ended</th><th class="th" colspan="5">12 Months Ended</th></tr>
+<tr>${q.map(d2).join('')}${d2('Nov. 02, 2019')}${fn}${d1('Nov. 03, 2018')}${d1('Oct. 28, 2017')}</tr>
+${row('ro', 'us-gaap_CostOfRevenue', 'Cost of sales', ['1', '2', '3', '4', '5', '6', '7', '8', '1,977,315', '2,045,907', '2,078,110'])}</table>`);
+    const ms = adi.cols.map((c) => c.months);
+    ok(ms.slice(0, 8).every((m) => m === 3) && ms.slice(8).join() === '12,12,12' && adi.cols[10].end === '2017-10-28', '(35) ‏colspan=2 והערת שוליים — שלוש השנים מקבלות "12 חודשים"');
+    // תאריך באותה שורה עם הקבוצות (rowspan) — לפי המספר הסידורי, כמו עד היום
+    const rs = SF.parseR(`<table><tr><th class="tl" colspan="1" rowspan="2"><div><strong>Income - USD ($)<br> $ in Millions</strong></div></th><th class="th" colspan="2">12 Months Ended</th><th class="th" rowspan="2"><div>Dec. 31, 2023</div></th></tr>
+<tr>${d1('Dec. 31, 2025')}${d1('Dec. 31, 2024')}</tr>${row('ro', 'us-gaap_Revenues', 'Revenue', ['1', '2', '3'])}</table>`);
+    ok(rs.cols.length === 3 && rs.cols.filter((c) => c.months === 12).length === 2, '(35) תאריך בשורת הקבוצות — ההתנהגות הקודמת');
+  }
+  /* ---------- (36) הרבעון הרביעי: נספח בלי טבלאות ו־8-K בלי Item 2.02 (18/11/2026, גל 5 — F24, ‏F25) ---------- */
+  {
+    const SP = require('../ibkr-proxy/lib/secpr.js'), BS3 = require('../ibkr-proxy/lib/bsfiled.js');
+    // שקף עם שכבת טקסט (Apollo): מקף בתווית, "$" צמוד, אחוזי שינוי והערת שוליים — לא עמודות
+    const slide = '<DIV><FONT>Earnings (Loss) per share Net income (loss) attributable to Common Stockholders - Basic $2.42 $2.82 $1.07 Net income (loss) attributable to Common Stockholders - Diluted $2.39 $2.78 $1.07 Weighted average shares outstanding - Basic 584 589 594 Weighted average shares outstanding - Diluted 603 608 598 GAAP Income Statement</FONT></DIV>'
+      + '<DIV>Earnings per diluted share (2) 3.53$ (59)% 15.88$</DIV>';
+    const tr = SP.parseText(slide);
+    ok(SP.parse(slide).length === 0 && tr.length === 3 && tr[0].v.join() === '2.39,2.78,1.07' && tr[1].v.join() === '603,608,598' && tr[2].v.join() === '3.53,15.88', '(36) רצף הטקסט: שורות "מדולל" בלי טבלה');
+    const q = SP.q4From(tr, 1462e6, 600e6, null, null);
+    ok(q && q.eps === 2.39 && q.sh === 603e6, '(36) המכפלה מאמתת את הזוג מהטקסט');
+    // 8-K של התוצאות בלי 2.02 (רק 9.01) — מועמד רק כשאין 8-K עם 2.02 בחלון
+    const sub = (rows) => ({ filings: { recent: { form: rows.map((x) => x[0]), items: rows.map((x) => x[1]), filingDate: rows.map((x) => x[2]), accessionNumber: rows.map((x, i) => 'a' + i), primaryDocument: rows.map(() => 'd.htm') } } });
+    const p1 = SP.pickItems(BS3.merge8k(sub([['8-K', '9.01', '2022-02-03'], ['8-K', '5.02,9.01', '2022-01-10'], ['8-K', '2.02,9.01', '2022-05-03']]), []), ['2021-12-31']);
+    const p2 = SP.pickItems(sub([['8-K', '9.01', '2022-01-05'], ['8-K', '2.02,9.01', '2022-02-03']]), ['2021-12-31']);
+    ok(p1[0].cands.map((c) => c.acc).join() === 'a0' && p2[0].cands.map((c) => c.acc).join() === 'a1', '(36) 8-K בלי 2.02 — רק כשאין 8-K של תוצאות בחלון');
+    // רשומת "לא נמצא" מהמפענח הקודם נקראת שוב פעם אחת
+    ok(BS3.prNeed(undefined) && BS3.prNeed({ err: 'nofile' }) && !BS3.prNeed({ err: 'nofile', pv: BS3.PR_V }) && !BS3.prNeed({ rows: [] }), '(36) prNeed: רק רשומה חסרה או "לא נמצא" ישנה');
+    // בלי נספח (Halliburton) — ההודעה בגוף ה־8-K
+    const docs = { 'index.json': JSON.stringify({ directory: { item: [{ name: 'hal8k.htm', size: 9000 }, { name: 'index.htm' }] } }),
+      'hal8k.htm': '<table><tr><td>Diluted income per share</td><td>$</td><td>0.75</td><td>0.80</td></tr><tr><td>Diluted weighted average shares</td><td>890</td><td>880</td></tr></table>' };
+    const pr = await BS3.readPr('45012', { end: '2019-12-31', cands: [{ acc: '0000045012-20-000010', filed: '2020-01-21', doc: 'hal8k.htm' }] }, async (u) => { const k = u.split('/').pop(); if (docs[k] == null) throw new Error('http_404'); return docs[k]; });
+    ok(pr && pr.file === 'hal8k.htm' && pr.rows.length === 2, '(36) בלי נספח — המסמך הראשי');
   }
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });

@@ -4,7 +4,10 @@
 בתגית מהרשימה של המוצר (US GAAP ו־IFRS, מ־fundamentals.js — `--fs`), בהגשה האחרונה שמדפיסה אותה ב־FSDS, ומי מהשניים — הישן
 או החדש — שווה לאחת מהן.
 
-  python3 -I tools/fund-deep/judge.py --db <dir>/fsds.db --w <dir> [--keys dep,capex] [--fs <fundamentals.js>] [--ciks …] [--out <קובץ>]
+  python3 -I tools/fund-deep/judge.py --db <dir>/fsds.db --w <dir> [--keys dep,capex] [--fs <fundamentals.js>] [--ciks …] [--out <קובץ>] [--anytag]
+
+--anytag (גל 5, F20 — רווח והפסד לפי הגשה): כל שורה בדוח של המדד, בכל תגית (גם פרטית) — השורה שהמוצר לוקח היא לפעמים בתגית
+שאינה ברשימה.
 
 התקופה: שנתי — 12 חודשים מ־10-K / ‏20-F / ‏40-F; רבעוני — 3 חודשים מכל הגשה (בתזרים ב־10-Q יש רק מצטבר — לרוב "nofsds");
 מאזן — תאריך. התאריכים (לקח גל 3, YUM ‏2015): ב־FSDS ‏`ddate` מעוגל לסוף החודש ו־`filed` הוא YYYYMMDD. התאריך שלנו מותאם לסוף
@@ -63,6 +66,7 @@ def main():
     ap.add_argument('--fs', default=os.path.join(ROOT, 'ibkr-proxy/lib/fundamentals.js'))
     ap.add_argument('--ciks', default=os.path.join(HERE, 'ciks.tsv'))
     ap.add_argument('--out', default=None)
+    ap.add_argument('--anytag', action='store_true', help='גל 5 (F20): כל שורה בדוח, לא רק התגיות של המוצר')
     o = ap.parse_args()
     TAGS, ST = product_tags(os.path.abspath(o.fs))
     keys = set(o.keys.split(','))
@@ -82,8 +86,8 @@ def main():
         forms = "AND (s.form LIKE '10-K%%' OR s.form LIKE '20-F%%' OR s.form LIKE '40-F%%') " if mode == 'A' and not inst else ''
         q = ('SELECT s.adsh, s.filed, n.tag, n.value FROM sub s JOIN pre p ON p.adsh = s.adsh JOIN num n ON n.adsh = p.adsh AND n.tag = p.tag '
              'AND n.version = p.version WHERE s.cik = ? ' + forms + 'AND p.stmt IN (%s) AND n.ddate = ? AND n.qtrs = ? '
-             'AND n.tag IN (%s)') % (','.join('?' * len(sts)), ','.join('?' * len(TAGS[k])))
-        rows = db.execute(q, [c] + sts + [month_end(end), qtrs] + TAGS[k]).fetchall() if c else []
+             + ('' if o.anytag else 'AND n.tag IN (%s)' % ','.join('?' * len(TAGS[k])))) % ','.join('?' * len(sts))
+        rows = db.execute(q, [c] + sts + [month_end(end), qtrs] + ([] if o.anytag else TAGS[k])).fetchall() if c else []
         printed = []
         if not rows:
             v = 'nofsds'
