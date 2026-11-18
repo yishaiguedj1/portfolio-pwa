@@ -201,5 +201,25 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   ok(appj.includes('studioViLatS: "כדי לשפר את ניתוח הסרטונים, נשמרים התמליל, הטקסט שעל השקפים והתוצאה של הניתוח — מוצפנים') && appj.includes('studioViLamS: "גם תמונות קטנות של השקפים, מוצפנות באותו אופן."'), 'הנוסח המאושר (docs/privacy.md)');
   ok(/nuPickOk = \(f\) => phOk\(\) && !!f && !f\.ka && !f\.vi;/.test(stj), 'ניתוח — בלי הורדה בטלפון (העובד מקבל קובץ רגיל)');
 
+  /* ---------- 11. "גם תרגום" (18/11/2026): עבודת תרגום מקושרת שמתחילה מהתמלול של הניתוח ---------- */
+  { const L = S;
+    const sp = { name: 'x', size: 1, from: 'en', to: ['he'], vi: 1, vr: 1, mode: 'std', out: [], vt: 1, vto: ['same'] };
+    const a = P.normJob({ id: 'j' + 'd'.repeat(20), spec: sp, srv: { state: 'running', vtj: 'j' + 'e'.repeat(20), vtx: 'lang' } });
+    ok(a.spec.vt === 1 && P.viTr(a.spec) && a.srv.vtj === 'j' + 'e'.repeat(20) && a.srv.vtx === 'lang', 'normJob: spec.vt נשמר (הסמל בספרייה — viTr) והקישורים מהשרתון');
+    const dry = P.normJob({ id: 'j' + 'd'.repeat(20), spec: Object.assign({}, sp, { dry: 1 }), srv: { vtj: '<x>', va: 'nope', vtx: 'fail' } });
+    ok(!dry.spec.vt && dry.srv.vtj === '' && dry.srv.va === '' && dry.srv.vtx === '', 'normJob: בלי vt ביבש; קישורים משובשים — ריקים');
+    ok(same(JSON.parse(stj.match(/const VT_X = (\[[^\]]*\])/)[1].replace(/'/g, '"')), L.VT_X), 'VT_X — זהה לשרתון');
+    ok(/const vtOk = \(f\) => !viDry\(f\) && LANG_READY\.from\.includes\(/.test(stj) && /if \(vtOk\(f\) && f\.vt === true\) Object\.assign\(spec, \{ vt: 1, vto: OUTS\.filter\(\(k\) => f\.out\[k\]\) \}\);/.test(stj)
+      && /for \(const k of \['cp', 'ry', 'edl', 'bt', 'sty', 'wl', 'vt', 'vto'\]\) delete spec\[k\];/.test(stj), 'viSpecOf: vt/vto רק עם Claude ומקור אוטומטי/אנגלית (= normSpec)');
+    const vb = Object.assign({}, base, { dry: 0, vr: 1, vt: 1, vto: ['same', 'bad', 'same'] });
+    const ns = S.normSpec(vb), ns2 = S.normSpec(Object.assign({}, vb, { from: 'en' })), ns3 = S.normSpec(Object.assign({}, vb, { from: 'auto', dry: 1, vr: 0 }));
+    ok(ns && !ns.vt && ns2.vt === 1 && same(ns2.vto, ['same']) && ns3 && !ns3.vt, 'normSpec: עברית / יבש — בלי תרגום; אנגלית — עם התוצרים המותרים');
+    ok(/rowSwitch\(\{ label: T\('studioViTr'\), sub: T\('studioViTrS'\), on: vt,/.test(stj) && /if \(vt\) p\.append\(secT\(T\('studioSecOut'\)\), outRows\(f\.out,/.test(stj), 'הטופס: מתג אחד, ו"מה לקבל" של התרגום רק כשהוא דולק');
+    ok(/startEstimate\(mode, d \|\| 3600, curNorm\(\), ui\.api, true\)\.usd/.test(stj), 'האומדן: + התרגום, באותו חישוב כמו בטופס התרגום');
+    ok((stj.match(/p\.append\(\.\.\.vtRows\(rec\)\);/g) || []).length === 2 && /net\.api\('viTr', \{ job: rec\.id \}\)/.test(stj), 'הקישורים: בדף הניתוח ובדף העבודה; "תרגום לעברית" דרך viTr');
+    ok(/!rec\.up\.v\.done && !\(rec\.srv && rec\.srv\.va\)/.test(stj), 'עבודת התרגום של ניתוח — בלי כרטיס העלאה (הסרטון עולה בניתוח)');
+    for (const k of ['studioViTr', 'studioViTrS', 'studioViTrEst', 'studioViTrRow', 'studioViTrWait', 'studioViTrLang', 'studioViTrGo', 'studioViTrFrom'])
+      ok((appj.match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, 'מחרוזת בשתי השפות: ' + k); }
+
   console.log(`---- studio-vi: ${n} בדיקות, הכל תקין`);
 })().catch((e) => { console.error(e); process.exit(1); });

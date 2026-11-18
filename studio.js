@@ -70,6 +70,7 @@ const UPURI_RE = /^https:\/\/www\.googleapis\.com\/upload\/drive\/v3\/files\?/; 
 const R2_UPID_RE = /^[A-Za-z0-9+/=._~-]{8,600}$/;   // ת4: מזהה של העלאה בחלקים ב־R2 (לא כתובת — הקישורים מגיעים מהשרתון)
 const STATES = ['new', 'queued', 'running', 'done', 'failed', 'cancelled'];
 const FINAL = ['done', 'failed', 'cancelled'];
+const VT_X = ['lang'];   // 18/11/2026: = VT_X בשרתון — למה עבודת התרגום של הניתוח לא נוצרה (lang: הדיבור לא באנגלית)
 /* החיבור ל־Claude: אותה בדיקת צורה כמו בשרתון (lib/studio.js) — כדי לענות מיד על הדבקה שגויה */
 const ROUTINE_URL_RE = /^https:\/\/api\.anthropic\.com\/v1\/claude_code\/routines\/trig_[A-Za-z0-9]{8,64}\/fire$/;
 const ROUTINE_KEY_RE = /^sk-ant-oat01-[A-Za-z0-9_-]{20,400}$/;
@@ -238,6 +239,7 @@ export function normJob(j) {
   // "תרגום". המילים עצמן לא נשמרות בטלפון (רק בשרת)
   if (sp.ka === 1) Object.assign(spec, { ka: 1 }, sp.bv === 1 ? { bv: 1 } : {}, num(sp.gv) > 0 ? { gv: Math.min(60, Math.round(num(sp.gv))) } : {});
   if (sp.vi === 1) Object.assign(spec, { vi: 1, out: [] }, sp.dry === 1 ? { dry: 1 } : {}, sp.vr === 1 ? { vr: 1 } : {});   // 9/11/2026: ניתוח סרטונים — בלי זה, אחרי סנכרון הוא נהיה "תרגום"
+  if (sp.vi === 1 && sp.vt === 1 && sp.dry !== 1) spec.vt = 1;   // 18/11/2026: "גם תרגום" (vtJob בשרתון) — וגם הסמל בספרייה (viTr)
   if (sp.bt === 1) spec.bt = 1;   // 01/11/2026 (סבב 3, I3): חצי מחיר — תור החיסכון
   if (WL_RE.test(String(sp.wl || ''))) spec.wl = sp.wl;   // רשימת עבודה — כמה סרטונים יחד
   if (sp.src === 'subs') { spec.src = 'subs'; spec.sdh = sp.sdh === 'keep' ? 'keep' : 'rm'; spec.out = []; }   // 22/10/2026: קובץ כתוביות קיים
@@ -305,6 +307,8 @@ export function normJob(j) {
     ep: normEp(s.ep),                         // 10/10/2026: צפי הזמנים של העבודה (מהשרתון, נקבע בלקיחה)
     gd: normGd(s.gd), gs: JOB_RE.test(String(s.gs || '')) ? s.gs : '', gq: normGq(s.gq),   // v387: סט הזהב
     kind: s.kind === 'rr' ? 'rr' : 'tr', rp: JOB_RE.test(String(s.rp || '')) ? s.rp : '',   // מ2: הפקה מחדש (והעבודה המקורית)
+    // 18/11/2026: "גם תרגום" — עבודת התרגום של הניתוח (vtj), הניתוח של עבודת התרגום (va), ולמה לא נוצרה (vtx: lang — לא אנגלית)
+    vtj: JOB_RE.test(String(s.vtj || '')) ? s.vtj : '', va: JOB_RE.test(String(s.va || '')) ? s.va : '', vtx: VT_X.includes(s.vtx) ? s.vtx : '',
     ev: num(s.ev), vh: (Array.isArray(s.vh) ? s.vh : []).slice(0, 20).map(num),   // מ2: גרסת הכתוביות, ומתי נשמרה כל גרסה קודמת
     vc: (Array.isArray(s.vc) ? s.vc : []).slice(0, 20).map((x) => (FID_RE.test(String(x || '')) ? x : '')),   // C4: קובץ הכתוביות של כל גרסה קודמת (להשוואה)
     folder: FID_RE.test(String(s.folder || '')) ? s.folder : '',
@@ -3903,10 +3907,14 @@ const VI_FROM = ['auto', 'he', 'en'];   // 10/11/2026 (PR 1.2א, 9.3 סעיף 2)
 const viTabOk = () => !!(ui.api && ui.api.vi && ui.api.servers > 0 && ui.r2);
 const viOk = (f) => viTabOk() && !!f && !f.ka && !f.subs && !f.ph;
 const viDry = (f) => !!(f && f.vdry && ui.api && ui.api.admin);   // הרצה יבשה (בלי Claude) — המנהל בלבד; השרתון אוכף
+/* 18/11/2026 (בקשת המשתמש): "גם תרגום" — עבודת תרגום רגילה ומקושרת (vtJob בשרתון), שמתחילה מהתמלול של הניתוח (בלי קליטה
+   ותמלול שניים) ונראית כמו כל תרגום. רק עם Claude (לא יבש), ומקור אוטומטי / אנגלית (= LANG_READY של התרגום) */
+const vtOk = (f) => !viDry(f) && LANG_READY.from.includes(VI_FROM.includes(f.vf) ? f.vf : 'auto');
 function viSpecOf(f, spec) {
   Object.assign(spec, { vi: 1, from: VI_FROM.includes(f.vf) ? f.vf : 'auto', to: ['he'], out: [], eng: 'api', cap: store.settings.cap });
   if (viDry(f)) { spec.dry = 1; delete spec.vr; } else { delete spec.dry; spec.vr = 1; }   // V130: הצהרת הזכויות (הכפתור נעול בלעדיה)
-  for (const k of ['cp', 'ry', 'edl', 'bt', 'sty', 'wl']) delete spec[k];
+  for (const k of ['cp', 'ry', 'edl', 'bt', 'sty', 'wl', 'vt', 'vto']) delete spec[k];
+  if (vtOk(f) && f.vt === true) Object.assign(spec, { vt: 1, vto: OUTS.filter((k) => f.out[k]) });   // התוצרים — כמו בטופס התרגום
   return spec;
 }
 /* הטופס של הניתוח (9.3): שפה · מצב (אותו בורר; העלות לשעה של הניתוח) · הצהרת זכויות · מה נשמר (V131) · אומדן. בלי שום אפשרות נוספת */
@@ -3915,13 +3923,19 @@ function viForm(p, f) {
   const ul0 = uiLang(), dry = viDry(f);
   p.append(secT(T('studioViLang')), list(...VI_FROM.map((c) => rowRadio({ label: c === 'auto' ? T('studioAuto') : langName(c, ul0), on: f.vf === c, onClick: () => { f.vf = c; render('none'); }, k: 'vf:' + c }))));
   if (!dry) p.append(secT(T('studioViMode')), ...modePicker(f.mode, (id) => { f.mode = id; render('none'); }, { vi: f.vf }));
+  const vt = vtOk(f) && f.vt === true;
+  if (vtOk(f)) {   // 18/11/2026: "גם תרגום" — מתג אחד; דולק — "מה לקבל" של התרגום (אותה רשימה כמו בטופס התרגום)
+    p.append(list(rowSwitch({ label: T('studioViTr'), sub: T('studioViTrS'), on: vt, onClick: () => { f.vt = f.vt !== true; render('none'); }, k: 'vi-tr' })));
+    if (vt) p.append(secT(T('studioSecOut')), outRows(f.out, f.file ? f.file.size : 0, (k) => { f.out[k] = !f.out[k]; render('none'); }), note(T('studioOutSrtNote')));
+  }
   p.append(note(viLrnSaved() ? T('studioViPrivOn') : T('studioViPrivOff')));   // 16/11/2026: בלי הצהרת הזכויות ובלי "ניתוח יבש" בטופס (בקשת המשתמש) — viSpecOf שולח vr לבד
   const d = kaDur(f), mode = modeFor(f.mode, ui.mf);
   const min = d ? Math.max(1, Math.round(viPlan(null, d, dry).t / 60)) : 0;
   const est = dry ? T('studioViNote') : d ? T('studioViEst', { t: min < 60 ? T('studioMinShort', { m: min }) : T('studioHMShort', { t: fmtHM(min) }), usd: fmtUsd(viUsd(mode, f.vf, d)) }) : T('studioViEstH', { usd: fmtUsd(viUsd(mode, f.vf, 3600)) });
+  const trEst = vt && !dry ? ' · ' + T('studioViTrEst', { usd: fmtUsd(startEstimate(mode, d || 3600, curNorm(), ui.api, true).usd) }) : '';   // התרגום — אותו אומדן כמו בטופס התרגום
   const go1 = btn('st-btn wide', ui.starting ? T('studioStarting') : dry ? T('studioViStart') : T('studioViGo'), startFromForm, 'start');
   go1.disabled = !(f.fileObj || f.drive || (f.link && f.linkOk)) || ui.starting;
-  const ft = h('div', 'st-foot'); ft.append(go1, h('p', 'st-foot-n', est)); p.append(ft);
+  const ft = h('div', 'st-foot'); ft.append(go1, h('p', 'st-foot-n', est + trEst)); p.append(ft);
 }
 const viLrnSaved = () => !!(ui.lat > 0 && ui.lrn !== false && ui.api && ui.api.admin);   // משתמשים אחרים — לא נשמר לפני ה7 (docs/privacy.md)
 /* השדות של הקריוקי ל־spec (קובץ או קישור). המנוע — תמיד השרת שלנו */
@@ -9007,6 +9021,40 @@ function vaClose() {
   else vaFree(va.urls);
   va = null;
 }
+/* 18/11/2026 (בקשת המשתמש): "גם תרגום" — הקישור בין הניתוח לעבודת התרגום שלו (vtj / va בשרתון). בניתוח: השורה לתרגום (המצב
+   שלו), "יתחיל אחרי התמלול", למה לא תורגם (vtx lang), או "תרגום לעברית" כשהמסירה מהעובד לא הגיעה (op:'viTr' — תרגום מלא מאותם
+   קבצים, פעם אחת). בעבודת התרגום: השורה חזרה לניתוח. עבודה שעוד לא ברשימה (נוצרה עכשיו בשרת) — refreshJobs מביא אותה */
+function vtRows(rec) {
+  const s = rec.srv || {};
+  if (s.va) {
+    const a = jobRec(s.va);
+    return a ? [list(rowNav({ tile: tile('spark', 'purple'), label: T('studioViTrFrom'), onClick: () => go('job', a.id), k: 'vt-va' }))] : [];
+  }
+  if (!(rec.spec.vi === 1 && rec.spec.vt === 1)) return [];
+  if (s.vtj) {
+    const t = jobRec(s.vtj);
+    if (!t) { refreshJobs(); return [note(T('studioViTrWait'))]; }
+    return [list(rowNav({ tile: tile('globe', 'teal'), label: T('studioViTrRow'), value: badgeFor(jobPhase(t, runs.get(t.id)))[1], onClick: () => go('job', t.id), k: 'vt-j' }))];
+  }
+  if (s.vtx === 'lang') return [note(T('studioViTrLang'))];
+  if (!FINAL.includes(s.state)) return [note(T('studioViTrWait'))];
+  if (s.sx > 0) return [];   // סרטון המקור כבר נמחק — אין ממה לתרגם
+  const b = btn('st-btn wide tint', ui.vtGo === rec.id ? T('studioStarting') : T('studioViTrGo'), () => viTrGo(rec), 'vt-go');
+  b.disabled = !!ui.vtGo;
+  return [b];
+}
+async function viTrGo(rec) {
+  if (ui.vtGo) return;
+  ui.vtGo = rec.id; render('none');
+  try {
+    const j = await net.api('viTr', { job: rec.id });
+    if (j.ok && j.job) { rec.srv = normJob({ id: rec.id, srv: j.job }).srv; save(); refreshJobs(true); }
+    else if (!j.ok) flashSafe(errText(j.error));
+  } catch (e) {
+    flashSafe(errText((e && e.code) || 'net'));
+  }
+  ui.vtGo = ''; render('none');
+}
 function pageVi(p, rec) {
   p.append(navBar({ back: T('studioDialVi'), end: shrBtn(rec) }));   // 11/11/2026: שיתוף בקישור
   if (!va || va.id !== rec.id) {
@@ -9025,6 +9073,7 @@ function pageVi(p, rec) {
   // כמו "הקבצים" בדף הצפייה ששותף (share.js) ו"התוצרים" בדף העבודה
   const outs = ((rec.srv && rec.srv.out) || []).filter((o) => OUT_MAIN.includes(o.k));
   if (outs.length) p.append(secT(T('studioSecResults')), list(...outs.map((o) => rowOut(rec, o))));
+  p.append(...vtRows(rec));   // 18/11/2026: "גם תרגום"
   // 12/11/2026 (המשתמש: "כמו בתרגום סרטונים — כמה טוקנים, כמה זמן, פרטים טכניים"): אותם חלקים כמו בדף העבודה,
   // בשמות של הניתוח (שלבי vi, שורות העלות vm/vs/…) — בלי כרטיסי התרגום (איכות כתוביות, מילון, סט הזהב)
   p.append(...stagesSec(rec, 'done'));
@@ -10229,6 +10278,7 @@ function pageJob(p) {
   if (tline) p.append(tline);
   const ix = ui.inc && ui.inc.list.find((x) => x.j === rec.id);   // v371: התקלה של העבודה — שורה אחת, הפרטים בדף התקלה
   if (ix) p.append(list(incRow(ix, true)));
+  p.append(...vtRows(rec));   // 18/11/2026: "גם תרגום" — הניתוח ↔ עבודת התרגום שלו
   // 26/10/2026 (בעקבות Vid Hub): העיצוב אפשר לשנות גם בזמן ההמתנה — העובד שואל לפני הבנייה, עד שהצריבה מתחילה
   if (styEditable(rec) && !rec.spec.ka) p.append(styFold('job:' + rec.id, rec.spec.sty || {}, (patch) => jobStySet(rec, patch)));
 
@@ -10338,7 +10388,7 @@ function pageJob(p) {
   if (cv) p.append(...costCard(cv, rec.srv.tr, rec.id, (rec.srv && rec.srv.eng) === 'api' || rec.spec.eng === 'api'));
 
   // הסרטון המלא — עולה ברקע אחרי הקול (Claude צריך אותו רק לצריבה)
-  if (!rec.up.noAudio && !rec.up.v.done && (ph0 === 'queued' || ph0 === 'running')) {
+  if (!rec.up.noAudio && !rec.up.v.done && !(rec.srv && rec.srv.va) && (ph0 === 'queued' || ph0 === 'running')) {   // 18/11/2026: תרגום של ניתוח — הסרטון עולה בניתוח
     const vc = h('div', 'st-vcard');
     const vt = h('span', 'st-l'); const vb = h('b', null, T('studioVideoT')), vs = h('small');
     const pb = h('span', 'st-pbar'); const pi = h('i'); pb.append(pi);
