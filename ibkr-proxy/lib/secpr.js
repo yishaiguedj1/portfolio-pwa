@@ -43,17 +43,52 @@ function parse(html) {
   return out;
 }
 
+/* מסמך בלי טבלאות (18/11/2026, גל 5 — F24): מצגת שקפים עם שכבת טקסט (Apollo), HTML שהומר מ־PDF (Ameriprise, ‏AppLovin), מכתב
+   לבעלי המניות — "Diluted" והמספרים ברצף טקסט, ו־parse לא מוצא שורה. רצף המילים מתחלק לשורות: תווית = המילים מאז רצף המספרים
+   הקודם, ערכים = רצף המספרים שאחריה. רק כש־parse ריק; כל השורות באותה "טבלה" — q4From מאמת (מכפלה = הרווח, מניות ליד ההערכה) */
+function parseText(html) {
+  const words = String(html).replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&#160;|&#xa0;/gi, ' ')
+    .replace(/&amp;/g, '&').replace(/&#8212;|&#x2014;|&mdash;/gi, '—').replace(/&#8211;|&#x2013;|&ndash;/gi, '–').replace(/&#\d+;|&\w+;/g, ' ').split(/\s+/);
+  const out = [];
+  let lab = [], v = [];
+  const flush = () => {
+    const label = lab.slice(-12).join(' ');
+    if (v.length && /dilut/i.test(label) && v.some((x) => x != null)) out.push({ t: 0, label: label.slice(0, 80), ctx: '', v });
+    lab = []; v = [];
+  };
+  for (const w0 of words) {
+    if (out.length >= 40) break;
+    const w = w0.replace(/[.,;:]+$/, '');
+    if (!w || w === '$' || w === ')' || /%\)?$/.test(w)) continue; // אחוז שינוי — לא עמודה
+    if (/^[-–—]+$/.test(w)) { if (v.length) v.push(null); else lab.push(w); continue; } // מקף בתווית ("Stockholders - Diluted") / תא ריק
+    const n = num(w);
+    if (n == null) { if (v.length) flush(); lab.push(w); continue; }
+    if (!v.length && /^\(\d\)$/.test(w)) continue; // הערת שוליים אחרי התווית: "(2)"
+    v.push(n);
+  }
+  flush();
+  return out;
+}
+
 /* ה־8-K של התוצאות לכל סוף שנה: Item 2.02, הראשון שהוגש אחרי סוף השנה ועד 100 יום */
 function pickItems(sub, fyEnds) {
   const r = sub && sub.filings && sub.filings.recent;
   if (!r || !r.form) return [];
   const day = (s) => Date.parse(s + 'T00:00:00Z') / 864e5;
-  const ks = [];
-  for (let i = 0; i < r.form.length; i++) if (/^8-K/.test(r.form[i]) && /2\.02/.test(r.items[i] || '')) ks.push({ acc: r.accessionNumber[i], filed: r.filingDate[i], doc: r.primaryDocument[i] });
+  // בלי Item 2.02 (גל 5, F25): ההודעה הוגשה רק עם 9.01 / ‏7.01 / ‏8.01 (Illinois Tool Works ‏2021, ‏Lilly ‏2015, ‏Expedia ‏2021) —
+  // כשאין 8-K של תוצאות בחלון, אלה מועמדים עד 75 יום (q4From מאמת: מכפלה = הרווח, מניות ליד ההערכה)
+  const ks = [], alt = [], ALT = /^\s*(7\.01|8\.01|9\.01)(\s*,\s*(7\.01|8\.01|9\.01))*\s*$/;
+  for (let i = 0; i < r.form.length; i++) {
+    const k = { acc: r.accessionNumber[i], filed: r.filingDate[i], doc: r.primaryDocument[i] };
+    if (/^8-K/.test(r.form[i]) && /2\.02/.test(r.items[i] || '')) ks.push(k);
+    else if (r.form[i] === '8-K' && ALT.test(r.items[i] || '')) alt.push(k);
+  }
   const out = [];
+  const by = (a, b) => (a.filed < b.filed ? -1 : 1);
   for (const e of fyEnds) {
     // כמה מועמדים — הראשון שיש בו שורות "מדולל" (Southwest: ‏8-K של נתוני תנועה בינואר, וההודעה על התוצאות אחריו)
-    const c = ks.filter((k) => day(k.filed) > day(e) && day(k.filed) - day(e) <= 100).sort((a, b) => (a.filed < b.filed ? -1 : 1));
+    let c = ks.filter((k) => day(k.filed) > day(e) && day(k.filed) - day(e) <= 100).sort(by);
+    if (!c.length) c = alt.filter((k) => day(k.filed) > day(e) && day(k.filed) - day(e) <= 75).sort(by);
     if (c.length) out.push({ end: e, cands: c.slice(0, 3) });
   }
   return out;
@@ -112,4 +147,4 @@ const annOk = (re, rs, i, f, pf, ann) => !!ann && ann.sh > 0 && re.v.some((e0, j
 const isShares = (r) => (/share|weight|average|outstanding/i.test(r.label + ' ' + (r.ctx || '')) && !/per (common )?share|earnings per|income per|loss per|\beps\b/i.test(r.label))
   || r.v.some((x) => x != null && Math.abs(x) >= 1000);
 
-module.exports = { parse, pickItems, exhibits, q4From, isShares, num };
+module.exports = { parse, parseText, pickItems, exhibits, q4From, isShares, num };

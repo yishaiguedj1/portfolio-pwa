@@ -111,27 +111,36 @@ async function readOne(cik, f, getText) {
   return withCf(bs && bs.rows.length ? { ...rec, bs } : { ...rec, err: 'empty' });
 }
 
-/* ההודעה לעיתונות של סוף שנה אחד: המועמדים (8-K ‏2.02 עד 100 יום אחרי) ← index.json ← עד 3 קבצים, הראשון שיש בו שורות "מדולל".
+/* ההודעה לעיתונות של סוף שנה אחד: המועמדים (8-K ‏2.02 עד 100 יום אחרי; בלעדיהם — 8-K בלי 2.02 עד 75 יום) ← index.json ← עד 3
+   קבצים (בלי נספח — המסמך הראשי), הראשון שיש בו שורות "מדולל" (בטבלה, ובלעדיה — ברצף הטקסט).
    {end, acc, filed, file, rows} / {end, err} (נשמר) / null (תקלת רשת — ינוסה שוב) */
+const PR_V = 2; // גרסת המפענח של ההודעות (2 — רצף הטקסט, מועמדים בלי 2.02 והמסמך הראשי, גל 5): רשומת "לא נמצא" ישנה נקראת שוב פעם אחת
+const prNeed = (r) => !r || (!!r.err && (r.pv || 1) < PR_V);
 async function readPr(cik, it, getText) {
-  let last = { end: it.end, err: 'nofile' };
+  let last = { end: it.end, err: 'nofile', pv: PR_V };
   for (const k of it.cands) {
     const base = 'https://www.sec.gov/Archives/edgar/data/' + (+cik) + '/' + k.acc.replace(/-/g, '') + '/';
     let idx;
     try { idx = JSON.parse(await getText(base + 'index.json')); } catch (e) { if (/http_404/.test(String(e && e.message))) continue; return null; }
-    const names = SECPR.exhibits(idx, k.doc).slice(0, 3);
-    if (!names.length) { last = { end: it.end, err: 'noex' }; continue; }
+    let names = SECPR.exhibits(idx, k.doc).slice(0, 3);
+    // בלי נספח — ההודעה בגוף ה־8-K (Halliburton; גל 5, F26)
+    const main = !names.length && !!k.doc;
+    if (main) names = [k.doc];
+    if (!names.length) { last = { end: it.end, err: 'noex', pv: PR_V }; continue; }
     // כמה קבצים באותה הגשה: עד שנמצאה גם שורת מניות (UPS: ‏EX-99.1 — רק התאמות לרווח המתואם; הדוחות המלאים ב־EX-99.2)
     let rows = [], files = [];
     for (const nm of names) {
       let h;
       try { h = await getText(base + nm); } catch (e) { if (/http_404/.test(String(e && e.message))) continue; return null; }
-      const r = SECPR.parse(h).map((x) => ({ ...x, t: x.t + 1000 * files.length }));
+      // בלי טבלה שיש בה "מדולל" — רצף הטקסט (מצגת, PDF שהומר; גל 5, F24)
+      let r0 = SECPR.parse(h); if (!r0.length) r0 = SECPR.parseText(h);
+      const r = r0.map((x) => ({ ...x, t: x.t + 1000 * files.length }));
       if (!r.length) continue;
       rows = rows.concat(r); files.push(nm);
       if (r.some(SECPR.isShares)) break;
     }
     if (rows.length) return { end: it.end, acc: k.acc, filed: k.filed, file: files.join(' '), rows };
+    if (main) last = { end: it.end, err: 'noex', pv: PR_V };
   }
   return last;
 }
@@ -211,7 +220,7 @@ async function fillAll(cik, deps) {
   // ההודעות לעיתונות: לכל 10-K (סוף השנה = reportDate) שעוד אין לו רשומה
   o.p = o.p || {};
   const ends = [...new Set(list.filter((f) => /^10-K/.test(f.form) && f.rep).map((f) => f.rep))];
-  const its = SECPR.pickItems(merge8k(sub, files), ends).filter((it) => !o.p[it.end]);
+  const its = SECPR.pickItems(merge8k(sub, files), ends).filter((it) => prNeed(o.p[it.end]));
   let prLeft = 0;
   for (const it of its) {
     if (deps.budgetMs && Date.now() - t0 > deps.budgetMs) { prLeft++; continue; }
@@ -255,4 +264,4 @@ async function tick(deps = {}) {
   return { ok: true, done, added, failed, i, ms: Date.now() - t0 };
 }
 
-module.exports = { load, fillAll, tick, slim, slimCf, slimIs, needCf, needIs, needX, readMissing, periodic, readOne, readCf, readPr, merge8k, key, PRE, V, SINCE_Y, MAX_LIVE };
+module.exports = { load, fillAll, tick, slim, slimCf, slimIs, needCf, needIs, needX, readMissing, periodic, readOne, readCf, readPr, prNeed, PR_V, merge8k, key, PRE, V, SINCE_Y, MAX_LIVE };

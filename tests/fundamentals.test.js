@@ -1674,5 +1674,28 @@ ${row('ro', 'us-gaap_CostOfRevenue', 'Cost of sales', ['1', '2', '3', '4', '5', 
 <tr>${d1('Dec. 31, 2025')}${d1('Dec. 31, 2024')}</tr>${row('ro', 'us-gaap_Revenues', 'Revenue', ['1', '2', '3'])}</table>`);
     ok(rs.cols.length === 3 && rs.cols.filter((c) => c.months === 12).length === 2, '(35) תאריך בשורת הקבוצות — ההתנהגות הקודמת');
   }
+  /* ---------- (36) הרבעון הרביעי: נספח בלי טבלאות ו־8-K בלי Item 2.02 (18/11/2026, גל 5 — F24, ‏F25) ---------- */
+  {
+    const SP = require('../ibkr-proxy/lib/secpr.js'), BS3 = require('../ibkr-proxy/lib/bsfiled.js');
+    // שקף עם שכבת טקסט (Apollo): מקף בתווית, "$" צמוד, אחוזי שינוי והערת שוליים — לא עמודות
+    const slide = '<DIV><FONT>Earnings (Loss) per share Net income (loss) attributable to Common Stockholders - Basic $2.42 $2.82 $1.07 Net income (loss) attributable to Common Stockholders - Diluted $2.39 $2.78 $1.07 Weighted average shares outstanding - Basic 584 589 594 Weighted average shares outstanding - Diluted 603 608 598 GAAP Income Statement</FONT></DIV>'
+      + '<DIV>Earnings per diluted share (2) 3.53$ (59)% 15.88$</DIV>';
+    const tr = SP.parseText(slide);
+    ok(SP.parse(slide).length === 0 && tr.length === 3 && tr[0].v.join() === '2.39,2.78,1.07' && tr[1].v.join() === '603,608,598' && tr[2].v.join() === '3.53,15.88', '(36) רצף הטקסט: שורות "מדולל" בלי טבלה');
+    const q = SP.q4From(tr, 1462e6, 600e6, null, null);
+    ok(q && q.eps === 2.39 && q.sh === 603e6, '(36) המכפלה מאמתת את הזוג מהטקסט');
+    // 8-K של התוצאות בלי 2.02 (רק 9.01) — מועמד רק כשאין 8-K עם 2.02 בחלון
+    const sub = (rows) => ({ filings: { recent: { form: rows.map((x) => x[0]), items: rows.map((x) => x[1]), filingDate: rows.map((x) => x[2]), accessionNumber: rows.map((x, i) => 'a' + i), primaryDocument: rows.map(() => 'd.htm') } } });
+    const p1 = SP.pickItems(sub([['8-K', '9.01', '2022-02-03'], ['8-K', '5.02,9.01', '2022-01-10'], ['8-K', '2.02,9.01', '2022-05-03']]), ['2021-12-31']);
+    const p2 = SP.pickItems(sub([['8-K', '9.01', '2022-01-05'], ['8-K', '2.02,9.01', '2022-02-03']]), ['2021-12-31']);
+    ok(p1[0].cands.map((c) => c.acc).join() === 'a0' && p2[0].cands.map((c) => c.acc).join() === 'a1', '(36) 8-K בלי 2.02 — רק כשאין 8-K של תוצאות בחלון');
+    // רשומת "לא נמצא" מהמפענח הקודם נקראת שוב פעם אחת
+    ok(BS3.prNeed(undefined) && BS3.prNeed({ err: 'nofile' }) && !BS3.prNeed({ err: 'nofile', pv: BS3.PR_V }) && !BS3.prNeed({ rows: [] }), '(36) prNeed: רק רשומה חסרה או "לא נמצא" ישנה');
+    // בלי נספח (Halliburton) — ההודעה בגוף ה־8-K
+    const docs = { 'index.json': JSON.stringify({ directory: { item: [{ name: 'hal8k.htm', size: 9000 }, { name: 'index.htm' }] } }),
+      'hal8k.htm': '<table><tr><td>Diluted income per share</td><td>$</td><td>0.75</td><td>0.80</td></tr><tr><td>Diluted weighted average shares</td><td>890</td><td>880</td></tr></table>' };
+    const pr = await BS3.readPr('45012', { end: '2019-12-31', cands: [{ acc: '0000045012-20-000010', filed: '2020-01-21', doc: 'hal8k.htm' }] }, async (u) => { const k = u.split('/').pop(); if (docs[k] == null) throw new Error('http_404'); return docs[k]; });
+    ok(pr && pr.file === 'hal8k.htm' && pr.rows.length === 2, '(36) בלי נספח — המסמך הראשי');
+  }
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });
