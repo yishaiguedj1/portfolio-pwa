@@ -290,6 +290,8 @@ html .an-root .an-ctbl tbody tr:last-child .me { border-radius: 0 0 14px 14px !i
 html .an-root .an-ctbl :is(th, td) { border-color: var(--lg-sep) !important; }
 html .an-root .an-ctbl thead th { color: var(--on-surface-var) !important; font-weight: 600 !important; }
 html .an-root :is(.an-chip, .an-chip-add) { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; border: 0 !important; -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important; font-weight: 500 !important; }
+/* 18/11/2026: צ׳יפ נבחר (מקרא הגרף) ירש מ־glass-btn את --on-primary — ירוק כהה שנבלע בזכוכית הכהה. הטקסט בצבע המסך בשני המצבים */
+html .an-root .an-chip { color: var(--on-surface) !important; font-weight: 600 !important; }
 
 /* ===== 25. גיליונות ותת־עמודים: זכוכית עם ידית גרירה, ✕ בעיגול זכוכית, הבקרים ברשימה מקובצת ===== */
 html .an-sheet { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; -webkit-backdrop-filter: blur(30px) saturate(190%) !important; backdrop-filter: blur(30px) saturate(190%) !important; border-radius: 32px 32px 0 0 !important; }
