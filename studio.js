@@ -6360,11 +6360,30 @@ async function libAdd(rec) {
   } catch (e) { flashSafe(T('studioLibFail')); }
   finally { libBusy = ''; repaint(); }
 }
-function libRow(rec) {
-  const d = rec.up.dx, lv = rec.srv && rec.srv.lib, run = libBusy === rec.id || (d && d.lib && d.st === 'run');
-  if (lv) return rowNav({ tile: tile('folder', 'green'), label: T('studioLibIn'), sub: T('studioLibInS'), onClick: () => { lb.st = ''; go('litem', lv.m); }, k: 'lib-in' });
-  const sub = run ? (d && d.st === 'run' ? T('studioLibRun', { p: Math.round((d.p || 0) * 100) }) : T('studioDxBusy')) : d && d.lib && d.st === 'err' ? T('studioLibFail') : T('studioLibAddS');
-  return rowNav({ tile: tile('folder', 'blue'), label: T('studioLibAdd'), sub, onClick: () => (run ? null : libAdd(rec)), k: 'lib-add' });
+/* 18/11/2026 (המשתמש: "אין אופציה לשמור ניתוח לספרייה — לחצן בתחילת העמוד, בעיצוב של צפייה"; ואחר כך: "גם בתרגום ובקריוקי,
+   ליד צפייה, מסודר לפי ת־עיצוב"): במקום השורה "הוספה לספרייה" ברשימת התוצרים — שמירה / שומרים % / בספרייה (פותח את הפריט).
+   pair — בכרטיס הראש של התרגום והקריוקי, זוג כפתורים כמו ת־עיצוב: "צפייה" (זכוכית צבעונית) ו"לספרייה" (זכוכית שקופה);
+   בלי pair — בראש דף הניתוח, כפתור ראשי ברוחב מלא. העוטף display:contents — הכפתור עצמו הוא הפריט בשורה.
+   מצויר מחדש רק כשהמצב משתנה, כדי שנגיעה לא תיפול בין שני ציורים */
+function libBtn(rec, pair) {
+  const w = h('div', pair ? 'st-hlib' : 'st-vi-lib');
+  let key = '';
+  const lbl = (ic, t) => { const f = document.createDocumentFragment(); f.append(ico(ic), h('span', null, t)); return f; };
+  return live(w, () => {
+    const r = jobRec(rec.id) || rec;
+    const d = r.up && r.up.dx, lv = r.srv && r.srv.lib, run = libBusy === r.id || !!(d && d.lib && d.st === 'run');
+    const st = lv ? 'in' : !driveOk() || !libItems(r).length ? '' : run ? 'run' : d && d.lib && d.st === 'err' ? 'err' : 'add';
+    const pc = st === 'run' && d && d.st === 'run' ? Math.round((d.p || 0) * 100) : -1;
+    if (st + ':' + pc === key) return;
+    key = st + ':' + pc;
+    if (!st) { w.replaceChildren(); return; }
+    if (st === 'in') { const b = btn(pair ? 'st-btn tint' : 'st-btn wide tint', null, () => { lb.st = ''; go('litem', lv.m); }, 'lib-in'); b.append(lbl('check', T('studioLibIn'))); w.replaceChildren(b); return; }
+    const b = btn(pair ? 'st-btn tint' : 'st-btn wide', null, () => libAdd(jobRec(rec.id) || rec), 'lib-add');
+    if (st === 'run') { b.disabled = true; b.textContent = pc >= 0 ? (pair ? T('studioLibRunS', { p: pc }) : T('studioLibRun', { p: pc })) : T('studioDxBusy'); }
+    else b.textContent = T('studioLibSave');   // המשתמש: "שהשם של הלחצן יהיה שמירה לספרייה" — גם בזוג; טקסט בלבד כמו "צפייה" (כך שניהם נכנסים ברוחב שווה)
+    w.replaceChildren(b);
+    if (st === 'err') w.append(h('small', 'st-warn st-lib-err', T('studioLibFail')));
+  });
 }
 
 function pageLang(p) {
@@ -8985,6 +9004,7 @@ function viView(rec, me) {
     place: (store.vip || {})[rec.id] || null, now: () => Date.now(), scroller: () => root, flash: flashSafe, t0: me.t0,
     mkPlayer: () => viPlayer(rec, me), slideUrl: (s) => viSlideUrl(rec, me, s),
     draftAct: vvBtn(rec, me),   // PR 1.2ג: "אמת שוב" בפס הטיוטה
+    libAct: libBtn(rec),        // 18/11/2026: "שמירה לספרייה" בראש הדף
     onUx: (k, x) => uxAdd(rec, 'vi', k, x == null ? 1 : x), onVf: (id, why, sec) => vfAdd(rec, id, why, sec),
     onPlace: (x) => { if (!x) return; store.vip = normPlaces(Object.assign({}, store.vip, { [rec.id]: x })); save(); },
     spkOv: () => (store.vsp || {})[rec.id] || {}, spkc: () => spkPrefs(rec.id),   // 16/11/2026: דוברים בכל תמליל
@@ -10203,12 +10223,15 @@ function pageJob(p) {
   if (early.length && burning && canPlay(rec)) p.append(btn('st-btn wide', T('studioPlWatch'), () => go('play', id), 'play'));
   if (early.length) p.append(secT(T('studioSecResults')), list(...early.map((o) => rowOut(rec, o))), note(burning ? T('studioOutEarlySubs') : T('studioOutEarly')));
   if (outs.length) {
-    if (canPlay(rec)) hero.append(btn('st-btn in-card', T('studioPlWatch'), () => go('play', id), 'play'));   // מ1: הנגן — 25/10/2026: בתוך כרטיס הראש
+    // מ1: הנגן — 25/10/2026: בתוך כרטיס הראש. 18/11/2026: ולידו "לספרייה" (במקום השורה ברשימת התוצרים) — בתרגום ובקריוקי
+    const hacts = h('div', 'st-hacts');
+    if (canPlay(rec)) hacts.append(btn('st-btn', T('studioPlWatch'), () => go('play', id), 'play'));
+    hacts.append(libBtn(rec, true));
+    hero.append(hacts);
     p.append(secT(T('studioSecResults')), list(...outs.map((o) => rowOut(rec, o)),
     canEdit(rec) ? rowNav({ tile: tile('edit', 'blue'), label: T('studioSeTitle'), sub: rec.srv.ev ? T('studioSeEdited', { n: rec.srv.ev }) : '', onClick: () => go('subs', id), k: 'subs' }) : null,   // מ2
     canEdit(rec) ? rrRow(rec, 'rr') : null,
     canEdit(rec) ? rowNav({ tile: tile('spark', 'teal'), label: T('studioIdTitle'), sub: T('studioIdSub'), onClick: () => go('ideas', id), k: 'ideas' }) : null,   // מ8
-    driveOk() && libItems(rec).length ? libRow(rec) : null,   // 17/11/2026: "הוספה לספרייה" (במקום "הסרטונים שלי")   // 26/10/2026: ״הסרטונים שלי״ ב־Drive   // התוצר לתיקייה שבחרת ב־Drive
     jobFolder(rec) && !isR2Folder(jobFolder(rec)) ? rowExt({ href: 'https://drive.google.com/drive/folders/' + jobFolder(rec), tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
     outs.some((o) => o.k === 'srt') ? rowNav({ tile: tile('copy', 'orange'), label: T('studioAcRow'), sub: T('studioAcRowS'), onClick: () => sendToAcademy(rec), k: 'academy' }) : null,   // Academy Pro גל 6 (C12)
     btn('st-row st-act', T('studioRcpt'), () => shareReceipt(rec), 'receipt')));   // שלב 4: קבלה
