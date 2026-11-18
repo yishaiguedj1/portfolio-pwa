@@ -1199,6 +1199,8 @@ he: {
   btnEdit: ICON_EDIT + 'ערוך',
   btnDelete: ICON_TRASH + 'מחק',
   todayChg: 'היום {v}',
+  dayToday: 'היום', dayYest: 'אתמול', dayDow1: 'שני', dayDow2: 'שלישי', dayDow3: 'רביעי', dayDow4: 'חמישי', dayDow5: 'שישי',
+  subValLbl: 'שווי', subGlLbl: 'שינוי מהקנייה',
   buyChg: 'מהקנייה {v}',
   kvShares: 'מניות',
   kvAvg: 'מחיר ממוצע',
@@ -3130,6 +3132,8 @@ en: {
   btnEdit: ICON_EDIT + 'Edit',
   btnDelete: ICON_TRASH + 'Delete',
   todayChg: 'Today {v}',
+  dayToday: 'Today', dayYest: 'Yesterday', dayDow1: 'Mon', dayDow2: 'Tue', dayDow3: 'Wed', dayDow4: 'Thu', dayDow5: 'Fri',
+  subValLbl: 'Value', subGlLbl: 'Gain',
   buyChg: 'Since purchase {v}',
   kvShares: 'Shares',
   kvAvg: 'Avg price',
@@ -8245,8 +8249,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.182.0';
-const APP_VERSION = 'v835';
+const APP_RELEASE = '2.184.1';
+const APP_VERSION = 'v840';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -9255,6 +9259,62 @@ function taseMarketNow(nowMs) {
     return { closed: p.mins < 9 * 60 + 59 || p.mins >= end, reason: null };
   } catch (e) { return { closed: false, reason: null }; }
 }
+/* 18/11/2026 (בקשת המשתמש): איזה יום מסחר השינוי היומי מתאר — "היום" רק מפתיחת המסחר הרגיל ועד שמתחיל המסחר הלילי
+   (20:00 ניו־יורק); משם ועד הפתיחה הבאה זה השינוי של יום מסחר שעבר. התווית לפי הלוח של המשתמש (לא של הבורסה):
+   יום המסחר היה אתמול → "אתמול"; לפני 2–6 ימים (אחרי סופ״ש או חג — למשל בראשון/שני בבוקר על יום ו׳) → שם היום ("שישי");
+   מעל שבוע → תאריך. ת״א: אין מסחר לילי — "היום" מפתיחת המסחר (09:59) ועד חצות. קריפטו/מט״ח/חוזים/מדדים/בורסות אחרות — "היום".
+   מחזיר null ("היום") או { k: 'yest' | 'dow' | 'date', dow, key }. טהורה (nowMs, tz לבדיקות). */
+function tzDateKey(ms, tz) {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz || undefined, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(ms));
+  const g = (k) => (parts.find((x) => x.type === k) || {}).value;
+  return g('year') + '-' + g('month') + '-' + g('day');
+}
+function keyUTC(k) { return Date.UTC(+k.slice(0, 4), +k.slice(5, 7) - 1, +k.slice(8, 10)); }
+function nyseTradingDay(ms) { // ms = חצות UTC של התאריך
+  const d = new Date(ms), w = d.getUTCDay();
+  if (w === 0 || w === 6) return false;
+  const y = d.getUTCFullYear(), hol = _nyseHolCache[y] || (_nyseHolCache[y] = nyseHolidays(y));
+  return !hol[d.toISOString().slice(0, 10)];
+}
+function lastSessionKey(sym, nowMs) {
+  const s = String(sym || '').toUpperCase();
+  const now = nowMs || Date.now();
+  if (/\.TA$/.test(s)) {
+    const p = ilDateParts(now);
+    const noon = now - (p.mins - 720) * 60000; // צהריים בישראל — מעבר יום אחורה לא נופל על חצות בשעון קיץ
+    const trading = (ms) => { const q = ilDateParts(ms); return q.dow >= 1 && q.dow <= 5 && !taseHolidayKey(q); };
+    if (trading(now) && p.mins >= 9 * 60 + 59) return null;
+    for (let i = 1; i <= 15; i++) { const ms = noon - i * 864e5; if (trading(ms)) return tzDateKey(ms, 'Asia/Jerusalem'); }
+    return null;
+  }
+  if (s.includes('.') || s.startsWith('^') || mktKind(s)) return null;
+  const actual = etDateParts(now), ref = etDateParts(now + 4 * 3600e3); // מ־20:00 ניו־יורק מתחיל יום המסחר הבא (הלילי)
+  const hm = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(new Date(now));
+  const mins = (+hm.find((x) => x.type === 'hour').value % 24) * 60 + (+hm.find((x) => x.type === 'minute').value);
+  const refMs = keyUTC(ref.key);
+  if (ref.key === actual.key && nyseTradingDay(refMs) && mins >= 9 * 60 + 30) return null;
+  for (let i = 1; i <= 15; i++) { const ms = refMs - i * 864e5; if (nyseTradingDay(ms)) return new Date(ms).toISOString().slice(0, 10); }
+  return null;
+}
+function sessionDayInfo(sym, nowMs, tz) {
+  try {
+    const now = nowMs || Date.now();
+    const key = lastSessionKey(sym, now);
+    if (!key) return null;
+    const diff = Math.round((keyUTC(tzDateKey(now, tz)) - keyUTC(key)) / 864e5);
+    if (diff <= 0) return null;
+    const dow = new Date(keyUTC(key)).getUTCDay();
+    return { k: diff === 1 ? 'yest' : diff < 7 ? 'dow' : 'date', dow: dow, key: key };
+  } catch (e) { return null; }
+}
+/* התווית עצמה: "היום" / "אתמול" / "שישי" / "12/11" */
+function sessionDayLabel(sym, nowMs, tz) {
+  const i = sessionDayInfo(sym, nowMs, tz);
+  if (!i) return t('dayToday');
+  if (i.k === 'yest') return t('dayYest');
+  if (i.k === 'dow') return [t('dayDow1'), t('dayDow2'), t('dayDow3'), t('dayDow4'), t('dayDow5')][i.dow - 1] || t('dayToday');
+  return +i.key.slice(8, 10) + '/' + +i.key.slice(5, 7);
+}
 function etSessionNow(nowMs) {
   try {
     const d = nowMs ? new Date(nowMs) : new Date();
@@ -9801,6 +9861,7 @@ function renderLive(syms) {
     if (state.open[s]) {
       const g = card.querySelector('.stock-body .kv-grid');
       if (g) { setKvGrid(g, kvGridHTML(p, m)); ensureChartData(s, true); }
+      stAlLive(card, s, m.price);
     }
   }
   try { fitNumbers(); } catch (e) {}
@@ -12278,7 +12339,9 @@ function renderOverview(light) {
     else {
       const z = Math.abs(dv) < 0.005 ? 0 : dv;
       const cls = z > 0 ? 'pos' : z < 0 ? 'neg' : '';
-      dEl.innerHTML = '<span class="ov-day-lbl">' + esc(t('ovDayLbl')) + '</span> <span class="ov-day-v ' + cls + '" dir="ltr">' +
+      // 18/11/2026: כמו בכרטיס — "אתמול"/שם היום מחוץ ליום המסחר; תיק משתי בורסות שהתוויות שלהן שונות — "היום"
+      const lbls = Array.from(new Set(POSITIONS.map((p) => sessionDayLabel(/\.TA$/i.test(p.sym) ? 'X.TA' : 'SPY'))));
+      dEl.innerHTML = '<span class="ov-day-lbl">' + esc(lbls.length === 1 ? lbls[0] : t('ovDayLbl')) + '</span> <span class="ov-day-v ' + cls + '" dir="ltr">' +
         esc(fmtSignedMoney(z, cur)) + (d.pct === null || !isFinite(d.pct) ? '' : ' (' + esc(fmtPct(d.pct, true)) + ')') + '</span>';
       dEl.classList.remove('hidden');
     }
@@ -18048,16 +18111,18 @@ function stockSubHTML(p, m) {
   const day = m.dayChg === null ? null : (Math.abs(m.dayChg) < 0.005 ? 0 : m.dayChg);
   // v208→v209: גם השינוי היומי בכסף — למניה אחת (כמו Yahoo: "−2.16 (−1.57%)"), במטבע של המחיר, באותו צבע
   const dayAmtHTML = day === null || m.dayAbs === null || m.dayAbs === undefined || !isFinite(m.dayAbs) ? '' : ' <span class="day-amt">' + fmtSignedPx(m.dayAbs, p && p.sym) + '</span>';
-  let html = '<span class="day-chg ' + cls(day) + '">' + (day === null ? '—' : t('todayChg', { v: fmtPct(day, true) }) + dayAmtHTML) + '</span>';
+  // 18/11/2026: "היום" רק בזמן יום המסחר; מתחילת המסחר הלילי ועד הפתיחה — "אתמול" / שם היום (sessionDayLabel)
+  let html = '<span class="day-chg ' + cls(day) + '">' + (day === null ? '—' : esc(sessionDayLabel(p && p.sym)) + ' ' + fmtPct(day, true) + dayAmtHTML) + '</span>';
   if (p && p.watch) { // v240: מעקב — בלי שווי/רווח; ההערה (אם יש) במקום השווי
     return html + '<span class="sub-val wl-sub-note">' + (p.note ? '<span class="wl-note-txt">' + esc(p.note) + '</span> ' : '') + '<span class="chev">▾</span></span>';
   }
-  html += '<span class="sub-val">' + (m.value === null ? '—' : money(toCur(m.value), cur)) + ' <span class="chev">▾</span></span>';
+  // 18/11/2026 (בקשת המשתמש): תווית משנית לפני הנתון — "שווי" / "שינוי" (ת־עיצוב: תווית אפורה קטנה, הנתון בולט)
+  html += '<span class="sub-val"><span class="sub-lbl">' + esc(t('subValLbl')) + '</span> ' + (m.value === null ? '—' : money(toCur(m.value), cur)) + '</span>'; // 2.184.1: בלי החץ ▾ ליד השווי (בקשת המשתמש)
   let gp = (p && p.avg > 0 && m.price !== null) ? gainPctOf(p, m.price) : null;
   if (gp !== null && Math.abs(gp) < 0.005) gp = 0; // בלי "+0.00%"
   if (gp !== null && isFinite(gp)) {
     html += '<span class="buy-chg ' + cls(gp) + '">' + t('buyChg', { v: fmtPct(gp, true) }) + '</span>' +
-      '<span class="buy-amt ' + cls(gp) + '">' + (m.gl === null ? '—' : fmtSignedMoney(toCur(m.gl), cur)) + '</span>';
+      '<span class="buy-amt ' + cls(gp) + '"><span class="sub-lbl">' + esc(t('subGlLbl')) + '</span> ' + (m.gl === null ? '—' : fmtSignedMoney(toCur(m.gl), cur)) + '</span>';
   }
   return html;
 }
@@ -18427,6 +18492,21 @@ const ST_AL_ARR = {
   down: '<path d="M12 5v14M6.5 13.5 12 19l5.5-5.5"/>',
   cross: '<path d="M8 19V5M4.5 8.5 8 5l3.5 3.5M16 5v14M12.5 15.5 16 19l3.5-3.5"/>',
 };
+/* המרחק מהמחיר הנוכחי ליעד, באחוזים (טהורה): יעד 90 ממחיר 100 → −10. בלי מחיר — null */
+function stAlDist(target, px) { return target > 0 && px > 0 ? (target / px - 1) * 100 : null; }
+function stAlDistTxt(target, px) { const d = stAlDist(target, px); return d === null ? '' : fmtPct(d, true); }
+/* הטקסט והצבע: ירוק — צריכה לעלות עד היעד, אדום — לרדת (בקשת המשתמש) */
+function stAlDistSet(n, target, px) {
+  const tx = stAlDistTxt(target, px), d = stAlDist(target, px);
+  if (n.textContent !== tx) n.textContent = tx;
+  n.classList.toggle('pos', d > 0); n.classList.toggle('neg', d < 0);
+}
+/* מחיר חי (renderLive): רק טקסט האחוז בשבבים הפעילים — בלי לבנות את השורה מחדש */
+function stAlLive(card, sym, px) {
+  if (!(px > 0)) return;
+  stAlPx[sym] = px;
+  for (const c of card.querySelectorAll('.st-al-chip[data-p]')) { const d = c.querySelector('.st-al-d'); if (d) stAlDistSet(d, +c.dataset.p, px); }
+}
 function stockAlertsEl(sym) {
   const box = el('div', 'st-al');
   box.dataset.sym = sym;
@@ -18451,6 +18531,8 @@ function stockAlertsEl(sym) {
     const pb = el('b', 'num');
     pb.textContent = fmtPx(+a.p, sym);
     chip.appendChild(pb);
+    // 18/11/2026 (בקשת המשתמש): כמה אחוז נשאר למניה לזוז מהמחיר הנוכחי עד היעד — משני ואפור; מתעדכן בכל טיק (stAlLive)
+    if (!a.done) { chip.dataset.p = String(+a.p); stAlDistSet(chip.appendChild(el('small', 'st-al-d num')), +a.p, stAlPx[sym]); }
     const lbl = (dir === 'up' ? t('kcAlertUp') : dir === 'down' ? t('kcAlertDown') : t('kcAlertCross')) + ' ' + pb.textContent +
       (a.done ? ' · ' + t('kcAlertDone') : '') + (a.note ? ' · ' + String(a.note).slice(0, 80) : '');
     chip.setAttribute('aria-label', lbl);
@@ -18590,17 +18672,61 @@ function bottomCover() {
   if (getComputedStyle(tabs).position !== 'fixed') return 0;
   return Math.max(0, viewH() - tabs.getBoundingClientRect().top);
 }
+// 18/11/2026 (בקשת המשתמש, צילומים: "שהכרטיסיה תכסה את כל המסך — תמיד, עם התראות ובלי"): הקצה התחתון של הכרטיס הפתוח =
+// ראש המסילה הנראית של החוגה (::before), לא ראש האלמנט — מעל המסילה יש עוד 32px שקופים (שם רק העיגול הירוק בולט),
+// והכרטיס נעצר שם עם פס ריק. באפליקציה המותקנת (standalone) — המיקום האמיתי של החוגה; בדפדפן — גם לא נמוך ממה שיהיה
+// כשסרגל הכתובת חוזר (viewH, 27/10).
+function dockTop() {
+  const vh = viewH();
+  if (typeof document === 'undefined' || !document.querySelector || typeof getComputedStyle !== 'function') return vh;
+  const tabs = document.querySelector('.tabs');
+  if (!tabs || !tabs.offsetHeight || !tabs.getBoundingClientRect || getComputedStyle(tabs).position !== 'fixed') return vh;
+  let top = tabs.getBoundingClientRect().top;
+  const solo = typeof matchMedia === 'function' && matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches;
+  if (!solo) top = Math.min(top, vh - tabs.offsetHeight);
+  let off = 0;
+  try {
+    const b = getComputedStyle(tabs, '::before');
+    const bh = parseFloat(b.height), bb = parseFloat(b.bottom);
+    if (b.position === 'absolute' && bh > 0 && bb >= 0 && bh + bb < tabs.offsetHeight) off = tabs.offsetHeight - bh - bb;
+  } catch (e) {}
+  return top + off;
+}
+// 18/11/2026 (בקשת המשתמש, צילום מסומן: "לפי המרחק מהלוגו — זה הכי חשוב"): בטלפון ההדר מתכווץ בגלילה (invest-glass.css, igLogo —
+// הלוגו ל־0.6, הבועות נעלמות, הרצועה עולה), אבל האלמנט .appbar שומר את הגובה המלא — הכרטיס עמד ~50px מתחת ללוגו.
+// מה שנראה בפועל = תחתית הלוגו המכווץ: הכרטיס הפתוח מתחיל 12px מתחתיה. רק כשהדף ייגלל עד סוף ההתכווצות (110px);
+// אחרת (כרטיס ראשון בדף קצר) — מתחת להדר המלא, כמו קודם.
+const HDR_SHRINK_END = 110, HDR_LOGO_SCALE = 0.6, CARD_LOGO_GAP = 12;
+function hdrShrunkBottom() {
+  if (typeof document === 'undefined' || !document.querySelector || typeof getComputedStyle !== 'function') return 0;
+  const bar = document.querySelector('.appbar'), art = bar && bar.querySelector('.brand-art');
+  if (!art || !art.offsetHeight || !/igLogo/.test(getComputedStyle(art).animationName || '')) return 0;
+  // ראש הלוגו בלי הטרנספורמציות (scale מהראש, transform-origin 50% 0) — מרשת ה־offsetTop עד ההדר
+  let top = 0, e = art;
+  while (e && e !== bar) { top += e.offsetTop; e = e.offsetParent; }
+  if (e !== bar) return 0;
+  return bar.getBoundingClientRect().top + top + art.offsetHeight * HDR_LOGO_SCALE;
+}
+// ההיסט מראש המסך שבו עומד ראש הכרטיס הפתוח; docTop — מיקום הכרטיס בדף (ברירת מחדל: מהכרטיס עצמו)
+function cardTopOff(card, docTop) {
+  const base = topCover() + 10;
+  const hb = hdrShrunkBottom();
+  if (!hb) return base;
+  const off = Math.min(base, Math.round(hb + CARD_LOGO_GAP));
+  if (docTop == null && card && card.getBoundingClientRect) docTop = card.getBoundingClientRect().top + (window.scrollY || 0);
+  return docTop != null && docTop - off < HDR_SHRINK_END ? base : off;
+}
 function scrollCardToTop(card) {
   if (!card || !card.getBoundingClientRect || typeof window === 'undefined' || !window.scrollTo) return;
   if (state.cardAnim) return; // v272: אנימציית הכרטיס כבר מנווטת את הגלילה — גלילה נוספת הייתה נלחמת בה
-  const off = topCover() + 10;
+  const off = cardTopOff(card);
   const top = card.getBoundingClientRect().top;
   if (Math.abs(top - off) < 4) return;
   cancelScrollRestore();
   const y = Math.max(0, top + (window.scrollY || 0) - off);
   try { window.scrollTo({ top: y, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, y); }
 }
-// v238: הכרטיס הפתוח = בדיוק גובה המסך שמתחת להדר (10px מעל ומתחת) — לא גדול ולא קטן ממנו:
+// v238: הכרטיס הפתוח = בדיוק גובה המסך שמתחת להדר (10px מעל, ומתחת — עד המסילה של החוגה, dockTop) — לא גדול ולא קטן ממנו:
 // הגרף מתמתח או מתכווץ כדי להשלים. נמדד מהגובה הטבעי של התוכן (גם באמצע אנימציית הפתיחה).
 function fitCardToScreen(sym, card, smooth) {
   if (typeof window === 'undefined' || !window.innerHeight) return false;
@@ -18620,9 +18746,11 @@ function fitCardToScreen(sym, card, smooth) {
     const head = card.querySelector('.stock-head');
     if (head) card._fitRO.observe(head);
   }
-  const avail = viewH() - topCover() - bottomCover() - 16;
+  // מתחת ללוגו (cardTopOff) ו־10px מעל המסילה של החוגה. בטלפון בלי תקרה — הגרף משלים כל גובה מסך (תקרה רק בתצוגת מחשב)
+  const avail = dockTop() - cardTopOff(card) - 10;
   const cardH = card.getBoundingClientRect().height - body.getBoundingClientRect().height + Math.max(inner.offsetHeight, inner.scrollHeight);
-  const h = Math.round(Math.max(140, Math.min(560, cv.clientHeight + avail - cardH)));
+  const dk = document.documentElement && document.documentElement.classList && document.documentElement.classList.contains('dk');
+  const h = Math.round(Math.max(140, Math.min(dk ? 560 : 4000, cv.clientHeight + avail - cardH)));
   if (Math.abs(h - cv.clientHeight) < 2) return false;
   if (!state.chartH) state.chartH = {};
   state.chartH[sym] = h;
@@ -18666,8 +18794,8 @@ function holdCardTop(sym) {
   };
   [350, 900, 1700, 3000].forEach((ms, i, a) => setTimeout(() => pin(i === a.length - 1), ms));
 }
-function cardAnimOffset() {
-  return topCover() + 10;
+function cardAnimOffset(docTop) {
+  return cardTopOff(null, docTop);
 }
 /* לוח הפקודות (תצוגת מחשב): כשמקלידים — האחזקות והמעקב של הרשימה הפעילה; בחירה פותחת את הכרטיס בעמוד שלו */
 function deskInvestCmds(q) {
@@ -18895,7 +19023,7 @@ function toggleStock(sym, card) {
   for (const it of items) { it.card.classList.add('anim'); it.body.style.height = it.from + 'px'; if (it.closing) it.card.classList.remove('open'); }
   const maxFinal = Math.max(0, docH0 + docDelta - vh);
   const S1 = opening
-    ? Math.min(maxFinal, Math.max(0, cardTop0 + S0 + aboveDelta - cardAnimOffset()))
+    ? Math.min(maxFinal, Math.max(0, cardTop0 + S0 + aboveDelta - cardAnimOffset(cardTop0 + S0 + aboveDelta)))
     : Math.min(S0, maxFinal);
   let t0 = null, raf = 0, steer = Math.abs(S1 - S0) > 0.5;
   const stopSteer = () => { steer = false; };
