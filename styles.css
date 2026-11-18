@@ -1,5 +1,5 @@
-/* סדר השכבות: invglass (Invest בזכוכית — invest-glass.css, רק ב־index.html) ו־acglass (Academy בזכוכית — academy-glass.css, רק ב־academy.html) לפני glassbtn, כדי שה־!important שלהן יגבר על כפתורי הזכוכית */
-@layer invglass, acglass, glassbtn;
+/* סדר השכבות: invglass (Invest בזכוכית — invest-glass.css, רק ב־index.html) ו־acglass (Academy בזכוכית — academy-glass.css, רק ב־academy.html) לפני glassbtn, כדי שה־!important שלהן יגבר על כפתורי הזכוכית. stglass (Studio בזכוכית — studio-glass.css, רק ב־studio.html) אחרי glassbtn: בתצוגה שאושרה חומר הכפתורים בא מכפתורי הזכוכית, ו־stglass רק משלימה (מידות, פינות, טיפוגרפיה) */
+@layer invglass, acglass, glassbtn, stglass;
 /* תיק ההשקעות — שפת עיצוב v31: Liquid Glass לפי ת־עיצוב 26.
    פלטת צבעי המערכת של iOS 26 (בהיר/כהה), זכוכית עם הדגשת hairline עליונה,
    RTL/LTR לוגי, טיפוגרפיה לפי ת־עיצוב, קצב ריווח 8pt. */

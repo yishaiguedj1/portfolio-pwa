@@ -131,7 +131,12 @@ ok(/from \{ opacity: \.55;/.test(css) && !/stPush \{ from \{ opacity: 0/.test(cs
 ok(/\[data-theme="dark"\] \.st-root \{[^}]*--st-card: #1C1C1E/.test(css), 'מצב כהה: כרטיסים אטומים');
 ok(/\[dir="ltr"\] \.st-back svg \{ transform: scaleX\(-1\); \}/.test(css) && /\[dir="ltr"\] \.st-chev/.test(css), 'חצים מתהפכים באנגלית');
 const varsUsed = [...css.matchAll(/var\((--[a-z0-9-]+)/g)].map((m) => m[1]);
-const defined = new Set([...styles.matchAll(/(--[a-z0-9-]+)\s*:/g), ...css.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
+// 18/11/2026: גם האסימונים של שכבת הזכוכית (studio-glass.css, נטען ב־studio.html) — ב־studio.css רק עם ערך חלופי (נבדק למטה)
+const stGlass = read('studio-glass.css');
+const glassDefs = new Set([...stGlass.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
+const defined = new Set([...styles.matchAll(/(--[a-z0-9-]+)\s*:/g), ...css.matchAll(/(--[a-z0-9-]+)\s*:/g), ...glassDefs].map((m) => (typeof m === 'string' ? m : m[1])));
+const glassNoFb = [...css.matchAll(/var\((--lg-[a-z0-9-]+)\)/g)].map((m) => m[1]);
+ok(!glassNoFb.length, 'אסימון של שכבת הזכוכית ב־studio.css — תמיד עם ערך חלופי' + (glassNoFb.length ? ': ' + [...new Set(glassNoFb)].join(',') : ''));
 const undef = [...new Set(varsUsed)].filter((v) => !defined.has(v));
 ok(undef.length === 0, 'כל משתנה CSS בסטודיו מוגדר (שם שגוי נכשל בשקט — לקח v132)' + (undef.length ? ': ' + undef.join(',') : ''));
 

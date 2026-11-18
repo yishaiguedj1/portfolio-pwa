@@ -78,4 +78,9 @@ const appSrc = read('app.js');
 ok(/function backPopHandled\(/.test(appSrc) && /if \(backPopHandled\(\)\) return;/.test(appSrc), 'app.js: wireBackNav משתמש ב־backPopHandled המשותף');
 ok(!/core\.js/.test(read('index.html')), 'index.html לא טוען את core.js (האתר המאוחד לא משתנה)');
 
+/* 18/11/2026: core.js לא קורא ישירות לפונקציה של Invest בלבד (hsRow הוגדר רק ב־app.js — ReferenceError באמצע החלקה ב־Studio/Academy) */
+{ const core = read('core.js');
+  const bare = (core.match(/[^.\w]hsRow\(/g) || []).length, guarded = (core.match(/typeof hsRow === 'function' && hsRow\(/g) || []).length;
+  ok(!/function hsRow\(/.test(core) && bare === guarded, 'core.js: כל קריאה ל־hsRow מוגנת ב־typeof (הפונקציה רק ב־Invest)'); }
+
 console.log('# ' + n + ' בדיקות עברו');

@@ -38,7 +38,7 @@ ok(scrollers.length >= 4, 'נמצאו השורות הנגללות ב־styles.css
 const hs = app.match(/const HS_ROWS = '([^']*)'/);
 ok(hs && hr && hs[1] === 'main .tabpage :is(' + hr[1] + '):not(.stock-chips)', 'HS_ROWS ב־app.js = הבורר ב־styles.css');
 ok(/try \{ initHScroll\(\); \} catch/.test(app), 'initHScroll נקרא באתחול');
-ok((app.match(/\|\| hsRow\((el|n)\)/g) || []).length >= 3, 'החלקת הלשוניות (שני המנועים) וגלגלת המחשב מכירות את השורות');
+ok((app.match(/\|\| (?:\(typeof hsRow === 'function' && )?hsRow\((el|n)\)/g) || []).length >= 3, 'החלקת הלשוניות (שני המנועים) וגלגלת המחשב מכירות את השורות');
 const fl = app.match(/function hsFling\(v, dt\) \{[^}]*\}/);
 const hsFling = fl && new Function(fl[0] + '; return hsFling;')();
 ok(hsFling && hsFling(1, 0) === 1 && hsFling(1, 16) < 1 && hsFling(1, 16) > 0.9 && hsFling(-1, 500) > -0.2, 'תנופה דועכת לפי הזמן, בשני הכיוונים');

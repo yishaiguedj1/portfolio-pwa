@@ -388,8 +388,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.172.0';
-const APP_VERSION = 'v813';
+const APP_RELEASE = '2.173.0';
+const APP_VERSION = 'v814';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -1217,7 +1217,7 @@ const DESK_HELP = {
 function deskHRow(el) {
   for (let n = el, i = 0; n && n.nodeType === 1 && i < 6; n = n.parentElement, i++) {
     if (n === document.body || n === document.documentElement) return null;
-    if (n.scrollWidth > n.clientWidth + 1 && n.scrollHeight <= n.clientHeight + 1 && (/^(auto|scroll)$/.test(getComputedStyle(n).overflowX) || hsRow(n))) return n;
+    if (n.scrollWidth > n.clientWidth + 1 && n.scrollHeight <= n.clientHeight + 1 && (/^(auto|scroll)$/.test(getComputedStyle(n).overflowX) || (typeof hsRow === 'function' && hsRow(n)))) return n;   // hsRow רק ב־Invest (לא בליבה) — ב־Studio/Academy: ReferenceError באמצע מחווה
   }
   return null;
 }
@@ -2030,7 +2030,7 @@ function snbSwipe(o) {
     const ns = tg.closest('.no-swipe');
     if (ns && ns !== root) return true;
     for (let el = tg; el && el !== root && el.nodeType === 1; el = el.parentElement) {   // פס גלילה אופקי
-      if (el.scrollWidth > el.clientWidth + 2) { const ox = getComputedStyle(el).overflowX; if (ox === 'auto' || ox === 'scroll' || hsRow(el)) return true; }
+      if (el.scrollWidth > el.clientWidth + 2) { const ox = getComputedStyle(el).overflowX; if (ox === 'auto' || ox === 'scroll' || (typeof hsRow === 'function' && hsRow(el))) return true; }   // 18/11/2026: hsRow מוגדר רק ב־app.js
     }
     return false;
   };
