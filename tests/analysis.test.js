@@ -316,6 +316,46 @@ ok(/co\.gone \? h\('p', \{ class: 'an-gone' \}, T\('anGone'/.test(src), 'מני�
   ok(/\[data-dep\]::before/.test(css) && /--an-ed-fill:/.test(css), 'הנקודה הכתומה והצבעים בבהיר ובכהה');
 }
 
+/* ---------- עריכת נתון שנגזר מהמחיר (18/11/2026, בקשת המשתמש): כל נתון → מחיר → כל השאר ---------- */
+{
+  const e = A.indFix(A.prep(D, null, 3.7), MAC), K = ['mcap', 'pe', 'fpe', 'fy', 'pfcf', 'ps', 'evebit', 'pb', 'pffo'];
+  ok(K.every((k) => A.metNow(e, k) > 0 && A.canEdM(e, k)), 'עריכת נתונים: כל הנתונים שנגזרים מהמחיר זמינים בנתוני הבדיקה');
+  ok(K.every((k) => Math.abs(A.pxFrom(e, k, A.metNow(e, k)) / 400 - 1) < 1e-9), 'הערך של היום מחזיר בדיוק את המחיר האמיתי — בכל נתון');
+  ok(K.every((k) => {
+    const v = A.metNow(e, k) * (k === 'fy' ? 1.6 : 0.8), p = A.pxFrom(e, k, v);
+    A.setPx(e, p); const back = A.metNow(e, k); A.setPx(e, null);
+    return Math.abs(back / v - 1) < 1e-9 && (k === 'evebit' || k === 'fy' || Math.abs(p / 400 - 0.8) < 1e-9);
+  }), 'שינוי נתון → מחיר → אותו נתון בדיוק (מכפילים ביחס ישר, תשואת מזומן הפוך, שווי העסק — עם החוב והמזומן)');
+  {
+    const v = A.metNow(e, 'fy') * 2;
+    ok(Math.abs(A.pxFrom(e, 'fy', v) - 200) < 1e-9, 'תשואת מזומן כפולה = חצי מחיר');
+  }
+  A.setPx(e, 200);
+  ok(Math.abs(A.pxFrom(e, 'fpe', 18) - 400) < 1e-9 && Math.abs(A.pxFrom(e, 'pe', A.metNow(A.real(e), 'pe')) - 400) < 1e-9, 'גם כשהמחיר כבר ערוך — ההיפוך לפי הנתונים עצמם (המכפיל הצפוי לפי האמיתי)');
+  A.setPx(e, null);
+  ok(A.MED.pe.inv(20, { eps: -1 }) === null && A.MED.fy.inv(0.05, { fcf: -5 }, 1) === null && A.MED.evebit.inv(10, { op: 0 }, 1) === null && A.MED.ps.inv(2, { rev: 0 }, 1) === null,
+    'רווח/תזרים/מכירות לא חיוביים — אין מחיר, ולכן אין עיפרון');
+  ok(A.MED.evebit.inv(1, { op: 10, debt: 100, cashT: 0 }, 1) < 0 && /return p > 0 && isFinite\(p\) \? p : null;\n\}\nconst canEdM/.test(src), 'מכפיל שווי העסק נמוך מהחוב נטו — מחיר שלילי נדחה');
+  ok(!A.canEdM({ ...e, fxMix: true }, 'pe') && A.pxFrom(e, 'pe', 0) === null && A.pxFrom(e, 'nc', 5) === null, 'מטבעות מעורבים, אפס או נתון שלא תלוי במחיר — לא עורכים');
+  const tm = A.medTxt(e, 'mcap', 3.2e11), tf = A.medTxt(e, 'fy', 0.045);
+  ok(tm.join('|') === '320.00|$|B' && Math.abs(A.medVal(e, 'mcap', '320') - 3.2e11) < 1 && Math.abs(A.medVal(e, 'mcap', '1,250.5') - 1.2505e12) < 1, 'שווי שוק נערך בסולם של האריח (B), עם פסיקים');
+  ok(tf.join('|') === '4.5||%' && Math.abs(A.medVal(e, 'fy', '4.5') - 0.045) < 1e-12 && A.medTxt(e, 'pe', 25).join('|') === '25.0||×' && A.medVal(e, 'pe', '-3') === 3 && A.medVal(e, 'pe', 'x') === null,
+    'תשואת מזומן באחוזים, מכפיל ב־×, טקסט לא מספרי נדחה');
+  const H = A.medHist(e, 'ps');
+  ok(H && H.lo <= H.avg && H.avg <= H.hi && H.n === 10 && A.medHist(e, 'mcap') === null && A.medHist(e, 'fy') === null, 'קיצורי ההיסטוריה — רק למכפילים, במחיר האמיתי');
+  A.setPx(e, 200);
+  ok(JSON.stringify(A.medHist(e, 'ps')) === JSON.stringify(H), 'הקיצורים לא זזים עם המחיר הערוך');
+  A.setPx(e, null);
+  // החיבור בממשק
+  ok(/const DEP = \(k\) => \(S\.co && S\.co\.pxEd \? \(k && S\.px && S\.px\.k === 'm' && S\.px\.key === k \? 'ed' : ''\) : null\);/.test(src), 'DEP(k) — הנתון שנערך מסומן "ed" (כתום מודגש), השאר בנקודה');
+  ok(/'data-dep': DEP\(k\) \}, fmt\(now, 'x', co, 1\), ce \? penI\(\) : null/.test(src) && /PX_CMP\.has\(k\) \? DEP\(k\)/.test(src) && /PX_FACT\.has\(key\) \? DEP\(key\)/.test(src), 'האריחים, כרטיס המכפילים וההשוואה — מסמנים את הנתון שנערך');
+  ok(/S\.reqEd = null; setPx\(co, p\); S\.px = co\.pxEd \? \{ k: 'm', key, v \} : null;/.test(src), 'החל: מחיר מהנתון, ונתון ערוך אחד בכל רגע (מחליף מחיר/תשואה)');
+  ok(/if \(MED\[key\]\) medForm\(b, key, rec\)/.test(src) && /role: 'button', tabindex: '0', on: \{ click: go, keydown/.test(src), 'הגיליון של האריח וכל שורת מכפיל — פותחים את טופס העריכה (גם במקלדת)');
+  ok(/m \? T\('anMRowT'/.test(src) && /m \? T\('anMRowS'/.test(src), 'השורה למעלה אומרת איזה נתון שונה');
+  ok(['anMRowT', 'anMRowS', 'anMWill', 'anMWas', 'anMNow', 'anMLo', 'anMHi', 'anMYrs', 'anMReal', 'anMErr'].every((k) => (app.match(new RegExp('\\b' + k + ':', 'g')) || []).length === 2), 'מחרוזות העריכה — בעברית ובאנגלית');
+  ok(/\.an-root \[data-dep="ed"\]::before \{ content: none; \}/.test(css) && /\.an-mchip \{/.test(css) && /\.an-sheet\.small\.tall \{ max-height: 88vh; \}/.test(css), 'עיצוב: הנתון שנערך בלי נקודה, קיצורים, גיליון גבוה לטופס');
+  ok(/an-grab an-mchip/.test(fs.readFileSync(path.join(root, 'glass-btn.css'), 'utf8')), 'הקיצורים — ברשימת הפטורים של כפתורי הזכוכית');
+}
 console.log('\nכל בדיקות מנתח החברות עברו: ' + n);
 
 /* ---------- מחשבון השווי (27/10/2026, לפי ת־ניתוח) ---------- */

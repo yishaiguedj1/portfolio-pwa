@@ -475,6 +475,16 @@ he: {
   anPxRowR: 'מחיר לתשואה של {r} בשנה: {p}',
   anPxRowS: 'המחיר האמיתי: {p} · ערך עם נקודה כתומה מחושב לפי המחיר החדש',
   anPxBack: 'החזר',
+  anMRowT: '{n} שונה ל־{v}',
+  anMRowS: 'המחיר {p} במקום {r} · נקודה כתומה = חושב מחדש',
+  anMWill: 'מחיר המניה יהיה',
+  anMWas: 'במקום {r} · {d}',
+  anMNow: 'היום',
+  anMLo: 'נמוך',
+  anMHi: 'גבוה',
+  anMYrs: 'לפי {n} השנים האחרונות',
+  anMReal: 'חזרה לנתון האמיתי · {v}',
+  anMErr: 'צריך מספר גדול מאפס',
   anCResT: 'התוצאה',
   anCNow: 'היום: {p} למניה · שווי שוק {m}',
   anCLo: 'נמוך',
@@ -2395,6 +2405,16 @@ en: {
   anPxRowR: 'Price for a {r} yearly return: {p}',
   anPxRowS: 'Real price: {p} · values with an orange dot use the new price',
   anPxBack: 'Reset',
+  anMRowT: '{n} set to {v}',
+  anMRowS: 'Price {p} instead of {r} · orange dot = recalculated',
+  anMWill: 'The share price would be',
+  anMWas: 'instead of {r} · {d}',
+  anMNow: 'Today',
+  anMLo: 'Low',
+  anMHi: 'High',
+  anMYrs: 'Over the last {n} years',
+  anMReal: 'Back to the real value · {v}',
+  anMErr: 'Enter a number above zero',
   anCResT: 'The result',
   anCNow: 'Today: {p} a share · market cap {m}',
   anCLo: 'Low',
@@ -8223,8 +8243,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.178.3';
-const APP_VERSION = 'v827';
+const APP_RELEASE = '2.179.0';
+const APP_VERSION = 'v828';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
