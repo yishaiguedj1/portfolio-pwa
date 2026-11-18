@@ -141,6 +141,7 @@ PAYABLE_LAB = re.compile(r'accounts payable|structured payables?|supplier financ
 DEBT_EXCL = re.compile(r'operating lease|interest payable|accrued|accounts payable|deferred|debt securities|held.for.sale|derivative|due to (related|affiliat)|guarantee|total liabilities|liabilities of|customer|deposits|payable to(?! banks?\b)|insurance|policy|unearned|pension|tax|dividend|issuance cost', re.I)
 LEASE_RE = re.compile(r'finance lease|capital lease', re.I)
 TOTAL_RE = re.compile(r'^\s*total\b|,\s*total\s*$', re.I)
+FACE_RE = re.compile(r'^\s*(face[- ]?value|principal amount)\b', re.I)  # גל 4 (Kroger)
 ST_RE = re.compile(r'short.?term (borrowings|debt|notes|loans)|commercial paper|notes payable|bank (loans|overdraft)|loans payable|(?<!long.term )borrowings(?! .*long)', re.I)
 CUR_RE = re.compile(r'current (portion|maturities)|due within one year|currently due|current$|, current', re.I)
 LEASE_FIN = ['FinanceLeaseLiabilityNoncurrent', 'FinanceLeaseLiabilityCurrent', 'FinanceLeaseLiability', 'CapitalLeaseObligationsNoncurrent', 'CapitalLeaseObligationsCurrent']
@@ -755,6 +756,10 @@ class Co:
                     break
             if sub:
                 continue
+            # "Face-value of …" ואחריה (אחרי שורת התאמה שאינה חוב) אותו חוב בערך בספרים, בלי "Total" (Kroger ‏2012–2014:
+            # ‏6,141 ‏+ התאמת גידור = ‏6,145 — נספרו שתיהן) — הערך בספרים במקום הנקוב
+            if used and used[-1][0] == kind and FACE_RE.search(used[-1][1]) and abs(used[-1][2] - val) <= 0.02 * abs(val):
+                used.pop()
             used.append((kind, lab, val, grp))
         used = [u[:3] for u in used]
         S = {}
