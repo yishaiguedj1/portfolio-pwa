@@ -100,7 +100,12 @@ const R = 'R2_jLIBjobAAAAAAAAAAAAAA';
   ok(/\.st-hacts > \.st-btn, \.st-hlib > \.st-btn \{ flex: 1 1 0/.test(cssS) && /\.st-hlib \{ display: contents; \}/.test(cssS), 'העיצוב: זוג כפתורים ברוחב שווה');
   // 18/11/2026: סמל התרגום (שני כרטיסים) — בחוגה, ב"עבודה חדשה" ובמגדל; וסוג העבודה בסמל על כל כרטיס בספרייה
   ok(/home: ICO_TR,/.test(sj) && /\n  trans: ICO_TR,/.test(sj) && /ico\(kaTab \? 'note' : viTab \? 'lect' : 'trans'\)/.test(sj) && /qbtn\('trans', T\('studioQaNew'\)/.test(sj), 'סמל התרגום: לשונית, עבודה חדשה, מגדל');
-  ok(/const LIB_KIND_ICO = \{ tr: 'trans', ka: 'note', vi: 'lect' \};/.test(sj) && /const ki = o\.big \? null : LIB_KIND_ICO\[o\.k\];/.test(sj) && /lg\.append\(ico\(ki, 'st-lp-k'\)\)/.test(sj) && /st\.append\(ico\(ki, 'st-lp-k'\)\)/.test(sj), 'הספרייה: סמל הסוג בתגית השפות ובתגית השמירה, לא בדף הפריט');
-  ok(/\.st-lp-k \{[^}]*inline-size: 16px/.test(cssS) && /\.st-lp-lang\.ic \{/.test(cssS), 'העיצוב: סמל 16px, ובלי שפה — עיגול');
+  ok(/const LIB_KIND_ICO = \{ tr: 'trans', ka: 'note', vi: 'lect' \};/.test(sj) && /if \(!o\.big && \(o\.state \|\| LIB_KIND_ICO\[o\.k\]\)\)/.test(sj) && /const tr = o\.k === 'tr' \|\| \(o\.k === 'vi' && o\.tv === 1\);/.test(sj) && /if \(tr\) tg\.append\(trIco\(o\.fr, o\.to, 'st-lp-k st-lp-tr'\)\)/.test(sj), 'הספרייה: סמל הסוג בתגית, תרגום (וניתוח שתורגם) — בועות עם האותיות, לא בדף הפריט');
+  ok(/\.st-lp-k \{[^}]*inline-size: 18px/.test(cssS) && /\.st-lp-k\.st-lp-tr \{ inline-size: 24px/.test(cssS) && /\.st-lp-lang\.ic \{/.test(cssS), 'העיצוב: סמל 18px, בועות 24px, סמל לבד — עיגול');
+  ok(st.langGlyph('en') === 'A' && st.langGlyph('he') === 'א' && st.langGlyph('zh') === '文' && st.langGlyph('pt-BR') === 'Ã' && st.langGlyph('xx') === 'X' && st.langGlyph('') === '', 'האות של כל שפה');
+  ok(['SOURCE_LANGS', 'TARGET_LANGS'].every((k) => st[k].every((c) => st.LANG_GLYPH[c])), 'לכל שפת מקור ויעד יש אות');
+  ok(st.normLibMan(Object.assign({}, man, { k: 'vi', tv: 1 })).tv === 1 && st.normLibMan(Object.assign({}, man, { tv: 1 })).tv === 0 && st.normLibMan(man).tv === 0, 'normLibMan: tv רק בניתוח');
+  ok(st.viTr({ vi: 1, vt: 1 }) && !st.viTr({ vi: 1 }) && !st.viTr({ vt: 1 }), 'viTr: ניתוח שגם תרגם');
+  ok(/ch, \.\.\.\(m\.tv === 1 && m\.k === 'vi' \? \{ tv: 1 \} : \{\}\) \};/.test(srv) && /if m\.get\('tv'\) == 1:\n\s+out\['tv'\] = 1/.test(py), 'tv עובר בשרתון ובעובד');
   console.log(n + ' בדיקות עברו');
 })().catch((e) => { console.error('✗', e); process.exit(1); });

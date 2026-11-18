@@ -2580,10 +2580,11 @@ function stSwipePage(next) {
   };
 }
 /* ---- החוגה (המנוע ב־core: dialHost/wireDial — אותו של Invest) ---- */
-/* 18/11/2026 (בקשת המשתמש): סמל התרגום, בשפה המקובלת (ת־עיצוב): שתי בועות דיבור חופפות —
-   A בבועה שמאחור ו־文 בבועה שמלפנים (ציור שלנו, קווים מעוגלים, האותיות דקות מהמסגרת, הבועה האחורית נקטעת לפני הקדמית).
-   אחד לחוגה, לכפתור "עבודה חדשה" ולתגית בספרייה (ICON.trans) */
-const ICO_TR = '<path d="M9.2 11.5H7.2L4.2 14.2V11.5A2.2 2.2 0 0 1 2 9.3V5A3 3 0 0 1 5 2H10A3 3 0 0 1 13 5V8"/><path d="M14 10.5H19A3 3 0 0 1 22 13.5V18A2.2 2.2 0 0 1 19.8 20.2V22.7L17 20.2H14A3 3 0 0 1 11 17.2V13.5A3 3 0 0 1 14 10.5Z"/><path d="M4.9 9.6L7.5 3.9l2.6 5.7M5.9 7.7h3.2" stroke-width="1.7"/><path d="M16.5 12.3v.9M13.3 14.1h6.4M18.6 14.1c-.5 1.9-1.7 3.1-4.3 3.9M14.4 14.1c.5 1.9 1.7 3.1 4.3 3.9" stroke-width="1.6"/>';
+/* 18/11/2026 (בקשת המשתמש): סמל התרגום, בשפה המקובלת (ת־עיצוב) — שתי בועות דיבור חופפות: שפת המקור בבועה שמאחור
+   (למעלה), שפת היעד בבועה שמלפנים (למטה בסוף). הראשי = מאנגלית לעברית (A → א). ציור שלנו: קווים מעוגלים, האותיות דקות
+   מהמסגרת, הבועה האחורית נקטעת לפני הקדמית. ICO_BUB — הבועות לבד, לסמל של כל סרטון בספרייה (trIco, האותיות כטקסט) */
+const ICO_BUB = '<path d="M9.2 11.5H7.2L4.2 14.2V11.5A2.2 2.2 0 0 1 2 9.3V5A3 3 0 0 1 5 2H10A3 3 0 0 1 13 5V8"/><path d="M14 10.5H19A3 3 0 0 1 22 13.5V18A2.2 2.2 0 0 1 19.8 20.2V22.7L17 20.2H14A3 3 0 0 1 11 17.2V13.5A3 3 0 0 1 14 10.5Z"/>';
+const ICO_TR = ICO_BUB + '<path d="M4.9 9.6L7.5 3.9l2.6 5.7M5.9 7.7h3.2" stroke-width="1.7"/><path d="M14 12.8l4.9 5.2M18.9 12.6v.8c0 1-.8 1.7-2.2 2.1M15.7 14.6c-1 .4-1.6 1.2-1.6 2.6v.9" stroke-width="1.7"/>';
 const ST_DIAL_ICO = {
   // 30/10/2026 (בקשת המשתמש): הבית = תרגום סרטונים, הקריוקי = תו, העבודה = משותפת לשניהם (פעימה)
   home: ICO_TR,   // 18/11/2026: התרגום = שתי בועות דיבור (היה מסך עם כתובית)
@@ -2723,6 +2724,7 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
   note: '<circle cx="8.5" cy="17.5" r="3"/><path d="M11.5 17.5V3.5c0 2.6 4.8 3.4 4.8 7.2"/>',   // 30/10/2026: הקריוקי
   trans: ICO_TR,   // 18/11/2026: תרגום (= ST_DIAL_ICO.home)
+  bub: ICO_BUB,    // הבועות בלי אותיות (trIco)
   lect: '<rect x="3" y="4" width="18" height="12.5" rx="2.5"/><path d="M12 16.5V20M8.5 20h7M7 8.5h5M7 12h3"/><circle cx="15.6" cy="10" r="2.2"/><path d="M17.2 11.6l1.5 1.5"/>',   // 10/11/2026: ניתוח סרטונים (= ST_DIAL_ICO.vi)
   globe: '<circle cx="12" cy="12" r="8.6"/><path d="M3.4 12h17.2M12 3.4c2.4 2.6 3.5 5.5 3.5 8.6s-1.1 6-3.5 8.6c-2.4-2.6-3.5-5.5-3.5-8.6s1.1-6 3.5-8.6z"/>',
   spark: '<path d="M11 2.5l1.9 5.4 5.4 1.9-5.4 1.9L11 17.1l-1.9-5.4-5.4-1.9 5.4-1.9z" fill="currentColor" stroke="none"/><path d="M18.5 14.5l.9 2.4 2.4.9-2.4.9-.9 2.4-.9-2.4-2.4-.9 2.4-.9z" fill="currentColor" stroke="none"/>',
@@ -2759,6 +2761,24 @@ function ico(k, cls) {
   s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round');
   if (cls) s.setAttribute('class', cls);
   s.innerHTML = ICON[k];
+  return s;
+}
+/* 18/11/2026 (בקשת המשתמש): אות שמייצגת כל שפה בסמל התרגום (SOURCE_LANGS / TARGET_LANGS) — אות של השפה עצמה,
+   כזו שמבדילה אותה מהשכנות (Ñ ספרדית, Ç צרפתית…). שפה בלי אות — האות הראשונה של הקוד */
+export const LANG_GLYPH = { en: 'A', he: 'א', ar: 'ع', ru: 'Я', uk: 'Ї', es: 'Ñ', fr: 'Ç', de: 'Ä', it: 'È', pt: 'Ã', pl: 'Ł', nl: 'Ë', tr: 'Ğ',
+  fa: 'پ', hi: 'अ', zh: '文', ja: 'あ', ko: '한', am: 'አ' };
+export const langGlyph = (c) => { const k = String(c || '').split('-')[0]; return LANG_GLYPH[k] || (k ? k[0].toUpperCase() : ''); };
+/* סמל התרגום של עבודה: המקור בבועה שמאחור, היעד בבועה שמלפנים. מקור לא ידוע (זיהוי אוטומטי) — בועה ריקה */
+function trIco(fr, to, cls) {
+  const s = ico('bub', cls);
+  for (const [c, x, y] of [[fr, 7.5, 6.9], [to, 16.5, 15.4]]) {
+    const g = langGlyph(c);
+    if (!g) continue;
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', x); t.setAttribute('y', y); t.setAttribute('text-anchor', 'middle'); t.setAttribute('dominant-baseline', 'central');
+    t.setAttribute('fill', 'currentColor'); t.setAttribute('stroke', 'none'); t.setAttribute('font-size', '8.2'); t.setAttribute('font-weight', '700');
+    t.textContent = g; s.append(t);
+  }
   return s;
 }
 function tile(icon, color) { const s = h('span', 'st-tile t-' + color); s.append(ico(icon)); return s; }
@@ -5989,7 +6009,7 @@ export function normLibMan(m) {
     .map((x) => ({ r: ['v', 'a', 'b', 's', 'p', 'x'].includes(x.r) ? x.r : 'x', k: String(x.k || '').slice(0, 20), n: String(x.n || '').slice(0, 200), id: String(x.id), s: num(x.s) }));
   if (!f.length) return null;
   return { job: JOB_RE.test(String(m.job || '')) ? String(m.job) : '', t: String(m.t || '').slice(0, 120), k: LIB_KINDS.includes(m.k) && m.k ? m.k : 'tr',
-    fr: lang(m.fr), to: (Array.isArray(m.to) ? m.to : []).map(lang).filter(Boolean).slice(0, 4), d: Math.max(0, Math.min(86400, num(m.d))),
+    fr: lang(m.fr), to: (Array.isArray(m.to) ? m.to : []).map(lang).filter(Boolean).slice(0, 4), tv: m.tv === 1 && m.k === 'vi' ? 1 : 0, d: Math.max(0, Math.min(86400, num(m.d))),
     ch: (Array.isArray(m.ch) ? m.ch.slice(0, 60) : []).filter((c) => c && Number(c.t) >= 0 && Number(c.t) <= 86400 && typeof c.n === 'string' && c.n).map((c) => ({ t: num(c.t), n: c.n.slice(0, 100) })),
     at: num(m.at), f };
 }
@@ -6030,15 +6050,20 @@ function lbPoster(o) {
     im.addEventListener('error', () => im.remove());
     im.src = o.th; ps.append(im);
   } else if (o.k === 'f') ps.append(ico('film', 'st-lp-ic'));
-  /* 18/11/2026 (בקשת המשתמש): סוג העבודה בסמל — בתגית של השפות (או של השמירה), בפינה העליונה */
-  const ki = o.big ? null : LIB_KIND_ICO[o.k];   // בדף הפריט — לא (כפתור החזרה בפינה, והסוג כתוב מתחת)
-  if (o.state) { const st = h('span', 'st-lp-state'); if (ki) st.append(ico(ki, 'st-lp-k')); st.append(h('span', null, o.state)); ps.append(st); }
-  else if (o.lang || ki) {
-    const lg = h('span', 'st-lp-lang' + (o.lang ? '' : ' ic')); lg.dir = 'ltr';
-    if (ki) { lg.append(ico(ki, 'st-lp-k')); lg.title = lbKindT(o.k); }
-    if (o.lang) lg.append(h('bdi', null, o.lang));
-    ps.append(lg);
-  }
+  /* 18/11/2026 (בקשת המשתמש): סוג העבודה בסמל, בתגית שבפינה העליונה. תרגום — הבועות עם האות של שפת המקור ושל היעד;
+     ניתוח — הלוח והשפה, ואם גם תורגם — הלוח והבועות; קריוקי — התו. בשמירה שרצה — בתגית השמירה. לא בדף הפריט (big) */
+  if (!o.big && (o.state || LIB_KIND_ICO[o.k])) {
+    const tr = o.k === 'tr' || (o.k === 'vi' && o.tv === 1);
+    const tg = h('span', o.state ? 'st-lp-state' : 'st-lp-lang'); tg.dir = 'ltr';
+    if (o.k === 'vi') tg.append(ico('lect', 'st-lp-k'));
+    else if (o.k === 'ka') tg.append(ico('note', 'st-lp-k'));
+    if (tr) tg.append(trIco(o.fr, o.to, 'st-lp-k st-lp-tr'));
+    if (o.state) tg.append(h('span', null, o.state));
+    else if (o.k === 'vi' && !tr && o.to) tg.append(h('bdi', null, o.to.toUpperCase()));
+    if (!o.state && tg.childNodes.length === 1) tg.classList.add('ic');
+    if (!o.state) tg.title = lbKindT(o.k) + (tr && o.to ? ' · ' + (o.fr ? langName(o.fr, uiLang()) + ' → ' : '') + langName(o.to, uiLang()) : '');
+    if (tg.childNodes.length) ps.append(tg);
+  } else if (o.lang && !o.big) { const lg = h('span', 'st-lp-lang'); lg.append(h('bdi', null, o.lang)); lg.dir = 'ltr'; ps.append(lg); }
   if (o.dur) { const tg = h('span', 'st-lp-dur', fmtDur(o.dur)); tg.dir = 'ltr'; ps.append(tg); }
   if (o.p != null) { const pr = h('div', 'st-lp-prog'); const i = h('i'); i.style.inlineSize = Math.round(o.p * 100) + '%'; pr.append(i); ps.append(pr); }
   return ps;
@@ -6128,13 +6153,14 @@ function lbCards() {
       const m = x.m;
       if (k === 'sh' ? !(m.d > 0 && m.d <= 60) : k && m.k !== k) continue;
       const tv = lb.th && lb.th.get(x.folder);
-      out.push({ at: m.at || x.at, key: 'lib:' + x.id, t: m.t || T('studioUntitled'), k: m.k, th: tv && tv.th, dur: m.d || (tv && tv.dur) || 0, lang: libLangTag(m),
+      out.push({ at: m.at || x.at, key: 'lib:' + x.id, t: m.t || T('studioUntitled'), k: m.k, th: tv && tv.th, dur: m.d || (tv && tv.dur) || 0, lang: libLangTag(m), fr: m.fr, to: m.to[0], tv: m.tv,
         meta: lbKindT(m.k) + ' · ' + fmtDay(m.at || x.at), onClick: () => go('litem', x.id), menu: (at) => lbItemMenu(at, x) });
     }
     if (!k) for (const r of store.jobs) {
       const d = r.up && r.up.dx;
       if (!d || !d.lib || d.st !== 'run' || (r.srv && r.srv.lib)) continue;
       out.push({ at: Date.now(), key: 'libs:' + r.id, t: fileTitle(r.spec.name) || T('studioUntitled'), k: r.spec.ka ? 'ka' : r.spec.vi ? 'vi' : 'tr', dur: r.spec.dur,
+        fr: libLang(r.spec.from), to: libLang((r.spec.to || [])[0]), tv: viTr(r.spec) ? 1 : 0,
         state: T('studioLibSaving', { p: Math.round((d.p || 0) * 100) }), p: d.p || 0, meta: T('studioLibSavingS'), onClick: () => go('job', r.id) });
     }
   }
@@ -6351,10 +6377,13 @@ export function libItems(rec) {
   if (fv && isR2Id(fv) && !srcGone(rec)) it.unshift({ id: fv, n: (fileTitle(rec.spec.name) || 'video') + ' (' + T('studioLibRv') + ')' + ((/\.[A-Za-z0-9]{2,4}$/.exec(rec.spec.name || '') || ['.mp4'])[0]) });
   return it.slice(0, 16);
 }
+/* 18/11/2026: ניתוח שגם תרגם את הסרטון — בספרייה גם סמל התרגום (tv במניפסט: libMeta → normLibMeta בשרתון → lib_manifest
+   בעובד → normLibMan). ניתוח לבד תמיד בעברית, גם מסרטון באנגלית — לכן לא לפי "מקור ≠ יעד". הדגל של התרגום בניתוח: spec.vt */
+export const viTr = (sp) => !!(sp && sp.vi === 1 && sp.vt === 1);
 export function libMeta(rec) {
   const sp = rec.spec || {};
   return { t: (fileTitle(sp.name) || '').slice(0, 120), k: sp.ka ? 'ka' : sp.vi ? 'vi' : 'tr', fr: libLang(sp.from), to: (sp.to || []).map(libLang).filter(Boolean).slice(0, 4),
-    d: Math.max(0, Math.round(Number(sp.dur) || 0)), ch: (rec.chap || []).slice(0, 60).map((c) => ({ t: Math.max(0, Math.round(Number(c.t) || 0)), n: String(c.title || '').slice(0, 100) })).filter((c) => c.n) };
+    ...(viTr(sp) ? { tv: 1 } : {}), d: Math.max(0, Math.round(Number(sp.dur) || 0)), ch: (rec.chap || []).slice(0, 60).map((c) => ({ t: Math.max(0, Math.round(Number(c.t) || 0)), n: String(c.title || '').slice(0, 100) })).filter((c) => c.n) };
 }
 async function libAdd(rec) {
   if (libBusy === rec.id || (rec.up.dx && rec.up.dx.st === 'run')) return;
