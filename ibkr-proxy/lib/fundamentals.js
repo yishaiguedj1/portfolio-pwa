@@ -382,7 +382,7 @@ function bsfIs(have, cur, ours) {
   if (!ann.length) return out;
   const near = (a, b) => Math.abs(a - b) <= Math.max(5e5, 5e-3 * Math.abs(b));
   // כל שורה: {סוף → ערך} בעמודות של 12 חודשים
-  const yv = (x) => x.is.rows.map((r) => { const o = new Map(); SECFACE.rowVals(x.is, r).forEach((v, ci) => { const c = x.is.cols[ci]; if (v != null && c && c.months === 12 && SECFACE.colOk(c, cur) && !o.has(c.end)) o.set(c.end, v); }); return o; }).filter((o) => o.size);
+  const yv = (x) => x.is.rows.map((r) => { const o = new Map(); SECFACE.rowVals(x.is, r).forEach((v, ci) => { const c = x.is.cols[ci]; if (v != null && c && c.months === 12 && SECFACE.colOk(c, cur) && !o.has(c.end)) o.set(c.end, v); }); o.tag = r.ns + ':' + r.tag; return o; }).filter((o) => o.size);
   const Y = ann.map(yv);
   const printed = new Map();
   for (const rows of Y) for (const o of rows) for (const [e, v] of o) { if (!printed.has(e)) printed.set(e, []); printed.get(e).push(Math.abs(v)); }
@@ -392,19 +392,33 @@ function bsfIs(have, cur, ours) {
   out.own = Y.map((rows) => { let m = null; for (const o of rows) for (const e of o.keys()) if (!m || e > m) m = e; return m; }).filter(Boolean);
   const at = (M, e) => { if (M.has(e)) return M.get(e); for (const [k, v] of M) if (Math.abs(day(k) - day(e)) <= 7) return v; return null; };
   for (const k of IS_KEYS) {
-    const S = ours[k]; if (!S || !S.size) continue;
+    const S = ours[k]; if ((!S || !S.size) && k !== 'pretax') continue;
     const f = (v) => (IS_ABS.has(k) ? Math.abs(v) : v);
     const same = (o, est) => [...est.keys()].some((e) => o.has(e)) && [...o].every(([e, v]) => !est.has(e) || near(f(v), est.get(e)));
-    const c0 = Y[0].filter((o) => o.size >= 2 && [...o].every(([e, v]) => { const x = at(S, e); return x != null && near(f(v), f(x)); }));
     // שתי שורות זהות (אותו מספר פעמיים בדוח) — אחת
-    const u0 = c0.filter((o, i) => !c0.slice(0, i).some((p) => p.size === o.size && [...o].every(([e, v]) => p.get(e) === v)));
+    const uniq = (c) => c.filter((o, i) => !c.slice(0, i).some((p) => p.size === o.size && [...o].every(([e, v]) => p.get(e) === v)));
+    // "עוגן": שורה ששווה לסדרה שלנו בכל השנים שהיא מדפיסה ושיש לנו בהן ערך — לפחות שתיים
+    const anchor = (rows) => uniq(rows.filter((o) => { let n = 0; for (const [e, v] of o) { const x = at(S || new Map(), e); if (x == null) continue; if (!near(f(v), f(x))) return false; n++; } return n >= 2; }));
+    let u0 = uniq(Y[0].filter((o) => o.size >= 2 && [...o].every(([e, v]) => { const x = at(S || new Map(), e); return x != null && near(f(v), f(x)); })));
+    // F28 (גל 6) — עוגן חשבוני לרווח לפני מס, כשהסדרה שלנו ריקה בכל השנים של הדוח האחרון (התגית פרטית: BNY ‏bk:, ‏Oracle ‏orcl:):
+    // השורה היחידה R שבכל שנה R − מס = רווח נקי, כשהמס (us-gaap ‏IncomeTaxExpenseBenefit) שווה לסדרת המס שלנו והרווח הנקי הוא שורה
+    // של us-gaap ‏(ProfitLoss / ‏NetIncomeLoss / רווח מפעילות נמשכת). מבחן חשבוני, לא לפי השם (לקח גל 2)
+    if (!u0.length && k === 'pretax' && ours.tax && ![...Y[0]].some((o) => [...o.keys()].some((e) => S && at(S, e) != null))) {
+      const T = Y[0].filter((o) => o.tag === 'us-gaap:IncomeTaxExpenseBenefit' && o.size >= 2 && [...o].every(([e, v]) => { const x = at(ours.tax, e); return x != null && near(v, x); }));
+      const NI = Y[0].filter((o) => /^us-gaap:(ProfitLoss|NetIncomeLoss|IncomeLossFromContinuingOperations(IncludingPortionAttributableToNoncontrollingInterest)?)$/.test(o.tag));
+      if (T.length && NI.length) u0 = uniq(Y[0].filter((o) => o.size >= 2 && !T.includes(o) && !NI.includes(o) && T.some((t) => NI.some((n) => [...o].every(([e, v]) => t.has(e) && n.has(e) && near(v - t.get(e), n.get(e)))))));
+    }
     if (u0.length !== 1) continue;
     const est = new Map([...u0[0]].map(([e, v]) => [e, f(v)])), M = new Map([...est].map(([e, v]) => [e, { v, filed: ann[0].filed }]));
     for (let i = 1; i < ann.length; i++) {
-      const m = Y[i].filter((o) => same(o, est));
-      const u = m.filter((o, j) => !m.slice(0, j).some((p) => p.size === o.size && [...o].every(([e, v]) => p.get(e) === v)));
-      if (u.length !== 1) continue;
-      for (const [e, v] of u[0]) if (!est.has(e)) { est.set(e, f(v)); M.set(e, { v: f(v), filed: ann[i].filed }); }
+      const u = uniq(Y[i].filter((o) => same(o, est)));
+      if (u.length === 1) { for (const [e, v] of u[0]) if (!est.has(e)) { est.set(e, f(v)); M.set(e, { v: f(v), filed: ann[i].filed }); } continue; }
+      if (u.length) continue;
+      // F28 (גל 6) — עוגן מחדש: השרשור נשבר (הדוח הזה הדפיס את השנים שכבר נקבעו על בסיס אחר — Ameriprise: ה־10-K של 2023 לפני
+      // ההצגה מחדש של 2024), אבל שורה אחת בו שווה לסדרה שלנו בשתי שנים לפחות — זו השורה; השנים החדשות שלה נקבעות, והשרשור ממשיך ממנה
+      const a = anchor(Y[i]).filter((o) => [...o.keys()].some((e) => !est.has(e)));
+      if (a.length !== 1) continue;
+      for (const [e, v] of a[0]) { if (!est.has(e)) M.set(e, { v: f(v), filed: ann[i].filed }); est.set(e, f(v)); }
     }
     out[k] = M;
   }
