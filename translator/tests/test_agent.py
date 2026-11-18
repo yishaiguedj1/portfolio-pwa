@@ -584,6 +584,52 @@ class MemUnit(unittest.TestCase):
                     sl.sample({})
             self.assertEqual((sl.peak, sl.pst), (7000, 'al'), 'השלב של השיא — לא של הדגימה האחרונה')
 
+    def test_tail_releases_reservation(self):
+        """18/11/2026: בזנב (lt ב־prog.json) העבודה שומרת רק את השיא הצפוי של מה שנשאר — או את מה שהיא תופסת ×1.1 אם יותר —
+        ולא את השיא שכבר עבר. ערך משובש לא נכנס, ובלי lt — כמו קודם."""
+        A = self.A
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            A.MEM_DB = Path(d) / 'm.json'
+            sl = A.Slot(1, {'id': 'j' + 'a' * 20, 'kind': 'tr', 'mk': 'vi', 'dur': 2700})
+            sl.state = Path(d)
+            sl.p = mock.Mock(pid=1)
+            sl.p.poll.return_value = None
+
+            def at(rss, prog):
+                (Path(d) / 'prog.json').write_text(json.dumps(prog))
+                with mock.patch.object(A, 'tree_rss_mb', return_value=rss):
+                    sl.sample({})
+                return sl.reserved()
+            full = max(sl.need, 8000 * A.MEM_MARGIN)
+            self.assertEqual(at(8000, {'st': 'al'}), full, 'לפני הזנב — השיא הצפוי')
+            self.assertEqual(at(120, {'st': 'rv', 'lt': True}), full, 'bool אינו מספר')
+            self.assertEqual(at(120, {'st': 'rv', 'lt': A.MEM_TAIL_MAX}), full, 'מחוץ לטווח — לא נכנס')
+            self.assertEqual(at(120, {'st': 'rv', 'lt': 'x'}), full)
+            self.assertEqual(at(120, {'st': 'rv', 'lt': 1600}), 1600, 'בזנב — השיא של מה שנשאר')
+            self.assertEqual(at(2000, {'st': 'bn', 'lt': 1600}), 2000 * A.MEM_MARGIN, 'תופסת יותר מהזנב — מה שהיא תופסת ×1.1')
+            self.assertEqual(sl.peak, 8000, 'השיא נשמר ללמידה (mem_note) — רק ההזמנה משתחררת')
+            sl.need, sl.peak, sl.lt, sl.rss = 900, 0, 1600, 100
+            self.assertEqual(sl.reserved(), 900, 'לעולם לא יותר מבלי זנב')
+
+    def test_job_mem_tail_in_prog(self):
+        """job.mem_tail כותב lt ל־prog.json מיד, ו־mirror_prog (כל עדכון שלב) שומר אותו."""
+        sys.path.insert(0, str(HERE))
+        import job
+        from unittest import mock
+        self.addCleanup(job._MEM_TAIL.__setitem__, 'mb', 0)
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(job, 'STATE', Path(d) / 'job.json'):
+            pf = Path(d) / 'prog.json'
+            job.mirror_prog('al', 0.5)
+            self.assertNotIn('lt', json.loads(pf.read_text()), 'בלי זנב — אין lt')
+            job.mem_tail(1600)
+            self.assertEqual(json.loads(pf.read_text()).get('lt'), 1600)
+            self.assertEqual(json.loads(pf.read_text()).get('st'), 'al', 'השאר נשמר')
+            job.mirror_prog('rv', 0.1)
+            self.assertEqual(json.loads(pf.read_text()).get('lt'), 1600, 'עדכון שלב לא מוחק את הזנב')
+            job.mem_tail('x')
+            self.assertEqual(job._MEM_TAIL['mb'], 1600, 'ערך משובש — בלי שינוי')
+
     def test_poll_passes_mk(self):
         A = self.A
         ans = {'ok': True, 'job': {'id': 'j' + 'b' * 20, 'key': 'k' * 43, 'kind': 'tr', 'mk': 'ka', 'dur': 240}}

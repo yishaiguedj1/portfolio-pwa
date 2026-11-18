@@ -1742,6 +1742,32 @@ def mirror_prog(st, p):
     moved = old.get('st') != st or (p is not None and abs((old.get('p') or 0) - p) >= 0.005)
     d = {'st': st, 'p': p if p is not None else old.get('p') if old.get('st') == st else 0, 'at': now,
          'chg': now if moved or not old.get('chg') else old['chg']}
+    if _MEM_TAIL['mb'] > 0:
+        d['lt'] = _MEM_TAIL['mb']
+    try:
+        path.write_text(json.dumps(d), encoding='utf-8')
+    except OSError:
+        pass
+
+
+# 18/11/2026 (יעילות במקביל — "שלא יפריע לעבודות אחרות"): הזנב של העבודה. הסוכן שומר לכל עבודה את השיא הצפוי שלה כל
+# הזמן (Slot.reserved) — גם אחרי שהחלק הכבד נגמר. ניתוח: 5–21 דק׳ של Claude על ~120MB עם הזמנה של 4.6–8.5GB, ועבודות
+# אחרות חיכו לזיכרון שאף אחד לא משתמש בו. mem_tail(mb) = "מכאן והלאה השיא הצפוי הוא mb" → lt ב־prog.json, והסוכן שומר
+# max(lt, מה שהעבודה תופסת עכשיו ×1.1). רק מה שנמדד: הניתוח (analyze.VI_TAIL_MB); בתרגום — כשתהיה מדידה לפי שלב.
+_MEM_TAIL = {'mb': 0}
+
+
+def mem_tail(mb):
+    try:
+        _MEM_TAIL['mb'] = max(0, int(mb))
+    except (TypeError, ValueError):
+        return
+    path = STATE.parent / 'prog.json'
+    try:
+        d = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        d = {}
+    d['lt'] = _MEM_TAIL['mb']
     try:
         path.write_text(json.dumps(d), encoding='utf-8')
     except OSError:
@@ -3571,7 +3597,7 @@ def _shots_join(ctx):
             th.join()
         if 'err' not in box:
             return
-    if ctx.st.get('src') == 'v' and not (ctx.pdir / 'shots.json').exists():
+    if ctx.st.get('src') == 'v' and not (ctx.pdir / 'shots.json').exists() and not early_shots_take(ctx):   # 18/11: גם המוקדם מ־restore
         vt(ctx, ['shots', ctx.name])
 
 
@@ -6032,6 +6058,81 @@ def save_ck(ctx, s, extra=None):
         return False
 
 
+# ---------------------------------------------------------------- 18/11/2026: "גם תרגום" בניתוח
+# בקשת המשתמש: "לבחור בניתוח גם תרגום של הסרטון... בדיוק כמו המערכת תרגום. תראה רק שאין כפילויות בין הכלים של התמלול,
+# צריבה וכאלה" + "שלא יפריע לעבודות אחרות לעבוד במקביל". הניתוח (analyze.vi_run) עושה את חצי התרגום הראשון פעם אחת על
+# הפרויקט שלו — הקליטה (vt_project, כמו prepare), התמלול והדוברים וציר השפות (vt vi-asr --proj — אותן פונקציות של vt asr /
+# vt lang) — ומוסר אותו לעבודת תרגום רגילה בנקודת שמירה של התמלול (vt_hand): השרתון יוצר אותה (op vtHand) והיא ממשיכה
+# כמו "המשך" (restore) — ההגהה, היישור, התרגום, הביקורת, השוטים, הצריבה ואיכויות הצפייה, בקוד של התרגום. כל עבודה
+# במקום שלה אצל הסוכן (הזמנת זיכרון משלה, תיקייה משלה) — בלי זמן ריצה משותף ובלי שעבודה מחכה לאחרת. תקלה כאן לא מפילה
+# את הניתוח: מוסרים בלי נקודה (תרגום מלא מאותם קבצים), ואם גם זה לא — "תרגם" בדף של הניתוח (op viTr).
+
+def vt_project(ctx, src, kind):
+    """הפרויקט של התרגום על המקור שירד — כמו ב־prepare (vt new + ingest; הקול שלו = הקול של הניתוח). מהקול שעלה
+    ראשון וכמעט בלי דיבור (speech_ok — העתקה שבורה בטלפון) → False: הקורא מחכה לסרטון וקורא שוב ממנו."""
+    title = os.path.splitext(str((ctx.st.get('spec') or {}).get('name') or ctx.name))[0][:120]
+    vt(ctx, ['new', ctx.name, '--source', str(src), '--title', title, '--force'])
+    vt(ctx, ['ingest', ctx.name, '--force'])
+    if kind == 'a' and not speech_ok(ctx):
+        print('· בקול שעלה ראשון כמעט אין דיבור — מחכים לסרטון ומתמללים ממנו')
+        return False
+    return True
+
+
+def ck_upload(ctx, s, info):
+    """נקודת שמירה בתיקיית העבודה **בלי דיווח** — היא של עבודת התרגום שתיווצר, לא של הניתוח. מחזיר {s, id, size}."""
+    path = VT_WORK / '_ck' / (ctx.name + '.' + s + '.hand.tar.gz')
+    ck_pack(ctx.pdir, s, info, path)
+    try:
+        size = path.stat().st_size
+        fid = put_output(ctx, path, 'נקודת שמירה — ' + CK_LABEL[s] + '.tar.gz', s, 'application/gzip', prop='snbCk')
+    finally:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+    return {'s': s, 'id': fid, 'size': size}
+
+
+def vt_hand(ctx, kind, lg):
+    """אחרי התמלול המשותף: קובץ ההגהה כמו בתרגום (edit-export + inject_guard), נקודת שמירה ומסירה. kind = מאיפה תומלל
+    (a — הקול שעלה ראשון; עבודת התרגום תצרף את הסרטון בעצמה, כמו תמיד) · lg = השפה שזוהתה (רק en מתורגם).
+    מחזיר את מזהה עבודת התרגום, או '' (לא נוצרה)."""
+    ck = None
+    if lg == 'en':
+        t0 = time.time()
+        try:
+            vt(ctx, ['edit-export', ctx.name, '--force'])
+            inject_guard(ctx)
+            ck = ck_upload(ctx, 'asr', {'src': kind, 'sync': None, 'vh': 1})
+            note_timing(ctx, 'vt-hand', t0, time.time())
+        except Stop:
+            raise
+        except (SystemExit, Exception) as e:     # noqa: BLE001 — בלי נקודה: עבודת התרגום מתחילה מההתחלה
+            print('· המסירה לתרגום בלי נקודת שמירה (' + type(e).__name__ + ') — התרגום יתחיל מההתחלה, מאותם קבצים')
+            ck = None
+    return vt_call(ctx, lg, ck)
+
+
+def vt_call(ctx, lg, ck=None):
+    """op vtHand — פעם אחת לניתוח (השרתון: ניסיון חוזר מחזיר את אותה עבודה). תקלה — '' והניתוח ממשיך."""
+    try:
+        r = ctx.c.call('vtHand', **dict({'lg': lg}, **({'ck': ck} if ck else {})))
+    except Stop:
+        raise
+    except (SystemExit, Exception) as e:         # noqa: BLE001 — הניתוח ממשיך; "תרגם" בדף של הניתוח
+        print('· עבודת התרגום לא נוצרה (' + str(e).strip()[:80] + ') — אפשר להתחיל אותה מהדף של הניתוח')
+        return ''
+    if r.get('skip') == 'lang':
+        print('· הסרטון לא באנגלית — בלי תרגום (הניתוח ממשיך)')
+        return ''
+    tid = str(r.get('id') or '')
+    if tid:
+        print('✓ עבודת התרגום נוצרה' + (' וממשיכה מהתמלול של הניתוח' if r.get('ck') else ' (מההתחלה)')
+              + ('' if r.get('started', 1) else ' — מחכה להתחלה'))
+    return tid
+
+
 @guarded
 def save(args):
     """שמירה ידנית אחרי התרגום (RUNBOOK: אחרי שהסוכן המתרגם סיים — לפני הביקורת)."""
@@ -6110,6 +6211,12 @@ def restore(args):
     fetch_input(ctx, f['id'], src, int(f.get('size') or 0))
     if kind == 'v':
         ladder_start(ctx, src)
+        if not (pd / 'shots.json').exists():
+            # 18/11/2026: נקודה בלי שוטים (המסירה מהניתוח — "גם תרגום" — לא מזהה אותם; או נקודה ישנה) → הזיהוי המוקדם ברקע,
+            # בעדיפות סרק ומושהה בזמן פקודה כבדה, כמו כשהסרטון יורד ברקע; finish → shots_join לוקח אותו (עד היום: vt shots
+            # בטור, אחרי הביקורת)
+            early_shots_start(ctx.quiet() if hasattr(ctx, 'quiet') else ctx, src)
+        hs_probe_bg(ctx, src)                    # 18/11/2026: כתוביות צרובות (פעם אחת לעבודה — כבר נבדק: כלום)
     src = edl_src(ctx, src, kind)
     ensure_env(ctx, st_next)
     set_source(pd, src)

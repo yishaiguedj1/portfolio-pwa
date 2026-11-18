@@ -76,7 +76,7 @@ const BASE = () => 'https://firestore.googleapis.com/v1/projects/' + PROJECT() +
 const DRIVE = 'https://www.googleapis.com/drive/v3/files/';
 const UID_RE = /^[A-Za-z0-9]{6,128}$/;
 const AAD = (uid) => 'studio|' + uid + '|r';
-const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del', 'learnPut', 'learnMedia', 'learnMediaDone', 'srcFile', 'smPut']);   // 22/10/2026: srcFile — הורדה מקישור
+const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del', 'learnPut', 'learnMedia', 'learnMediaDone', 'srcFile', 'smPut', 'vtHand']);   // 22/10/2026: srcFile — הורדה מקישור
 const RELAY_OPS = new Set(['rlPut', 'rlFix', 'rlWait', 'rlEnd', 'rlNext', 'rlMark']);   // 24/10/2026: rlPut…rlEnd = העובד (kh), rlNext/rlMark = ה־Routine (rkh)
 // 24/10/2026: תרגום בטלפון — Studio לאנדרואיד (נייטיב, בלי Origin ובלי התחברות) עם מפתח לעבודה אחת (pkh — רק ה־hash)
 const PHONE_OPS = new Set(['phUp', 'phParts', 'phDone', 'phFile', 'phStart', 'phJob', 'phGet', 'phBurn', 'phProg', 'phAlive', 'phClaim', 'phVp']);   // phVp — 29/10/2026: הסרטון לענן (spec.vc)   // phClaim — 25/10/2026, שלב 3: הטלפון לוקח את העבודה ומריץ אותה
@@ -2479,7 +2479,46 @@ async function r2Register(deps, job, which, fid, now) {
   f.at = now;
   await patchJob(deps, job.id, { [fkey]: f, updated: now });
   job[fkey] = f;
+  if (fkey === 'fa' || fkey === 'fv') await vtFiles(deps, job, fkey, f, now);   // 18/11/2026: "גם תרגום" — גם בעבודת התרגום של הניתוח
   return {};
+}
+
+/* 18/11/2026 (בקשת המשתמש): "גם תרגום" בניתוח — עבודת התרגום המקושרת (S.vtJob). פעם אחת לניתוח: הנעילה היא המסמך של
+   הניתוח (patchIf על updateTime — שתי מסירות במקביל, למשל ניסיון חוזר של העובד, יוצרות עבודה אחת). lg = השפה שהעובד זיהה
+   (he / x → בלי תרגום: vtx 'lang'); ck = נקודת השמירה של התמלול — מאומתת מול התיקייה (לא תקינה → תרגום מלא מההתחלה).
+   ההתחלה — כמו בבדיקה המתוזמנת (startJob בלי משתמש): סירוב חולף נשאר "חדשה" עם הסיבה, והבדיקה המתוזמנת מתחילה אותה */
+async function vtCreate(deps, job, body, now) {
+  const a = await readDocT(deps, 'studioJobs', job.id);
+  if (!a || !S.vtOn(a)) return [409, { ok: false, error: 'state' }];
+  if (a.vtj) {
+    const t = await readJob(deps, a.vtj).catch(() => null);
+    if (t && t.va === a.id) return [200, { ok: true, id: t.id, dup: 1 }];
+  }
+  const lg = ['he', 'en', 'x'].includes(body.lg) ? body.lg : '';
+  if (lg === 'he' || lg === 'x') { await patchJob(deps, a.id, { vtx: 'lang', updated: now }); return [200, { ok: true, skip: 'lang' }]; }
+  let ck = S.normCk(body.ck);
+  if (ck && ck.s !== 'asr') ck = null;
+  if (ck) { const m = await driveFileInFolder(deps, a.uid, a.folder, ck.id).catch(() => null); if (!m || m.error || m.size !== ck.size) ck = null; }
+  const t = S.vtJob(a, ck, S.newJobId(), now, lg);
+  if (!(await patchIf(deps, 'studioJobs', a.id, { vtj: t.id, vtx: '', updated: now }, a._ut))) {
+    const b = await readJob(deps, a.id).catch(() => null);   // מסירה אחרת הקדימה
+    return b && b.vtj ? [200, { ok: true, id: b.vtj, dup: 1 }] : [409, { ok: false, error: 'busy' }];
+  }
+  await patchJob(deps, t.id, t);
+  const [, out] = await startJob(deps, a.uid, t, {}, now, { adm: false }).catch(() => [0, { ok: false }]);
+  return [200, { ok: true, id: t.id, ck: ck ? 1 : 0, started: out && out.ok ? 1 : 0 }];
+}
+/* קובץ שנרשם בניתוח אחרי שעבודת התרגום שלו נוצרה (הסרטון ממשיך לעלות / לרדת מהקישור) — נרשם גם בה (העבודה מחכה לו
+   ומבקשת שוב את הקבצים). תקלה — בשקט */
+async function vtFiles(deps, job, fkey, f, now) {
+  if (!job || !job.vtj || !S.vtOn(job)) return;
+  try {
+    const t = await readJob(deps, job.vtj);
+    if (!t || t.va !== job.id || t.folder !== job.folder || (t[fkey] && t[fkey].id === f.id)) return;
+    const up = { [fkey]: f, updated: now };
+    if (fkey === 'fv' && t.spec) up.spec = Object.assign({}, t.spec, { size: f.size });
+    await patchJob(deps, t.id, up);
+  } catch (e) {}
 }
 
 /* 29/10/2026: העבודה מחכה לסרטון (wv מהעובד, כל 5 דק׳) — כמה ממנו כבר ב־R2? ההעלאה הפתוחה של הסרטון = רשומה בתיקייה בגודל
@@ -2910,7 +2949,13 @@ async function worker(req, res, body, deps) {
       const patch = { ['f' + which]: f, updated: now };
       if (which === 'v') patch.spec = Object.assign({}, job.spec, { size: f.size });   // הגודל האמיתי במקום האומדן מהבדיקה
       await patchJob(deps, job.id, patch);
+      await vtFiles(deps, job, 'f' + which, f, now);   // 18/11/2026: "גם תרגום" — גם בעבודת התרגום של הניתוח
       return res.status(200).json({ ok: true, now });
+    }
+    if (body.op === 'vtHand') {
+      // 18/11/2026: "גם תרגום" — העובד של הניתוח מסר את הפרויקט (נקודת השמירה של התמלול) → עבודת התרגום המקושרת
+      const [code, out] = await vtCreate(deps, job, body || {}, now);
+      return res.status(code).json(Object.assign({ now }, out));
     }
     if (body.op.startsWith('r2')) {   // ת4: הקבצים של העבודה ב־R2 (קלט, תוצרים, נקודות שמירה)
       const op = { r2get: 'url', r2wup: 'up', r2wparts: 'parts', r2wdone: 'done', r2del: 'del' }[body.op];
@@ -4506,6 +4551,14 @@ async function handler(req, res, deps = {}) {
         return res.status(code).json({ ok: false, error: out.error || 'state' });
       }
       return res.status(code).json(Object.assign(out, { job: out.job || view(v) }));   // סירוב חולף (תחזוקה, דגל, תקלה רחבה) — הבדיקה המתוזמנת תתחיל
+    }
+    if (op === 'viTr') {
+      // 18/11/2026: "גם תרגום" — המסירה מהעובד לא הגיעה (הניתוח הסתיים / נכשל לפני התמלול): תרגום מלא מאותם קבצים, באותה
+      // תיקייה. פעם אחת (vtCreate — כבר נוצרה: אותה עבודה); הסרטון לא באנגלית (vtx lang) — לא
+      if (!S.vtOn(job) || !S.FINAL.includes(st) || job.vtx === 'lang' || !(job.fa || job.fv)) return res.status(409).json({ ok: false, error: 'state' });
+      if ((await readStats(deps, uid)).halt) return res.status(409).json({ ok: false, error: 'halted' });
+      const [code, out] = await vtCreate(deps, job, {}, now);
+      return res.status(code).json(Object.assign(out, { job: view(Object.assign({}, job, out.id ? { vtj: out.id } : {})) }));
     }
     if (op === 'rerender') {
       // מ2: הפקה מחדש מהכתוביות הנוכחיות — עבודה חדשה (rr) באותה תיקייה; מתחילים אותה ב־op:'start' (כל השמירות הרגילות)
