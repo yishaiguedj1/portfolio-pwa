@@ -75,6 +75,9 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(ST.hsOuts(parent.srv.out, rrd).map((o) => o.id).join() === 'r1,p2,p3', 'התוצרים: הסרטון המוסתר במקום הישן; הכתוביות וה־MKV — של העבודה');
   ok(ST.hsOuts(parent.srv.out, rr('done')).map((o) => o.id).join() === 'p1,p2,p3' && ST.hsPick(parent, rr('running')) === '', 'בלי הסתרה בהפקה מחדש — כרגיל');
   ok(ST.hsState(parent, rrd, true).rr === 1, 'הכרטיס יודע שהתוצאה מההפקה מחדש');
+  /* ---------- 6. בזמן הריצה, לפני הצריבה — מציעים רקע כהה (18/11/2026: canEdit דורש עבודה שהסתיימה, והכרטיס אמר "כבר התחילה") ---------- */
+  const hsCalls = sj.match(/hsState\(rec, rrJobs\.get\(rec\.id\), [^)]*\)\)?/g) || [];
+  ok(hsCalls.length === 2 && hsCalls.every((c) => c === 'hsState(rec, rrJobs.get(rec.id), styEditable(rec))'), 'הכרטיס: "אפשר עוד לשנות" = styEditable בלבד (בלי canEdit)');
   for (const kk of ['studioHsT', 'studioHsS', 'studioHsGo', 'studioHsOnT', 'studioHsOnS', 'studioHsLate', 'studioHsRrS', 'studioHsRr', 'studioHsGone', 'studioHsRrRun', 'studioHsDone', 'studioHsChk', 'studioHsBadT', 'studioHsBad', 'studioHsNoChk']) {
     ok(sj.includes("'" + kk + "'"), 'בשימוש: ' + kk);
   }

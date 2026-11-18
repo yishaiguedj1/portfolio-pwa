@@ -6504,9 +6504,11 @@ const fmtX = (x) => (Math.round(x * 10) / 10).toLocaleString(uiLang() === 'en' ?
 const hsTxt = (k, n) => (k === 'ask' ? [T('studioHsT'), T('studioHsS')] : k === 'on' ? [T('studioHsOnT'), T('studioHsOnS')] : k === 'late' ? [T('studioHsT'), T('studioHsLate')]
   : k === 'rr' ? [T('studioHsT'), T('studioHsRrS')] : k === 'gone' ? [T('studioHsT'), T('studioHsGone')] : k === 'rrrun' ? [T('studioHsRrRun'), T('studioHsOnS')]
   : k === 'ok' ? [T('studioHsDone'), T('studioHsChk', { n })] : k === 'bad' ? [T('studioHsBadT'), T('studioHsBad', { n })] : [T('studioHsDone'), T('studioHsNoChk')]);
-const hsSig = (rec) => { const s = hsState(rec, rrJobs.get(rec.id), styEditable(rec) && canEdit(rec)); return s ? s.k + s.n : ''; };
+/* 18/11/2026 (המשתמש: "רושם שהצריבה התחילה, ולפי השלבים עוד לא"): ed = styEditable בלבד. canEdit דורש עבודה שהסתיימה,
+   ולכן בזמן הריצה הכרטיס תמיד אמר "הצריבה כבר התחילה" ולא הציע רקע כהה. השרתון (op sty) מקבל שינוי עד שהעבודה מסתיימת */
+const hsSig = (rec) => { const s = hsState(rec, rrJobs.get(rec.id), styEditable(rec)); return s ? s.k + s.n : ''; };
 function hsCard(rec) {
-  const s = hsState(rec, rrJobs.get(rec.id), styEditable(rec) && canEdit(rec));
+  const s = hsState(rec, rrJobs.get(rec.id), styEditable(rec));
   if (!s) return null;
   const good = ['on', 'rrrun', 'ok', 'nochk'].includes(s.k);
   const c = h('div', 'st-hs' + (good ? ' ok' : ''));
