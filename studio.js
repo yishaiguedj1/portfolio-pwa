@@ -6153,14 +6153,14 @@ function lbCards() {
       const m = x.m;
       if (k === 'sh' ? !(m.d > 0 && m.d <= 60) : k && m.k !== k) continue;
       const tv = lb.th && lb.th.get(x.folder);
-      out.push({ at: m.at || x.at, key: 'lib:' + x.id, t: m.t || T('studioUntitled'), k: m.k, th: tv && tv.th, dur: m.d || (tv && tv.dur) || 0, lang: libLangTag(m), fr: m.fr, to: m.to[0], tv: m.tv,
+      out.push({ at: m.at || x.at, key: 'lib:' + x.id, t: m.t || T('studioUntitled'), k: m.k, th: tv && tv.th, dur: m.d || (tv && tv.dur) || 0, lang: libLangTag(m), fr: libSrc(m.k, m.fr), to: m.to[0], tv: m.tv,
         meta: lbKindT(m.k) + ' · ' + fmtDay(m.at || x.at), onClick: () => go('litem', x.id), menu: (at) => lbItemMenu(at, x) });
     }
     if (!k) for (const r of store.jobs) {
       const d = r.up && r.up.dx;
       if (!d || !d.lib || d.st !== 'run' || (r.srv && r.srv.lib)) continue;
       out.push({ at: Date.now(), key: 'libs:' + r.id, t: fileTitle(r.spec.name) || T('studioUntitled'), k: r.spec.ka ? 'ka' : r.spec.vi ? 'vi' : 'tr', dur: r.spec.dur,
-        fr: libLang(r.spec.from), to: libLang((r.spec.to || [])[0]), tv: viTr(r.spec) ? 1 : 0,
+        fr: libSrc(r.spec.ka ? 'ka' : r.spec.vi ? 'vi' : 'tr', libLang(r.spec.from)), to: libLang((r.spec.to || [])[0]), tv: viTr(r.spec) ? 1 : 0,
         state: T('studioLibSaving', { p: Math.round((d.p || 0) * 100) }), p: d.p || 0, meta: T('studioLibSavingS'), onClick: () => go('job', r.id) });
     }
   }
@@ -6379,6 +6379,9 @@ export function libItems(rec) {
 }
 /* 18/11/2026: ניתוח שגם תרגם את הסרטון — בספרייה גם סמל התרגום (tv במניפסט: libMeta → normLibMeta בשרתון → lib_manifest
    בעובד → normLibMan). ניתוח לבד תמיד בעברית, גם מסרטון באנגלית — לכן לא לפי "מקור ≠ יעד". הדגל של התרגום בניתוח: spec.vt */
+/* 18/11/2026 (הצילום: בתרגום מ"זיהוי אוטומטי" הבועה העליונה ריקה): העובד מתרגם רק מאנגלית (job.py: lang_unsupported) —
+   "אוטומטי" בתרגום = אנגלית, עם זיהוי של קטעים בשפות אחרות בתוכה. כשיהיו מקורות נוספים — העובד ידווח את השפה שזוהתה */
+export const libSrc = (k, fr) => fr || (k === 'tr' ? 'en' : '');
 export const viTr = (sp) => !!(sp && sp.vi === 1 && sp.vt === 1);
 export function libMeta(rec) {
   const sp = rec.spec || {};

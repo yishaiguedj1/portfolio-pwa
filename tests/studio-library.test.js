@@ -105,6 +105,8 @@ const R = 'R2_jLIBjobAAAAAAAAAAAAAA';
   ok(st.langGlyph('en') === 'A' && st.langGlyph('he') === 'א' && st.langGlyph('zh') === '文' && st.langGlyph('pt-BR') === 'Ã' && st.langGlyph('xx') === 'X' && st.langGlyph('') === '', 'האות של כל שפה');
   ok(['SOURCE_LANGS', 'TARGET_LANGS'].every((k) => st[k].every((c) => st.LANG_GLYPH[c])), 'לכל שפת מקור ויעד יש אות');
   ok(st.normLibMan(Object.assign({}, man, { k: 'vi', tv: 1 })).tv === 1 && st.normLibMan(Object.assign({}, man, { tv: 1 })).tv === 0 && st.normLibMan(man).tv === 0, 'normLibMan: tv רק בניתוח');
+  ok(st.libSrc('tr', '') === 'en' && st.libSrc('tr', 'ru') === 'ru' && st.libSrc('vi', '') === '' && st.libSrc('ka', '') === '' && /fr: libSrc\(m\.k, m\.fr\)/.test(sj)
+    && /spec\.get\('from'\) not in \('auto', 'en', None\)/.test(py), 'תרגום ממקור אוטומטי = אנגלית — כל עוד העובד מתרגם רק מאנגלית (אחרת: לדווח את השפה שזוהתה)');
   ok(st.viTr({ vi: 1, vt: 1 }) && !st.viTr({ vi: 1 }) && !st.viTr({ vt: 1 }), 'viTr: ניתוח שגם תרגם');
   ok(/ch, \.\.\.\(m\.tv === 1 && m\.k === 'vi' \? \{ tv: 1 \} : \{\}\) \};/.test(srv) && /if m\.get\('tv'\) == 1:\n\s+out\['tv'\] = 1/.test(py), 'tv עובר בשרתון ובעובד');
   console.log(n + ' בדיקות עברו');
