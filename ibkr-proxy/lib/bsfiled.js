@@ -255,7 +255,7 @@ async function tick(deps = {}) {
     if (o && o.at && (deps.now || Date.now()) - Date.parse(o.at) < FRESH) continue;
     // נשאר חסר כי נגמר התקציב — עוצרים, והסבב הבא ממשיך מאותה חברה. נשאר חסר בגלל תקלה (קובץ שנכשל בכל ניסיון: timeout,
     // ‏403/500) — ממשיכים לחברה הבאה; היא תנוסה שוב בסבב הבא על הרשימה. עד 18/11/2026 גם תקלה עצרה את הסבב, וחברה אחת כזו
-    // תקעה אותו (בכל 10 דק׳ — רק היא; גל 5 בבדיקת העומק)
+    // תקעה אותו (בכל 10 דק׳ — רק היא; גל 5 בבדיקת העומק, F23)
     try { const r = await fillAll(cik, { ...deps, getText, budgetMs: budget - (Date.now() - t0) }); done++; added += r.added; if (r.left && Date.now() - t0 >= budget) break; if (r.left) failed++; }
     catch (e) { /* חברה אחת — לא עוצרת את הסבב */ }
   }
