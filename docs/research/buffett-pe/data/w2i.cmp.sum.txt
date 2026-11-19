@@ -1,0 +1,85 @@
+גל 2 — השוואת הקוראים (w2i). הודעות ברשימות: 252
+קורא A: 252 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+קורא B: 252 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+קורא C: 2 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+
+הסכמה A מול B לכל שדה (מתוך הודעות ששניהם קראו):
+  er           252/252   100.0%
+  pre          249/252    98.8%
+  adj          252/252   100.0%
+  ex           250/252    99.2%
+  partial      250/252    99.2%
+  chg          252/252   100.0%
+  fut          252/252   100.0%
+  pol          252/252   100.0%
+  pe           247/247   100.0%
+  eps_gaap     247/247   100.0%
+  eps_adj      247/247   100.0%
+  sbc_rec      247/247   100.0%
+  tax_adj      233/247    94.3%
+  tax_sbc      247/247   100.0%
+  sbc_total    236/247    95.5%
+  sbc_rec_ps   239/247    96.8%
+  tax_adj_ps   235/247    95.1%
+  sh_dil       247/247   100.0%
+  sh_adj       242/247    98.0%
+  הערות: ex:no-adj=4, fut:no-adj=4, sbc_rec_ps:has-total=8, sbc_total:scale=5, sh_adj:swap=5, tax_adj:scale=10
+
+מחלוקות בשדות החמים (er,adj,ex,fut,chg,pol / pe,eps_gaap,eps_adj,sbc_rec,sbc_rec_ps,sh_dil): 2 הודעות (ממתינות לקורא C: 0)
+  לפי שדה: ex=2
+  ללא הכרעה גם אחרי C (SPLIT): 0
+
+מטריצות בלבול — הקונצנזוס של הקוראים מול secsbc.classify (sys_c = 2 הנספחים שהשרת קורא; sys_all = כל הנספחים)
+er (הודעת תוצאות):
+  קוראים\מערכת    False     True
+  False               2        3
+  True                0      247
+ex (כפי שנקרא: True / False / partial / None) — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             149        0
+  None               29        1
+  True               15       31
+  partial            21        1
+pol (מוציא? בלי רווח מותאם = False) — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             199        2
+  True               15       31
+pol — בהודעות תוצאות, כל הנספחים:
+  קוראים\מערכת    False     True
+  False             199        2
+  True               15       31
+pol — רק ההודעות שהשרת בוחר (picked):
+  קוראים\מערכת    False     True
+  False             192        2
+  True               15       30
+fut — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             170        1
+  None               29        1
+  True               15       31
+
+אי־התאמות pol (קונצנזוס מול sys_c), הודעות תוצאות:
+  SBAC   0001193125-25-262644 2025-11-03 picked=True cons=True sys=False h=
+  SBAC   0001193125-26-076767 2026-02-26 picked=True cons=True sys=False h=
+  SBAC   0001193125-26-191545 2026-04-29 picked=True cons=True sys=False h=
+  SBAC   0001193125-26-330639 2026-08-03 picked=True cons=True sys=False h=
+  SBAC   0001193125-26-443666 2026-11-02 picked=True cons=True sys=False h=
+  SHOP   0001594805-26-000067 2026-11-03 picked=True cons=True sys=False h=-co-
+  TDG    0001260221-25-000078 2025-11-12 picked=True cons=True sys=False h=-
+  TDG    0001260221-26-000015 2026-02-03 picked=True cons=True sys=False h=-
+  TDG    0001260221-26-000039 2026-05-05 picked=True cons=True sys=False h=-
+  TDG    0001260221-26-000052 2026-08-04 picked=True cons=True sys=False h=-
+  TDG    0001260221-26-000073 2026-11-10 picked=True cons=True sys=False h=-
+  TECH   0001104659-25-106631 2025-11-05 picked=True cons=True sys=False h=------c--
+  TECH   0001104659-26-009994 2026-02-04 picked=True cons=True sys=False h=------c--
+  TECH   0001104659-26-055887 2026-05-06 picked=True cons=True sys=False h=------c--
+  TECH   0001104659-26-094391 2026-08-12 picked=True cons=True sys=False h=------c--
+  TFC    0000092230-25-000150 2025-10-17 picked=True cons=partial sys=True h=EE
+  TFC    0000092230-26-000023 2026-01-21 picked=True cons=None sys=True h=EE
+אי־התאמות er:
+  RVTY   0000031791-26-000003 2026-01-13 picked=True cons=False sys=True
+  STZ    0000016918-25-000132 2025-09-02 picked=True cons=False sys=True
+  SYY    0000950142-26-000899 2026-03-30 picked=True cons=False sys=True
+לא ברור (pol=None בקונצנזוס) בהודעות תוצאות: 
+חלקי (partial): RJF:0000720005-25-000086, RJF:0000720005-26-000030, RJF:0000720005-26-000046, RJF:0000720005-26-000066, RJF:0000720005-26-000080, RVTY:0000031791-25-000032, RVTY:0000031791-26-000007, RVTY:0000031791-26-000016, RVTY:0000031791-26-000022, RVTY:0000031791-26-000031, SAP:0001104659-25-102307, SKYD:0002041610-25-000042, SKYD:0002041610-26-000008, SKYD:0002041610-26-000052, SKYD:0002041610-26-000062, SPG:0001104659-26-058646, SYK:0000310764-25-000126, SYK:0000310764-26-000006, SYK:0000310764-26-000025, SYK:0000310764-26-000048, SYK:0000310764-26-000059, TFC:0000092230-25-000150
+שינוי מדיניות (chg≠none): 

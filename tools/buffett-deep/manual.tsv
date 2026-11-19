@@ -208,3 +208,8 @@ O	2025-12-31	pol	V2	reit	AFFO מחזיר את התגמול; ריט → t=0, לג
 O	2026-03-31	pol	V2	reit	AFFO מחזיר את התגמול; ריט → t=0, לגל 5
 O	2026-06-30	pol	V2	reit	AFFO מחזיר את התגמול; ריט → t=0, לגל 5
 O	2026-09-30	pol	V2	reit	AFFO מחזיר את התגמול; ריט → t=0, לגל 5
+TDG	2025-12-27	pol	DIFF	B-050	"Non-cash stock and deferred compensation expense" + "Stock compensation expense is excluded from adjusted net income" → המסווג: לא מוציא; "מה אם" bpe 29.84 במקום 28.45
+TECH	2026-06-30	pol	DIFF	B-051	"Non-GAAP tax rate" (OTHER) בתוך הגישור לפני "adjusted net earnings"; "מה אם" bpe 41.88 במקום 37.31
+SHOP	2026-09-30	pol	DIFF	B-051	"Non-GAAP operating income adjustments" (OTHER) לפני "Non-GAAP net income"; "מה אם" bfpe 69.19 במקום 56.68
+TFC	2025-12-31	pol	V2	moot:yGaap	"accelerated recognition of TIH equity compensation" → מוציא; הקוראים: אין רווח מותאם; הרחוב = GAAP
+SBAC	2026-09-30	pol	V2	reit;moot:yGaap	AFFO מחזיר את התגמול; לגל 5
