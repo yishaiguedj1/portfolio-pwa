@@ -20074,13 +20074,13 @@ function txRowHTML(r, opts) {
   const tot = fmtTradeMoney(r.qty * r.price, r.cur);
   const qp = esc(txQty(r.qty)) + ' × ' + esc(fmtTradeMoney(r.price, r.cur));
   const ed = r.src === 'manual';
-  /* 19/11/2026 (בקשת המשתמש): המקור במקום קבוע — תג עגול קטן בפינת העיגול/הלוגו שבתחילת השורה (לפי ת־עיצוב), לא בתוך
-     הטקסט שנשבר לשורה אחרת בכל עסקה. ידנית — בלי תג (העיפרון בסוף השורה מסמן אותה), עם תווית לקורא המסך */
+  /* 19/11/2026 (בקשת המשתמש): המקור במקום קבוע — תג עגול קטן בקצה השורה הראשונה (לפי ת־עיצוב), לא בתוך שורת התאריך
+     שנשברה לשורה אחרת בכל עסקה. ידנית — בלי תג (העיפרון בסוף השורה מסמן אותה), עם תווית לקורא המסך */
   const tag = r.src === 'ibkr' ? '<span class="tx-src">' + srcTagHTML('ibkr', r.acct) + '</span>' : '<span class="sr-only">' + esc(t('manualTag')) + '</span>';
-  const lead = '<span class="tx-lead">' + (o.logo ? stockLogoHTML(r.sym) : '<span class="tx-side ' + (buy ? 'b' : 's') + '" aria-hidden="true">' + (buy ? '+' : '−') + '</span>') + tag + '</span>';
+  const lead = '<span class="tx-lead">' + (o.logo ? stockLogoHTML(r.sym) : '<span class="tx-side ' + (buy ? 'b' : 's') + '" aria-hidden="true">' + (buy ? '+' : '−') + '</span>') + '</span>';
   const t1 = o.logo
-    ? '<b dir="ltr">' + esc(dispSym(r.sym)) + '</b> <span class="' + (buy ? 'tx-g' : 'tx-l') + '">' + esc(buy ? t('buySide') : t('sellSide')) + '</span>'
-    : '<b>' + esc(buy ? t('buySide') : t('sellSide')) + '</b> <span dir="ltr">' + qp + '</span>';
+    ? '<b dir="ltr">' + esc(dispSym(r.sym)) + '</b> <span class="' + (buy ? 'tx-g' : 'tx-l') + '">' + esc(buy ? t('buySide') : t('sellSide')) + '</span>' + tag
+    : '<b>' + esc(buy ? t('buySide') : t('sellSide')) + '</b> <span dir="ltr">' + qp + '</span>' + tag;
   const d = o.logo ? esc(fmtDateIL(r.date).slice(0, 5)) + ' · <span dir="ltr">' + qp + '</span>' : esc(fmtDateIL(r.date)) + (r.time ? ' · ' + esc(r.time) : '');
   const after = o.after === null || o.after === undefined ? '' : '<div class="tx-e2">' + esc(t('txAfter', { n: txQty(o.after) })) + '</div>';
   return '<div class="tx-row' + (ed ? ' ed' : '') + (r.shadow ? ' dim' : '') + '"' + (ed ? ' role="button" tabindex="0" data-mt="' + esc(r.id) + '"' : '') + '>' +
