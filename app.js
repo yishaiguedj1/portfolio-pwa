@@ -8316,8 +8316,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.191.0';
-const APP_VERSION = 'v857';
+const APP_RELEASE = '2.191.1';
+const APP_VERSION = 'v858';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -17542,6 +17542,8 @@ function initHScroll() {
   }, { passive: true });
   document.addEventListener('pointermove', (e) => {
     if (!s || e.pointerId !== s.id) return;
+    // 19/11/2026 (בקשת המשתמש, הקלטה): לחיצה ארוכה התחילה גרירה (טאב רשימה) — השורה לא נגללת, הטאב זז
+    if (document.documentElement.classList.contains('drag-active')) { s = null; return; }
     if (!s.on) {
       const dx = e.clientX - s.x, dy = e.clientY - s.y;
       if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { s = null; return; }   // אנכי — של הדף
