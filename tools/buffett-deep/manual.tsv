@@ -53,3 +53,35 @@ CIEN	2025-11-01	pol	DIFF	classify-miss:tgt-paren	B-030: "Adjusted (non-GAAP) net
 CIEN	2026-01-31	pol	DIFF	classify-miss:tgt-paren	B-030: "Adjusted (non-GAAP) net income" — הסוגריים שוברים את TGT; התגמול מוצא בשורות "Share-based compensation-…" לפי סעיף
 CIEN	2026-05-02	pol	DIFF	classify-miss:tgt-paren	B-030: "Adjusted (non-GAAP) net income" — הסוגריים שוברים את TGT; התגמול מוצא בשורות "Share-based compensation-…" לפי סעיף
 CIEN	2026-08-01	pol	DIFF	classify-miss:tgt-paren	B-030: "Adjusted (non-GAAP) net income" — הסוגריים שוברים את TGT; התגמול מוצא בשורות "Share-based compensation-…" לפי סעיף
+CMCSA	2025-12-31	pol	DIFF	classify-partial:certain-sbc	B-035: ההתאמה מוציאה רק "certain share-based compensation expenses" ‏(58–61M לפני מס ברבעון, מול כ־800M בשנה) — partial. המסווג סופר אותה כמוציא (E); רווח באפט נמוך ב־8.2%
+CMCSA	2026-03-31	pol	DIFF	classify-partial:certain-sbc	B-035: ההתאמה מוציאה רק "certain share-based compensation expenses" ‏(58–61M לפני מס ברבעון, מול כ־800M בשנה) — partial. המסווג סופר אותה כמוציא (E); רווח באפט נמוך ב־8.2%
+CMCSA	2026-06-30	pol	DIFF	classify-partial:certain-sbc	B-035: ההתאמה מוציאה רק "certain share-based compensation expenses" ‏(58–61M לפני מס ברבעון, מול כ־800M בשנה) — partial. המסווג סופר אותה כמוציא (E); רווח באפט נמוך ב־8.2%
+CMCSA	2026-09-30	pol	DIFF	classify-partial:certain-sbc	B-035: ההתאמה מוציאה רק "certain share-based compensation expenses" ‏(58–61M לפני מס ברבעון, מול כ־800M בשנה) — partial. המסווג סופר אותה כמוציא (E); רווח באפט נמוך ב־8.2%
+COHR	2025-12-31	sbc	DIFF	sys≠rec	B-033: ההודעה (טבלת ההתאמה) 44.6/50.6/53.9/73.2M מול המערכת = SEC ‏42.8/49.1/50.4/74.4M; ההשפעה 0.39% — מתחת לסובלנות
+COHR	2026-03-31	sbc	DIFF	sys≠rec	B-033: ההודעה (טבלת ההתאמה) 44.6/50.6/53.9/73.2M מול המערכת = SEC ‏42.8/49.1/50.4/74.4M; ההשפעה 0.39% — מתחת לסובלנות
+COHR	2026-06-30	sbc	DIFF	sys≠rec	B-033: ההודעה (טבלת ההתאמה) 44.6/50.6/53.9/73.2M מול המערכת = SEC ‏42.8/49.1/50.4/74.4M; ההשפעה 0.39% — מתחת לסובלנות
+COHR	2026-09-30	sbc	DIFF	sys≠rec	B-033: ההודעה (טבלת ההתאמה) 44.6/50.6/53.9/73.2M מול המערכת = SEC ‏42.8/49.1/50.4/74.4M; ההשפעה 0.39% — מתחת לסובלנות
+CPT	2025-12-31	street	DIFF	yahoo-unexplained;moot:pol0	B-032: ‏Yahoo ‏0.3869 / ‎−0.2447 מול Core FFO ‏1.76/1.70
+CPT	2026-03-31	street	DIFF	yahoo-unexplained;moot:pol0	B-032: ‏Yahoo ‏0.3869 / ‎−0.2447 מול Core FFO ‏1.76/1.70
+CRH	2025-12-31	street	DIFF	yahoo-unexplained;moot:pol0	B-032: ‏Yahoo ‏1.506 מול 1.52 בהודעה (GAAP = לפני ירידות ערך; ‏0.9%)
+DD	2025-12-31	gaap	V2	pr-contops	ההודעה מפעילות נמשכת; הסך = המערכת: ‏6/2026 ‏1.37−0.32=1.05, ‏9/2026 ‏1.24−0.33=0.91, ‏3/2026 ‏0.36+0.03=0.39 (×3 — איחוד 1:3 ב־24/6/2026), ‏12/2025 ‎−0.30×3
+DD	2026-03-31	gaap	V2	pr-contops	ההודעה מפעילות נמשכת; הסך = המערכת: ‏6/2026 ‏1.37−0.32=1.05, ‏9/2026 ‏1.24−0.33=0.91, ‏3/2026 ‏0.36+0.03=0.39 (×3 — איחוד 1:3 ב־24/6/2026), ‏12/2025 ‎−0.30×3
+DD	2026-06-30	gaap	V2	pr-contops	ההודעה מפעילות נמשכת; הסך = המערכת: ‏6/2026 ‏1.37−0.32=1.05, ‏9/2026 ‏1.24−0.33=0.91, ‏3/2026 ‏0.36+0.03=0.39 (×3 — איחוד 1:3 ב־24/6/2026), ‏12/2025 ‎−0.30×3
+DD	2026-09-30	gaap	V2	pr-contops	ההודעה מפעילות נמשכת; הסך = המערכת: ‏6/2026 ‏1.37−0.32=1.05, ‏9/2026 ‏1.24−0.33=0.91, ‏3/2026 ‏0.36+0.03=0.39 (×3 — איחוד 1:3 ב־24/6/2026), ‏12/2025 ‎−0.30×3
+DGX	2025-12-31	pol	DIFF	classify-skip:etb-assoc	B-034: ‏"exclude … excess tax benefits associated with stock-based compensation" — רק הטבת המס העודפת (ETB), לא התגמול. המסווג: P. רווח באפט נמוך ב־5.5%
+DGX	2026-03-31	pol	DIFF	classify-skip:etb-assoc	B-034: ‏"exclude … excess tax benefits associated with stock-based compensation" — רק הטבת המס העודפת (ETB), לא התגמול. המסווג: P. רווח באפט נמוך ב־5.5%
+DGX	2026-06-30	pol	DIFF	classify-skip:etb-assoc	B-034: ‏"exclude … excess tax benefits associated with stock-based compensation" — רק הטבת המס העודפת (ETB), לא התגמול. המסווג: P. רווח באפט נמוך ב־5.5%
+DGX	2026-09-30	pol	DIFF	classify-skip:etb-assoc	B-034: ‏"exclude … excess tax benefits associated with stock-based compensation" — רק הטבת המס העודפת (ETB), לא התגמול. המסווג: P. רווח באפט נמוך ב־5.5%
+DHR	2025-12-31	gaap	DIFF	q4-est;moot:pol0	B-029: הקירוב לרבעון 4 ‏1.6835 מול 1.66 מפעילות נמשכת (1.4%); לא נמצאה בהודעה שורת פעילות שהופסקה לרבעון
+DHR	2026-09-25	gaap	V2	pr-contops	‏9/2026: ‏Earnings from discontinued operations ‏28M (‏0.04): ‏1.71+0.04=1.75 = המערכת
+DLR	2025-12-31	street	DIFF	yahoo-unexplained;moot:pol0	B-032: ‏Yahoo ‏0.40/0.62/0.61 מול FFO ‏1.86/2.13/2.10
+DLR	2025-12-31	sh	DIFF	q4-est;moot:pol0	B-029: ‏q4Shares ‏357.4M מול 351.6M בהודעה (+1.7%)
+DLR	2026-06-30	street	DIFF	yahoo-unexplained;moot:pol0	B-032: ‏Yahoo ‏0.40/0.62/0.61 מול FFO ‏1.86/2.13/2.10
+DLR	2026-09-30	street	DIFF	yahoo-unexplained;moot:pol0	B-032: ‏Yahoo ‏0.40/0.62/0.61 מול FFO ‏1.86/2.13/2.10
+DLTR	2026-01-31	gaap	V2	pr-contops	‏Diluted from discontinued operations ‏(0.03): ‏2.56−0.03=2.53 = המערכת
+DOC	2025-12-31	street	DIFF	yahoo-unexplained;moot:pol0	B-032: ‏Yahoo ‏0.0956/0.0386 מול FFO ‏0.47/0.44
+DOC	2026-06-30	sbc	V2	pr-scope;moot:pol0	המערכת = SEC; ההודעה — היקף FAD
+DOC	2026-09-30	street	DIFF	yahoo-unexplained;moot:pol0	B-032: ‏Yahoo ‏0.0956/0.0386 מול FFO ‏0.47/0.44
+DOC	2026-09-30	sbc	V2	pr-scope;moot:pol0	המערכת = SEC; ההודעה — היקף FAD
+DOV	2025-12-31	gaap	V2	pr-contops	ההודעה מפעילות נמשכת; Discontinued operations ‏+0.05 (12/2025: ‏2.06), ‏‎−0.03 (9/2026: ‏2.47) = המערכת
+DOV	2026-09-30	gaap	V2	pr-contops	ההודעה מפעילות נמשכת; Discontinued operations ‏+0.05 (12/2025: ‏2.06), ‏‎−0.03 (9/2026: ‏2.47) = המערכת
