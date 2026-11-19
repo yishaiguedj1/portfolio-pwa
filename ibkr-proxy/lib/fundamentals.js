@@ -94,11 +94,13 @@ const INST = {
   ca: ['AssetsCurrent'], cl: ['LiabilitiesCurrent'], re: ['RetainedEarningsAccumulatedDeficit'],
   ppe: ['PropertyPlantAndEquipmentNet', 'PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization', 'PublicUtilitiesPropertyPlantAndEquipmentNet'],
 };
-/* IFRS (20-F/40-F) — רק השורות המרכזיות; רבעונים לרוב לא קיימים (6-K בלי XBRL) */
+/* IFRS (20-F/40-F) — רק השורות המרכזיות; רבעונים לרוב לא קיימים (6-K בלי XBRL).
+   גל 8 (F34): המניות המדוללות ב־ifrs-full הן AdjustedWeightedAverageShares ("…adjusted for the effects of all dilutive potential
+   ordinary shares"). התגית שהייתה כאן לבד לא קיימת בטקסונומיה, ולכן בכל חברות ה־IFRS המניות היו הבסיסיות (SAP, ‏CCEP, ‏Ferrovial) */
 const IFRS = {
   rev: ['Revenue', 'RevenueFromContractsWithCustomers'], cogs: ['CostOfSales'], gp: ['GrossProfit'], op: ['ProfitLossFromOperatingActivities'],
   ni: ['ProfitLossAttributableToOwnersOfParent', 'ProfitLoss'], pretax: ['ProfitLossBeforeTax'], tax: ['IncomeTaxExpenseContinuingOperations'],
-  eps: ['DilutedEarningsLossPerShare', 'BasicEarningsLossPerShare'], sh: ['WeightedAverageNumberOfSharesOutstandingDiluted', 'WeightedAverageShares'],
+  eps: ['DilutedEarningsLossPerShare', 'BasicEarningsLossPerShare'], sh: ['AdjustedWeightedAverageShares', 'WeightedAverageNumberOfSharesOutstandingDiluted', 'WeightedAverageShares'],
   ocf: ['CashFlowsFromUsedInOperatingActivities'], capex: ['PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities'],
   // גל 4: ‏CCEP, ‏Thomson Reuters, ‏CRH מדפיסים בתזרים "Depreciation" לבד (כמו Depreciation ב־US GAAP); דיבידנד "לבעלי המניות של החברה" — ‏SAP, ‏CRH, ‏Ferrovial
   dep: ['DepreciationAndAmortisationExpense', 'AdjustmentsForDepreciationAndAmortisationExpense', 'DepreciationExpense', 'AdjustmentsForDepreciationExpense'],
@@ -608,6 +610,9 @@ function tagGap(a, b) {
 /* תגית משלימה שאין לה אף תקופה משותפת עם הסדרה: לכל תקופה שלה — התקופה הקרובה בסדרה באותו אורך (עד שנה וחצי לפני/אחרי), באותו
    סימן (רק במדדים של NB_KEYS). החציון של היחסים רחוק פי NB_FAR ויותר = מדד אחר (רכיב, ביאור) — לא משלימים. בלי שכן להשוואה — כמו היום (משלימים) */
 const NB_FAR = 4;
+// גל 8 (F34): תגיות המניות המדוללות, והתוספת המדוללת (הכוללת קודם) — לחברה בלי אף תגית מדוללת
+const SH_DIL = ['WeightedAverageNumberOfDilutedSharesOutstanding', 'WeightedAverageNumberOfShareOutstandingBasicAndDiluted'];
+const SH_INC = ['WeightedAverageNumberDilutedSharesOutstandingAdjustment', 'IncrementalCommonSharesAttributableToShareBasedPaymentArrangements'];
 // רק מדדים יציבים משנה לשנה. לא רווחים (תנודתיים ומחליפים סימן — Viatris: רבעוני הרווח הנקי 2020–2026 בתגית משלימה, מול Mylan
 // לפני המיזוג), לא דיבידנדים ורכישות (חד־פעמיים — HII ‏2011: ‏$1.43B ל־Northrop עם הפיצול, מודפס) ולא מניות (Viatris — חברת המעטפת)
 const NB_KEYS = new Set(['int', 'cogs', 'rnd', 'dep', 'sbc', 'msec']);
@@ -1182,6 +1187,23 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
   // Texas Pacific Land, DuPont בפיצול הפוך) הותאם פעם שנייה; ורבעון אחרון שכבר הוצג מחדש (Booking: ‏10-Q של מרץ
   // הוגש אחרי הפיצול של אפריל) "הוכיח" שאין קפיצה, וכל הרבעונים הישנים נשארו בלי התאמה. לפני כל חישוב — כך שהרבעון
   // הרביעי (4 × שנה פחות שלושה) והרווח למניה הנגזר מחושבים מאותו בסיס
+  // גל 8 (F34): אין תגית מניות מדוללת בכלל (Gallagher) — הממוצע הבסיסי ועוד התוספת המדוללת מאותה הגשה (בסיסי + תוספת = מדולל,
+  // ASC 260). AJG ‏2020: ‏191.0M בסיסי + ‏4.0M = ‏195.0M, כמו "Diluted" בדוח. רק כשהמכפלה עם הרווח למניה המדולל לא רחוקה יותר
+  // מהרווח מאשר עם הבסיסי (בהפסד התוספת אנטי־מדללת ולא נכנסת). התגית הכוללת של ההתאמה קודמת לחלקים
+  if (!isIfrs && merged.sh && tags.sh === 'WeightedAverageNumberOfSharesOutstandingBasic' && !SH_DIL.some((t) => tax[t])) {
+    const it = SH_INC.find((t) => tax[t]), inc = it && tagFacts(tax[it], 'shares'), bas = tagFacts(tax.WeightedAverageNumberOfSharesOutstandingBasic, 'shares');
+    const at = (h, F) => (h ? (h.all && h.all.has(F) ? h.all.get(F) : h.filed === F ? h.v : null) : null);
+    let n = 0;
+    if (inc) merged.sh = { ...merged.sh, dur: new Map([...merged.sh.dur].map(([kk, h]) => {
+      const b = bas.dur.get(kk), x = at(inc.dur.get(kk), h.filed);
+      if (!b || b.v !== h.v || !(x > 0)) return [kk, h];
+      const e = merged.eps && merged.eps.dur.get(kk), ni = ((merged.nic && merged.nic.dur.get(kk)) || (merged.ni && merged.ni.dur.get(kk)) || {}).v;
+      if (e && Number.isFinite(ni) && Math.abs(e.v * (h.v + x) - ni) > Math.abs(e.v * h.v - ni)) return [kk, h];
+      n++;
+      return [kk, { ...h, v: h.v + x, all: h.all ? new Map([...h.all].map(([F, v]) => { const y = at(inc.dur.get(kk), F); return [F, y > 0 ? v + y : v]; })) : h.all }];
+    })) };
+    if (n) tags.sh += '+' + it;
+  }
   const splitsUsed = splitPlan(merged, splits);
   for (const k of ['sh', ...PER_SHARE]) if (merged[k]) merged[k] = splitAdj(merged[k], splitsUsed, k === 'sh');
   // ממוצע המניות הבסיסי — לרבעון הרביעי כשיש הפסד (q4Shares)

@@ -8,14 +8,17 @@
    · q4From    — הזוג (רווח למניה, מניות) מאותה עמודה שמכפלתם = הרווח של הרבעון שלנו, והמניות ליד ההערכה שלנו */
 'use strict';
 
+// גל 8: גם מספר בלי אפס מוביל — ".45" (KeyCorp: ‏".28", ‏".23" נבלעו בתווית, והעמודות זזו)
 const num = (s) => {
   const t = String(s).replace(/[\s$€£,]/g, '').replace(/—|–/g, '-');
   if (/^[-]+$/.test(t)) return null; // "—" = אפס/ריק — שומר על מיקום העמודה
-  const m = /^(\()?(-)?(\d+(?:\.\d+)?)\)?%?$/.exec(t);
+  const m = /^(\()?(-)?(\d+(?:\.\d+)?|\.\d+)\)?%?$/.exec(t);
   if (!m) return undefined;
   const v = +m[3];
   return m[1] || m[2] ? -v : v;
 };
+const SH_ROW = /weighted|average (number of )?(common )?shares|shares outstanding/i; // תווית של ממוצע מניות (F36)
+const OPEN = /^[$€£]?\s*\(\s*[$€£]?$/; // תא / מילה שהם רק סוגר פותח (עם סימן מטבע): "(", ‏"($", ‏"$("
 const text = (h) => String(h).replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '').replace(/&nbsp;|&#160;|&#xa0;/gi, ' ')
   .replace(/&amp;/g, '&').replace(/&#8212;|&#x2014;|&mdash;/gi, '—').replace(/&#8211;|&#x2013;|&ndash;/gi, '–')
   .replace(/&#\d+;|&\w+;/g, ' ').replace(/\s+/g, ' ').trim();
@@ -27,17 +30,28 @@ function parse(html, want) {
   const tables = String(html).split(/<table/i).slice(1);
   tables.forEach((tb, ti) => {
     const body = tb.split(/<\/table>/i)[0];
-    let ctx = '';
+    let ctx = '', prev = null;
     for (const tr of body.split(/<tr/i).slice(1)) {
       const cells = (tr.match(/<t[dh][^>]*>[\s\S]*?(?=<t[dh][\s>]|<\/tr>|$)/gi) || []).map(text).filter((c) => c && c !== '$' && c !== ')' && c !== '%');
       if (!cells.length) continue;
       const lab = [], v = [];
-      for (const c of cells) { const n = num(c); if (n === undefined && !v.length) lab.push(c); else if (n !== undefined) v.push(n); }
+      // גל 8: סוגר פותח בתא משלו — "($" / "(" ואחריו "0.26" ו־")" (FedEx): המספר שלילי. עד היום הסימן אבד (‏+0.26 במקום ‏−0.26)
+      let neg = false;
+      for (const c of cells) {
+        if (OPEN.test(c)) { neg = true; continue; }
+        const n = num(c);
+        if (n === undefined && !v.length) lab.push(c); else if (n !== undefined) v.push(neg && n > 0 ? -n : n);
+        neg = false;
+      }
       const label = lab.join(' ');
       if (!v.length) { if (label) ctx = label.slice(0, 80); continue; }
-      if (want ? !want(label) : !/dilut/i.test(label) && !/dilut/i.test(ctx)) continue;
+      // גל 8 (F36): שורת מניות בלי "מדולל" מיד אחרי שורת "Diluted" של רווח למניה — המניות המדוללות (Dollar Tree: ‏"Basic" ‏/
+      // ‏"Weighted average number of shares" ‏/ ‏"Diluted" ‏/ ‏"Weighted average number of shares"). השורה שאחרי "Basic" — לא
+      const p0 = prev; prev = label;
+      const after = !want && !!p0 && /dilut/i.test(p0) && !/per share|earnings|income|loss/i.test(label) && SH_ROW.test(label) && !/basic|dilut/i.test(label);
+      if (want ? !want(label) : !/dilut/i.test(label) && !/dilut/i.test(ctx) && !after) continue;
       if (!v.some((x) => x != null)) continue;
-      out.push(want ? { t: ti, label: label.slice(0, 80), ctx: '', v, b: 1 } : { t: ti, label: label.slice(0, 80), ctx: /dilut/i.test(label) ? '' : ctx, v });
+      out.push(want ? { t: ti, label: label.slice(0, 80), ctx: '', v, b: 1 } : { t: ti, label: label.slice(0, 80), ctx: /dilut/i.test(label) ? '' : after && !/dilut/i.test(ctx) ? p0.slice(0, 80) : ctx, v });
       if (out.length >= 40) return;
     }
   });
@@ -51,7 +65,7 @@ function parseText(html) {
   const words = String(html).replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&#160;|&#xa0;/gi, ' ')
     .replace(/&amp;/g, '&').replace(/&#8212;|&#x2014;|&mdash;/gi, '—').replace(/&#8211;|&#x2013;|&ndash;/gi, '–').replace(/&#\d+;|&\w+;/g, ' ').split(/\s+/);
   const out = [];
-  let lab = [], v = [];
+  let lab = [], v = [], neg = false;
   const flush = () => {
     const label = lab.slice(-12).join(' ');
     if (v.length && /dilut/i.test(label) && v.some((x) => x != null)) out.push({ t: 0, label: label.slice(0, 80), ctx: '', v });
@@ -61,11 +75,12 @@ function parseText(html) {
     if (out.length >= 40) break;
     const w = w0.replace(/[.,;:]+$/, '');
     if (!w || w === '$' || w === ')' || /%\)?$/.test(w)) continue; // אחוז שינוי — לא עמודה
-    if (/^[-–—]+$/.test(w)) { if (v.length) v.push(null); else lab.push(w); continue; } // מקף בתווית ("Stockholders - Diluted") / תא ריק
-    const n = num(w);
+    if (OPEN.test(w)) { neg = true; continue; } // "($ 0.26)" ברצף הטקסט (גל 8)
+    if (/^[-–—]+$/.test(w)) { neg = false; if (v.length) v.push(null); else lab.push(w); continue; } // מקף בתווית ("Stockholders - Diluted") / תא ריק
+    const n = num(w), ng = neg; neg = false;
     if (n == null) { if (v.length) flush(); lab.push(w); continue; }
     if (!v.length && /^\(\d\)$/.test(w)) continue; // הערת שוליים אחרי התווית: "(2)"
-    v.push(n);
+    v.push(ng && n > 0 ? -n : n);
   }
   flush();
   return out;
