@@ -1070,6 +1070,10 @@ he: {
   anBStreetS: '4 הרבעונים האחרונים, כפי שהאנליסטים סופרים',
   anBSbc: 'פחות תגמול במניות',
   anBSbcS: 'אחרי מס {t}',
+  anBSbcSP: 'אחרי מס {t}, השיעור שהחברה מצהירה',
+  anBSbcSD: 'אחרי מס {t}, השיעור הפדרלי',
+  anBSbcSR: 'ריט — בלי מגן מס',
+  anBOth: 'בדוחות התגמול במניות גדול יותר: חלק ממנו רשום בגישור בשורות אחרות (רכישות, ארגון מחדש), ולא הורד כאן.',
   anBFwd: 'רווח צפוי ל־{y}',
   anBFwd0: 'רווח צפוי',
   anBFwdY: 'כמו במכפיל הצפוי',
@@ -1083,7 +1087,7 @@ he: {
   anBPolEx: 'לפי ההודעות לעיתונות של החברה ב־SEC, הרווח המותאם שלה לא כולל את התגמול במניות, ולכן הורדנו את כולו.',
   anBPolIn: 'לפי ההודעות לעיתונות של החברה ב־SEC, הרווח המותאם שלה כבר מוריד את התגמול במניות כהוצאה, ולכן לא מורידים אותו פעם שנייה. בתזרים המזומנים, לעומת זאת, הוא מוחזר כהוצאה שלא יצאה במזומן, ולכן שם כן מורידים אותו.',
   anBPolMix: 'החברה שינתה את ההגדרה במהלך השנה. הורדנו את התגמול במניות רק ברבעונים שבהם הרווח המותאם לא כלל אותו.',
-  anBPolUnk: 'לא נמצאה הודעה לעיתונות לבדיקה. ההנחה: הרווח המותאם לא כולל את התגמול במניות, ולכן הורדנו אותו עד גובה הפער מול הרווח המדווח.',
+  anBPolUnk: 'לא נמצאה הודעה לעיתונות לבדיקה. את הפער מול הרווח המדווח ייחסנו קודם להפחתה מרכישות (באפט לא מוריד אותה), ואת היתר לתגמול במניות, עד גובהו אחרי מס.',
   anBPolGaap: 'האנליסטים סופרים וצופים כאן את הרווח המדווח, שכבר מוריד את התגמול במניות כהוצאה, ולכן לא מורידים אותו פעם שנייה. בתזרים המזומנים, לעומת זאת, הוא מוחזר כהוצאה שלא יצאה במזומן, ולכן שם כן מורידים אותו.',
   anBFutIn: 'לפי ההודעה האחרונה של החברה, הרווח המותאם כולל מעכשיו את התגמול במניות, ולכן התחזית נשארת כמו שהיא.',
   anXFy: 'התזרים החופשי ב־12 החודשים האחרונים ({f}) ÷ שווי השוק. כמה מזומן העסק מייצר ביחס למחיר — כמו "ריבית" על ההשקעה.',
@@ -3033,6 +3037,10 @@ en: {
   anBStreetS: 'Last 4 quarters, as analysts count it',
   anBSbc: 'Less stock-based pay',
   anBSbcS: 'After tax {t}',
+  anBSbcSP: 'After tax {t}, the rate the company states',
+  anBSbcSD: 'After tax {t}, the US federal rate',
+  anBSbcSR: 'A REIT — no tax shield',
+  anBOth: 'The filings show more stock-based pay: part of it sits in other reconciliation lines (acquisitions, restructuring) and isn’t deducted here.',
   anBFwd: 'Expected profit for {y}',
   anBFwd0: 'Expected profit',
   anBFwdY: 'As in the forward P/E',
@@ -3046,7 +3054,7 @@ en: {
   anBPolEx: 'According to the company’s press releases at the SEC, its adjusted profit excludes stock-based pay, so we deducted all of it.',
   anBPolIn: 'According to the company’s press releases at the SEC, its adjusted profit already deducts stock-based pay as an expense, so we don’t deduct it twice. In the cash flow statement, by contrast, it is added back as a non-cash expense, so there we do deduct it.',
   anBPolMix: 'The company changed its definition during the year. We deducted stock-based pay only in the quarters where adjusted profit excluded it.',
-  anBPolUnk: 'No press release was found to check. Assumption: adjusted profit excludes stock-based pay, so we deducted it up to the gap to reported profit.',
+  anBPolUnk: 'No press release was found to check. We first attributed the gap to reported profit to acquisition amortization (Buffett doesn’t deduct it), and the rest to stock-based pay, up to its after-tax amount.',
   anBPolGaap: 'Here analysts count and forecast reported profit, which already deducts stock-based pay as an expense, so we don’t deduct it twice. In the cash flow statement, by contrast, it is added back as a non-cash expense, so there we do deduct it.',
   anBFutIn: 'According to the company’s latest release, adjusted profit now includes stock-based pay, so the forecast stays as is.',
   anXFy: 'Free cash flow over the last 12 months ({f}) ÷ market cap. How much cash the business makes relative to the price — like “interest” on the investment.',
@@ -8309,8 +8317,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.187.0';
-const APP_VERSION = 'v850';
+const APP_RELEASE = '2.188.0';
+const APP_VERSION = 'v851';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');

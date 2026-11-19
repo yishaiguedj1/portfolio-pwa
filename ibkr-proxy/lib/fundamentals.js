@@ -49,7 +49,9 @@ const FLOW = {
   ni: ['NetIncomeLoss', 'NetIncomeLossAvailableToCommonStockholdersBasic', 'ProfitLoss-NetIncomeLossAttributableToNoncontrollingInterest', 'ProfitLoss'],
   nic: ['NetIncomeLossAvailableToCommonStockholdersDiluted', 'NetIncomeLossAvailableToCommonStockholdersBasic'], // לבעלי המניות הרגילות (אחרי דיבידנד בכורה) — לזהות EPS × מניות
   pretax: ['IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest', 'IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments'],
-  tax: ['IncomeTaxExpenseBenefit'],
+  // APA: בדוח הרווח שתי שורות, מס שוטף ומס נדחה, בלי סה"כ — ‏IncomeTaxExpenseBenefit רק בשנתי, והרבעונים נשארו בלי מס
+  // (מחקר שיטת באפט §13.12). הסכום — רק בתקופה שבה שתי התגיות מדווחות (sumFacts)
+  tax: ['IncomeTaxExpenseBenefit', 'CurrentIncomeTaxExpenseBenefit+DeferredIncomeTaxExpenseBenefit'],
   // גל 2 (F14): התגיות של השורה המודפסת — AbbVie, ‏Amgen, ‏Biogen ‏(בלי מו״פ שנרכש), ‏Adobe, ‏Cadence (תוכנה); עד אז בלי מו״פ בכלל
   rnd: ['ResearchAndDevelopmentExpense', 'ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost', 'ResearchAndDevelopmentExpenseSoftwareExcludingAcquiredInProcessCost'],
   // גל 4: ‏InterestAndDebtExpense — השורה המודפסת של 37 חברות (Boeing, ‏ConocoPhillips, ‏TI ‏"Interest and debt expense", ‏Honeywell, ‏Northrop).
@@ -470,6 +472,37 @@ function sumFacts(parts) {
   return out;
 }
 
+/* סדרה רבעונית מתגית אחת בלבד — למכפיל באפט (19/11/2026, גל 1 של שיטת באפט; docs/buffett-method-research.md §13.11). רבעון ישיר,
+   מצטבר פחות המצטבר הקודם מאותה התחלה, או שנה פחות שלושה רבעונים ישירים — תמיד באותה תגית. "sbc" הכללי משלים תקופות מתגית אחרת
+   (mergeTags: תזרים ‏ShareBasedCompensation לצד ההוצאה בדוח הרווח ‏AllocatedShareBasedCompensationExpense), ורבעון מאחת ליד רבעון
+   מהשנייה הוא ערבוב — Palo Alto: ‏684 בדוח הרווח מול 517 בשורת התגמול בגישור. בלי הצגה מחדש (subPick) — זה גיבוי לסכום בהודעה */
+function tagQ(f, ends) {
+  const out = {};
+  if (!f || !f.dur || !f.dur.size) return out;
+  const byEnd = new Map();
+  for (const [kk, h] of f.dur) { const [s, e] = kk.split('|'); if (!byEnd.has(e)) byEnd.set(e, []); byEnd.get(e).push([s, h.v]); }
+  const direct = (e) => { const L = byEnd.get(e); if (L) for (const [s, v] of L) if (qLen(day(e) - day(s))) return v; return null; };
+  for (const e of ends) {
+    const L = byEnd.get(e);
+    if (!L) continue;
+    let v = direct(e);
+    for (const [s, x] of v == null ? L : []) {
+      if (day(e) - day(s) < 150) continue;
+      for (const [e1, L1] of byEnd) { if (!qLen(day(e) - day(e1))) continue; const p = L1.find((y) => y[0] === s); if (p) { v = x - p[1]; break; } }
+      if (v != null) break;
+      if (day(e) - day(s) >= 350) { // שנה פחות שלושה רבעונים ישירים שבתוכה
+        const qs = [...byEnd.keys()].filter((q) => q > s && q < e && direct(q) != null);
+        if (qs.length === 3) { v = x - qs.reduce((t, q) => t + direct(q), 0); break; }
+      }
+    }
+    if (v != null) out[e] = v;
+  }
+  return out;
+}
+// ההוצאה בדוח הרווח · התוספת בתזרים · הגידול בהון · הפחתת נכסים בלתי מוחשיים (שנרכשו) — סדר הנפילה של §13.11 ונוסחת §13.5
+const BX_TAGS = ['AllocatedShareBasedCompensationExpense', 'ShareBasedCompensation',
+  'AdjustmentsToAdditionalPaidInCapitalSharebasedCompensationRequisiteServicePeriodRecognitionValue', 'AmortizationOfIntangibleAssets'];
+
 /* עלות המכר בכמה שורות בדוח (26/10/2026): חברה שלא מציגה רווח גולמי ומדפיסה כמה שורות "Cost of …" בתגיות שונות — EchoStar
    ("Cost of services" ‏9,445 + "Cost of sales - equipment and other" ‏1,685 ב־OtherCostOfOperatingRevenue), SBA ("Cost of site leasing"
    בתגית פרטית + "Cost of site development"; הסך ב־CostOfRevenue — לא בדוח), Alnylam ("Cost of collaborations and royalties" בתגית
@@ -876,7 +909,7 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
     // שזוהה הוא קפץ לפני NetIncomeLoss (Devon 2024: ‏$2.94B במקום ‏$2.89B; Royal Caribbean, General Mills)
     const onFace0 = faceTagList(face, k === 'ni' ? (face && face.is ? ['is'] : []) : STMT_OF[k]), list = map[k].slice();
     // הפרש תגיות "בדוח" כששני החלקים בדוח (Bloom Energy: "Net loss" ו־"Net income attributable to noncontrolling interest")
-    const onFace = onFace0.concat(list.filter((t) => /-/.test(t) && t.split('-').every((x) => onFace0.includes(x))));
+    const onFace = onFace0.concat(list.filter((t) => /[-+]/.test(t) && t.split(/[-+]/).every((x) => onFace0.includes(x))));
     // בין אלה שבדוח — לפי סדר הדוחות (פחת: התזרים לפני רווח והפסד), ובתוך דוח — סדר העדיפות שלנו (מדולל לפני בסיסי).
     // McDonald's: ‏"Depreciation and amortization" בתזרים ב־DepreciationAndAmortization (‏$2.2B), ו־DepreciationDepletionAndAmortization
     // שורה של "הוצאות אחרות" ברווח והפסד (‏$457M) — עד 17/11/2026 הפחת יצא ‏$457M (בדיקת העומק, גל 2, ‏F13)
@@ -908,7 +941,7 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
       if (!bsT.includes('Cash') && order.some((t) => bsT.includes(t))) order = order.filter((t) => t !== 'Cash');
     }
     if (k === 'cogs') { cogsRows = costRows(face, tax, list, rc || cur || 'USD', tags.rev); if (cogsRows && cogsRows.tot) order = [cogsRows.tot, ...order.filter((t) => t !== cogsRows.tot)]; }
-    let fs = order.map((tag) => (/-/.test(tag) ? diffFacts(...tag.split('-').map((t) => tagFacts(tax[t], unitOf(k)))) : tagFacts(tax[tag], unitOf(k)))), names = order;
+    let fs = order.map((tag) => (/-/.test(tag) ? diffFacts(...tag.split('-').map((t) => tagFacts(tax[t], unitOf(k)))) : /\+/.test(tag) ? sumFacts(tag.split('+').map((t) => tagFacts(tax[t], unitOf(k)))) : tagFacts(tax[tag], unitOf(k)))), names = order;
     if (k === 'cogs' && cogsRows && cogsRows.parts) { fs = [sumFacts(cogsRows.parts.map((t) => tagFacts(tax[t], unitOf(k)))), ...fs]; names = [cogsRows.parts.join('+'), ...names]; }
     if (k === 'capex' && !isIfrs) {
       let parts = CAPEX_PARTS.filter((t) => onFace.includes(t) && tax[t]);
@@ -1707,7 +1740,13 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
   // ‏7.98 מול ‏7.97 — לא; Fox ‏2021: "בסיסי ומדולל" ‏621M (של שנה אחרת) מול ‏595M מדוללות — לא
   const noDil = fy.filter((e) => { const b = shBD[e] != null ? shBD[e] : shB.A[e];
     return b > 0 && A.sh[e] > 0 && Math.abs(b / A.sh[e] - 1) <= 0.001 && (epsBA[e] == null || A.eps[e] == null || Math.abs(epsBA[e] - A.eps[e]) < 0.005); });
-  return { fy, q: qEnds, shEst: shEst.filter((e) => Q.sh[e] != null), epsNum, noDil, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix, cx0, gpx, gpd, opx, splitsUsed, capFace, bsfN, cfy };
+  // מכפיל באפט: 12 הרבעונים האחרונים, לכל תגית לחוד — { 'YYYY-MM-DD': [Allocated, תזרים, הון, הפחתה] } (tagQ, BX_TAGS)
+  let bx = null;
+  if (!isIfrs) {
+    const last = qEnds.slice(-12), cols = BX_TAGS.map((t) => tagQ(tagFacts(tax[t], unitOf('sbc')), last));
+    for (const e of last) { const r = cols.map((c) => (c[e] != null ? c[e] : null)); if (r.some((x) => x != null)) (bx = bx || {})[e] = r; }
+  }
+  return { fy, q: qEnds, shEst: shEst.filter((e) => Q.sh[e] != null), epsNum, noDil, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix, cx0, gpx, gpd, opx, splitsUsed, capFace, bsfN, cfy, bx };
 }
 
 /* השקעה הונית שהחברה לא מציגה בשורה נפרדת (5/11/2026, AppLovin). מ־2024 התזרים של AppLovin בלי "Purchase of property and
@@ -2439,7 +2478,7 @@ async function fundamentals(sym0) {
     sic: useSec ? sec.sic : null, sicDesc: useSec ? sec.sicDesc : null, fye: useSec ? sec.fye : null, lastFiled: useSec ? sec.lastFiled : null,
     prof: s ? s.prof : null, price: s ? s.price : null, prev: s ? s.prev : null,
     sharesOut: sharesOut || (s && s.sharesOut) || null, fill, qfill, fpe: s ? s.fpe : null, peg: s ? s.peg : null, beta: s ? s.beta : null,
-    est: s ? s.est : [], hist: s ? s.hist : [], nextEarn: s ? s.nextEarn : null, nq: n || null, sbcX,
+    est: s ? s.est : [], hist: s ? s.hist : [], nextEarn: s ? s.nextEarn : null, nq: n || null, sbcX, bx: useSec ? sec.bx || null : null,
     px: m ? m.px : null, fxm, splits: m ? m.splits : [], splitsUsed: useSec ? sec.splitsUsed || [] : [], peers: peers || [],
     ind: industryFor(s && s.prof && s.prof.industry), checks, errs,
     // מקור ושקיפות (שכבה 6): התגית שנבחרה לכל שורה, הדוח שמולו נבדקנו, וכמה ערכים תאמו לו
@@ -2499,7 +2538,7 @@ async function handle(body, res) {
 
 // בקשה ל־SEC עם המזהה (עבודת הרקע של המאזנים — server.js → startBsf → lib/bsfiled.js)
 const secText = (u) => getText(u, { headers: { 'User-Agent': SEC_UA() } }, 15000);
-module.exports = { handle, fundamentals, holes, q4Press, fxMonthly, adrRatio, FX_FRED, capexNil, debtFace, bsfDebt, bsfCf, bsfIs, secText, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
+module.exports = { handle, fundamentals, tagQ, BX_TAGS, holes, q4Press, fxMonthly, adrRatio, FX_FRED, capexNil, debtFace, bsfDebt, bsfCf, bsfIs, secText, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
   industryFor, industryData, _cache: cache,
   // התגיות המועמדות לכל שורה — לכלי ההשוואה (fundxcheck: SEC גולמי גם לתקופות שהושלמו מתגית משנית). נשמט ב־f9db4c74 — tools/fund-xcheck.js מצפה לו
   TAGS: { gaap: { ...FLOW, ...INST }, ifrs: IFRS } };

@@ -59,8 +59,58 @@ const sub = { filings: { recent: {
 const pk = X.pick(sub, Date.parse('2026-11-18'));
 ok(pk.length === 2 && pk[0].acc === '0000001-26-000009' && pk[1].filed === '2026-07-22', 'pick — רק 8-K עם 2.02 מ־15 החודשים האחרונים, החדש קודם');
 const fc = X.forClient({ a: { filed: '2026-10-28', er: true, ex: true, fut: false, n: 900, sv: X.SV }, b: { filed: '2026-07-22', er: true, ex: false, fut: false, n: 800, sv: X.SV },
-  c: { filed: '2026-09-01', er: false, ex: false, fut: false, sv: X.SV }, d: { filed: '2026-04-22', er: true, ex: true, fut: true, sv: X.SV - 1 } });
-ok(JSON.stringify(fc) === JSON.stringify([['2026-04-22', 1, 1, 0], ['2026-07-22', 0, 0, 800], ['2026-10-28', 1, 0, 900]]), 'forClient — רק הודעות תוצאות, מהישנה לחדשה; גרסת מסווג קודמת נשלחת עד הקריאה מחדש');
+  c: { filed: '2026-09-01', er: false, ex: false, fut: false, sv: X.SV }, d: { filed: '2026-04-22', er: true, ex: true, fut: true, sv: X.SV - 1 },
+  e: { filed: '2026-01-28', er: true, ex: true, fut: true, n: 950, tr: 0.21, sa: [633, 492], nt: 0, qe: '2025-12-31', sv: X.SV } });
+ok(JSON.stringify(fc) === JSON.stringify([['2026-01-28', 1, 1, 950, 0.21, [633, 492], 0, '2025-12-31', 0], ['2026-04-22', 1, 1, 0, null, null, 0, null, 0], ['2026-07-22', 0, 0, 800, null, null, 0, null, 0], ['2026-10-28', 1, 0, 900, null, null, 0, null, 0]]),
+  'forClient — רק הודעות תוצאות, מהישנה לחדשה; גרסת מסווג קודמת נשלחת עד הקריאה מחדש (בלי שיעור מס, סכום ורבעון); מגרסה 3 — גם הם');
+// סוף הרבעון שההודעה מדווחת עליו: המאוחר שלפני ההגשה — לא השנה הקודמת (APA), לא רבעון התחזית (CRM)
+ok(X.classify('year ended december 31, 2025 results … three months ended september 30, 2026 net income', '2026-11-04').qe === '2026-09-30', 'סוף הרבעון — התאריך המאוחר שלפני ההגשה, לא "year ended" הקודם (APA)');
+ok(X.classify('guidance for the quarter ended october 31, 2026 … three months ended july 31, 2026 2025', '2026-08-26').qe === '2026-07-31', 'סוף הרבעון — לא רבעון התחזית שאחרי ההגשה (CRM)');
+ok(X.classify('marvell\'s actual results for the quarter ended october 31, 2026 may differ from these preliminary estimates', '2026-11-02').qe === '2026-10-31', 'הודעת מיזוג עם הכנסות מקדימות — הרבעון שלה (Marvell)');
+
+/* ---------- גרסה 3 (19/11/2026, גל 1 של שיטת באפט — docs/buffett-method-research.md §13.1, §13.11): שיעור המס שהחברה מצהירה,
+   והמספרים בשורת התגמול בגישור. הנוסחים — מההודעות האמיתיות (22 חברות) ---------- */
+const TRS = [
+  ['based on our long-term projections, we are using a non-gaap tax rate of 21% for the three and nine months ended september 30, 2026 and 20% for the three', 0.21, 'NOW'],
+  ["the company's non-gaap tax provision uses a long-term projected tax rate of 20.5%, which reflects currently available information", 0.205, 'CRM'],
+  ['(1) income tax effect is based on an estimated long-term annual effective tax rate of 23.0% for the period presented.', 0.23, 'PLTR'],
+  ['effective income tax rate gaap effective income tax rate 22.5 % income tax adjustments (1.5) non-gaap effective income tax rate (*) 18.0 %', 0.18, 'ADBE'],
+  ['$759 million $611 million 24% effective tax rate 19.2% 24.1% non-gaap effective tax rate 18.5% 21.9% diluted eps', 0.185, 'CAH'],
+  ['interest other approximately $120 million adjusted income tax rate 21%* weighted average shares outstanding', 0.21, 'FLEX'],
+  ['primarily due to higher revenue. non-gaap effective tax rate for the third quarter was 17.0%. commitments we have', 0.17, 'NVDA'],
+  ['represents an adjustment to arrive at our fixed estimated non-gaap tax rate of 12.5% for the fourth quarter of fiscal 2026', 0.125, 'QCOM'],
+];
+for (const [t, v, nm] of TRS) ok(Math.abs(X.classify(t).tr - v) < 1e-9, 'שיעור המס שהחברה מצהירה — ' + nm + ' (' + v * 100 + '%)');
+ok(X.classify('for the full year fiscal 2027, nvidia expects gaap and non-gaap tax rates to be between 16.0% and 18.0%, excluding any discrete items').tr === null,
+  'תחזית שנתית ברבים ("tax rates to be between") — לא שיעור');
+ok(Math.abs(X.classify('for fiscal 2027 we expect a non-gaap tax rate of 19%. results: the non-gaap effective tax rate for the quarter was 17.5% compared to').tr - 0.175) < 1e-9,
+  'הצהרה בתוך תחזית ("expect") — רק כשאין אחרת; השיעור של הרבעון קודם');
+ok(X.classify('gaap effective tax rate 22.5% operating margin').tr === null, 'שיעור ה־GAAP — לא נלקח');
+ok(Math.abs(X.classify('three fiscal quarters ended provision for income taxes on gaap basis $ 2,187 $ 820 non-gaap tax reconciling adjustments 931 1,407 provision for income taxes on non-gaap basis $ 3,118 $ 2,227 net income on gaap basis $ 13,088 net income on non-gaap basis $ 16,372 $ 12,074').tr - 0.16) < 1e-9,
+  'בלי הצהרה — השיעור המשתמע: הפרשה ÷ (רווח + הפרשה) בטבלת הגישור (Broadcom ‏16.0%)');
+ok(X.classify('non-gaap net income of $16.4 billion and non-gaap provision for income taxes of $3.1 billion').tr === null, 'במילים ("of $16.4 billion") — לא שורה בטבלה, לא נלקח');
+let c3 = X.classify('three months ended october 31, 2026 2025 gaap net income $ 482 $ 334 share-based compensation-related charges 622 387 acquisition-related costs (1) 55 5 amortization expense of acquired intangible assets 282 39 non-gaap net income $ 881 $ 662 diluted');
+ok(c3.ex && JSON.stringify(c3.sa) === '[622,387]' && c3.nt === 0, 'הסכום בשורה: "‎-related charges 622 387" — עמודת הרבעון והשוואה (PANW)');
+c3 = X.classify('q3 fy27 guidance gaap diluted net income per share range (1)(2) $1.81 - $1.83 plus amortization of purchased intangibles $ 0.57 stock-based compensation expense $ 1.29 restructuring (3) $ 0.12 non-gaap diluted net income per share $2.86 - $2.88 '
+  + 'three months ended july 31, 2026 2025 gaap net income $ 3,526 $ 1,887 plus amortization of purchased intangibles (1) 522 380 stock-based compensation expense (2)(3) 904 793 restructuring and acquisition-related costs 115 4 non-gaap net income $ 4,500 $ 3,000');
+ok(c3.ex && JSON.stringify(c3.sa) === '[904,793]', 'טבלת תחזית (CRM: "range … $ 1.29") — מדולגת; הסכום מטבלת הרבעון שדווח');
+c3 = X.classify('three months ended gaap net income 1,021 share-based compensation expense 543 521 485 - 1,549 net (gain) loss on debt securities 5 non-gaap net income $ 2,000 diluted');
+ok(JSON.stringify(c3.sa) === '[543,521,485,1549]', 'רבעוני השנה זה לצד זה (INTU) — כל המספרים, והלקוח בוחר מול XBRL; מקף ריק — מדולג');
+c3 = X.classify('three months ended amortization and other acquisition-related costs 182 104 acquisition-related cash and share-based compensation costs 94 64 impairments (4) 2 non-gaap net earnings attributable to cardinal health $ 600 diluted');
+ok(!c3.ex && c3.sa === null, 'שורת רכישות ("acquisition-related cash and share-based compensation costs") — לא התגמול השוטף; לא "מוציא" (CAH)');
+c3 = X.classify('three months ended gaap net income 100 stock-based compensation expense, net of tax 50 40 non-gaap net income 150 diluted');
+ok(c3.ex && JSON.stringify(c3.sa) === '[50,40]' && c3.nt === 1, 'שורה "net of tax" — מסומנת (כבר אחרי מס)');
+
+/* ---------- tagQ (fundamentals.js): סדרה רבעונית מתגית אחת — ישיר, מצטבר פחות מצטבר מאותה התחלה, שנה פחות שלושה רבעונים ---------- */
+{
+  const FU = require(path.join(root, 'ibkr-proxy/lib/fundamentals.js'));
+  const f = { dur: new Map([['2026-07-01|2026-09-30', { v: 120 }], ['2026-01-01|2026-06-30', { v: 210 }], ['2026-01-01|2026-03-31', { v: 100 }],
+    ['2025-01-01|2025-03-31', { v: 80 }], ['2025-04-01|2025-06-30', { v: 85 }], ['2025-07-01|2025-09-30', { v: 90 }], ['2025-01-01|2025-12-31', { v: 350 }]]) };
+  const r = FU.tagQ(f, ['2025-12-31', '2026-03-31', '2026-06-30', '2026-09-30', '2026-12-31']);
+  ok(r['2026-09-30'] === 120 && r['2026-03-31'] === 100 && r['2026-06-30'] === 110 && r['2025-12-31'] === 95 && !('2026-12-31' in r),
+    'tagQ — רבעון ישיר, חצי שנה פחות רבעון, שנה פחות שלושה רבעונים; בלי ערך — חסר (לא מתגית אחרת)');
+  ok(FU.BX_TAGS.length === 4 && FU.BX_TAGS[0] === 'AllocatedShareBasedCompensationExpense' && FU.BX_TAGS[1] === 'ShareBasedCompensation', 'סדר התגיות של bx — כמו ב־sbcAmt');
+}
 
 /* ---------- השמירה בשרתון: load קורא עד 2 הודעות חדשות, שומר ב־o.sx, ומחזיר sx ---------- */
 (async () => {
@@ -162,6 +212,62 @@ ok(JSON.stringify(fc) === JSON.stringify([['2026-04-22', 1, 1, 0], ['2026-07-22'
   ok(near(A.metNow(co, 'bpe'), A.bpeOf(co)) && near(A.metNow(co, 'bfpe'), A.bfpeOf(co)), 'metNow — אותו ערך כמו באריח');
   ok(A.bufCalc({ ...mk({ hist: hist(1) }), fxNote: true }) === null, 'מטבע מחיר שונה ממטבע הדוחות — אין חישוב');
 
+  /* ---------- גל 1 של שיטת באפט (19/11/2026, docs/buffett-method-research.md §13.1, §13.5, §13.11–§13.13) ---------- */
+  // סכום התגמול: השורה בגישור, בסדר הגודל שמתאים ל־XBRL של אותו רבעון; הדוחות גדולים ממנה ב־15% ומעלה — תגמול בשורות אחרות (PANW)
+  const relX = (e, ex, tr, sa, nt = 0) => [new Date(Date.parse(e) + 30 * 864e5).toISOString().slice(0, 10), ex, ex, 5000, tr, sa, nt];
+  const bxOf = (f) => Object.fromEntries(last4.map((i) => [q[i], f(i)]));
+  const sumAt = (f, t) => last4.reduce((x, i) => x + f(i) * (1 - t) / 1e9, 0);
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, [Q.sbc[i] / 1e6, Q.sbc[i] / 2e6])), bx: bxOf((i) => [Q.sbc[i] * 1.32, Q.sbc[i] * 1.25, null, null]) });
+  b = A.bufCalc(co);
+  ok(near(b.ded, sumAt((i) => Q.sbc[i], 0.21)) && b.asrc === 'pr' && b.oth, 'הסכום מהשורה בגישור (במיליונים), לא ההוצאה בדוחות (פי 1.32 — Palo Alto); מסומן "בשורות אחרות"');
+  ok(near(b.t, 0.21) && b.ts === 'pr', 'שיעור המס — מה שהחברה מצהירה בהודעה (21%), לא שיעור הדוחות (20%)');
+  const r3 = (i) => [Q.sbc[i] * 1.12 / 1e6, Q.sbc[i] * 1.06 / 1e6, Q.sbc[i] / 1e6];
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, r3(i).concat([r3(i).reduce((a, b) => a + b, 0)]))), bx: bxOf((i) => [null, Q.sbc[i], null, null]) });
+  ok(near(A.bufCalc(co).ded, sumAt((i) => Q.sbc[i], 0.21)), 'רבעוני השנה זה לצד זה וסך בסוף (INTU) — הרבעון שלפני הסך, לא הראשון');
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, [Q.sbc[i] * 0.98 / 1e6, Q.sbc[i] / 1e6, 5 * Q.sbc[i] / 1e6])), bx: bxOf((i) => [null, Q.sbc[i], null, null]) });
+  ok(near(A.bufCalc(co).ded, sumAt((i) => Q.sbc[i] * 0.98, 0.21)), 'העמודה הראשונה — גם כשהשנייה (שנה קודמת) קרובה יותר ל־XBRL (Salesforce ‏805 מול ‏820, ‏XBRL ‏819)');
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, [Q.sbc[i - 4] / 1e6, Q.sbc[i] / 1e6])), bx: Object.fromEntries(q.slice(-12).map((e) => [e, [null, Q.sbc[q.indexOf(e)], null, null]])) });
+  ok(near(A.bufCalc(co).ded, sumAt((i) => Q.sbc[i], 0.21)), 'שנה קודמת בעמודה הראשונה (מתאימה ל־XBRL של לפני שנה) — העמודה השנייה');
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, [Q.sbc[i] / 1e3])), bx: bxOf((i) => [null, Q.sbc[i] * 1.01, null, null]) });
+  ok(near(A.bufCalc(co).ded, sumAt((i) => Q.sbc[i], 0.21)) && !A.bufCalc(co).oth, 'שורה באלפים (PLTR) — אותו סכום');
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, [Math.round(Q.sbc[i] / 1e7) / 100])), bx: bxOf((i) => [null, Q.sbc[i], null, null]) });
+  ok(near(A.bufCalc(co).ded, last4.reduce((x, i) => x + Math.round(Q.sbc[i] / 1e7) / 100 * 0.79, 0)), 'שורה למניה (עם נקודה עשרונית) × המניות');
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, [Q.sbc[i] / 1e6 * 0.79], 1)), bx: bxOf((i) => [null, Q.sbc[i], null, null]) });
+  ok(near(A.bufCalc(co).ded, sumAt((i) => Q.sbc[i], 0.21)), 'שורה "net of tax" — מוחזרת לפני מס ומנוכה פעם אחת');
+  // הודעת מיזוג ארוכה עם הכנסות מקדימות (Marvell): לרבעון שלפניה — לא (רבעון אחר); לרבעון שלה — לא (בלי אזכור של התגמול)
+  const merger = [new Date(Date.parse(q[L]) + 2 * 864e5).toISOString().slice(0, 10), 0, 0, 99999, null, null, 0, q[L], 0];
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.11, null).concat([q[i], 12])).concat([merger]).sort((x, y) => (x[0] < y[0] ? -1 : 1)) });
+  ok(A.sbcPol(co, q[L]) === 1 && A.sbcPol(co, q[L - 1]) === 1 && A.bufCalc(co).pol === 'ex', 'הודעת מיזוג ארוכה בלי אזכור של התגמול — לא נבחרת, לא לרבעון שלה ולא לקודם');
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.11, null)).concat([[new Date(Date.parse(q[L - 1]) + 93 * 864e5).toISOString().slice(0, 10), 0, 0, 99999, null, null, 0, q[L], 0]]).sort((x, y) => (x[0] < y[0] ? -1 : 1)) });
+  ok(A.sbcPol(co, q[L - 1]) === 1, 'הודעה של רבעון אחר בתוך 100 הימים — לא נבחרת לפי האורך (סוף הרבעון שבה)');
+  // בלי שורה בהודעה: XBRL מתגית אחת — ההוצאה בדוח הרווח, חוץ מתיוג חלקי (פחות מחצי מהתזרים — FIS); בלי bx (תשובה ישנה) — Q.sbc
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, null)), bx: bxOf((i) => [Q.sbc[i] * 0.9, Q.sbc[i], null, null]) });
+  ok(near(A.bufCalc(co).ded, sumAt((i) => Q.sbc[i] * 0.9, 0.21)) && A.bufCalc(co).asrc === 'al', 'בלי שורה — ההוצאה בדוח הרווח (Allocated)');
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, null)), bx: bxOf((i) => [Q.sbc[i] * 0.01, Q.sbc[i], null, null]) });
+  ok(near(A.bufCalc(co).ded, sumAt((i) => Q.sbc[i], 0.21)) && A.bufCalc(co).asrc === 'cf', 'תיוג חלקי בדוח הרווח — התוספת בתזרים');
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, [Q.sbc[i] / 1e6])) });
+  ok(near(A.bufCalc(co).ded, sumAt((i) => Q.sbc[i], 0.21)), 'תשובה בלי bx — הסדרה הכללית משמשת כייחוס');
+  // שיעור המס: ריט → 0; השיעור האחרון שהוצהר בהודעה קרובה (MRVL); מחוץ ל־10%–30% — לא; בלי הצהרה — הדוחות (0–35%); אחרת 21%
+  co = mk({ hist: hist(1), sic: 6798, sbcX: last4.map((i) => relX(q[i], 1, 0.21, null)) });
+  b = A.bufCalc(co);
+  ok(near(b.ded, sumAt((i) => Q.sbc[i], 0)) && b.ts === 'reit' && b.t === 0, 'ריט — בלי מגן מס: התגמול יורד במלואו');
+  co = mk({ hist: hist(1), sbcX: last4.map((i, j) => relX(q[i], 1, j === 0 ? 0.11 : null, null)) });
+  ok(near(A.bufCalc(co).t, 0.11) && A.bufCalc(co).ts === 'pr', 'רבעון בלי הצהרה — השיעור האחרון שהחברה הצהירה (Marvell ‏11%)');
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.35, null)) });
+  ok(near(A.bufCalc(co).t, 0.2) && A.bufCalc(co).ts === 'x', 'שיעור מוצהר מחוץ ל־10%–30% — לא נלקח; שיעור הדוחות');
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, null, null)), Q: { ...Q, pretax: Q.pretax.map((v, i) => (i === L ? null : v)) } });
+  ok(near(A.bufCalc(co).t, 0.2) && A.bufCalc(co).ts === 'x', 'חסר רווח לפני מס ברבעון — שיעור הדוחות של השנה האחרונה, לא 21% קבוע');
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, null, null)), A: { ...A0, tax: A0.tax.map((x) => x * 8) }, Q: { ...Q, tax: Q.tax.map((x) => x * 8) } });
+  ok(near(A.bufCalc(co).t, 0.21) && A.bufCalc(co).ts === 'd', 'שיעור בדוחות מעל 30% (מס זר, APA) — 21%');
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, null, null)), A: { ...A0, tax: A0.tax.map((x) => x * 0.2) }, Q: { ...Q, tax: Q.tax.map((x) => x * 0.2) } });
+  ok(near(A.bufCalc(co).t, 0.21) && A.bufCalc(co).ts === 'd', 'שיעור בדוחות 4% (הטבות חד־פעמיות — Meta, Broadcom) — 21%, לא 4%');
+  // בלי הודעות (§13.5): הפער מול GAAP מיוחס קודם להפחתה מרכישות אחרי מס, והיתר לתגמול — עד התגמול אחרי מס
+  co = mk({ hist: hist(1), bx: bxOf((i) => [null, Q.sbc[i], null, 0.8e9]) });
+  b = A.bufCalc(co);
+  ok(near(b.ded, 4 - 4 * 0.8 * 0.79) && b.pol === '?', 'בלי הודעות — פער 4 פחות הפחתה מרכישות אחרי מס ‏(2.528) = ‏1.472');
+  co = mk({ hist: hist(1), bx: bxOf((i) => [null, Q.sbc[i], null, 2e9]) });
+  ok(A.bufCalc(co).ded === 0, 'בלי הודעות — ההפחתה מכסה את כל הפער: לא יורד כלום');
+
   /* ---------- שילוב: אריחים, גיליון, השוואה, מחרוזות ---------- */
   ok(/fact\(T\('anFBpe'\), fmt\(bpeOf\(co\)[\s\S]{0,80}'bpe'\), fact\(T\('anFBfpe'\), fmt\(bfpeOf\(co\)/.test(src), 'שני האריחים אחרי "מכפיל צפוי"');
   ok(/\['bpe', 'anFBpe', 'anLoCheap', 'x', -1\], \['bfpe', 'anFBfpe', 'anCmpFwd', 'x', -1\]/.test(src) && /bpe: bpeOf\(c\), bfpe: bfpeOf\(c\)/.test(src), 'טבלת ההשוואה מול חברות אחרות');
@@ -169,7 +275,7 @@ ok(JSON.stringify(fc) === JSON.stringify([['2026-04-22', 1, 1, 0], ['2026-07-22'
   ok(/const note = fwd && b\.f\.chg \? 'anBFutIn'/.test(src), 'ההערה "מעכשיו כולל" — רק כשהחברה הודיעה על שינוי, לא בכל חברה שכוללת ממילא');
   const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   const keys = ['anFBpe', 'anFBfpe', 'anCmpFwd', 'anHFpeAdj', 'anHBpe', 'anHBfpe', 'anXFpeAdj', 'anXBpe', 'anXBfpe', 'anXBufNone', 'anBStreet', 'anBStreetS', 'anBSbc', 'anBSbcS',
-    'anBFwd', 'anBFwd0', 'anBFwdY', 'anBSbcF', 'anBSbcFS', 'anBEps', 'anBMultS', 'anBNeg', 'anBGaap', 'anBGaapS', 'anBPolEx', 'anBPolIn', 'anBPolMix', 'anBPolUnk', 'anBPolGaap', 'anBFutIn'];
+    'anBFwd', 'anBFwd0', 'anBFwdY', 'anBSbcF', 'anBSbcFS', 'anBEps', 'anBMultS', 'anBNeg', 'anBGaap', 'anBGaapS', 'anBPolEx', 'anBPolIn', 'anBPolMix', 'anBPolUnk', 'anBPolGaap', 'anBFutIn', 'anBSbcSP', 'anBSbcSD', 'anBSbcSR', 'anBOth'];
   ok(keys.every((k) => (app.match(new RegExp('\\n  ' + k + ': ', 'g')) || []).length === 2), 'כל המחרוזות בעברית ובאנגלית');
   const fsrc = fs.readFileSync(path.join(root, 'ibkr-proxy/lib/fundamentals.js'), 'utf8');
   ok(/nq: n \|\| null, sbcX,/.test(fsrc) && /sbcX = bsf && bsf\.sx/.test(fsrc), 'התשובה של op:fund כוללת sbcX');

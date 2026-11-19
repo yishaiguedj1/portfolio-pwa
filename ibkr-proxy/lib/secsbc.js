@@ -9,7 +9,8 @@
 'use strict';
 const SECPR = require('./secpr');
 
-const SV = 2;          // גרסת המסווג — שינוי בכללים = מספר חדש, וההודעות נקראות מחדש (2: המשפט כולו בעדות במילים, 19/11/2026)
+const SV = 3;          // גרסת המסווג — שינוי בכללים = מספר חדש, וההודעות נקראות מחדש (2: המשפט כולו בעדות במילים, 19/11/2026;
+                       // 3: שיעור המס ה־non-GAAP שהחברה מצהירה ‏(tr), הסכום בשורת התגמול בגישור ‏(sa) וסוף הרבעון ‏(qe), גל 1 של שיטת באפט)
 const MAX = 6;         // הודעות אחרונות (4 רבעוני ה־12 חודשים + מרווח להודעה מקדימה)
 const DAYS = 460;
 
@@ -19,7 +20,10 @@ const text = (h) => String(h).slice(0, 2e6).replace(/<br\s*\/?>/gi, ' ').replace
 
 // שורת התגמול. "excess" / "settlement of" / "incremental" — פריט מס או חד־פעמי (CAT, ‏WMT), לא התגמול השוטף
 const SBC = /(?:stock|share|equity)[- ]?based(?: and deferred)? compensation|stock compensation|share-based payments?|equity compensation/g;
-const SKIP_PRE = /(?:excess|settlement of|exercise of|incremental(?: non-cash)?|accelerated|one-time|tax benefits? (?:from|on|related to))\s*$/;
+// "acquisition-related cash and share-based compensation costs" (Cardinal) — שורת רכישות, לא התגמול השוטף (§13.11: מטופל כחד־פעמי
+// שחוזר, לא כאן); עד גרסה 3 נספרה כעדות, ו־Cardinal סומנה "מוציאה" אף שהרווח המותאם שלה כולל את התגמול הרגיל (B-025 בבדיקת
+// העומק, docs/buffett-pe-audit.md: על 3,239 הודעות רק Cardinal מתהפכת). בלי "costs," — אצל Intel זו רשימה של פריטים נפרדים
+const SKIP_PRE = /(?:excess|settlement of|exercise of|incremental(?: non-cash)?|accelerated|one-time|tax benefits? (?:from|on|related to)|acquisition[- ]related(?: cash)?(?: and| &)?)\s*$/;
 const SKIP_POST = /compensation awards? (?:with|using)|tax (?:benefit|deduction)/;
 // המשך במילים (הערת שוליים או משפט, לא שורה בטבלה): PYPL "…compensation expense associated with restructuring", ‏WMT "…payment
 // plans in anticipation…", ‏HON "…stock compensation expense, pension…", ‏UBER "…compensation expenses. 11". "net of tax" — שורה (TSLA)
@@ -39,7 +43,77 @@ const ER_Q = /(?:three|thirteen|twelve|fourteen|sixteen|six|nine) (?:months|week
 
 const lastOf = (s, re) => { let m, i = -1; re.lastIndex = 0; while ((m = re.exec(s))) i = m.index; return i; };
 
-function classify(raw) {
+/* שיעור המס ה־non-GAAP שהחברה מצהירה (τ_ng, ‏docs/buffett-method-research.md §6.4, §13.1, §13.13). הרווח המותאם של הרחוב מחושב בשיעור
+   הזה, ולכן הניכוי של התגמול אחרי מס — באותו שיעור. הנוסחים שנמצאו בהודעות (נבדק על 22 חברות, 19/11/2026):
+   ServiceNow ‏"non-gaap tax rate of 21% for the three…"; Salesforce ‏"long-term projected tax rate of 20.5%"; Palantir ‏"long-term annual
+   effective tax rate of 23.0%"; Adobe ‏"non-gaap effective income tax rate (*) 18.0 %"; Cardinal ו־Uber בטבלה ‏"non-gaap effective tax rate
+   18.5% 21.9%"; Flex ‏"adjusted income tax rate 21%*"; NVIDIA ‏"non-gaap effective tax rate for the third quarter was 17.0%"; Qualcomm
+   ‏"fixed estimated non-gaap tax rate of 12.5%". "tax rates to be between" (רבים, תחזית לשנה) — לא. הצהרה בתוך תחזית ("expect",
+   ‏"outlook") — רק כשאין אחרת. מחזיר שבר (0.21) או null */
+const TR = /(?:non-gaap|adjusted|long-term(?: projected| annual)?)(?: estimated| fixed)?(?: effective)?(?: income)? tax rate(?: (?:of|was|is|for (?:the )?(?:[a-z]+ )?(?:quarter|period|year)(?: [a-z0-9,]+){0,4}? was))?\s*(?:\(\S{1,3}\)\s*)?:?\s*(?:approximately |~\s*)?(\d{1,2}(?:\.\d{1,2})?)\s?%/g;
+const GUIDE = /expect|outlook|guidance|anticipat|forecast|will be|for (?:the )?(?:full )?(?:fiscal )?(?:year|fy) 20\d\d/;
+function taxRate(t) {
+  let m, first = null, fg = null;
+  TR.lastIndex = 0;
+  while ((m = TR.exec(t))) {
+    const v = Math.round(+m[1] * 100) / 1e4;
+    if (!(v >= 0.05 && v <= 0.4)) continue;
+    const bk = t.slice(Math.max(0, m.index - 160), m.index); // רק המשפט שלו — לא תחזית שבמשפט הקודם
+    if (!GUIDE.test(bk.slice(bk.lastIndexOf('. ') + 1))) { first = v; break; }
+    if (fg == null) fg = v;
+  }
+  return first != null ? first : fg != null ? fg : impliedRate(t);
+}
+/* בלי הצהרה במילים — השיעור המשתמע מטבלת הגישור: ההפרשה למס ה־non-GAAP ÷ (הרווח הנקי ה־non-GAAP + ההפרשה). Broadcom: "provision for
+   income taxes on non-gaap basis $ 3,118" ו־"net income on non-gaap basis $ 16,372" → ‏16.0%. אומת מול Flex, שגם מצהירה (21%): המשתמע
+   20.9%–21.1% בחמש ההודעות. רק שורות בטבלה (מספר מיד אחרי התווית), באותה טבלה (עד 3,000 תווים) */
+const PL = /(?:non-gaap|adjusted) (?:provision for income taxes|income tax (?:expense|provision)|provision for taxes|income taxes)|provision for income taxes on (?:a )?non-gaap basis/g;
+const NL = /(?:non-gaap|adjusted) net (?:income|earnings)(?! per| attributable to non)(?: attributable to [a-z.,' ]{0,40}?)?|net income on (?:a )?non-gaap basis/g;
+const NV = /^\s*(?:\(\w{1,2}\)\s*)*(?:\$\s*)?(\(?)((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\)?/;
+function rowsOf(t, re) {
+  const out = [];
+  let m;
+  re.lastIndex = 0;
+  while ((m = re.exec(t)) && out.length < 20) { const v = NV.exec(t.slice(m.index + m[0].length, m.index + m[0].length + 30)); if (v) out.push({ i: m.index, v: (v[1] ? -1 : 1) * +v[2].replace(/,/g, '') }); }
+  return out;
+}
+function impliedRate(t) {
+  const N = rowsOf(t, NL);
+  for (const p of rowsOf(t, PL)) {
+    const n = N.find((x) => Math.abs(x.i - p.i) < 3000 && x.v > 0);
+    if (n && p.v > 0) { const r = p.v / (n.v + p.v); if (r >= 0.05 && r <= 0.4) return Math.round(r * 1000) / 1000; }
+  }
+  return null;
+}
+/* סוף הרבעון שההודעה מדווחת עליו — התאריך הראשון אחרי "three months ended" / "quarter ended" (qe, ‏YYYY-MM-DD). הלקוח מצמיד הודעה
+   לרבעון לפיו: Marvell הגישה ב־2/11/2026 הודעת מיזוג (Item 2.02 — הכנסות מקדימות לרבעון שהסתיים ב־31/10), ארוכה מהודעת התוצאות
+   של הרבעון הקודם ו־93 יום אחרי סופו — עד גרסה 3 היא נבחרה כהודעה של הרבעון שהסתיים ב־1/8, וקבעה "כולל" */
+const MON = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12 };
+// התאריך המאוחר ביותר שעדיין לפני ההגשה (עד 150 יום): לא "השנה שהסתיימה" הקודמת (APA), לא רבעון התחזית (Salesforce)
+const QE = /(?:(?:three|thirteen|twelve|fourteen|sixteen|six|nine) (?:months|weeks)|quarter|(?:fiscal )?year|period) ended,?\s+(jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\.?\s+(\d{1,2}),?\s+(20\d\d)/g;
+function qEnd(t, filed) {
+  let m, best = null;
+  const hi = filed || '9999', lo = filed ? new Date(Date.parse(filed) - 150 * 864e5).toISOString().slice(0, 10) : '0000';
+  QE.lastIndex = 0;
+  while ((m = QE.exec(t))) { const d = m[3] + '-' + String(MON[m[1]]).padStart(2, '0') + '-' + m[2].padStart(2, '0'); if (d < hi && d >= lo && (!best || d > best)) best = d; }
+  return best;
+}
+/* הסכום בשורת התגמול בטבלת הגישור (§13.11): המספר הראשון אחרי התווית = העמודה של הרבעון. גולמי — במיליונים, באלפים או למניה;
+   הלקוח מתאים את הסדר מול ה־XBRL של אותו רבעון (bufCalc). nt — השורה "net of tax" (כבר אחרי מס) */
+// עד 6 מספרים מהשורה: העמודה של הרבעון היא לרוב הראשונה, אבל לא תמיד — Intuit מציגה את רבעוני השנה זה לצד זה (543 521 485 … ‏1,549),
+// והרבעון השלישי הוא השלישי. הלקוח בוחר את הקרוב ל־XBRL של אותו רבעון. "‎-related charges" (Palo Alto, ‏Snowflake), הערות שוליים "(2)(3)"
+const ROWP = /^(?:\s*(?:expenses?|costs?|-?\s*related (?:charges?|expenses?|costs?)|\(\w{1,2}\)|\d(?=\s)|,?\s*net of (?:income )?tax(?:es)?|\(?after[- ]tax\)?|[-–:*]))*/;
+const NUM = /^\s*(?:\$\s*)?(\(?)\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\s*\)?(?!\s*%)|^\s*(?:\$\s*)?[-–—](?=\s)/;
+function rowVals(after) {
+  let s = after.slice(0, 160).replace(ROWP, ''), m;
+  const out = [];
+  while (out.length < 6 && (m = NUM.exec(s))) { if (m[2]) out.push(+m[2].replace(/,/g, '')); s = s.slice(m[0].length); }
+  return out;
+}
+// טבלת תחזית (Salesforce: "q3 fy27 gaap diluted net income per share range … stock-based compensation expense $ 1.29") — לא הרבעון שדווח
+const GUIDE_T = /guidance|outlook|\brange\b|expect|forecast/g, ENDED = /(?:months|weeks|quarter|year) ended/g;
+
+function classify(raw, filed) {
   const t = raw && raw.length && /</.test(raw.slice(0, 2000)) ? text(raw) : String(raw || '').toLowerCase().replace(/\s+/g, ' ');
   // הודעת תוצאות: רבעון + רווח למניה (MRK ו־XOM לא כותבות "diluted")
   const er = ER_Q.test(t) && /diluted|earnings per (?:common )?share|\beps\b/.test(t) && /net (?:income|earnings|loss)|earnings per share|per share/.test(t);
@@ -47,13 +121,23 @@ function classify(raw) {
   NEG.lastIndex = 0;
   while ((m = NEG.exec(t))) { if (/will\s+$/.test(t.slice(Math.max(0, m.index - 8), m.index))) futNeg = true; else nowNeg = true; }
   const hits = [];
+  let sa = null, nt = 0;
   SBC.lastIndex = 0;
   while ((m = SBC.exec(t)) && hits.length < 200) {
     const i = m.index, pre = t.slice(Math.max(0, i - 40), i), post = t.slice(i, i + 60);
     if (SKIP_PRE.test(pre) || SKIP_POST.test(post)) { hits.push('x'); continue; }
     const back = t.slice(Math.max(0, i - 1500), i), inCf = lastOf(back, CF) > lastOf(back, REC);
     const after = t.slice(i + m[0].length, i + m[0].length + 1500), a = after.search(TGT), b = after.search(OTHER), prose = PROSE.test(after.slice(0, 60)), row = NUMROW.test(after.slice(0, 40));
-    if (!prose && !inCf && a >= 0 && (b < 0 || a < b)) { hits.push('E'); continue; }
+    if (!prose && !inCf && a >= 0 && (b < 0 || a < b)) {
+      hits.push('E');
+      // הסכום — מהשורה הראשונה בגישור שיש בה מספר (לא כפול: השורה הבאה היא לרוב של תקופה אחרת או של תחזית)
+      if (sa == null) {
+        const b6 = t.slice(Math.max(0, i - 600), i), g = lastOf(b6, GUIDE_T);
+        const v = g >= 0 && g > lastOf(b6, ENDED) ? [] : rowVals(after).filter((x) => x > 0);
+        if (v.length) { sa = v; nt = /^[^0-9]{0,30}(?:net of (?:income )?tax|after[- ]tax)/.test(after) ? 1 : 0; }
+      }
+      continue;
+    }
     // במילים: "non-GAAP net income / results / measures … exclude … stock-based compensation" — באותו משפט, לא על EBITDA בלבד (UBER, ‏IBM).
     // המשפט כולו: בלי תחילת משפט בטווח — לא נספר (APP 4Q25: הגדרה ארוכה של Adjusted EBITDA, שהחיתוך שלה השאיר רק "net income adjusted … excluding")
     const b700 = t.slice(Math.max(0, i - 700), i), dot = b700.lastIndexOf('. '), s = dot >= 0 ? b700.slice(dot + 1) : '';
@@ -61,7 +145,7 @@ function classify(raw) {
     hits.push(inCf ? 'c' : '-');
   }
   const ex = !nowNeg && hits.some((h) => h === 'E' || h === 'P');
-  return { ex, fut: ex && !futNeg, er, n: t.length, h: (nowNeg ? 'N' : futNeg ? 'F' : '') + hits.join('').slice(0, 40) };
+  return { ex, fut: ex && !futNeg, er, n: t.length, h: (nowNeg ? 'N' : futNeg ? 'F' : '') + hits.join('').slice(0, 40), tr: taxRate(t), sa: ex ? sa : null, nt: ex && sa != null ? nt : 0, qe: qEnd(t, filed), k: hits.length };
 }
 
 function pick(sub, now) {
@@ -85,14 +169,14 @@ async function readOne(cik, k, getText) {
   for (const nm of names) {
     try { t += ' ' + text(await getText(base + nm)); } catch (e) { if (!/http_404/.test(String(e && e.message))) return null; }
   }
-  const c = classify(t);
-  return { filed: k.filed, er: c.er, ex: c.ex, fut: c.fut, n: c.n, h: c.h, sv: SV };
+  const c = classify(t, k.filed);
+  return { filed: k.filed, er: c.er, ex: c.ex, fut: c.fut, n: c.n, h: c.h, tr: c.tr, sa: c.sa, nt: c.nt, qe: c.qe, k: c.k, sv: SV };
 }
 
-/* לתשובה: [[תאריך הגשה, ex, fut, אורך], …] — רק הודעות תוצאות, מהישנה לחדשה. כמה הודעות לאותו רבעון (הודעה מקדימה, עדכון
-   תחזית) — הלקוח בוחר את הארוכה, ההודעה המלאה. רשומה מגרסת מסווג קודמת — נשלחת עד שעבודת הרקע קוראת אותה מחדש (fillSx),
-   כדי שהחלפת גרסה לא תשאיר את כל החברות בלי מדיניות לכמה שעות */
+/* לתשובה: [[תאריך הגשה, ex, fut, אורך, tr, sa, nt, qe, k — כמה אזכורים של התגמול], …] — רק הודעות תוצאות, מהישנה לחדשה. כמה הודעות לאותו רבעון (הודעה מקדימה,
+   עדכון תחזית) — הלקוח בוחר את הארוכה, ההודעה המלאה. רשומה מגרסת מסווג קודמת — נשלחת עד שעבודת הרקע קוראת אותה מחדש (fillSx),
+   כדי שהחלפת גרסה לא תשאיר את כל החברות בלי מדיניות לכמה שעות (בלי tr ו־sa — null) */
 const forClient = (sx) => Object.values(sx || {}).filter((r) => r && r.er && r.sv > 0).sort((a, b) => (a.filed < b.filed ? -1 : 1))
-  .map((r) => [r.filed, r.ex ? 1 : 0, r.fut ? 1 : 0, r.n || 0]);
+  .map((r) => [r.filed, r.ex ? 1 : 0, r.fut ? 1 : 0, r.n || 0, r.tr > 0 ? r.tr : null, Array.isArray(r.sa) && r.sa.length ? r.sa : null, r.nt ? 1 : 0, r.qe || null, r.k || 0]);
 
 module.exports = { classify, pick, readOne, forClient, text, SV, MAX };
