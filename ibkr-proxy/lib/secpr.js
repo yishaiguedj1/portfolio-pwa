@@ -161,7 +161,7 @@ function exhibits(index, doc) {
 function q4From(rows, ni, est, post, ann) {
   const pfs = [...new Set([1].concat(post == null ? [] : post).filter((x) => x > 0))];
   if (!rows || !rows.length || !(est > 0) || !Number.isFinite(ni)) return null;
-  let best = null; const all = [];
+  let best = null;
   const isEps = (r) => r.v.every((x) => x == null || Math.abs(x) < 5000) && r.v.some((x) => x != null && Math.round(x) !== x);
   for (const re of rows) {
     if (!isEps(re)) continue;
@@ -178,15 +178,11 @@ function q4From(rows, ni, est, post, ann) {
           const err = Math.abs(e * s - ni), tol = 0.0051 * s + 0.02 * Math.abs(ni);
           if (err > tol) continue;
           const sc = err / (tol || 1) + Math.abs(s / est - 1);
-          const c = { eps: Math.round(e * 1e4) / 1e4, sh: s, sc, i, rs, row: rs.v.map((x) => (x == null ? null : x * f * pf)) }; all.push(c);
-          if (!best || sc < best.sc) best = c;
+          if (!best || sc < best.sc) best = { eps: Math.round(e * 1e4) / 1e4, sh: s, sc, i, row: rs.v.map((x) => (x == null ? null : x * f * pf)) };
         }
       }
     }
   }
-  // גל 9: אותו רווח למניה בשתי עמודות של אותה שורת מניות (Schwab ‏2018: ‏.65 ב־Q3 וב־Q4) — העיגול מכריע במקרה, ולכן העמודה
-  // הראשונה (הרבעון של ההודעה; העמודות שאחריה — רבעונים קודמים / אשתקד)
-  if (best) { const f0 = all.filter((c) => c.rs === best.rs && c.eps === best.eps && c.i < best.i).sort((a, b) => a.i - b.i)[0]; if (f0) best = f0; }
   return best && { eps: best.eps, sh: best.sh, col: best.i, row: best.row }; // row — שורת המניות כולה (בקנה המידה שלנו), לבדיקת הבסיס בשנה
 }
 

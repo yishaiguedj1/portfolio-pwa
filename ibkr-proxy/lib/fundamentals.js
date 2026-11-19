@@ -1942,9 +1942,11 @@ function yQuarterFill(sec, y, grossOnFace, checks) {
     const Q = sec.Q[k] || (sec.Q[k] = sec.q.map(() => null));
     sec.q.forEach((e, i) => {
       if (Q[i] != null) return;
-      // גל 9 (F37): רבעון שמחקנו בכוונה — הרבעונים 1–3 הוצגו מחדש אחרי הדוח השנתי (qmix ‏rst), או רבעון רביעי שהוסר (q4drop). Yahoo גוזר
-      // אותו "שנתי פחות 9 חודשים מקוריים" — בסיס מעורב (CrowdStrike ‏FY2026: ‏59.4M במקום 38.7M שבהודעה) — ולא ממלאים ממנו
-      if ((sec.qmix || []).some((x) => x.m === k && x.p === e && x.x === 'rst') || (sec.cfy || []).some((x) => x.k === 'q4drop' && x.m === k && x.p === e)) return;
+      // גל 9 (F37): רבעון רביעי שמחקנו בכוונה — הרבעונים 1–3 הוצגו מחדש אחרי הדוח השנתי (qmix ‏rst), או שהוסר (q4drop). Yahoo גוזר
+      // אותו "שנתי פחות 9 חודשים מקוריים" — בסיס מעורב (CrowdStrike ‏FY2026: ‏59.4M במקום 38.7M שבהודעה) — ולא ממלאים ממנו. רק סוף
+      // שנה: ברבעון האחרון של שנה פתוחה (‏rst בתזרים — BDX, ‏SPGI, ‏OXY…) החסימה מרוקנת את ה־12 חודשים (מועמד F42, ‏wave-9.md)
+      const fyEnd = (sec.fy || []).some((f) => Math.abs(day(f) - day(e)) <= 5);
+      if (fyEnd && ((sec.qmix || []).some((x) => x.m === k && x.p === e && x.x === 'rst') || (sec.cfy || []).some((x) => x.k === 'q4drop' && x.m === k && x.p === e))) return;
       const j = y.q.findIndex((x) => Math.abs(day(x) - day(e)) < 10);
       if (j < 0 || y.Q[k][j] == null || yComp(y, k, y.q[j])) return;
       Q[i] = y.Q[k][j]; (qfill[k] = qfill[k] || []).push(e); checks.push({ k: 'qfy', m: k, p: e });

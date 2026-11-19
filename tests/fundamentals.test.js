@@ -1967,7 +1967,7 @@ ${row('ro', 'us-gaap_CostOfRevenue', 'Cost of sales', ['1', '2', '3', '4', '5', 
     ok(ni9.length === 2 && ni9[1].v.join() === '38691,-86286,-162502,-15241' && !ni9.some((r) => /non-controlling|per share/.test(r.label)), '(41) F37: parseNi — שורות הרווח, בלי זכויות מיעוט ובלי רווח למניה');
     const E = ['2025-04-30', '2025-07-31', '2025-10-31', '2026-01-31'];
     const mk = () => ({ fy: ['2025-01-31', '2026-01-31'], q: E.slice(), A: { ni: [-19271e3, -162502e3] }, Q: { ni: [-104264e3, -70153e3, -33997e3, null], eps: [-0.42, -0.28, -0.14, null], sh: [248e6, 250e6, 251e6, 252e6] },
-      qmix: [{ k: 'qmix', m: 'ni', p: E[3], x: 'rst' }, { k: 'qmix', m: 'op', p: E[3], x: 'rst' }], shEst: [E[3]], derived: {}, splitsUsed: [] });
+      qmix: [{ k: 'qmix', m: 'ni', p: E[3], x: 'rst' }, { k: 'qmix', m: 'op', p: E[3], x: 'rst' }, { k: 'qmix', m: 'op', p: E[2], x: 'rst' }], shEst: [E[3]], derived: {}, splitsUsed: [] });
     const s9 = mk(), P = { [E[3]]: { end: E[3], ni: ni9, rows: P9.parse(CR).concat([{ t: 0, label: 'Weighted-average shares used, diluted', v: [258133, 248000, 246000, 245000] }]) } };
     const o9 = F.q4Ni(s9, P);
     ok(o9.length === 1 && s9.Q.ni[3] === 38691e3 && !s9.qmix.some((x) => x.m === 'ni') && s9.qmix.some((x) => x.m === 'op'), '(41) F37: q4Ni — הרבעון מהשורה המאומתת בעמודה השנתית (38.7M); הסימון qmix של הרווח יורד');
@@ -1975,9 +1975,9 @@ ${row('ro', 'us-gaap_CostOfRevenue', 'Cost of sales', ['1', '2', '3', '4', '5', 
     ok(s9.Q.eps[3] === 0.15, '(41) F37: הרווח למניה של הרבעון — מאותה הודעה (0.15)');
     const s0 = mk(); s0.A.ni[1] = -170000e3;
     ok(F.q4Ni(s0, P).length === 0 && s0.Q.ni[3] == null, '(41) F37: העמודה השנתית לא שווה לשנתי שלנו — לא נוגעים');
-    const s1 = mk(), y1 = { q: E.slice(), Q: { ni: [-104e6, -70e6, -34e6, 59377e3], op: [1, 2, 3, 13786e3] } }; s1.Q.op = [5, 6, 7, null];
+    const s1 = mk(), y1 = { q: E.slice(), Q: { ni: [-104e6, -70e6, -34e6, 59377e3], op: [1, 2, 3, 13786e3] } }; s1.Q.op = [5, 6, null, null];
     F.yQuarterFill(s1, y1, true, []);
-    ok(s1.Q.ni[3] == null && s1.Q.op[3] == null, '(41) F37: רבעון שנמחק בכוונה (qmix rst) — לא ממלאים מ־Yahoo');
+    ok(s1.Q.ni[3] == null && s1.Q.op[3] == null && s1.Q.op[2] === 3, '(41) F37: רבעון רביעי שנמחק בכוונה (qmix rst) — לא ממלאים מ־Yahoo; רבעון באמצע השנה — כמו קודם');
     ok(B9.prNeed({ rows: [{ label: 'Diluted EPS', v: [1] }], pv: 4 }, '2026-01-31', Date.parse('2026-11-19')) && !B9.prNeed({ rows: [{ label: 'Diluted EPS', v: [1] }], pv: 4 }, '2020-01-31', Date.parse('2026-11-19'))
       && !B9.prNeed({ rows: [{ label: 'Diluted EPS', v: [1] }], pv: 4, nv: 1 }, '2026-01-31', Date.parse('2026-11-19')), '(41) F37: prNeed — רשומה מהשנתיים האחרונות בלי nv נקראת שוב פעם אחת');
   }
