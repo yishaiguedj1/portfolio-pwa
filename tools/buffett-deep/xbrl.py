@@ -52,11 +52,24 @@ def near(a, b, tol=7):
     return abs(days(a, b)) <= tol
 
 
+# ישות שהחליפה ישות קודמת (חברת אחזקות חדשה) — ב־SEC אין קישור ביניהן; עובדה ציבורית, מתועדת: ExxonMobil Holdings Corp ‏(2026)
+# ← ‏Exxon Mobil Corp. בלי האיחוד אין לרבעונים שלפני ההחלפה אף עובדה (XOM ‏12/2025, ‏3/2026)
+PREV_CIK = {2115436: 34088}
+
+
 def facts_of(cik):
     f = os.path.join(CACHE, 'data.sec.gov', 'api', 'xbrl', 'companyfacts', 'CIK%010d.json' % int(cik))
     if not os.path.exists(f):
         return None
-    return json.load(open(f))
+    F = json.load(open(f))
+    pc = PREV_CIK.get(int(cik))
+    if pc:
+        P = facts_of(pc)
+        for ns, T in ((P or {}).get('facts') or {}).items():
+            for c, t in T.items():
+                for u, arr in t.get('units', {}).items():
+                    F.setdefault('facts', {}).setdefault(ns, {}).setdefault(c, {'units': {}})['units'].setdefault(u, []).extend(arr)
+    return F
 
 
 # הגשות תקופתיות שחסרות ב־companyfacts (5/11/2026: עשרות 10-Q של יולי–נובמבר) — מקובץ ה־instance של ההגשה (xfetch.js ‏--inst),
@@ -108,8 +121,103 @@ def parse_instance(path, acc, form, filed):
     return out
 
 
-def patch_missing(F, cik, today=None):
-    """F + כל הגשה תקופתית מ־800 הימים האחרונים שאין לה ערך us-gaap/ifrs ב־companyfacts ויש לה instance במטמון. מחזיר (F, [acc…])."""
+# מניות ורווח למניה שמדווחים **רק לפי סוג מניה / שיטת חישוב** (עובדה עם ממד — לא נכנסת ל־companyfacts): HSY ‏(Common / Class B),
+# ‏BKR ו־STZ ‏(Class A), ‏SJM ‏(EarningsPerShareMethodAxis). המערכת לוקחת אז את המניות מ־Yahoo (qShares, ‏'qsh') — כאן מה־instance
+# של ה־10-Q של הרבעון. הסוג: המניה הרגילה / Class A (הנסחרת). אין ממוצע מדולל מתויג (HSY) → הבסיסי + כל המניות הנוספות של אותו סוג
+XDI = '{http://xbrl.org/2006/xbrldi}'
+DIM_AX = {'StatementClassOfStockAxis', 'EarningsPerShareMethodAxis', 'AwardTypeAxis'}
+# שתי שיטות באותו 10-Q ‏(SJM: ‏TwoClass ‏106.7M, ‏TreasuryStock ‏106.9M — אותו רווח למניה): המדולל לפי שיטת המניות באוצר,
+# שכוללת את ניירות הערך המדללים (ASC 260 — המדללת יותר מבין השתיים)
+CLS_PREF = ('CommonStockMember', 'CommonClassAMember', 'TreasuryStockMethodMember')
+DIM_NAMES = {'eps': 'EarningsPerShareDiluted', 'sh': 'WeightedAverageNumberOfDilutedSharesOutstanding', 'shb': 'WeightedAverageNumberOfSharesOutstandingBasic'}
+
+
+def parse_dims(path):
+    import xml.etree.ElementTree as ET
+    if not hasattr(parse_dims, 'c'):
+        parse_dims.c = {}
+    if path in parse_dims.c:
+        return parse_dims.c[path]
+    root = ET.parse(path).getroot()
+    ctx, out, seen = {}, [], set()
+    for c in root.iter(XI + 'context'):
+        per = c.find(XI + 'period')
+        st, en = per.find(XI + 'startDate'), per.find(XI + 'endDate')
+        if st is None or en is None or c.find('.//' + XDI + 'typedMember') is not None:
+            continue
+        dims = tuple(sorted((m.get('dimension').split(':')[-1], (m.text or '').strip().split(':')[-1]) for m in c.iter(XDI + 'explicitMember')))
+        if dims and all(a in DIM_AX for a, _ in dims):
+            ctx[c.get('id')] = (st.text.strip(), en.text.strip(), dims)
+    for el in root:
+        if not isinstance(el.tag, str) or not el.tag.startswith('{'):
+            continue
+        name = el.tag[1:].split('}', 1)[1]
+        cr = el.get('contextRef')
+        if cr not in ctx or (name not in DIM_NAMES.values() and not name.startswith('IncrementalCommonShares')):
+            continue
+        try:
+            v = float((el.text or '').strip())
+        except ValueError:
+            continue
+        st, en, dims = ctx[cr]
+        k = (name, st, en, dims)
+        if k not in seen:
+            seen.add(k)
+            out.append({'name': name, 'start': st, 'end': en, 'dims': dims, 'val': v})
+    parse_dims.c[path] = out
+    return out
+
+
+def dim_val(cik, e, comp, need):
+    """הערך של 3 חודשים מה־10-Q של הרבעון, לפי סוג המניה. אין instance במטמון → נרשם ב־need (להורדה ב־xfetch.js ‏--inst)."""
+    sp = os.path.join(CACHE, 'data.sec.gov', 'submissions', 'CIK%010d.json' % int(cik))
+    if not os.path.exists(sp):
+        return None
+    R = json.load(open(sp)).get('filings', {}).get('recent', {})
+    for i, f in enumerate(R.get('form', [])):
+        if f != '10-Q' or not R['reportDate'][i] or not near(R['reportDate'][i], e, 3):
+            continue
+        acc, doc = R['accessionNumber'][i], R['primaryDocument'][i]
+        ip = os.path.join(CACHE, 'www.sec.gov', 'Archives', 'edgar', 'data', str(int(cik)), acc.replace('-', ''),
+                          __import__('re').sub(r'\.htm$', '', doc, flags=__import__('re').I) + '_htm.xml')
+        if not os.path.exists(ip):
+            need.add('\t'.join([str(int(cik)), acc, f, R['filingDate'][i], R['reportDate'][i], doc]))
+            return None
+        fs = [x for x in parse_dims(ip) if near(x['end'], e, 3) and 80 <= days(x['start'], x['end']) <= 100]
+        # המפתח: השיטה (ממד יחיד) או סוג המניה
+        mem = {}
+        for x in fs:
+            ax = dict(x['dims'])
+            m = ax.get('StatementClassOfStockAxis') or (ax.get('EarningsPerShareMethodAxis') if len(ax) == 1 else None)
+            if m:
+                mem.setdefault(m, []).append(x)
+        cls = next((m for m in CLS_PREF if m in mem), None) or (next(iter(mem)) if len(mem) == 1 else None)
+        if not cls:
+            return None
+        only = [x for x in mem[cls] if len(x['dims']) == 1]
+        one = lambda n: next((x['val'] for x in only if x['name'] == n), None)
+        how, fd = 'dim:' + cls, R['filingDate'][i]
+        if comp == 'eps':
+            v = one(DIM_NAMES['eps'])
+            return {'last': v, 'first': v, 'how': how, 'acc': acc, 'filed': fd} if v is not None else None
+        v = one(DIM_NAMES['sh'])
+        if v is not None:
+            return {'last': v, 'first': v, 'how': how, 'acc': acc, 'filed': fd}
+        b = one(DIM_NAMES['shb'])
+        if b is None:
+            return None
+        # המניות הנוספות: לכל תג — הסכום של הסוג עצמו אם מתויג, אחרת סכום הפירוט לפי סוג הענקה (HSY: המרת Class B + אופציות + RSU)
+        inc = 0.0
+        for n in sorted({x['name'] for x in mem[cls] if x['name'].startswith('IncrementalCommonShares')}):
+            tot = [x['val'] for x in only if x['name'] == n]
+            inc += tot[0] if tot else sum(x['val'] for x in mem[cls] if x['name'] == n and len(x['dims']) == 2 and 'AwardTypeAxis' in dict(x['dims']))
+        return {'last': b + inc, 'first': b + inc, 'how': how + ':basic+inc', 'acc': acc, 'filed': fd}
+    return None
+
+
+def patch_missing(F, cik, today=None, need=None):
+    """F + כל הגשה תקופתית מ־800 הימים האחרונים שאין לה ערך us-gaap/ifrs ב־companyfacts ויש לה instance במטמון. מחזיר (F, [acc…]).
+    בלי instance במטמון — נרשמת ב־need (להורדה ב־xfetch.js ‏--inst)."""
     sp = os.path.join(CACHE, 'data.sec.gov', 'submissions', 'CIK%010d.json' % int(cik))
     if not os.path.exists(sp):
         return F, []
@@ -130,6 +238,8 @@ def patch_missing(F, cik, today=None):
         ip = os.path.join(CACHE, 'www.sec.gov', 'Archives', 'edgar', 'data', str(int(cik)), acc.replace('-', ''),
                           __import__('re').sub(r'\.htm$', '', R['primaryDocument'][i], flags=__import__('re').I) + '_htm.xml')
         if not os.path.exists(ip):
+            if need is not None:
+                need.add('\t'.join([str(int(cik)), acc, f, R['filingDate'][i], R['reportDate'][i], R['primaryDocument'][i]]))
             continue
         for ns, cc in parse_instance(ip, acc, f, R['filingDate'][i]).items():
             for c, v in cc.items():
@@ -288,6 +398,7 @@ def main():
     snapd, out = sys.argv[1], sys.argv[2]
     only = set(sys.argv[sys.argv.index('--syms') + 1].split(',')) if '--syms' in sys.argv else None
     n = bad = miss = 0
+    need = set()
     with open(out, 'w') as fo:
         for fn in sorted(os.listdir(snapd)):
             if not fn.endswith('.json'):
@@ -303,10 +414,18 @@ def main():
             if F is None:
                 fo.write(json.dumps({'sym': sym, 'skip': 'no-facts'}) + '\n')
                 continue
-            F, added = patch_missing(F, o['cik'], (o.get('asOf') or '')[:10] or None)
+            F, added = patch_missing(F, o['cik'], (o.get('asOf') or '')[:10] or None, need)
             added = set(added)
             q, Q, tags = o['q'], o['Q'], o.get('tags') or {}
             L = len(q) - 1
+
+            # פיצול / איחוד אחרי ההגשה: ב־XBRL המספר כפי שדווח אז; המערכת מתאימה להיום (splitsUsed — DD ‏1:3, ‏KLAC ‏10:1, ‏MNST ‏2:1)
+            def adj(filed, SU=o.get('splitsUsed') or [], today=(o.get('asOf') or '9999')[:10]):
+                fct = 1.0
+                for dd_, ff in SU:
+                    if (filed or '') < dd_ <= today:
+                        fct *= ff
+                return fct
             for i in range(max(0, L - 5), L + 1):
                 e = q[i]
                 vals = {}
@@ -342,6 +461,10 @@ def main():
                     if s:
                         row['ok'] = bool(tol_ok(comp, sysv, s['last']) or tol_ok(comp, sysv, s['first']))
                         row['okLast'] = tol_ok(comp, sysv, s['last'])
+                    elif comp == 'sbc' and row.get('alt') and sysv is not None:
+                        # התג של המערכת בלי הרבעון (מיזוג תגים בשרתון — COO, ‏FLEX, ‏GL): מול התג החלופי. רק בתגמול — התגים כמעט
+                        # מילים נרדפות; ברווח לפני מס (רווח נקי + מס) וברווח נקי (לבעלי המניות הרגילות) ההגדרה שונה
+                        row['ok'], row['why'] = tol_ok(comp, sysv, row['alt']['last']), 'alt'
                     vals[comp] = row
                 # רווח לפני מס שלא תויג ברבעון (FLEX ‏6/2026 — אין שורה כזו ב־instance): רווח נקי + מס. מדויק כשאין רווח מפעילות שהופסקה,
                 # זכויות מיעוט או חלק בכלולות — לכן רק כחלופה אחרונה, ומסומן
@@ -354,27 +477,40 @@ def main():
                 # רבעון רביעי: רווח למניה ומניות — הקירוב
                 # הרווח: לבעלי המניות הרגילות (אחרי דיבידנד בכורה / הקצאה לניירות משתתפים) כשמדווח — אחרת הרווח הנקי
                 ni, sh, ep = vals['ni'], vals['sh'], vals['eps']
-                if not sh.get('same') and sh.get('sys'):
-                    for t in ('WeightedAverageNumberOfDilutedSharesOutstanding',):
-                        # פיצול / איחוד אחרי ההגשה: ב־XBRL המספר כפי שדווח אז; המערכת מתאימה להיום (splitsUsed — DD ‏1:3, ‏KLAC ‏10:1)
-                        def adj(filed, SU=o.get('splitsUsed') or [], today=(o.get('asOf') or '9999')[:10]):
-                            fct = 1.0
-                            for dd_, ff in SU:
-                                if filed < dd_ <= today:
-                                    fct *= ff
-                            return fct
+                # רבעון שאין לו עובדה בלי ממד (לא בתג של המערכת ולא בחלופי) — לפי סוג המניה מה־10-Q של הרבעון
+                for comp in ('eps', 'sh'):
+                    r_ = vals[comp]
+                    if not r_.get('same') and not r_.get('alt') and r_.get('sys') is not None:
+                        dv = dim_val(o['cik'], e, comp, need)
+                        if dv:
+                            f_ = adj(dv['filed']) if comp == 'sh' else 1 / adj(dv['filed'])
+                            r_['dim'], r_['why'] = dv, 'dim'
+                            r_['ok'] = tol_ok(comp, r_['sys'], dv['last'] * f_)
+                if not sh.get('same') and not sh.get('dim') and sh.get('sys'):
+                    # התג של המערכת קודם (XOM: הבסיסי — אין לה מדולל), ואז המדולל
+                    for t in dict.fromkeys(x for x in (tags.get('sh'), 'WeightedAverageNumberOfDilutedSharesOutstanding') if x and '+' not in x):
                         a = q4_weighted(series(F, t, 'sh'), e, adj)
                         if a:
                             sh['approx'], sh['why'] = a, 'q4-approx'
                             sh['ok'] = tol_ok('sh', sh['sys'], a)
                             break
-                if not ep.get('same') and sh.get('sys'):
-                    for t in ('NetIncomeLossAvailableToCommonStockholdersDiluted', 'NetIncomeLossAvailableToCommonStockholdersBasic', None):
-                        r = quarter_val(series(F, t, 'ni'), e, 'ni') if t else ni.get('same')
-                        if r:
-                            ep['approx'], ep['why'], ep['niTag'] = r['last'] / sh['sys'], 'q4-approx', t or ni.get('tag')
+                if not ep.get('same') and not ep.get('dim') and sh.get('sys'):
+                    # ואחרון — הרווח בתג החלופי (ALLE: ‏NetIncomeLoss לא מתויג ברבעון, ‏ProfitLoss כן; ‏BE: התג של המערכת מורכב)
+                    for t in ('NetIncomeLossAvailableToCommonStockholdersDiluted', 'NetIncomeLossAvailableToCommonStockholdersBasic', None, 'alt'):
+                        r = quarter_val(series(F, t, 'ni'), e, 'ni') if t and t != 'alt' else ni.get('same') if not t else ni.get('alt')
+                        if r and r.get('last') is not None:
+                            ep['approx'], ep['why'], ep['niTag'] = r['last'] / sh['sys'], 'q4-approx', (t if t != 'alt' else 'alt:' + str(r.get('tag'))) if t else ni.get('tag')
                             ep['ok'] = tol_ok('eps', ep['sys'], ep['approx'])
                             break
+                # פיצול שהמערכת מכירה (splitsUsed) ואחרי ההגשה של העובדה: משווים אחרי אותו מקדם — לכל רכיב בנפרד
+                # (MNST ‏2:1 ב־8/2026: המניות ב־10-Q של 3/2026 ו־6/2026 בבסיס הישן, ואין רווח למניה באותו תג להשוואה ההפוכה שלמטה)
+                for a in ('eps', 'sh'):
+                    A_ = vals[a]
+                    s_ = A_.get('same')
+                    if A_.get('ok') is False and s_ and A_['sys'] and s_.get('last'):
+                        f_ = adj(s_.get('filed'))
+                        if f_ != 1.0 and tol_ok(a, A_['sys'], s_['last'] * f_ if a == 'sh' else s_['last'] / f_):
+                            A_['split'], A_['ok'] = round(1 / f_, 4), True
                 # פיצול / איחוד מניות: ב־XBRL הערך כפי שדווח אז, אצל המערכת — מותאם להיום. אותו מקדם הפוך ברווח למניה ובמניות,
                 # והרווח הנקי לא זז (רווח למניה × מניות זהה בשניהם) → 'split' עם המקדם, לא פער
                 for a, b in (('eps', 'sh'),):
@@ -396,7 +532,11 @@ def main():
                     if r.get('ok') is None and r['used']:
                         miss += 1
                     fo.write(json.dumps(r) + '\n')
-    print('שורות:', n, '· פער:', bad, '· בלי ערך עצמאי (ברבעונים שבשימוש):', miss)
+    if need:
+        # קובצי instance שחסרים (הגשה שאינה ב־companyfacts, או בדיקה לפי סוג מניה) — להוריד:
+        # node tools/buffett-deep/xfetch.js --inst <out>.need.tsv, ולהריץ שוב עד שאין
+        open(out + '.need.tsv', 'w').write('\n'.join(sorted(need)) + '\n')
+    print('שורות:', n, '· פער:', bad, '· בלי ערך עצמאי (ברבעונים שבשימוש):', miss, '· instance חסרים:', len(need))
 
 
 if __name__ == '__main__':

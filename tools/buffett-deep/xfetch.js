@@ -3,7 +3,8 @@
    1. companyfacts של כל CIK ב־tools/fund-deep/ciks.tsv — המקור שממנו xbrl.py מחלץ בעצמו כל רבעון (בלי הקוד של השרתון).
    2. frames — מקור שני מאותו מאגר, אבל בבחירה של SEC (ערך אחד לחברה לכל תקופה קלנדרית): לכל מושג ברשימה, הרבעונים
       CY<שנה>Q<n> מהרבעון השלישי של 2024 ועד היום, וגם השנים CY2024/CY2025. בקשה אחת = כל החברות.
-   3. ‏--inst <tsv>: קובץ ה־instance ‏(‎<doc>_htm.xml‎) של כל הגשה תקופתית שחסרה ב־companyfacts (הרשימה — xbrl.py ‏--missing).
+   3. ‏--inst <tsv>: קובץ ה־instance ‏(‎<doc>_htm.xml‎) של כל הגשה תקופתית שחסרה ב־companyfacts, ושל 10-Q שבו המניות / הרווח
+      למניה רק לפי סוג מניה (הרשימה — ‏<out>.need.tsv ש־xbrl.py כותב; מריצים שוב עד שהיא לא נוצרת).
       השרתון משלים אותן ב־lib/secxbrl.js (עד 4 להגשה); כאן מורידים את כולן, ו־xbrl.py מפענח בעצמו.
    הכל דרך sec.js (מטמון, 250ms, המתנה ב־429). לא להריץ במקביל לתהליך אחר שפונה ל־SEC.
    שימוש: BD_DIR=<dir> node tools/buffett-deep/xfetch.js [--facts] [--frames] [--syms A,B] [--inst <tsv>] */

@@ -151,7 +151,9 @@ def main():
                 prv = [p.get({'gaap': 'eps_gaap', 'sbc': 'sbc_total', 'sh': 'sh_dil'}[comp]) for p in pr]
                 prv = [v for v in prv if isinstance(v, (int, float))]
                 sm = x.get('same') or {}
-                kw = dict(xb=xs if xs is not None else x.get('approx'), xb_how=((sm.get('how') or '') + ('+inst' if sm.get('inst') else '')) or x.get('why'),
+                dm = x.get('dim') or ({**x['alt'], 'how': 'alt:' + str(x['alt'].get('tag'))} if x.get('why') == 'alt' else {})
+                kw = dict(xb=xs if xs is not None else x.get('approx') if x.get('approx') is not None else dm.get('last'),
+                          xb_how=((sm.get('how') or '') + ('+inst' if sm.get('inst') else '')) or dm.get('how') or x.get('why'),
                           frame=fr, split=x.get('split'), pr=prv[0] if prv else None)
                 if sv is None:
                     # MISS — יש ערך ב־SEC (בתג של המערכת או בחלופי) ולמערכת אין; NOSRC — אין בשום תג
@@ -168,6 +170,9 @@ def main():
                     v = 'PEND'
                 elif ok is False:
                     v = 'DIFF'
+                    # טעות קנה מידה במקור (MCD: המניות מתויגות במיליונים בלי decimals — ‏713.5): המערכת נכונה, נשאר DIFF עם הסיבה
+                    if comp == 'sh' and xs and abs(sv / (xs * 1e6) - 1) < 0.005:
+                        kw['cause'] = 'src-scale:1e6'
                 else:
                     v = 'V2'
                     if fr is not None and same(comp if comp != 'gaap' else 'gaap', sv / (x.get('split') or 1) if comp == 'gaap' else sv * (x.get('split') or 1) if comp == 'sh' else sv, fr):

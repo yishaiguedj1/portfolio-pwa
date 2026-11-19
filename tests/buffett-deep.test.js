@@ -183,6 +183,60 @@ ok(/^Stock-based compensation \| 630 \| \(492\)$/m.test(txt) && /^Non-GAAP net i
     'xbrl.py: מאגר מאוחד של תגים (9 חודשים בתג אחד, השנה באחר), ורווח לפני מס = רווח נקי + מס כשלא תויג');
 }
 
+// xbrl.py: מניות ורווח למניה רק לפי סוג מניה / שיטה (HSY, ‏SJM), פיצול אחרי ההגשה בלי זוג (MNST), ו־instance חסר → need.tsv
+{
+  const XB = path.join(tmp, 'xd'), sd = path.join(XB, 'snap'), C = path.join(XB, 'cache', 'data.sec.gov');
+  for (const d of [sd, path.join(C, 'api', 'xbrl', 'companyfacts'), path.join(C, 'submissions')]) fs.mkdirSync(d, { recursive: true });
+  const [a0, a1, a2, a3] = ['0000000007-26-000001', '0000000007-26-000002', '0000000007-26-000003', '0000000007-26-000004'];
+  fs.writeFileSync(path.join(C, 'api', 'xbrl', 'companyfacts', 'CIK0000000007.json'), JSON.stringify({ facts: { 'us-gaap': {
+    WeightedAverageNumberOfDilutedSharesOutstanding: { units: { shares: [{ start: '2026-01-01', end: '2026-03-31', val: 50, accn: a0, form: '10-Q', filed: '2026-05-01' }] } } } } }));
+  fs.writeFileSync(path.join(C, 'submissions', 'CIK0000000007.json'), JSON.stringify({ filings: { recent: { form: ['10-Q', '10-Q', '10-Q', '10-Q'],
+    accessionNumber: [a3, a2, a1, a0], filingDate: ['2026-11-01', '2026-08-05', '2026-02-01', '2026-05-01'],
+    reportDate: ['2026-09-30', '2026-06-30', '2025-12-31', '2026-03-31'], primaryDocument: ['x-0930.htm', 'x-0630.htm', 'x-1231.htm', 'x-0331.htm'], isXBRL: [1, 1, 1, 1] } } }));
+  const inst = (acc, doc, s0, e0, body) => {
+    const d = path.join(XB, 'cache', 'www.sec.gov', 'Archives', 'edgar', 'data', '7', acc.replace(/-/g, ''));
+    fs.mkdirSync(d, { recursive: true });
+    const per = '<xbrli:period><xbrli:startDate>' + s0 + '</xbrli:startDate><xbrli:endDate>' + e0 + '</xbrli:endDate></xbrli:period>';
+    const cx = (id, mem) => '<xbrli:context id="' + id + '"><xbrli:entity><xbrli:identifier scheme="http://www.sec.gov/CIK">7</xbrli:identifier><xbrli:segment>' +
+      mem.map(([ax, m]) => '<xbrldi:explicitMember dimension="us-gaap:' + ax + '">us-gaap:' + m + '</xbrldi:explicitMember>').join('') + '</xbrli:segment></xbrli:entity>' + per + '</xbrli:context>';
+    fs.writeFileSync(path.join(d, doc), '<?xml version="1.0"?><xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance" xmlns:us-gaap="http://fasb.org/us-gaap/2025" ' +
+      'xmlns:x="http://x.example/2026" xmlns:xbrldi="http://xbrl.org/2006/xbrldi">' +
+      cx('cc', [['StatementClassOfStockAxis', 'CommonStockMember']]) + cx('cb', [['StatementClassOfStockAxis', 'CommonClassBMember']]) +
+      cx('co', [['AwardTypeAxis', 'EmployeeStockOptionMember'], ['StatementClassOfStockAxis', 'CommonStockMember']]) +
+      cx('cr', [['AwardTypeAxis', 'RestrictedStockUnitsRSUMember'], ['StatementClassOfStockAxis', 'CommonStockMember']]) +
+      cx('m2', [['EarningsPerShareMethodAxis', 'TwoClassMethodMember']]) + cx('mt', [['EarningsPerShareMethodAxis', 'TreasuryStockMethodMember']]) +
+      '<xbrli:unit id="sh"><xbrli:measure>xbrli:shares</xbrli:measure></xbrli:unit><xbrli:unit id="eps"><xbrli:divide><xbrli:unitNumerator><xbrli:measure>iso4217:USD</xbrli:measure>' +
+      '</xbrli:unitNumerator><xbrli:unitDenominator><xbrli:measure>xbrli:shares</xbrli:measure></xbrli:unitDenominator></xbrli:divide></xbrli:unit>' + body + '</xbrli:xbrl>');
+  };
+  const t = (n, c, v, u = 'sh', ns = 'us-gaap') => '<' + ns + ':' + n + ' contextRef="' + c + '" unitRef="' + u + '" decimals="0">' + v + '</' + ns + ':' + n + '>';
+  // 6/2026 ‏(HSY): לפי סוג; אין מדולל מתויג → בסיסי 100 + המרת Class B ‏50 (תג פרטי) + אופציות 1 + RSU ‏2 = 153
+  inst(a2, 'x-0630_htm.xml', '2026-04-01', '2026-06-30', t('EarningsPerShareDiluted', 'cc', '2.00', 'eps') + t('EarningsPerShareDiluted', 'cb', '1.80', 'eps') +
+    t('WeightedAverageNumberOfSharesOutstandingBasic', 'cc', 100) + t('WeightedAverageNumberOfSharesOutstandingBasic', 'cb', 50) +
+    t('IncrementalCommonSharesAttributabletoDilutiveEffectofConversion', 'cc', 50, 'sh', 'x') +
+    t('IncrementalCommonSharesAttributableToShareBasedPaymentArrangements', 'co', 1) + t('IncrementalCommonSharesAttributableToShareBasedPaymentArrangements', 'cr', 2));
+  // 9/2026 ‏(SJM): שתי שיטות — המניות באוצר (205), לא שתי הקבוצות (200)
+  inst(a3, 'x-0930_htm.xml', '2026-07-01', '2026-09-30', t('WeightedAverageNumberOfDilutedSharesOutstanding', 'm2', 200) +
+    t('WeightedAverageNumberOfDilutedSharesOutstanding', 'mt', 205) + t('EarningsPerShareDiluted', 'm2', '1.00', 'eps') + t('EarningsPerShareDiluted', 'mt', '1.00', 'eps'));
+  const ends = ['2025-12-31', '2026-03-31', '2026-06-30', '2026-09-30'];
+  fs.writeFileSync(path.join(sd, 'XDM.json'), JSON.stringify({ ok: true, src: 'sec', sym: 'XDM', cik: 7, asOf: '2026-11-19', q: ends,
+    splitsUsed: [['2026-08-01', 2]],   // ‏2:1 — אחרי ה־10-Q של 3/2026 ‏(50 → 100), לפני אלה של 6/2026 ו־9/2026
+    Q: { eps: [null, null, 2.0, 1.0], sh: [90, 100, 153, 205] },
+    tags: { eps: 'EarningsPerShareDiluted', sh: 'WeightedAverageNumberOfDilutedSharesOutstanding' } }));
+  const xo = path.join(XB, 'x.jsonl');
+  execFileSync('python3', ['-I', path.join(T, 'xbrl.py'), sd, xo], { env: { ...process.env, BD_DIR: XB } });
+  const X = fs.readFileSync(xo, 'utf8').trim().split('\n').map(JSON.parse);
+  const g = (e, c) => X.find((r) => r.e === e && r.c === c);
+  ok(g(ends[2], 'sh').why === 'dim' && g(ends[2], 'sh').dim.last === 153 && /basic\+inc/.test(g(ends[2], 'sh').dim.how) && g(ends[2], 'sh').ok === true &&
+    g(ends[2], 'eps').dim.last === 2 && g(ends[2], 'eps').ok === true,
+    'xbrl.py: לפי סוג מניה — המניה הרגילה (לא Class B), ובלי מדולל מתויג: הבסיסי + המניות הנוספות של אותו סוג');
+  ok(g(ends[3], 'sh').dim.last === 205 && /TreasuryStockMethod/.test(g(ends[3], 'sh').dim.how) && g(ends[3], 'sh').ok === true,
+    'xbrl.py: שתי שיטות חישוב — המניות באוצר');
+  ok(g(ends[1], 'sh').same.last === 50 && g(ends[1], 'sh').split === 0.5 && g(ends[1], 'sh').ok === true,
+    'xbrl.py: פיצול אחרי ההגשה גם בלי רווח למניה להשוואה ההפוכה (MNST)');
+  const need = fs.readFileSync(xo + '.need.tsv', 'utf8');
+  ok(need.includes(a1) && !need.includes(a2) && !need.includes(a3), 'xbrl.py: ‏10-Q בלי instance במטמון → need.tsv (להורדה ב־xfetch.js ‏--inst)');
+}
+
 // ledger.py: יומן האימות — זהות מול המימוש העצמאי, החילוץ מ־SEC, והקוראים לפי ההודעה של הרבעון עצמו
 {
   const W = path.join(tmp, 'w');
