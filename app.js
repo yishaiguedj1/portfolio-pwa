@@ -1149,8 +1149,8 @@ he: {
   earnXCard: 'צפי', earnXFy: 'דוח שנתי', earnXAnY: 'אנליסטים · שנתי', earnXQtr: 'רבעון', earnXTonePos: 'מגמה חיובית', earnXToneNeg: 'מגמה שלילית', earnXToneNeu: 'מגמה ניטרלית',
   earnXD90: 'הצפי לרווח למניה {v} ב־90 יום', earnXRevs: 'ב־30 יום: {up} העלו, {dn} הורידו', earnXBeat: 'עקפה את הצפי ב־{b} מ־{n} הרבעונים האחרונים', earnXBeatWarn: '. רוב החברות עוקפות: הצפי יורד לקראת הדוח, ולכן עקיפה לבדה אינה ראיה לדוח טוב', earnXExpUp: 'ציפיות: צמיחה', earnXExpDown: 'ציפיות: ירידה', earnXExpMix: 'ציפיות: מעורב', earnXExpFlat: 'ציפיות: יציב', earnXRevS: 'הכנסות {v}', earnXEpsS: 'רווח {v}', earnXEpsNc: 'רווח — לא בר השוואה', earnXBizUp: 'העסק: משתפר', earnXBizDown: 'העסק: נחלש', earnXBizFlat: 'העסק: יציב', earnXFlag: 'יש חריגה', earnXExpT: 'ציפיות לרבעון', earnXExpWhy: 'הצפי של האנליסטים מול הרבעון המקביל אשתקד. הרווח מוחרג כשבאותו רבעון היה רווח חד־פעמי או לא־תפעולי גדול', earnXBizT: 'מצב העסק', earnXBizWhy: 'מהדוחות שכבר פורסמו: הרבעון האחרון מול המקביל אשתקד; המרת מזומן — 4 רבעונים. תזרים חופשי אחרי השקעות ותשלום במניות', earnXBMg: 'שולי רווח תפעולי {v} נק׳', earnXBFcf: 'תזרים חופשי למניה {v}', earnXBSh: 'מספר המניות {v}', earnXBCc: 'המרת מזומן {v}', earnXFOne: 'רווח חד־פעמי או לא־תפעולי גדול — הרווח למניה לא משקף את העסק', earnXFAcq: 'רכישה משמעותית בשנה האחרונה — חלק מהצמיחה לא אורגנית, והרווח ברבעון יכול לרדת זמנית', earnXFAdj: 'הרווח ״של הרחוב״ ברבעון האחרון {a} מול {g} לפי GAAP — יש החרגות גדולות', earnXFCash: 'הרווח לא מגובה במזומן (המרת מזומן {v})', earnXDisc: 'הערכת מצב מנתונים פומביים — לא תחזית ולא המלצה. הרווח בצפי הוא ״רווח הרחוב״: לפעמים מותאם ולפעמים GAAP.',
   earnXBeatAvg: ' (בממוצע {v})', earnXToneSrc: 'המגמה לפי שינויי הצפי של האנליסטים (Yahoo) — לא תחזית ולא המלצה.',
-  calReport: 'דוח רבעוני', calAddAria: 'הוספת הדוח של {sym} ליומן', calGoogle: 'הוספה ל־Google Calendar', calOther: 'יומן אחר (אפל, סמסונג, Outlook)',
-  calIcsNote: 'ביומן אחר נוצרות גם תזכורות — יום לפני ושעה לפני.', calIcsDone: 'הקובץ ירד — פתח אותו כדי להוסיף ליומן', calLocal: '{t} שעון ישראל',
+  calReport: 'דוח רבעוני', calAddAria: 'הוספת הדוח של {sym} ליומן', calGoogle: 'יומן Google', calOther: 'יומן אחר',
+  calIcsNote: 'יומן אחר — אפל, סמסונג, Outlook — כולל תזכורות יום לפני ושעה לפני.', calIcsDone: 'הקובץ ירד — פתח אותו כדי להוסיף ליומן', calLocal: '{t} שעון ישראל',
   calEventTitle: 'דוח רבעוני · {sym}{name}', calEventDesc: 'פרסום הדוח הרבעוני של {sym}', calEventEst: 'תאריך משוער (לפי Yahoo Finance)',
   earnDate: 'דוח: {date}',
   twrOfficial: 'TWR רשמי של IBKR',
@@ -3112,8 +3112,8 @@ en: {
   earnXCard: 'Est.', earnXFy: 'Annual report', earnXAnY: 'Analysts · FY', earnXQtr: 'Quarter', earnXTonePos: 'Trending up', earnXToneNeg: 'Trending down', earnXToneNeu: 'Flat',
   earnXD90: 'EPS estimate {v} over 90 days', earnXRevs: 'Last 30 days: {up} up, {dn} down', earnXBeat: 'Beat estimates in {b} of the last {n} quarters', earnXBeatWarn: '. Most companies beat: estimates drift down before the report, so a beat alone is not evidence of a good report', earnXExpUp: 'Expectations: growth', earnXExpDown: 'Expectations: decline', earnXExpMix: 'Expectations: mixed', earnXExpFlat: 'Expectations: flat', earnXRevS: 'Revenue {v}', earnXEpsS: 'EPS {v}', earnXEpsNc: 'EPS — not comparable', earnXBizUp: 'Business: improving', earnXBizDown: 'Business: weakening', earnXBizFlat: 'Business: steady', earnXFlag: 'Distortion', earnXExpT: 'Quarter expectations', earnXExpWhy: 'Analyst estimates vs. the same quarter last year. EPS is excluded when that quarter had a large one-off or non-operating item', earnXBizT: 'Business health', earnXBizWhy: 'From published reports: latest quarter vs. the same quarter last year; cash conversion over 4 quarters. Free cash flow after capex and stock compensation', earnXBMg: 'Operating margin {v} pts', earnXBFcf: 'Free cash flow per share {v}', earnXBSh: 'Share count {v}', earnXBCc: 'Cash conversion {v}', earnXFOne: 'Large one-off or non-operating item — EPS does not reflect the business', earnXFAcq: 'Significant acquisition in the past year — part of the growth is not organic, and quarterly profit may dip temporarily', earnXFAdj: 'Street EPS last quarter {a} vs. {g} GAAP — large exclusions', earnXFCash: 'Earnings not backed by cash (cash conversion {v})', earnXDisc: 'An assessment from public data — not a forecast or advice. The EPS estimate is street EPS: sometimes adjusted, sometimes GAAP.',
   earnXBeatAvg: ' (avg {v})', earnXToneSrc: 'Trend from analyst estimate revisions (Yahoo) — not a forecast or advice.',
-  calReport: 'Earnings', calAddAria: 'Add the {sym} earnings report to your calendar', calGoogle: 'Add to Google Calendar', calOther: 'Other calendar (Apple, Samsung, Outlook)',
-  calIcsNote: 'Other calendars also get reminders — a day before and an hour before.', calIcsDone: 'Downloaded — open it to add to your calendar', calLocal: '{t} local time',
+  calReport: 'Earnings', calAddAria: 'Add the {sym} earnings report to your calendar', calGoogle: 'Google Calendar', calOther: 'Other calendar',
+  calIcsNote: 'Other calendar — Apple, Samsung, Outlook — includes reminders a day and an hour before.', calIcsDone: 'Downloaded — open it to add to your calendar', calLocal: '{t} local time',
   calEventTitle: 'Earnings · {sym}{name}', calEventDesc: '{sym} quarterly earnings report', calEventEst: 'Estimated date (per Yahoo Finance)',
   earnDate: 'Earnings: {date}',
   twrOfficial: "IBKR's official TWR",
@@ -8309,8 +8309,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.186.4';
-const APP_VERSION = 'v847';
+const APP_RELEASE = '2.186.6';
+const APP_VERSION = 'v849';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -12820,7 +12820,9 @@ function earnXSheetHTML(ex) {
   if (why.length) h += '<div class="esx-meta">' + esc(why.join(' · ')) + '</div>';
   if (a && a.h && a.h.n) h += '<div class="esx-meta">' + esc(t('earnXBeat', { b: a.h.b, n: a.h.n }) + (a.h.s != null ? t('earnXBeatAvg', { v: sp(a.h.s / 100) }) : '') + t('earnXBeatWarn')) + '</div>';
   if (g) h += '<div class="esx-meta">' + esc(t('earnXSrc', { d: fmtDateIL(g.fd) })) + '</div>';
-  if (tn) h += '<div class="esx-meta esx-fine">' + esc(t('earnXToneSrc')) + '</div>';
+  // 19/11/2026: הסתייגות אחת בגיליון — שורת המקור של המגמה רק כשאין את ההסתייגות הכללית בסוף
+  const hasDisc = !!(a && a.q && (earnXExp(a, ex.b) || earnXBiz(ex.b)));
+  if (tn && !hasDisc) h += '<div class="esx-meta esx-fine">' + esc(t('earnXToneSrc')) + '</div>';
   // 17/11/2026: שני האותות והדגלים — הפירוט שמאחורי שורות הכרטיס
   if (a && a.q) {
     const ep = earnXExp(a, ex.b), bz = earnXBiz(ex.b), fl = earnXFlags(a, ex.b);
@@ -12864,20 +12866,22 @@ function openEarnCalSheet(r, name) {
   const sh = el('div', 'pf-sheet earn-sheet');
   sh.setAttribute('role', 'dialog');
   sh.setAttribute('aria-modal', 'true');
+  // 19/11/2026 (בקשת המשתמש): הכל במסך אחד ובזכוכית — התאריך בכותרת, ✕ במקום "ביטול", שני כפתורי היומן בשורה אחת;
+  // הגוף נגלל בתוך הגיליון רק כשהמסך נמוך מדי (הכותרת והכפתורים תמיד גלויים)
   sh.innerHTML = '<div class="sheet-grab" aria-hidden="true"></div>' +
     '<div class="es-head">' + stockLogoHTML(r.sym) +
       '<div class="es-id"><div class="es-title"><span dir="ltr">' + esc(r.sym.replace(/\.TA$/i, '')) + '</span> · ' + esc(t('calReport')) + '</div>' +
-      '<div class="es-name">' + esc(name) + '</div></div></div>' +
-    '<div class="es-when"><div class="es-day">' + esc(dayTxt) + '</div>' +
+      '<div class="es-name">' + esc(name) + '</div>' +
+      '<div class="es-day">' + esc(dayTxt) + '</div>' +
       '<div class="es-meta">' + esc([when, tm, local ? t('calLocal', { t: local }) : '', r.est ? t('earnEst') : ''].filter(Boolean).join(' · ')) + '</div></div>' +
-    earnXSheetHTML(earnXFor(earnXAll()[r.sym], r.date)) +
-    '<button type="button" class="btn es-btn es-google">' + CAL_ICON_CUR + '<span>' + esc(t('calGoogle')) + '</span></button>' +
-    '<button type="button" class="btn secondary-btn es-btn es-ics">' + CAL_ICON_CUR + '<span>' + esc(t('calOther')) + '</span></button>' +
-    '<div class="es-note">' + esc(t('calIcsNote')) + '</div>' +
-    '<button type="button" class="es-cancel">' + esc(t('btnCancel')) + '</button>';
+      '<button type="button" class="es-x-close" aria-label="' + esc(t('btnClose')) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>' +
+    '<div class="es-body">' + earnXSheetHTML(earnXFor(earnXAll()[r.sym], r.date)) + '</div>' +
+    '<div class="es-acts"><button type="button" class="btn es-btn es-google">' + CAL_ICON_CUR + '<span>' + esc(t('calGoogle')) + '</span></button>' +
+    '<button type="button" class="btn secondary-btn es-btn es-ics">' + CAL_ICON_CUR + '<span>' + esc(t('calOther')) + '</span></button></div>' +
+    '<div class="es-note">' + esc(t('calIcsNote')) + '</div>';
   veil.appendChild(sh);
   veil.addEventListener('click', (e) => { if (e.target === veil) closeEarnCalSheet(); });
-  sh.querySelector('.es-cancel').addEventListener('click', closeEarnCalSheet);
+  sh.querySelector('.es-x-close').addEventListener('click', closeEarnCalSheet);
   sh.querySelector('.es-google').addEventListener('click', () => {
     try { window.open(earnGoogleUrl(ev), '_blank', 'noopener'); } catch (e) {}
     closeEarnCalSheet();

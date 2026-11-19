@@ -361,6 +361,19 @@ html .an-root :is(.an-key, .an-rcard, .an-mtile):active { transform: scale(.975)
   html :is(.an-root, .kc-root) :is(button, .an-key, .an-rcard, .an-mtile, .kc-pk, .kc-tcell) { transition: none !important; }
 }
 
+/* ===== 32. גיליון הדוח הקרוב (הוספה ליומן) — 19/11/2026, בקשת המשתמש: זכוכית כמו הגיליונות של מנתח החברות ===== */
+html .earn-sheet { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; -webkit-backdrop-filter: blur(30px) saturate(190%) !important; backdrop-filter: blur(30px) saturate(190%) !important; border-radius: 32px 32px 0 0 !important; }
+html[data-theme="dark"] .earn-sheet { background: rgba(44, 44, 46, .82) !important; }
+html .earn-sheet .es-head .stock-logo { border-radius: 50% !important; }
+html .earn-sheet .es-x-close { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; -webkit-backdrop-filter: var(--lg-fx) !important; backdrop-filter: var(--lg-fx) !important; }
+html .earn-sheet .es-x { background: var(--lg-fill) !important; border-radius: 22px !important; }
+html .earn-sheet :is(.esx-sec, .esx-grid + .esx-grid) { border-top: .5px solid var(--lg-sep) !important; }
+html .earn-sheet .esx-flag { background: color-mix(in srgb, var(--warn-fg) 13%, transparent) !important; border-radius: 14px !important; }
+html .earn-sheet .es-btn { min-height: 50px !important; }
+html .earn-sheet :is(.es-x-close, .es-btn) { transition: transform .45s var(--lg-spring) !important; }
+html .earn-sheet :is(.es-x-close, .es-btn):active { transform: scale(.94) !important; }
+@media (prefers-reduced-motion: reduce) { html .earn-sheet :is(.es-x-close, .es-btn) { transition: none !important; } }
+
 }
 
 /* 17/11/2026 (בקשת המשתמש): חיפוש בטלפון — app.js msOpen. מחוץ לשכבה: מחלקות חדשות, בלי מה לעקוף.
