@@ -8309,8 +8309,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.186.3';
-const APP_VERSION = 'v846';
+const APP_RELEASE = '2.186.4';
+const APP_VERSION = 'v847';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -12312,7 +12312,41 @@ function initScrollSaver() {
 
 /* התאמת גודל מספרים גדולים לרוחב הכרטיס — נשארים גדולים ככל האפשר,
    אבל מתכווצים אוטומטית לפי אורך המספר כדי שאף ספרה לא תיחתך. */
+/* 19/11/2026 (בקשת המשתמש: "מהשיא" וגלולת היום לעולם לא יתנגשו — הכל בשורה אחת, הסכום בכסף תמיד, ורק גודל הטקסט
+   משתנה לפי האורך; רווח נדיב, מסודר ונקי לפי ת־עיצוב): בכל כרטיס מעקב כל השורה קטנה יחד (--wk) עד שבין השיא לגלולה
+   נשארים לפחות WK_GAP. שורה שנכנסת — בגודל המלא. יציבות: באותו רוחב, טיק חי רק מקטין (סכום שמשנה אורך כל כמה שניות,
+   כמו BTC, לא מקפיץ את הגודל הלוך ושוב); גדל בחזרה בציור מחדש של הכרטיס או בשינוי רוחב. */
+const WK_GAP = 22, WK_FLOOR = 0.5;
+function fitWatchSubs() {
+  if (typeof document === 'undefined' || !document.getElementById) return;
+  const list = document.getElementById('wishlistList');
+  if (!list || !list.querySelectorAll || !list.clientWidth) return; // מוסתר — נמדוד כשיוצג
+  const vw = (typeof window !== 'undefined' && window.innerWidth) || 0;
+  const free = (x) => {
+    const a = x.querySelector('.wl-ath'), p = x.querySelector('.day-chg');
+    return a && p ? x.clientWidth - a.scrollWidth - p.offsetWidth : Infinity;
+  };
+  const setK = (x, k) => { if (k >= 1) x.style.removeProperty('--wk'); else x.style.setProperty('--wk', String(k)); };
+  for (const x of list.querySelectorAll('.stock[data-watch] .stock-sub')) {
+    const key = vw + '|' + list.clientWidth + '|' + x.textContent;
+    if (x._wkKey === key) continue; // טיק חי שלא שינה טקסט — בלי מדידה
+    const sameW = x._wkW === vw + '|' + list.clientWidth;
+    x._wkKey = key; x._wkW = vw + '|' + list.clientWidth;
+    if (!x.clientWidth) { x._wkKey = ''; continue; }
+    let k = sameW && x._wkK ? x._wkK : 1; // יציבות — לא גדל בחזרה בטיק חי
+    setK(x, k);
+    if (free(x) < WK_GAP) { // הערכה ליניארית, ואז צעדים קטנים עד שנכנס (הריפוד והעיגול לא ליניאריים)
+      const a = x.querySelector('.wl-ath'), p = x.querySelector('.day-chg');
+      const need = a.scrollWidth + p.offsetWidth;
+      if (need > 0) k = Math.max(WK_FLOOR, Math.min(k, Math.floor(k * (x.clientWidth - WK_GAP) / need * 100) / 100));
+      setK(x, k);
+      while (free(x) < WK_GAP && k > WK_FLOOR) { k = Math.round((k - 0.02) * 100) / 100; setK(x, k); }
+    }
+    x._wkK = k;
+  }
+}
 function fitNumbers(page) {
+  try { fitWatchSubs(); } catch (e) {}
   // v193: רק בטאב הנראה, וקריאות/כתיבות בקבוצות — לפני כן כל מספר עשה עד 40 סבבי מדידה→שינוי (layout thrash)
   // 14/10/2026: page = העמוד שנכנס בקובייה — המספרים מותאמים כבר בגרירה, ולא משנים גודל באמצע הסיבוב
   const SEL = '.stat-value, .lg-pct, .pension-total';
@@ -18003,6 +18037,7 @@ function renderWishlist(opts) {
     out.push(card);
   }
   listSync(list, out);
+  try { fitWatchSubs(); } catch (e) {}
   try { wlWarmHist(items.map((w) => w.sym)); } catch (e) {}
 }
 /* 19/11/2026 (בקשת המשתמש: "מהשיא" רק בחלק מכרטיסי המעקב): השיא מחושב מההיסטוריה היומית, ו־warmHistories טוען רק
