@@ -26,11 +26,11 @@ const text = (h) => String(h).replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '
 /* שורות "מדולל" בכל הטבלאות. כל שורה: תווית + ערכים מספריים לפי הסדר (עמודות "$" ו־")" נפרדות מתאחדות).
    want — מסנן אחר לתווית (parseEps); בלעדיו "dilut" בתווית או בכותרת שמעליה */
 function parse(html, want) {
-  const out = [];
+  const per = [];
   const tables = String(html).split(/<table/i).slice(1);
   tables.forEach((tb, ti) => {
-    const body = tb.split(/<\/table>/i)[0];
-    let ctx = '', prev = null;
+    const body = tb.split(/<\/table>/i)[0], out = [];
+    let ctx = '', prev = null, dilSh = false; const aft = [];
     for (const tr of body.split(/<tr/i).slice(1)) {
       const cells = (tr.match(/<t[dh][^>]*>[\s\S]*?(?=<t[dh][\s>]|<\/tr>|$)/gi) || []).map(text).filter((c) => c && c !== '$' && c !== ')' && c !== '%');
       if (!cells.length) continue;
@@ -51,11 +51,29 @@ function parse(html, want) {
       const after = !want && !!p0 && /dilut/i.test(p0) && !/per share|earnings|income|loss/i.test(label) && SH_ROW.test(label) && !/basic|dilut/i.test(label);
       if (want ? !want(label) : !/dilut/i.test(label) && !/dilut/i.test(ctx) && !after) continue;
       if (!v.some((x) => x != null)) continue;
-      out.push(want ? { t: ti, label: label.slice(0, 80), ctx: '', v, b: 1 } : { t: ti, label: label.slice(0, 80), ctx: /dilut/i.test(label) ? '' : after && !/dilut/i.test(ctx) ? p0.slice(0, 80) : ctx, v });
-      if (out.length >= 40) return;
+      const o = want ? { t: ti, label: label.slice(0, 80), ctx: '', v, b: 1 } : { t: ti, label: label.slice(0, 80), ctx: /dilut/i.test(label) ? '' : after && !/dilut/i.test(ctx) ? p0.slice(0, 80) : ctx, v };
+      out.push(o);
+      if (!want && after && !/dilut/i.test(ctx)) aft.push(o);
+      else if (!want && SH_ROW.test(label) && !/per (common )?share/i.test(label) && /dilut/i.test(label + ' ' + ctx)) dilSh = true;
     }
+    // F36 רק בטבלה שאין בה שורת מניות מדוללות מפורשת (Coca-Cola: ‏"Diluted Net Income Per Share", מתחתיה "Average Shares Outstanding" —
+    // הבסיסי, ‏4,300 — ורק אחריה "Average Shares Outstanding Assuming Dilution" ‏4,329. בלי התנאי q4From בחר בבסיסי: הרווח למניה המעוגל
+    // כפול הבסיסי קרוב יותר לרווח)
+    if (dilSh) for (const o of aft) out.splice(out.indexOf(o), 1);
+    if (out.length) per.push(out);
   });
-  return out;
+  return capRows(per);
+}
+/* עד 40 שורות (גודל הרשומה ב־R2). גל 8: מעבר לתקרה — קודם הטבלאות שיש בהן גם רווח למניה וגם שורת מניות לפי התווית, ואחריהן השאר,
+   בסדר המקורי (Air Products ‏FY2015: ‏".47" שנקרא מעכשיו הוסיף ערכים לטבלת ההתאמה שבראש ההודעה — כל שורה בה "מדוללת" לפי הכותרת —
+   וטבלת המניות, ה־34 בהודעה, נחתכה). עד גל 8 — לפי הסדר עד 40 */
+const shL = (r) => (SH_ROW.test(r.label) || /\bshares\b/i.test(r.label)) && !/per (common )?share|earnings per|income per|loss per|\beps\b/i.test(r.label);
+function capRows(per) {
+  if (per.reduce((t, rs) => t + rs.length, 0) <= 40) return per.flat();
+  const both = (rs) => rs.some(shL) && rs.some((r) => epsLike(r) && !shL(r));
+  const keep = new Map(); let left = 40;
+  for (const pass of [true, false]) for (const rs of per) if (left > 0 && !keep.has(rs) && both(rs) === pass) { keep.set(rs, Math.min(rs.length, left)); left -= keep.get(rs); }
+  return per.filter((rs) => keep.has(rs)).flatMap((rs) => rs.slice(0, keep.get(rs)));
 }
 
 /* מסמך בלי טבלאות (18/11/2026, גל 5 — F24): מצגת שקפים עם שכבת טקסט (Apollo), HTML שהומר מ־PDF (Ameriprise, ‏AppLovin), מכתב

@@ -1900,5 +1900,22 @@ ${row('ro', 'us-gaap_CostOfRevenue', 'Cost of sales', ['1', '2', '3', '4', '5', 
     Object.fromEntries(Array.from({ length: 25 }, (_, i) => ['Filler' + i, { units: { EUR: [] } }]))) } };
     const if8 = F.normalizeSec(IF, [], null, null);
     ok(if8 && if8.ifrs && if8.A.sh.join() === [1175e6, 1180e6].join() && if8.tags.sh === 'AdjustedWeightedAverageShares', '(40) F34: ‏IFRS — המניות המדוללות הן AdjustedWeightedAverageShares');
+    // F36 רק בלי שורת מניות מדוללות מפורשת (Coca-Cola ‏Q4 2020: מתחת ל־"Diluted Net Income Per Share" — הבסיסי ‏4,300, ואחריו "Assuming Dilution" ‏4,329)
+    const KO8 = '<table><tr><td>Diluted Net Income Per Share</td><td>$</td><td>0.34</td><td>$</td><td>0.47</td></tr><tr><td>Average Shares Outstanding</td><td>4,300</td><td>4,282</td></tr>'
+      + '<tr><td>Effect of dilutive securities</td><td>29</td><td>40</td></tr><tr><td>Average Shares Outstanding Assuming Dilution</td><td>4,329</td><td>4,322</td></tr></table>';
+    const ko8 = P8.parse(KO8);
+    ok(!ko8.some((r) => r.label === 'Average Shares Outstanding') && P8.q4From(ko8, 1457e6, 4320e6, 1).sh === 4329e6, '(40) F36: יש "Assuming Dilution" — לא השורה שמתחת ל־"Diluted" (הבסיסי)');
+    // התקרה (40 שורות): קודם הטבלאות שיש בהן רווח למניה וגם שורת מניות (Air Products ‏FY2015 — טבלת התאמה ארוכה בראש ההודעה)
+    const big = '<table><tr><td>Operating Income Margin Net Income Diluted EPS</td></tr>' + Array.from({ length: 45 }, (_, i) => '<tr><td>Item ' + i + '</td><td>' + (10 + i) + '.5</td><td>.47</td></tr>').join('') + '</table>';
+    const ap8 = P8.parse(big + '<table><tr><td>Diluted EPS</td><td>1.58</td></tr><tr><td>Weighted Average Common Shares Diluted (in millions)</td><td>217.7</td></tr></table>');
+    ok(ap8.length === 40 && ap8.some((r) => /Weighted Average/.test(r.label)) && ap8[0].label === 'Item 0' && P8.q4From(ap8, 344.5e6, 217.8e6, 1).sh === 217.7e6, '(40) parse: מעבר ל־40 שורות — הטבלה עם המניות נשמרת');
+    // F38 (Capital One ‏2014): ‏"Total other debt" ‏36,833 = ריפו ‏880 + ‏18,684 + ‏17,269 — סכום־ביניים כולל שורה שאינה חוב; לא נספר פעם שנייה
+    const cof = { bs: { cols: [{ end: '2014-12-31' }], scale: { cur: 1e6, sh: 1 }, rows: [{ ns: 'us-gaap', tag: 'Assets', label: 'Total assets', total: true, v: [308167] },
+      { ns: 'us-gaap', tag: 'Deposits', label: 'Total deposits', total: true, v: [205548] }, { ns: 'us-gaap', tag: 'SecuredDebt', label: 'Securitized debt obligations', v: [11624] },
+      { ns: 'us-gaap', tag: 'FederalFundsPurchasedAndSecuritiesSoldUnderAgreementsToRepurchase', label: 'Federal funds purchased and securities loaned or sold under agreements to repurchase', v: [880] },
+      { ns: 'us-gaap', tag: 'UnsecuredDebt', label: 'Senior and subordinated notes', v: [18684] }, { ns: 'us-gaap', tag: 'OtherBorrowings', label: 'Other borrowings', v: [17269] },
+      { ns: 'us-gaap', tag: 'DebtExcludingSecuredDebt', label: 'Total other debt', total: true, v: [36833] }, { ns: 'us-gaap', tag: 'Liabilities', label: 'Total liabilities', total: true, v: [263114] },
+      { ns: 'us-gaap', tag: 'LiabilitiesAndStockholdersEquity', label: 'Total liabilities and stockholders’ equity', total: true, v: [308167] }] } };
+    ok(F.debtFace(cof, 'USD').tot.get('2014-12-31') === 47577e6, '(40) F38: ‏"Total other debt" (כולל ריפו) — סכום־ביניים, לא נספר שוב (47,577, לא 84,410)');
   }
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });

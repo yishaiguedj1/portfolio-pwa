@@ -283,6 +283,20 @@ function debtFace(face, cur) {
       // ‏"Total borrowed funds" ‏7,435) — במקום כולן, לא רק הקבוצה האחרונה (אחרת הקצרות נספרו פעמיים)
       const all = lines.reduce((t, l) => t + (c0 >= 0 && l.v[c0] != null ? l.v[c0] : 0), 0);
       if (r.ns === 'us-gaap' && x != null && lines.length > prev.length && prev.length && Math.abs(all - x) <= Math.max(1e-9, 1e-3 * Math.abs(x))) { lines.length = 0; lines.push({ tag: r.tag, ns: r.ns, cat, label: lab, v, grp }); grp++; continue; }
+      // גל 8 (F38): "סך" קטן מהשורות שלפניו, ששווה בכל עמודה לרצף השורות שמעליו — גם שורות שאינן חוב (Capital One: ‏"Total other debt"
+      // ‏36,833 = ריפו ‏880 + ‏18,684 + ‏17,269, בלי האיגוח ‏11,624 שמעליהן; ריפו אינו חוב) — סכום־ביניים של שורות שכבר טופלו. עד היום נספרו
+      // גם השורות וגם הסך (84,410 במקום 47,577)
+      if (prev.length && x != null && sum > 0 && x < sum - 0.01 * sum) {
+        const cs = v.map((y, ci) => ci).filter((ci) => v[ci] != null), acc = v.map(() => 0);
+        let run = false, n = 0, deb = false;
+        for (let k = i - 1; k > a0 && !run; k--) {
+          const rk = rows[k]; if (rk.total || /^total\b/i.test(rk.label || '')) break;
+          SECFACE.rowVals(S, rk).forEach((y, ci) => { if (y != null && ci < acc.length) acc[ci] += y; });
+          n++; deb = deb || prev.some((l) => l.tag === rk.tag);
+          run = n >= 2 && deb && cs.some((ci) => v[ci]) && cs.every((ci) => Math.abs(acc[ci] - v[ci]) <= Math.max(1e-9, 1e-4 * Math.abs(v[ci])));
+        }
+        if (run) { grp++; continue; }
+      }
       // "Total short-term debt" קטן מהשורות שלפניו (Vulcan ‏10-Q ‏2026: חלויות ‏400, ‏"Total short-term debt" ‏0) — הוא לא הסך שלהן
       if (!(x != null && sum > 0 && x < sum - 0.01 * sum)) for (const l of prev) lines.splice(lines.indexOf(l), 1);
     }
