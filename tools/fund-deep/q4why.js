@@ -4,7 +4,8 @@
 //   noEps / noSh / diffTable (רווח למניה ומניות בטבלאות שונות) / shFar (אין מניות עד 25% מההערכה) / shMid (המכפלה = הרווח, אבל המניות
 //   10%–25% מההערכה בלי אישור השנה) / keepSh (נמצא, ונשאר — שורת "מדולל" על בסיס אחר בשנת הפסד) / bGate (שורות "רווח למניה" בלי
 //   "מדולל" ושנה לא ב־noDil) / adj (רק שורות מתואמות) / annOk (השנה בהודעה = השנה שלנו, הרבעון לא) / annDiff (גם השנה בהודעה שונה) /
-//   qOnly (אין עמודת שנה).
+//   qOnly (אין עמודת שנה); ‏qSame / noQ — ראו why; ‏sign — המכפלה = מינוס הרווח (הסוגריים אבדו בפענוח); ‏crossOk — הזיווג בין
+//   טבלאות מוצא (בטבלה של המניות רווח למניה מתואם, FFO).
 // ובנוסף — "זיווג בין טבלאות" (‎--cross‎): רווח למניה מטבלה אחת ומניות מאחרת, רק כששתי השורות באותו מבנה עמודות וגם עמודת השנה
 // מאומתת (מניות עד 2% מהשנתיות, מכפלה = הרווח השנתי). הדיוק נמדד ברבעונים הרביעיים ש־XBRL כן מתייג (האמת).
 // נתונים ציבוריים של SEC בלבד.
@@ -70,25 +71,41 @@ function cross(rws, ns, est, post, ann) {
   return got.length === 1 ? { eps: Math.round(got[0].e * 1e4) / 1e4, sh: got[0].s, lab: got[0].re.label } : got.length ? { amb: got.length } : null;
 }
 
-function why(r, ns, est, post, ann, noDilYr) {
-  const rw = r.rows;
-  if (rw.some((x) => x.b) && !noDilYr) return { c: 'bGate' };
-  if (!rw.some(isEps)) return { c: 'noEps' };
-  if (!rw.some(P.shRow)) return { c: 'noSh' };
-  const sp = pairs(rw, est, post, true);
-  const anySame = rw.some((re) => isEps(re) && rw.some((rs) => rs !== re && rs.t === re.t));
-  if (!anySame) return { c: 'diffTable' };
-  if (!sp.length) return { c: 'shFar' };
-  const hit = sp.filter((c) => ns.some((n) => okN(c.e * c.s, n, c.s)));
-  if (hit.length) return hit.some((c) => c.dv <= 0.1 || annCol(c.re, c.rs, c.i, c.f, c.pf, ann)) ? { c: 'keepSh' } : { c: 'shMid', dv: Math.min(...hit.map((c) => c.dv)) };
-  const gaap = sp.filter((c) => !ADJ.test(c.re.label + ' ' + (c.re.ctx || '')));
-  if (!gaap.length) return { c: 'adj', lab: sp[0].re.label };
-  // הקרוב ביותר לרווח שלנו מבין השורות שאינן מתואמות
-  const n0 = ns[0];
-  const b = gaap.reduce((a, c) => (Math.abs(c.e * c.s - n0) < Math.abs(a.e * a.s - n0) ? c : a));
-  const X = b.e * b.s, rel = n0 ? (X - n0) / Math.abs(n0) : null;
-  const cls = annCol(b.re, b.rs, b.i, b.f, b.pf, ann) ? 'annOk' : annAny(b.re, b.rs, b.i, b.f, b.pf, ann) ? 'annDiff' : 'qOnly';
-  return { c: cls, lab: b.re.label, X: Math.round(X), n: Math.round(n0), rel: rel == null ? null : Math.round(rel * 1e4) / 1e4, cont: /continuing/i.test(b.re.label), sign: n0 && Math.abs(X + n0) <= 0.02 * Math.abs(n0) + 0.0051 * b.s };
+/* השורש. imp — ההשפעה: same — הרווח למניה שלנו לרבעון מודפס באחת השורות שאינן מתואמות (רק המניות נשארות הערכה); ann — רק
+   הרווח למניה השנתי שלנו מודפס; diff — אף אחד מהם */
+function why(r, ns, est, post, ann, noDilYr, eps0, epsA) {
+  const rw = r.rows, gaapR = rw.filter((x) => isEps(x) && !ADJ.test(x.label + ' ' + (x.ctx || '')));
+  const pfs = [...new Set([1].concat(post || []).filter((x) => x > 0))];
+  const has = (v) => v != null && gaapR.some((x) => x.v.some((y) => y != null && pfs.some((pf) => Math.abs(y / pf - v) < 0.005)));
+  const imp = has(eps0) ? 'same' : has(epsA) ? 'ann' : 'diff';
+  const w = cls();
+  // המכפלה שונה מהרווח, אבל הרווח למניה שלנו לרבעון מודפס (עמודות לפי מגזר, NextEra) — qSame; רק השנתי מודפס (טבלת שנים בלבד או
+  // חודש — Live Nation, ‏Progressive) — noQ
+  if (['annOk', 'annDiff', 'qOnly'].includes(w.c) && imp !== 'diff') w.c = imp === 'same' ? 'qSame' : 'noQ';
+  return { ...w, imp };
+  function cls() {
+    if (rw.some((x) => x.b) && !noDilYr) return { c: 'bGate' };
+    if (!rw.some(isEps)) return { c: 'noEps' };
+    // שורת מניות של ממש: תווית של מניות (לא "per … share") עם ערך שלם, או ערך של אלף ומעלה
+    const shReal = (x) => x.v.some((y) => y != null && y > 0) && ((/weighted|average|outstanding|shares|equivalent/i.test(x.label + ' ' + (x.ctx || '')) && !/per (basic |diluted |common |and )*share|earnings per|income per|loss per|\beps\b/i.test(x.label)) || x.v.some((y) => y != null && Math.abs(y) >= 1000));
+    if (!rw.some(shReal)) return { c: 'noSh' };
+    const anySame = rw.some((re) => isEps(re) && rw.some((rs) => rs !== re && rs.t === re.t && shReal(rs)));
+    if (!anySame) return { c: 'diffTable' };
+    const sp = pairs(rw, est, post, true);
+    if (!sp.length) return { c: 'shFar' };
+    const hit = sp.filter((c) => ns.some((n) => okN(c.e * c.s, n, c.s)));
+    if (hit.length) return hit.some((c) => c.dv <= 0.1 || annCol(c.re, c.rs, c.i, c.f, c.pf, ann)) ? { c: 'keepSh' } : { c: 'shMid', dv: Math.min(...hit.map((c) => c.dv)) };
+    if (sp.some((c) => ns.some((n) => okN(-c.e * c.s, n, c.s)))) return { c: 'sign' };
+    const gaap = sp.filter((c) => !ADJ.test(c.re.label + ' ' + (c.re.ctx || '')));
+    if (!gaap.length) return { c: 'adj', lab: sp[0].re.label };
+    const m = cross(rw, ns, est, post, ann);
+    if (m && !m.amb) return { c: 'crossOk', cross: [m.eps, m.sh], lab: m.lab };
+    const n0 = ns[0];
+    const b = gaap.reduce((a, c) => (Math.abs(c.e * c.s - n0) < Math.abs(a.e * a.s - n0) ? c : a));
+    const X = b.e * b.s, rel = n0 ? (X - n0) / Math.abs(n0) : null;
+    const k = annCol(b.re, b.rs, b.i, b.f, b.pf, ann) ? 'annOk' : annAny(b.re, b.rs, b.i, b.f, b.pf, ann) ? 'annDiff' : 'qOnly';
+    return { c: k, lab: b.re.label, X: Math.round(X), n: Math.round(n0), rel: rel == null ? null : Math.round(rel * 1e4) / 1e4, cont: /continuing/i.test(b.re.label) };
+  }
 }
 
 const res = [], tag = { n: 0, found: 0, ok: 0, bad: [], amb: 0 };
@@ -103,7 +120,7 @@ for (const [sym, c0] of rows) {
   const ff = path.join(DD, cik + '.face.json'), f0 = fs.existsSync(ff) ? JSON.parse(fs.readFileSync(ff, 'utf8')) : null;
   let s; try { s = F.normalizeSec(gz(cf), [], f0 && !f0.err ? f0 : null); } catch (e) { continue; }
   if (!s || !s.Q || !s.Q.eps || !s.q) continue;
-  const est0 = (s.shEst || []).slice(), sh0 = (s.Q.sh || []).slice();
+  const est0 = (s.shEst || []).slice(), sh0 = (s.Q.sh || []).slice(), eps0 = s.Q.eps.slice();
   const at = (e) => Object.values(p).find((r) => r && r.rows && Math.abs(day(r.end) - day(e)) <= 5);
   const sp = (s.splitsUsed || []).slice().sort((a, b) => (a[0] < b[0] ? -1 : 1)), post = sp.map((_, j) => sp.slice(j).reduce((t, [, x]) => t * x, 1));
   const A = s.A || {};
@@ -133,20 +150,21 @@ for (const [sym, c0] of rows) {
     const r = at(e); if (!r || !(sh0[i] > 0)) continue;
     const { fi, ns, ann } = ctx(e, i);
     if (!ns.length) { res.push({ sym, e, c: 'noNi' }); continue; }
-    const w = why(r, ns, sh0[i], post, ann, (s.noDil || []).includes(s.fy[fi]));
+    const w = why(r, ns, sh0[i], post, ann, (s.noDil || []).includes(s.fy[fi]), eps0[i], A.eps && A.eps[fi]);
     if (w.c === 'diffTable') { const m = cross(r.rows, ns, sh0[i], post, ann); w.cross = m ? (m.amb ? 'amb' : [m.eps, m.sh]) : null; }
     res.push({ sym, e, ...w });
   }
 }
-const cnt = {}; for (const r of res) cnt[r.c] = (cnt[r.c] || 0) + 1;
-const sub = { cont: 0, sign: 0, rel: {} };
+const cnt = {}, mat = {}; for (const r of res) { cnt[r.c] = (cnt[r.c] || 0) + 1; mat[r.c] = mat[r.c] || {}; mat[r.c][r.imp] = (mat[r.c][r.imp] || 0) + 1; }
+const sub = { cont: 0, rel: {} };
 for (const r of res) if (['annOk', 'annDiff', 'qOnly'].includes(r.c)) {
-  if (r.cont) sub.cont++; if (r.sign) sub.sign++;
+  if (r.cont) sub.cont++;
   const a = r.rel == null ? 'na' : Math.abs(r.rel) <= 0.05 ? '≤5%' : Math.abs(r.rel) <= 0.2 ? '≤20%' : '>20%';
   sub.rel[r.c + ' ' + a] = (sub.rel[r.c + ' ' + a] || 0) + 1;
 }
 const dt = res.filter((r) => r.c === 'diffTable');
 console.log('שנים:', res.length, JSON.stringify(cnt));
+console.log('שורש × השפעה:', JSON.stringify(mat));
 console.log('המכפלה ≠ הרווח (פירוט):', JSON.stringify(sub));
 console.log('diffTable — הזיווג בין טבלאות:', JSON.stringify({ n: dt.length, found: dt.filter((r) => Array.isArray(r.cross)).length, amb: dt.filter((r) => r.cross === 'amb').length }));
 console.log('הזיווג בין טבלאות מול XBRL (רבעון מתויג):', JSON.stringify({ n: tag.n, found: tag.found, ok: tag.ok, bad: tag.bad.length, amb: tag.amb }));
