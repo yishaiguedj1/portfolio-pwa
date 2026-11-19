@@ -1,0 +1,97 @@
+גל 2 — השוואת הקוראים (w2b). הודעות ברשימות: 421
+קורא A: 421 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+קורא B: 421 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+קורא C: 2 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+
+הסכמה A מול B לכל שדה (מתוך הודעות ששניהם קראו):
+  er           421/421   100.0%
+  pre          419/421    99.5%
+  adj          420/421    99.8%
+  ex           420/421    99.8%
+  partial      420/421    99.8%
+  chg          421/421   100.0%
+  fut          421/421   100.0%
+  pol          420/421    99.8%
+  pe           257/257   100.0%
+  eps_gaap     257/257   100.0%
+  eps_adj      257/257   100.0%
+  sbc_rec      257/257   100.0%
+  tax_adj      244/257    94.9%
+  tax_sbc      257/257   100.0%
+  sbc_total    248/257    96.5%
+  sbc_rec_ps   250/257    97.3%
+  tax_adj_ps   247/257    96.1%
+  sh_dil       257/257   100.0%
+  sh_adj       257/257   100.0%
+  הערות: fut:no-adj=1, sbc_rec_ps:has-total=7, sh_adj:swap=9, sh_dil:scale=2, tax_adj:scale=3
+
+מחלוקות בשדות החמים (er,adj,ex,fut,chg,pol / pe,eps_gaap,eps_adj,sbc_rec,sbc_rec_ps,sh_dil): 2 הודעות (ממתינות לקורא C: 0)
+  לפי שדה: ex=1, adj=1, pol=1
+  ללא הכרעה גם אחרי C (SPLIT): 0
+
+מטריצות בלבול — הקונצנזוס של הקוראים מול secsbc.classify (sys_c = 2 הנספחים שהשרת קורא; sys_all = כל הנספחים)
+er (הודעת תוצאות):
+  קוראים\מערכת    False     True
+  False             154       10
+  True                0      257
+ex (כפי שנקרא: True / False / partial / None) — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             147        0
+  None               43        0
+  True               17       31
+  partial            14        5
+pol (מוציא? בלי רווח מותאם = False) — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             204        5
+  True               17       31
+pol — בהודעות תוצאות, כל הנספחים:
+  קוראים\מערכת    False     True
+  False             204        5
+  True               17       31
+pol — רק ההודעות שהשרת בוחר (picked):
+  קוראים\מערכת    False     True
+  False             192        5
+  True               16       20
+fut — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             161        5
+  None               43        0
+  True               17       31
+
+אי־התאמות pol (קונצנזוס מול sys_c), הודעות תוצאות:
+  BX     0001193125-25-247643 2025-10-23 picked=True cons=True sys=False h=---
+  BX     0001193125-25-248907 2025-10-23 picked=True cons=True sys=False h=---
+  BX     0001193125-26-028145 2026-01-29 picked=True cons=True sys=False h=---
+  BX     0001193125-26-171788 2026-04-23 picked=True cons=True sys=False h=---
+  BX     0001193125-26-313250 2026-07-23 picked=True cons=True sys=False h=---
+  BX     0001193125-26-428297 2026-10-22 picked=True cons=True sys=False h=---
+  CAH    0000721371-25-000128 2025-10-30 picked=True cons=partial sys=True h=-cc---EEE-E
+  CAH    0000721371-26-000004 2026-02-05 picked=True cons=partial sys=True h=-cc----EEE-E
+  CAH    0000721371-26-000017 2026-04-30 picked=True cons=partial sys=True h=-cc------EEE-E
+  CAH    0000721371-26-000037 2026-08-11 picked=True cons=partial sys=True h=-cc------EEE-E
+  CAH    0000721371-26-000042 2026-11-05 picked=True cons=partial sys=True h=-cc----EEE-E
+  CCI    0001051470-25-000185 2025-10-22 picked=False cons=True sys=False h=c--------------------c
+  CCI    0001051470-26-000008 2026-02-04 picked=True cons=True sys=False h=c------------------c
+  CCI    0001051470-26-000046 2026-04-22 picked=True cons=True sys=False h=c------------------c
+  CCI    0001051470-26-000069 2026-07-22 picked=True cons=True sys=False h=c----------------------c
+  CCI    0001051470-26-000085 2026-10-21 picked=True cons=True sys=False h=c--------------------c
+  CCI    0001051470-26-000091 2026-11-04 picked=True cons=True sys=False h=c--------------------c
+  CIEN   0000936395-25-000037 2025-09-04 picked=True cons=True sys=False h=c--------------
+  CIEN   0001628280-25-056425 2025-12-11 picked=True cons=True sys=False h=c--------------
+  CIEN   0001628280-26-015006 2026-03-05 picked=True cons=True sys=False h=c--------------
+  CIEN   0001628280-26-040614 2026-06-04 picked=True cons=True sys=False h=c--------------
+  CIEN   0001628280-26-060245 2026-09-03 picked=True cons=True sys=False h=c--------------
+אי־התאמות er:
+  BDX    0001628280-25-045106 2025-10-15 picked=False cons=False sys=True
+  BDX    0001628280-26-023185 2026-04-02 picked=True cons=False sys=True
+  BIIB   0000875045-25-000040 2025-10-14 picked=False cons=False sys=True
+  BIIB   0000875045-26-000003 2026-01-14 picked=False cons=False sys=True
+  BIIB   0000875045-26-000039 2026-04-06 picked=True cons=False sys=True
+  BIIB   0000875045-26-000068 2026-07-01 picked=True cons=False sys=True
+  CCEP   0001650107-25-000162 2025-11-05 picked=False cons=False sys=True
+  CCEP   0001650107-26-000059 2026-04-28 picked=False cons=False sys=True
+  CCEP   0001650107-26-000139 2026-11-03 picked=False cons=False sys=True
+  CCI    0001051470-26-000052 2026-05-01 picked=True cons=False sys=True
+לא ברור (pol=None בקונצנזוס) בהודעות תוצאות: 
+חלקי (partial): BALL:0000009389-25-000048, BALL:0000009389-26-000039, BIIB:0000875045-25-000047, BIIB:0000875045-26-000011, BLK:0001193125-25-237960, BMY:0000014272-25-000147, BMY:0000014272-26-000002, BMY:0000014272-26-000018, BMY:0000014272-26-000022, CAH:0000721371-25-000128, CAH:0000721371-26-000004, CAH:0000721371-26-000017, CAH:0000721371-26-000037, CAH:0000721371-26-000042, CHD:0001193125-25-259387, CHD:0001193125-26-030474, CHD:0001193125-26-199066, CHD:0001193125-26-326749, CHD:0001193125-26-439864
+שינוי מדיניות (chg≠none): 
