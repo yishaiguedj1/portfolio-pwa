@@ -125,6 +125,64 @@ ok(/^Stock-based compensation \| 630 \| \(492\)$/m.test(txt) && /^Non-GAAP net i
   ok(g(ends[2], 'eps').frame && g(ends[2], 'eps').frame.v === 1.2 && g(ends[2], 'eps').frame.frame === 'CY2025Q3', 'xbrl.py: ה־frame של SEC לרבעון הקלנדרי');
 }
 
+// xbrl.py: הגשה שחסרה ב־companyfacts — מה־instance שלה (רק בלי ממד), וקירוב המניות ברבעון 4 (ימים כולל הקצוות)
+{
+  const XB = path.join(tmp, 'xi'), sd = path.join(XB, 'snap'), C = path.join(XB, 'cache', 'data.sec.gov');
+  for (const d of [sd, path.join(C, 'api', 'xbrl', 'companyfacts'), path.join(C, 'submissions')]) fs.mkdirSync(d, { recursive: true });
+  const k10 = '0000000008-26-000001', q10 = '0000000008-26-000002';
+  const f = (start, end, val, form = '10-Q') => ({ start, end, val, accn: form === '10-K' ? k10 : '0000000008-25-000009', form, filed: form === '10-K' ? '2026-02-10' : '2025-11-01' });
+  fs.writeFileSync(path.join(C, 'api', 'xbrl', 'companyfacts', 'CIK0000000008.json'), JSON.stringify({ facts: { 'us-gaap': {
+    WeightedAverageNumberOfDilutedSharesOutstanding: { units: { shares: [f('2025-01-01', '2025-03-31', 1010), f('2025-04-01', '2025-06-30', 1000),
+      f('2025-07-01', '2025-09-30', 990), f('2025-01-01', '2025-12-31', 1000, '10-K')] } },
+    // 9 חודשים מקוריים 900, מוצגים מחדש ב־11/2026 (אחרי הפרדה) 700, השנה 1,200 ב־10-K; ושנה "מלאה" שתויגה בטעות ב־10-Q ‏(200)
+    IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest: { units: { USD: [f('2025-01-01', '2025-09-30', 900),
+      { ...f('2025-01-01', '2025-09-30', 700), filed: '2026-11-01', accn: '0000000008-26-000003' }, f('2025-01-01', '2025-12-31', 1200, '10-K'),
+      { ...f('2025-01-01', '2025-12-31', 200), filed: '2026-05-01', accn: '0000000008-26-000004' }] } },
+    // מס: 9 חודשים בתג אחד, השנה בתג אחר (AKAM) — רק המאגר המאוחד מוצא את רבעון 4
+    IncomeTaxExpenseBenefit: { units: { USD: [f('2025-01-01', '2025-09-30', 150)] } },
+    IncomeTaxExpenseBenefitContinuingOperations: { units: { USD: [f('2025-01-01', '2025-12-31', 210, '10-K')] } } } } }));
+  fs.writeFileSync(path.join(C, 'submissions', 'CIK0000000008.json'), JSON.stringify({ filings: { recent: { form: ['10-Q', '10-K'],
+    accessionNumber: [q10, k10], filingDate: ['2026-05-01', '2026-02-10'], reportDate: ['2026-03-31', '2025-12-31'],
+    primaryDocument: ['xin-20260331.htm', 'xin-20251231.htm'], isXBRL: [1, 1] } } }));
+  const ip = path.join(XB, 'cache', 'www.sec.gov', 'Archives', 'edgar', 'data', '8', q10.replace(/-/g, ''));
+  fs.mkdirSync(ip, { recursive: true });
+  const per = '<xbrli:period><xbrli:startDate>2026-01-01</xbrli:startDate><xbrli:endDate>2026-03-31</xbrli:endDate></xbrli:period>';
+  const ent = (seg) => '<xbrli:entity><xbrli:identifier scheme="http://www.sec.gov/CIK">0000000008</xbrli:identifier>' + seg + '</xbrli:entity>';
+  fs.writeFileSync(path.join(ip, 'xin-20260331_htm.xml'), '<?xml version="1.0"?><xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance" ' +
+    'xmlns:us-gaap="http://fasb.org/us-gaap/2025" xmlns:xbrldi="http://xbrl.org/2006/xbrldi">' +
+    '<xbrli:context id="c1">' + ent('') + per + '</xbrli:context>' +
+    '<xbrli:context id="c2">' + ent('<xbrli:segment><xbrldi:explicitMember dimension="dei:LegalEntityAxis">x:SubMember</xbrldi:explicitMember></xbrli:segment>') + per + '</xbrli:context>' +
+    '<xbrli:unit id="usd"><xbrli:measure>iso4217:USD</xbrli:measure></xbrli:unit><xbrli:unit id="sh"><xbrli:measure>xbrli:shares</xbrli:measure></xbrli:unit>' +
+    '<xbrli:unit id="eps"><xbrli:divide><xbrli:unitNumerator><xbrli:measure>iso4217:USD</xbrli:measure></xbrli:unitNumerator>' +
+    '<xbrli:unitDenominator><xbrli:measure>xbrli:shares</xbrli:measure></xbrli:unitDenominator></xbrli:divide></xbrli:unit>' +
+    '<us-gaap:EarningsPerShareDiluted contextRef="c2" unitRef="eps" decimals="2">9.99</us-gaap:EarningsPerShareDiluted>' +
+    '<us-gaap:EarningsPerShareDiluted contextRef="c1" unitRef="eps" decimals="2">0.77</us-gaap:EarningsPerShareDiluted>' +
+    '<us-gaap:ShareBasedCompensation contextRef="c1" unitRef="usd" decimals="-3">50</us-gaap:ShareBasedCompensation>' +
+    '<us-gaap:NetIncomeLoss contextRef="c1" unitRef="usd" decimals="-3">70</us-gaap:NetIncomeLoss>' +
+    '<us-gaap:IncomeTaxExpenseBenefit contextRef="c1" unitRef="usd" decimals="-3">20</us-gaap:IncomeTaxExpenseBenefit></xbrli:xbrl>');
+  const ends = ['2025-03-31', '2025-06-30', '2025-09-30', '2025-12-31', '2026-03-31'];
+  fs.writeFileSync(path.join(sd, 'XIN.json'), JSON.stringify({ ok: true, src: 'sec', sym: 'XIN', cik: 8, asOf: '2026-11-19', q: ends,
+    splitsUsed: [['2026-06-01', 10]],   // פיצול 1:10 אחרי כל ההגשות — המערכת מתאימה להיום
+    Q: { eps: [null, null, null, null, 0.77], sbc: [null, null, null, null, 50], sh: [10100, 10000, 9900, 10000, null], pretax: [null, null, null, 300, null] },
+    tags: { eps: 'EarningsPerShareDiluted', sbc: 'ShareBasedCompensation', sh: 'WeightedAverageNumberOfDilutedSharesOutstanding',
+      pretax: 'IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest' } }));
+  const xo = path.join(XB, 'x.jsonl');
+  execFileSync('python3', ['-I', path.join(T, 'xbrl.py'), sd, xo], { env: { ...process.env, BD_DIR: XB } });
+  const X = fs.readFileSync(xo, 'utf8').trim().split('\n').map(JSON.parse);
+  const g = (e, c) => X.find((r) => r.e === e && r.c === c);
+  ok(g(ends[4], 'eps').same && g(ends[4], 'eps').same.last === 0.77 && g(ends[4], 'eps').same.inst === true && g(ends[4], 'sbc').same.last === 50,
+    'xbrl.py: הגשה שחסרה ב־companyfacts — מה־instance שלה, והעובדה עם הממד (9.99) לא נכנסת');
+  const s4 = g(ends[3], 'sh');
+  ok(s4.why === 'q4-approx' && Math.abs(s4.approx - 10 * (1000 * 365 - (1010 * 90 + 1000 * 91 + 990 * 92)) / 92) < 1e-6 && s4.ok === true,
+    'xbrl.py: מניות ברבעון 4 — השנה פחות שלושה רבעונים, משוקלל בימים כולל הקצוות, ומותאם לפיצול שאחרי ההגשה');
+  const p4 = g(ends[3], 'pretax');
+  ok(p4.same && p4.same.last === 300 && p4.same.how === 'fy-9m' && p4.ok === true,
+    'xbrl.py: שנה פחות 9 חודשים מאותו בסיס (לא ההצגה מחדש), והשנה רק מדוח שנתי (לא העובדה השגויה ב־10-Q)');
+  const t4 = g(ends[3], 'tax'), p5 = g(ends[4], 'pretax');
+  ok(!t4.same && t4.alt && t4.alt.tag === 'pool' && t4.alt.last === 60 && p5.alt && p5.alt.how === 'ni+tax' && p5.alt.last === 90,
+    'xbrl.py: מאגר מאוחד של תגים (9 חודשים בתג אחד, השנה באחר), ורווח לפני מס = רווח נקי + מס כשלא תויג');
+}
+
 // ledger.py: יומן האימות — זהות מול המימוש העצמאי, החילוץ מ־SEC, והקוראים לפי ההודעה של הרבעון עצמו
 {
   const W = path.join(tmp, 'w');

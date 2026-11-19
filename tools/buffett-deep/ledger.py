@@ -10,7 +10,8 @@
 ארבעת האריחים.
 פסיקה: V3 — שלושה מקורות שבהם לפחות מסמך אחד נפרד מהדוח (ההודעה לעיתונות) מסכימים; V2 — המערכת + מקור עצמאי אחד;
 DIFF — מקור עצמאי לא מסכים מעבר לסובלנות; SPLIT — מקורות עצמאיים חלוקים ביניהם; MISS — למערכת אין ערך ויש לו מקור;
-EXTRA — למערכת יש ערך שלא היה צריך; DEF — פער בהגדרה (מתועד); PEND — ממתין למקור (הקוראים).
+EXTRA — למערכת יש ערך שלא היה צריך; DEF — פער בהגדרה (מתועד); PEND — ממתין למקור (הקוראים); NOSRC — אין ערך בשום מקור;
+V2~ / PEND~ — רבעון 4 בלי עובדה של 3 חודשים: קירוב (השנה פחות שלושה רבעונים) מסכים / לא — לא פסיקה סופית, ממתין להודעה.
 פלט: CSV (אפשר gzip — הסיומת .gz) + סיכום לפי רכיב ופסיקה.
 שימוש: python3 -I tools/buffett-deep/ledger.py <work-dir> <N> <out.csv[.gz]>
 """
@@ -149,12 +150,21 @@ def main():
                 fr = (x.get('frame') or {}).get('v')
                 prv = [p.get({'gaap': 'eps_gaap', 'sbc': 'sbc_total', 'sh': 'sh_dil'}[comp]) for p in pr]
                 prv = [v for v in prv if isinstance(v, (int, float))]
-                kw = dict(xb=xs, xb_how=(x.get('same') or {}).get('how') or x.get('why'), frame=fr, split=x.get('split'), pr=prv[0] if prv else None)
+                sm = x.get('same') or {}
+                kw = dict(xb=xs if xs is not None else x.get('approx'), xb_how=((sm.get('how') or '') + ('+inst' if sm.get('inst') else '')) or x.get('why'),
+                          frame=fr, split=x.get('split'), pr=prv[0] if prv else None)
                 if sv is None:
-                    add(sym, e, comp, None, 'MISS' if xs is not None else 'NOSRC', **kw)
+                    # MISS — יש ערך ב־SEC (בתג של המערכת או בחלופי) ולמערכת אין; NOSRC — אין בשום תג
+                    al = (x.get('alt') or {}).get('last')
+                    if xs is None and al is not None:
+                        kw.update(xb=al, xb_how='alt:' + str((x.get('alt') or {}).get('tag')))
+                    add(sym, e, comp, None, 'MISS' if xs is not None or al is not None else 'NOSRC', **kw)
                     continue
                 ok = x.get('ok')
-                if ok is None:
+                if x.get('why') == 'q4-approx':
+                    # רבעון 4 בלי עובדה של 3 חודשים: קירוב מהשנה פחות שלושה רבעונים — לא מקור; ההכרעה בהודעה לעיתונות (גל 2)
+                    v = 'V2~' if ok else 'PEND~'
+                elif ok is None:
                     v = 'PEND'
                 elif ok is False:
                     v = 'DIFF'
@@ -182,6 +192,25 @@ def main():
                              ('rate', (b.get('f') or {}).get('rate'), (ib.get('f') or {}).get('rate')),
                              ('fd', (b.get('f') or {}).get('ded'), (ib.get('f') or {}).get('ded'))):
             add(sym, '', comp, sv, 'V2' if sv is None and iv is None or same(comp, sv, iv) else 'DIFF', indep=iv)
+        # מס ושיעור התגמול — גם מול המקור: סכום ארבעת הרבעונים מהחילוץ העצמאי (xbrl.py: התג של המערכת, ואם אין — החלופי)
+        es = [r['e'] for r in m['rows']]
+
+        def x4(c):
+            v = []
+            for e in es:
+                x = X.get((sym, e, c)) or {}
+                y = (x.get('same') or {}).get('last')
+                if y is None:
+                    y = (x.get('alt') or {}).get('last')
+                v.append(y)
+            return sum(v) if len(v) == 4 and all(isinstance(y, (int, float)) for y in v) else None
+        pt, tx, sb4, rv4 = x4('pretax'), x4('tax'), x4('sbc'), x4('rev')
+        # כמו בהגדרה: רווח לפני מס לא חיובי → 0.21 (רק כשיש את כל שמונת הערכים — חוסר במקור אינו 0.21)
+        xt = (min(max(tx / pt, 0.10), 0.35) if pt > 0 else 0.21) if pt is not None and tx is not None else None
+        xr = sb4 / rv4 if sb4 and sb4 > 0 and rv4 and rv4 > 0 else None
+        for comp, sv, xv in (('t.src', b.get('t'), xt), ('rate.src', (b.get('f') or {}).get('rate'), xr)):
+            k = comp.split('.')[0]
+            add(sym, '', comp, sv, 'NOSRC' if xv is None else ('V2' if same(k, sv, xv) else 'DIFF'), xb=xv, src='xbrl:4q')
         for comp in ('pe', 'fpe', 'bpe', 'bfpe'):
             sv, iv = (m.get('tiles') or {}).get(comp), (i.get('tiles') or {}).get(comp)
             add(sym, '', comp, sv, 'V2' if (sv is None and iv is None) or same(comp, sv, iv) else 'DIFF', indep=iv)

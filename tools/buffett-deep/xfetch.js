@@ -3,8 +3,10 @@
    1. companyfacts של כל CIK ב־tools/fund-deep/ciks.tsv — המקור שממנו xbrl.py מחלץ בעצמו כל רבעון (בלי הקוד של השרתון).
    2. frames — מקור שני מאותו מאגר, אבל בבחירה של SEC (ערך אחד לחברה לכל תקופה קלנדרית): לכל מושג ברשימה, הרבעונים
       CY<שנה>Q<n> מהרבעון השלישי של 2024 ועד היום, וגם השנים CY2024/CY2025. בקשה אחת = כל החברות.
+   3. ‏--inst <tsv>: קובץ ה־instance ‏(‎<doc>_htm.xml‎) של כל הגשה תקופתית שחסרה ב־companyfacts (הרשימה — xbrl.py ‏--missing).
+      השרתון משלים אותן ב־lib/secxbrl.js (עד 4 להגשה); כאן מורידים את כולן, ו־xbrl.py מפענח בעצמו.
    הכל דרך sec.js (מטמון, 250ms, המתנה ב־429). לא להריץ במקביל לתהליך אחר שפונה ל־SEC.
-   שימוש: BD_DIR=<dir> node tools/buffett-deep/xfetch.js [--facts] [--frames] [--syms A,B] */
+   שימוש: BD_DIR=<dir> node tools/buffett-deep/xfetch.js [--facts] [--frames] [--syms A,B] [--inst <tsv>] */
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
@@ -12,7 +14,7 @@ const sec = require('./sec');
 
 const argv = process.argv.slice(2);
 const arg = (k) => { const i = argv.indexOf('--' + k); return i < 0 ? null : argv[i + 1]; };
-const both = !argv.includes('--facts') && !argv.includes('--frames');
+const both = !argv.includes('--facts') && !argv.includes('--frames') && !argv.includes('--inst');
 
 // המושגים לרבעון (משך של כ־3 חודשים) — מה שנכנס למכפיל: רווח למניה, מניות, מס, רווח לפני מס, הכנסות, תגמול
 const FRAMES = [
@@ -42,7 +44,20 @@ function periods(now) {
   return out;
 }
 
+// הקובץ שמחלץ SEC מה־iXBRL של ההגשה: ‏aep-20260930.htm → ‏aep-20260930_htm.xml
+const instUrl = (cik, acc, doc) => 'https://www.sec.gov/Archives/edgar/data/' + Number(cik) + '/' + String(acc).replace(/-/g, '') + '/' + String(doc).replace(/\.htm$/i, '') + '_htm.xml';
+
 async function main() {
+  if (arg('inst')) {
+    const L = fs.readFileSync(arg('inst'), 'utf8').trim().split('\n').filter((l) => l && l[0] !== '#').map((l) => l.split('\t'));
+    let ok = 0;
+    for (const [cik, acc, , , , doc] of L) {
+      try { await sec.get(instUrl(cik, acc, doc)); ok++; }
+      catch (e) { console.error('instance', cik, acc, String(e && e.message).slice(0, 80)); }
+    }
+    console.log('instance:', ok + '/' + L.length);
+    return;
+  }
   let list = fs.readFileSync(path.join(__dirname, '..', 'fund-deep', 'ciks.tsv'), 'utf8').trim().split('\n').map((l) => l.split('\t'));
   if (arg('syms')) { const w = new Set(arg('syms').split(',')); list = list.filter(([s]) => w.has(s)); }
   if (both || argv.includes('--facts')) {
@@ -63,4 +78,4 @@ async function main() {
   }
 }
 if (require.main === module) main();
-module.exports = { periods, FRAMES };
+module.exports = { periods, FRAMES, instUrl };
