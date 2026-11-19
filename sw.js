@@ -4,7 +4,7 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v845';
+const CACHE_NAME = 'portfolio-pwa-v846';
 const HASHES = {
   "./": "bc34c9382e9d1e5ae834bb4f7fa3e7f3",
   "./index.html": "bc34c9382e9d1e5ae834bb4f7fa3e7f3",
@@ -14,7 +14,7 @@ const HASHES = {
   "./academy-glass.css": "689d316e8872779cdf9808f3cf285272",
   "./studio-glass.css": "d54e6727b159ff068609af08418f51a8",
   "./desktop.css": "22dcb3bea6e645027d3146b31d66712a",
-  "./app.js": "d21d11681a855f15dd5d69882062d295",
+  "./app.js": "957733238b9c53718c34a1e4398b4ed2",
   "./returns.js": "afe0d262348852fd10982ef2d0239545",
   "./cloud.js": "d403f6c76884375dc9999b80660f1ddf",
   "./firebase-config.js": "a4adfadcd5fe3b79a29e9fa0eeb94df0",
@@ -36,7 +36,7 @@ const HASHES = {
   "./favicon-48.png": "b06144704421831d745fd553558517a7",
   "./ibkr-logo.png": "3c73fe172d48b3f58f11bcc146dd1987",
   "./acclink.js": "2683d480115d8440aba209f988184d32",
-  "./analysis.js": "82b3663f2c827a839666e95776271944",
+  "./analysis.js": "e92ee2d9d9912eae0db440138e4e365f",
   "./analysis.css": "2073a623dd410221a2e1a49eb8dbbb83",
   "./taxcenter.js": "9f66ea89d2f027260196a7b3d96e876d",
   "./taxcenter.css": "49d72724551122808472e2d92ce76b63",
@@ -80,7 +80,7 @@ const HASHES = {
   "./academy.html": "9c6de2f5fd2634d07d9c0e0a6dc9ebe7",
   "./academy-app.js": "8f943cfa4b1bbb60bc8d83d4304d9978",
   "./strings-academy.js": "6c42fbe5d186ab6e8e411d2efac3577a",
-  "./core.js": "9a4b512db84d76ed4df611b8f0181fc2",
+  "./core.js": "2e33a3cf6514b0ee7d4169d084ea812a",
   "./auth.js": "465d3bc983806d8a2f462e567725df21",
   "./shell.js": "568d54e3e8ef15bf5ebba098dabcab24",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
