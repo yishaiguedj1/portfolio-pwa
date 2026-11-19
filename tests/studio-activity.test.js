@@ -22,16 +22,16 @@ ok(q.map((r) => r.id).join() === 'q1,q2,v1', 'התור — בסדר של השר�
 ok(/\.sort\(\(a, b\) => \(a\.sm === 1\) - \(b\.sm === 1\) \|\| \(\(a\.spec \|\| \{\}\)\.vi === 1\) - \(\(b\.spec \|\| \{\}\)\.vi === 1\) \|\| \(a\.fired \|\| 0\) - \(b\.fired \|\| 0\)\)/.test(api), 'הסדר בשרתון לא השתנה (אחרת לעדכן את actSplit)');
 
 // החיבור לחוגה ולניווט
-ok(/if \(k === 'job' && stDialJob\(\) && stDialJob\(\)\.on\) return \{ v: 'act', p: null \}/.test(st), 'יש עבודה פעילה — "פעילה" פותחת את עמוד הניהול');
-ok(/if \(v === 'act'\) return 'job';/.test(st), 'העמוד שייך ל"פעילה" בחוגה');
+ok(/if \(k === 'job'\) return \{ v: 'act', p: null \};/.test(st) && !/T\('studioDialLast'\)/.test(st), '19/11: "מנהל עבודות" — תמיד העמוד, בלי "אחרונה"');
+ok(/if \(v === 'act' \|\| v === 'qnew'\) return 'job';/.test(st), 'העמוד שייך ל"פעילה" בחוגה');
 ok(/else if \(ui\.view === 'act'\) pageAct\(p\);/.test(st), 'הציור');
 ok(/x === 'tower' \|\| x === 'act' \|\| x === 'lib' \|\| x === 'home'/.test(st), 'ההורה — עמוד הבית ("חזור")');
 ok(/if \(o\.act\) stDialJ = rec\.id; go\('job', rec\.id\);/.test(st), 'לחיצה על שורה — דף העבודה, שנשאר תחת "פעילה"');
 ok(/if \(ui\.view === 'act'\) return 'act\|'/.test(st), 'עבודה עברה מהתור לריצה — העמוד נבנה מחדש');
 ok(/ui\.view === 'home' \|\| ui\.view === 'vi' \|\| ui\.view === 'act'\) ms = /.test(st) && /\} else if \(ui\.view === 'home' \|\| ui\.view === 'vi' \|\| ui\.view === 'act'\) \{/.test(st), 'מתעדכן כמו הבית (אותו קצב, אותן קריאות)');
-ok(/tx\.textContent = o\.act && ph === 'queued' \? nowLine\(rec, run, ph\)/.test(st), 'בתור — למה היא מחכה');
+ok(/: o\.act && ph === 'queued' \? nowLine\(rec, run, ph\)/.test(st), 'בתור — למה היא מחכה');
 ok(/const rows = jobs\.map\(\(rec\) => projRow\(rec\)\);/.test(st), 'הבית — אותה שורה (projRow)');
-ok(/o\.act && ph === 'queued' \? \['amber', T\('studioBQueued'\)\]/.test(st) && /rec\.spec\.vi && \(ph === 'running' \|\| ph === 'queued'\) \? \['green', T\('studioBViRun'\)\]/.test(st), 'התגית: "בתור" בפעילות; ניתוח — "בניתוח", לא "בתרגום"');
+ok(/qup \|\| \(o\.act && ph === 'queued'\) \? \['amber', T\('studioBQueued'\)\]/.test(st) && /rec\.spec\.vi && \(ph === 'running' \|\| ph === 'queued'\) \? \['green', T\('studioBViRun'\)\]/.test(st), 'התגית: "בתור" בפעילות; ניתוח — "בניתוח", לא "בתרגום"');
 // 17/11/2026: למה היא מחכה — מהשרתון (qw) לשורת התור
 ok(/qw: s\.qw && s\.qw\.r === 'mem' \? \{ r: 'mem', n: num\(s\.qw\.n\), f: num\(s\.qw\.f\) \}/.test(st), 'הטלפון: qw מנורמל (mem / perf / psi)');
 ok(/if \(q && q\.r === 'mem'\) return T\('studioQwMem'/.test(st) && /if \(q && q\.r === 'psi'\) return T\('studioQwPsi'\)/.test(st) && /if \(q && q\.r === 'perf'\) return T\('studioQwPerf'\)/.test(st), 'שורת התור — הסיבה מהשרתון לפני "עכשיו רצה"');
