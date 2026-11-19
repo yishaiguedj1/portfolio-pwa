@@ -80,4 +80,6 @@ ok(/go1\.disabled = !n \|\| n > QU_MAX/.test(st) && /export const QU_MAX = 40;/.
   fs.writeFileSync(tmp, st);
   ok(cp.spawnSync(process.execPath, ['--check', tmp]).status === 0, 'studio.js — תחביר תקין כמודול (node --check על .mjs)');
 }
+ok(/const quOk = \(\) => !!\(ui\.api && ui\.api\.servers > 0 && ui\.r2\);/.test(st), '2.192.1: הכרטיס — כשיש שרת ו־R2, בלי תלות במנוע שבהגדרות');
+ok(/if \(ryMode\(\)\) spec\.ry = 1;/.test(st) && /k === 'vt' \|\| \(k === 'tr' && !ryMode\(\)\)/.test(st), '2.192.1: "המנוי שלי" — התרגום דרכו, ובלי עלות באומדן');
 console.log('# ' + n + ' בדיקות');
