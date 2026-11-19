@@ -285,6 +285,24 @@ const normQn = (v) => clean(String(v == null ? '' : v).replace(/[\u200e\u200f\u2
 function quBusy(jobs, qu, now) {
   return (Array.isArray(jobs) ? jobs : []).filter((j) => j && j.qu === qu && j.sid && ['queued', 'running'].includes(effState(j, now).state)).length;
 }
+/* 19/11/2026 (בקשת המשתמש): ניהול התור — השהיה (qh = מתי הושהתה) ולראש התור (qo). רק עבודה שעוד לא נלקחה לשרת: מה שכבר רץ
+   ממשיך עד הסוף, בלי לפגוע בתהליך. מושהית — sid: null (לא ''), כך ששאילתת הלקיחה ({sid: ''}) בכלל לא מחזירה אותה: לא קריאות
+   מיותרות ולא חסימה של עבודות אחרות בתקרה של השאילתה. בהמשך — sid: '' חוזר, והזמן שעבר בהשהיה (qz) לא נספר לתקרת ההמתנה */
+const QU_WAIT = 72 * 3600e3;   // עבודה בתור מחכה לתורה (QU_PAR) — לא "אין שרת" אחרי 6 שעות; 40 עבודות של שעה = כ־20 שעות
+const quWaiting = (j, now) => !!(j && j.qu && !j.pk && !(j.sid && typeof j.sid === 'string') && ['new', 'queued'].includes(effState(j, now).state));
+const quKey = (j) => (Number(j.qo) || Number(j.fired) || Number(j.created) || 0);
+/* "לראש התור": לפני כל העבודות של התור שמחכות (הסדר בלקיחה לפי quKey) */
+function quTop(jobs, now) {
+  const ks = (Array.isArray(jobs) ? jobs : []).filter((j) => quWaiting(j, now)).map(quKey).filter((k) => k > 0);
+  return (ks.length ? Math.min(...ks) : now) - 1;
+}
+/* השינוי לפעולה: hold — מושהית; run — חוזרת (sid '' רק כשהיא כבר בתור לשרת; בהעלאה — queueApi קובע); top — qo */
+function quPatch(j, a, now, top) {
+  if (a === 'hold') return j.qh ? null : { qh: now, sid: null };
+  if (a === 'run') return j.qh ? Object.assign({ qh: 0, qz: (Number(j.qz) || 0) + Math.max(0, now - j.qh) }, j.state === 'queued' ? { sid: '' } : {}) : null;
+  if (a === 'top') return { qo: top };
+  return null;
+}
 function normSpec(s) {
   if (!s || typeof s !== 'object') return null;
   const name = clean(s.name, 200), size = Math.floor(Number(s.size) || 0);
@@ -858,6 +876,8 @@ function effState(job, now) {
     if (job.bw && !job.pk) return now - job.bw > BW_MAX ? { state: 'failed', err: 'no_server', at: job.bw + BW_MAX } : { state: 'queued', err: '' };
     if (job.vw && !job.pk) return now - job.vw > PARK_MAX ? { state: 'failed', err: 'upload_timeout', at: job.vw + PARK_MAX } : { state: 'queued', err: '' };
     if (job.pk && now - job.pk > CLAIM_WAIT.tr) return { state: 'failed', err: 'no_claim', at: job.pk + CLAIM_WAIT.tr };
+    if (job.qu && job.qh && !job.pk) return { state: 'queued', err: '' };   // 19/11/2026: מושהית בתור — מחכה להמשך, בלי תקרת זמן
+    if (job.qu && !job.pk && job.fired) return now - job.fired - (Number(job.qz) || 0) > QU_WAIT ? { state: 'failed', err: 'no_server', at: job.fired + (Number(job.qz) || 0) + QU_WAIT } : { state: 'queued', err: '' };
     if (!job.pk && job.fired && now - job.fired > API_QUEUE_WAIT) return { state: 'failed', err: 'no_server', at: job.fired + API_QUEUE_WAIT };
     return { state: 'queued', err: '' };
   }
@@ -916,6 +936,7 @@ function publicJob(job, now) {
     vw: job.vw && !job.pk ? 1 : 0,                   // 15/10/2026: מחכה לסרטון בתור — השרת פנוי בינתיים
     bw: job.bw && !job.pk ? 1 : 0,                   // 01/11/2026 (I3): מחכה לתשובה מתור החיסכון — השרת פנוי בינתיים
     btx: job.btx && Number.isFinite(job.btx.t) && job.btx.t > 0 ? { t: job.btx.t, s: job.btx.s === 'job' ? 'job' : 'x' } : null,   // 4/11/2026: יציאה מתור החיסכון (btNow) — מתי ומאיפה
+    qh: job.qu && job.qh ? 1 : 0, qo: job.qu && Number(job.qo) > 0 ? Number(job.qo) : 0,   // 19/11/2026: תור — מושהית, ומקום מוקדם
     qw: qwView(job),                                // 17/11/2026: למה הראשונה בתור לא נלקחה (זיכרון / לחץ / קבלה חזויה)
     bq: bqView(job, now),                           // 2/11/2026: מצב הבקשות בתור (נאספות / נשלחו ומתי / תקלה / הסוכן שותק)
     fr: job.fr && typeof job.fr.s === 'number' ? { s: job.fr.s, ms: Math.max(0, Math.round(job.fr.ms || 0)) } : null,   // v369: תוצאת ההפעלה האחרונה
@@ -2093,5 +2114,5 @@ module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, 
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, BLOCK_ERRS, BLOCK_WAIT, isBlock, blockWait, EARLY_FAIL_MS, EARLY_WAIT, recoverWait, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, excludeWait, toFields, fromFields, normFit, normMm, memClass, peakNeed, perfBlock, qwOf, qwView,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, BAD_AUTH_GAP, badAuthDue, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
-  serverMatches, normHb, normEv, SRV_EV, parkable, bwParkable, BW_MAX, BT_ERRS, normBq, bqView, BQ_SILENT_MS, bwLost, BQ_LOST_MS, BL_MAX, WL_RE, QU_PAR, normQn, quBusy, PARK_MAX, serverView, viClosed, monthKey, monthUsed, addMonth, jobCap,
+  serverMatches, normHb, normEv, SRV_EV, parkable, bwParkable, BW_MAX, BT_ERRS, normBq, bqView, BQ_SILENT_MS, bwLost, BQ_LOST_MS, BL_MAX, WL_RE, QU_PAR, normQn, quBusy, QU_WAIT, quWaiting, quKey, quTop, quPatch, PARK_MAX, serverView, viClosed, monthKey, monthUsed, addMonth, jobCap,
 };
