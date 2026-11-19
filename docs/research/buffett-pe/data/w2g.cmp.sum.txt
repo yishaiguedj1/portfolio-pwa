@@ -1,0 +1,74 @@
+גל 2 — השוואת הקוראים (w2g). הודעות ברשימות: 268
+קורא A: 268 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+קורא B: 268 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+קורא C: 6 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+
+הסכמה A מול B לכל שדה (מתוך הודעות ששניהם קראו):
+  er           268/268   100.0%
+  pre          267/268    99.6%
+  adj          267/268    99.6%
+  ex           267/268    99.6%
+  partial      268/268   100.0%
+  chg          268/268   100.0%
+  fut          267/268    99.6%
+  pol          267/268    99.6%
+  pe           256/256   100.0%
+  eps_gaap     256/256   100.0%
+  eps_adj      256/256   100.0%
+  sbc_rec      251/256    98.0%
+  tax_adj      247/256    96.5%
+  tax_sbc      256/256   100.0%
+  sbc_total    251/256    98.0%
+  sbc_rec_ps   255/256    99.6%
+  tax_adj_ps   245/256    95.7%
+  sh_dil       256/256   100.0%
+  sh_adj       256/256   100.0%
+  הערות: ex:no-adj=6, fut:no-adj=7, sh_adj:swap=4
+
+מחלוקות בשדות החמים (er,adj,ex,fut,chg,pol / pe,eps_gaap,eps_adj,sbc_rec,sbc_rec_ps,sh_dil): 6 הודעות (ממתינות לקורא C: 0)
+  לפי שדה: sbc_rec=5, sbc_rec_ps=1, adj=1, ex=1, fut=1, pol=1
+  ללא הכרעה גם אחרי C (SPLIT): 0
+
+מטריצות בלבול — הקונצנזוס של הקוראים מול secsbc.classify (sys_c = 2 הנספחים שהשרת קורא; sys_all = כל הנספחים)
+er (הודעת תוצאות):
+  קוראים\מערכת    False     True
+  False               9        3
+  True                0      256
+ex (כפי שנקרא: True / False / partial / None) — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             152        1
+  None               45        1
+  True                2       53
+  partial             0        2
+pol (מוציא? בלי רווח מותאם = False) — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             197        4
+  True                2       53
+pol — בהודעות תוצאות, כל הנספחים:
+  קוראים\מערכת    False     True
+  False             197        4
+  True                2       53
+pol — רק ההודעות שהשרת בוחר (picked):
+  קוראים\מערכת    False     True
+  False             190        3
+  True                2       47
+fut — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             153        3
+  None               45        1
+  True                2       52
+
+אי־התאמות pol (קונצנזוס מול sys_c), הודעות תוצאות:
+  MNST   0001104659-25-107778 2025-11-06 picked=True cons=partial sys=True h=--ooEE
+  MNST   0001104659-26-020525 2026-02-26 picked=True cons=partial sys=True h=---ooEE
+  MNST   0001104659-26-123387 2026-11-05 picked=True cons=False sys=True h=-E
+  NBIS   0001104659-26-094568 2026-08-12 picked=False cons=None sys=True h=-EE----c-E-EE--
+  NVDA   0001045810-25-000207 2025-08-27 picked=True cons=True sys=False h=-cooco--x-ooco--
+  NVDA   0001045810-25-000228 2025-11-19 picked=True cons=True sys=False h=-cooco--x-ooco--
+אי־התאמות er:
+  MRVL   0001193125-26-442714 2026-11-02 picked=True cons=False sys=True
+  MSTR   0001193125-25-230977 2025-10-06 picked=True cons=False sys=True
+  NICE   0001178913-25-003011 2025-08-21 picked=False cons=False sys=True
+לא ברור (pol=None בקונצנזוס) בהודעות תוצאות: 
+חלקי (partial): MNST:0001104659-25-107778, MNST:0001104659-26-020525
+שינוי מדיניות (chg≠none): NVDA:0001045810-26-000019:future, NVDA:0001045810-26-000051:now, NVDA:0001045810-26-000073:now, NVDA:0001045810-26-000088:now
