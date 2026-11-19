@@ -213,3 +213,7 @@ TECH	2026-06-30	pol	DIFF	B-051	"Non-GAAP tax rate" (OTHER) בתוך הגישור
 SHOP	2026-09-30	pol	DIFF	B-051	"Non-GAAP operating income adjustments" (OTHER) לפני "Non-GAAP net income"; "מה אם" bfpe 69.19 במקום 56.68
 TFC	2025-12-31	pol	V2	moot:yGaap	"accelerated recognition of TIH equity compensation" → מוציא; הקוראים: אין רווח מותאם; הרחוב = GAAP
 SBAC	2026-09-30	pol	V2	reit;moot:yGaap	AFFO מחזיר את התגמול; לגל 5
+UAL	2026-09-30	pol	DIFF	B-052	P על "profit sharing adjusted pre-tax earnings … excluding … share-based compensation program expense"; "מה אם" bpe 12.20 במקום 12.78
+UHS	2026-09-30	pol	V2	moot:yGaap	"Impact of ASU 2016-09 … stock compensation" → E; הרחוב = GAAP
+VICI	2026-09-30	pol	V2	reit;moot:yGaap	AFFO מחזיר את התגמול; לגל 5
+VTR	2026-09-30	pol	V2	reit	Normalized FFO מוציא את התגמול מ־1/2026 (chg=now); לגל 5

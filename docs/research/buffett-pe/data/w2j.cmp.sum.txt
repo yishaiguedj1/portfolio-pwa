@@ -1,0 +1,92 @@
+גל 2 — השוואת הקוראים (w2j). הודעות ברשימות: 277
+קורא A: 277 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+קורא B: 277 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+קורא C: 16 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+
+הסכמה A מול B לכל שדה (מתוך הודעות ששניהם קראו):
+  er           277/277   100.0%
+  pre          277/277   100.0%
+  adj          268/277    96.8%
+  ex           268/277    96.8%
+  partial      277/277   100.0%
+  chg          275/277    99.3%
+  fut          268/277    96.8%
+  pol          275/277    99.3%
+  pe           263/263   100.0%
+  eps_gaap     263/263   100.0%
+  eps_adj      256/263    97.3%
+  sbc_rec      258/263    98.1%
+  tax_adj      254/263    96.6%
+  tax_sbc      263/263   100.0%
+  sbc_total    250/263    95.1%
+  sbc_rec_ps   256/263    97.3%
+  tax_adj_ps   260/263    98.9%
+  sh_dil       263/263   100.0%
+  sh_adj       263/263   100.0%
+  הערות: ex:no-adj=11, fut:no-adj=14, sbc_rec:scale=2, sbc_rec_ps:has-total=4, sbc_total:scale=6, sh_adj:swap=1, sh_dil:scale=3, sh_dil:swap=3, tax_adj:scale=5
+
+מחלוקות בשדות החמים (er,adj,ex,fut,chg,pol / pe,eps_gaap,eps_adj,sbc_rec,sbc_rec_ps,sh_dil): 16 הודעות (ממתינות לקורא C: 0)
+  לפי שדה: adj=9, ex=9, fut=9, eps_adj=7, sbc_rec=5, sbc_rec_ps=3, pol=2, chg=2
+  ללא הכרעה גם אחרי C (SPLIT): 0
+
+מטריצות בלבול — הקונצנזוס של הקוראים מול secsbc.classify (sys_c = 2 הנספחים שהשרת קורא; sys_all = כל הנספחים)
+er (הודעת תוצאות):
+  קוראים\מערכת    False     True
+  False              11        3
+  True                7      256
+ex (כפי שנקרא: True / False / partial / None) — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             134        7
+  None               63        0
+  True               10       45
+  partial             4        0
+pol (מוציא? בלי רווח מותאם = False) — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             201        7
+  True               10       45
+pol — בהודעות תוצאות, כל הנספחים:
+  קוראים\מערכת    False     True
+  False             201        7
+  True               10       45
+pol — רק ההודעות שהשרת בוחר (picked):
+  קוראים\מערכת    False     True
+  False             175        7
+  True               10       42
+fut — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             137        7
+  None               63        0
+  True               11       45
+
+אי־התאמות pol (קונצנזוס מול sys_c), הודעות תוצאות:
+  TTWO   0001628280-25-050182 2025-11-06 picked=True cons=True sys=False h=---c--------
+  TTWO   0001628280-26-005010 2026-02-03 picked=True cons=True sys=False h=---c--------
+  UAL    0000100517-25-000190 2025-10-15 picked=True cons=False sys=True h=P--
+  UAL    0000100517-26-000014 2026-01-20 picked=True cons=False sys=True h=P--
+  UAL    0000100517-26-000089 2026-04-21 picked=True cons=False sys=True h=P--
+  UAL    0000100517-26-000135 2026-07-15 picked=True cons=False sys=True h=P--
+  UAL    0000100517-26-000184 2026-10-20 picked=True cons=False sys=True h=P--
+  UHS    0001193125-26-318940 2026-07-28 picked=True cons=False sys=True h=EEcc
+  UHS    0001193125-26-434414 2026-10-27 picked=True cons=False sys=True h=EEc
+  VICI   0001705696-25-000130 2025-10-30 picked=True cons=True sys=False h=-----
+  VICI   0001705696-26-000033 2026-02-25 picked=True cons=True sys=False h=-----
+  VICI   0001705696-26-000068 2026-04-29 picked=True cons=True sys=False h=-----
+  VICI   0001705696-26-000088 2026-07-29 picked=True cons=True sys=False h=-----
+  VICI   0001705696-26-000119 2026-10-28 picked=True cons=True sys=False h=-----
+  VTR    0000740260-26-000016 2026-04-27 picked=True cons=True sys=False h=------
+  VTR    0000740260-26-000022 2026-07-29 picked=True cons=True sys=False h=-----
+  VTR    0000740260-26-000026 2026-10-27 picked=True cons=True sys=False h=-----
+אי־התאמות er:
+  TRGP   0001193125-25-265621 2025-11-05 picked=True cons=True sys=False
+  TRGP   0001193125-26-058040 2026-02-19 picked=True cons=True sys=False
+  TRGP   0001193125-26-210165 2026-05-07 picked=True cons=True sys=False
+  TRGP   0001193125-26-336525 2026-08-06 picked=True cons=True sys=False
+  TRGP   0001193125-26-448401 2026-11-05 picked=True cons=True sys=False
+  TRI    0001193125-26-157451 2026-04-16 picked=False cons=False sys=True
+  TRI    0001193125-26-425302 2026-10-19 picked=False cons=False sys=True
+  TSM    0001046179-26-000201 2026-04-16 picked=False cons=True sys=False
+  TSM    0001046179-26-000302 2026-06-04 picked=False cons=True sys=False
+  VEEV   0001393052-26-000039 2026-11-06 picked=True cons=False sys=True
+לא ברור (pol=None בקונצנזוס) בהודעות תוצאות: 
+חלקי (partial): UBER:0001543151-26-000039, V:0001403161-25-000077, VTR:0000740260-25-000274, VTR:0000740260-26-000003
+שינוי מדיניות (chg≠none): VTR:0000740260-26-000003:future, VTR:0000740260-26-000016:now, VTR:0000740260-26-000022:now, VTR:0000740260-26-000026:now
