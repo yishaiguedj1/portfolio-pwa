@@ -56,7 +56,7 @@ ok(tagged.dep.join(',') === 'ibkr,manual', 'הפקדה ISO = IBKR, DD/MM/YYYY = 
 
 // --- 3. חיווט: כל סוגי השורות ---
 ok(/srcTagHTML\(positionSource\(p\)[,)]/.test(src), 'כרטיס מניה: תגית לפי המקור');
-ok(/r\.src === 'ibkr' \? srcTagHTML\('ibkr', r\.acct\)/.test(src) && /currency: symCur\(n\.sym\) \}, 'manual'\)/.test(src), 'עסקאות: IBKR עם לוגו, ידניות עם "ידני"');
+ok(/r\.src === 'ibkr' \? '<span class="tx-src">' \+ srcTagHTML\('ibkr', r\.acct\)/.test(src) && /'<span class="sr-only">' \+ esc\(t\('manualTag'\)\)/.test(src) && /currency: symCur\(n\.sym\) \}, 'manual'\)/.test(src), 'עסקאות: IBKR עם לוגו, ידניות עם "ידני" (19/11: תג בקצה השורה; ידני לקורא מסך)');
 ok(/srcTagHTML\(isIbkrDeposit\(d\) \? 'ibkr' : 'manual'[,)]/.test(src), 'הפקדות ומשיכות: תגית לפי המקור');
 ok((src.match(/srcTagHTML\('manual'\) \+ '<br>/g) || []).length >= 3, 'קניות ידניות בטאב ההפקדות ושורות פנסיה: "ידני"');
 ok(/function depShortDate\(d\) \{\s*const k = depDateKey\(d\);/.test(src), 'תאריך הפקדה (ISO של IBKR או DD/MM/YYYY) מוצג אחיד — DD/MM בתוך כרטיס השנה');
