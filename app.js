@@ -1076,6 +1076,14 @@ he: {
   anBSbcSB: 'לפני מס — המס של החברה כבר כולל את הטבת המס על התגמול',
   anBPart: 'החברה הוציאה מהרווח המותאם רק חלק מהתגמול במניות, ורק אותו מורידים כאן. השאר כבר כלול ברווח.',
   anBOth: 'בדוחות התגמול במניות גדול יותר: חלק ממנו רשום בגישור בשורות אחרות (רכישות, ארגון מחדש), ולא הורד כאן.',
+  anBRa: 'פחות ארגון מחדש ורכישות',
+  anBRaS: 'חוזרים — ממוצע 12 רבעונים, אחרי מס {t}',
+  anBAffo: 'AFFO למניה',
+  anBAffoS: 'מההודעות לעיתונות, 4 הרבעונים האחרונים',
+  anBAe: 'ברבעונים שבהם הרווח של Yahoo שונה מהרווח המותאם שבהודעה לעיתונות, נלקח המספר של החברה.',
+  anBIg: 'הרווח בלי רווחי השקעות ({v} למניה). לפי באפט, הם לא חלק מהרווח של העסק.',
+  anBRaOne: 'עלויות ארגון מחדש ורכישות שלא חוזרות ({v} למניה ב־12 החודשים) לא הורדו.',
+  anBSo: 'כולל שורות תגמול נוספות שחוזרות בגישור, למשל מענקים שקשורים לרכישה.',
   anBFwd: 'רווח צפוי ל־{y}',
   anBFwd0: 'רווח צפוי',
   anBFwdY: 'כמו במכפיל הצפוי',
@@ -3045,6 +3053,14 @@ en: {
   anBSbcSB: 'Pre-tax — the company’s tax already includes the tax benefit of this compensation',
   anBPart: 'The company excluded only part of its stock-based pay from adjusted earnings, so only that part is deducted here. The rest is already in the earnings.',
   anBOth: 'The filings show more stock-based pay: part of it sits in other reconciliation lines (acquisitions, restructuring) and isn’t deducted here.',
+  anBRa: 'Less restructuring & acquisitions',
+  anBRaS: 'Recurring — 12-quarter average, after {t} tax',
+  anBAffo: 'AFFO per share',
+  anBAffoS: 'From the press releases, last 4 quarters',
+  anBAe: 'Where Yahoo’s figure differs from the adjusted EPS in the press release, the company’s number is used.',
+  anBIg: 'Excludes investment gains ({v} per share). To Buffett, they aren’t business earnings.',
+  anBRaOne: 'One-off restructuring and acquisition costs ({v} per share over 12 months) aren’t deducted.',
+  anBSo: 'Includes extra recurring stock-pay lines from the reconciliation, such as acquisition-related grants.',
   anBFwd: 'Expected profit for {y}',
   anBFwd0: 'Expected profit',
   anBFwdY: 'As in the forward P/E',
@@ -8316,8 +8332,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.192.0';
-const APP_VERSION = 'v860';
+const APP_RELEASE = '2.193.0';
+const APP_VERSION = 'v861';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
