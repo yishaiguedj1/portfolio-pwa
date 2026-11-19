@@ -38,7 +38,7 @@ html { --gb-body: var(--lg-body) !important; --gb-sh: var(--lg-rim) !important; 
 html[data-theme="dark"] { --gl-btn: rgba(255, 255, 255, .12) !important; }
 main .card { background: var(--lg-card) !important; border-color: transparent !important; box-shadow: var(--lg-card-sh) !important;
   -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border-radius: 24px !important; }
-main .card .card, main .dep-tile { box-shadow: none !important; }
+main .card .card { box-shadow: none !important; }
 /* כרטיס "דוחות קרובים": אריחי הקרוסלה במילוי רך בלי מסגרת, לוגו עגול, ולוח השנה כמו כפתור הבחירה */
 main .earn-list > .earn-row { background: var(--lg-fill) !important; box-shadow: none !important; border-radius: 20px !important; }
 main .earn-row .stock-logo { border-radius: 50% !important; }
@@ -116,7 +116,7 @@ html:not(.dk) .appbar :is(#sourceLabel .st-pill, #fxPill).pf3 :is(.sub-val, .fx-
 .tabs .tab.active .tab-lbl { color: var(--gain) !important; font-weight: 700 !important; }
 
 /* ===== 4. טיפוגרפיה ומספרים: ספרות מעוגלות ברוחב אחיד, משקלים קלים יותר, מחיר בצבע הטקסט (הצבע שמור לשינוי) ===== */
-main :is(.stat-value, .stock-price, .rs-val, .lg-pct, .dep-amt, .dep-yr-net, .sub-val, .buy-amt, .day-chg, .gb-pct, .pk-pct b, .ov-day-v, .pension-total, .tx-list b) {
+main :is(.stat-value, .stock-price, .rs-val, .lg-pct, .dep-amt, .sub-val, .buy-amt, .day-chg, .gb-pct, .pk-pct b, .ov-day-v, .pension-total, .tx-list b) {
   font-family: var(--lg-round) !important; font-variant-numeric: tabular-nums !important; }
 main .stat-value { font-weight: 650 !important; }
 main #ovValue { color: var(--on-surface) !important; }
@@ -218,10 +218,8 @@ main .row-link-ic { width: 30px !important; height: 30px !important; border-radi
 main .display-label { font-weight: 500 !important; font-size: 13px !important; color: var(--on-surface-var) !important; }
 main .subpage-back { background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; color: var(--on-surface) !important; }
 
-/* ===== 14. הפקדות: אותה רשימה לפי חודשים, בלי קופסה לכל שורה — קו דק בין השורות ===== */
-main .dep-row { background: transparent !important; box-shadow: none !important; border-radius: 0 !important; border-bottom: .5px solid var(--lg-sep) !important; }
-main .dep-mo { font-weight: 600 !important; color: var(--on-surface-var) !important; font-size: 13px !important; }
-main .dep-tile { background: var(--lg-fill) !important; border: 0 !important; }
+/* ===== 14. הפקדות: כרטיסי שנה, חודשים ושורות כמו בעסקאות — בלי קופסה לכל שורה ===== */
+main .dep-row { background: transparent !important; box-shadow: none !important; border-radius: 0 !important; }   /* הקו בין השורות — כמו בעסקאות (styles.css) */
 main .dep-ic { width: 30px !important; height: 30px !important; }
 main .dep-hero .stat-value { font-family: var(--lg-round) !important; font-weight: 650 !important; }
 
