@@ -25,7 +25,7 @@ CELL = {'td', 'th'}
 class Txt(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
-        self.lines, self.cur, self.cells, self.skip = [], [], None, 0
+        self.lines, self.cur, self.cells, self.skip, self.pre = [], [], None, 0, ''
 
     def flush(self):
         s = re.sub(r'\s+', ' ', ''.join(self.cur)).strip()
@@ -50,8 +50,11 @@ class Txt(HTMLParser):
             self.skip = max(0, self.skip - 1)
         elif tag in CELL and self.cells is not None:
             s = re.sub(r'\s+', ' ', ''.join(self.cur)).strip()
-            if s and s not in ('$', ')', '%'):
-                self.cells.append(s)
+            if s in ('(', '$(', '($'):          # סוגר פותח בתא נפרד — מצטרף למספר שאחריו
+                self.pre = '('
+            elif s and s not in ('$', ')', '%'):
+                self.cells.append(self.pre + s)
+                self.pre = ''
             elif s in (')', '%') and self.cells:
                 self.cells[-1] += s
             self.cur = []
