@@ -9,9 +9,10 @@
 'use strict';
 const SECPR = require('./secpr');
 
-const SV = 3;          // גרסת המסווג — שינוי בכללים = מספר חדש, וההודעות נקראות מחדש (2: המשפט כולו בעדות במילים, 19/11/2026;
+const SV = 4;          // גרסת המסווג — שינוי בכללים = מספר חדש, וההודעות נקראות מחדש (2: המשפט כולו בעדות במילים, 19/11/2026;
                        // 3: שיעור המס ה־non-GAAP שהחברה מצהירה ‏(tr), הסכום בשורת התגמול בגישור ‏(sa) וסוף הרבעון ‏(qe), גל 1 של שיטת באפט;
-                       //    וגם B-025 ו־B-026 ‏(SKIP_PRE), ‏B-027 (מדדי מנהלות השקעות ב־TGT) ו־tb — המס המותאם כולל את הטבת המס)
+                       //    וגם B-025 ו־B-026 ‏(SKIP_PRE), ‏B-027 (מדדי מנהלות השקעות ב־TGT) ו־tb — המס המותאם כולל את הטבת המס;
+                       // 4: ‏B-034 עד B-036 — הטבת מס עודפת, "certain"/"portion of"/רכישה ‏(SKIP_PRE, ‏SKIP_REL), סכום חלקי ‏(pp), ‏"net loss" ב־TGT)
 const MAX = 6;         // הודעות אחרונות (4 רבעוני ה־12 חודשים + מרווח להודעה מקדימה)
 const DAYS = 460;
 
@@ -25,9 +26,14 @@ const SBC = /(?:stock|share|equity)[- ]?based(?: and deferred)? compensation|sto
 // שחוזר, לא כאן); עד גרסה 3 נספרה כעדות, ו־Cardinal סומנה "מוציאה" אף שהרווח המותאם שלה כולל את התגמול הרגיל (B-025 בבדיקת
 // העומק, docs/buffett-pe-audit.md: על 3,239 הודעות רק Cardinal מתהפכת). בלי "costs," — אצל Intel זו רשימה של פריטים נפרדים.
 // שורת מס ומשפט מס — "income tax effect of share-based compensation", "the normalized tax benefit of share-based compensation"
-// (Applied Materials, שכוללת את התגמול ברווח המותאם; B-026 — לפני גרסה 3 נספרו כעדות, ו־AMAT סומנה "מוציאה" ב־5 מתוך 5)
-const SKIP_PRE = /(?:excess|settlement of|exercise of|incremental(?: non-cash)?|accelerated|one-time|(?:income )?tax (?:benefits?|effects?) (?:of|from|on|related to)|acquisition[- ]related(?: cash)?(?: and| &)?)\s*$/;
+// (Applied Materials, שכוללת את התגמול ברווח המותאם; B-026 — לפני גרסה 3 נספרו כעדות, ו־AMAT סומנה "מוציאה" ב־5 מתוך 5);
+// "excess tax benefits ( etb ) associated with stock-based compensation" (Quest, ‏B-034). חלק מהתגמול — "certain share-based compensation
+// expenses" (Comcast, ‏B-035: כ־60 מיליון ברבעון מתוך כ־200, בשורה אחת עם עלויות אחרות — אין סכום לנכות, והרחוב כולל את רוב התגמול)
+const SKIP_PRE = /(?:excess|settlement of|exercise of|incremental(?: non-cash)?|accelerated|one-time|(?:income )?tax (?:benefits?|effects?)(?:\s*\(\s*["“”']?[a-z]{2,5}["“”']?\s*\))? (?:of|from|on|related to|associated with)|certain(?: other)?|(?:a )?portion of(?: the)?|acquisition[- ]related(?: cash)?(?: and| &)?)\s*$/;
 const SKIP_POST = /compensation awards? (?:with|using)|tax (?:benefit|deduction)/;
+// "…compensation (expense) related to the X acquisition / separation / spin-off" — חלק מהתגמול, חד־פעמי (B-035; כמו B-025). על 110 תווים
+// מהאזכור (SKIP_POST — על 60)
+const SKIP_REL = /^[a-z -]{0,45}?(?:related to|associated with|in connection with) (?:the |our )?[a-z0-9&.' -]{0,40}?(?:acquisition|separation|spin|merger|ipo)\b/;
 // המשך במילים (הערת שוליים או משפט, לא שורה בטבלה): PYPL "…compensation expense associated with restructuring", ‏WMT "…payment
 // plans in anticipation…", ‏HON "…stock compensation expense, pension…", ‏UBER "…compensation expenses. 11". "net of tax" — שורה (TSLA)
 const PROSE = /^(?:\s*expenses?)?\s*(?:associated|in anticipation|which|that|is|was|were|has|have|had|primarily|relates?|related to|of|for|from|plans?|as a percentage)\b|^[^\d(]{0,25}\.\s|^(?:\s*expenses?)?\s*,\s*(?!net of tax)[a-z]/;
@@ -39,7 +45,7 @@ const NUMROW = /^(?:\s*expenses?\d?)?\s*(?:\(\d\)\s*)?(?:\$\s*)?(?:\(?\d|-\s|—
 // מנהלות השקעות (B-027): ‏"after-tax realized income" (Ares), ‏"distributable earnings" (Blackstone, ‏Carlyle, ‏TPG, ‏Blue Owl) — הרווח
 // למניה שעליו הרחוב בנוי. ‏"fee-related earnings" — לא רווח לבעלים, אבל ה־DE וה־RI נבנים ממנו (Blue Owl: הגישור מהרווח לפני מס
 // ל־FRE, ואחריו ל־DE, יותר מ־1,500 תווים אחרי שורת התגמול) — מה שהוצא ממנו הוצא גם מהם. "\b" — לא "unrealized income"
-const TGT = /\b(?:after-tax |adjusted )?(?:realized income|distributable earnings|fee[- ]related earnings)|(?:non-gaap|adjusted|core|cash)\s+(?:\((?:non-gaap|adjusted)\)\s+)?(?:diluted\s+)?(?:net income|net earnings|earnings per (?:diluted )?share|eps|(?:diluted )?(?:net )?(?:income|earnings|profit) per (?:diluted |common )?share|net income per (?:diluted )?share|net income attributable)|(?:net income|net earnings|(?:diluted )?(?:net )?(?:income|earnings) per (?:diluted |common )?share)(?: - diluted)? on (?:a )?non-gaap basis/;
+const TGT = /\b(?:after-tax |adjusted )?(?:realized income|distributable earnings|fee[- ]related earnings)|(?:non-gaap|adjusted|core|cash)\s+(?:\((?:non-gaap|adjusted)\)\s+)?(?:diluted\s+)?(?:net income|net \(loss\) income|net loss|net earnings|earnings per (?:diluted )?share|eps|(?:diluted )?(?:net )?(?:income|earnings|profit) per (?:diluted |common )?share|net income per (?:diluted )?share|net income attributable)|(?:net income|net earnings|(?:diluted )?(?:net )?(?:income|earnings) per (?:diluted |common )?share)(?: - diluted)? on (?:a )?non-gaap basis/;
 const OTHER = /(?:non-gaap|adjusted)\s+(?:\((?:non-gaap|adjusted)\)\s+)?(?:operating (?:income|expenses?|margin|profit)|gross (?:profit|margin)|ebitda|ebit\b|free cash flow|segment)|segment (?:profit|operating income)|ebitda|operating activities|cash flows? from|effective (?:income )?tax rate|tax rate|(?:gross (?:margin|profit)|operating (?:income|expenses?|margin)|research and development|selling, general and administrative(?: expenses?)?|cost of (?:revenue|products|sales|goods sold)|provision for income taxes) on (?:a )?non-gaap basis/;
 // דוח תזרים המזומנים (MSFT, ‏DIS) מול טבלת התאמה — מה הופיע אחרון לפני השורה
 const CF = /operating activities|cash provided by|cash flows? (?:from|provided)|net cash/g;
@@ -155,6 +161,10 @@ function carried(t) {
   }
   return false;
 }
+/* חלק מהתגמול, עם הסכום (Comcast, ‏B-035): "net income attributable to comcast corporation includes $61 million, $46 million net of tax,
+   related to certain share-based compensation expenses" — הרחוב מוציא רק אותו. בלי עדות מלאה (E/P): מוציא, והסכום (בדולרים, לפני מס)
+   בשדה pp. סכום מעורב ("$123 million … of other adjustments, which includes … certain share-based compensation") — לא */
+const PART = /includes? \$\s?(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s*(million|billion)(?:,\s*\$\s?\(?[\d.,]+\)?\s*(?:million|billion)\s*net of tax,?)?\s*(?:related to|of|for)\s*certain (?:stock|share|equity)[- ]based compensation/;
 function classify(raw, filed) {
   const t = raw && raw.length && /</.test(raw.slice(0, 2000)) ? text(raw) : String(raw || '').toLowerCase().replace(/\s+/g, ' ');
   // הודעת תוצאות: רבעון + רווח למניה (MRK ו־XOM לא כותבות "diluted")
@@ -167,7 +177,7 @@ function classify(raw, filed) {
   SBC.lastIndex = 0;
   while ((m = SBC.exec(t)) && hits.length < 200) {
     const i = m.index, pre = t.slice(Math.max(0, i - 40), i), post = t.slice(i, i + 60);
-    if (SKIP_PRE.test(pre) || SKIP_POST.test(post)) { hits.push('x'); continue; }
+    if (SKIP_PRE.test(pre) || SKIP_POST.test(post) || SKIP_REL.test(t.slice(i, i + 110))) { hits.push('x'); continue; }
     const back = t.slice(Math.max(0, i - 1500), i), inCf = lastOf(back, CF) > lastOf(back, REC);
     const after = t.slice(i + m[0].length, i + m[0].length + 1500), a = after.search(TGT), b = after.search(OTHER), prose = PROSE.test(after.slice(0, 60)), row = NUMROW.test(after.slice(0, 40));
     if (!prose && !inCf && a >= 0 && (b < 0 || a < b)) {
@@ -189,8 +199,10 @@ function classify(raw, filed) {
     hits.push(mo && /operating (?:income|expenses?|profit)|gross (?:profit|margin)/.test(mo[0]) && !/ebitda|segment|cash|tax/.test(mo[0]) ? 'o' : inCf ? 'c' : '-');
   }
   const carry = hits.includes('o') && carried(t);
-  const ex = !nowNeg && (hits.some((h) => h === 'E' || h === 'P') || carry);
-  return { ex, fut: ex && !futNeg, er, n: t.length, h: (nowNeg ? 'N' : futNeg ? 'F' : '') + hits.join('').slice(0, 40), tr: taxRate(t), tb: ex && TB.test(t) ? 1 : 0, ns: ex ? nShares(t) : null, sa: ex ? sa : null, nt: ex && sa != null ? nt : 0, qe: qEnd(t, filed), k: hits.length };
+  const full = hits.some((h) => h === 'E' || h === 'P') || carry, pm = !full && !nowNeg ? PART.exec(t) : null;
+  if (pm) { sa = [+pm[1].replace(/,/g, '') * (pm[2] === 'billion' ? 1e9 : 1e6)]; nt = 0; }
+  const ex = !nowNeg && (full || !!pm);
+  return { ex, fut: ex && !futNeg, er, n: t.length, h: (nowNeg ? 'N' : futNeg ? 'F' : '') + hits.join('').slice(0, 40), tr: taxRate(t), pp: pm ? 1 : 0, tb: ex && TB.test(t) ? 1 : 0, ns: ex ? nShares(t) : null, sa: ex ? sa : null, nt: ex && sa != null ? nt : 0, qe: qEnd(t, filed), k: hits.length };
 }
 
 function pick(sub, now) {
@@ -215,13 +227,13 @@ async function readOne(cik, k, getText) {
     try { t += ' ' + text(await getText(base + nm)); } catch (e) { if (!/http_404/.test(String(e && e.message))) return null; }
   }
   const c = classify(t, k.filed);
-  return { filed: k.filed, er: c.er, ex: c.ex, fut: c.fut, n: c.n, h: c.h, tr: c.tr, tb: c.tb, ns: c.ns, sa: c.sa, nt: c.nt, qe: c.qe, k: c.k, sv: SV };
+  return { filed: k.filed, er: c.er, ex: c.ex, fut: c.fut, n: c.n, h: c.h, tr: c.tr, pp: c.pp, tb: c.tb, ns: c.ns, sa: c.sa, nt: c.nt, qe: c.qe, k: c.k, sv: SV };
 }
 
 /* לתשובה: [[תאריך הגשה, ex, fut, אורך, tr, sa, nt, qe, k — כמה אזכורים של התגמול], …] — רק הודעות תוצאות, מהישנה לחדשה. כמה הודעות לאותו רבעון (הודעה מקדימה,
    עדכון תחזית) — הלקוח בוחר את הארוכה, ההודעה המלאה. רשומה מגרסת מסווג קודמת — נשלחת עד שעבודת הרקע קוראת אותה מחדש (fillSx),
    כדי שהחלפת גרסה לא תשאיר את כל החברות בלי מדיניות לכמה שעות (בלי tr ו־sa — null) */
 const forClient = (sx) => Object.values(sx || {}).filter((r) => r && r.er && r.sv > 0).sort((a, b) => (a.filed < b.filed ? -1 : 1))
-  .map((r) => [r.filed, r.ex ? 1 : 0, r.fut ? 1 : 0, r.n || 0, r.tr > 0 ? r.tr : null, Array.isArray(r.sa) && r.sa.length ? r.sa : null, r.nt ? 1 : 0, r.qe || null, r.k || 0, r.tb ? 1 : 0, r.ns > 0 ? r.ns : null]);
+  .map((r) => [r.filed, r.ex ? 1 : 0, r.fut ? 1 : 0, r.n || 0, r.tr > 0 ? r.tr : null, Array.isArray(r.sa) && r.sa.length ? r.sa : null, r.nt ? 1 : 0, r.qe || null, r.k || 0, r.tb ? 1 : 0, r.ns > 0 ? r.ns : null, r.pp ? 1 : 0]);
 
 module.exports = { classify, pick, readOne, forClient, text, SV, MAX };

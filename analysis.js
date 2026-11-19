@@ -311,6 +311,8 @@ function sbcAmt(co, i, rel, t) {
   const e = co.q[i], x = (co.bx && co.bx[e]) || [], al = x[0], cf = x[1], ap = x[2], mq = co.Q.sbc ? co.Q.sbc[i] : null, sh = co.Q.sh ? co.Q.sh[i] : null;
   const refOf = (j) => { const y = (co.bx && co.bx[co.q[j]]) || []; return Math.max(y[0] > 0 ? y[0] : 0, y[1] > 0 ? y[1] : 0, y.length ? 0 : co.Q.sbc && co.Q.sbc[j] > 0 ? co.Q.sbc[j] : 0); };
   const ref = refOf(i);
+  // חלק מהתגמול, עם הסכום בהודעה (r[11], ‏Comcast) — בדולרים, בלי התאמה ל־XBRL (הוא חלק קטן ממנו)
+  if (rel && rel[11] && Array.isArray(rel[5]) && rel[5][0] > 0) return { v: rel[5][0], s: 'pp', oth: false };
   if (rel && Array.isArray(rel[5]) && ref > 0) {
     let vs = rel[5].filter((v) => v > 0);
     const one = sbcCol(co, i, rel, vs, refOf);
@@ -371,7 +373,7 @@ function bufCalc(co) {
   if (st * g > 0 && Math.abs(st) > 0.05 && Math.abs(g) > 0.05 && (Math.abs(st / g) > 8 || Math.abs(st / g) < 0.125)) return null;
   const last = rows[rows.length - 1];
   // t — השיעור האפקטיבי על כל הניכוי (לתצוגה); ts — המקור ברבעון האחרון; asrc — מקור הסכום (pr: ההודעה); oth — תגמול בשורות אחרות
-  const out = { st, g, gap: st - g, ded, eps: st - ded, sbcAt, t: pre > 0 ? 1 - sbcAt / pre : last.t, ts: last.ts, asrc: last.as, oth: rows.some((r) => r.oth && r.pol === 1),
+  const out = { st, g, gap: st - g, ded, eps: st - ded, sbcAt, t: pre > 0 ? 1 - sbcAt / pre : last.t, ts: last.ts, asrc: last.as, oth: rows.some((r) => r.oth && r.pol === 1), pp: rows.some((r) => r.as === 'pp' && r.pol === 1),
     yGaap, pol: p1 && p0 ? 'mix' : p1 ? 'ex' : p0 ? 'in' : '?', f: null };
   const e1 = (co.est || []).find((e) => e.p === '+1y') || {};
   const fe = co.fe > 0 ? co.fe : e1.eps;
@@ -2152,6 +2154,7 @@ function bufSheet(key) {
     const note = fwd && b.f.chg ? 'anBFutIn' : same ? 'anBPolGaap' : { ex: 'anBPolEx', in: 'anBPolIn', mix: 'anBPolMix' }[b.pol] || 'anBPolUnk';
     bd.append(h('p', { class: 'an-ex' }, T(note)));
     if (!fwd && b.oth && b.ded > 0) bd.append(h('p', { class: 'an-ex' }, T('anBOth')));
+    if (!fwd && b.pp && b.ded > 0) bd.append(h('p', { class: 'an-ex' }, T('anBPart')));
     if (MED[key] && canEdM(co, key)) medForm(bd, key, rec);
   }, { small: true });
 }

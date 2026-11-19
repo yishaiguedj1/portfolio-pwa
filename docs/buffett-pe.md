@@ -105,6 +105,13 @@
   - `tb` (המס כולל את הטבת המס על התגמול) ו־`ns` (בסיס המניות של המדד) — רק כש־`ex`. במטמון של 166 הודעות מכ־30 חברות, ‏tb נמצא רק בחמש המנהלות שכותבות את זה, ו־ns רק ב־BX, ‏KKR ו־OWL.
   - שורת תגמול שמתחילה ב־"‎-related charges" או בהערות שוליים "(2)(3)" — נקראת (PANW, ‏SNOW).
   - המעבר ל־3 קורא מחדש את כל ההודעות בעבודת הרקע. עד אז `forClient` שולח את הרשומות הישנות בלי `tr`/`sa`, והלקוח נופל ל־XBRL ול־21%.
+- **גרסה 4 (19/11/2026, ‏B-034 עד B-036 מבדיקת העומק)**:
+  - **B-034** ‏(DGX): ‏"excess tax benefits ("etb") associated with stock-based compensation" — מוציאים רק את הטבת המס העודפת, לא את התגמול. ב־`SKIP_PRE`: הטבת מס עם ‏"associated with"/"related to", גם עם קיצור בסוגריים, עם מרכאות או בלי.
+  - **B-035** ‏(CMCSA): חלק מהתגמול. ‏"certain", ‏"(a) portion of" לפני האזכור (`SKIP_PRE`), ו־"related to / associated with / in connection with … acquisition|separation|spin|merger|ipo" עד 110 תווים אחרי תחילתו (`SKIP_REL`) — לא עדות.
+    - **סכום חלקי** (`PART`, השדה `pp`, ‏r[11] אצל הלקוח): "includes $61 million, $46 million net of tax, related to certain share-based compensation". כשאין עדות מלאה (E/P) — מוציא, ו־`sa` = הסכום לפני מס בדולרים. ‏`sbcAmt` לוקח אותו כמו שהוא (`'pp'`), בלי התאמה ל־XBRL, כי הוא חלק קטן ממנו. הערה מתחת לחישוב: `anBPart`.
+    - סכום מעורב ("$123 million … of other adjustments, which includes a gain … and certain share-based compensation", ‏CMCSA ‏4/2026) — לא עדות, והרבעון בלי ניכוי. זו הערכת חסר קטנה (כ־0.01$ למניה), ולא מנחשים.
+  - **B-036** ‏(CRWV): ‏"adjusted net loss" ב־`TGT` (`net loss` לצד `net (loss) income`). אין ל־CRWV היסטוריית רחוב ב־Yahoo, ולכן אין לה אריח היום.
+  - על 192 ההודעות במטמון רק DGX, ‏CMCSA ו־CRWV משתנות. ב־31 החברות של ה־QA המכפיל זהה, חוץ מ־DGX ‏(24.9←23.5, הרחוב כולו) ו־CMCSA ‏(7.2←6.8, ניכוי 0.03 במקום 0.22).
 - **גרסה**: `SV` — שינוי בכללים = מספר חדש, ואז כל ההודעות נקראות מחדש בעבודת הרקע.
 
 ## 4. השמירה וההגעה ללקוח
