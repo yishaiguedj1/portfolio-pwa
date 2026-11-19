@@ -52,7 +52,8 @@ function slimIs(p) {
 const annual = (f) => /^10-K/.test(f.form);
 const dead = (r) => !!(r.err && r.err !== 'nobs' && r.err !== 'empty');
 const needCf = (r) => !!(r && annual(r) && !r.cf && !r.cfErr && !dead(r));
-const needIs = (r) => !!(r && annual(r) && !r.is && !r.isErr && !dead(r));
+// דף רווח והפסד: 10-K (גל 5, F20) וגם 10-Q (גל 6 — F20 ברבעונים; הגשה שכבר נשמרה בלעדיו מושלמת ב־readMissing)
+const needIs = (r) => !!(r && !r.is && !r.isErr && !dead(r));
 const needX = (r) => needCf(r) || needIs(r);
 /* דף אחד של הגשה שנתית לפי הסוג (cf / is): {cf} / {cfErr} (נשמר) / null (תקלת רשת). xml — FilingSummary כשכבר נקרא */
 async function readSt(k, base, xml, getText) {
@@ -104,8 +105,8 @@ async function readOne(cik, f, getText) {
   let xml;
   try { xml = await getText(base + 'FilingSummary.xml'); } catch (e) { return /http_404/.test(String(e && e.message)) ? { ...rec, err: 'nofs' } : null; }
   const pick = SECFACE.pickStatements(xml);
-  // 10-K — גם דף התזרים ודף רווח והפסד (תקלת רשת באחד = בלי הוא; יושלם בסבב הבא)
-  const withCf = async (r) => { if (!annual(f) || r.err === 'xml') return r; const c = await readMissing(r, base, xml, getText).catch(() => null); return c ? { ...r, ...c } : r; };
+  // 10-K — גם דף התזרים ודף רווח והפסד; ‏10-Q — דף רווח והפסד (גל 6). תקלת רשת באחד = בלי הוא; יושלם בסבב הבא
+  const withCf = async (r) => { if (r.err === 'xml') return r; const c = await readMissing(r, base, xml, getText).catch(() => null); return c ? { ...r, ...c } : r; };
   if (!pick.bs) return withCf({ ...rec, err: /R\d+\.xml/.test(String(xml)) ? 'xml' : 'nobs' });
   let h;
   try { h = await getText(base + pick.bs); } catch (e) { return /http_404/.test(String(e && e.message)) ? { ...rec, err: 'nor' } : null; }
@@ -114,12 +115,13 @@ async function readOne(cik, f, getText) {
 }
 
 /* ההודעה לעיתונות של סוף שנה אחד: המועמדים (8-K ‏2.02 עד 100 יום אחרי; בלעדיהם — 8-K בלי 2.02 עד 75 יום) ← index.json ← עד 3
-   קבצים (בלי נספח — המסמך הראשי), הראשון שיש בו שורות "מדולל" (בטבלה, ובלעדיה — ברצף הטקסט).
+   קבצים (בלי נספח — המסמך הראשי), הראשון שיש בו שורות "מדולל" (בטבלה, ובלעדיה — ברצף הטקסט) וגם שורת מניות.
    {end, acc, filed, file, rows} / {end, err} (נשמר) / null (תקלת רשת — ינוסה שוב) */
-const PR_V = 2; // גרסת המפענח של ההודעות (2 — רצף הטקסט, מועמדים בלי 2.02 והמסמך הראשי, גל 5): רשומת "לא נמצא" ישנה נקראת שוב פעם אחת
-const prNeed = (r) => !r || (!!r.err && (r.pv || 1) < PR_V);
+const PR_V = 3; // גרסת המפענח של ההודעות (2 — רצף הטקסט, מועמדים בלי 2.02 והמסמך הראשי, גל 5; 3 — רווח למניה בלי "מדולל" ומועמד עם שורת מניות, גל 6): רשומה ישנה בלי מניות נקראת שוב פעם אחת
+const prNeed = (r) => !r || ((!!r.err || (!!r.rows && !r.rows.some(SECPR.shRow))) && (r.pv || 1) < PR_V);
 async function readPr(cik, it, getText) {
-  let last = { end: it.end, err: 'nofile', pv: PR_V };
+  let last = { end: it.end, err: 'nofile', pv: PR_V }, first = null, fbr = null;
+  const sh = (x) => !!x && x.rows.some(SECPR.shRow);
   for (const k of it.cands) {
     const base = 'https://www.sec.gov/Archives/edgar/data/' + (+cik) + '/' + k.acc.replace(/-/g, '') + '/';
     let idx;
@@ -130,21 +132,27 @@ async function readPr(cik, it, getText) {
     if (main) names = [k.doc];
     if (!names.length) { last = { end: it.end, err: 'noex', pv: PR_V }; continue; }
     // כמה קבצים באותה הגשה: עד שנמצאה גם שורת מניות (UPS: ‏EX-99.1 — רק התאמות לרווח המתואם; הדוחות המלאים ב־EX-99.2)
-    let rows = [], files = [];
+    let rows = [], files = [], fb = null;
     for (const nm of names) {
       let h;
       try { h = await getText(base + nm); } catch (e) { if (/http_404/.test(String(e && e.message))) continue; return null; }
       // בלי טבלה שיש בה "מדולל" — רצף הטקסט (מצגת, PDF שהומר; גל 5, F24)
       let r0 = SECPR.parse(h); if (!r0.length) r0 = SECPR.parseText(h);
+      // בלי "מדולל" בכלל — "רווח למניה" ו"מניות" (גל 6, F30; מסומן b — q4Press מקבל רק בשנה בלי דילול). רק כגיבוי: קובץ אחר עם "מדולל" גובר
+      if (!r0.length) { const e = SECPR.parseEps(h); if (e.length && (!fb || (!sh(fb) && e.some(SECPR.shRow)))) fb = { rows: e, file: nm }; continue; }
       const r = r0.map((x) => ({ ...x, t: x.t + 1000 * files.length }));
-      if (!r.length) continue;
       rows = rows.concat(r); files.push(nm);
       if (r.some(SECPR.isShares)) break;
     }
-    if (rows.length) return { end: it.end, acc: k.acc, filed: k.filed, file: files.join(' '), rows };
-    if (main) last = { end: it.end, err: 'noex', pv: PR_V };
+    const rec = rows.length ? { end: it.end, acc: k.acc, filed: k.filed, file: files.join(' '), rows } : null;
+    // מועמד בלי שורת מניות — ממשיכים למועמד הבא (גל 6, F31 — AbbVie ‏2025: ‏8-K של תחזית ב־6 בינואר עם "Diluted EPS Range",
+    // ההודעה על התוצאות ב־31 בינואר; בלי מניות q4From לא מאמת כלום)
+    if (sh(rec)) return rec;
+    if (rec && !first) first = { ...rec, pv: PR_V };
+    if (fb && (!fbr || (!sh(fbr) && sh(fb)))) fbr = { end: it.end, acc: k.acc, filed: k.filed, file: fb.file, rows: fb.rows, pv: PR_V };
+    if (main && !rec && !fb) last = { end: it.end, err: 'noex', pv: PR_V };
   }
-  return last;
+  return (sh(fbr) && fbr) || first || fbr || last;
 }
 
 /* כל ה־8-K של התוצאות מ־submissions (recent ודפי ההמשך), וה־8-K רק עם 7.01 / ‏8.01 / ‏9.01 (F25) — לבחירה לפי סוף השנה */

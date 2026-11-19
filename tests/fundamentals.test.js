@@ -1690,7 +1690,8 @@ ${row('ro', 'us-gaap_CostOfRevenue', 'Cost of sales', ['1', '2', '3', '4', '5', 
     const p2 = SP.pickItems(sub([['8-K', '9.01', '2022-01-05'], ['8-K', '2.02,9.01', '2022-02-03']]), ['2021-12-31']);
     ok(p1[0].cands.map((c) => c.acc).join() === 'a0' && p2[0].cands.map((c) => c.acc).join() === 'a1', '(36) 8-K בלי 2.02 — רק כשאין 8-K של תוצאות בחלון');
     // רשומת "לא נמצא" מהמפענח הקודם נקראת שוב פעם אחת
-    ok(BS3.prNeed(undefined) && BS3.prNeed({ err: 'nofile' }) && !BS3.prNeed({ err: 'nofile', pv: BS3.PR_V }) && !BS3.prNeed({ rows: [] }), '(36) prNeed: רק רשומה חסרה או "לא נמצא" ישנה');
+    ok(BS3.prNeed(undefined) && BS3.prNeed({ err: 'nofile' }) && !BS3.prNeed({ err: 'nofile', pv: BS3.PR_V }) && !BS3.prNeed({ rows: [{ label: 'Diluted weighted average shares', v: [1000] }] })
+      && BS3.prNeed({ rows: [{ label: 'Diluted EPS', v: [1.5] }] }) && !BS3.prNeed({ rows: [], pv: BS3.PR_V }), '(36) prNeed: רק רשומה חסרה, "לא נמצא" ישנה או ישנה בלי שורת מניות (גל 6)');
     // בלי נספח (Halliburton) — ההודעה בגוף ה־8-K
     const docs = { 'index.json': JSON.stringify({ directory: { item: [{ name: 'hal8k.htm', size: 9000 }, { name: 'index.htm' }] } }),
       'hal8k.htm': '<table><tr><td>Diluted income per share</td><td>$</td><td>0.75</td><td>0.80</td></tr><tr><td>Diluted weighted average shares</td><td>890</td><td>880</td></tr></table>' };
@@ -1698,4 +1699,105 @@ ${row('ro', 'us-gaap_CostOfRevenue', 'Cost of sales', ['1', '2', '3', '4', '5', 
     ok(pr && pr.file === 'hal8k.htm' && pr.rows.length === 2, '(36) בלי נספח — המסמך הראשי');
   }
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
+  /* ---------- (37) גל 6: עוגן מחדש ועוגן חשבוני (F28), רווח והפסד ברבעונים (F20), הרבעון הרביעי אחרי התיקון (F29) ---------- */
+  {
+    const K = (filed, ends, rows, form, mon) => ({ form: form || '10-K', filed, is: { cols: ends.map((end) => ({ end, months: mon || 12 })), scale: { cur: 1e6 },
+      rows: rows.map(([ns, tag, v]) => ({ ns, tag, label: tag, v })) } });
+    const QQ = (filed, ends, rows) => K(filed, ends, rows, '10-Q', 3);
+    const M = (o) => new Map(Object.entries(o).map(([e, v]) => [e, v * 1e6]));
+    const PT = 'IncomeLossFromContinuingOperationsBeforeIncomeTaxes';
+    // Ameriprise: ה־10-K של 2023 מדפיס 2021–2022 על הבסיס שלפני ההצגה מחדש — השרשור נשבר; ה־10-K של 2021 שווה שוב לסדרה שלנו
+    const am = { a: K('2026-02-10', ['2025-12-31', '2024-12-31', '2023-12-31'], [['us-gaap', PT, [4504, 4267, 3234]]]),
+      b: K('2023-02-10', ['2022-12-31', '2021-12-31', '2020-12-31'], [['us-gaap', PT, [3182, 3350, 1831]]]),
+      c: K('2021-02-10', ['2020-12-31', '2019-12-31', '2018-12-31'], [['us-gaap', PT, [1831, 2232, 2484]]]),
+      d: K('2019-02-10', ['2018-12-31', '2017-12-31', '2016-12-31'], [['us-gaap', 'X', [2484, 2214, 1591]]]),
+      e: K('2017-02-10', ['2016-12-31', '2015-12-31', '2014-12-31'], [['us-gaap', 'X', [1591, 2142, 2547]]]) };
+    const ours = M({ '2025-12-31': 4504, '2024-12-31': 4267, '2023-12-31': 3234, '2022-12-31': 3931, '2021-12-31': 4185, '2020-12-31': 1831, '2019-12-31': 2232, '2018-12-31': 2484, '2017-12-31': 2214, '2016-12-31': 1591 });
+    const ra = F.bsfIs(am, 'USD', { pretax: ours });
+    ok(ra.pretax.get('2015-12-31').v === 2142e6 && ra.pretax.get('2014-12-31').v === 2547e6 && !ra.pretax.has('2022-12-31'), '(37) F28 עוגן מחדש: אחרי שבירה — השורה ששווה לסדרה שלנו בשתי שנים, והשרשור ממשיך ממנה');
+    // BNY: הרווח לפני מס בתגית פרטית והסדרה שלנו ריקה — R − מס = רווח נקי בכל שנה, והמס שווה לשלנו
+    const bk = { a: K('2026-02-25', ['2025-12-31', '2024-12-31'], [['bk', PT, [7058, 5848]], ['us-gaap', 'IncomeTaxExpenseBenefit', [1475, 1305]], ['us-gaap', 'ProfitLoss', [5583, 4543]], ['us-gaap', 'NetIncomeLoss', [5549, 4530]]]),
+      b: K('2025-02-25', ['2024-12-31', '2023-12-31'], [['bk', PT, [5848, 4283]]]) };
+    const rb = F.bsfIs(bk, 'USD', { tax: M({ '2025-12-31': 1475, '2024-12-31': 1305 }) });
+    ok(rb.pretax && rb.pretax.get('2025-12-31').v === 7058e6 && rb.pretax.get('2023-12-31').v === 4283e6, '(37) F28 עוגן חשבוני: רווח לפני מס − מס = רווח נקי');
+    const rb2 = F.bsfIs(bk, 'USD', { tax: M({ '2025-12-31': 1400, '2024-12-31': 1305 }) });
+    ok(!rb2.pretax, '(37) F28 עוגן חשבוני: המס לא שווה לשלנו — לא נוגעים');
+    // F20 ברבעונים: כל רבעון פיסקלי — שרשרת משלו (ה־10-Q מדפיס את הרבעון ואת אותו רבעון שנה קודם)
+    const qh = { a: QQ('2025-11-01', ['2025-09-30', '2024-09-30'], [['us-gaap', 'OperatingIncomeLoss', [120, 110]]]),
+      b: QQ('2024-11-01', ['2024-09-30', '2023-09-30'], [['acme', 'OpProfit', [110, 95]]]),
+      c: QQ('2025-08-01', ['2025-06-30', '2024-06-30'], [['us-gaap', 'OperatingIncomeLoss', [130, 99]]]) };
+    const rq = F.bsfIs(qh, 'USD', { op: M({ '2025-09-30': 120, '2024-09-30': 110, '2025-06-30': 130 }) }, true);
+    ok(rq.op.get('2023-09-30').v === 95e6 && !rq.op.has('2024-06-30'), '(37) F20 ברבעונים: שרשור לכל רבעון פיסקלי; בלי עוגן (רבעון אחד שלנו) — לא נוגעים');
+    // מקצה לקצה (F29): השנתי של 2023 ‏(500 מביאור) מתוקן ל־450 המודפס; הרבעון הרביעי הנגזר (500 − 330 = 170) נגזר מחדש — 120,
+    // כי שלושת הרבעונים מודפסים ב־10-Q; בלי דפי 10-Q — הרבעון הרביעי יורד (הוא מהבסיס הישן)
+    const Qr = (y, a) => a.map((v, i) => [y + '-' + ['01-01', '04-01', '07-01'][i], y + '-' + ['03-31', '06-30', '09-30'][i], v, '10-Q', y + '-' + ['05-01', '08-01', '11-01'][i]]);
+    const FX = facts([['Revenues', 'USD', yrs([2000e6, 2100e6, 2200e6, 2300e6], 2022).concat(Qr(2022, [500e6, 500e6, 500e6]), Qr(2023, [520e6, 520e6, 520e6]))],
+      ['OperatingIncomeLoss', 'USD', [[...Y(2023), 500e6, '10-K', '2024-02-01'], [...Y(2024), 600e6, '10-K', '2025-02-01'], [...Y(2025), 650e6, '10-K', '2026-02-01']]
+        .concat(Qr(2022, [90e6, 95e6, 97e6]), Qr(2023, [100e6, 110e6, 120e6]))]]);
+    const ks = { a: K('2026-02-10', ['2025-12-31', '2024-12-31'], [['us-gaap', 'OperatingIncomeLoss', [650, 600]]]),
+      b: K('2025-02-10', ['2024-12-31', '2023-12-31'], [['us-gaap', 'OperatingIncomeLoss', [600, 450]]]),
+      c: K('2024-02-10', ['2023-12-31', '2022-12-31'], [['us-gaap', 'OperatingIncomeLoss', [450, 400]]]) };
+    const qs = { q1: QQ('2023-05-01', ['2023-03-31', '2022-03-31'], [['us-gaap', 'OperatingIncomeLoss', [100, 90]]]),
+      q2: QQ('2023-08-01', ['2023-06-30', '2022-06-30'], [['us-gaap', 'OperatingIncomeLoss', [110, 95]]]),
+      q3: QQ('2023-11-01', ['2023-09-30', '2022-09-30'], [['us-gaap', 'OperatingIncomeLoss', [120, 97]]]) };
+    const x0 = F.normalizeSec(FX, [], null, null), x1 = F.normalizeSec(FX, [], null, ks), x2 = F.normalizeSec(FX, [], null, { ...ks, ...qs });
+    const qv = (d, e) => d.Q.op[d.q.indexOf(e)], av = (d, e) => d.A.op[d.fy.indexOf(e)];
+    ok(qv(x0, '2023-12-31') === 170e6 && av(x0, '2023-12-31') === 500e6, '(37) הבסיס: הרבעון הרביעי נגזר מהשנתי הישן');
+    ok(av(x2, '2023-12-31') === 450e6 && qv(x2, '2023-12-31') === 120e6 && x2.cfy.some((c) => c.k === 'q4fix'), '(37) F29: השנתי תוקן ושלושת הרבעונים מודפסים — הרבעון הרביעי נגזר מחדש');
+    ok(av(x2, '2022-12-31') === 400e6 && qv(x2, '2022-12-31') === 118e6, '(37) F29: שנה שהתמלאה (ffill) — הרבעון הרביעי נגזר');
+    ok(av(x1, '2023-12-31') === 450e6 && qv(x1, '2023-12-31') == null && x1.cfy.some((c) => c.k === 'q4drop'), '(37) F29: בלי דפי 10-Q — הרבעון הרביעי מהבסיס הישן יורד');
+    // bsfiled: ‏10-Q — גם דף רווח והפסד (בלי תזרים), והגשה שכבר נשמרה בלעדיו — משלימים רק אותו
+    const B4 = require('../ibkr-proxy/lib/bsfiled.js');
+    const FS4 = '<FilingSummary><MyReports>' + [['R2.htm', 'Condensed Consolidated Statements of Operations'], ['R4.htm', 'Condensed Consolidated Balance Sheets'], ['R7.htm', 'Condensed Consolidated Statements of Cash Flows']]
+      .map(([f, n]) => '<Report><MenuCategory>Statements</MenuCategory><HtmlFileName>' + f + '</HtmlFileName><ShortName>' + n + '</ShortName></Report>').join('') + '</MyReports></FilingSummary>';
+    const RQ = (rows) => '<table><tr><th class="tl"><div><strong>X - USD ($)<br> $ in Millions</strong></div></th><th class="th">3 Months Ended<br>Sep. 30, 2025</th></tr>'
+      + rows.map(([t, l, v]) => '<tr class="re"><td class="pl"><a onclick="x(\'defref_' + t + '\')">' + l + '</a></td><td class="nump">' + v + '</td></tr>').join('') + '</table>';
+    const pg4 = { 'R2.htm': RQ([['us-gaap_OperatingIncomeLoss', 'Operating income', '120']]), 'R4.htm': RQ([['us-gaap_Assets', 'Total assets', '900']]), 'R7.htm': RQ([['us-gaap_DepreciationDepletionAndAmortization', 'D&A', '50']]) };
+    const got4 = [], gt4 = async (u) => { got4.push(u); const m = /(R\d+\.htm)$/.exec(u); return m ? pg4[m[1]] : FS4; };
+    const q1 = await B4.readOne('1', { acc: '0000000001-25-000009', form: '10-Q', filed: '2025-11-01' }, gt4);
+    ok(q1.bs && q1.is && !q1.cf && q1.is.rows[0].tag === 'OperatingIncomeLoss', '(37) readOne ‏10-Q: מאזן ורווח והפסד, בלי תזרים');
+    const oq0 = { form: '10-Q', filed: '2025-11-01', bs: q1.bs }, n4 = got4.length, aq = await B4.readMissing(oq0, 'https://x/', null, gt4);
+    ok(aq.is && !aq.cf && got4.length - n4 === 2 && !B4.needX({ ...oq0, ...aq }), '(37) ‏10-Q ישן: רק דף רווח והפסד');
+  }
+  /* ---------- (38) גל 6: רווח למניה בלי "מדולל" (F30), מועמד עם שורת מניות (F31) ---------- */
+  {
+    const PR6 = require('../ibkr-proxy/lib/secpr.js'), B6 = require('../ibkr-proxy/lib/bsfiled.js');
+    const FOXH = '<table><tr><td>(In millions, except per share data)</td><td>2019</td><td>2018</td></tr>'
+      + '<tr><td>Net income attributable to stockholders per share:</td><td>$</td><td>0.73</td><td>$</td><td>0.76</td></tr>'
+      + '<tr><td>Weighted average shares:</td><td>624</td><td>621</td></tr><tr><td>Dividends declared per share</td><td>0.23</td><td>0.23</td></tr></table>';
+    ok(PR6.parse(FOXH).length === 0, '(38) parse: בלי "מדולל" — אין שורות');
+    const fe = PR6.parseEps(FOXH);
+    ok(fe.length === 2 && fe.every((x) => x.b) && fe[0].v[0] === 0.73 && PR6.isShares(fe[1]) && !fe.some((x) => /except|Dividend/.test(x.label)), '(38) F30 parseEps: רווח למניה ומניות (מסומנים b); לא כותרת "except per share" ולא דיבידנד');
+    ok(!PR6.shRow({ label: 'is expected to be accretive', v: [2028] }) && PR6.shRow({ label: 'Diluted', v: [879, 870] }) && PR6.shRow({ label: 'Diluted Weighted Average Common Shares Outstanding', v: [2472.2] })
+      && !PR6.shRow({ label: 'Diluted', v: [1.25, 1.09] }), '(38) shRow: שנה בתחזית — לא מניות; שורת "Diluted" במיליונים — כן');
+    // F31: מועמד ראשון — תחזית עם "Diluted EPS" בלי מניות; השני — ההודעה המלאה
+    const GUID = '<table><tr><td>Diluted EPS Range</td><td>12.12</td><td>12.32</td></tr></table>';
+    const FULL = '<table><tr><td>Diluted earnings per share</td><td>1.10</td></tr><tr><td>Diluted weighted average shares</td><td>1770</td></tr></table>';
+    const it6 = { end: '2024-12-31', cands: [{ acc: 'g', filed: '2025-01-06', doc: 'g.htm' }, { acc: 'f', filed: '2025-01-31', doc: 'f.htm' }, { acc: 'z', filed: '2025-02-20', doc: 'z.htm' }] };
+    const idx6 = (n) => JSON.stringify({ directory: { item: [{ name: n, size: 5 }] } });
+    const got6 = [], g6 = (pages) => async (u) => { got6.push(u); const m = /\/(\w)\/index\.json$/.exec(u); if (m) return idx6(m[1] + 'ex991.htm'); const k = /\/(\w)ex991\.htm$/.exec(u); if (k && pages[k[1]] != null) return pages[k[1]]; throw new Error('http_404'); };
+    const r6 = await B6.readPr('1', it6, g6({ g: GUID, f: FULL, z: FULL }));
+    ok(r6 && r6.acc === 'f' && r6.rows.some(PR6.isShares) && !got6.some((u) => /\/z\//.test(u)), '(38) F31 readPr: מועמד בלי שורת מניות — ממשיכים לבא; עוצרים בראשון שיש בו');
+    const r6b = await B6.readPr('1', it6, g6({ g: GUID, f: '<p>x</p>', z: '<p>x</p>' }));
+    ok(r6b && r6b.acc === 'g' && r6b.pv === B6.PR_V && !B6.prNeed(r6b), '(38) F31: אף מועמד בלי מניות — הראשון שיש בו "מדולל", ולא נקרא שוב');
+    const r6c = await B6.readPr('1', it6, g6({ g: '<p>x</p>', f: FOXH, z: '<p>x</p>' }));
+    ok(r6c && r6c.acc === 'f' && r6c.rows.every((x) => x.b) && !B6.prNeed(r6c), '(38) F30 readPr: בלי "מדולל" בכלל — שורות b מההודעה');
+    // q4Press: שורות b רק בשנה בלי דילול (noDil), ובשנת הפסד — רק כשהרבעון הרביעי בהפסד
+    const mk6 = (noDil, ani, qni) => ({ fy: ['2019-06-30'], q: ['2019-06-30'], shEst: ['2019-06-30'], derived: { eps: ['2019-06-30'] }, epsNum: {}, noDil,
+      A: { sh: [621e6], ni: [ani] }, Q: { sh: [610e6], eps: [0.72], ni: [qni] } });
+    const P6 = (rows) => ({ '2019-06-30': { end: '2019-06-30', filed: '2019-08-07', rows } });
+    const s1 = mk6(['2019-06-30'], 1595e6, 455.5e6), c1 = F.q4Press(s1, P6(fe));
+    ok(s1.Q.sh[0] === 624e6 && s1.Q.eps[0] === 0.73 && c1.length === 2, '(38) F30 q4Press: שנה בלי דילול — המניות והרווח למניה מההודעה');
+    const s2 = mk6([], 1595e6, 455.5e6);
+    ok(F.q4Press(s2, P6(fe)).length === 0 && s2.Q.eps[0] === 0.72, '(38) F30 q4Press: שנה עם דילול — שורות b לא נכנסות');
+    const s3 = mk6(['2019-06-30'], -50e6, 455.5e6);
+    ok(F.q4Press(s3, P6(fe)).length === 0, '(38) F30 q4Press: שנת הפסד ורבעון רביעי ברווח — לא');
+    // noDil מ־normalizeSec: מניות בסיסיות = מדוללות (עד 0.1%) או תגית "בסיסי ומדולל"
+    const nd = (b) => F.normalizeSec(facts([
+      ['Revenues', 'USD', [[...Y(2022), 100, '10-K', '2023-02-01'], [...Y(2023), 100, '10-K', '2024-02-01']]],
+      ['NetIncomeLoss', 'USD', [[...Y(2022), 10, '10-K', '2023-02-01'], [...Y(2023), 10, '10-K', '2024-02-01']]],
+      ['WeightedAverageNumberOfDilutedSharesOutstanding', 'shares', [[...Y(2022), 1000, '10-K', '2023-02-01'], [...Y(2023), 1000, '10-K', '2024-02-01']]],
+      ['WeightedAverageNumberOfSharesOutstandingBasic', 'shares', [[...Y(2022), b, '10-K', '2023-02-01'], [...Y(2023), 999.5, '10-K', '2024-02-01']]]]), []);
+    ok(nd(990).noDil.join() === '2023-12-31' && nd(1000).noDil.length === 2, '(38) noDil: רק שנה שבה הבסיסיות = המדוללות');
+  }
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });

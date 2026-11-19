@@ -117,6 +117,7 @@ const day = (s) => Date.parse(s + 'T00:00:00Z') / 864e5;
 // העומק: Kroger — הרבעון הראשון 16 שבועות, ‏111 יום, לא נכנס אף פעם; Costco, PepsiCo, Domino's, AutoZone — הרביעי)
 const qLen = (d) => (d >= 80 && d <= 100) || (d >= 110 && d <= 119);
 const PER_SHARE = new Set(['eps', 'dps']);
+const F20_Q = false; // F20 ברבעונים — כבוי (גל 6: ‏worse ‏49 במדידה; ראו bsfIs)
 // זרימות שבהן אפשר לבדוק שהרבעונים מאותו בסיס כמו השנה (qmix)
 const QPOS = ['cogs', 'dep', 'sbc', 'int']; // הכנסות, מחקר והשקעות הוניות — יכולים להיות מרוכזים ברבעון אחד בצדק
 /* באיזה דוח מופיעה כל שורה (לבחירת התגית לפי הדוח שהחברה הגישה — lib/secface.js) */
@@ -376,13 +377,16 @@ function bsfCf(have, cur, tags) {
    החדשות שלה נקבעות (השנה שייכת ל־10-K האחרון שמדפיס אותה). ours: k → Map(סוף → ערך). abs — מדדים שמודפסים לפעמים במינוס.
    → {k: Map(סוף → {v, filed})}, ‏printed: Map(סוף → כל הערכים שהודפסו בדוח רווח והפסד בשנה הזו, בכל שורה), ‏own: השנה של כל 10-K */
 const IS_KEYS = ['int', 'pretax', 'cogs', 'rnd', 'tax', 'op'], IS_ABS = new Set(['int', 'cogs', 'rnd']);
-function bsfIs(have, cur, ours) {
-  const ann = Object.values(have || {}).filter((x) => x && x.is && x.is.rows && /^10-K/.test(x.form)).sort((a, b) => (a.filed < b.filed ? 1 : -1));
+/* q (גל 6 — F20 ברבעונים): אותו שרשור על דפי רווח והפסד של 10-Q, בעמודות של 3 חודשים. כל 10-Q מדפיס את הרבעון ואת אותו רבעון
+   בשנה הקודמת, ולכן השרשור הוא לכל רבעון פיסקלי לחוד — וכל שרשרת מתחילה בעוגן (שורה ששווה לסדרה שלנו בשני הרבעונים שלה) */
+function bsfIs(have, cur, ours, q) {
+  const MON = q ? 3 : 12, FORM = q ? /^10-Q/ : /^10-K/;
+  const ann = Object.values(have || {}).filter((x) => x && x.is && x.is.rows && FORM.test(x.form)).sort((a, b) => (a.filed < b.filed ? 1 : -1));
   const out = {};
   if (!ann.length) return out;
   const near = (a, b) => Math.abs(a - b) <= Math.max(5e5, 5e-3 * Math.abs(b));
   // כל שורה: {סוף → ערך} בעמודות של 12 חודשים
-  const yv = (x) => x.is.rows.map((r) => { const o = new Map(); SECFACE.rowVals(x.is, r).forEach((v, ci) => { const c = x.is.cols[ci]; if (v != null && c && c.months === 12 && SECFACE.colOk(c, cur) && !o.has(c.end)) o.set(c.end, v); }); return o; }).filter((o) => o.size);
+  const yv = (x) => x.is.rows.map((r) => { const o = new Map(); SECFACE.rowVals(x.is, r).forEach((v, ci) => { const c = x.is.cols[ci]; if (v != null && c && c.months === MON && SECFACE.colOk(c, cur) && !o.has(c.end)) o.set(c.end, v); }); o.tag = r.ns + ':' + r.tag; return o; }).filter((o) => o.size);
   const Y = ann.map(yv);
   const printed = new Map();
   for (const rows of Y) for (const o of rows) for (const [e, v] of o) { if (!printed.has(e)) printed.set(e, []); printed.get(e).push(Math.abs(v)); }
@@ -392,19 +396,33 @@ function bsfIs(have, cur, ours) {
   out.own = Y.map((rows) => { let m = null; for (const o of rows) for (const e of o.keys()) if (!m || e > m) m = e; return m; }).filter(Boolean);
   const at = (M, e) => { if (M.has(e)) return M.get(e); for (const [k, v] of M) if (Math.abs(day(k) - day(e)) <= 7) return v; return null; };
   for (const k of IS_KEYS) {
-    const S = ours[k]; if (!S || !S.size) continue;
+    const S = ours[k]; if ((!S || !S.size) && (q || k !== 'pretax')) continue;
     const f = (v) => (IS_ABS.has(k) ? Math.abs(v) : v);
     const same = (o, est) => [...est.keys()].some((e) => o.has(e)) && [...o].every(([e, v]) => !est.has(e) || near(f(v), est.get(e)));
-    const c0 = Y[0].filter((o) => o.size >= 2 && [...o].every(([e, v]) => { const x = at(S, e); return x != null && near(f(v), f(x)); }));
     // שתי שורות זהות (אותו מספר פעמיים בדוח) — אחת
-    const u0 = c0.filter((o, i) => !c0.slice(0, i).some((p) => p.size === o.size && [...o].every(([e, v]) => p.get(e) === v)));
+    const uniq = (c) => c.filter((o, i) => !c.slice(0, i).some((p) => p.size === o.size && [...o].every(([e, v]) => p.get(e) === v)));
+    // "עוגן": שורה ששווה לסדרה שלנו בכל השנים שהיא מדפיסה ושיש לנו בהן ערך — לפחות שתיים
+    const anchor = (rows) => uniq(rows.filter((o) => { let n = 0; for (const [e, v] of o) { const x = at(S || new Map(), e); if (x == null) continue; if (!near(f(v), f(x))) return false; n++; } return n >= 2; }));
+    let u0 = uniq(Y[0].filter((o) => o.size >= 2 && [...o].every(([e, v]) => { const x = at(S || new Map(), e); return x != null && near(f(v), f(x)); })));
+    // F28 (גל 6) — עוגן חשבוני לרווח לפני מס, כשהסדרה שלנו ריקה בכל השנים של הדוח האחרון (התגית פרטית: BNY ‏bk:, ‏Oracle ‏orcl:):
+    // השורה היחידה R שבכל שנה R − מס = רווח נקי, כשהמס (us-gaap ‏IncomeTaxExpenseBenefit) שווה לסדרת המס שלנו והרווח הנקי הוא שורה
+    // של us-gaap ‏(ProfitLoss / ‏NetIncomeLoss / רווח מפעילות נמשכת). מבחן חשבוני, לא לפי השם (לקח גל 2)
+    if (!u0.length && !q && k === 'pretax' && ours.tax && ![...Y[0]].some((o) => [...o.keys()].some((e) => S && at(S, e) != null))) {
+      const T = Y[0].filter((o) => o.tag === 'us-gaap:IncomeTaxExpenseBenefit' && o.size >= 2 && [...o].every(([e, v]) => { const x = at(ours.tax, e); return x != null && near(v, x); }));
+      const NI = Y[0].filter((o) => /^us-gaap:(ProfitLoss|NetIncomeLoss|IncomeLossFromContinuingOperations(IncludingPortionAttributableToNoncontrollingInterest)?)$/.test(o.tag));
+      if (T.length && NI.length) u0 = uniq(Y[0].filter((o) => o.size >= 2 && !T.includes(o) && !NI.includes(o) && T.some((t) => NI.some((n) => [...o].every(([e, v]) => t.has(e) && n.has(e) && near(v - t.get(e), n.get(e)))))));
+    }
     if (u0.length !== 1) continue;
     const est = new Map([...u0[0]].map(([e, v]) => [e, f(v)])), M = new Map([...est].map(([e, v]) => [e, { v, filed: ann[0].filed }]));
     for (let i = 1; i < ann.length; i++) {
-      const m = Y[i].filter((o) => same(o, est));
-      const u = m.filter((o, j) => !m.slice(0, j).some((p) => p.size === o.size && [...o].every(([e, v]) => p.get(e) === v)));
-      if (u.length !== 1) continue;
-      for (const [e, v] of u[0]) if (!est.has(e)) { est.set(e, f(v)); M.set(e, { v: f(v), filed: ann[i].filed }); }
+      const u = uniq(Y[i].filter((o) => same(o, est)));
+      if (u.length === 1) { for (const [e, v] of u[0]) if (!est.has(e)) { est.set(e, f(v)); M.set(e, { v: f(v), filed: ann[i].filed }); } continue; }
+      if (u.length) continue;
+      // F28 (גל 6) — עוגן מחדש: השרשור נשבר (הדוח הזה הדפיס את השנים שכבר נקבעו על בסיס אחר — Ameriprise: ה־10-K של 2023 לפני
+      // ההצגה מחדש של 2024), אבל שורה אחת בו שווה לסדרה שלנו בשתי שנים לפחות — זו השורה; השנים החדשות שלה נקבעות, והשרשור ממשיך ממנה
+      const a = anchor(Y[i]).filter((o) => [...o.keys()].some((e) => !est.has(e)));
+      if (a.length !== 1) continue;
+      for (const [e, v] of a[0]) { if (!est.has(e)) M.set(e, { v: f(v), filed: ann[i].filed }); est.set(e, f(v)); }
     }
     out[k] = M;
   }
@@ -1149,6 +1167,13 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
   const shB = { A: {}, Q: {} };
   { const fb = splitAdj(tagFacts(tax[isIfrs ? 'WeightedAverageShares' : 'WeightedAverageNumberOfSharesOutstandingBasic'], 'shares'), splitsUsed, true);
     for (const [kk, h] of fb.dur) { const [s0, e0] = kk.split('|'), L = day(e0) - day(s0); if (L >= 350 && L <= 380) shB.A[e0] = h.v; else if (qLen(L)) shB.Q[e0] = h.v; } }
+  // שנים שתויגו "בסיסי ומדולל" במניות — בלי דילול (noDil, גל 6 — F30)
+  // ורווח בסיסי שנתי (לבדוק שהוא = המדולל עד הסנט)
+  const shBD = {}, epsBA = {};
+  if (!isIfrs) {
+    for (const [kk, h] of splitAdj(tagFacts(tax.WeightedAverageNumberOfShareOutstandingBasicAndDiluted, 'shares'), splitsUsed, true).dur) { const [s0, e0] = kk.split('|'), L = day(e0) - day(s0); if (L >= 350 && L <= 380) shBD[e0] = h.v; }
+    for (const [kk, h] of splitAdj(tagFacts(tax.EarningsPerShareBasic, unitOf('eps')), splitsUsed, false).dur) { const [s0, e0] = kk.split('|'), L = day(e0) - day(s0); if (L >= 350 && L <= 380) epsBA[e0] = h.v; }
+  }
   // שנים פיסקליות: תקופות של ~שנה בהכנסות או ברווח הנקי (52/53 שבועות נכללים) — רק מדוח שנתי.
   // Amazon מדפיסה ב־10-Q גם עמודה של 12 החודשים האחרונים: בלי התנאי כל רבעון נעשה "סוף שנה" והטבלה השנתית התערבבה
   const yearOf = new Map(); // end → start
@@ -1497,7 +1522,7 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
   // רווח והפסד לפי הגשה (bsfIs, גל 5 — F20). רק השנתי, כמו F13; ערך שלנו שמודפס בשורה כלשהי של רווח והפסד באותה שנה — לא מוחלף
   // (הצגה מחדש: פעילות שנמכרה — Agilent אחרי Keysight, ‏Exelon אחרי Constellation)
   if (!isIfrs && bsf) {
-    const ours = {};
+    const ours = {}, chg = {};
     for (const k of IS_KEYS) if (A[k]) ours[k] = new Map(fyEnds.filter((e) => A[k][e] != null).map((e) => [e, A[k][e]]));
     const IS = bsfIs(bsf, rc || cur || 'USD', ours);
     const near = (a, b) => Math.abs(a - b) <= Math.max(5e5, 5e-3 * Math.abs(b));
@@ -1511,6 +1536,53 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
         if (old != null) { let pr = IS.printed.get(e); if (!pr) for (const [k2, v2] of IS.printed) if (Math.abs(day(k2) - day(e)) <= 7) { pr = v2; break; } if (pr && pr.some((v) => near(Math.abs(old), v))) continue; }
         if (!A[k]) A[k] = {};
         A[k][e] = p.v; cfy.push({ k: old == null ? 'ffill' : 'ffix', m: k, p: e, f: p.v, v: old == null ? null : old });
+        (chg[k] = chg[k] || new Set()).add(e);
+      }
+    }
+    // F20 ברבעונים (גל 6): אותו שרשור על דפי 10-Q, ואותן שמירות — ערך שמודפס בשורה כלשהי באותו רבעון לא מוחלף, ערך קיים מתוקן רק
+    // כשה־10-Q של אותו רבעון בחלון. הסדרה שלנו לעוגן — בלי הרבעון הרביעי הנגזר (אינו מודפס ב־10-Q)
+    const oq = {};
+    for (const k of IS_KEYS) if (Q[k]) oq[k] = new Map(qEnds.filter((e) => Q[k][e] != null && !(derived[k] || []).includes(e)).map((e) => [e, Q[k][e]]));
+    const ISQ = bsfIs(bsf, rc || cur || 'USD', oq, true);
+    const prAt = (P, e) => { let pr = P.get(e); if (!pr) for (const [k2, v2] of P) if (Math.abs(day(k2) - day(e)) <= 7) { pr = v2; break; } return pr; };
+    const fyOf = (e) => fyEnds.find((f) => { const s0 = yearOf.get(f); return s0 && e > s0 && e <= f; });
+    // כבוי (גל 6, המדידה): 932 ערכים — better ‏289, ‏worse ‏49, ‏neither ‏524. כל 10-Q מדפיס רק שני רבעונים (השנה ואשתקד), ולכן השרשור
+    // נשבר בכל הצגה מחדש, והעוגן מחדש קופץ לבסיס המקורי (Iron Mountain ‏pretax ‏2015-Q1: ‏57.7M מה־10-Q המקורי במקום ‏41.1M שהוצג
+    // מחדש). דפי ה־10-Q נשארים — ל־F29 (אילו רבעונים מודפסים). ‏wave-6.md §3
+    if (F20_Q) for (const k of IS_KEYS) {
+      const M = ISQ[k]; if (!M) continue;
+      for (const e of qEnds) {
+        if (fyEnds.some((f) => Math.abs(day(f) - day(e)) <= 7)) continue; // הרבעון הרביעי — לא ב־10-Q
+        const p = bsfAt(M, e); if (!p) continue;
+        const old = Q[k] && Q[k][e];
+        if (old != null && near(IS_ABS.has(k) ? Math.abs(old) : old, p.v)) continue;
+        if (old != null && !ISQ.own.some((x) => Math.abs(day(x) - day(e)) <= 7)) continue;
+        if (old != null) { const pr = prAt(ISQ.printed, e); if (pr && pr.some((v) => near(Math.abs(old), v))) continue; }
+        if (!Q[k]) Q[k] = {};
+        Q[k][e] = p.v; cfy.push({ k: old == null ? 'ffill' : 'ffix', m: k, p: e, f: p.v, v: old == null ? null : old, q: 1 });
+        const f = fyOf(e); if (f) (chg[k] = chg[k] || new Set()).add(f);
+      }
+    }
+    // F29 (גל 6): הרבעון הרביעי נגזר (השנה פחות שלושה רבעונים) לפני התיקונים של F20 — בשנה שהשנתי או אחד הרבעונים בה השתנו
+    // הוא נשאר מהערכים הישנים (Keysight ‏2015: השנה ‏388 המודפס, הרבעונים ‏124+154+124+157 = ‏559 הישן). גוזרים מחדש רק כששלושת
+    // הרבעונים מודפסים ב־10-Q באותה סדרה (ISQ.printed); אחרת, כשהשנתי תוקן (ffix), הרבעון הרביעי הנגזר יורד — הוא מבסיס אחר
+    for (const k of IS_KEYS) {
+      for (const e of chg[k] || []) {
+        if (!Q[k] || A[k] == null || A[k][e] == null) continue;
+        const der = (derived[k] || []).includes(e);
+        if (Q[k][e] != null && !der) continue; // רבעון רביעי מדווח — לא נגזר
+        const s0 = yearOf.get(e), qs = qEnds.filter((x) => x > s0 && x < e && day(e) - day(x) < 300);
+        const ok = qs.length === 3 && qs.every((x) => Q[k][x] != null) && qs.every((x) => { const pr = prAt(ISQ.printed || new Map(), x); return pr && pr.some((v) => near(Math.abs(Q[k][x]), v)); });
+        const old = Q[k][e];
+        if (ok) {
+          const v = A[k][e] - qs.reduce((t, x) => t + Q[k][x], 0);
+          if (old != null && near(old, v)) continue;
+          Q[k][e] = v; if (!der) (derived[k] = derived[k] || []).push(e);
+          cfy.push({ k: 'q4fix', m: k, p: e, f: v, v: old == null ? null : old });
+        } else if (der && cfy.some((c) => c.k === 'ffix' && c.m === k && c.p === e && !c.q)) {
+          Q[k][e] = null; derived[k] = derived[k].filter((x) => x !== e);
+          cfy.push({ k: 'q4drop', m: k, p: e, f: null, v: old });
+        }
       }
     }
   }
@@ -1573,7 +1645,12 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
   const pack = (D, ends) => { const o = {}; for (const k of KEEP) { if (!D[k]) continue; const a = ends.map((e) => (D[k][e] != null ? D[k][e] : null)); if (a.some((v) => v != null)) o[k] = a; } return o; };
   const fy = fyEnds.filter((e) => A.rev[e] != null || A.ni[e] != null).slice(-20);
   const C = { A: pack(GA, fy), Q: pack(GQ, qEnds) };
-  return { fy, q: qEnds, shEst: shEst.filter((e) => Q.sh[e] != null), epsNum, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix, cx0, gpx, gpd, opx, splitsUsed, capFace, bsfN, cfy };
+  // שנים בלי דילול (גל 6 — F30): המניות הבסיסיות בדוח השנתי (או "בסיסי ומדולל") = המדוללות עד 0.1%, והרווח הבסיסי = המדולל עד
+  // הסנט — שם "רווח למניה" בהודעה בלי המילה "מדולל" הוא גם המדולל (q4Press, שורות b). Loews ‏2025: המניות שונות ב־0.07% והרווח
+  // ‏7.98 מול ‏7.97 — לא; Fox ‏2021: "בסיסי ומדולל" ‏621M (של שנה אחרת) מול ‏595M מדוללות — לא
+  const noDil = fy.filter((e) => { const b = shBD[e] != null ? shBD[e] : shB.A[e];
+    return b > 0 && A.sh[e] > 0 && Math.abs(b / A.sh[e] - 1) <= 0.001 && (epsBA[e] == null || A.eps[e] == null || Math.abs(epsBA[e] - A.eps[e]) < 0.005); });
+  return { fy, q: qEnds, shEst: shEst.filter((e) => Q.sh[e] != null), epsNum, noDil, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix, cx0, gpx, gpd, opx, splitsUsed, capFace, bsfN, cfy };
 }
 
 /* השקעה הונית שהחברה לא מציגה בשורה נפרדת (5/11/2026, AppLovin). מ־2024 התזרים של AppLovin בלי "Purchase of property and
@@ -1748,6 +1825,9 @@ function q4Press(sec, P) {
     if (!(sec.fy || []).some((f) => Math.abs(day(f) - day(e)) <= 5)) return;
     if (!est.includes(e)) return tagged(e, i);
     const r = at(e), sh = sec.Q.sh && sec.Q.sh[i]; if (!r || !(sh > 0)) return;
+    // "רווח למניה" בלי "מדולל" (גל 6 — F30, שורות b): רק בשנה בלי דילול (noDil), וכשהשנה ברווח או הרבעון בהפסד — בשנת הפסד
+    // (אנטי־דילול) רבעון רביעי ברווח כן מדלל, והבסיסי שלו שונה מהמדולל
+    if (r.rows.some((x) => x.b) && !bOk(e, i)) return;
     // כל מקדמי הפיצול שאחרי תאריך כלשהו (התאריך שלנו הוא לפעמים ההגשה שאחרי הפיצול — Apple ‏4:1: אצלנו 30/10/2020, ההודעה 29/10)
     const sp = (sec.splitsUsed || []).slice().sort((a, b) => (a[0] < b[0] ? -1 : 1)), post = sp.map((_, j) => sp.slice(j).reduce((t, [, x]) => t * x, 1));
     const ns = [sec.epsNum && sec.epsNum[e], sec.Q.nic && sec.Q.nic[i], sec.Q.ni && sec.Q.ni[i]].filter((x) => Number.isFinite(x) && x !== 0);
@@ -1774,9 +1854,15 @@ function q4Press(sec, P) {
      מ־50% ובלפחות 5 סנט למניה. Sempra ‏2019: ‏XBRL מתייג 0.21 (‏0.105 אחרי הפיצול 2:1), והרווח ‏$447M חלקי ‏578M מניות = ‏0.77; בהודעה
      ‏1.55 ו־289M (‏0.775 אחרי הפיצול). מחליפים רק בזוג מההודעה שמכפלתו = הרווח והמניות שלו עד 2% מהמניות המתויגות — אותה טבלה ואותו
      רבעון; המניות המתויגות נשארות. רבעון עם רווח קטן, שבו המכפלה קרובה בסנטים — לא נוגעים */
+  function bOk(e, i) {
+    const fi = sec.fy.findIndex((f) => Math.abs(day(f) - day(e)) <= 5), A = sec.A || {}, f = sec.fy[fi];
+    if (fi < 0 || !(sec.noDil || []).includes(f)) return false;
+    const na = A.nic && A.nic[fi] != null ? A.nic[fi] : A.ni && A.ni[fi], nq = sec.Q.nic && sec.Q.nic[i] != null ? sec.Q.nic[i] : sec.Q.ni && sec.Q.ni[i];
+    return na > 0 || nq < 0;
+  }
   function tagged(e, i) {
     const r = at(e), sh = sec.Q.sh && sec.Q.sh[i], eps = sec.Q.eps && sec.Q.eps[i];
-    if (!r || !(sh > 0) || eps == null || der.includes(e)) return;
+    if (!r || !(sh > 0) || eps == null || der.includes(e) || r.rows.some((x) => x.b)) return;
     const ns = [sec.epsNum && sec.epsNum[e], sec.Q.nic && sec.Q.nic[i], sec.Q.ni && sec.Q.ni[i]].filter((x) => Number.isFinite(x) && x !== 0);
     if (!ns.length || !ns.every((n) => Math.abs(eps * sh - n) > 0.5 * Math.abs(n) && Math.abs(eps - n / sh) >= 0.05)) return;
     const sp = (sec.splitsUsed || []).slice().sort((a, b) => (a[0] < b[0] ? -1 : 1)), post = sp.map((_, j) => sp.slice(j).reduce((t, [, x]) => t * x, 1));
