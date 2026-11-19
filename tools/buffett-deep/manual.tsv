@@ -217,3 +217,5 @@ UAL	2026-09-30	pol	DIFF	B-052	P על "profit sharing adjusted pre-tax earnings �
 UHS	2026-09-30	pol	V2	moot:yGaap	"Impact of ASU 2016-09 … stock compensation" → E; הרחוב = GAAP
 VICI	2026-09-30	pol	V2	reit;moot:yGaap	AFFO מחזיר את התגמול; לגל 5
 VTR	2026-09-30	pol	V2	reit	Normalized FFO מוציא את התגמול מ־1/2026 (chg=now); לגל 5
+XYZ	2026-09-30	pol	DIFF	B-053	"fully burdened by share-based compensation" + "restructuring share-based compensation" → מוציא; הרווח המותאם כולל את התגמול מ־2025; "מה אם" bpe 21.65 במקום 31.09
+WTW	2026-09-30	pol	DIFF	B-054	"share-based compensation and other transaction-related costs attributable to our Newfront acquisition" → מוציא; "מה אם" bpe 17.67 במקום 19.21
