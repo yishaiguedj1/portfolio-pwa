@@ -17558,6 +17558,8 @@ function initHScroll() {
   }, { passive: true });
   document.addEventListener('pointermove', (e) => {
     if (!s || e.pointerId !== s.id) return;
+    // 19/11/2026 (בקשת המשתמש, הקלטה): לחיצה ארוכה התחילה גרירה (טאב רשימה) — השורה לא נגללת, הטאב זז
+    if (document.documentElement.classList.contains('drag-active')) { s = null; return; }
     if (!s.on) {
       const dx = e.clientX - s.x, dy = e.clientY - s.y;
       if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { s = null; return; }   // אנכי — של הדף
