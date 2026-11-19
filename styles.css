@@ -2833,7 +2833,19 @@ html[data-theme="dark"] .lib-root .lib-back { background: var(--gl-back) !import
 .tx-row .tx-t1 { font-size: 15px; }
 .tx-row .tx-t1 > span { font-size: 13.5px; }
 .tx-row .tx-e1 { font-size: 15px; }
-.tx-man { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: var(--radius-xs); background: var(--gl-fill); color: var(--on-surface-var); }
+/* 19/11/2026: המקור — תג עגול בקצה השורה הראשונה, תמיד באותו מקום ובאותו גודל; הטקסט נקטע לפניו */
+.tx-lead { flex: none; display: grid; }
+.tx-row .tx-t1 { display: flex; align-items: center; gap: 5px; }
+.tx-row .tx-t1 > * { flex: none; }
+.tx-row .tx-t1 > span[dir] { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tx-src { flex: none; margin-inline-start: auto; padding-inline-start: 6px; display: flex; line-height: 0; --tx-src-bg: #fff; }
+[data-theme="dark"] .tx-src { --tx-src-bg: #3a3a3c; }
+.tx-src .src-tag, main .tx-src .src-tag { margin: 0; padding: 0; width: 16px; height: 16px; display: grid; place-items: center; border-radius: var(--pill);
+  background: var(--tx-src-bg); box-shadow: 0 1px 2px rgb(0 0 0 / .22); }
+.tx-src .src-tag .ib-logo, .tx-src .src-tag img { width: 10px; height: 10px; }
+.tx-src .src-tag.src-sec { width: auto; padding-inline: 4px; font-size: 8px; line-height: 16px; }
+.tx-src .src-tags { gap: 0; }
+.tx-src .src-tags > .src-tag + .src-tag { margin-inline-start: -7px; }
 .tx-edit { flex: none; color: var(--on-surface-var); opacity: .55; display: grid; }
 .tx-edit svg { width: 15px; height: 15px; }
 .tx-yr { border-radius: var(--radius); background: var(--gl-card); box-shadow: var(--gl-card-sh); overflow: hidden; margin-bottom: 10px; }
