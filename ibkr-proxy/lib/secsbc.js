@@ -10,7 +10,8 @@
 const SECPR = require('./secpr');
 
 const SV = 3;          // גרסת המסווג — שינוי בכללים = מספר חדש, וההודעות נקראות מחדש (2: המשפט כולו בעדות במילים, 19/11/2026;
-                       // 3: שיעור המס ה־non-GAAP שהחברה מצהירה ‏(tr), הסכום בשורת התגמול בגישור ‏(sa) וסוף הרבעון ‏(qe), גל 1 של שיטת באפט)
+                       // 3: שיעור המס ה־non-GAAP שהחברה מצהירה ‏(tr), הסכום בשורת התגמול בגישור ‏(sa) וסוף הרבעון ‏(qe), גל 1 של שיטת באפט;
+                       //    וגם B-025 ו־B-026 ‏(SKIP_PRE), ‏B-027 (מדדי מנהלות השקעות ב־TGT) ו־tb — המס המותאם כולל את הטבת המס)
 const MAX = 6;         // הודעות אחרונות (4 רבעוני ה־12 חודשים + מרווח להודעה מקדימה)
 const DAYS = 460;
 
@@ -22,8 +23,10 @@ const text = (h) => String(h).slice(0, 2e6).replace(/<br\s*\/?>/gi, ' ').replace
 const SBC = /(?:stock|share|equity)[- ]?based(?: and deferred)? compensation|stock compensation|share-based payments?|equity compensation/g;
 // "acquisition-related cash and share-based compensation costs" (Cardinal) — שורת רכישות, לא התגמול השוטף (§13.11: מטופל כחד־פעמי
 // שחוזר, לא כאן); עד גרסה 3 נספרה כעדות, ו־Cardinal סומנה "מוציאה" אף שהרווח המותאם שלה כולל את התגמול הרגיל (B-025 בבדיקת
-// העומק, docs/buffett-pe-audit.md: על 3,239 הודעות רק Cardinal מתהפכת). בלי "costs," — אצל Intel זו רשימה של פריטים נפרדים
-const SKIP_PRE = /(?:excess|settlement of|exercise of|incremental(?: non-cash)?|accelerated|one-time|tax benefits? (?:from|on|related to)|acquisition[- ]related(?: cash)?(?: and| &)?)\s*$/;
+// העומק, docs/buffett-pe-audit.md: על 3,239 הודעות רק Cardinal מתהפכת). בלי "costs," — אצל Intel זו רשימה של פריטים נפרדים.
+// שורת מס ומשפט מס — "income tax effect of share-based compensation", "the normalized tax benefit of share-based compensation"
+// (Applied Materials, שכוללת את התגמול ברווח המותאם; B-026 — לפני גרסה 3 נספרו כעדות, ו־AMAT סומנה "מוציאה" ב־5 מתוך 5)
+const SKIP_PRE = /(?:excess|settlement of|exercise of|incremental(?: non-cash)?|accelerated|one-time|(?:income )?tax (?:benefits?|effects?) (?:of|from|on|related to)|acquisition[- ]related(?: cash)?(?: and| &)?)\s*$/;
 const SKIP_POST = /compensation awards? (?:with|using)|tax (?:benefit|deduction)/;
 // המשך במילים (הערת שוליים או משפט, לא שורה בטבלה): PYPL "…compensation expense associated with restructuring", ‏WMT "…payment
 // plans in anticipation…", ‏HON "…stock compensation expense, pension…", ‏UBER "…compensation expenses. 11". "net of tax" — שורה (TSLA)
@@ -32,7 +35,10 @@ const PROSE = /^(?:\s*expenses?)?\s*(?:associated|in anticipation|which|that|is|
 const NUMROW = /^(?:\s*expenses?\d?)?\s*(?:\(\d\)\s*)?(?:\$\s*)?(?:\(?\d|-\s|—)/;
 // היעד של טבלת ההתאמה: השורה הראשונה מהסוגים האלה אחרי שורת התגמול
 // גם בצורה "net income on non-gaap basis" (AVGO — כל שורה בטבלה: "<מדד> on gaap basis" … "<מדד> on non-gaap basis")
-const TGT = /(?:non-gaap|adjusted|core|cash)\s+(?:diluted\s+)?(?:net income|net earnings|earnings per (?:diluted )?share|eps|(?:diluted )?(?:net )?(?:income|earnings|profit) per (?:diluted |common )?share|net income per (?:diluted )?share|net income attributable)|(?:net income|net earnings|(?:diluted )?(?:net )?(?:income|earnings) per (?:diluted |common )?share)(?: - diluted)? on (?:a )?non-gaap basis/;
+// מנהלות השקעות (B-027): ‏"after-tax realized income" (Ares), ‏"distributable earnings" (Blackstone, ‏Carlyle, ‏TPG, ‏Blue Owl) — הרווח
+// למניה שעליו הרחוב בנוי. ‏"fee-related earnings" — לא רווח לבעלים, אבל ה־DE וה־RI נבנים ממנו (Blue Owl: הגישור מהרווח לפני מס
+// ל־FRE, ואחריו ל־DE, יותר מ־1,500 תווים אחרי שורת התגמול) — מה שהוצא ממנו הוצא גם מהם. "\b" — לא "unrealized income"
+const TGT = /\b(?:after-tax |adjusted )?(?:realized income|distributable earnings|fee[- ]related earnings)|(?:non-gaap|adjusted|core|cash)\s+(?:diluted\s+)?(?:net income|net earnings|earnings per (?:diluted )?share|eps|(?:diluted )?(?:net )?(?:income|earnings|profit) per (?:diluted |common )?share|net income per (?:diluted )?share|net income attributable)|(?:net income|net earnings|(?:diluted )?(?:net )?(?:income|earnings) per (?:diluted |common )?share)(?: - diluted)? on (?:a )?non-gaap basis/;
 const OTHER = /(?:non-gaap|adjusted)\s+(?:operating (?:income|expenses?|margin|profit)|gross (?:profit|margin)|ebitda|ebit\b|free cash flow|segment)|segment (?:profit|operating income)|ebitda|operating activities|cash flows? from|effective (?:income )?tax rate|tax rate|(?:gross (?:margin|profit)|operating (?:income|expenses?|margin)|research and development|selling, general and administrative(?: expenses?)?|cost of (?:revenue|products|sales|goods sold)|provision for income taxes) on (?:a )?non-gaap basis/;
 // דוח תזרים המזומנים (MSFT, ‏DIS) מול טבלת התאמה — מה הופיע אחרון לפני השורה
 const CF = /operating activities|cash provided by|cash flows? (?:from|provided)|net cash/g;
@@ -52,6 +58,23 @@ const lastOf = (s, re) => { let m, i = -1; re.lastIndex = 0; while ((m = re.exec
    ‏"outlook") — רק כשאין אחרת. מחזיר שבר (0.21) או null */
 const TR = /(?:non-gaap|adjusted|long-term(?: projected| annual)?)(?: estimated| fixed)?(?: effective)?(?: income)? tax rate(?: (?:of|was|is|for (?:the )?(?:[a-z]+ )?(?:quarter|period|year)(?: [a-z0-9,]+){0,4}? was))?\s*(?:\(\S{1,3}\)\s*)?:?\s*(?:approximately |~\s*)?(\d{1,2}(?:\.\d{1,2})?)\s?%/g;
 const GUIDE = /expect|outlook|guidance|anticipat|forecast|will be|for (?:the )?(?:full )?(?:fiscal )?(?:year|fy) 20\d\d/;
+/* המס של המדד המותאם כבר כולל את הטבת המס על התגמול (מנהלות השקעות): "our methodology uses the tax benefits from certain expenses
+   that are not included in these non-gaap metrics, such as equity-based compensation" (Ares), ‏"income taxes on adjusted earnings includes
+   the benefit of tax deductions arising from equity-based compensation" (KKR), ‏"reflects the benefit of deductions … on certain expense
+   items that are excluded from the underlying calculation of distributable earnings, such as equity-based compensation" (Carlyle, ‏TPG),
+   ‏"reflect the benefit of tax deductions that are excluded when calculating distributable earnings (e.g., equity-based compensation" (Blue
+   Owl). הרחוב = לפני התגמול, אחרי המס הנמוך שהוא יצר — ולכן הניכוי לפני מס (τ = 0), אחרת המגן נספר פעמיים */
+const TB = /(?:uses?|includes?|reflects?) the (?:tax )?benefits? (?:of|from) (?:certain )?(?:tax )?(?:deductions?|expenses?)[^.]{0,200}?(?:such as|e\.g\.,?|including|arising from)\s*(?:stock|share|equity)[- ]?based compensation/;
+/* בסיס המניות של המדד למניה, מהמשפט "<מדד> of $X billion ($Y/share)" (Blackstone: ‏$1.7 מיליארד, ‏$1.32 — ‏1.29 מיליארד מניות;
+   Blue Owl: "$385.5 million, or $0.24 per adjusted share"). במבנה Up-C התגמול בגישור הוא של כל החברה, כולל בעלי היחידות, והמדד למניה
+   מחולק על כולם — לא על מניות Class A שב־XBRL (Blue Owl: ‏699 מיליון מול כ־1.6 מיליארד). הלקוח משתמש בו רק כשהוא גדול מה־XBRL */
+const NS = /(?:distributable earnings|\bde\b|(?:after-tax )?realized income|\bri\b|adjusted net income|\bani\b)(?:\s*\(\s*(?:de|ri|ani)\s*\))?(?: attributable to [a-z.,' ]{1,60}?)?(?: of| was| were)\s*\$\s?(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s*(million|billion)(?:,?\s*or\s*|\s*\(\s*)\$\s?(\d+\.\d+)\s*(?:\/|per\s)\s*(?:adj(?:usted)?\.?\s*|common\s*|class a\s*)?share/;
+function nShares(t) {
+  const m = NS.exec(t);
+  if (!m) return null;
+  const v = +m[1].replace(/,/g, '') * (m[2] === 'billion' ? 1e9 : 1e6), y = +m[3];
+  return y > 0 ? Math.round(v / y / 1e5) * 1e5 : null;
+}
 function taxRate(t) {
   let m, first = null, fg = null;
   TR.lastIndex = 0;
@@ -100,14 +123,15 @@ function qEnd(t, filed) {
 }
 /* הסכום בשורת התגמול בטבלת הגישור (§13.11): המספר הראשון אחרי התווית = העמודה של הרבעון. גולמי — במיליונים, באלפים או למניה;
    הלקוח מתאים את הסדר מול ה־XBRL של אותו רבעון (bufCalc). nt — השורה "net of tax" (כבר אחרי מס) */
-// עד 6 מספרים מהשורה: העמודה של הרבעון היא לרוב הראשונה, אבל לא תמיד — Intuit מציגה את רבעוני השנה זה לצד זה (543 521 485 … ‏1,549),
+// עד 8 מספרים מהשורה (5 רבעונים ושני מצטברים — Blackstone, ‏Carlyle, ‏Apollo): העמודה של הרבעון היא לרוב הראשונה, אבל לא תמיד — Intuit מציגה את רבעוני השנה זה לצד זה (543 521 485 … ‏1,549),
 // והרבעון השלישי הוא השלישי. הלקוח בוחר את הקרוב ל־XBRL של אותו רבעון. "‎-related charges" (Palo Alto, ‏Snowflake), הערות שוליים "(2)(3)"
-const ROWP = /^(?:\s*(?:expenses?|costs?|-?\s*related (?:charges?|expenses?|costs?)|\(\w{1,2}\)|\d(?=\s)|,?\s*net of (?:income )?tax(?:es)?|\(?after[- ]tax\)?|[-–:*]))*/;
+// "- time based 63,287" / "- other 90,715" (KKR, ‏Blue Owl — כמה שורות תגמול, הראשונה היא הרגילה)
+const ROWP = /^(?:\s*(?:[-–]\s+[a-z][a-z -]{0,40}?(?=\s+\(?\$?\s*\d)|expenses?|costs?|-?\s*related (?:charges?|expenses?|costs?)|\(\w{1,2}\)|\d(?=\s)|,?\s*net of (?:income )?tax(?:es)?|\(?after[- ]tax\)?|[-–:*]))*/;
 const NUM = /^\s*(?:\$\s*)?(\(?)\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\s*\)?(?!\s*%)|^\s*(?:\$\s*)?[-–—](?=\s)/;
 function rowVals(after) {
-  let s = after.slice(0, 160).replace(ROWP, ''), m;
+  let s = after.slice(0, 220).replace(ROWP, ''), m;
   const out = [];
-  while (out.length < 6 && (m = NUM.exec(s))) { if (m[2]) out.push(+m[2].replace(/,/g, '')); s = s.slice(m[0].length); }
+  while (out.length < 8 && (m = NUM.exec(s))) { if (m[2]) out.push(+m[2].replace(/,/g, '')); s = s.slice(m[0].length); }
   return out;
 }
 // טבלת תחזית (Salesforce: "q3 fy27 gaap diluted net income per share range … stock-based compensation expense $ 1.29") — לא הרבעון שדווח
@@ -145,7 +169,7 @@ function classify(raw, filed) {
     hits.push(inCf ? 'c' : '-');
   }
   const ex = !nowNeg && hits.some((h) => h === 'E' || h === 'P');
-  return { ex, fut: ex && !futNeg, er, n: t.length, h: (nowNeg ? 'N' : futNeg ? 'F' : '') + hits.join('').slice(0, 40), tr: taxRate(t), sa: ex ? sa : null, nt: ex && sa != null ? nt : 0, qe: qEnd(t, filed), k: hits.length };
+  return { ex, fut: ex && !futNeg, er, n: t.length, h: (nowNeg ? 'N' : futNeg ? 'F' : '') + hits.join('').slice(0, 40), tr: taxRate(t), tb: ex && TB.test(t) ? 1 : 0, ns: ex ? nShares(t) : null, sa: ex ? sa : null, nt: ex && sa != null ? nt : 0, qe: qEnd(t, filed), k: hits.length };
 }
 
 function pick(sub, now) {
@@ -170,13 +194,13 @@ async function readOne(cik, k, getText) {
     try { t += ' ' + text(await getText(base + nm)); } catch (e) { if (!/http_404/.test(String(e && e.message))) return null; }
   }
   const c = classify(t, k.filed);
-  return { filed: k.filed, er: c.er, ex: c.ex, fut: c.fut, n: c.n, h: c.h, tr: c.tr, sa: c.sa, nt: c.nt, qe: c.qe, k: c.k, sv: SV };
+  return { filed: k.filed, er: c.er, ex: c.ex, fut: c.fut, n: c.n, h: c.h, tr: c.tr, tb: c.tb, ns: c.ns, sa: c.sa, nt: c.nt, qe: c.qe, k: c.k, sv: SV };
 }
 
 /* לתשובה: [[תאריך הגשה, ex, fut, אורך, tr, sa, nt, qe, k — כמה אזכורים של התגמול], …] — רק הודעות תוצאות, מהישנה לחדשה. כמה הודעות לאותו רבעון (הודעה מקדימה,
    עדכון תחזית) — הלקוח בוחר את הארוכה, ההודעה המלאה. רשומה מגרסת מסווג קודמת — נשלחת עד שעבודת הרקע קוראת אותה מחדש (fillSx),
    כדי שהחלפת גרסה לא תשאיר את כל החברות בלי מדיניות לכמה שעות (בלי tr ו־sa — null) */
 const forClient = (sx) => Object.values(sx || {}).filter((r) => r && r.er && r.sv > 0).sort((a, b) => (a.filed < b.filed ? -1 : 1))
-  .map((r) => [r.filed, r.ex ? 1 : 0, r.fut ? 1 : 0, r.n || 0, r.tr > 0 ? r.tr : null, Array.isArray(r.sa) && r.sa.length ? r.sa : null, r.nt ? 1 : 0, r.qe || null, r.k || 0]);
+  .map((r) => [r.filed, r.ex ? 1 : 0, r.fut ? 1 : 0, r.n || 0, r.tr > 0 ? r.tr : null, Array.isArray(r.sa) && r.sa.length ? r.sa : null, r.nt ? 1 : 0, r.qe || null, r.k || 0, r.tb ? 1 : 0, r.ns > 0 ? r.ns : null]);
 
 module.exports = { classify, pick, readOne, forClient, text, SV, MAX };

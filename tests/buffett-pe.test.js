@@ -60,8 +60,8 @@ const pk = X.pick(sub, Date.parse('2026-11-18'));
 ok(pk.length === 2 && pk[0].acc === '0000001-26-000009' && pk[1].filed === '2026-07-22', 'pick — רק 8-K עם 2.02 מ־15 החודשים האחרונים, החדש קודם');
 const fc = X.forClient({ a: { filed: '2026-10-28', er: true, ex: true, fut: false, n: 900, sv: X.SV }, b: { filed: '2026-07-22', er: true, ex: false, fut: false, n: 800, sv: X.SV },
   c: { filed: '2026-09-01', er: false, ex: false, fut: false, sv: X.SV }, d: { filed: '2026-04-22', er: true, ex: true, fut: true, sv: X.SV - 1 },
-  e: { filed: '2026-01-28', er: true, ex: true, fut: true, n: 950, tr: 0.21, sa: [633, 492], nt: 0, qe: '2025-12-31', sv: X.SV } });
-ok(JSON.stringify(fc) === JSON.stringify([['2026-01-28', 1, 1, 950, 0.21, [633, 492], 0, '2025-12-31', 0], ['2026-04-22', 1, 1, 0, null, null, 0, null, 0], ['2026-07-22', 0, 0, 800, null, null, 0, null, 0], ['2026-10-28', 1, 0, 900, null, null, 0, null, 0]]),
+  e: { filed: '2026-01-28', er: true, ex: true, fut: true, n: 950, tr: 0.21, sa: [633, 492], nt: 0, qe: '2025-12-31', tb: 1, ns: 1.6e9, sv: X.SV } });
+ok(JSON.stringify(fc) === JSON.stringify([['2026-01-28', 1, 1, 950, 0.21, [633, 492], 0, '2025-12-31', 0, 1, 1.6e9], ['2026-04-22', 1, 1, 0, null, null, 0, null, 0, 0, null], ['2026-07-22', 0, 0, 800, null, null, 0, null, 0, 0, null], ['2026-10-28', 1, 0, 900, null, null, 0, null, 0, 0, null]]),
   'forClient — רק הודעות תוצאות, מהישנה לחדשה; גרסת מסווג קודמת נשלחת עד הקריאה מחדש (בלי שיעור מס, סכום ורבעון); מגרסה 3 — גם הם');
 // סוף הרבעון שההודעה מדווחת עליו: המאוחר שלפני ההגשה — לא השנה הקודמת (APA), לא רבעון התחזית (CRM)
 ok(X.classify('year ended december 31, 2025 results … three months ended september 30, 2026 net income', '2026-11-04').qe === '2026-09-30', 'סוף הרבעון — התאריך המאוחר שלפני ההגשה, לא "year ended" הקודם (APA)');
@@ -100,6 +100,28 @@ c3 = X.classify('three months ended amortization and other acquisition-related c
 ok(!c3.ex && c3.sa === null, 'שורת רכישות ("acquisition-related cash and share-based compensation costs") — לא התגמול השוטף; לא "מוציא" (CAH)');
 c3 = X.classify('three months ended gaap net income 100 stock-based compensation expense, net of tax 50 40 non-gaap net income 150 diluted');
 ok(c3.ex && JSON.stringify(c3.sa) === '[50,40]' && c3.nt === 1, 'שורה "net of tax" — מסומנת (כבר אחרי מס)');
+// בדיקת העומק, גל 2 (B-026, ‏B-027): שורת מס ומשפט מס; מדדי מנהלות השקעות; כמה שורות תגמול; המס של המדד כולל את הטבת המס (tb)
+c3 = X.classify('three months ended gaap net income 1,500 income tax effect of share-based compensation (20) non-gaap net income 1,700 diluted. the non-gaap tax rate includes the normalized tax benefit of share-based compensation');
+ok(!c3.ex, 'שורת "income tax effect of share-based compensation" ומשפט "tax benefit of" — לא עדות (AMAT, ‏B-026)');
+c3 = X.classify('three months ended net income attributable to ares management corporation 200 equity compensation expense 150,720 123,821 469,105 383,004 amortization of intangibles 48,176 realized income 500 after-tax realized income per share 1.26');
+ok(c3.ex && JSON.stringify(c3.sa) === '[150720,123821,469105,383004]', '"realized income" — יעד (ARES, ‏B-027)');
+c3 = X.classify('three months ended net income attributable to blackstone inc. 600 equity-based compensation (h) 301,562 358,364 561,217 353,753 329,217 1,084,882 1,244,187 1,368,031 taxes and related payables (77,484) distributable earnings 1,900');
+ok(c3.ex && c3.sa.length === 8 && c3.sa[4] === 329217, '"distributable earnings" (BX) — יעד; עד 8 מספרים בשורה');
+c3 = X.classify('three months ended gaap income before income taxes 94,247 equity-based compensation - other 90,715 86,026 92,983 81,541 80,807 351,265 equity-based compensation - acquisition-related 80,652 fee-related earnings 300');
+ok(c3.ex && c3.sa[0] === 90715 && c3.sa.length === 6, '"fee-related earnings" — יעד (Blue Owl: ה־DE רחוק); שורה עם תיאור אחרי מקף — הראשונה');
+ok(!X.classify('three months ended gaap net income 100 stock-based compensation 40 unrealized income on investments 5 adjusted ebitda 300').ex, '"unrealized income" — לא יעד');
+c3 = X.classify('three months ended net income 900 equity-based compensation - time based 63,287 58,270 205,314 equity-based compensation - market condition 88,437 117,832 259,548 adjusted net income 1,273,602. income taxes on adjusted earnings includes the benefit of tax deductions arising from equity-based compensation, which reduces income taxes');
+ok(c3.ex && JSON.stringify(c3.sa) === '[63287,58270,205314]' && c3.tb === 1, 'KKR — השורה הרגילה (time based), והמס של המדד כולל את הטבת המס (tb)');
+const TBS = [['our methodology uses the tax benefits from certain expenses that are not included in these non-gaap metrics, such as equity-based compensation from the vesting', 'ARES'],
+  ['this adjustment reflects the benefit of deductions available to the company on certain expense items that are excluded from the underlying calculation of distributable earnings, such as equity-based compensation', 'CG'],
+  ['current income taxes payable reflect the benefit of tax deductions that are excluded when calculating distributable earnings (e.g., equity-based compensation expenses, transaction expenses', 'OWL']];
+const NSS = [['distributable earnings ( de ) of $1.7 billion ($1.32/share) in the quarter', 1.288e9, 'BX'], ['distributable earnings of $385.5 million, or $0.24 per adjusted share capital metrics', 1.606e9, 'OWL'],
+  ['adjusted net income ( ani ) of $1.6 billion ($1.78/adjusted share)', 0.899e9, 'KKR']];
+for (const [t, v, nm] of NSS) ok(Math.abs(X.classify('three months ended net income 900 equity-based compensation 63 distributable earnings 1,200 adjusted net income 1,100. ' + t).ns / v - 1) < 0.001, 'בסיס המניות של המדד למניה — ' + nm);
+ok(X.classify('three months ended gaap net income 100 stock-based compensation 50 non-gaap net income 150 diluted. net income of $1.2 billion, or $1.10 per diluted share').ns === null, 'רווח נקי GAAP "or $ per share" — לא בסיס של המדד');
+for (const [t, nm] of TBS) ok(X.classify('three months ended net income 900 equity-based compensation 63 distributable earnings 1,200. ' + t).tb === 1, 'tb — ' + nm);
+ok(X.classify('three months ended gaap net income 100 stock-based compensation expense 50 non-gaap net income 150 diluted. the non-gaap provision for income taxes excludes the tax benefits of stock-based compensation').tb === 0,
+  'מס non-GAAP שמוציא את הטבת המס על התגמול — לא tb');
 
 /* ---------- tagQ (fundamentals.js): סדרה רבעונית מתגית אחת — ישיר, מצטבר פחות מצטבר מאותה התחלה, שנה פחות שלושה רבעונים ---------- */
 {
@@ -228,6 +250,19 @@ ok(c3.ex && JSON.stringify(c3.sa) === '[50,40]' && c3.nt === 1, 'שורה "net o
   ok(near(A.bufCalc(co).ded, sumAt((i) => Q.sbc[i] * 0.98, 0.21)), 'העמודה הראשונה — גם כשהשנייה (שנה קודמת) קרובה יותר ל־XBRL (Salesforce ‏805 מול ‏820, ‏XBRL ‏819)');
   co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, [Q.sbc[i - 4] / 1e6, Q.sbc[i] / 1e6])), bx: Object.fromEntries(q.slice(-12).map((e) => [e, [null, Q.sbc[q.indexOf(e)], null, null]])) });
   ok(near(A.bufCalc(co).ded, sumAt((i) => Q.sbc[i], 0.21)), 'שנה קודמת בעמודה הראשונה (מתאימה ל־XBRL של לפני שנה) — העמודה השנייה');
+  // שורה של 5 רבעונים (מנהלות השקעות): הכיוון מהתזוזה מול ההודעה של הרבעון הקודם; בלי תזוזה — עמודת מצטבר של רבעונים רצופים
+  const S = (j) => Q.sbc[j] * (1 + 0.04 * (j % 5)), bx12 = Object.fromEntries(q.slice(-12).map((e) => [e, [null, S(q.indexOf(e)), null, null]]));
+  const five = (i) => [i - 4, i - 3, i - 2, i - 1, i].map((j) => S(j) / 1e3);
+  co = mk({ hist: hist(1), sbcX: [L - 4].concat(last4).map((i) => relX(q[i], 1, 0.21, five(i).concat([1e9]))), bx: bx12 });
+  ok(near(A.bufCalc(co).ded, sumAt(S, 0.21)), '5 רבעונים מהישן לחדש (Blackstone, ‏Carlyle) — החמישית, לפי התזוזה מול ההודעה הקודמת');
+  co = mk({ hist: hist(1), sbcX: [L - 4].concat(last4).map((i) => relX(q[i], 1, 0.21, five(i).reverse())), bx: bx12 });
+  ok(near(A.bufCalc(co).ded, sumAt(S, 0.21)), '5 רבעונים מהחדש לישן (Blue Owl) — הראשונה');
+  const ytdO = (i) => [S(i - 4), S(i - 2), S(i - 1), S(i), S(i - 2) + S(i - 1) + S(i)].map((v) => v / 1e3);
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, ytdO(i))), bx: bx12 });
+  ok(near(A.bufCalc(co).ded, sumAt(S, 0.21)), 'עמודת מצטבר = סכום של רבעונים רצופים (Apollo) — האחרון מהם, לפי היחס ל־XBRL');
+  const ytdN = (i) => [S(i), S(i - 1), S(i - 2), S(i - 4), S(i) + S(i - 1) + S(i - 2)].map((v) => v / 1e3);
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, ytdN(i))), bx: bx12 });
+  ok(near(A.bufCalc(co).ded, sumAt(S, 0.21)), 'עמודת מצטבר מהחדש לישן — הראשון מהרבעונים');
   co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, [Q.sbc[i] / 1e3])), bx: bxOf((i) => [null, Q.sbc[i] * 1.01, null, null]) });
   ok(near(A.bufCalc(co).ded, sumAt((i) => Q.sbc[i], 0.21)) && !A.bufCalc(co).oth, 'שורה באלפים (PLTR) — אותו סכום');
   co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, [Math.round(Q.sbc[i] / 1e7) / 100])), bx: bxOf((i) => [null, Q.sbc[i], null, null]) });
@@ -251,6 +286,19 @@ ok(c3.ex && JSON.stringify(c3.sa) === '[50,40]' && c3.nt === 1, 'שורה "net o
   co = mk({ hist: hist(1), sic: 6798, sbcX: last4.map((i) => relX(q[i], 1, 0.21, null)) });
   b = A.bufCalc(co);
   ok(near(b.ded, sumAt((i) => Q.sbc[i], 0)) && b.ts === 'reit' && b.t === 0, 'ריט — בלי מגן מס: התגמול יורד במלואו');
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, null).concat([q[i], 3, 1])) });
+  b = A.bufCalc(co);
+  ok(near(b.ded, sumAt((i) => Q.sbc[i], 0)) && b.ts === 'tb' && b.t === 0, 'המס של המדד המותאם כבר כולל את הטבת המס (מנהלות השקעות) — לפני מס');
+  co = mk({ hist: hist(1), sbcX: last4.map((i, j) => relX(q[i], 1, 0.21, null).concat([q[i], 3, j === 3 ? 1 : 0])) });
+  ok(A.bufCalc(co).ts === 'tb', 'tb בהודעה אחת — לכל הרבעונים בטווח 400 יום (מדיניות של החברה)');
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, null).concat([q[i], 3, 0, 2e9])) });
+  ok(near(A.bufCalc(co).ded, sumAt((i) => Q.sbc[i], 0.21) / 2), 'Up-C — התגמול מחולק על בסיס המניות של המדד שבהודעה (פי 2 מה־XBRL), לא על Class A');
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, null).concat([q[i], 3, 0, 9e9])) });
+  ok(near(A.bufCalc(co).ded, sumAt((i) => Q.sbc[i], 0.21)), 'בסיס מניות בהודעה מעל פי 4 מה־XBRL — לא נלקח');
+  co = mk({ hist: last4.map((i, j) => ({ q: q[i], a: Q.eps[i] + (j % 2 ? 1 : 0), e: Q.eps[i] })), sbcX: last4.map((i) => relX(q[i], 1, 0.21, null)) });
+  ok(A.bufCalc(co) === null, 'סדרה מעורבת של Yahoo (שני רבעונים = GAAP, והחברה מוציאה — TPG, ‏B-028) — אין אריח');
+  co = mk({ hist: last4.map((i, j) => ({ q: q[i], a: Q.eps[i] + (j === 0 ? 0 : 1), e: Q.eps[i] })), sbcX: last4.map((i) => relX(q[i], 1, 0.21, null)) });
+  ok(near(A.bufCalc(co).ded, sumAt((i) => (i === L - 3 ? 0 : Q.sbc[i]), 0.21)), 'רבעון אחד שבו הרחוב = GAAP — בלי ניכוי ברבעון הזה בלבד');
   co = mk({ hist: hist(1), sbcX: last4.map((i, j) => relX(q[i], 1, j === 0 ? 0.11 : null, null)) });
   ok(near(A.bufCalc(co).t, 0.11) && A.bufCalc(co).ts === 'pr', 'רבעון בלי הצהרה — השיעור האחרון שהחברה הצהירה (Marvell ‏11%)');
   co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.35, null)) });
@@ -275,7 +323,7 @@ ok(c3.ex && JSON.stringify(c3.sa) === '[50,40]' && c3.nt === 1, 'שורה "net o
   ok(/const note = fwd && b\.f\.chg \? 'anBFutIn'/.test(src), 'ההערה "מעכשיו כולל" — רק כשהחברה הודיעה על שינוי, לא בכל חברה שכוללת ממילא');
   const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   const keys = ['anFBpe', 'anFBfpe', 'anCmpFwd', 'anHFpeAdj', 'anHBpe', 'anHBfpe', 'anXFpeAdj', 'anXBpe', 'anXBfpe', 'anXBufNone', 'anBStreet', 'anBStreetS', 'anBSbc', 'anBSbcS',
-    'anBFwd', 'anBFwd0', 'anBFwdY', 'anBSbcF', 'anBSbcFS', 'anBEps', 'anBMultS', 'anBNeg', 'anBGaap', 'anBGaapS', 'anBPolEx', 'anBPolIn', 'anBPolMix', 'anBPolUnk', 'anBPolGaap', 'anBFutIn', 'anBSbcSP', 'anBSbcSD', 'anBSbcSR', 'anBOth'];
+    'anBFwd', 'anBFwd0', 'anBFwdY', 'anBSbcF', 'anBSbcFS', 'anBEps', 'anBMultS', 'anBNeg', 'anBGaap', 'anBGaapS', 'anBPolEx', 'anBPolIn', 'anBPolMix', 'anBPolUnk', 'anBPolGaap', 'anBFutIn', 'anBSbcSP', 'anBSbcSD', 'anBSbcSR', 'anBSbcSB', 'anBOth'];
   ok(keys.every((k) => (app.match(new RegExp('\\n  ' + k + ': ', 'g')) || []).length === 2), 'כל המחרוזות בעברית ובאנגלית');
   const fsrc = fs.readFileSync(path.join(root, 'ibkr-proxy/lib/fundamentals.js'), 'utf8');
   ok(/nq: n \|\| null, sbcX,/.test(fsrc) && /sbcX = bsf && bsf\.sx/.test(fsrc), 'התשובה של op:fund כוללת sbcX');

@@ -264,8 +264,10 @@ function sbcPol(co, e) { const r = sbcRel(co, e); return r ? (r[1] ? 1 : 0) : nu
 const TAU_OK = (x) => x >= 0.1 && x <= 0.3;
 function bufTau(co, rel, e, xt) {
   if (co.reit) return { t: 0, s: 'reit' };
-  if (rel && TAU_OK(rel[4])) return { t: rel[4], s: 'pr' };
   const L = Array.isArray(co.sbcX) ? co.sbcX : [], at = Date.parse(e) + 45 * D864;
+  // המס של המדד המותאם כבר כולל את הטבת המס על התגמול (r[9], מנהלות השקעות) — הניכוי לפני מס, אחרת המגן נספר פעמיים
+  if ((rel && rel[9]) || L.some((r) => r[9] && Math.abs(Date.parse(r[0]) - at) <= 400 * D864)) return { t: 0, s: 'tb' };
+  if (rel && TAU_OK(rel[4])) return { t: rel[4], s: 'pr' };
   let best = null;
   for (const r of L) if (TAU_OK(r[4])) { const d = Math.abs(Date.parse(r[0]) - at); if (d <= 400 * D864 && (!best || d < best.d)) best = { d, t: r[4] }; }
   if (best) return { t: best.t, s: 'pr' };
@@ -279,13 +281,39 @@ function bufTau(co, rel, e, xt) {
    = סכום הקודמים, והרבעון = האחרון לפניו), ושנה קודמת בעמודה הראשונה (מתאימה ל־XBRL של לפני שנה, והשנייה — לרבעון). בלי שורה —
    XBRL מתגית אחת (co.bx, בלי ערבוב בין רבעונים): ההוצאה בדוח הרווח (חוץ מתיוג חלקי — פחות מחצי מהתזרים), התוספת בתזרים, הגידול
    בהון; ובתשובה ישנה — Q.sbc. oth — הדוחות גדולים ב־15% ומעלה מהשורה (תגמול בשורות אחרות) */
+/* העמודה של הרבעון בשורה של כמה רבעונים (null — לא נקבע מהמבנה). (א) התזוזה מול השורה בהודעה של הרבעון הקודם: 5 רבעונים מהישן
+   לחדש (Blackstone, ‏Carlyle: "301,562 358,364 561,217 353,753 329,217" — ברבעון הבא אותה שורה זזה שמאלה) → החמישית; מהחדש לישן
+   (Blue Owl) → הראשונה. (ב) בלי הודעה קודמת: עמודה שהיא סכום של 2–4 רבעונים רצופים לפניה — המצטבר מתחילת השנה או 12 חודשים
+   (Intuit ‏543 521 485 ‏1,549; ‏Apollo ‏… 156 129 145 ‏313 430; ‏Carlyle ‏… 121.8 117 102.3 ‏289.3 341.1). הכיוון — לפי היחס בין הרבעון
+   לרבעון שלפניו, מול אותו יחס ב־XBRL (בלי XBRL — מהישן לחדש) */
+function sbcCol(co, i, rel, vs, refOf) {
+  const near = (a, b) => a > 0 && b > 0 && Math.abs(a / b - 1) <= 0.005;
+  const rp = i > 0 ? sbcRel(co, co.q[i - 1]) : null, pv = rp && rp[0] !== rel[0] && Array.isArray(rp[5]) ? rp[5].filter((v) => v > 0) : null;
+  if (pv && vs.length >= 5 && pv.length >= 5) {
+    let o = 0, w = 0;
+    for (let j = 0; j < 4; j++) { if (near(vs[j], pv[j + 1])) o++; if (near(vs[j + 1], pv[j])) w++; }
+    if (o >= 3 && o > w) return vs[4];
+    if (w >= 3 && w > o) return vs[0];
+  }
+  const dec = vs.some((v) => v % 1 !== 0), r0 = refOf(i), r1 = i > 0 ? refOf(i - 1) : 0;
+  for (let k = 2; k < vs.length; k++) for (let j = k - 1; j >= 1; j--) for (let n = 2; n <= Math.min(4, j + 1); n++) {
+    const sm = vs.slice(j - n + 1, j + 1).reduce((a, b) => a + b, 0);
+    if (Math.abs(vs[k] - sm) > 0.002 * vs[k] + (dec ? 0.15 : 0)) continue;
+    const a = j - n + 1;
+    if ((a === 0 && j === k - 1) || !(r0 > 0 && r1 > 0)) return vs[j];
+    const g = Math.log(r0 / r1), so = Math.abs(Math.log(vs[j] / vs[j - 1]) - g), sn = Math.abs(Math.log(vs[a] / vs[a + 1]) - g);
+    return sn < so ? vs[a] : vs[j];
+  }
+  return null;
+}
 function sbcAmt(co, i, rel, t) {
   const e = co.q[i], x = (co.bx && co.bx[e]) || [], al = x[0], cf = x[1], ap = x[2], mq = co.Q.sbc ? co.Q.sbc[i] : null, sh = co.Q.sh ? co.Q.sh[i] : null;
   const refOf = (j) => { const y = (co.bx && co.bx[co.q[j]]) || []; return Math.max(y[0] > 0 ? y[0] : 0, y[1] > 0 ? y[1] : 0, y.length ? 0 : co.Q.sbc && co.Q.sbc[j] > 0 ? co.Q.sbc[j] : 0); };
   const ref = refOf(i);
   if (rel && Array.isArray(rel[5]) && ref > 0) {
     let vs = rel[5].filter((v) => v > 0);
-    for (let k = 1; k < vs.length; k++) { const sm = vs.slice(0, k).reduce((a, b) => a + b, 0); if (Math.abs(vs[k] - sm) <= 0.002 * vs[k]) { vs = [vs[k - 1]]; break; } }
+    const one = sbcCol(co, i, rel, vs, refOf);
+    if (one != null) vs = [one];
     // סדר הגודל: מיליונים, אלפים, יחידות, ולמניה (רק מספר עם נקודה עשרונית) × המניות
     const fit = (v0, R) => { for (const m of [1e6, 1e3, 1, v0 % 1 !== 0 && sh > 0 ? sh : 0]) { if (!m) continue; const v = rel[6] ? v0 * m / (1 - t) : v0 * m; if (v / R >= 0.4 && v / R <= 1.25) return v; } return null; };
     let pick = null;
@@ -316,14 +344,21 @@ function bufCalc(co) {
     const gi = Q.eps ? Q.eps[i] : null, sh = Q.sh ? Q.sh[i] : null;
     if (!hq || gi == null || !isFinite(gi) || !(sh > 0)) return null;
     const rel = sbcRel(co, e), tau = bufTau(co, rel, e, xt), am = sbcAmt(co, i, rel, tau.t), amz = (co.bx && co.bx[e] && co.bx[e][3]) || 0;
-    rows.push({ s: hq.a, g: gi, sb: am.v * (1 - tau.t) / sh, pre: am.v / sh, pol: rel ? (rel[1] ? 1 : 0) : null, t: tau.t, ts: tau.s, as: am.s, oth: !!am.oth,
+    // Up-C (Blackstone, ‏Blue Owl): המדד למניה של הרחוב מחולק על כל המניות והיחידות (r[10], מההודעה), לא על Class A שב־XBRL
+    const ns = rel && rel[10] > 1.15 * sh && rel[10] < 4 * sh ? rel[10] : sh;
+    rows.push({ s: hq.a, g: gi, sb: am.v * (1 - tau.t) / ns, pre: am.v / ns, pol: rel ? (rel[1] ? 1 : 0) : null, t: tau.t, ts: tau.s, as: am.s, oth: !!am.oth,
       amz: amz > 0 ? amz * (1 - 0.21) / sh : 0 });
   }
   const yGaap = rows.filter((r) => Math.abs(r.s - r.g) <= Math.max(0.02, 0.02 * Math.abs(r.s))).length >= 3;
+  // סדרה מעורבת של Yahoo (B-028; TPG: ‏0.29 ו־0.39 = GAAP, ו־‎−0.05 ו־0.65 — לא GAAP ולא המדד של ההודעה): בדיוק שני רבעונים = GAAP, ובאחר
+  // החברה מוציאה את התגמול — אין על מה לנכות (לא ידוע מה הרחוב), אין אריח
+  const eqG = (r) => Math.abs(r.s - r.g) <= Math.max(0.005, 0.005 * Math.abs(r.s));
+  if (!yGaap && rows.filter(eqG).length === 2 && rows.some((r) => r.pol === 1 && !eqG(r))) return null;
   let st = 0, g = 0, ded = 0, sbcAt = 0, pre = 0, exAt = 0, exDed = 0, p1 = 0, p0 = 0, amz = 0;
   for (const r of rows) {
     if (r.pol === 1) p1++; else if (r.pol === 0) p0++;
-    const d = r.pol === 1 && !yGaap ? r.sb : 0;
+    // הרחוב של הרבעון = GAAP (סדרה מעורבת של Yahoo — TPG, ‏ARE, ‏B-028): התגמול כבר ירד בו
+    const d = r.pol === 1 && !yGaap && !eqG(r) ? r.sb : 0;
     st += r.s; g += r.g; ded += d; sbcAt += r.sb; pre += r.pre; amz += r.amz;
     if (r.pol !== 0) { exAt += r.sb; exDed += d; }
   }
@@ -2107,7 +2142,7 @@ function bufSheet(key) {
     const rows = fwd
       ? [row(yr ? T('anBFwd', { y: yr }) : T('anBFwd0'), b.f.n ? T('anNAnalysts', { n: b.f.n }) : T('anBFwdY'), ps(b.f.base)),
         row(T('anBSbcF'), ded > 0 && b.f.rate != null ? T('anBSbcFS', { r: strip(pct(b.f.rate)), t: strip(tx) }) : null, ps(-ded))]
-      : [row(T('anBStreet'), T('anBStreetS'), ps(b.st)), row(T('anBSbc'), ded > 0 ? T({ reit: 'anBSbcSR', pr: 'anBSbcSP', d: 'anBSbcSD' }[b.ts] || 'anBSbcS', { t: strip(tx) }) : null, ps(-ded))];
+      : [row(T('anBStreet'), T('anBStreetS'), ps(b.st)), row(T('anBSbc'), ded > 0 ? T({ reit: 'anBSbcSR', tb: 'anBSbcSB', pr: 'anBSbcSP', d: 'anBSbcSD' }[b.ts] || 'anBSbcS', { t: strip(tx) }) : null, ps(-ded))];
     rows.push(row(T('anBEps'), null, ps(eps), true),
       row(T(fwd ? 'anFBfpe' : 'anFBpe'), px ? T('anBMultS', { p: strip(ps(px)) }) : null, eps > 0 && px ? fmt(px / eps, 'x', co, 1) : T('anBNeg'), true));
     if (!fwd) rows.push(row(T('anBGaap'), T('anBGaapS'), ps(b.g)));
