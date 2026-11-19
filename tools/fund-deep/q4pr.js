@@ -3,7 +3,9 @@
 // לכל סוף שנה — ה־8-K של התוצאות (Item 2.02) ← EX-99.1 ← שורות "Diluted" — בדיוק כמו עבודת הרקע בשרת, למטמון <w>/pr/<CIK>.p.json.
 // הדוח: מה ש־q4Press משנה (מניות ורווח למניה ברבעונים הרביעיים המוערכים), ובשנים שה־XBRL כן מתייג את הרבעון — המפענח מול XBRL.
 // נתונים ציבוריים של SEC בלבד.
-//   node tools/fund-deep/q4pr.js --w <dir> [--only AAPL,MSFT] [--par 4 --gap 110] [--offline] [--fs <fundamentals.js>]
+//   node tools/fund-deep/q4pr.js --w <dir> [--only AAPL,MSFT] [--par 4 --gap 110] [--offline] [--fs <fundamentals.js>] [--lib <root>] [--pd <שם>]
+// גל 8: ‏--lib — המפענח (secpr.js, ‏bsfiled.js) ו־fundamentals.js מגרסה אחרת (worktree של main = "לפני"); ‏--pd — תיקיית הפלט
+// (ברירת מחדל pr); כל קובץ שנקרא מ־Archives נשמר ב־<w>/prraw (גם 404), כך שהמדידה של מפענח חדש רצה מאותם קבצים בלי SEC.
 'use strict';
 const fs = require('fs'), path = require('path'), zlib = require('zlib');
 const ROOT = path.resolve(__dirname, '../..');
@@ -14,11 +16,13 @@ for (let i = 0; i < argv.length; i++) {
   o[k] = v;
 }
 if (!o.w) { console.error('שימוש: --w <תיקיית עבודה>'); process.exit(2); }
-const W = path.resolve(o.w), DD = path.join(W, 'debt'), PD = path.join(W, 'pr'), BD = path.join(W, 'bsf');
-fs.mkdirSync(PD, { recursive: true });
-const F = require(path.resolve(o.fs || path.join(ROOT, 'ibkr-proxy/lib/fundamentals.js')));
-const P = require(path.join(ROOT, 'ibkr-proxy/lib/secpr.js'));
-const BSF = require(path.join(ROOT, 'ibkr-proxy/lib/bsfiled.js'));
+const LIB = path.resolve(o.lib && o.lib !== true ? o.lib : ROOT);
+const W = path.resolve(o.w), DD = path.join(W, 'debt'), PD = path.join(W, o.pd && o.pd !== true ? o.pd : 'pr'), BD = path.join(W, 'bsf'), RAW = path.join(W, 'prraw');
+fs.mkdirSync(PD, { recursive: true }); fs.mkdirSync(RAW, { recursive: true });
+const F = require(path.resolve(o.fs || path.join(LIB, 'ibkr-proxy/lib/fundamentals.js')));
+const P = require(path.join(LIB, 'ibkr-proxy/lib/secpr.js'));
+const BSF = require(path.join(LIB, 'ibkr-proxy/lib/bsfiled.js'));
+const crypto = require('crypto');
 const pad = (c) => String(c).padStart(10, '0');
 const gz = (f) => JSON.parse(zlib.gunzipSync(fs.readFileSync(f)).toString());
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -28,6 +32,13 @@ const rows = fs.readFileSync(path.join(__dirname, 'ciks.tsv'), 'utf8').split('\n
 let last = 0; const gap = +(o.gap || 110); let nReq = 0;
 // כמו getText של השרתון: 404 → שגיאה "http_404" (נשמר כחסר), תקלה אחרת → שגיאה (ינוסה שוב)
 const getText = async (url) => {
+  const rf = /\/Archives\//.test(url) ? path.join(RAW, crypto.createHash('sha1').update(url).digest('hex') + '.gz') : null;
+  if (rf && fs.existsSync(rf)) { const t = zlib.gunzipSync(fs.readFileSync(rf)).toString(); if (t === '\u0000404') throw new Error('http_404'); return t; }
+  const t = await getNet(url).catch((e) => { if (rf && e.message === 'http_404') fs.writeFileSync(rf, zlib.gzipSync('\u0000404')); throw e; });
+  if (rf) fs.writeFileSync(rf, zlib.gzipSync(t));
+  return t;
+};
+const getNet = async (url) => {
   if (o.offline) throw new Error('offline');
   for (let i = 0; i < 4; i++) {
     const w = last + gap - Date.now(); last = Math.max(Date.now(), last + gap); if (w > 0) await sleep(w);

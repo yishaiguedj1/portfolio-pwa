@@ -1690,8 +1690,11 @@ ${row('ro', 'us-gaap_CostOfRevenue', 'Cost of sales', ['1', '2', '3', '4', '5', 
     const p2 = SP.pickItems(sub([['8-K', '9.01', '2022-01-05'], ['8-K', '2.02,9.01', '2022-02-03']]), ['2021-12-31']);
     ok(p1[0].cands.map((c) => c.acc).join() === 'a0' && p2[0].cands.map((c) => c.acc).join() === 'a1', '(36) 8-K בלי 2.02 — רק כשאין 8-K של תוצאות בחלון');
     // רשומת "לא נמצא" מהמפענח הקודם נקראת שוב פעם אחת
-    ok(BS3.prNeed(undefined) && BS3.prNeed({ err: 'nofile' }) && !BS3.prNeed({ err: 'nofile', pv: BS3.PR_V }) && !BS3.prNeed({ rows: [{ label: 'Diluted weighted average shares', v: [1000] }] })
+    ok(BS3.prNeed(undefined) && BS3.prNeed({ err: 'nofile' }) && !BS3.prNeed({ err: 'nofile', pv: BS3.PR_V }) && !BS3.prNeed({ rows: [{ label: 'Diluted weighted average shares', v: [1000] }], pv: BS3.PR_V })
       && BS3.prNeed({ rows: [{ label: 'Diluted EPS', v: [1.5] }] }) && !BS3.prNeed({ rows: [], pv: BS3.PR_V }), '(36) prNeed: רק רשומה חסרה, "לא נמצא" ישנה או ישנה בלי שורת מניות (גל 6)');
+    // גל 8 (PR_V 4): המפענח שינה מספרים בתוך שורות (".45", ‏"($") — גם רשומה תקינה מלפני 4 נקראת שוב, פעם אחת
+    ok(BS3.PR_V === 4 && BS3.prNeed({ rows: [{ label: 'Diluted weighted average shares', v: [1000] }] }) && BS3.prNeed({ rows: [{ label: 'Diluted weighted average shares', v: [1000] }], pv: 3 })
+      && !BS3.prNeed({ rows: [{ label: 'Diluted EPS', v: [1.5] }], pv: 4 }), '(36) גל 8: רשומה מלפני PR_V 4 נקראת שוב פעם אחת');
     // בלי נספח (Halliburton) — ההודעה בגוף ה־8-K
     const docs = { 'index.json': JSON.stringify({ directory: { item: [{ name: 'hal8k.htm', size: 9000 }, { name: 'index.htm' }] } }),
       'hal8k.htm': '<table><tr><td>Diluted income per share</td><td>$</td><td>0.75</td><td>0.80</td></tr><tr><td>Diluted weighted average shares</td><td>890</td><td>880</td></tr></table>' };
@@ -1856,5 +1859,69 @@ ${row('ro', 'us-gaap_CostOfRevenue', 'Cost of sales', ['1', '2', '3', '4', '5', 
       c: QQ('2023-05-01', ['2023-03-31', '2022-03-31'], [['us-gaap', PT2, [99, 90]]]) };
     const p0 = F.normalizeSec(FP, [], null, bp);
     ok(p0.Q.pretax[p0.q.indexOf('2023-03-31')] === 99e6, '(39) F32: ‏lateOf — עובדה מאוחרת בערך אחר (התגית השנייה) לא שומרת על הערך שלנו');
+  }
+  /* ---------- (40) גל 8: המפענח — ".45" ו־"($" (PR_V 4) ---------- */
+  {
+    const P8 = require(path.join(root, 'ibkr-proxy/lib/secpr.js'));
+    ok(P8.num('.45') === 0.45 && P8.num('(.45)') === -0.45 && P8.num('$.28') === 0.28 && P8.num('(0.45)') === -0.45 && P8.num('2,307.0') === 2307 && P8.num('.') === undefined,
+      '(40) num: מספר בלי אפס מוביל (KeyCorp ‏".28")');
+    // KeyCorp: התאים ".28", ".23", ".26" נבלעו בתווית, ונשארו רק עמודות האחוזים (21.7, 7.7)
+    const K8 = '<table><tr><td>Income from continuing operations per common share — assuming dilution</td><td>.28</td><td>.23</td><td>.26</td><td>21.7</td><td>7.7</td></tr></table>';
+    const k8 = P8.parse(K8);
+    ok(k8.length === 1 && k8[0].v.join() === '0.28,0.23,0.26,21.7,7.7' && !/\.28/.test(k8[0].label), '(40) parse: ‏".28" הוא ערך, לא חלק מהתווית');
+    // FedEx: ‏"($" בתא משלו, אחריו "0.26" ו־")" — הסימן נשמר (גם באמצע השורה)
+    const F8 = '<table><tr><td>Diluted EPS</td><td>($</td><td>0.26</td><td>)</td><td>$</td><td>3.30</td><td>($</td><td>3.16</td><td>)</td><td>$</td><td>2.66</td></tr>'
+      + '<tr><td>Diluted shares</td><td>269</td><td>283</td><td>(</td><td>5</td><td>%)</td></tr></table>';
+    const f8 = P8.parse(F8);
+    ok(f8[0].label === 'Diluted EPS' && f8[0].v.join() === '-0.26,3.3,-3.16,2.66' && f8[1].v.join() === '269,283,-5', '(40) parse: ‏"($" בתא משלו — המספר שאחריו שלילי');
+    const t8 = P8.parseText('<p>Diluted EPS ($ 0.26) $ 3.30 ( 3.16 ) .45 Diluted shares 269 283</p>');
+    ok(t8.length === 2 && t8[0].v.join() === '-0.26,3.3,-3.16,0.45' && t8[1].v.join() === '269,283', '(40) parseText: ‏"($" ו־".45" ברצף הטקסט');
+    // F36 (Dollar Tree): שורת המניות שמתחת ל־"Diluted" בלי המילה "מדולל" — המדוללות; זו שמתחת ל־"Basic" — לא
+    const D8 = '<table><tr><td>Net earnings (loss) per share:</td></tr><tr><td>Basic</td><td>$</td><td>(9.69</td><td>)</td><td>4.38</td></tr><tr><td>Weighted average number of shares</td><td>238.0</td><td>237.2</td></tr>'
+      + '<tr><td>Diluted</td><td>$</td><td>(9.66</td><td>)</td><td>4.37</td></tr><tr><td>Weighted average number of shares</td><td>238.9</td><td>238.2</td></tr></table>';
+    const d8 = P8.parse(D8);
+    ok(d8.length === 2 && d8[1].v.join() === '238.9,238.2' && d8[1].ctx === 'Diluted' && P8.q4From(d8, -2307.0e6, 238.5e6, 1).sh === 238.9e6, '(40) F36: המניות מתחת ל־"Diluted" (‏238.9M), לא מתחת ל־"Basic"');
+    // F34 (Gallagher): אין תגית מניות מדוללת — בסיסי + התוספת מאותה הגשה; בשנת הפסד התוספת מרחיקה את המכפלה מהרווח — נשאר הבסיסי
+    const SB = 'WeightedAverageNumberOfSharesOutstandingBasic', SI = 'IncrementalCommonSharesAttributableToShareBasedPaymentArrangements';
+    const G8 = (inc) => facts([['Revenues', 'USD', yrs([5000e6, 5500e6, 6000e6], 2022)], ['NetIncomeLoss', 'USD', yrs([819e6, 880e6, -100e6], 2022)],
+      ['EarningsPerShareDiluted', 'USD/shares', yrs([4.2, 4.4, -0.5], 2022)], [SB, 'shares', yrs([191e6, 196e6, 200e6], 2022)]].concat(inc ? [[SI, 'shares', yrs([4e6, 4e6, 4e6], 2022)]] : []));
+    const g8 = F.normalizeSec(G8(true), [], null, null), g0 = F.normalizeSec(G8(false), [], null, null);
+    ok(g8.A.sh.join() === [195e6, 200e6, 200e6].join() && g8.tags.sh === SB + '+' + SI && g0.A.sh.join() === [191e6, 196e6, 200e6].join() && g0.tags.sh === SB,
+      '(40) F34: בלי תגית מדוללת — בסיסי + IncrementalCommonShares… (195.0M); בהפסד — הבסיסי');
+    // עם תגית מדוללת — התוספת לא נוגעת
+    const G9 = facts([['Revenues', 'USD', yrs([5000e6, 5500e6], 2022)], ['NetIncomeLoss', 'USD', yrs([819e6, 880e6], 2022)], ['WeightedAverageNumberOfDilutedSharesOutstanding', 'shares', yrs([196e6, 201e6], 2022)],
+      [SB, 'shares', yrs([191e6, 196e6], 2022)], [SI, 'shares', yrs([4e6, 4e6], 2022)]]);
+    ok(F.normalizeSec(G9, [], null, null).A.sh.join() === [196e6, 201e6].join(), '(40) F34: יש תגית מדוללת — היא, בלי תוספת');
+    // IFRS: המדוללות = AdjustedWeightedAverageShares (SAP ‏2023: ‏1,180M; הבסיסי ‏1,167M)
+    const IF = { facts: { 'ifrs-full': Object.assign({ Revenue: { units: { EUR: yrs([31e9, 33e9], 2022).map(([s0, e, val, form, filed]) => ({ start: s0, end: e, val, form, filed, fy: 2099, fp: 'FY' })) } },
+      ProfitLossAttributableToOwnersOfParent: { units: { EUR: yrs([2.28e9, 6.14e9], 2022).map(([s0, e, val, form, filed]) => ({ start: s0, end: e, val, form, filed, fy: 2099, fp: 'FY' })) } },
+      WeightedAverageShares: { units: { shares: yrs([1170e6, 1167e6], 2022).map(([s0, e, val, form, filed]) => ({ start: s0, end: e, val, form, filed, fy: 2099, fp: 'FY' })) } },
+      AdjustedWeightedAverageShares: { units: { shares: yrs([1175e6, 1180e6], 2022).map(([s0, e, val, form, filed]) => ({ start: s0, end: e, val, form, filed, fy: 2099, fp: 'FY' })) } } },
+    Object.fromEntries(Array.from({ length: 25 }, (_, i) => ['Filler' + i, { units: { EUR: [] } }]))) } };
+    const if8 = F.normalizeSec(IF, [], null, null);
+    ok(if8 && if8.ifrs && if8.A.sh.join() === [1175e6, 1180e6].join() && if8.tags.sh === 'AdjustedWeightedAverageShares', '(40) F34: ‏IFRS — המניות המדוללות הן AdjustedWeightedAverageShares');
+    // F36 רק בלי שורת מניות מדוללות מפורשת (Coca-Cola ‏Q4 2020: מתחת ל־"Diluted Net Income Per Share" — הבסיסי ‏4,300, ואחריו "Assuming Dilution" ‏4,329)
+    const KO8 = '<table><tr><td>Diluted Net Income Per Share</td><td>$</td><td>0.34</td><td>$</td><td>0.47</td></tr><tr><td>Average Shares Outstanding</td><td>4,300</td><td>4,282</td></tr>'
+      + '<tr><td>Effect of dilutive securities</td><td>29</td><td>40</td></tr><tr><td>Average Shares Outstanding Assuming Dilution</td><td>4,329</td><td>4,322</td></tr></table>';
+    const ko8 = P8.parse(KO8);
+    ok(!ko8.some((r) => r.label === 'Average Shares Outstanding') && P8.q4From(ko8, 1457e6, 4320e6, 1).sh === 4329e6, '(40) F36: יש "Assuming Dilution" — לא השורה שמתחת ל־"Diluted" (הבסיסי)');
+    // F36 — מה לא: מניות לסוף תקופה (Regions), שורה מתחת ל־"Net income … basic and diluted" (TransDigm), תווית מדוללת שנשברה (Genuine Parts)
+    const tb8 = (rows) => P8.parse('<table>' + rows.map((r) => '<tr>' + r.map((c) => '<td>' + c + '</td>').join('') + '</tr>').join('') + '</table>').map((r) => r.label);
+    ok(tb8([['Diluted', '242.1', '241.7'], ['Actual shares outstanding at year end', '241', '240.6']]).join('|') === 'Diluted'
+      && tb8([['Net income applicable to common stock - basic and diluted', '141,673', '108,157'], ['Weighted-average common shares outstanding', '53,609', '52,579']]).join('|') === 'Net income applicable to common stock - basic and diluted'
+      && !tb8([['Diluted net income per common share', '1.07', '1.07'], ['Weighted average common shares outstanding', '150,552', '152,996'], ['assuming dilution', '151,355', '154,084']]).includes('Weighted average common shares outstanding'),
+    '(40) F36: לא מניות לסוף תקופה, לא מתחת לשורת רווח, ולא כשיש שורה מדוללת מפורשת (גם בתווית שנשברה)');
+    // התקרה (150 שורות, עד גל 8 — 40): טבלת התאמה ארוכה בראש ההודעה לא דוחקת את טבלת המניות (Air Products ‏FY2015)
+    const big = '<table><tr><td>Operating Income Margin Net Income Diluted EPS</td></tr>' + Array.from({ length: 45 }, (_, i) => '<tr><td>Item ' + i + '</td><td>' + (10 + i) + '.5</td><td>.47</td></tr>').join('') + '</table>';
+    const ap8 = P8.parse(big + '<table><tr><td>Diluted EPS</td><td>1.58</td></tr><tr><td>Weighted Average Common Shares Diluted (in millions)</td><td>217.7</td></tr></table>');
+    ok(ap8.length === 47 && ap8[46].label === 'Weighted Average Common Shares Diluted (in millions)' && P8.q4From(ap8, 344.5e6, 217.8e6, 1).sh === 217.7e6, '(40) parse: מעבר ל־40 שורות — הטבלה עם המניות נשמרת (תקרה 150)');
+    // F38 (Capital One ‏2014): ‏"Total other debt" ‏36,833 = ריפו ‏880 + ‏18,684 + ‏17,269 — סכום־ביניים כולל שורה שאינה חוב; לא נספר פעם שנייה
+    const cof = { bs: { cols: [{ end: '2014-12-31' }], scale: { cur: 1e6, sh: 1 }, rows: [{ ns: 'us-gaap', tag: 'Assets', label: 'Total assets', total: true, v: [308167] },
+      { ns: 'us-gaap', tag: 'Deposits', label: 'Total deposits', total: true, v: [205548] }, { ns: 'us-gaap', tag: 'SecuredDebt', label: 'Securitized debt obligations', v: [11624] },
+      { ns: 'us-gaap', tag: 'FederalFundsPurchasedAndSecuritiesSoldUnderAgreementsToRepurchase', label: 'Federal funds purchased and securities loaned or sold under agreements to repurchase', v: [880] },
+      { ns: 'us-gaap', tag: 'UnsecuredDebt', label: 'Senior and subordinated notes', v: [18684] }, { ns: 'us-gaap', tag: 'OtherBorrowings', label: 'Other borrowings', v: [17269] },
+      { ns: 'us-gaap', tag: 'DebtExcludingSecuredDebt', label: 'Total other debt', total: true, v: [36833] }, { ns: 'us-gaap', tag: 'Liabilities', label: 'Total liabilities', total: true, v: [263114] },
+      { ns: 'us-gaap', tag: 'LiabilitiesAndStockholdersEquity', label: 'Total liabilities and stockholders’ equity', total: true, v: [308167] }] } };
+    ok(F.debtFace(cof, 'USD').tot.get('2014-12-31') === 47577e6, '(40) F38: ‏"Total other debt" (כולל ריפו) — סכום־ביניים, לא נספר שוב (47,577, לא 84,410)');
   }
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });

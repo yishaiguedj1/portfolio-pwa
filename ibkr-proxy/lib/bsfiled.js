@@ -117,8 +117,11 @@ async function readOne(cik, f, getText) {
 /* ההודעה לעיתונות של סוף שנה אחד: המועמדים (8-K ‏2.02 עד 100 יום אחרי; בלעדיהם — 8-K בלי 2.02 עד 75 יום) ← index.json ← עד 3
    קבצים (בלי נספח — המסמך הראשי), הראשון שיש בו שורות "מדולל" (בטבלה, ובלעדיה — ברצף הטקסט) וגם שורת מניות.
    {end, acc, filed, file, rows} / {end, err} (נשמר) / null (תקלת רשת — ינוסה שוב) */
-const PR_V = 3; // גרסת המפענח של ההודעות (2 — רצף הטקסט, מועמדים בלי 2.02 והמסמך הראשי, גל 5; 3 — רווח למניה בלי "מדולל" ומועמד עם שורת מניות, גל 6): רשומה ישנה בלי מניות נקראת שוב פעם אחת
-const prNeed = (r) => !r || ((!!r.err || (!!r.rows && !r.rows.some(SECPR.shRow))) && (r.pv || 1) < PR_V);
+const PR_V = 4; // גרסת המפענח של ההודעות (2 — רצף הטקסט, מועמדים בלי 2.02 והמסמך הראשי, גל 5; 3 — רווח למניה בלי "מדולל" ומועמד עם שורת מניות, גל 6): רשומה ישנה בלי מניות נקראת שוב פעם אחת
+// גל 8 (4): המפענח משנה מספרים בתוך שורות שכבר נשמרו (".45" בלי אפס מוביל, "($" בתא משלו — secpr.js), ולכן כל רשומה מלפני 4 —
+// גם רשומה תקינה — נקראת שוב פעם אחת (~16 אלף בקשות ביקום, ~2 שעות של עבודת הרקע). מעכשיו כל רשומה נשמרת עם pv
+const PR_ALL = 4;
+const prNeed = (r) => !r || (r.pv || 1) < PR_ALL || ((!!r.err || (!!r.rows && !r.rows.some(SECPR.shRow))) && (r.pv || 1) < PR_V);
 async function readPr(cik, it, getText) {
   let last = { end: it.end, err: 'nofile', pv: PR_V }, first = null, fbr = null;
   const sh = (x) => !!x && x.rows.some(SECPR.shRow);
@@ -147,7 +150,7 @@ async function readPr(cik, it, getText) {
     const rec = rows.length ? { end: it.end, acc: k.acc, filed: k.filed, file: files.join(' '), rows } : null;
     // מועמד בלי שורת מניות — ממשיכים למועמד הבא (גל 6, F31 — AbbVie ‏2025: ‏8-K של תחזית ב־6 בינואר עם "Diluted EPS Range",
     // ההודעה על התוצאות ב־31 בינואר; בלי מניות q4From לא מאמת כלום)
-    if (sh(rec)) return rec;
+    if (sh(rec)) return { ...rec, pv: PR_V };
     if (rec && !first) first = { ...rec, pv: PR_V };
     if (fb && (!fbr || (!sh(fbr) && sh(fb)))) fbr = { end: it.end, acc: k.acc, filed: k.filed, file: fb.file, rows: fb.rows, pv: PR_V };
     if (main && !rec && !fb) last = { end: it.end, err: 'noex', pv: PR_V };

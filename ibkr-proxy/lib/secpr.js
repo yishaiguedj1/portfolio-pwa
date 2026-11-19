@@ -8,14 +8,24 @@
    · q4From    — הזוג (רווח למניה, מניות) מאותה עמודה שמכפלתם = הרווח של הרבעון שלנו, והמניות ליד ההערכה שלנו */
 'use strict';
 
+// גל 8: גם מספר בלי אפס מוביל — ".45" (KeyCorp: ‏".28", ‏".23" נבלעו בתווית, והעמודות זזו)
 const num = (s) => {
   const t = String(s).replace(/[\s$€£,]/g, '').replace(/—|–/g, '-');
   if (/^[-]+$/.test(t)) return null; // "—" = אפס/ריק — שומר על מיקום העמודה
-  const m = /^(\()?(-)?(\d+(?:\.\d+)?)\)?%?$/.exec(t);
+  const m = /^(\()?(-)?(\d+(?:\.\d+)?|\.\d+)\)?%?$/.exec(t);
   if (!m) return undefined;
   const v = +m[3];
   return m[1] || m[2] ? -v : v;
 };
+const SH_ROW = /weighted|average (number of )?(common )?shares|shares outstanding/i; // תווית של ממוצע מניות (F36)
+// F36: מניות לנקודת זמן — לא ממוצע (Regions ‏"Actual shares outstanding—end of quarter", ‏Citigroup ‏"Common shares outstanding, at period end",
+// ‏Marsh ‏"Shares Outstanding at 12/31", ‏S&P Global ‏"Actual shares outstanding at year end")
+const SH_END = /\bend of\b|\bat (the )?(period|year|quarter)?.?end\b|period.?end|year.?end|\bas of\b|actual shares|outstanding at\b/i;
+// F36: השורה שמעל — רווח מדולל למניה, או "Diluted" לבד (Dollar Tree). לא שורת רווח עם "basic and diluted" (TransDigm: ‏"Net income applicable
+// to common stock - basic and diluted", ומתחתיה הממוצע המשוקלל ‏53,609 — לא המניות של שיטת שתי הקבוצות, ‏56,610)
+const DIL_HEAD = (s) => /dilut/i.test(s) && (/per (common )?share|\beps\b/i.test(s) || /^\W*diluted\W*$/i.test(s));
+const epsVals = (v) => v.every((x) => x == null || Math.abs(x) < 5000) && v.some((x) => x != null && Math.round(x) !== x);
+const OPEN = /^[$€£]?\s*\(\s*[$€£]?$/; // תא / מילה שהם רק סוגר פותח (עם סימן מטבע): "(", ‏"($", ‏"$("
 const text = (h) => String(h).replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '').replace(/&nbsp;|&#160;|&#xa0;/gi, ' ')
   .replace(/&amp;/g, '&').replace(/&#8212;|&#x2014;|&mdash;/gi, '—').replace(/&#8211;|&#x2013;|&ndash;/gi, '–')
   .replace(/&#\d+;|&\w+;/g, ' ').replace(/\s+/g, ' ').trim();
@@ -23,26 +33,52 @@ const text = (h) => String(h).replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '
 /* שורות "מדולל" בכל הטבלאות. כל שורה: תווית + ערכים מספריים לפי הסדר (עמודות "$" ו־")" נפרדות מתאחדות).
    want — מסנן אחר לתווית (parseEps); בלעדיו "dilut" בתווית או בכותרת שמעליה */
 function parse(html, want) {
-  const out = [];
+  const per = [];
   const tables = String(html).split(/<table/i).slice(1);
   tables.forEach((tb, ti) => {
-    const body = tb.split(/<\/table>/i)[0];
-    let ctx = '';
+    const body = tb.split(/<\/table>/i)[0], out = [];
+    let ctx = '', prev = null, dilSh = false; const aft = [];
     for (const tr of body.split(/<tr/i).slice(1)) {
       const cells = (tr.match(/<t[dh][^>]*>[\s\S]*?(?=<t[dh][\s>]|<\/tr>|$)/gi) || []).map(text).filter((c) => c && c !== '$' && c !== ')' && c !== '%');
       if (!cells.length) continue;
       const lab = [], v = [];
-      for (const c of cells) { const n = num(c); if (n === undefined && !v.length) lab.push(c); else if (n !== undefined) v.push(n); }
+      // גל 8: סוגר פותח בתא משלו — "($" / "(" ואחריו "0.26" ו־")" (FedEx): המספר שלילי. עד היום הסימן אבד (‏+0.26 במקום ‏−0.26)
+      let neg = false;
+      for (const c of cells) {
+        if (OPEN.test(c)) { neg = true; continue; }
+        const n = num(c);
+        if (n === undefined && !v.length) lab.push(c); else if (n !== undefined) v.push(neg && n > 0 ? -n : n);
+        neg = false;
+      }
       const label = lab.join(' ');
       if (!v.length) { if (label) ctx = label.slice(0, 80); continue; }
-      if (want ? !want(label) : !/dilut/i.test(label) && !/dilut/i.test(ctx)) continue;
+      // גל 8 (F36): שורת מניות בלי "מדולל" מיד אחרי שורת "Diluted" של רווח למניה — המניות המדוללות (Dollar Tree: ‏"Basic" ‏/
+      // ‏"Weighted average number of shares" ‏/ ‏"Diluted" ‏/ ‏"Weighted average number of shares"). השורה שאחרי "Basic" — לא
+      const p0 = prev; prev = label;
+      const after = !want && !!p0 && DIL_HEAD(p0) && !/per share|earnings|income|loss/i.test(label) && SH_ROW.test(label) && !SH_END.test(label) && !/basic|dilut/i.test(label);
+      if (want ? !want(label) : !/dilut/i.test(label) && !/dilut/i.test(ctx) && !after) continue;
       if (!v.some((x) => x != null)) continue;
-      out.push(want ? { t: ti, label: label.slice(0, 80), ctx: '', v, b: 1 } : { t: ti, label: label.slice(0, 80), ctx: /dilut/i.test(label) ? '' : ctx, v });
-      if (out.length >= 40) return;
+      const o = want ? { t: ti, label: label.slice(0, 80), ctx: '', v, b: 1 } : { t: ti, label: label.slice(0, 80), ctx: /dilut/i.test(label) ? '' : after && !/dilut/i.test(ctx) ? p0.slice(0, 80) : ctx, v };
+      out.push(o);
+      if (!want && after && !/dilut/i.test(ctx)) aft.push(o);
+      // שורת מניות מדוללות מפורשת: תווית של מניות עם "dilut" (בתווית או בכותרת), או "dilut" בתווית עם ערכים שאינם רווח למניה (Genuine
+      // Parts: התווית נשברה — "Weighted average common shares outstanding –" / ‏"assuming dilution" ‏151,355; ‏Regions: ‏"Diluted" ‏1,234)
+      else if (!want && !/per (common )?share|\beps\b/i.test(label) && ((SH_ROW.test(label) && /dilut/i.test(label + ' ' + ctx)) || (/dilut/i.test(label) && !epsVals(v)))) dilSh = true;
     }
+    // F36 רק בטבלה שאין בה שורת מניות מדוללות מפורשת (Coca-Cola: ‏"Diluted Net Income Per Share", מתחתיה "Average Shares Outstanding" —
+    // הבסיסי, ‏4,300 — ורק אחריה "Average Shares Outstanding Assuming Dilution" ‏4,329. בלי התנאי q4From בחר בבסיסי: הרווח למניה המעוגל
+    // כפול הבסיסי קרוב יותר לרווח)
+    if (dilSh) for (const o of aft) out.splice(out.indexOf(o), 1);
+    if (out.length) per.push(out);
   });
-  return out;
+  return capRows(per);
 }
+/* תקרת השורות של הודעה (גודל הרשומה ב־R2). עד גל 8 — 40, לפי הסדר: ‏".45" שנקרא מעכשיו הוסיף ערכים לטבלאות ההתאמה שבראש ההודעה
+   (כל שורה בהן "מדוללת" לפי הכותרת), וטבלת המניות נחתכה (Air Products ‏FY2015, ‏Mondelez ‏2015, ‏Exelon ‏2018–2020). ביקום הגיעו לתקרה
+   29 הודעות מתוך 6,423, הארוכה — 103 שורות. סדר עדיפויות לפי תוויות נכשל (Mondelez: ‏"Changes in shares outstanding" בטבלת ההתאמה
+   נראתה כמו שורת מניות, ו־"Diluted" ‏1,610 שמתחת לרווח — לא) */
+const PR_ROWS = 150;
+const capRows = (per) => per.flat().slice(0, PR_ROWS);
 
 /* מסמך בלי טבלאות (18/11/2026, גל 5 — F24): מצגת שקפים עם שכבת טקסט (Apollo), HTML שהומר מ־PDF (Ameriprise, ‏AppLovin), מכתב
    לבעלי המניות — "Diluted" והמספרים ברצף טקסט, ו־parse לא מוצא שורה. רצף המילים מתחלק לשורות: תווית = המילים מאז רצף המספרים
@@ -51,7 +87,7 @@ function parseText(html) {
   const words = String(html).replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&#160;|&#xa0;/gi, ' ')
     .replace(/&amp;/g, '&').replace(/&#8212;|&#x2014;|&mdash;/gi, '—').replace(/&#8211;|&#x2013;|&ndash;/gi, '–').replace(/&#\d+;|&\w+;/g, ' ').split(/\s+/);
   const out = [];
-  let lab = [], v = [];
+  let lab = [], v = [], neg = false;
   const flush = () => {
     const label = lab.slice(-12).join(' ');
     if (v.length && /dilut/i.test(label) && v.some((x) => x != null)) out.push({ t: 0, label: label.slice(0, 80), ctx: '', v });
@@ -61,11 +97,12 @@ function parseText(html) {
     if (out.length >= 40) break;
     const w = w0.replace(/[.,;:]+$/, '');
     if (!w || w === '$' || w === ')' || /%\)?$/.test(w)) continue; // אחוז שינוי — לא עמודה
-    if (/^[-–—]+$/.test(w)) { if (v.length) v.push(null); else lab.push(w); continue; } // מקף בתווית ("Stockholders - Diluted") / תא ריק
-    const n = num(w);
+    if (OPEN.test(w)) { neg = true; continue; } // "($ 0.26)" ברצף הטקסט (גל 8)
+    if (/^[-–—]+$/.test(w)) { neg = false; if (v.length) v.push(null); else lab.push(w); continue; } // מקף בתווית ("Stockholders - Diluted") / תא ריק
+    const n = num(w), ng = neg; neg = false;
     if (n == null) { if (v.length) flush(); lab.push(w); continue; }
     if (!v.length && /^\(\d\)$/.test(w)) continue; // הערת שוליים אחרי התווית: "(2)"
-    v.push(n);
+    v.push(ng && n > 0 ? -n : n);
   }
   flush();
   return out;
