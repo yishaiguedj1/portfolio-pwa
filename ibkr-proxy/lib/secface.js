@@ -87,16 +87,27 @@ function parseR(html) {
   }
   // כותרות: שורה ראשונה = קבוצות ("12 Months Ended", colspan), שנייה = תאריכים
   const heads = [...h.matchAll(/<tr>\s*([\s\S]*?)<\/tr>/g)].slice(0, 3).map((x) => x[1]);
+  // הקבוצה של תאריך — לפי המיקום הפיזי שלו בשורה (גל 5 בבדיקת העומק, F27): תאריך יכול לתפוס שתי עמודות (colspan="2"), ואחריו
+  // עמודת הערת שוליים ("[1]"), והקבוצות נספרות בעמודות פיזיות. ‏ADI ‏10-K ‏2019: "3 Months Ended" ‏colspan=16 ו־"12 Months Ended"
+  // ‏colspan=5 מעל 11 תאריכים — לפי המספר הסידורי כולם קיבלו "3", ושלוש השנים לא נקראו. תאריך באותה שורה עם הקבוצות — כמו קודם
   const groups = [], ends = [];
-  for (const row of heads) {
-    for (const th of row.matchAll(/<th class="th"([^>]*)>([\s\S]*?)<\/th>/g)) {
+  let gRow = -1;
+  heads.forEach((row, ri) => {
+    let pos = 0;
+    const ths = [...row.matchAll(/<th class="th"([^>]*)>([\s\S]*?)<\/th>/g)];
+    const hasG = ths.some((th) => /Months?\s+Ended/i.test(strip(th[2])));
+    if (hasG && gRow < 0) gRow = ri;
+    for (const th of ths) {
       const txt = strip(th[2]), span = +((/colspan="(\d+)"/.exec(th[1]) || [])[1] || 1), d = isoDate(txt);
       // מטבע העמודה ("USD ($)", "CNY (¥)") — בדוחות של חברות זרות יש לפעמים עמודת המרה לדולר באותה שנה
-      if (d) ends.push([d, (/\b([A-Z]{3})\s*\(/.exec(txt) || [])[1] || null]);
-      else { const mm = /(\d+)\s+Months?\s+Ended/i.exec(txt); for (let i = 0; i < span; i++) groups.push(mm ? +mm[1] : null); }
+      if (d) ends.push([d, (/\b([A-Z]{3})\s*\(/.exec(txt) || [])[1] || null, gRow >= 0 && ri > gRow && !hasG ? pos : null]);
+      else if (hasG || !ends.length) { const mm = /(\d+)\s+Months?\s+Ended/i.exec(txt); for (let i = 0; i < span; i++) groups.push(mm ? +mm[1] : null); }
+      pos += span;
     }
-  }
-  const cols = ends.map(([end, cur], i) => ({ end, months: groups.length ? (groups[i] != null ? groups[i] : null) : null, cur }));
+  });
+  // מיקום פיזי רק כשכל התאריכים בשורה שמתחת לקבוצות, והקבוצות מכסות אותם; אחרת — לפי המספר הסידורי (כמו עד היום)
+  const byPos = ends.length && ends.every((x) => x[2] != null) && ends[ends.length - 1][2] < groups.length;
+  const cols = ends.map(([end, cur, p], i) => { const g = byPos ? groups[p] : groups[i]; return { end, months: groups.length ? (g != null ? g : null) : null, cur }; });
   // קנה מידה לכל עמודה לפי המטבע שלה: "¥ in Millions, $ in Millions" — לכל מטבע משלו; "$ in Millions" כשיש גם עמודת NT$
   // (Chunghwa) — רק הדולר במיליונים, השאר ביחידות
   // ("$ in Thousands, $ in Thousands" — גם NT$ מוצג כ־$): כשמספר המקטעים = מספר המטבעות בעמודות — לפי סדר ההופעה

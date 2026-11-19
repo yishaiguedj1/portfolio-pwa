@@ -683,6 +683,9 @@ he: {
   anFMcap: 'שווי שוק',
   anFPe: 'מכפיל רווח',
   anFFpe: 'מכפיל צפוי',
+  anFBpe: 'מכפיל באפט',
+  anFBfpe: 'מכפיל באפט צפוי',
+  anCmpFwd: 'שנה הבאה',
   anFFy: 'תשואת מזומן',
   anNetCash: 'מזומן נטו',
   anNetDebt: 'חוב נטו',
@@ -915,8 +918,11 @@ he: {
   anInYear: 'בשנה האחרונה', anSince: 'מאז {y}', an10Y: '10Y',
   anGone: 'המניה לא נסחרת מאז {d} — המחיר והנתונים מאותו יום',
   anHMcap: 'מחיר כל החברה',
-  anHPe: 'כמה שנים של רווח משלמים',
+  anHPe: 'לפי הרווח המדווח',
   anHFpe: 'לפי הרווח הצפוי',
+  anHFpeAdj: 'לפי הרווח המותאם',
+  anHBpe: 'אחרי תגמול במניות',
+  anHBfpe: 'צפוי, אחרי תגמול במניות',
   anHFy: 'מזומן בשנה ÷ מחיר',
   anHNc: 'מזומן פחות חוב',
   anHPfcf: 'כמה שנים של מזומן חופשי משלמים',
@@ -1056,6 +1062,30 @@ he: {
   anXMcap: 'מחיר × {s} מניות. כמה עולה לקנות את כל החברה.',
   anXPeF: 'מחיר ÷ רווח למניה ב־12 החודשים האחרונים ({e}, לפי הדוחות, בדילול). כמה שנים של הרווח של היום משלמים.',
   anXFpe: 'מחיר ÷ רווח למניה צפוי, לפי Yahoo. הרווח הצפוי בדרך כלל "מתואם" (לא לפי כללי החשבונאות), ולכן המכפיל נראה נמוך יותר.',
+  anXFpeAdj: 'מחיר ÷ רווח למניה צפוי, לפי Yahoo. אצל החברה הזו זה רווח מותאם: בלי חלק מההוצאות שבדוחות (למשל תגמול במניות והפחתה מרכישות). לכן המכפיל נמוך מהמכפיל לפי הרווח המדווח. מכפיל באפט מחזיר פנימה את התגמול במניות.',
+  anXBpe: 'מחיר ÷ רווח למניה ב־12 החודשים האחרונים לפי באפט: הרווח המותאם של החברה, פחות התגמול במניות. באפט רואה בתגמול במניות משכורת לכל דבר, ולכן מוריד אותו. את הפחתת הנכסים מרכישות הוא לא מוריד, כי לרוב היא לא עלות כלכלית.',
+  anXBfpe: 'מחיר ÷ רווח למניה צפוי לשנה הבאה לפי באפט: אותו רווח צפוי של "מכפיל צפוי", פחות התגמול במניות הצפוי.',
+  anXBufNone: 'אין מספיק נתונים לחישוב. צריך את הרווח שדווח בכל אחד מ־4 הרבעונים האחרונים, תחזית לשנה הבאה, ומחיר באותו מטבע של הדוחות.',
+  anBStreet: 'רווח מותאם',
+  anBStreetS: '4 הרבעונים האחרונים, כפי שהאנליסטים סופרים',
+  anBSbc: 'פחות תגמול במניות',
+  anBSbcS: 'אחרי מס {t}',
+  anBFwd: 'רווח צפוי ל־{y}',
+  anBFwd0: 'רווח צפוי',
+  anBFwdY: 'כמו במכפיל הצפוי',
+  anBSbcF: 'פחות תגמול במניות צפוי',
+  anBSbcFS: '{r} מההכנסות, כמו ב־12 החודשים האחרונים · אחרי מס {t}',
+  anBEps: 'רווח למניה לפי באפט',
+  anBMultS: 'מחיר {p} ÷ רווח לפי באפט',
+  anBNeg: 'אין (הפסד)',
+  anBGaap: 'לשם השוואה: רווח מדווח',
+  anBGaapS: 'כולל גם הפחתה מרכישות וחד־פעמי',
+  anBPolEx: 'לפי ההודעות לעיתונות של החברה ב־SEC, הרווח המותאם שלה לא כולל את התגמול במניות, ולכן הורדנו את כולו.',
+  anBPolIn: 'לפי ההודעות לעיתונות של החברה ב־SEC, הרווח המותאם שלה כבר מוריד את התגמול במניות כהוצאה, ולכן לא מורידים אותו פעם שנייה. בתזרים המזומנים, לעומת זאת, הוא מוחזר כהוצאה שלא יצאה במזומן, ולכן שם כן מורידים אותו.',
+  anBPolMix: 'החברה שינתה את ההגדרה במהלך השנה. הורדנו את התגמול במניות רק ברבעונים שבהם הרווח המותאם לא כלל אותו.',
+  anBPolUnk: 'לא נמצאה הודעה לעיתונות לבדיקה. ההנחה: הרווח המותאם לא כולל את התגמול במניות, ולכן הורדנו אותו עד גובה הפער מול הרווח המדווח.',
+  anBPolGaap: 'האנליסטים סופרים וצופים כאן את הרווח המדווח, שכבר מוריד את התגמול במניות כהוצאה, ולכן לא מורידים אותו פעם שנייה. בתזרים המזומנים, לעומת זאת, הוא מוחזר כהוצאה שלא יצאה במזומן, ולכן שם כן מורידים אותו.',
+  anBFutIn: 'לפי ההודעה האחרונה של החברה, הרווח המותאם כולל מעכשיו את התגמול במניות, ולכן התחזית נשארת כמו שהיא.',
   anXFy: 'התזרים החופשי ב־12 החודשים האחרונים ({f}) ÷ שווי השוק. כמה מזומן העסק מייצר ביחס למחיר — כמו "ריבית" על ההשקעה.',
   anXNc: 'מזומן והשקעות ({c}) פחות חוב ({d}). יותר מזומן מחוב = ביטחון.',
   anXNd: 'מזומן והשקעות ({c}) פחות חוב ({d}). יש חוב נטו — כדאי לבדוק את יכולת ההחזר בלשונית "דוחות".',
@@ -1119,8 +1149,8 @@ he: {
   earnXCard: 'צפי', earnXFy: 'דוח שנתי', earnXAnY: 'אנליסטים · שנתי', earnXQtr: 'רבעון', earnXTonePos: 'מגמה חיובית', earnXToneNeg: 'מגמה שלילית', earnXToneNeu: 'מגמה ניטרלית',
   earnXD90: 'הצפי לרווח למניה {v} ב־90 יום', earnXRevs: 'ב־30 יום: {up} העלו, {dn} הורידו', earnXBeat: 'עקפה את הצפי ב־{b} מ־{n} הרבעונים האחרונים', earnXBeatWarn: '. רוב החברות עוקפות: הצפי יורד לקראת הדוח, ולכן עקיפה לבדה אינה ראיה לדוח טוב', earnXExpUp: 'ציפיות: צמיחה', earnXExpDown: 'ציפיות: ירידה', earnXExpMix: 'ציפיות: מעורב', earnXExpFlat: 'ציפיות: יציב', earnXRevS: 'הכנסות {v}', earnXEpsS: 'רווח {v}', earnXEpsNc: 'רווח — לא בר השוואה', earnXBizUp: 'העסק: משתפר', earnXBizDown: 'העסק: נחלש', earnXBizFlat: 'העסק: יציב', earnXFlag: 'יש חריגה', earnXExpT: 'ציפיות לרבעון', earnXExpWhy: 'הצפי של האנליסטים מול הרבעון המקביל אשתקד. הרווח מוחרג כשבאותו רבעון היה רווח חד־פעמי או לא־תפעולי גדול', earnXBizT: 'מצב העסק', earnXBizWhy: 'מהדוחות שכבר פורסמו: הרבעון האחרון מול המקביל אשתקד; המרת מזומן — 4 רבעונים. תזרים חופשי אחרי השקעות ותשלום במניות', earnXBMg: 'שולי רווח תפעולי {v} נק׳', earnXBFcf: 'תזרים חופשי למניה {v}', earnXBSh: 'מספר המניות {v}', earnXBCc: 'המרת מזומן {v}', earnXFOne: 'רווח חד־פעמי או לא־תפעולי גדול — הרווח למניה לא משקף את העסק', earnXFAcq: 'רכישה משמעותית בשנה האחרונה — חלק מהצמיחה לא אורגנית, והרווח ברבעון יכול לרדת זמנית', earnXFAdj: 'הרווח ״של הרחוב״ ברבעון האחרון {a} מול {g} לפי GAAP — יש החרגות גדולות', earnXFCash: 'הרווח לא מגובה במזומן (המרת מזומן {v})', earnXDisc: 'הערכת מצב מנתונים פומביים — לא תחזית ולא המלצה. הרווח בצפי הוא ״רווח הרחוב״: לפעמים מותאם ולפעמים GAAP.',
   earnXBeatAvg: ' (בממוצע {v})', earnXToneSrc: 'המגמה לפי שינויי הצפי של האנליסטים (Yahoo) — לא תחזית ולא המלצה.',
-  calReport: 'דוח רבעוני', calAddAria: 'הוספת הדוח של {sym} ליומן', calGoogle: 'הוספה ל־Google Calendar', calOther: 'יומן אחר (אפל, סמסונג, Outlook)',
-  calIcsNote: 'ביומן אחר נוצרות גם תזכורות — יום לפני ושעה לפני.', calIcsDone: 'הקובץ ירד — פתח אותו כדי להוסיף ליומן', calLocal: '{t} שעון ישראל',
+  calReport: 'דוח רבעוני', calAddAria: 'הוספת הדוח של {sym} ליומן', calGoogle: 'יומן Google', calOther: 'יומן אחר',
+  calIcsNote: 'יומן אחר — אפל, סמסונג, Outlook — כולל תזכורות יום לפני ושעה לפני.', calIcsDone: 'הקובץ ירד — פתח אותו כדי להוסיף ליומן', calLocal: '{t} שעון ישראל',
   calEventTitle: 'דוח רבעוני · {sym}{name}', calEventDesc: 'פרסום הדוח הרבעוני של {sym}', calEventEst: 'תאריך משוער (לפי Yahoo Finance)',
   earnDate: 'דוח: {date}',
   twrOfficial: 'TWR רשמי של IBKR',
@@ -1199,6 +1229,8 @@ he: {
   btnEdit: ICON_EDIT + 'ערוך',
   btnDelete: ICON_TRASH + 'מחק',
   todayChg: 'היום {v}',
+  dayToday: 'היום', dayYest: 'אתמול', dayDow1: 'שני', dayDow2: 'שלישי', dayDow3: 'רביעי', dayDow4: 'חמישי', dayDow5: 'שישי',
+  subValLbl: 'שווי', subGlLbl: 'שינוי מהקנייה', subAthLbl: 'מהשיא',
   buyChg: 'מהקנייה {v}',
   kvShares: 'מניות',
   kvAvg: 'מחיר ממוצע',
@@ -2614,6 +2646,9 @@ en: {
   anFMcap: 'Market cap',
   anFPe: 'P/E',
   anFFpe: 'Forward P/E',
+  anFBpe: 'Buffett P/E',
+  anFBfpe: 'Buffett fwd P/E',
+  anCmpFwd: 'Next year',
   anFFy: 'Cash yield',
   anNetCash: 'Net cash',
   anNetDebt: 'Net debt',
@@ -2846,8 +2881,11 @@ en: {
   anInYear: 'Past year', anSince: 'Since {y}', an10Y: '10Y',
   anGone: 'Not traded since {d} — price and data are from that day',
   anHMcap: 'Price of the whole company',
-  anHPe: 'Years of profit you pay for',
+  anHPe: 'On reported profit',
   anHFpe: 'On expected profit',
+  anHFpeAdj: 'On adjusted profit',
+  anHBpe: 'After stock pay',
+  anHBfpe: 'Expected, after stock pay',
   anHFy: 'Cash per year ÷ price',
   anHNc: 'Cash minus debt',
   anHPfcf: 'Years of free cash you pay for',
@@ -2987,6 +3025,30 @@ en: {
   anXMcap: 'Price × {s} shares. What it costs to buy the whole company.',
   anXPeF: 'Price ÷ EPS over the last 12 months ({e}, as reported, diluted). How many years of today’s profit you pay.',
   anXFpe: 'Price ÷ expected EPS, from Yahoo. Expected earnings are usually “adjusted” (non-GAAP), so the multiple looks lower.',
+  anXFpeAdj: 'Price ÷ expected EPS, from Yahoo. For this company it is adjusted profit: some reported expenses are left out (such as stock-based pay and acquisition amortization), so the multiple is lower than on reported profit. The Buffett P/E puts stock-based pay back in.',
+  anXBpe: 'Price ÷ EPS over the last 12 months the Buffett way: the company’s adjusted profit minus stock-based pay. Buffett treats stock-based pay as salary like any other, so he deducts it. He does not deduct amortization of acquired intangibles, which is usually not an economic cost.',
+  anXBfpe: 'Price ÷ expected EPS for next year the Buffett way: the same expected profit as the forward P/E, minus expected stock-based pay.',
+  anXBufNone: 'Not enough data. This needs the reported profit for each of the last 4 quarters, a forecast for next year, and a price in the reporting currency.',
+  anBStreet: 'Adjusted profit',
+  anBStreetS: 'Last 4 quarters, as analysts count it',
+  anBSbc: 'Less stock-based pay',
+  anBSbcS: 'After tax {t}',
+  anBFwd: 'Expected profit for {y}',
+  anBFwd0: 'Expected profit',
+  anBFwdY: 'As in the forward P/E',
+  anBSbcF: 'Less expected stock-based pay',
+  anBSbcFS: '{r} of revenue, as in the last 12 months · after tax {t}',
+  anBEps: 'EPS the Buffett way',
+  anBMultS: 'Price {p} ÷ Buffett EPS',
+  anBNeg: 'None (loss)',
+  anBGaap: 'For comparison: reported profit',
+  anBGaapS: 'Also includes acquisition amortization and one-offs',
+  anBPolEx: 'According to the company’s press releases at the SEC, its adjusted profit excludes stock-based pay, so we deducted all of it.',
+  anBPolIn: 'According to the company’s press releases at the SEC, its adjusted profit already deducts stock-based pay as an expense, so we don’t deduct it twice. In the cash flow statement, by contrast, it is added back as a non-cash expense, so there we do deduct it.',
+  anBPolMix: 'The company changed its definition during the year. We deducted stock-based pay only in the quarters where adjusted profit excluded it.',
+  anBPolUnk: 'No press release was found to check. Assumption: adjusted profit excludes stock-based pay, so we deducted it up to the gap to reported profit.',
+  anBPolGaap: 'Here analysts count and forecast reported profit, which already deducts stock-based pay as an expense, so we don’t deduct it twice. In the cash flow statement, by contrast, it is added back as a non-cash expense, so there we do deduct it.',
+  anBFutIn: 'According to the company’s latest release, adjusted profit now includes stock-based pay, so the forecast stays as is.',
   anXFy: 'Free cash flow over the last 12 months ({f}) ÷ market cap. How much cash the business makes relative to the price — like “interest” on the investment.',
   anXNc: 'Cash and investments ({c}) minus debt ({d}). More cash than debt = safety.',
   anXNd: 'Cash and investments ({c}) minus debt ({d}). There is net debt — check the ability to repay in “Financials”.',
@@ -3050,8 +3112,8 @@ en: {
   earnXCard: 'Est.', earnXFy: 'Annual report', earnXAnY: 'Analysts · FY', earnXQtr: 'Quarter', earnXTonePos: 'Trending up', earnXToneNeg: 'Trending down', earnXToneNeu: 'Flat',
   earnXD90: 'EPS estimate {v} over 90 days', earnXRevs: 'Last 30 days: {up} up, {dn} down', earnXBeat: 'Beat estimates in {b} of the last {n} quarters', earnXBeatWarn: '. Most companies beat: estimates drift down before the report, so a beat alone is not evidence of a good report', earnXExpUp: 'Expectations: growth', earnXExpDown: 'Expectations: decline', earnXExpMix: 'Expectations: mixed', earnXExpFlat: 'Expectations: flat', earnXRevS: 'Revenue {v}', earnXEpsS: 'EPS {v}', earnXEpsNc: 'EPS — not comparable', earnXBizUp: 'Business: improving', earnXBizDown: 'Business: weakening', earnXBizFlat: 'Business: steady', earnXFlag: 'Distortion', earnXExpT: 'Quarter expectations', earnXExpWhy: 'Analyst estimates vs. the same quarter last year. EPS is excluded when that quarter had a large one-off or non-operating item', earnXBizT: 'Business health', earnXBizWhy: 'From published reports: latest quarter vs. the same quarter last year; cash conversion over 4 quarters. Free cash flow after capex and stock compensation', earnXBMg: 'Operating margin {v} pts', earnXBFcf: 'Free cash flow per share {v}', earnXBSh: 'Share count {v}', earnXBCc: 'Cash conversion {v}', earnXFOne: 'Large one-off or non-operating item — EPS does not reflect the business', earnXFAcq: 'Significant acquisition in the past year — part of the growth is not organic, and quarterly profit may dip temporarily', earnXFAdj: 'Street EPS last quarter {a} vs. {g} GAAP — large exclusions', earnXFCash: 'Earnings not backed by cash (cash conversion {v})', earnXDisc: 'An assessment from public data — not a forecast or advice. The EPS estimate is street EPS: sometimes adjusted, sometimes GAAP.',
   earnXBeatAvg: ' (avg {v})', earnXToneSrc: 'Trend from analyst estimate revisions (Yahoo) — not a forecast or advice.',
-  calReport: 'Earnings', calAddAria: 'Add the {sym} earnings report to your calendar', calGoogle: 'Add to Google Calendar', calOther: 'Other calendar (Apple, Samsung, Outlook)',
-  calIcsNote: 'Other calendars also get reminders — a day before and an hour before.', calIcsDone: 'Downloaded — open it to add to your calendar', calLocal: '{t} local time',
+  calReport: 'Earnings', calAddAria: 'Add the {sym} earnings report to your calendar', calGoogle: 'Google Calendar', calOther: 'Other calendar',
+  calIcsNote: 'Other calendar — Apple, Samsung, Outlook — includes reminders a day and an hour before.', calIcsDone: 'Downloaded — open it to add to your calendar', calLocal: '{t} local time',
   calEventTitle: 'Earnings · {sym}{name}', calEventDesc: '{sym} quarterly earnings report', calEventEst: 'Estimated date (per Yahoo Finance)',
   earnDate: 'Earnings: {date}',
   twrOfficial: "IBKR's official TWR",
@@ -3130,6 +3192,8 @@ en: {
   btnEdit: ICON_EDIT + 'Edit',
   btnDelete: ICON_TRASH + 'Delete',
   todayChg: 'Today {v}',
+  dayToday: 'Today', dayYest: 'Yesterday', dayDow1: 'Mon', dayDow2: 'Tue', dayDow3: 'Wed', dayDow4: 'Thu', dayDow5: 'Fri',
+  subValLbl: 'Value', subGlLbl: 'Gain', subAthLbl: 'From ATH',
   buyChg: 'Since purchase {v}',
   kvShares: 'Shares',
   kvAvg: 'Avg price',
@@ -8245,8 +8309,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.181.4';
-const APP_VERSION = 'v834';
+const APP_RELEASE = '2.186.6';
+const APP_VERSION = 'v849';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -9255,6 +9319,62 @@ function taseMarketNow(nowMs) {
     return { closed: p.mins < 9 * 60 + 59 || p.mins >= end, reason: null };
   } catch (e) { return { closed: false, reason: null }; }
 }
+/* 18/11/2026 (בקשת המשתמש): איזה יום מסחר השינוי היומי מתאר — "היום" רק מפתיחת המסחר הרגיל ועד שמתחיל המסחר הלילי
+   (20:00 ניו־יורק); משם ועד הפתיחה הבאה זה השינוי של יום מסחר שעבר. התווית לפי הלוח של המשתמש (לא של הבורסה):
+   יום המסחר היה אתמול → "אתמול"; לפני 2–6 ימים (אחרי סופ״ש או חג — למשל בראשון/שני בבוקר על יום ו׳) → שם היום ("שישי");
+   מעל שבוע → תאריך. ת״א: אין מסחר לילי — "היום" מפתיחת המסחר (09:59) ועד חצות. קריפטו/מט״ח/חוזים/מדדים/בורסות אחרות — "היום".
+   מחזיר null ("היום") או { k: 'yest' | 'dow' | 'date', dow, key }. טהורה (nowMs, tz לבדיקות). */
+function tzDateKey(ms, tz) {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz || undefined, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(ms));
+  const g = (k) => (parts.find((x) => x.type === k) || {}).value;
+  return g('year') + '-' + g('month') + '-' + g('day');
+}
+function keyUTC(k) { return Date.UTC(+k.slice(0, 4), +k.slice(5, 7) - 1, +k.slice(8, 10)); }
+function nyseTradingDay(ms) { // ms = חצות UTC של התאריך
+  const d = new Date(ms), w = d.getUTCDay();
+  if (w === 0 || w === 6) return false;
+  const y = d.getUTCFullYear(), hol = _nyseHolCache[y] || (_nyseHolCache[y] = nyseHolidays(y));
+  return !hol[d.toISOString().slice(0, 10)];
+}
+function lastSessionKey(sym, nowMs) {
+  const s = String(sym || '').toUpperCase();
+  const now = nowMs || Date.now();
+  if (/\.TA$/.test(s)) {
+    const p = ilDateParts(now);
+    const noon = now - (p.mins - 720) * 60000; // צהריים בישראל — מעבר יום אחורה לא נופל על חצות בשעון קיץ
+    const trading = (ms) => { const q = ilDateParts(ms); return q.dow >= 1 && q.dow <= 5 && !taseHolidayKey(q); };
+    if (trading(now) && p.mins >= 9 * 60 + 59) return null;
+    for (let i = 1; i <= 15; i++) { const ms = noon - i * 864e5; if (trading(ms)) return tzDateKey(ms, 'Asia/Jerusalem'); }
+    return null;
+  }
+  if (s.includes('.') || s.startsWith('^') || mktKind(s)) return null;
+  const actual = etDateParts(now), ref = etDateParts(now + 4 * 3600e3); // מ־20:00 ניו־יורק מתחיל יום המסחר הבא (הלילי)
+  const hm = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(new Date(now));
+  const mins = (+hm.find((x) => x.type === 'hour').value % 24) * 60 + (+hm.find((x) => x.type === 'minute').value);
+  const refMs = keyUTC(ref.key);
+  if (ref.key === actual.key && nyseTradingDay(refMs) && mins >= 9 * 60 + 30) return null;
+  for (let i = 1; i <= 15; i++) { const ms = refMs - i * 864e5; if (nyseTradingDay(ms)) return new Date(ms).toISOString().slice(0, 10); }
+  return null;
+}
+function sessionDayInfo(sym, nowMs, tz) {
+  try {
+    const now = nowMs || Date.now();
+    const key = lastSessionKey(sym, now);
+    if (!key) return null;
+    const diff = Math.round((keyUTC(tzDateKey(now, tz)) - keyUTC(key)) / 864e5);
+    if (diff <= 0) return null;
+    const dow = new Date(keyUTC(key)).getUTCDay();
+    return { k: diff === 1 ? 'yest' : diff < 7 ? 'dow' : 'date', dow: dow, key: key };
+  } catch (e) { return null; }
+}
+/* התווית עצמה: "היום" / "אתמול" / "שישי" / "12/11" */
+function sessionDayLabel(sym, nowMs, tz) {
+  const i = sessionDayInfo(sym, nowMs, tz);
+  if (!i) return t('dayToday');
+  if (i.k === 'yest') return t('dayYest');
+  if (i.k === 'dow') return [t('dayDow1'), t('dayDow2'), t('dayDow3'), t('dayDow4'), t('dayDow5')][i.dow - 1] || t('dayToday');
+  return +i.key.slice(8, 10) + '/' + +i.key.slice(5, 7);
+}
 function etSessionNow(nowMs) {
   try {
     const d = nowMs ? new Date(nowMs) : new Date();
@@ -9801,6 +9921,7 @@ function renderLive(syms) {
     if (state.open[s]) {
       const g = card.querySelector('.stock-body .kv-grid');
       if (g) { setKvGrid(g, kvGridHTML(p, m)); ensureChartData(s, true); }
+      stAlLive(card, s, m.price);
     }
   }
   try { fitNumbers(); } catch (e) {}
@@ -12191,7 +12312,41 @@ function initScrollSaver() {
 
 /* התאמת גודל מספרים גדולים לרוחב הכרטיס — נשארים גדולים ככל האפשר,
    אבל מתכווצים אוטומטית לפי אורך המספר כדי שאף ספרה לא תיחתך. */
+/* 19/11/2026 (בקשת המשתמש: "מהשיא" וגלולת היום לעולם לא יתנגשו — הכל בשורה אחת, הסכום בכסף תמיד, ורק גודל הטקסט
+   משתנה לפי האורך; רווח נדיב, מסודר ונקי לפי ת־עיצוב): בכל כרטיס מעקב כל השורה קטנה יחד (--wk) עד שבין השיא לגלולה
+   נשארים לפחות WK_GAP. שורה שנכנסת — בגודל המלא. יציבות: באותו רוחב, טיק חי רק מקטין (סכום שמשנה אורך כל כמה שניות,
+   כמו BTC, לא מקפיץ את הגודל הלוך ושוב); גדל בחזרה בציור מחדש של הכרטיס או בשינוי רוחב. */
+const WK_GAP = 22, WK_FLOOR = 0.5;
+function fitWatchSubs() {
+  if (typeof document === 'undefined' || !document.getElementById) return;
+  const list = document.getElementById('wishlistList');
+  if (!list || !list.querySelectorAll || !list.clientWidth) return; // מוסתר — נמדוד כשיוצג
+  const vw = (typeof window !== 'undefined' && window.innerWidth) || 0;
+  const free = (x) => {
+    const a = x.querySelector('.wl-ath'), p = x.querySelector('.day-chg');
+    return a && p ? x.clientWidth - a.scrollWidth - p.offsetWidth : Infinity;
+  };
+  const setK = (x, k) => { if (k >= 1) x.style.removeProperty('--wk'); else x.style.setProperty('--wk', String(k)); };
+  for (const x of list.querySelectorAll('.stock[data-watch] .stock-sub')) {
+    const key = vw + '|' + list.clientWidth + '|' + x.textContent;
+    if (x._wkKey === key) continue; // טיק חי שלא שינה טקסט — בלי מדידה
+    const sameW = x._wkW === vw + '|' + list.clientWidth;
+    x._wkKey = key; x._wkW = vw + '|' + list.clientWidth;
+    if (!x.clientWidth) { x._wkKey = ''; continue; }
+    let k = sameW && x._wkK ? x._wkK : 1; // יציבות — לא גדל בחזרה בטיק חי
+    setK(x, k);
+    if (free(x) < WK_GAP) { // הערכה ליניארית, ואז צעדים קטנים עד שנכנס (הריפוד והעיגול לא ליניאריים)
+      const a = x.querySelector('.wl-ath'), p = x.querySelector('.day-chg');
+      const need = a.scrollWidth + p.offsetWidth;
+      if (need > 0) k = Math.max(WK_FLOOR, Math.min(k, Math.floor(k * (x.clientWidth - WK_GAP) / need * 100) / 100));
+      setK(x, k);
+      while (free(x) < WK_GAP && k > WK_FLOOR) { k = Math.round((k - 0.02) * 100) / 100; setK(x, k); }
+    }
+    x._wkK = k;
+  }
+}
 function fitNumbers(page) {
+  try { fitWatchSubs(); } catch (e) {}
   // v193: רק בטאב הנראה, וקריאות/כתיבות בקבוצות — לפני כן כל מספר עשה עד 40 סבבי מדידה→שינוי (layout thrash)
   // 14/10/2026: page = העמוד שנכנס בקובייה — המספרים מותאמים כבר בגרירה, ולא משנים גודל באמצע הסיבוב
   const SEL = '.stat-value, .lg-pct, .pension-total';
@@ -12278,7 +12433,9 @@ function renderOverview(light) {
     else {
       const z = Math.abs(dv) < 0.005 ? 0 : dv;
       const cls = z > 0 ? 'pos' : z < 0 ? 'neg' : '';
-      dEl.innerHTML = '<span class="ov-day-lbl">' + esc(t('ovDayLbl')) + '</span> <span class="ov-day-v ' + cls + '" dir="ltr">' +
+      // 18/11/2026: כמו בכרטיס — "אתמול"/שם היום מחוץ ליום המסחר; תיק משתי בורסות שהתוויות שלהן שונות — "היום"
+      const lbls = Array.from(new Set(POSITIONS.map((p) => sessionDayLabel(/\.TA$/i.test(p.sym) ? 'X.TA' : 'SPY'))));
+      dEl.innerHTML = '<span class="ov-day-lbl">' + esc(lbls.length === 1 ? lbls[0] : t('ovDayLbl')) + '</span> <span class="ov-day-v ' + cls + '" dir="ltr">' +
         esc(fmtSignedMoney(z, cur)) + (d.pct === null || !isFinite(d.pct) ? '' : ' (' + esc(fmtPct(d.pct, true)) + ')') + '</span>';
       dEl.classList.remove('hidden');
     }
@@ -12663,7 +12820,9 @@ function earnXSheetHTML(ex) {
   if (why.length) h += '<div class="esx-meta">' + esc(why.join(' · ')) + '</div>';
   if (a && a.h && a.h.n) h += '<div class="esx-meta">' + esc(t('earnXBeat', { b: a.h.b, n: a.h.n }) + (a.h.s != null ? t('earnXBeatAvg', { v: sp(a.h.s / 100) }) : '') + t('earnXBeatWarn')) + '</div>';
   if (g) h += '<div class="esx-meta">' + esc(t('earnXSrc', { d: fmtDateIL(g.fd) })) + '</div>';
-  if (tn) h += '<div class="esx-meta esx-fine">' + esc(t('earnXToneSrc')) + '</div>';
+  // 19/11/2026: הסתייגות אחת בגיליון — שורת המקור של המגמה רק כשאין את ההסתייגות הכללית בסוף
+  const hasDisc = !!(a && a.q && (earnXExp(a, ex.b) || earnXBiz(ex.b)));
+  if (tn && !hasDisc) h += '<div class="esx-meta esx-fine">' + esc(t('earnXToneSrc')) + '</div>';
   // 17/11/2026: שני האותות והדגלים — הפירוט שמאחורי שורות הכרטיס
   if (a && a.q) {
     const ep = earnXExp(a, ex.b), bz = earnXBiz(ex.b), fl = earnXFlags(a, ex.b);
@@ -12707,20 +12866,22 @@ function openEarnCalSheet(r, name) {
   const sh = el('div', 'pf-sheet earn-sheet');
   sh.setAttribute('role', 'dialog');
   sh.setAttribute('aria-modal', 'true');
+  // 19/11/2026 (בקשת המשתמש): הכל במסך אחד ובזכוכית — התאריך בכותרת, ✕ במקום "ביטול", שני כפתורי היומן בשורה אחת;
+  // הגוף נגלל בתוך הגיליון רק כשהמסך נמוך מדי (הכותרת והכפתורים תמיד גלויים)
   sh.innerHTML = '<div class="sheet-grab" aria-hidden="true"></div>' +
     '<div class="es-head">' + stockLogoHTML(r.sym) +
       '<div class="es-id"><div class="es-title"><span dir="ltr">' + esc(r.sym.replace(/\.TA$/i, '')) + '</span> · ' + esc(t('calReport')) + '</div>' +
-      '<div class="es-name">' + esc(name) + '</div></div></div>' +
-    '<div class="es-when"><div class="es-day">' + esc(dayTxt) + '</div>' +
+      '<div class="es-name">' + esc(name) + '</div>' +
+      '<div class="es-day">' + esc(dayTxt) + '</div>' +
       '<div class="es-meta">' + esc([when, tm, local ? t('calLocal', { t: local }) : '', r.est ? t('earnEst') : ''].filter(Boolean).join(' · ')) + '</div></div>' +
-    earnXSheetHTML(earnXFor(earnXAll()[r.sym], r.date)) +
-    '<button type="button" class="btn es-btn es-google">' + CAL_ICON_CUR + '<span>' + esc(t('calGoogle')) + '</span></button>' +
-    '<button type="button" class="btn secondary-btn es-btn es-ics">' + CAL_ICON_CUR + '<span>' + esc(t('calOther')) + '</span></button>' +
-    '<div class="es-note">' + esc(t('calIcsNote')) + '</div>' +
-    '<button type="button" class="es-cancel">' + esc(t('btnCancel')) + '</button>';
+      '<button type="button" class="es-x-close" aria-label="' + esc(t('btnClose')) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>' +
+    '<div class="es-body">' + earnXSheetHTML(earnXFor(earnXAll()[r.sym], r.date)) + '</div>' +
+    '<div class="es-acts"><button type="button" class="btn es-btn es-google">' + CAL_ICON_CUR + '<span>' + esc(t('calGoogle')) + '</span></button>' +
+    '<button type="button" class="btn secondary-btn es-btn es-ics">' + CAL_ICON_CUR + '<span>' + esc(t('calOther')) + '</span></button></div>' +
+    '<div class="es-note">' + esc(t('calIcsNote')) + '</div>';
   veil.appendChild(sh);
   veil.addEventListener('click', (e) => { if (e.target === veil) closeEarnCalSheet(); });
-  sh.querySelector('.es-cancel').addEventListener('click', closeEarnCalSheet);
+  sh.querySelector('.es-x-close').addEventListener('click', closeEarnCalSheet);
   sh.querySelector('.es-google').addEventListener('click', () => {
     try { window.open(earnGoogleUrl(ev), '_blank', 'noopener'); } catch (e) {}
     closeEarnCalSheet();
@@ -17880,6 +18041,38 @@ function renderWishlist(opts) {
     out.push(card);
   }
   listSync(list, out);
+  try { fitWatchSubs(); } catch (e) {}
+  try { wlWarmHist(items.map((w) => w.sym)); } catch (e) {}
+}
+/* 19/11/2026 (בקשת המשתמש: "מהשיא" רק בחלק מכרטיסי המעקב): השיא מחושב מההיסטוריה היומית, ו־warmHistories טוען רק
+   את התיק והעסקאות — לכן מניית מעקב שלא נפתחה נשארה בלי השורה. כאן: מהמטמון בטלפון אם הוא טרי, ומה שחסר או ישן —
+   בבקשה אחת לשרתון (histBatchWarm, עד 40). כל סימבול פעם אחת בסשן; כשל ברשת → המטמון הישן, אם יש */
+const _wlHistTried = new Set();
+let _wlHistBusy = false;
+function wlWarmHist(syms) {
+  if (_wlHistBusy || typeof localStorage === 'undefined') return;
+  const need = [], stale = {};
+  let got = false;
+  for (const raw of syms) {
+    const sym = normalizeSym(raw);
+    if (!sym || state.hist[sym] || _wlHistTried.has(sym) || !isChartableSym(sym)) continue;
+    let rec = null;
+    try { rec = loadHistCacheRec(sym); } catch (e) {}
+    const has = !!(rec && rec.rows && rec.rows.length);
+    const age = has ? Date.now() - (Number(rec.at) || 0) : Infinity;
+    if (has && age >= 0 && age < 24 * 60 * 60 * 1000) { restoreHistRows(sym, rec); _wlHistTried.add(sym); got = true; continue; }
+    if (need.length >= 40) continue; // השאר — בציור הבא
+    _wlHistTried.add(sym);
+    need.push(sym);
+    if (has) stale[sym] = rec;
+  }
+  if (!need.length) { if (got) renderWishlist(); return; }
+  _wlHistBusy = true;
+  histBatchWarm(need).catch(() => null).then(() => {
+    for (const sym of need) if (!state.hist[sym] && stale[sym]) { try { restoreHistRows(sym, stale[sym]); } catch (e) {} }
+    _wlHistBusy = false;
+    renderWishlist();
+  });
 }
 
 /* v88/v93: לוגו חברה לכרטיס מניה — עם אות ראשונה כגיבוי אם הלוגו לא נטען.
@@ -18048,16 +18241,23 @@ function stockSubHTML(p, m) {
   const day = m.dayChg === null ? null : (Math.abs(m.dayChg) < 0.005 ? 0 : m.dayChg);
   // v208→v209: גם השינוי היומי בכסף — למניה אחת (כמו Yahoo: "−2.16 (−1.57%)"), במטבע של המחיר, באותו צבע
   const dayAmtHTML = day === null || m.dayAbs === null || m.dayAbs === undefined || !isFinite(m.dayAbs) ? '' : ' <span class="day-amt">' + fmtSignedPx(m.dayAbs, p && p.sym) + '</span>';
-  let html = '<span class="day-chg ' + cls(day) + '">' + (day === null ? '—' : t('todayChg', { v: fmtPct(day, true) }) + dayAmtHTML) + '</span>';
+  // 18/11/2026: "היום" רק בזמן יום המסחר; מתחילת המסחר הלילי ועד הפתיחה — "אתמול" / שם היום (sessionDayLabel)
+  let html = '<span class="day-chg ' + cls(day) + '">' + (day === null ? '—' : esc(sessionDayLabel(p && p.sym)) + ' ' + fmtPct(day, true) + dayAmtHTML) + '</span>';
   if (p && p.watch) { // v240: מעקב — בלי שווי/רווח; ההערה (אם יש) במקום השווי
-    return html + '<span class="sub-val wl-sub-note">' + (p.note ? '<span class="wl-note-txt">' + esc(p.note) + '</span> ' : '') + '<span class="chev">▾</span></span>';
+    if (p.note) return html + '<span class="sub-val wl-sub-note"><span class="wl-note-txt">' + esc(p.note) + '</span></span>';
+    // 18/11/2026 (בקשת המשתמש): בלי החץ ▾ — במקומו המרחק מהשיא (ATH)
+    // 19/11/2026 (בקשת המשתמש): בלי מחיר השיא (הוא בכרטיס הפתוח) — "מהשיא −93.93%", כדי שלא יעלה על גלולת היום
+    const off = m.ath && m.offAth !== null && isFinite(m.offAth) ? (Math.abs(m.offAth) < 0.005 ? 0 : m.offAth) : null;
+    return html + '<span class="sub-val wl-ath">' + (off === null ? '' : '<span class="sub-lbl">' + esc(t('subAthLbl')) + '</span> ' +
+      '<span class="wl-ath-pct ' + cls(off) + '">' + fmtPct(off, true) + '</span>') + '</span>';
   }
-  html += '<span class="sub-val">' + (m.value === null ? '—' : money(toCur(m.value), cur)) + ' <span class="chev">▾</span></span>';
+  // 18/11/2026 (בקשת המשתמש): תווית משנית לפני הנתון — "שווי" / "שינוי" (ת־עיצוב: תווית אפורה קטנה, הנתון בולט)
+  html += '<span class="sub-val"><span class="sub-lbl">' + esc(t('subValLbl')) + '</span> ' + (m.value === null ? '—' : money(toCur(m.value), cur)) + '</span>'; // 2.184.1: בלי החץ ▾ ליד השווי (בקשת המשתמש)
   let gp = (p && p.avg > 0 && m.price !== null) ? gainPctOf(p, m.price) : null;
   if (gp !== null && Math.abs(gp) < 0.005) gp = 0; // בלי "+0.00%"
   if (gp !== null && isFinite(gp)) {
     html += '<span class="buy-chg ' + cls(gp) + '">' + t('buyChg', { v: fmtPct(gp, true) }) + '</span>' +
-      '<span class="buy-amt ' + cls(gp) + '">' + (m.gl === null ? '—' : fmtSignedMoney(toCur(m.gl), cur)) + '</span>';
+      '<span class="buy-amt ' + cls(gp) + '"><span class="sub-lbl">' + esc(t('subGlLbl')) + '</span> ' + (m.gl === null ? '—' : fmtSignedMoney(toCur(m.gl), cur)) + '</span>';
   }
   return html;
 }
@@ -18427,6 +18627,21 @@ const ST_AL_ARR = {
   down: '<path d="M12 5v14M6.5 13.5 12 19l5.5-5.5"/>',
   cross: '<path d="M8 19V5M4.5 8.5 8 5l3.5 3.5M16 5v14M12.5 15.5 16 19l3.5-3.5"/>',
 };
+/* המרחק מהמחיר הנוכחי ליעד, באחוזים (טהורה): יעד 90 ממחיר 100 → −10. בלי מחיר — null */
+function stAlDist(target, px) { return target > 0 && px > 0 ? (target / px - 1) * 100 : null; }
+function stAlDistTxt(target, px) { const d = stAlDist(target, px); return d === null ? '' : fmtPct(d, true); }
+/* הטקסט והצבע: ירוק — צריכה לעלות עד היעד, אדום — לרדת (בקשת המשתמש) */
+function stAlDistSet(n, target, px) {
+  const tx = stAlDistTxt(target, px), d = stAlDist(target, px);
+  if (n.textContent !== tx) n.textContent = tx;
+  n.classList.toggle('pos', d > 0); n.classList.toggle('neg', d < 0);
+}
+/* מחיר חי (renderLive): רק טקסט האחוז בשבבים הפעילים — בלי לבנות את השורה מחדש */
+function stAlLive(card, sym, px) {
+  if (!(px > 0)) return;
+  stAlPx[sym] = px;
+  for (const c of card.querySelectorAll('.st-al-chip[data-p]')) { const d = c.querySelector('.st-al-d'); if (d) stAlDistSet(d, +c.dataset.p, px); }
+}
 function stockAlertsEl(sym) {
   const box = el('div', 'st-al');
   box.dataset.sym = sym;
@@ -18451,6 +18666,8 @@ function stockAlertsEl(sym) {
     const pb = el('b', 'num');
     pb.textContent = fmtPx(+a.p, sym);
     chip.appendChild(pb);
+    // 18/11/2026 (בקשת המשתמש): כמה אחוז נשאר למניה לזוז מהמחיר הנוכחי עד היעד — משני ואפור; מתעדכן בכל טיק (stAlLive)
+    if (!a.done) { chip.dataset.p = String(+a.p); stAlDistSet(chip.appendChild(el('small', 'st-al-d num')), +a.p, stAlPx[sym]); }
     const lbl = (dir === 'up' ? t('kcAlertUp') : dir === 'down' ? t('kcAlertDown') : t('kcAlertCross')) + ' ' + pb.textContent +
       (a.done ? ' · ' + t('kcAlertDone') : '') + (a.note ? ' · ' + String(a.note).slice(0, 80) : '');
     chip.setAttribute('aria-label', lbl);
@@ -18590,17 +18807,61 @@ function bottomCover() {
   if (getComputedStyle(tabs).position !== 'fixed') return 0;
   return Math.max(0, viewH() - tabs.getBoundingClientRect().top);
 }
+// 18/11/2026 (בקשת המשתמש, צילומים: "שהכרטיסיה תכסה את כל המסך — תמיד, עם התראות ובלי"): הקצה התחתון של הכרטיס הפתוח =
+// ראש המסילה הנראית של החוגה (::before), לא ראש האלמנט — מעל המסילה יש עוד 32px שקופים (שם רק העיגול הירוק בולט),
+// והכרטיס נעצר שם עם פס ריק. באפליקציה המותקנת (standalone) — המיקום האמיתי של החוגה; בדפדפן — גם לא נמוך ממה שיהיה
+// כשסרגל הכתובת חוזר (viewH, 27/10).
+function dockTop() {
+  const vh = viewH();
+  if (typeof document === 'undefined' || !document.querySelector || typeof getComputedStyle !== 'function') return vh;
+  const tabs = document.querySelector('.tabs');
+  if (!tabs || !tabs.offsetHeight || !tabs.getBoundingClientRect || getComputedStyle(tabs).position !== 'fixed') return vh;
+  let top = tabs.getBoundingClientRect().top;
+  const solo = typeof matchMedia === 'function' && matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches;
+  if (!solo) top = Math.min(top, vh - tabs.offsetHeight);
+  let off = 0;
+  try {
+    const b = getComputedStyle(tabs, '::before');
+    const bh = parseFloat(b.height), bb = parseFloat(b.bottom);
+    if (b.position === 'absolute' && bh > 0 && bb >= 0 && bh + bb < tabs.offsetHeight) off = tabs.offsetHeight - bh - bb;
+  } catch (e) {}
+  return top + off;
+}
+// 18/11/2026 (בקשת המשתמש, צילום מסומן: "לפי המרחק מהלוגו — זה הכי חשוב"): בטלפון ההדר מתכווץ בגלילה (invest-glass.css, igLogo —
+// הלוגו ל־0.6, הבועות נעלמות, הרצועה עולה), אבל האלמנט .appbar שומר את הגובה המלא — הכרטיס עמד ~50px מתחת ללוגו.
+// מה שנראה בפועל = תחתית הלוגו המכווץ: הכרטיס הפתוח מתחיל 12px מתחתיה. רק כשהדף ייגלל עד סוף ההתכווצות (110px);
+// אחרת (כרטיס ראשון בדף קצר) — מתחת להדר המלא, כמו קודם.
+const HDR_SHRINK_END = 110, HDR_LOGO_SCALE = 0.6, CARD_LOGO_GAP = 12;
+function hdrShrunkBottom() {
+  if (typeof document === 'undefined' || !document.querySelector || typeof getComputedStyle !== 'function') return 0;
+  const bar = document.querySelector('.appbar'), art = bar && bar.querySelector('.brand-art');
+  if (!art || !art.offsetHeight || !/igLogo/.test(getComputedStyle(art).animationName || '')) return 0;
+  // ראש הלוגו בלי הטרנספורמציות (scale מהראש, transform-origin 50% 0) — מרשת ה־offsetTop עד ההדר
+  let top = 0, e = art;
+  while (e && e !== bar) { top += e.offsetTop; e = e.offsetParent; }
+  if (e !== bar) return 0;
+  return bar.getBoundingClientRect().top + top + art.offsetHeight * HDR_LOGO_SCALE;
+}
+// ההיסט מראש המסך שבו עומד ראש הכרטיס הפתוח; docTop — מיקום הכרטיס בדף (ברירת מחדל: מהכרטיס עצמו)
+function cardTopOff(card, docTop) {
+  const base = topCover() + 10;
+  const hb = hdrShrunkBottom();
+  if (!hb) return base;
+  const off = Math.min(base, Math.round(hb + CARD_LOGO_GAP));
+  if (docTop == null && card && card.getBoundingClientRect) docTop = card.getBoundingClientRect().top + (window.scrollY || 0);
+  return docTop != null && docTop - off < HDR_SHRINK_END ? base : off;
+}
 function scrollCardToTop(card) {
   if (!card || !card.getBoundingClientRect || typeof window === 'undefined' || !window.scrollTo) return;
   if (state.cardAnim) return; // v272: אנימציית הכרטיס כבר מנווטת את הגלילה — גלילה נוספת הייתה נלחמת בה
-  const off = topCover() + 10;
+  const off = cardTopOff(card);
   const top = card.getBoundingClientRect().top;
   if (Math.abs(top - off) < 4) return;
   cancelScrollRestore();
   const y = Math.max(0, top + (window.scrollY || 0) - off);
   try { window.scrollTo({ top: y, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, y); }
 }
-// v238: הכרטיס הפתוח = בדיוק גובה המסך שמתחת להדר (10px מעל ומתחת) — לא גדול ולא קטן ממנו:
+// v238: הכרטיס הפתוח = בדיוק גובה המסך שמתחת להדר (10px מעל, ומתחת — עד המסילה של החוגה, dockTop) — לא גדול ולא קטן ממנו:
 // הגרף מתמתח או מתכווץ כדי להשלים. נמדד מהגובה הטבעי של התוכן (גם באמצע אנימציית הפתיחה).
 function fitCardToScreen(sym, card, smooth) {
   if (typeof window === 'undefined' || !window.innerHeight) return false;
@@ -18620,9 +18881,11 @@ function fitCardToScreen(sym, card, smooth) {
     const head = card.querySelector('.stock-head');
     if (head) card._fitRO.observe(head);
   }
-  const avail = viewH() - topCover() - bottomCover() - 16;
+  // מתחת ללוגו (cardTopOff) ו־10px מעל המסילה של החוגה. בטלפון בלי תקרה — הגרף משלים כל גובה מסך (תקרה רק בתצוגת מחשב)
+  const avail = dockTop() - cardTopOff(card) - 10;
   const cardH = card.getBoundingClientRect().height - body.getBoundingClientRect().height + Math.max(inner.offsetHeight, inner.scrollHeight);
-  const h = Math.round(Math.max(140, Math.min(560, cv.clientHeight + avail - cardH)));
+  const dk = document.documentElement && document.documentElement.classList && document.documentElement.classList.contains('dk');
+  const h = Math.round(Math.max(140, Math.min(dk ? 560 : 4000, cv.clientHeight + avail - cardH)));
   if (Math.abs(h - cv.clientHeight) < 2) return false;
   if (!state.chartH) state.chartH = {};
   state.chartH[sym] = h;
@@ -18666,8 +18929,8 @@ function holdCardTop(sym) {
   };
   [350, 900, 1700, 3000].forEach((ms, i, a) => setTimeout(() => pin(i === a.length - 1), ms));
 }
-function cardAnimOffset() {
-  return topCover() + 10;
+function cardAnimOffset(docTop) {
+  return cardTopOff(null, docTop);
 }
 /* לוח הפקודות (תצוגת מחשב): כשמקלידים — האחזקות והמעקב של הרשימה הפעילה; בחירה פותחת את הכרטיס בעמוד שלו */
 function deskInvestCmds(q) {
@@ -18895,7 +19158,7 @@ function toggleStock(sym, card) {
   for (const it of items) { it.card.classList.add('anim'); it.body.style.height = it.from + 'px'; if (it.closing) it.card.classList.remove('open'); }
   const maxFinal = Math.max(0, docH0 + docDelta - vh);
   const S1 = opening
-    ? Math.min(maxFinal, Math.max(0, cardTop0 + S0 + aboveDelta - cardAnimOffset()))
+    ? Math.min(maxFinal, Math.max(0, cardTop0 + S0 + aboveDelta - cardAnimOffset(cardTop0 + S0 + aboveDelta)))
     : Math.min(S0, maxFinal);
   let t0 = null, raf = 0, steer = Math.abs(S1 - S0) > 0.5;
   const stopSteer = () => { steer = false; };

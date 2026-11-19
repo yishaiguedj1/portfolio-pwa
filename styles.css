@@ -940,12 +940,32 @@ main .tabpage :is(.ranges, .chip-row, .stock-sort-row, .wl-tabs, .tx-years, .st-
 /* שורות המשנה: שתי עמודות — אחוזים בצד ההתחלה, סכומים בצד הסוף, שורה לכל זוג */
 /* 20/10/2026 (בקשת המשתמש): הצדדים התחלפו — השווי והרווח בכסף בצד של הלוגו (התחלה), השינוי היומי ו"מהקנייה" בצד של
    המחיר (סוף), מתחת למחיר. אותו סדר ב־DOM (היום, שווי, מהקנייה %, מהקנייה בכסף), רק המקום ברשת; גם בכרטיס המעקב */
-.stock-sub { grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 3px 12px; font-size: 14px; color: var(--on-surface-var); }
-.stock-sub > .day-chg { grid-area: 1 / 2; justify-self: end; text-align: end; }
+/* 18/11/2026: עמודה אחת — כל שורה מתפרסת לבד על כל הרוחב (הנתון בהתחלה, הגלולה/האחוז בסוף). בשתי עמודות משותפות
+   "שינוי מהקנייה −$7,531" בשורה השנייה הרחיב את העמודה, והגלולה של השינוי היומי בשורה הראשונה נשברה לשתי שורות */
+.stock-sub { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; gap: 3px 12px; font-size: 14px; color: var(--on-surface-var); }
+.stock-sub > .day-chg { grid-area: 1 / 1; justify-self: end; text-align: end; white-space: nowrap; }
 .stock-sub > .sub-val { grid-area: 1 / 1; }
-.stock-sub > .buy-chg { grid-area: 2 / 2; justify-self: end; }
-.stock-sub > .buy-amt { grid-area: 2 / 1; }
+.stock-sub > .buy-chg { grid-area: 2 / 1; justify-self: end; white-space: nowrap; }
+.stock-sub > .buy-amt { grid-area: 2 / 1; white-space: nowrap; }
 .stock-sub .sub-val, .stock-sub .buy-amt { justify-self: start; font-variant-numeric: tabular-nums; }
+/* 18/11/2026: תווית משנית לפני הנתון ("שווי" / "שינוי") — קטנה, אפורה וקלה; הנתון נשאר הבולט, גם כשהוא צבעוני */
+.stock-sub .sub-lbl { font-size: 12.5px; font-weight: 500; color: var(--on-surface-var); margin-inline-end: 2px; }
+/* 18/11/2026: מעקב — השיא במקום החץ: המחיר בצבע המשני (כמו השווי), האחוז קטן וצבעוני (כמו "מהקנייה") */
+.stock-sub .wl-ath { white-space: nowrap; }
+.stock-sub .wl-ath-pct { font-size: 15px; font-weight: 600; margin-inline-start: 2px; }
+/* 19/11/2026: בכרטיס מעקב — שתי עמודות (המרחק מהשיא בהתחלה, גלולת היום בסוף), כך שלעולם לא יעלו זה על זה */
+.stock[data-watch] .stock-sub { grid-template-columns: minmax(0, 1fr) auto; }
+.stock[data-watch] .stock-sub > .day-chg { grid-area: 1 / 2; }
+.stock[data-watch] .stock-sub > .sub-val { grid-area: 1 / 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.stock-sub .wl-ath-pct:not(.pos):not(.neg) { color: var(--on-surface-var); }
+/* 19/11/2026 (בקשת המשתמש: "שלעולם לא יתנגשו, נקי לפי ת־עיצוב"): הכל בשורה אחת, וכל הטקסט בשורה (השיא והגלולה, כולל
+   הסכום בכסף) קטן יחד בקנה מידה אחד (--wk) לפי האורך שלה — fitWatchSubs ב־app.js, עם רווח נדיב (WK_GAP) ביניהם */
+.stock[data-watch] .stock-sub { --wk: 1; }
+.stock[data-watch] .stock-sub > .day-chg { font-size: calc(14px * var(--wk)); }
+.stock[data-watch] .stock-sub .day-amt { font-size: calc(13.5px * var(--wk)); margin-inline-start: calc(4px * var(--wk)); }
+.stock[data-watch] .stock-sub .wl-ath .sub-lbl { font-size: calc(12.5px * var(--wk)); }
+.stock[data-watch] .stock-sub .wl-ath-pct { font-size: calc(15px * var(--wk)); }
+main .stock[data-watch] .stock-sub > .day-chg { gap: calc(6px * var(--wk)) !important; padding: 2px calc(9px * var(--wk)) !important; }
 .stock-sub .buy-chg, .stock-sub .buy-amt { font-weight: 600; font-size: 13.5px; font-variant-numeric: tabular-nums; }
 .stock-sub .buy-chg:not(.pos):not(.neg), .stock-sub .buy-amt:not(.pos):not(.neg) { color: var(--on-surface-var); }
 .day-chg { font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -1081,7 +1101,8 @@ html[dir="ltr"] .stock-foot .kc-open-btn { order: -1; }   /* באנגלית (כ�
 /* תשואה ענקית (מעל 10,000%) מוצגת מקוצרת (‎fmtPct‎ — 12.3K%) — הכפתורים נשארים בגודל נוח ולא נדרסים */
 /* 28/10/2026: התראות המחיר של המניה בכרטיס — רשימה מקובצת לפי ת־עיצוב (כותרת קטנה, שורות עם קו מפריד, חץ) */
 /* 18/11/2026: ההתראות — שורת שבבים בגובה אחד (כמו טאבי רשימת המעקב), פעמון־פלוס בהתחלה; החומר — glass-btn.css */
-.st-al { display: flex; align-items: center; gap: 8px; margin: 2px 14px 10px; }
+/* 18/11/2026 (בקשת המשתמש): ריווח אחיד לפי ת־עיצוב — 12px מעל (משורת הטווחים) ו־12px מתחת (4 + ריפוד הכרטיס 8), מיושר לקצוות שורת הטווחים */
+.st-al { display: flex; align-items: center; gap: 8px; margin: 12px 0 4px; }
 .st-al[hidden] { display: none; }
 .st-al-add { inline-size: 36px; block-size: 36px; flex: none; display: grid; place-items: center; border: 0; border-radius: var(--pill); background: var(--surface); color: var(--on-surface); cursor: pointer; padding: 0; }
 .st-al-add svg { inline-size: 20px; block-size: 20px; }
@@ -1089,11 +1110,16 @@ html[dir="ltr"] .stock-foot .kc-open-btn { order: -1; }   /* באנגלית (כ�
 .st-al-add:active { transform: scale(.92); }
 .st-al-chips { flex: 1; min-inline-size: 0; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-block: -6px; padding: 6px 2px; }
 .st-al-chips::-webkit-scrollbar { display: none; }
-.st-al-chip { flex: none; display: inline-flex; align-items: center; gap: 4px; block-size: 36px; padding: 0 13px 0 11px; box-sizing: border-box;
+/* 18/11/2026 (בקשת המשתמש): המחיר והאחוז (בגדלים שונים) על קו בסיס משותף לפי ת־עיצוב, והשורה כולה ממורכזת בגובה (wrap + align-content — שורה אחת, לא נשברת); החץ ממורכז */
+.st-al-chip { flex: none; display: inline-flex; flex-wrap: wrap; align-content: center; align-items: baseline; gap: 4px; block-size: 36px; padding: 0 13px 0 11px; box-sizing: border-box;
   border: 1px solid var(--outline); border-radius: var(--pill); background: var(--surface); color: var(--on-surface); font: inherit; cursor: pointer; white-space: nowrap; transition: transform .15s ease; }
 .st-al-chip:active { transform: scale(.96); }
 .st-al-chip b { font-size: 15px; font-weight: 600; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
-.st-al-arr { display: grid; color: var(--on-surface-var); }
+.st-al-d { font-size: 12.5px; font-weight: 500; color: var(--on-surface-var); unicode-bidi: isolate; font-variant-numeric: tabular-nums; margin-inline-start: 3px; }
+.st-al-d:empty { display: none; }
+.st-al-d.pos { color: var(--gain); }
+.st-al-d.neg { color: var(--loss); }
+.st-al-arr { display: grid; align-self: center; color: var(--on-surface-var); }
 .st-al-arr svg { inline-size: 13px; block-size: 13px; display: block; }
 .st-al-chip.up .st-al-arr { color: var(--gain); }
 .st-al-chip.down .st-al-arr { color: var(--loss); }
@@ -1646,19 +1672,27 @@ html[data-app="cashflow"] .login-overlay { background: linear-gradient(160deg, #
 .earn-row:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .earn-veil { background: rgba(0, 0, 0, 0); transition: background-color .22s ease; }
 .earn-veil.show { background: rgba(0, 0, 0, .42); }
-.earn-sheet { transform: translateY(100%); transition: transform .28s cubic-bezier(.2, .9, .25, 1); padding: 8px 18px calc(18px + env(safe-area-inset-bottom)); border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
+.earn-sheet { transform: translateY(100%); transition: transform .28s cubic-bezier(.2, .9, .25, 1); padding: 8px 18px calc(14px + env(safe-area-inset-bottom)); border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  /* 19/11/2026: גובה מרבי — בלעדיו גיליון ארוך ברח מעל המסך והחלק העליון נחתך. הכותרת והכפתורים קבועים, רק הגוף נגלל (כשאין ברירה) */
+  display: flex; flex-direction: column; max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 12px); }
 .earn-veil.show .earn-sheet { transform: none; }
 .sheet-grab { width: 38px; height: 5px; border-radius: var(--pill); background: var(--outline); margin: 2px auto 14px; }
-.es-head { display: flex; align-items: center; gap: 12px; }
-.es-head .stock-logo { width: 52px; height: 52px; border-radius: var(--radius-sm); }
-.es-id { min-width: 0; }
-.es-title { font-size: 19px; font-weight: 800; }
+.earn-sheet > .sheet-grab { flex: none; margin-bottom: 10px; }
+.es-head { flex: none; display: flex; align-items: flex-start; gap: 12px; }
+.es-head .stock-logo { flex: none; width: 52px; height: 52px; border-radius: var(--radius-sm); }
+.es-id { flex: 1; min-width: 0; }
+.es-title { font-size: 19px; font-weight: 800; line-height: 1.25; }
 .es-name { font-size: 14px; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.es-when { margin: 14px 0 16px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); }
-.es-day { font-size: 16.5px; font-weight: 700; }
-.es-meta { font-size: 13.5px; color: var(--on-surface-var); margin-top: 2px; }
-.es-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; border-radius: var(--pill); margin-bottom: 10px; }
-.es-btn .ic { width: 20px; height: 20px; }
+.es-day { font-size: 15px; font-weight: 700; margin-top: 6px; }
+.es-meta { font-size: 13px; color: var(--on-surface-var); margin-top: 1px; }
+.es-x-close { flex: none; width: 34px; height: 34px; margin-top: -2px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: var(--surface-2); color: var(--on-surface); cursor: pointer; }
+.es-x-close svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.es-body { flex: 0 1 auto; line-height: 1.38; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; margin-inline: -18px; padding-inline: 18px; }
+.es-body::-webkit-scrollbar { display: none; }
+.es-acts { flex: none; display: flex; gap: 10px; margin-top: 12px; }
+.es-btn { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 7px; border-radius: var(--pill); margin: 0; padding-inline: 10px; font-size: 15.5px; }
+.es-btn span { unicode-bidi: plaintext; min-width: 0; text-align: center; line-height: 1.15; text-wrap: balance; } /* לפי ת־עיצוב: תווית כפתור לא נחתכת בשלוש נקודות — קצרה, ובמסך צר נשברת לשורה שנייה */
+.es-btn .ic { flex: none; width: 20px; height: 20px; }
 /* 15/11/2026: צפי לדוח — שורות קטנות בכרטיס, וטבלה בגיליון (אנליסטים / הנהלה) */
 .earn-x { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 4px; margin-top: 2px; font-size: 13px; color: var(--on-surface); line-height: 1.35; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .earn-x b { font-weight: 500; color: var(--on-surface-var); }
@@ -1674,13 +1708,13 @@ html[data-app="cashflow"] .login-overlay { background: linear-gradient(160deg, #
 .earn-tone.neu { color: var(--on-surface-var); background: color-mix(in srgb, var(--on-surface) 8%, transparent); }
 .earn-fc-v { font-size: 12px; font-weight: 600; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
 .earn-flag { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: var(--pill); font-size: 11.5px; font-weight: 700; white-space: nowrap; color: var(--warn-fg); background: var(--warn-bg); }
-.esx-sec { margin-top: 12px; padding-top: 10px; border-top: .5px solid var(--card-border); }
+.esx-sec { margin-top: 10px; padding-top: 9px; border-top: .5px solid var(--card-border); }
 .esx-st { font-size: 13.5px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
 .esx-st .earn-tone { margin-inline-start: 0; }
 .esx-sec .esx-meta { margin-top: 4px; }
-.esx-flag { font-size: 12.5px; margin-top: 8px; padding: 6px 10px; border-radius: var(--radius-sm); color: var(--on-surface); background: var(--warn-bg); }
+.esx-flag { font-size: 12.5px; line-height: 1.38; margin-top: 7px; padding: 6px 11px; border-radius: var(--radius-sm); color: var(--on-surface); background: var(--warn-bg); }
 .esx-flag > span { color: var(--warn-fg); }
-.es-x { margin: -4px 0 16px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); }
+.es-x { margin: 14px 0 0; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); }
 .esx-title { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
 .esx-grid { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); column-gap: 12px; row-gap: 8px; align-items: baseline; }
 .esx-grid.one { grid-template-columns: auto minmax(0, 1fr); }
@@ -1699,7 +1733,7 @@ html[data-app="cashflow"] .login-overlay { background: linear-gradient(160deg, #
 .earn-tone.pos { color: var(--gain); background: color-mix(in srgb, var(--gain) 14%, transparent); }
 .earn-tone.neg { color: var(--loss); background: color-mix(in srgb, var(--loss) 14%, transparent); }
 .esx-title .earn-tone { font-size: 12px; }
-.es-note { font-size: 12.5px; color: var(--on-surface-var); text-align: center; margin: 0 0 8px; }
+.es-note { flex: none; font-size: 12px; color: var(--on-surface-var); text-align: center; margin: 8px 0 0; }
 .es-cancel { display: block; width: 100%; background: none; border: 0; padding: 12px; font: inherit; font-size: 16px; font-weight: 600; color: var(--on-surface-var); cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .earn-sheet, .earn-veil { transition: none; } }
 .wl-earn { margin-top: 6px; font-size: 14px; color: var(--on-surface-var); }
