@@ -49,14 +49,19 @@ def bsf_pages(w, c, st, end, cache, months=12):
         if not cols:
             continue
         sc = d.get('scale') or {}
-        out = set()
+        out, filled = set(), 0
         for r in d.get('rows') or []:
+            got = False
             for i in cols:
                 v = r['v'][i] if i < len(r.get('v') or []) else None
                 if v is None:
                     continue
                 f = (sc.get('cols') or [None] * (i + 1))[i] if sc.get('cols') and i < len(sc['cols']) and sc['cols'][i] is not None else sc.get('cur', 1)
                 out.add(abs(round(v * (f or 1))))
+                got = True
+            filled += got
+        # עמודה חלקית (גל 7): העמודה של התקופה מלאה בפחות ממחצית השורות של הדף — הצגה של כמה שורות בלבד, לא דוח מלא של התקופה
+        x = dict(x, _part=filled * 2 < len(d.get('rows') or []))
         pages.append((x, sorted(out)))
     pages.sort(key=lambda p: p[0]['filed'], reverse=True)
     return pages
@@ -151,9 +156,10 @@ def main():
         if o.bsf and v in ('neither', 'nofsds') and c and ST.get(k, ['is'])[0] in ('is', 'cf') and k not in PER_SHARE and k != 'sh':
             pages = bsf_pages(o.w, c, ST.get(k, ['is'])[0], end, bcache, 12 if mode == 'A' else 3)
             # ברבעונים (גל 7): 10-K שמדפיס רק חלק מהשורות ברבעונים (Iron Mountain — הרווח התפעולי; Baxter — הכנסות, רווח גולמי ורווח
-            # נקי) ואין בו אף אחד משני הערכים — לא מכריע; ממשיכים להגשה הבאה, והפסק מסומן ‎-rk
+            # נקי), או הגשה שהעמודה של הרבעון בה חלקית (TransDigm ‏10-Q ‏2019-08: שישה רבעונים, והמוקדמים רק ברווח הנקי; Williams-Sonoma),
+            # ואין בו אף אחד משני הערכים — לא מכריע; ממשיכים להגשה הבאה, והפסק מסומן ‎-rk
             skip = 0
-            while mode != 'A' and len(pages) > 1 and pages[0][0]['form'].startswith('10-K') and not any(same(old, x, k) or same(new, x, k) for x in pages[0][1]):
+            while mode != 'A' and len(pages) > 1 and (pages[0][0]['form'].startswith('10-K') or pages[0][0].get('_part')) and not any(same(old, x, k) or same(new, x, k) for x in pages[0][1]):
                 pages, skip = pages[1:], skip + 1
             if not pages:
                 v = v + '/nor'

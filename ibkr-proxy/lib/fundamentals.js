@@ -117,7 +117,7 @@ const day = (s) => Date.parse(s + 'T00:00:00Z') / 864e5;
 // העומק: Kroger — הרבעון הראשון 16 שבועות, ‏111 יום, לא נכנס אף פעם; Costco, PepsiCo, Domino's, AutoZone — הרביעי)
 const qLen = (d) => (d >= 80 && d <= 100) || (d >= 110 && d <= 119);
 const PER_SHARE = new Set(['eps', 'dps']);
-const F20_Q = true; // F20 ברבעונים — כבוי (גל 6: ‏worse ‏49 במדידה; ראו bsfIs)
+const F20_Q = true; // F20 ברבעונים — דולק מגל 7 (F32: ‏1,212 ערכים על כל היקום, ‏worse 0; בגל 6 — ‏worse ‏49, כבוי). ‏wave-7.md
 // זרימות שבהן אפשר לבדוק שהרבעונים מאותו בסיס כמו השנה (qmix)
 const QPOS = ['cogs', 'dep', 'sbc', 'int']; // הכנסות, מחקר והשקעות הוניות — יכולים להיות מרוכזים ברבעון אחד בצדק
 /* באיזה דוח מופיעה כל שורה (לבחירת התגית לפי הדוח שהחברה הגישה — lib/secface.js) */
@@ -1570,15 +1570,18 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
     // ההגשה האחרונה (companyfacts, כל התגיות של המדד) שדיווחה תקופה של פחות משנה שמסתיימת ברבעון הזה — רבעון או מצטבר
     // עלות מכר שתוקנה ב"בסיס אחד לתקופה" (fixes) היא ההכנסות פחות הרווח הגולמי של ההגשה של ההכנסות — גם התאריכים שלהן נחשבים
     // (Danaher ‏2018: ‏1,754.7 מה־10-K שהציג מחדש את הרבעונים אחרי Envista; ה־10-Q של 2019 מדפיס ‏2,051.8 על הבסיס הקודם)
-    const lateOf = (k, e) => {
+    // עובדה של רבעון בודד נספרת רק כשהיא בערך שלנו (CoStar ‏2016-Q1: הערך שלנו ‏47.8M בתגית אחת מה־10-Q המקורי; ‏27.9M בתגית אחרת,
+    // המודפס, תויג שוב ב־10-K של 2018 — זה לא "הערך שלנו הוגש מאוחר יותר"). מצטבר, ובסיס העלות (הכנסות ורווח גולמי) — כל ערך
+    const lateOf = (k, e, old) => {
       let F = '';
-      const ks = k === 'cogs' && fixes.some((x) => x.m === 'cogs' && x.p === e) ? ['cogs', 'rev', 'gp'] : [k];
-      for (const k2 of ks) for (const mk of (merged[k2] && (merged[k2].fs || [merged[k2]])) || []) for (const [kk, h] of mk.dur || []) { const [s2, e2] = kk.split('|'); if (Math.abs(day(e2) - day(e)) <= 7 && day(e2) - day(s2) < 300) { const L = lastOf(h); if (L > F) F = L; } }
+      const fx = k === 'cogs' && fixes.some((x) => x.m === 'cogs' && x.p === e), ks = fx ? ['cogs', 'rev', 'gp'] : [k];
+      const ours = (h) => fx || old == null || [h.v, ...(h.all ? h.all.values() : [])].some((v) => v != null && near(Math.abs(v), Math.abs(old)));
+      for (const k2 of ks) for (const mk of (merged[k2] && (merged[k2].fs || [merged[k2]])) || []) for (const [kk, h] of mk.dur || []) { const [s2, e2] = kk.split('|'); if (Math.abs(day(e2) - day(e)) <= 7 && day(e2) - day(s2) < 300 && (day(e2) - day(s2) > 100 || ours(h))) { const L = lastOf(h); if (L > F) F = L; } }
       return F;
     };
-    // כבוי (גל 6, המדידה): 932 ערכים — better ‏289, ‏worse ‏49, ‏neither ‏524. כל 10-Q מדפיס רק שני רבעונים (השנה ואשתקד), ולכן השרשור
-    // נשבר בכל הצגה מחדש, והעוגן מחדש קופץ לבסיס המקורי (Iron Mountain ‏pretax ‏2015-Q1: ‏57.7M מה־10-Q המקורי במקום ‏41.1M שהוצג
-    // מחדש). דפי ה־10-Q נשארים — ל־F29 (אילו רבעונים מודפסים). ‏wave-6.md §3
+    // גל 6: כבוי — ‏932 ערכים, ‏worse ‏49: כל 10-Q מדפיס רק שני רבעונים, והשרשור קפץ בכל הצגה מחדש לבסיס המקורי (Iron Mountain ‏pretax
+    // ‏2015-Q1: ‏57.7M מה־10-Q המקורי במקום ‏41.1M שהוצג מחדש). גל 7 (F32): גם 10-K עם עמודות של 3 חודשים בשרשור, המשך לפי תגית,
+    // ושתי השמירות של ההגשה המאוחרת למטה — ‏1,212 ערכים, ‏worse 0 (ה־49 נשארים כמו שהם). ‏wave-7.md §1
     if (F20_Q) for (const k of IS_KEYS) {
       const M = ISQ[k]; if (!M) continue;
       for (const e of qEnds) {
@@ -1590,7 +1593,7 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
         if (old != null) { const pr = prAt(ISQ.printed, e); if (pr && pr.some((v) => near(Math.abs(old), v))) continue; }
         // גל 7 (F32): הערך שלנו הוגש אחרי ההגשה שממנה השרשור לקח את הרבעון — הצגה מאוחרת יותר (ביאור רבעוני מוצג מחדש ב־10-K:
         // Axon ‏2023-Q1, ‏Parker ‏2019-Q4, ‏Tyson ‏2019-Q3, ‏Live Nation; או 10-Q מאוחר שמדפיס רבעון ישן: Equinix, ‏HP) — לא מוחלף
-        if (old != null && lateOf(k, e) > p.filed) continue;
+        if (old != null && lateOf(k, e, old) > p.filed) continue;
         // הגשה מאוחרת יותר מדפיסה את הרבעון בשורות אחרות, ולא בשורה שלנו (Baxter ‏10-K ‏2025: הכנסות, רווח גולמי ורווח נקי ברבעונים
         // אחרי ההצגה מחדש של מכירת Kidney Care — עלות המכר שלנו ‏1,477 = ‏2,441 − ‏964 שם; ה־10-Q של 2024 מדפיס ‏2,238 על הבסיס הקודם)
         if (old != null && (bsfAt(ISQ.lastF, e) || '') > p.filed) continue;
@@ -1605,15 +1608,20 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
     // גל 7 (F33): השנתי שלנו מודפס ב־10-K הראשון שאחרי ההגשות האחרונות של שלושת הרבעונים — אותו בסיס. אחרת השנה הוצגה מחדש
     // מאוחר יותר והרבעונים לא (International Paper ‏2015: השנתי ‏14,313 מה־10-K של 2018, אחרי מכירת פעילות; הרבעונים מה־10-Q של
     // 2016 — ‏11,703; הרבעון הרביעי היה יוצא ‏2,610 במקום ~3,765)
+    // אין עדיין 10-K אחרי ההצגה האחרונה של הרבעונים (Casey's ‏2026: הרבעון הראשון מודפס שוב ב־10-Q של השנה הבאה, ה־10-K הבא עוד לא
+    // הוגש) — ה־10-K האחרון שמדפיס את השנה, וכל אחד משלושת הרבעונים שלנו כבר מודפס כך בהגשה האחרונה שלפניו (לא הוצג מחדש אחריו)
+    const colsAt = (x, mon, e) => x.is.cols.map((c, ci) => [c, ci]).filter(([c]) => c && c.months === mon && Math.abs(day(c.end) - day(e)) <= 7).map(([, ci]) => ci);
+    const prints = (x, cis, v) => x.is.rows.some((r) => { const w = SECFACE.rowVals(x.is, r); return cis.some((ci) => w[ci] != null && near(Math.abs(w[ci]), Math.abs(v))); });
+    const pages = (re) => Object.values(bsf).filter((x) => x && x.is && x.is.rows && re.test(x.form)).sort((a, b) => (a.filed < b.filed ? -1 : 1));
     const annNext = (k, e, qs) => {
       const T = qs.reduce((m, x) => { const f = bsfAt(ISQ.lastF || new Map(), x) || ''; return f > m ? f : m; }, '');
-      const K = Object.values(bsf).filter((x) => x && x.is && x.is.rows && /^10-K/.test(x.form) && x.filed > T).sort((a, b) => (a.filed < b.filed ? -1 : 1));
-      for (const x of K) {
-        const cis = x.is.cols.map((c, ci) => [c, ci]).filter(([c]) => c && c.months === 12 && Math.abs(day(c.end) - day(e)) <= 7).map(([, ci]) => ci);
-        if (!cis.length) continue;
-        return x.is.rows.some((r) => { const v = SECFACE.rowVals(x.is, r); return cis.some((ci) => v[ci] != null && near(Math.abs(v[ci]), Math.abs(A[k][e]))); });
-      }
-      return false;
+      const K = pages(/^10-K/), after = K.filter((x) => x.filed > T);
+      for (const x of after) { const cis = colsAt(x, 12, e); if (cis.length) return prints(x, cis, A[k][e]); }
+      if (after.length) return false;
+      const Kb = K.filter((x) => colsAt(x, 12, e).length).pop();
+      if (!Kb || !prints(Kb, colsAt(Kb, 12, e), A[k][e])) return false;
+      const P = pages(/^10-[QK]/).filter((x) => x.filed <= Kb.filed);
+      return qs.every((q) => { const x = P.filter((y) => colsAt(y, 3, q).length).pop(); return !!x && prints(x, colsAt(x, 3, q), Q[k][q]); });
     };
     for (const k of IS_KEYS) {
       for (const e of chg[k] || []) {

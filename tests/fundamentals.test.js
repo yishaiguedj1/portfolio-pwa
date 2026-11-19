@@ -1846,5 +1846,15 @@ ${row('ro', 'us-gaap_CostOfRevenue', 'Cost of sales', ['1', '2', '3', '4', '5', 
     ok(av(z1, '2023-12-31') === 450e6 && qv(z1, '2023-12-31') === 120e6, '(39) F33: השנתי מודפס ב־10-K שאחרי הרבעונים — הרבעון הרביעי נגזר מחדש');
     ok(av(z2, '2023-12-31') === 450e6 && qv(z2, '2023-12-31') == null && z2.cfy.some((c) => c.k === 'q4drop' && c.p === '2023-12-31'),
       '(39) F33: השנתי הוצג מחדש אחרי ה־10-K הראשון — לא גוזרים מבסיסים שונים (הרבעון הישן יורד)');
+    // ‏lateOf רק בערך שלנו (CoStar ‏2016-Q1): הערך שלנו (‏97) בתגית אחת מה־10-Q המקורי; ‏99 בתגית השנייה, המודפס, תויג שוב ב־10-K של 2025 —
+    // זו לא "הגשה מאוחרת של הערך שלנו", והשרשור מחליף ל־‏99
+    const PT1 = 'IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest', PT2 = 'IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments';
+    const FP = facts([['Revenues', 'USD', yrs([2000e6, 2100e6, 2200e6], 2022).concat([Qa(2023, 500e6, '2023-05-01'), Qa(2024, 520e6, '2024-05-01'), Qa(2025, 540e6, '2025-05-01')])],
+      [PT1, 'USD', yrs([400e6, 450e6, 480e6], 2022).concat([Qa(2023, 97e6, '2023-05-01'), Qa(2024, 104e6, '2024-05-01'), Qa(2025, 110e6, '2025-05-01')])],
+      [PT2, 'USD', [Qa(2023, 99e6, '2023-05-01'), Qa(2023, 99e6, '2025-02-01')]]]);
+    const bp = { a: QQ('2025-05-01', ['2025-03-31', '2024-03-31'], [['us-gaap', PT2, [110, 104]]]), b: QQ('2024-05-01', ['2024-03-31', '2023-03-31'], [['us-gaap', PT2, [104, 99]]]),
+      c: QQ('2023-05-01', ['2023-03-31', '2022-03-31'], [['us-gaap', PT2, [99, 90]]]) };
+    const p0 = F.normalizeSec(FP, [], null, bp);
+    ok(p0.Q.pretax[p0.q.indexOf('2023-03-31')] === 99e6, '(39) F32: ‏lateOf — עובדה מאוחרת בערך אחר (התגית השנייה) לא שומרת על הערך שלנו');
   }
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });
