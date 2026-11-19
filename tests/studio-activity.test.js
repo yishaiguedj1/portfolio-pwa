@@ -22,7 +22,7 @@ ok(q.map((r) => r.id).join() === 'q1,q2,v1', 'התור — בסדר של השר�
 ok(/\.sort\(\(a, b\) => \(a\.sm === 1\) - \(b\.sm === 1\) \|\| \(\(a\.spec \|\| \{\}\)\.vi === 1\) - \(\(b\.spec \|\| \{\}\)\.vi === 1\) \|\| \(a\.fired \|\| 0\) - \(b\.fired \|\| 0\)\)/.test(api), 'הסדר בשרתון לא השתנה (אחרת לעדכן את actSplit)');
 
 // החיבור לחוגה ולניווט
-ok(/if \(k === 'job' && \(\(stDialJob\(\) && stDialJob\(\)\.on\) \|\| quOk\(\)\)\) return \{ v: 'act', p: null \}/.test(st), 'יש עבודה פעילה (או השרת — תור עבודות, 19/11) — "פעילה" פותחת את עמוד הניהול');
+ok(/if \(k === 'job'\) return \{ v: 'act', p: null \};/.test(st) && !/T\('studioDialLast'\)/.test(st), '19/11: "מנהל עבודות" — תמיד העמוד, בלי "אחרונה"');
 ok(/if \(v === 'act' \|\| v === 'qnew'\) return 'job';/.test(st), 'העמוד שייך ל"פעילה" בחוגה');
 ok(/else if \(ui\.view === 'act'\) pageAct\(p\);/.test(st), 'הציור');
 ok(/x === 'tower' \|\| x === 'act' \|\| x === 'lib' \|\| x === 'home'/.test(st), 'ההורה — עמוד הבית ("חזור")');

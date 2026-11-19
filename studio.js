@@ -331,7 +331,7 @@ export function normJob(j) {
   const vm = j.vm && num(j.vm.w) > 0 && num(j.vm.h) > 0 ? { w: Math.min(num(j.vm.w), 16384), h: Math.min(num(j.vm.h), 16384) } : null;   // סבב 2: מידות הסרטון (מהבדיקה בטלפון)
   const gref = FID_RE.test(String(j.gref || '')) ? j.gref : '';   // שלב 4: רצועת ההשוואה מהסרטון (בתיקיית העבודה) — לסט הזהב כשהעבודה מסתיימת
   const org = normOrg(j.org);   // 28/10/2026: מאיפה הגיע כל קובץ (מוצג במסך העבודה)
-  return { id: j.id, created: num(j.created), spec, up, fp, srv, ...(chap.length ? { chap } : {}), ...(vm ? { vm } : {}), ...(gref ? { gref } : {}), ...(org ? { org } : {}) };
+  return { id: j.id, created: num(j.created), spec, up, fp, srv, ...(num(j.sn) ? { sn: num(j.sn) } : {}), ...(chap.length ? { chap } : {}), ...(vm ? { vm } : {}), ...(gref ? { gref } : {}), ...(org ? { org } : {}) };
 }
 /* 28/10/2026 (בקשת המשתמש: "שלכל כתוביות או קובץ אודיו יהיה המקור של מאיפה הוא הגיע בדיוק"): v = הסרטון
    (ph טלפון · dr Drive · bx רשימת הקבצים של Studio ב־Drive · ln קישור · dl הורד בטלפון מקישור · pa Studio לאנדרואיד),
@@ -1038,7 +1038,7 @@ export function normStore(o) {
   // 29/10/2026 (S1 בסרטון): מצב השרת האחרון — הקפסולה בהדר נכונה כבר בציור הראשון ("שרת המערכת", לא "חיבור Claude" שמתחלף)
   const st = src.st && typeof src.st === 'object' ? { api: normApi(src.st.api), mf: src.st.mf === true, r2: src.st.r2 === true } : null;
   // 10/11/2026 (PR 1.5ב, V37): המקום בדף הניתוח לכל עבודה — מספרים ומזהי פרקים בלבד (studiovi.js)
-  return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d, sugx, amd, st, spkc: normSpkc(src.spkc), vip: normPlaces(src.vip), vsp: normVsp(src.vsp) };
+  return { sna: num(src.sna) || Date.now(), settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d, sugx, amd, st, spkc: normSpkc(src.spkc), vip: normPlaces(src.vip), vsp: normVsp(src.vsp) };
 }
 /* C3 (סבב 4 של השדרוג): הצבע שבחרת לכל שם דובר — { שם: 0–5 }, עד SPKC_MAX שמות (האחרונים) */
 export const SPKC_MAX = 100;
@@ -2527,20 +2527,19 @@ function stDialJob() {            // הפעילה (בתור / רצה / בהעל�
   const on = store.jobs.find((r) => r && r.srv && !FINAL.includes(r.srv.state) && (r.srv.state !== 'new' || r.up.started));
   return on ? { rec: on, on: true } : (() => { const d = store.jobs.find((r) => r && r.srv && r.srv.state === 'done'); return d ? { rec: d, on: false } : null; })();
 }
-function stDialKeys() { const j = stDialJob() || quOk() || ui.view === 'act' || ui.view === 'qnew' || (stDialJ && ui.view === 'job' && ui.param === stDialJ); return ST_SIB.filter((k) => (k !== 'job' || j) && (k !== 'ka' || kaOk()) && (k !== 'vi' || viTabOk()) && (k !== 'lib' || libTabOk())); }
+function stDialKeys() { return ST_SIB.filter((k) => (k !== 'ka' || kaOk()) && (k !== 'vi' || viTabOk()) && (k !== 'lib' || libTabOk())); }
 function stKeyOf(v, p) {          // לאיזה פריט בחוגה שייך הדף
   if (v === 'act' || v === 'qnew') return 'job';   // 17/11/2026: "פעילה" = עמוד העבודות הפעילות
   const ch = chainFor(v, p);
   if (ch.some((x) => x.v === 'tower')) return 'tower';
   if (ch.some((x) => x.v === 'lib')) return 'lib';
   const j = ch.find((x) => x.v === 'job'), dj = stDialJob();
-  if (j && (j.p === stDialJ || (dj && dj.rec.id === j.p))) return 'job';   // "העבודה" — משותפת לשני הכלים
+  if (j && (j.p === stDialJ || (dj && dj.on && dj.rec.id === j.p))) return 'job';   // "העבודה" — משותפת לשני הכלים
   const sib = ch.slice().reverse().find((x) => x.v === 'ka' || x.v === 'vi' || x.v === 'home');   // העמוק מביניהם (השורש בכל שרשרת)
   return sib ? sib.v : 'home';
 }
 function stSibTarget(k) {
-  if (k === 'job' && ((stDialJob() && stDialJob().on) || quOk())) return { v: 'act', p: null };   // 19/11/2026: עם השרת — תמיד העמוד (משם פותחים תור עבודות)   // 17/11/2026 (בקשת המשתמש): יש עבודה פעילה — עמוד הניהול (רצות + תור); אין — האחרונה, כמו קודם
-  if (k === 'job') { const cur = ui.view === 'job' && stKeyOf(ui.view, ui.param) === 'job' ? ui.param : null, dj = stDialJob(); const id = cur || (dj && dj.rec.id); return id ? { v: 'job', p: id } : null; }
+  if (k === 'job') return { v: 'act', p: null };   // 19/11/2026 (בקשת המשתמש): "מנהל עבודות" — תמיד העמוד (פעילות, תור, ומה שהסתיים ולא נפתח); בלי "אחרונה"
   return ST_SIB.includes(k) ? { v: k, p: null } : null;
 }
 function stSibOk() {              // דף ראשי שהבית נמצא ישר מתחתיו
@@ -2591,9 +2590,9 @@ function stSwipePage(next) {
 const ICO_BUB = '<path d="M9.2 11.5H7.2L4.2 14.2V11.5A2.2 2.2 0 0 1 2 9.3V5A3 3 0 0 1 5 2H10A3 3 0 0 1 13 5V8"/><path d="M14 10.5H19A3 3 0 0 1 22 13.5V18A2.2 2.2 0 0 1 19.8 20.2V22.7L17 20.2H14A3 3 0 0 1 11 17.2V13.5A3 3 0 0 1 14 10.5Z"/>';
 const ICO_TR = ICO_BUB + '<path d="M4.9 9.6L7.5 3.9l2.6 5.7M5.9 7.7h3.2" stroke-width="1.7"/><path d="M14 12.8l4.9 5.2M18.9 12.6v.8c0 1-.8 1.7-2.2 2.1M15.7 14.6c-1 .4-1.6 1.2-1.6 2.6v.9" stroke-width="1.7"/>';
 const ST_DIAL_ICO = {
-  // 30/10/2026 (בקשת המשתמש): הבית = תרגום סרטונים, הקריוקי = תו, העבודה = משותפת לשניהם (פעימה)
+  // 30/10/2026 (בקשת המשתמש): הבית = תרגום סרטונים, הקריוקי = תו, העבודה = משותפת לשניהם (מ־19/11: מנהל העבודות — רשימה ושעון)
   home: ICO_TR,   // 18/11/2026: התרגום = שתי בועות דיבור (היה מסך עם כתובית)
-  job: '<path d="M3 12h3.8l2.4-6.5 5.6 13 2.4-6.5H21"/>',
+  job: '<path d="M3 6h10M3 12h5.5M3 18h7"/><circle cx="16.5" cy="15" r="5"/><path d="M16.5 12.6V15l1.7 1.1"/>',   // 19/11/2026 (בקשת המשתמש, חלופה ו׳ מהתצוגה המקדימה): מנהל עבודות — רשימה ושעון (עבודות שמחכות בתור), במקום הפעימה
   tower: '<path d="M9.2 21l.9-8.5h3.8l.9 8.5M7 21h10M6.5 8.5h11l-1.6 4h-7.8zM12 8.5V4.5M9.8 4.5h4.4"/>',
   ka: '<circle cx="8.5" cy="17.5" r="3"/><path d="M11.5 17.5V3.5c0 2.6 4.8 3.4 4.8 7.2"/>',
   vi: '<rect x="3" y="4" width="18" height="12.5" rx="2.5"/><path d="M12 16.5V20M8.5 20h7M7 8.5h5M7 12h3"/><circle cx="15.6" cy="10" r="2.2"/><path d="M17.2 11.6l1.5 1.5"/>',   // 10/11/2026: ניתוח — לוח הרצאה וזכוכית מגדלת
@@ -2606,7 +2605,7 @@ function stDialNav() {
     { k: 'ka', ico: ST_DIAL_ICO.ka, lbl: T('studioDialKa') },
     { k: 'home', ico: ST_DIAL_ICO.home, lbl: T('studioDialHome') },
     { k: 'vi', ico: ST_DIAL_ICO.vi, lbl: T('studioDialVi') },
-    { k: 'job', ico: ST_DIAL_ICO.job, lbl: T('studioDialLast') }, { k: 'lib', ico: ST_DIAL_ICO.lib, lbl: T('studioDialLib') }, { k: 'tower', ico: ST_DIAL_ICO.tower, lbl: T('studioDialTower') },
+    { k: 'job', ico: ST_DIAL_ICO.job, lbl: T('studioDialOn') }, { k: 'lib', ico: ST_DIAL_ICO.lib, lbl: T('studioDialLib') }, { k: 'tower', ico: ST_DIAL_ICO.tower, lbl: T('studioDialTower') },
   ], stDialTo);
   return dialNav;
 }
@@ -2677,7 +2676,7 @@ function stDialSync(instant) {
   if (kb) kb.hidden = !stDialKeys().includes('ka');
   const vb = dialNav.querySelector('.tab[data-tab="vi"]');
   if (vb) vb.hidden = !stDialKeys().includes('vi');
-  if (jb) { jb.hidden = !stDialKeys().includes('job'); dialLabel(jb, (dj && dj.on) || quOk() ? T('studioDialOn') : T('studioDialLast')); }   // 19/11/2026: עם השרת — תמיד "פעילה" (תור עבודות)
+  if (jb) { jb.hidden = !stDialKeys().includes('job'); dialLabel(jb, T('studioDialOn')); }   // 19/11/2026 (בקשת המשתמש): תמיד "מנהל עבודות" — בלי "אחרונה"
   if (show && !stDialC) dialSync(instant);
 }
 function segAfter() { const seg = root && root.querySelector('.st-page > .st-seg'); const out = []; for (let e = seg && seg.nextElementSibling; e; e = e.nextElementSibling) out.push(e); return out; }
@@ -3537,18 +3536,26 @@ function pageAct(p) {
   const gs = quGroups(store.jobs), inQ = new Set(gs.flatMap((g) => g.all.map((r) => r.id)));
   for (const g of gs) p.append(...quSection(g));
   const [now, q] = actSplit(store.jobs.filter((r) => !inQ.has(r.id)), (r) => jobPhase(r, runs.get(r.id)));
-  if (!now.length && !q.length) {
-    if (gs.length) return;
+  const fin = actUnseen(store.jobs, store.sna, Date.now());   // 19/11/2026: הסתיימו ולא נפתחו (במקום "אחרונה")
+  if (!now.length && !q.length && !gs.length && !fin.length) {
     const e = h('div', 'st-empty');
     const ic = h('span', 'st-empty-ic'); ic.append(ico('check'));
     e.append(ic, h('b', null, T('studioActEmpty')));
     p.append(e);
-    const last = stDialJob();
-    if (last) p.append(secT(T('studioDialLast')), list(projRow(last.rec, { act: true })));
     return;
   }
   if (now.length) p.append(secT(T('studioActNow', { n: now.length })), list(...now.map((r) => projRow(r, { act: true }))));
   if (q.length) p.append(secT(T('studioActQ', { n: q.length })), list(...q.map((r) => projRow(r, { act: true }))));
+  if (fin.length) p.append(secT(T('studioActDone', { n: fin.length })), list(...fin.map((r) => projRow(r, { act: true }))));
+}
+/* 19/11/2026 (בקשת המשתמש): במנהל העבודות — עבודות שהסתיימו (או נכשלו) ועוד לא נפתחו. "נפתחה" = rec.sn (בטלפון, נקבע בדף
+   העבודה כשהיא כבר הסתיימה). רק מה שהסתיים מאז שהמכשיר התחיל לסמן (sna — בלי הצפה של עבודות ישנות בעדכון ובמכשיר חדש),
+   ועד ACT_RECENT_MS. טהורה */
+export const ACT_RECENT_MS = 7 * 24 * 3600 * 1000;
+export function actUnseen(jobs, sna, now) {
+  const t = (r) => r.srv.ended || r.created || 0;
+  return (jobs || []).filter((r) => r && r.srv && (r.srv.state === 'done' || r.srv.state === 'failed') && !r.sn && t(r) >= (sna || 0) && now - t(r) < ACT_RECENT_MS)
+    .sort((a, b) => t(b) - t(a));
 }
 /* דף בניית התור (ui.param = תור קיים להוספה, או null לתור חדש) */
 function pageQu(p) {
@@ -10379,6 +10386,7 @@ function techSec(rec, ph0, outs) {
 function pageJob(p) {
   const rec = jobRec(ui.param);
   if (!rec) { back(); return; }
+  if (!rec.sn && rec.srv && FINAL.includes(rec.srv.state)) { rec.sn = Date.now(); saveSoon(); }   // 19/11/2026: נפתחה אחרי שהסתיימה — יוצאת מ"הסתיימו ולא נפתחו" במנהל העבודות
   if (viPageOk(rec)) { pageVi(p, rec); return; }   // PR 1.5ב: ניתוח שהסתיים — דף הניתוח (9.4)
   const id = rec.id;
   amMaybe(rec);

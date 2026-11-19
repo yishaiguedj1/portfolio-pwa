@@ -60,6 +60,19 @@ ok(/inQ = new Set\(gs\.flatMap/.test(st) && /actSplit\(store\.jobs\.filter\(\(r\
 ok(/for \(const \[id, fo\] of made\) \{ quPend\.delete\(id\); paintSoon\(\); try \{ await startRun\(id, fo\); \}/.test(st), 'ההעלאות — אחת אחרי השנייה');
 ok(/qu: q\.qu \};/.test(st) && /if \(k === 'ka'\) \{ ff\.ka = true; kaSpec\(ff, spec\); \}/.test(st) && /viSpecOf\(Object\.assign\(ff, \{ vi: true, vf: 'auto', vt: k === 'vt' \}\), spec\)/.test(st), 'quSpec: אותן פונקציות של הטפסים, עם התור');
 ok(/go1\.disabled = !n \|\| n > QU_MAX/.test(st) && /export const QU_MAX = 40;/.test(st) && S.maxActive() >= 40, 'עד QU_MAX בפעם אחת (בתוך מגבלת העבודות הפעילות של השרתון)');
+// 7ב. מנהל העבודות (19/11, בקשת המשתמש): בלי "אחרונה" — מה שהסתיים ועוד לא נפתח
+{
+  const U = new Function("const FINAL = ['done', 'failed', 'cancelled'];\n" + cut('export const ACT_RECENT_MS', '/* דף בניית התור').replace(/export /g, '') + '\nreturn { actUnseen, ACT_RECENT_MS };')();
+  const T0 = 1e12, D = 24 * 3600e3;
+  const Rx = (id, state, ended, sn) => ({ id, created: ended - 1000, srv: { state, ended }, spec: {}, ...(sn ? { sn } : {}) });
+  const l = U.actUnseen([Rx('a', 'done', T0 + 5 * D), Rx('b', 'failed', T0 + 6 * D), Rx('c', 'done', T0 + 4 * D, T0 + 5 * D), Rx('d', 'cancelled', T0 + 6 * D),
+    Rx('e', 'done', T0 - 1), Rx('f', 'running', 0), Rx('g', 'done', T0 + 0.5 * D)], T0, T0 + 8 * D);
+  ok(l.map((r) => r.id).join() === 'b,a', 'actUnseen: הסתיימו/נכשלו ולא נפתחו, החדשות קודם; לא: נפתחה, בוטלה, לפני שהמכשיר התחיל לסמן, רצה, ישנה משבוע');
+  ok(/if \(!rec\.sn && rec\.srv && FINAL\.includes\(rec\.srv\.state\)\) \{ rec\.sn = Date\.now\(\); saveSoon\(\); \}/.test(st), 'דף העבודה: נפתחה אחרי שהסתיימה — sn');
+  ok(/\.\.\.\(num\(j\.sn\) \? \{ sn: num\(j\.sn\) \} : \{\}\)/.test(st) && /return \{ sna: num\(src\.sna\) \|\| Date\.now\(\),/.test(st), 'sn ו־sna נשמרים (normJob / normStore)');
+  ok(/job: '<path d="M3 6h10M3 12h5\.5M3 18h7"\/><circle cx="16\.5" cy="15" r="5"\/>/.test(st) && !/M3 12h3\.8l2\.4-6\.5/.test(st), 'הסמל: רשימה ושעון (חלופה ו׳), לא הפעימה');
+  ok(/dialLabel\(jb, T\('studioDialOn'\)\)/.test(st) && /lbl: T\('studioDialOn'\)/.test(st), 'החוגה: תמיד "מנהל עבודות"');
+}
 // 8. studio.js נטען כמודול (19/11: הערה בסוף שורה בלעה "}" — הבדיקות ב־vm עברו והדף לא נטען)
 {
   const os = require('os'), cp = require('child_process');
