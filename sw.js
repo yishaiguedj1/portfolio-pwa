@@ -36,7 +36,7 @@ const HASHES = {
   "./favicon-48.png": "b06144704421831d745fd553558517a7",
   "./ibkr-logo.png": "3c73fe172d48b3f58f11bcc146dd1987",
   "./acclink.js": "2683d480115d8440aba209f988184d32",
-  "./analysis.js": "bce80d2a8f9e02c92fd2752b09814744",
+  "./analysis.js": "de08473885e97141026eced02a15add1",
   "./analysis.css": "2073a623dd410221a2e1a49eb8dbbb83",
   "./taxcenter.js": "9f66ea89d2f027260196a7b3d96e876d",
   "./taxcenter.css": "49d72724551122808472e2d92ce76b63",
