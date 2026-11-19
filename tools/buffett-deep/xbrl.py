@@ -35,6 +35,7 @@ ALT = {
             'SalesRevenueNet', 'RevenuesNetOfInterestExpense'],
     'ni': ['NetIncomeLoss', 'NetIncomeLossAvailableToCommonStockholdersDiluted', 'ProfitLoss'],
 }
+FIN = __import__('re').compile(r'^(10-K|10-Q|10-KT|10-QT|20-F|40-F|6-K|8-K)(/A)?$')
 FRAME_TAGS = {'eps': ('EarningsPerShareDiluted', 'USD-per-shares'), 'sh': ('WeightedAverageNumberOfDilutedSharesOutstanding', 'shares'),
               'tax': ('IncomeTaxExpenseBenefit', 'USD'), 'ni': ('NetIncomeLoss', 'USD')}
 
@@ -74,7 +75,9 @@ def series(F, tag, comp):
                     u = v
                     break
         if u:
-            return [x for x in u if x.get('start') and x.get('end')]
+            # רק דוחות כספיים: דוח זימון האסיפה (DEF 14A, טבלת "שכר מול ביצועים") מתייג רווח נקי ביחידות אחרות (ANET: 3,511 = ‏$3.5B
+            # במיליונים בלי קנה מידה), והוא היה נבחר כ"אחרון שהוגש"
+            return [x for x in u if x.get('start') and x.get('end') and FIN.match(x.get('form') or '')]
     return []
 
 
@@ -215,6 +218,19 @@ def main():
                     ep['approx'] = ni['same']['last'] / sh['sys']
                     ep['ok'] = tol_ok('eps', ep['sys'], ep['approx'])
                     ep['why'] = 'q4-approx'
+                # פיצול / איחוד מניות: ב־XBRL הערך כפי שדווח אז, אצל המערכת — מותאם להיום. אותו מקדם הפוך ברווח למניה ובמניות,
+                # והרווח הנקי לא זז (רווח למניה × מניות זהה בשניהם) → 'split' עם המקדם, לא פער
+                for a, b in (('eps', 'sh'),):
+                    A_, B_ = vals[a], vals[b]
+                    if A_.get('ok') is False and A_.get('same') and A_['sys'] and A_['same']['last']:
+                        f = A_['sys'] / A_['same']['last']
+                        sb = B_.get('same')
+                        if sb and B_['sys'] and abs(f * B_['sys'] / sb['last'] - 1) < 0.01:
+                            A_['split'] = B_['split'] = round(f, 4)
+                            A_['ok'] = B_['ok'] = True
+                        elif not sb and B_['sys'] and ni.get('sys') and abs(A_['sys'] * B_['sys'] / ni['sys'] - 1) < 0.02:
+                            A_['split'] = round(f, 4)   # אין מניות עצמאיות — הרווח למניה של המערכת עקבי עם הרווח הנקי והמניות שלה
+                            A_['ok'] = True
                 for comp in COMP:
                     r = vals[comp]
                     n += 1

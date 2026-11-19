@@ -125,5 +125,32 @@ ok(/^Stock-based compensation \| 630 \| \(492\)$/m.test(txt) && /^Non-GAAP net i
   ok(g(ends[2], 'eps').frame && g(ends[2], 'eps').frame.v === 1.2 && g(ends[2], 'eps').frame.frame === 'CY2025Q3', 'xbrl.py: ה־frame של SEC לרבעון הקלנדרי');
 }
 
+// ledger.py: יומן האימות — זהות מול המימוש העצמאי, החילוץ מ־SEC, והקוראים לפי ההודעה של הרבעון עצמו
+{
+  const W = path.join(tmp, 'w');
+  fs.mkdirSync(path.join(W, 'pr'), { recursive: true });
+  fs.copyFileSync(mOut, path.join(W, 'm1.jsonl'));
+  fs.copyFileSync(iOut, path.join(W, 'i1.jsonl'));
+  const e = M.EXA.rows[3].e, filed = M.EXA.rows[3].polBy.filed, street = M.EXA.rows[3].hq.a, acc = '0000000009-26-000002';
+  fs.writeFileSync(path.join(W, 'x1.jsonl'), [
+    { sym: 'EXA', e, c: 'sbc', used: true, sys: M.EXA.rows[3].sbc, same: { last: M.EXA.rows[3].sbc, how: 'ytd' }, ok: true },
+    { sym: 'EXA', e, c: 'eps', used: true, sys: M.EXA.rows[3].g, same: { last: M.EXA.rows[3].g + 0.05, how: 'q' }, ok: false },
+  ].map((o) => JSON.stringify(o)).join('\n') + '\n');
+  fs.writeFileSync(path.join(W, 'pr', '9.json'), JSON.stringify({ sym: 'EXA', cik: 9, items: [{ acc, filed }] }));
+  for (const who of ['A', 'B']) {
+    fs.mkdirSync(path.join(W, 'read', who), { recursive: true });
+    fs.writeFileSync(path.join(W, 'read', who, 'p.jsonl'), JSON.stringify({ acc, cik: 9, er: true, adj: true, ex: true, nums: { pe: e, eps_adj: street } }) + '\n');
+  }
+  const cks = path.join(W, 'ciks.tsv');
+  fs.writeFileSync(cks, 'EXA\t9\n');
+  const lo = path.join(W, 'l.csv');
+  execFileSync('python3', ['-I', path.join(T, 'ledger.py'), W, '1', lo], { env: { ...process.env, BD_CIKS: cks } });
+  const L = fs.readFileSync(lo, 'utf8').trim().split('\n').map((l) => l.split(','));
+  const v = (comp, ee = e) => (L.find((r) => r[0] === 'EXA' && r[1] === ee && r[2] === comp) || [])[4];
+  ok(v('pol') === 'V3' && v('street') === 'V2' && v('sbc') === 'V2' && v('gaap') === 'DIFF' && v('ded') === 'V2' && v('bpe', '') === 'V2',
+    'ledger.py: מדיניות V3 (שני קוראים), רחוב V2 (ההודעה), תגמול V2, ‏GAAP ‏DIFF, ניכוי ואריח — זהות');
+  ok(v('pol', M.EXA.rows[0].e) === 'PEND', 'ledger.py: רבעון בלי קריאה — PEND');
+}
+
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(`\n${n} בדיקות עברו`);
