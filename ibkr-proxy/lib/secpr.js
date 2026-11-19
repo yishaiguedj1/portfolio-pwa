@@ -161,7 +161,7 @@ function exhibits(index, doc) {
 function q4From(rows, ni, est, post, ann) {
   const pfs = [...new Set([1].concat(post == null ? [] : post).filter((x) => x > 0))];
   if (!rows || !rows.length || !(est > 0) || !Number.isFinite(ni)) return null;
-  let best = null;
+  let best = null; const all = [];
   const isEps = (r) => r.v.every((x) => x == null || Math.abs(x) < 5000) && r.v.some((x) => x != null && Math.round(x) !== x);
   for (const re of rows) {
     if (!isEps(re)) continue;
@@ -178,11 +178,15 @@ function q4From(rows, ni, est, post, ann) {
           const err = Math.abs(e * s - ni), tol = 0.0051 * s + 0.02 * Math.abs(ni);
           if (err > tol) continue;
           const sc = err / (tol || 1) + Math.abs(s / est - 1);
-          if (!best || sc < best.sc) best = { eps: Math.round(e * 1e4) / 1e4, sh: s, sc, i, row: rs.v.map((x) => (x == null ? null : x * f * pf)) };
+          const c = { eps: Math.round(e * 1e4) / 1e4, sh: s, sc, i, rs, row: rs.v.map((x) => (x == null ? null : x * f * pf)) }; all.push(c);
+          if (!best || sc < best.sc) best = c;
         }
       }
     }
   }
+  // גל 9: אותו רווח למניה בשתי עמודות של אותה שורת מניות (Schwab ‏2018: ‏.65 ב־Q3 וב־Q4) — העיגול מכריע במקרה, ולכן העמודה
+  // הראשונה (הרבעון של ההודעה; העמודות שאחריה — רבעונים קודמים / אשתקד)
+  if (best) { const f0 = all.filter((c) => c.rs === best.rs && c.eps === best.eps && c.i < best.i).sort((a, b) => a.i - b.i)[0]; if (f0) best = f0; }
   return best && { eps: best.eps, sh: best.sh, col: best.i, row: best.row }; // row — שורת המניות כולה (בקנה המידה שלנו), לבדיקת הבסיס בשנה
 }
 
@@ -203,4 +207,10 @@ const epsLike = (r) => r.v.every((x) => x == null || Math.abs(x) < 5000) && r.v.
 const shLab = (r) => /share|weight|average|outstanding/i.test(r.label + ' ' + (r.ctx || '')) && !/per (common )?share|earnings per|income per|loss per|\beps\b/i.test(r.label);
 const shRow = (r) => !yearsOnly(r) && (shLab(r) || !epsLike(r));
 
-module.exports = { shRow, parse, parseText, parseEps, pickItems, ALT, exhibits, q4From, isShares, num };
+/* גל 9 (F37): שורות הרווח הנקי בהודעה — "Net income (loss)", ‏"Net income (loss) attributable to CrowdStrike" — לרבעון רביעי שנמחק
+   בכוונה (הרבעונים 1–3 הוצגו מחדש, ‏qmix ‏rst): העמודה של השנה מאמתת את השורה מול השנתי שלנו, ועמודה אחרת באותה שורה היא הרבעון.
+   לא רווח למניה, לא זכויות מיעוט, לא מותאם */
+const NI_ROW = /^net (income|loss|earnings|\(loss\)|\(income\))/i;
+const NI_NOT = /per (common |diluted |basic )?share|non.?controlling|minority|margin|adjusted|non.?gaap|excluding|before|from continuing|from discontinued|%/i;
+const parseNi = (html) => parse(html, (l) => NI_ROW.test(l) && !NI_NOT.test(l)).slice(0, 24).map(({ t, label, v }) => ({ t, label, v }));
+module.exports = { shRow, parse, parseText, parseEps, parseNi, pickItems, ALT, exhibits, q4From, isShares, num };

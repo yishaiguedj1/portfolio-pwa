@@ -70,7 +70,7 @@ async function fetchOne(cik) {
   const pf = path.join(PD, cik + '.p.json'), p = fs.existsSync(pf) ? JSON.parse(fs.readFileSync(pf, 'utf8')) : {};
   const list = BSF.periodic(S.sub, S.files, BSF.SINCE_Y);
   const ends = [...new Set(list.filter((f) => /^10-K/.test(f.form) && f.rep).map((f) => f.rep))];
-  const its = P.pickItems(BSF.merge8k(S.sub, S.files), ends).filter((it) => BSF.prNeed(p[it.end]));
+  const its = P.pickItems(BSF.merge8k(S.sub, S.files), ends).filter((it) => BSF.prNeed(p[it.end], it.end));
   let n = 0;
   for (const it of its) { const r = await BSF.readPr(cik, it, getText).catch(() => null); if (r) { p[it.end] = r; n++; } }
   if (n || !fs.existsSync(pf)) fs.writeFileSync(pf, JSON.stringify(p));
