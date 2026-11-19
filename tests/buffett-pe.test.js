@@ -145,6 +145,16 @@ ok(!X.classify(CMC.replace('$61 million, $46 million net of tax, related to cert
 ok(X.classify(ADJ + 'stock-based compensation 40. ' + CMC).pp === 0, 'עדות מלאה בהודעה — לא חלקי');
 c3 = X.classify('three months ended net loss $ (110) stock-based compensation 160 adjusted net loss $ (529) diluted');
 ok(c3.ex, '"adjusted net loss" — יעד (CRWV, ‏B-036)');
+// B-037 ‏(Con Edison): שורת גורם שינוי ב־EPS — לא הוצאה. ‏B-038 ‏(Emerson): מדד של התגמול עצמו, וחלק השילוב בטבלה — חלקי עם הסכום
+const ED = 'three months ended reported eps (gaap basis) 1.30 diluted. variation for the three months ended september 30, 2025 vs. 2024 net income for common stock (net of tax) (millions of dollars) earnings per share higher electric rate base $37 $0.11 lower commercial paper interest expense 14 0.04 lower stock based compensation 13 0.04 lower state and local taxes other than income 7 0.02 total cecony 102 0.22 adjusted eps (non-gaap basis) 1.62 1.51';
+ok(!X.classify(ED).ex, 'שורת גורם שינוי "lower stock based compensation" — לא עדות (ED, ‏B-037)');
+ok(!X.classify(ED.replace('lower stock', 'higher stock')).ex, 'גם "higher …"');
+const EMR = 'three months ended net earnings 1,000 adjusted earnings per share 1.52 diluted. table 5 adjusted corporate and other supplemental (dollars in millions, unaudited) the following table shows the company\'s stock compensation and corporate and other expenses on an adjusted basis. the company\'s definition of adjusted stock compensation excludes integration-related stock compensation expense. this metric is useful for reconciling from total adjusted segment ebita to the company\'s consolidated adjusted ebita. quarter ended march 31, 2025 2026 stock compensation (gaap) $ (59) $ (57) integration-related stock compensation expense 9 1 4 adjusted stock compensation (non-gaap) $ (50) $ (53) quarter ended march 31, 2025 2026 corporate and other (gaap) $ (238) $ (51) 1 integration-related stock compensation expense for the three months ended march 31, 2025 relates to aspentech. adjusted earnings per share excludes intangibles amortization and restructuring';
+c3 = X.classify(EMR);
+ok(c3.ex && c3.pp === 1 && JSON.stringify(c3.sa) === '[4000000]', 'מדד "adjusted stock compensation" — לא יעד; חלק השילוב בטבלה — חלקי, הרבעון הנוכחי (2026 — האחרון), במיליונים (EMR, ‏B-038)');
+c3 = X.classify(EMR.replace(/2025 2026/g, '2026 2025').replace('expense 9 1 4', 'expense 4 9 1'));
+ok(c3.pp === 1 && JSON.stringify(c3.sa) === '[4000000]', 'שנים מהחדש לישן — הראשון');
+ok(!X.classify(EMR.replace('(dollars in millions, unaudited)', '')).ex, 'בלי יחידות לפני הטבלה — לא (לא מנחשים)');
 
 /* ---------- tagQ (fundamentals.js): סדרה רבעונית מתגית אחת — ישיר, מצטבר פחות מצטבר מאותה התחלה, שנה פחות שלושה רבעונים ---------- */
 {

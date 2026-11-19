@@ -12,7 +12,8 @@ const SECPR = require('./secpr');
 const SV = 4;          // גרסת המסווג — שינוי בכללים = מספר חדש, וההודעות נקראות מחדש (2: המשפט כולו בעדות במילים, 19/11/2026;
                        // 3: שיעור המס ה־non-GAAP שהחברה מצהירה ‏(tr), הסכום בשורת התגמול בגישור ‏(sa) וסוף הרבעון ‏(qe), גל 1 של שיטת באפט;
                        //    וגם B-025 ו־B-026 ‏(SKIP_PRE), ‏B-027 (מדדי מנהלות השקעות ב־TGT) ו־tb — המס המותאם כולל את הטבת המס;
-                       // 4: ‏B-034 עד B-036 — הטבת מס עודפת, "certain"/"portion of"/רכישה ‏(SKIP_PRE, ‏SKIP_REL), סכום חלקי ‏(pp), ‏"net loss" ב־TGT)
+                       // 4: ‏B-034 עד B-036 — הטבת מס עודפת, "certain"/"portion of"/רכישה ‏(SKIP_PRE, ‏SKIP_REL), סכום חלקי ‏(pp), ‏"net loss" ב־TGT;
+                       //    ‏B-037/B-038 — שורת גורם שינוי, מדד של התגמול עצמו, וחלק השילוב בטבלה ‏(PARTT))
 const MAX = 6;         // הודעות אחרונות (4 רבעוני ה־12 חודשים + מרווח להודעה מקדימה)
 const DAYS = 460;
 
@@ -28,9 +29,12 @@ const SBC = /(?:stock|share|equity)[- ]?based(?: and deferred)? compensation|sto
 // שורת מס ומשפט מס — "income tax effect of share-based compensation", "the normalized tax benefit of share-based compensation"
 // (Applied Materials, שכוללת את התגמול ברווח המותאם; B-026 — לפני גרסה 3 נספרו כעדות, ו־AMAT סומנה "מוציאה" ב־5 מתוך 5);
 // "excess tax benefits ( etb ) associated with stock-based compensation" (Quest, ‏B-034). חלק מהתגמול — "certain share-based compensation
-// expenses" (Comcast, ‏B-035: כ־60 מיליון ברבעון מתוך כ־200, בשורה אחת עם עלויות אחרות — אין סכום לנכות, והרחוב כולל את רוב התגמול)
-const SKIP_PRE = /(?:excess|settlement of|exercise of|incremental(?: non-cash)?|accelerated|one-time|(?:income )?tax (?:benefits?|effects?)(?:\s*\(\s*["“”']?[a-z]{2,5}["“”']?\s*\))? (?:of|from|on|related to|associated with)|certain(?: other)?|(?:a )?portion of(?: the)?|acquisition[- ]related(?: cash)?(?: and| &)?)\s*$/;
-const SKIP_POST = /compensation awards? (?:with|using)|tax (?:benefit|deduction)/;
+// expenses" (Comcast, ‏B-035: כ־60 מיליון ברבעון מתוך כ־200, בשורה אחת עם עלויות אחרות — אין סכום לנכות, והרחוב כולל את רוב התגמול).
+// שורת גורם שינוי ב־EPS ("lower stock based compensation 0.04 0.04" — Con Edison, ‏B-037: זהה ב־GAAP ובמותאם, לא הוצאה שהוצאה).
+// מדד של התגמול עצמו ("adjusted stock compensation (non-gaap)") והחלק של שילוב רכישה ("integration-related stock compensation
+// expense") — Emerson, ‏B-038: הסכום של השילוב נקרא ב־PARTT
+const SKIP_PRE = /(?:excess|lower|higher|increased|decreased|reduced|adjusted|integration[- ]related|settlement of|exercise of|incremental(?: non-cash)?|accelerated|one-time|(?:income )?tax (?:benefits?|effects?)(?:\s*\(\s*["“”']?[a-z]{2,5}["“”']?\s*\))? (?:of|from|on|related to|associated with)|certain(?: other)?|(?:a )?portion of(?: the)?|acquisition[- ]related(?: cash)?(?: and| &)?)\s*$/;
+const SKIP_POST = /compensation awards? (?:with|using)|tax (?:benefit|deduction)|compensation(?: expenses?)? \((?:non-)?gaap\)/;
 // "…compensation (expense) related to the X acquisition / separation / spin-off" — חלק מהתגמול, חד־פעמי (B-035; כמו B-025). על 110 תווים
 // מהאזכור (SKIP_POST — על 60)
 const SKIP_REL = /^[a-z -]{0,45}?(?:related to|associated with|in connection with) (?:the |our )?[a-z0-9&.' -]{0,40}?(?:acquisition|separation|spin|merger|ipo)\b/;
@@ -165,6 +169,22 @@ function carried(t) {
    related to certain share-based compensation expenses" — הרחוב מוציא רק אותו. בלי עדות מלאה (E/P): מוציא, והסכום (בדולרים, לפני מס)
    בשדה pp. סכום מעורב ("$123 million … of other adjustments, which includes … certain share-based compensation") — לא */
 const PART = /includes? \$\s?(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s*(million|billion)(?:,\s*\$\s?\(?[\d.,]+\)?\s*(?:million|billion)\s*net of tax,?)?\s*(?:related to|of|for)\s*certain (?:stock|share|equity)[- ]based compensation/;
+// אותו דבר בשורת טבלה (Emerson, ‏B-038): "integration-related stock compensation expense 9 1 4" — הרבעון הנוכחי לפי סדר השנים בכותרת
+// ("2025 2026" — האחרון; ‏"2026 2025" — הראשון; הערת שוליים באמצע לא משנה), והיחידות מ־"in millions/thousands" לפני הטבלה
+const PARTT = /(?:integration|acquisition)[- ]related (?:stock|share|equity)[- ]?(?:based )?compensation(?: expenses?)?((?:\s+\(?\$?\s*\d{1,3}(?:,\d{3})*(?:\.\d+)?\)?){1,4})(?=\s+[a-z])/g;
+function partT(t) {
+  let m;
+  PARTT.lastIndex = 0;
+  while ((m = PARTT.exec(t))) {
+    const v = (m[1].match(/\d{1,3}(?:,\d{3})*(?:\.\d+)?/g) || []).map((x) => +x.replace(/,/g, ''));
+    const bk = t.slice(Math.max(0, m.index - 300), m.index), yy = [...bk.matchAll(/\b(20\d\d) (20\d\d)\b/g)].pop();
+    const un = [...t.slice(Math.max(0, m.index - 4000), m.index).matchAll(/\bin (millions|thousands|billions)\b/g)].pop();
+    if (!yy || !un || !v.length) continue;
+    const x = +yy[1] < +yy[2] ? v[v.length - 1] : v[0];
+    if (x > 0) return [x * (un[1] === 'millions' ? 1e6 : un[1] === 'thousands' ? 1e3 : 1e9)];
+  }
+  return null;
+}
 function classify(raw, filed) {
   const t = raw && raw.length && /</.test(raw.slice(0, 2000)) ? text(raw) : String(raw || '').toLowerCase().replace(/\s+/g, ' ');
   // הודעת תוצאות: רבעון + רווח למניה (MRK ו־XOM לא כותבות "diluted")
@@ -199,8 +219,9 @@ function classify(raw, filed) {
     hits.push(mo && /operating (?:income|expenses?|profit)|gross (?:profit|margin)/.test(mo[0]) && !/ebitda|segment|cash|tax/.test(mo[0]) ? 'o' : inCf ? 'c' : '-');
   }
   const carry = hits.includes('o') && carried(t);
-  const full = hits.some((h) => h === 'E' || h === 'P') || carry, pm = !full && !nowNeg ? PART.exec(t) : null;
-  if (pm) { sa = [+pm[1].replace(/,/g, '') * (pm[2] === 'billion' ? 1e9 : 1e6)]; nt = 0; }
+  const full = hits.some((h) => h === 'E' || h === 'P') || carry, p1 = !full && !nowNeg ? PART.exec(t) : null;
+  const pt = !full && !nowNeg && !p1 ? partT(t) : null, pm = p1 || pt;
+  if (p1) { sa = [+p1[1].replace(/,/g, '') * (p1[2] === 'billion' ? 1e9 : 1e6)]; nt = 0; } else if (pt) { sa = pt; nt = 0; }
   const ex = !nowNeg && (full || !!pm);
   return { ex, fut: ex && !futNeg, er, n: t.length, h: (nowNeg ? 'N' : futNeg ? 'F' : '') + hits.join('').slice(0, 40), tr: taxRate(t), pp: pm ? 1 : 0, tb: ex && TB.test(t) ? 1 : 0, ns: ex ? nShares(t) : null, sa: ex ? sa : null, nt: ex && sa != null ? nt : 0, qe: qEnd(t, filed), k: hits.length };
 }
