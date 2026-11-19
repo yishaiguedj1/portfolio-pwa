@@ -14,7 +14,7 @@ vm.createContext(sb);
 vm.runInContext(pick('function depDateKey(', 'function depositsNewestFirst('), sb);
 vm.runInContext(pick('function depositsNewestFirst(', '/* v147:'), sb);
 vm.runInContext(pick('function depILS(', '/* סך הפקדות נטו'), sb);
-vm.runInContext(pick('function depYearGroups(', 'const depNetTxt'), sb);
+vm.runInContext(pick('function depYearGroups(', '/* סכום מצטבר במטבע התצוגה'), sb);
 vm.runInContext(pick('function depShortDate(', 'function buildDepositRow('), sb);
 const R = (c) => vm.runInContext(c, sb);
 const g = R(`depYearGroups(depositsNewestFirst([

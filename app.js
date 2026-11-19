@@ -8117,11 +8117,6 @@ function fmtAg(v, sym) {
   const n = (Math.round(v * 100 * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
   return state.lang === 'en' ? n + ' ag.' : '\u2067' + n + ' ' + t('agShort') + '\u2069';
 }
-function fmtILS2(v) {
-  if (v === null || v === undefined || !isFinite(v)) return '—';
-  if (Math.abs(v) >= NUM_BIG) return fmtILS(v);
-  return '₪' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 /* v142: מטבע המסחר של מניה — בורסת ת"א (סיומת .TA) בשקלים, השאר בדולרים.
    כל מחיר/ממוצע/עסקה של מניה נשמר במטבע שלה; סכומים (שווי, רווח, עוגה, תשואה)
@@ -8189,8 +8184,8 @@ function nativeToUSD(v, sym, fx) {
   const r = fx === undefined ? state.fx : fx;
   return r > 0 ? v / r : null;
 }
-/* מחיר למניה לתצוגה: מניה ישראלית תמיד בשקלים (ככה היא נסחרת); מניה אמריקאית
-   לפי מטבע התצוגה (כמו קודם). */
+/* מחיר למניה לתצוגה — תמיד במטבע המסחר: מניה ישראלית בשקלים/אגורות, אמריקאית בדולרים
+   (19/11/2026: גם בתצוגת שקלים — מטבע התצוגה חל רק על סכומים מצטברים). */
 function fmtPx(v, sym) {
   const k = mktKind(sym);
   if (k === 'yield') return fmtYield(v);
@@ -8199,7 +8194,7 @@ function fmtPx(v, sym) {
   if (k === 'future' || k === 'crypto') return fmtUSD2(v); // סחורה/קריפטו מצוטטים בדולרים — גם בתצוגת שקלים
   if (isIndexSym(sym)) return fmtPts(v);
   if (symCur(sym) === 'ILS') return fmtAg(v, sym);
-  return state.currency === 'ILS' && state.fx ? fmtILS(v * state.fx) : fmtUSD2(v);
+  return fmtUSD2(v); // 19/11/2026 (בקשת המשתמש): מחיר למניה תמיד במטבע המסחר — מטבע התצוגה רק לסכומים (שווי, רווח, סך)
 }
 /* v209: שינוי מחיר עם סימן, באותה יחידה כמו המחיר (fmtPx): "−$2.16", "+₪6.58", "−35 אג׳", "+12.40 נק׳". */
 function fmtSignedPx(v, sym) {
@@ -8217,14 +8212,14 @@ function fmtSignedPx(v, sym) {
     return state.lang === 'en' ? ltrNum(sg + n + ' pts') : '\u2067' + ltrNum(sg + n) + ' ' + t('ptsShort') + '\u2069';
   }
   const cur = symCur(sym);
-  const r = cur === 'ILS' ? (isTaseIndex(sym) ? Math.round(v * 100) / 100 : Math.round(v * 10000) / 100) : Math.round((state.currency === 'ILS' && state.fx ? v * state.fx : v) * 100) / 100;
+  const r = cur === 'ILS' ? (isTaseIndex(sym) ? Math.round(v * 100) / 100 : Math.round(v * 10000) / 100) : Math.round(v * 100) / 100;
   const sg = r < 0 ? '−' : r > 0 ? '+' : '';
   if (cur === 'ILS') {
     const n = Math.abs(r).toLocaleString('en-US', isTaseIndex(sym) ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { maximumFractionDigits: 2 });
     const unit = isTaseIndex(sym) ? (state.lang === 'en' ? 'pts' : t('ptsShort')) : (state.lang === 'en' ? 'ag.' : t('agShort'));
     return state.lang === 'en' ? ltrNum(sg + n + ' ' + unit) : '\u2067' + ltrNum(sg + n) + ' ' + unit + '\u2069';
   }
-  return ltrNum(sg + (state.currency === 'ILS' && state.fx ? fmtILS2(Math.abs(r)) : fmtUSD2(Math.abs(r))));
+  return ltrNum(sg + fmtUSD2(Math.abs(r)));
 }
 function fmtILS(v) {
   if (v === null || v === undefined || !isFinite(v)) return '—';
@@ -8322,7 +8317,7 @@ function stripLegacyDemo(db) {
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
 const APP_RELEASE = '2.191.0';
-const APP_VERSION = 'v856';
+const APP_VERSION = 'v857';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -8495,6 +8490,19 @@ function depILS(d) {
   if (n && n.cur === 'ILS') return -n.amt;
   return num(d && d.amount) || 0;
 }
+/* 19/11/2026 (בקשת המשתמש: בתצוגת דולר הסכומים המצטברים בדולר): הסכום במטבע התצוגה (שלילי = נכנס).
+   הפקדה במטבע התצוגה — כמו שהיא; אחרת — לפי שער יום ההפקדה (או השער הנוכחי כשהיסטוריית השערים לא נטענה). */
+function depInCur(d, cur) {
+  if (cur !== 'USD') return depILS(d);
+  const n = depNative(d);
+  if (n && n.cur === 'USD') return -n.amt;
+  if (n && n.cur !== 'ILS' && Number(d.fxb) > 0) return -Math.round(n.amt * Number(d.fxb) * 100) / 100;
+  const ils = depILS(d);
+  if (!ils) return 0;
+  const k = depDateKey(d);
+  const fx = (k && typeof fxOnOrBefore === 'function' && fxOnOrBefore(k.slice(0, 4) + '-' + k.slice(4, 6) + '-' + k.slice(6))) || (typeof state !== 'undefined' && state.fx) || 0;
+  return fx > 0 ? Math.round(ils / fx * 100) / 100 : 0;
+}
 /* סך הפקדות נטו — מחושב מהרשומות (סכום שלילי = כסף שנכנס לתיק) */
 function netDepositsILS() {
   return -DEPOSITS.reduce((a, d) => a + depILS(d), 0);
@@ -8565,7 +8573,8 @@ function manualFlowsILS(positions, trades, fxOf, fxNow) {
     const ils = toIls(native, x.sym, (fxOf && fxOf(x.date)) || fxNow);
     if (ils === null) { missing++; continue; }
     const amount = x.side === 'BUY' ? -r2(ils) : r2(ils);
-    rows.push({ id: x.id, date: x.date, sym: x.sym, side: x.side, qty: x.qty, price: x.price, amount: amount });
+    const nat = { cur: symCur(x.sym) === 'ILS' ? 'ILS' : 'USD', amt: x.side === 'BUY' ? -r2(native) : r2(native) };   // במטבע המניה
+    rows.push({ id: x.id, date: x.date, sym: x.sym, side: x.side, qty: x.qty, price: x.price, amount: amount, nat: nat });
     inILS -= amount;
   }
   for (const p of (positions || [])) {
@@ -8574,7 +8583,7 @@ function manualFlowsILS(positions, trades, fxOf, fxNow) {
     if (!(cost > 0)) continue;
     const ils = toIls(cost, p.sym, fxNow);
     if (ils === null) { missing++; continue; }
-    avgRows.push({ sym: p.sym, qty: num(p.shares), price: num(p.avg), amount: -r2(ils) });
+    avgRows.push({ sym: p.sym, qty: num(p.shares), price: num(p.avg), amount: -r2(ils), nat: { cur: symCur(p.sym) === 'ILS' ? 'ILS' : 'USD', amt: -r2(cost) } });
     inILS += r2(ils);
   }
   rows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
@@ -10794,8 +10803,9 @@ function pieCashUSD(cash, fx) {
 }
 
 function depositsInCur() {
-  const nd = netDepositsILS();
-  return state.currency === 'ILS' ? nd : (state.fx ? nd / state.fx : null);
+  if (state.currency === 'ILS') return netDepositsILS();
+  if (!state.fx && DEPOSITS.some((d) => { const n = depNative(d); return !n || n.cur !== 'USD'; })) return null;
+  return -DEPOSITS.reduce((a, d) => a + depInCur(d, 'USD'), 0);
 }
 
 /* הפרדה בין שני סוגי משתמשים:
@@ -20276,16 +20286,19 @@ function renderDeposits() {
     ensureFxHist().then(() => renderDeposits()).catch(() => null);
   }
   // 25/10/2026: הפקדות IBKR במטבע זר — הסך בשקלים לפי שער יום ההפקדה (נטען פעם אחת)
-  const fxDeps = DEPOSITS.filter((d) => d.cur && d.cur !== 'ILS').map((d) => String(d.date || '').slice(0, 10)).sort();
-  if (fxDeps.length && !state._depFxHist) {
+  // 19/11/2026: הסכומים המצטברים במטבע התצוגה — הפקדה במטבע אחר מומרת לפי שער יומה (גם שקלים בתצוגת דולר)
+  const cur = state.currency === 'ILS' ? 'ILS' : 'USD';
+  const fxDeps = DEPOSITS.filter((d) => { const n = depNative(d); return cur === 'ILS' ? !!(d.cur && d.cur !== 'ILS') : !(n && n.cur === 'USD'); })
+    .map((d) => { const k = depDateKey(d); return k ? k.slice(0, 4) + '-' + k.slice(4, 6) + '-' + k.slice(6) : ''; }).filter(Boolean).sort();
+  if (fxDeps.length && !fxHistCache && !state._depFxHist) {
     state._depFxHist = true;
     ensureFxHist(fxDeps[0]).then(() => renderAll()).catch(() => null);
   }
-  const nd = netDepositsILS() + (hasMf ? mf.inILS : 0);
-  const ndTxt = ltrNum((nd < 0 ? '−' : '') + '₪' + numLoc(Math.abs(Math.round(nd * 100) / 100)));
-  document.getElementById('depTotal').textContent = ndTxt;
+  const mfIn = hasMf ? mfInCur(mf, cur) : 0;
+  const nd = -DEPOSITS.reduce((a, d) => a + depInCur(d, cur), 0) + mfIn;
+  document.getElementById('depTotal').textContent = depMoneyTxt(nd, cur, 2);
   document.getElementById('depCount').textContent = t('records', { n: DEPOSITS.length }) +
-    (hasMf ? ' · ' + t('depInclManual', { amt: ltrNum((mf.inILS < 0 ? '−' : '') + '₪' + numLoc(Math.abs(mf.inILS))) }) : '');
+    (hasMf ? ' · ' + t('depInclManual', { amt: depMoneyTxt(mfIn, cur, 2) }) : '');
   const dn = document.getElementById('depNoteEl');
   if (dn) dn.classList.toggle('hidden', isIbkrMode()); // ההסבר הידני (גיליון) לא רלוונטי במצב IBKR
   const de = document.getElementById('depIbkrEmpty');
@@ -20314,10 +20327,10 @@ function renderDeposits() {
   // 15/11/2026 (בקשת המשתמש): כרטיס זכוכית לכל שנה במקום רשימה אחת ארוכה — השנה האחרונה פתוחה
   const yrOpen = state._depYrOpen || (state._depYrOpen = new Map());
   // 19/11/2026 (בקשת המשתמש): שבבי שנה כמו בעסקאות — "הכל" = כל השנים לאורך העמוד, שנה = רק הכרטיס שלה, פתוח
-  const groups = depYearGroups(shown);
+  const groups = depYearGroups(shown, cur);
   const selY = depYearsBar(groups);
-  if (selY === 'all') groups.forEach((g, k) => ul.appendChild(buildDepYear(g, yrOpen.has(g.y) ? yrOpen.get(g.y) : k === 0, ed, yrOpen)));
-  else ul.appendChild(buildDepYear(groups.find((g) => g.y === selY), true, ed, yrOpen));
+  if (selY === 'all') groups.forEach((g, k) => ul.appendChild(buildDepYear(g, yrOpen.has(g.y) ? yrOpen.get(g.y) : k === 0, ed, yrOpen, cur)));
+  else ul.appendChild(buildDepYear(groups.find((g) => g.y === selY), true, ed, yrOpen, cur));
   if (!shown.length && DEPOSITS.length && !(hasMf && srcPass(sf, 'manual'))) ul.appendChild(el('p', 'fine', t('srcFilterEmpty')));
   if (hasMf && srcPass(sf, 'manual') && selY === 'all') {
     const head = el('li', 'dep-sub');
@@ -20330,7 +20343,7 @@ function renderDeposits() {
       li.innerHTML = '<span><span class="r-date">' + fmtDateIL(r.date) + '</span> ' +
         srcTagHTML('manual') + '<br><span class="r-note">' + esc(r.sym) + ' · ' + esc(side(r.side)) +
         ' ' + r.qty + ' × ' + esc(fmtPx(r.price, r.sym)) + '</span></span>' +
-        '<span>' + depositAmountHTML(r.amount) + '</span>';
+        '<span>' + depositAmountHTML(r.amount, r.nat) + '</span>';
       ul.appendChild(li);
     }
     for (const r of mf.avgRows) {
@@ -20338,7 +20351,7 @@ function renderDeposits() {
       li.innerHTML = '<span><span class="r-date">' + esc(t('depManualAvg')) + '</span> ' +
         srcTagHTML('manual') + '<br><span class="r-note">' + esc(r.sym) + ' · ' + r.qty + ' × ' +
         esc(fmtPx(r.price, r.sym)) + '</span></span>' +
-        '<span>' + depositAmountHTML(r.amount) + '</span>';
+        '<span>' + depositAmountHTML(r.amount, r.nat) + '</span>';
       ul.appendChild(li);
     }
   }
@@ -20368,15 +20381,15 @@ function depYearsBar(groups) {
   return show ? y : 'all';
 }
 
-/* טהורה: הפקדות (כבר מהחדשה לישנה) בקבוצות לפי שנה, עם הנטו בשקלים (חיובי = נכנס לתיק) */
-function depYearGroups(shown) {
+/* טהורה: הפקדות (כבר מהחדשה לישנה) בקבוצות לפי שנה, עם הנטו במטבע cur (ברירת מחדל שקלים; חיובי = נכנס לתיק) */
+function depYearGroups(shown, cur) {
   const out = [], by = new Map();
   for (const x of shown) {
     const y = depDateKey(x.d).slice(0, 4) || '—';
     let g = by.get(y);
     if (!g) { g = { y, items: [], net: 0, nIn: 0, nOut: 0, sumIn: 0, sumOut: 0 }; by.set(y, g); out.push(g); }
     g.items.push(x);
-    const v = -depILS(x.d);   // חיובי = נכנס לתיק
+    const v = -depInCur(x.d, cur || 'ILS');   // חיובי = נכנס לתיק
     g.net += v;
     if (depIsOut(x.d)) { g.nOut++; g.sumOut -= v; } else { g.nIn++; g.sumIn += v; }
     // בתוך השנה — קטלוג לפי חודש (בקשת המשתמש: שיהיה ברור באיזה חודש בוצעה כל הפקדה)
@@ -20384,7 +20397,7 @@ function depYearGroups(shown) {
     let mo = g.months && g.months[g.months.length - 1];
     if (!mo || mo.m !== m) { mo = { m, items: [], net: 0 }; (g.months || (g.months = [])).push(mo); }
     mo.items.push(x);
-    mo.net -= depILS(x.d);
+    mo.net += v;
   }
   for (const g of out) { for (const k of ['net', 'sumIn', 'sumOut']) g[k] = Math.round(g[k] * 100) / 100; for (const mo of g.months) mo.net = Math.round(mo.net * 100) / 100; }
   return out;
@@ -20399,8 +20412,26 @@ function depMonthName(m) {
   if (!m) return '';
   try { return new Intl.DateTimeFormat(state.lang === 'en' ? 'en-US' : 'he-IL', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2000, Number(m) - 1, 1))); } catch (e) { return m; }
 }
-const depNetTxt = (v) => ltrNum((v < 0 ? '−' : '') + '₪' + numLoc(Math.abs(v), { maximumFractionDigits: 0 }));
-function buildDepYear(g, open, ed, yrOpen) {
+/* סכום מצטבר במטבע התצוגה: "−$1,250" / "₪63,697" */
+function depMoneyTxt(v, cur, dec) {
+  const r = Math.round((Number(v) || 0) * 100) / 100;
+  return ltrNum((r < 0 ? '−' : '') + (cur === 'USD' ? '$' : '₪') + numLoc(Math.abs(r), { maximumFractionDigits: dec || 0 }));
+}
+/* כסף שנכנס בקניות ידניות (מצב IBKR) במטבע התצוגה: שקלים — כמו שחושב; דולר — במטבע המניה, שקלים לפי שער יום העסקה */
+function mfInCur(mf, cur) {
+  if (cur !== 'USD') return mf.inILS;
+  let s = 0;
+  const conv = (r, iso) => {
+    if (r.nat && r.nat.cur === 'USD') return r.nat.amt;
+    const fx = (iso && fxOnOrBefore(iso)) || state.fx;
+    return fx > 0 ? r.amount / fx : 0;
+  };
+  for (const r of mf.rows) s -= conv(r, r.date);
+  for (const r of mf.avgRows) s -= conv(r, '');
+  return Math.round(s * 100) / 100;
+}
+function buildDepYear(g, open, ed, yrOpen, cur) {
+  const depNetTxt = (v) => depMoneyTxt(v, cur, 0);
   const li = el('li', 'dep-yr' + (open ? ' open' : ''));
   li.dataset.yr = g.y;
   const id = 'depYr-' + g.y.replace(/\W/g, '_');
