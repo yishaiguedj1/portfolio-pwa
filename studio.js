@@ -3500,7 +3500,7 @@ const quRunning = (qu) => store.jobs.filter((r) => r.spec && r.spec.qu === qu &&
    של הכלי עם כל ההגדרות שלו, ו"להוסיף לתור" (form.qd) במקום "להתחיל". העבודות נשמרות ברשימה (בזיכרון — הקבצים לא נשמרים), ורק
    "להתחיל את כל העבודות" יוצר אותן בשרת. לחיצה ארוכה על עבודה ברשימה — עריכה, עוד עבודה לאותו סרטון, סדר, הסרה */
 let qf = null;              // { qu, qn, ex, items: [{ id, k, f, spec }] }
-const quOk = () => apiMode() && !!ui.r2;
+const quOk = () => !!(ui.api && ui.api.servers > 0 && ui.r2);   // 19/11/2026 (2.192.1): יש שרת ו־R2 — בלי תלות במנוע שבהגדרות
 /* כפתור הטופס במצב תור: "להוסיף לתור" (או "לשמור" בעריכה) במקום "להתחיל" */
 const quBtnL = (f, l) => (!f.qd ? l : f.qi ? T('studioQuSaveJob') : T('studioQuAdd'));
 export const quKindOf = (f) => (f.ka ? 'ka' : f.vi ? 'vi' : 'tr');
@@ -3687,6 +3687,9 @@ function quTake(f) {
     ui.starting = false;
     if (form !== f) { render('none'); return; }
     const spec = formSpec(f, f.fileObj, pr || {}, sm);
+    // תמיד בשרת של המערכת (התור); "המנוי שלי" — התרגום דרך ה־Routine שלך (ry נשאר; ניתוח וקריוקי מוחקים אותו). העתק־הדבק לא מתאים לתור
+    if (spec.eng !== 'api') Object.assign(spec, { eng: 'api', cap: store.settings.cap });
+    delete spec.cp;
     const it = { id: f.qi || wlNew(), k: quKindOf(f), f, spec };
     const at = q.items.findIndex((x) => x.id === it.id);
     if (at >= 0) q.items[at] = it; else q.items.push(it);
@@ -3699,7 +3702,7 @@ function quUsd(items) {   // אומדן: תרגום (startEstimate) + ניתוח
   let t = 0;
   for (const it of items || []) {
     const sp = it.spec, d = sp.dur || 3600;
-    if (it.k === 'tr') t += startEstimate(sp.mode, d, curNorm(), ui.api, true).usd * (sp.bt ? BT_EST : 1);
+    if (it.k === 'tr' && !sp.ry) t += startEstimate(sp.mode, d, curNorm(), ui.api, true).usd * (sp.bt ? BT_EST : 1);
     if (it.k === 'vi') t += viUsd(sp.mode, it.f.vf || 'auto', d) + (sp.vt ? startEstimate(sp.mode, d, curNorm(), ui.api, true).usd : 0);
   }
   return Math.round(t * 100) / 100;

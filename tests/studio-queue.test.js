@@ -109,4 +109,6 @@ ok(/go1\.disabled = !n \|\| n > QU_MAX/.test(st) && /export const QU_MAX = 40;/.
   fs.writeFileSync(tmp, st);
   ok(cp.spawnSync(process.execPath, ['--check', tmp]).status === 0, 'studio.js — תחביר תקין כמודול (node --check על .mjs)');
 }
+ok(/const quOk = \(\) => !!\(ui\.api && ui\.api\.servers > 0 && ui\.r2\);/.test(st), '2.192.1: הכרטיס — כשיש שרת ו־R2, בלי תלות במנוע שבהגדרות');
+ok(/else if \(ryMode\(\)\) Object\.assign\(spec, \{ eng: 'api', cap: store\.settings\.cap, ry: 1 \}\);/.test(cut('function formSpec', 'function startFromForm')) && /if \(spec\.eng !== 'api'\) Object\.assign\(spec, \{ eng: 'api'/.test(st) && /delete spec\.cp;/.test(st) && /if \(it\.k === 'tr' && !sp\.ry\) t \+= startEstimate\(/.test(st), '2.192.1: "המנוי שלי" — התרגום דרכו (formSpec), ובלי עלות באומדן; תמיד בשרת, בלי העתק־הדבק');
 console.log('# ' + n + ' בדיקות');
