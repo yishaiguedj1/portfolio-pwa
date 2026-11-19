@@ -2044,6 +2044,14 @@ async function server(req, res, body, deps) {
       if (!v || !job.bw || job.pk || br.includes(job.id) || (job.bq && job.bq.s === v.s && job.bq.t === v.t)) continue;
       await patchDoc(deps, 'studioJobs', job.id, { bq: v }).catch(() => null);
     }
+    // 19/11/2026: תור עבודות — כמה מכל תור כבר רצות. נקרא רק כשעבודה מתור מגיעה ללקיחה, פעם אחת לתור בפנייה
+    const quN = new Map();
+    const quFull = async (job) => {
+      const q = job.qu;
+      if (!q || !S.WL_RE.test(String(q))) return false;
+      if (!quN.has(q)) quN.set(q, S.quBusy(await query(deps, 'studioJobs', { qu: q }, 100).catch(() => []), q, now));
+      return quN.get(q) >= S.QU_PAR;
+    };
     for (const job of qd) {
       if (!apiJob(job) || S.effState(job, now).state !== 'queued') continue;
       if (ptJob(job)) continue;   // 25/10/2026: הטלפון לוקח אותה בעצמו (phClaim)
@@ -2051,6 +2059,7 @@ async function server(req, res, body, deps) {
       if (job.kind === 'lb' && hb.lb !== 1) continue;   // 16/11/2026: עבודת־העזר של המאגר — רק לעובד שמכיר אותה (עובד ישן היה מסמן worker_unknown_kind)   // 9/11/2026: ניתוח — רק לעובד שמכיר אותו (hb.vi); עובד ישן היה מריץ אותו כתרגום, עם Claude
       if (job.bw && !br.includes(job.id) && !lost.includes(job.id)) continue;   // 01/11/2026 (I3): מחכה לתור החיסכון — רק כשהסוכן אמר שהתשובות חזרו (או שהתור שלה אבד)
       if (job.vw && !((job.spec && job.spec.ph === 1 ? job.fph : job.fv) || {}).id) continue;   // 15/10/2026: מחכה לסרטון — לא תופסים שרת עד שהוא נרשם (24/10: בתרגום בטלפון — לקובץ המדידות)
+      if (await quFull(job)) continue;   // 19/11/2026: התור כבר מריץ QU_PAR — מחכה, ולא חוסם עבודות של אחרים ולא עבודות רגילות (continue, לא break)
       if (fit && (S.peakNeed(job, fit) > fit.mb || S.perfBlock(job, fit))) {   // 5/11/2026: וגם הקבלה החזויה (perfBlock)
         // 17/11/2026: למה היא מחכה — נכתב רק כשהשתנה (patchIf לא יבוא אחריו בפנייה הזו: יוצאים מהלולאה)
         const qw = S.qwOf(job, fit);
@@ -4152,6 +4161,7 @@ async function handler(req, res, deps = {}) {
       if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.maxActive(isAdmin(user))) return res.status(409).json({ ok: false, error: 'too_many' });
       for (const old of all.filter((j) => S.FINAL.includes(S.effState(j, now).state)).slice(S.MAX_STORED - 1)) { await learnSave(deps, old, now); await delDoc(deps, 'studioJobs', old.id); }
       const job = { id: S.newJobId(), uid, kind: 'tr', state: 'new', created: now, updated: now, spec };
+      if (spec.qu && spec.eng === 'api') job.qu = spec.qu;   // 19/11/2026: תור עבודות — שדה עליון, לשאילתה בלקיחה (spec נשמר כ־JSON)
       if (apiJob(job) && R2.config().ok) job.folder = SR.folderFor(job.id);   // ת4: עבודה במצב שרת — הקבצים ב־R2 (Routine נשאר ב־Drive)
       await patchJob(deps, job.id, job);
       // 25/10/2026: עבודה מקישור מתחילה כבר כאן — בלי לחכות שהטלפון יישאר פתוח עד op:'start' (באייפון Safari מקפיא את הדף

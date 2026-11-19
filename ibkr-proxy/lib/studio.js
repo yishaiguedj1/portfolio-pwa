@@ -276,6 +276,15 @@ function normLyr(t) {
     .replace(/\r\n?/g, '\n').slice(0, KA_LYR_MAX);
 }
 const WL_RE = /^[a-z0-9]{8,16}$/;   // 01/11/2026: מזהה רשימת עבודה (= WL_RE בטלפון)
+/* 19/11/2026 (בקשת המשתמש): תור עבודות — פרויקט של הרבה סרטונים (תרגום, ניתוח וקריוקי יחד) שנפתח מעמוד "פעילה".
+   עבודה בתור נושאת qu (המזהה, = WL_RE) ו־qn (שם הפרויקט). השרת מריץ עד QU_PAR עבודות מאותו תור במקביל, והשאר מחכות —
+   כדי לא להעמיס ולהשאיר מקום למשתמש אחר. עבודות רגילות (בלי qu) — בלי שום מגבלה חדשה. = QU_PAR בטלפון */
+const QU_PAR = 2;
+const normQn = (v) => clean(String(v == null ? '' : v).replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, ''), 60);
+/* כמה עבודות מהתור כבר נלקחו לשרת ועוד לא הסתיימו (sid + queued/running). חונה (vw/bw, בלי sid) — לא תופסת מקום */
+function quBusy(jobs, qu, now) {
+  return (Array.isArray(jobs) ? jobs : []).filter((j) => j && j.qu === qu && j.sid && ['queued', 'running'].includes(effState(j, now).state)).length;
+}
 function normSpec(s) {
   if (!s || typeof s !== 'object') return null;
   const name = clean(s.name, 200), size = Math.floor(Number(s.size) || 0);
@@ -338,6 +347,7 @@ function normSpec(s) {
   // לא קריוקי (בלי Claude) ולא תרגום בטלפון. wl = רשימת עבודה (כמה קבצים שהתחילו יחד) — לקבוצה בבית. = BT_OK / WL_RE בטלפון
   s.bt === 1 && s.eng === 'api' && s.cp !== 1 && s.ry !== 1 && !ka && !ph && !vi ? { bt: 1 } : {},
   typeof s.wl === 'string' && WL_RE.test(s.wl) ? { wl: s.wl } : {},
+  typeof s.qu === 'string' && WL_RE.test(s.qu) ? Object.assign({ qu: s.qu }, normQn(s.qn) ? { qn: normQn(s.qn) } : {}) : {},   // 19/11/2026: תור עבודות
   s.eng === 'api' ? Object.assign({ eng: 'api', cap: normCap(s.cap) }, s.cp === 1 ? { cp: 1 } : s.ry === 1 ? { ry: 1 } : {}) : {});   // 24/10/2026: ry = השרת עושה הכל, Claude דרך ה־Routine של המשתמש (lib/relay.js)   // מצב API של המערכת — עם תקרת עבודה ($); סבב 10: cp = העתק־הדבק (Claude של המשתמש)
 }
 /* קובץ שעלה ל־Drive (מה ש־Drive עצמו החזיר — api/studio.js מאמת מולו) */
@@ -1177,7 +1187,9 @@ function vtJob(a, ck, id, now, lg) {
     from: ck || lg === 'en' ? 'en' : LANG_READY.from.includes(sp.from) ? sp.from : 'auto', to: ['he'], mode: modeNow(sp.mode || DEFAULT_MODE),
     out: uniq(sp.vto, (k) => OUTS.includes(k)), style: STYLES.includes(sp.style) ? sp.style : STYLES[0], terms: String(sp.terms || ''),
     eng: 'api', cap: normCap(sp.cap) };
+  if (typeof sp.qu === 'string' && WL_RE.test(sp.qu)) Object.assign(spec, { qu: sp.qu }, sp.qn ? { qn: normQn(sp.qn) } : {});   // 19/11/2026: התרגום המקושר — באותו תור (תופס מקום כמו כל עבודה בו)
   const j = { id, uid: a.uid, kind: 'tr', state: 'new', created: now, updated: now, folder: a.folder, va: a.id, ck: ck ? [Object.assign({}, ck, { at: now })] : [], spec };
+  if (spec.qu) j.qu = spec.qu;
   if (f(a.fa)) j.fa = f(a.fa);
   if (f(a.fv)) j.fv = f(a.fv);
   return j;
@@ -2081,5 +2093,5 @@ module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, 
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, BLOCK_ERRS, BLOCK_WAIT, isBlock, blockWait, EARLY_FAIL_MS, EARLY_WAIT, recoverWait, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, excludeWait, toFields, fromFields, normFit, normMm, memClass, peakNeed, perfBlock, qwOf, qwView,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, BAD_AUTH_GAP, badAuthDue, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
-  serverMatches, normHb, normEv, SRV_EV, parkable, bwParkable, BW_MAX, BT_ERRS, normBq, bqView, BQ_SILENT_MS, bwLost, BQ_LOST_MS, BL_MAX, WL_RE, PARK_MAX, serverView, viClosed, monthKey, monthUsed, addMonth, jobCap,
+  serverMatches, normHb, normEv, SRV_EV, parkable, bwParkable, BW_MAX, BT_ERRS, normBq, bqView, BQ_SILENT_MS, bwLost, BQ_LOST_MS, BL_MAX, WL_RE, QU_PAR, normQn, quBusy, PARK_MAX, serverView, viClosed, monthKey, monthUsed, addMonth, jobCap,
 };
