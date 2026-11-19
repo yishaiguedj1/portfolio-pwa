@@ -277,14 +277,15 @@ function bufCalc(co) {
   const e1 = (co.est || []).find((e) => e.p === '+1y') || {};
   const fe = co.fe > 0 ? co.fe : e1.eps;
   if (fe != null && isFinite(fe)) {
-    const er = (Array.isArray(co.sbcX) ? co.sbcX : []).slice(-1)[0], fut = er ? !!er[2] : null;
+    // fut — הרווח המותאם מוציא את התגמול גם מעכשיו; chg — ההודעה האחרונה מוציאה, אבל הודיעה שמעכשיו לא (INTU). מוציאה ממילא לא = לא שינוי
+    const er = (Array.isArray(co.sbcX) ? co.sbcX : []).slice(-1)[0], fut = er ? !!er[2] : null, chg = !!er && !!er[1] && !er[2];
     const frac = exAt > 0 ? exDed / exAt : fut ? 1 : 0;
     const rate = c.sbc > 0 && c.rev > 0 ? c.sbc / c.rev : null;
     const fs = rate != null ? rate * (e1.rev > 0 ? e1.rev : c.rev) : 0;
     const fd = fut === false ? 0 : frac * fs * (1 - t) / Q.sh[L];
     // השנה ומספר האנליסטים — רק כשהרווח של המכפיל הצפוי הוא ממוצע +1y (עד 1%)
     const same = e1.eps != null && Math.abs(fe - e1.eps) <= 0.01 * Math.max(Math.abs(e1.eps), 0.05);
-    out.f = { base: fe, ded: fd, eps: fe - fd, end: same ? e1.end || null : null, n: same ? e1.n || null : null, rate, fut };
+    out.f = { base: fe, ded: fd, eps: fe - fd, end: same ? e1.end || null : null, n: same ? e1.n || null : null, rate, fut, chg };
   }
   return out;
 }
@@ -2048,7 +2049,7 @@ function bufSheet(key) {
     if (!fwd) rows.push(row(T('anBGaap'), T('anBGaapS'), ps(b.g)));
     bd.append(h('div', { class: 'an-list' }, ...rows));
     const same = Math.abs(b.gap) <= 0.02 * Math.max(Math.abs(b.st), 0.05);
-    const note = fwd && b.f.fut === false ? 'anBFutIn' : same ? 'anBPolGaap' : { ex: 'anBPolEx', in: 'anBPolIn', mix: 'anBPolMix' }[b.pol] || 'anBPolUnk';
+    const note = fwd && b.f.chg ? 'anBFutIn' : same ? 'anBPolGaap' : { ex: 'anBPolEx', in: 'anBPolIn', mix: 'anBPolMix' }[b.pol] || 'anBPolUnk';
     bd.append(h('p', { class: 'an-ex' }, T(note)));
     if (MED[key] && canEdM(co, key)) medForm(bd, key, rec);
   }, { small: true });

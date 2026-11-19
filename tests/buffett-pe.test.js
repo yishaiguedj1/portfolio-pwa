@@ -38,6 +38,14 @@ r = C('gaap diluted net income per share $ 4.62 stock-based and deferred compens
 ok(r.ex, '"stock-based and deferred compensation" — מוציא (ADBE)');
 r = C('stock-based compensation expense, net of tax 459 682 803 digital assets unrealized (gain) loss non-gaap net income attributable to common stockholders 1,770');
 ok(r.ex, 'שורה עם ", net of tax" ומספרים — שורה בטבלה (TSLA)');
+r = C('adjusted ebitda margin was 82%. we define adjusted ebitda for a particular period as net income adjusted for loss from discontinued operations, net of income taxes, interest expense and loss on settlement of debt, other income, net (excluding certain recurring items), provision for (benefit from) income taxes, amortization, depreciation and write-offs and as further adjusted for non-operating foreign exchange (gain) loss, stock-based compensation, transaction-related expense, restructuring costs, as well as certain other items');
+ok(!r.ex, 'הגדרה ארוכה של Adjusted EBITDA — המשפט כולו נבדק, לא רק 350 התווים האחרונים (APP 4Q25)');
+r = C('net income on gaap basis $ 13,088 $ 9,310 amortization of acquisition-related intangible assets 2,006 1,967 stock-based compensation expense 2,019 2,092 restructuring and other charges 103 71 non-gaap tax reconciling adjustments 931 1,407 net income on non-gaap basis $ 16,372 $ 12,074');
+ok(r.ex, 'טבלה בצורה "net income on non-gaap basis" — מוציא (AVGO)');
+r = C('gross margin on gaap basis $ 20,456 amortization of acquisition-related intangible assets 1,499 stock-based compensation expense 224 restructuring charges 12 gross margin on non-gaap basis $ 22,191');
+ok(!r.ex, 'שורה בטבלת הרווח הגולמי ("gross margin on non-gaap basis") — לא הרווח למניה');
+r = C('(1) non-gaap adjustment for the number of shares used in the diluted per share calculations excludes the impact of stock-based compensation expense expected to be incurred in future periods');
+ok(!r.ex, 'הערת שוליים על מספר המניות — לא עדות (זה מה ש"זיהה" את AVGO במקרה לפני התיקון)');
 ok(!X.classify('investor day presentation. our strategy for the decade.').er, 'הודעה בלי רבעון ורווח למניה — לא הודעת תוצאות');
 ok(X.classify('exxonmobil announces third-quarter 2026 results. earnings per share assuming dilution $1.88 net income attributable').er, 'הודעת תוצאות גם בלי "diluted" כמילה (XOM, MRK)');
 ok(X.classify('<p>GAAP net income</p><td>277</td><p>Stock-based compensation</p><td>630</td><p>Non-GAAP net income</p><td>1,050</td><p>three months ended</p><p>diluted per share</p>').ex, 'HTML — מנוקה לפני הסיווג');
@@ -52,7 +60,7 @@ const pk = X.pick(sub, Date.parse('2026-11-18'));
 ok(pk.length === 2 && pk[0].acc === '0000001-26-000009' && pk[1].filed === '2026-07-22', 'pick — רק 8-K עם 2.02 מ־15 החודשים האחרונים, החדש קודם');
 const fc = X.forClient({ a: { filed: '2026-10-28', er: true, ex: true, fut: false, n: 900, sv: X.SV }, b: { filed: '2026-07-22', er: true, ex: false, fut: false, n: 800, sv: X.SV },
   c: { filed: '2026-09-01', er: false, ex: false, fut: false, sv: X.SV }, d: { filed: '2026-04-22', er: true, ex: true, fut: true, sv: X.SV - 1 } });
-ok(JSON.stringify(fc) === JSON.stringify([['2026-07-22', 0, 0, 800], ['2026-10-28', 1, 0, 900]]), 'forClient — רק הודעות תוצאות בגרסת המסווג הנוכחית, מהישנה לחדשה');
+ok(JSON.stringify(fc) === JSON.stringify([['2026-04-22', 1, 1, 0], ['2026-07-22', 0, 0, 800], ['2026-10-28', 1, 0, 900]]), 'forClient — רק הודעות תוצאות, מהישנה לחדשה; גרסת מסווג קודמת נשלחת עד הקריאה מחדש');
 
 /* ---------- השמירה בשרתון: load קורא עד 2 הודעות חדשות, שומר ב־o.sx, ומחזיר sx ---------- */
 (async () => {
@@ -124,7 +132,7 @@ ok(JSON.stringify(fc) === JSON.stringify([['2026-07-22', 0, 0, 800], ['2026-10-2
   co = A.prep({ ...base, hist: hist(1) }, { close: 2000 }, 3.7);
   ok(co.fpe === 18, 'יחס חריג בין המחיר החי למחיר של Yahoo (פיצול באמצע) — נשאר המכפיל של Yahoo');
   b = A.bufCalc(mk({ hist: hist(1), sbcX: last4.map((i) => rel(q[i], 0)) }));
-  ok(b.ded === 0 && near(b.eps, gaap + 4) && b.pol === 'in' && b.f.ded === 0, 'הרווח המותאם כולל את התגמול (JNJ, MSFT) — לא יורד כלום, גם לא בצפוי');
+  ok(b.ded === 0 && near(b.eps, gaap + 4) && b.pol === 'in' && b.f.ded === 0 && b.f.chg === false, 'הרווח המותאם כולל את התגמול (JNJ, MSFT) — לא יורד כלום, גם לא בצפוי, ובלי ההערה "מעכשיו כולל" (APP)');
   b = A.bufCalc(mk({ hist: hist(0), sbcX: last4.map((i) => rel(q[i], 1)) }));
   ok(b.ded === 0 && b.yGaap && b.f.ded === 0, 'הסדרה של Yahoo = GAAP (PLTR) — לא יורד, גם כשהחברה מוציאה בהודעה');
   b = A.bufCalc(mk({ hist: hist(0.3) }));
@@ -132,7 +140,7 @@ ok(JSON.stringify(fc) === JSON.stringify([['2026-07-22', 0, 0, 800], ['2026-10-2
   b = A.bufCalc(mk({ hist: hist(1), sbcX: last4.map((i, j) => rel(q[i], j < 2 ? 1 : 0)) }));
   ok(b.pol === 'mix' && near(b.ded, (Q.sbc[L - 3] + Q.sbc[L - 2]) * 0.8 / 1e9), 'החברה שינתה הגדרה — יורד רק ברבעונים שבהם הוצא');
   b = A.bufCalc(mk({ hist: hist(1), sbcX: last4.map((i, j) => rel(q[i], 1, j < 3)) }));
-  ok(near(b.ded, sbcAt) && b.f.fut === false && b.f.ded === 0, 'ההודעה האחרונה: "will no longer exclude" — ב־12 החודשים יורד, בצפוי לא (INTU)');
+  ok(near(b.ded, sbcAt) && b.f.fut === false && b.f.chg === true && b.f.ded === 0, 'ההודעה האחרונה: "will no longer exclude" — ב־12 החודשים יורד, בצפוי לא, וההערה "מעכשיו כולל" (INTU)');
   // שתי הודעות לאותו רבעון: הארוכה (ההודעה המלאה) קובעת
   co = mk({ hist: hist(1), sbcX: last4.map((i) => rel(q[i], 1)).concat([[new Date(Date.parse(q[L]) + 5 * 864e5).toISOString().slice(0, 10), 0, 0, 100]]).sort((x, y) => (x[0] < y[0] ? -1 : 1)) });
   ok(A.sbcPol(co, q[L]) === 1, 'כמה הודעות לאותו רבעון — הארוכה קובעת (הודעה מקדימה קצרה לא)');
@@ -158,6 +166,7 @@ ok(JSON.stringify(fc) === JSON.stringify([['2026-07-22', 0, 0, 800], ['2026-10-2
   ok(/fact\(T\('anFBpe'\), fmt\(bpeOf\(co\)[\s\S]{0,80}'bpe'\), fact\(T\('anFBfpe'\), fmt\(bfpeOf\(co\)/.test(src), 'שני האריחים אחרי "מכפיל צפוי"');
   ok(/\['bpe', 'anFBpe', 'anLoCheap', 'x', -1\], \['bfpe', 'anFBfpe', 'anCmpFwd', 'x', -1\]/.test(src) && /bpe: bpeOf\(c\), bfpe: bfpeOf\(c\)/.test(src), 'טבלת ההשוואה מול חברות אחרות');
   ok(/if \(key === 'bpe' \|\| key === 'bfpe'\) \{ bufSheet\(key\); return; \}/.test(src), 'לחיצה על האריח — גיליון החישוב');
+  ok(/const note = fwd && b\.f\.chg \? 'anBFutIn'/.test(src), 'ההערה "מעכשיו כולל" — רק כשהחברה הודיעה על שינוי, לא בכל חברה שכוללת ממילא');
   const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   const keys = ['anFBpe', 'anFBfpe', 'anCmpFwd', 'anHFpeAdj', 'anHBpe', 'anHBfpe', 'anXFpeAdj', 'anXBpe', 'anXBfpe', 'anXBufNone', 'anBStreet', 'anBStreetS', 'anBSbc', 'anBSbcS',
     'anBFwd', 'anBFwd0', 'anBFwdY', 'anBSbcF', 'anBSbcFS', 'anBEps', 'anBMultS', 'anBNeg', 'anBGaap', 'anBGaapS', 'anBPolEx', 'anBPolIn', 'anBPolMix', 'anBPolUnk', 'anBPolGaap', 'anBFutIn'];
