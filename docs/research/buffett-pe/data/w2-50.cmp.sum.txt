@@ -1,0 +1,85 @@
+גל 2 — השוואת הקוראים (w2). הודעות ברשימות: 278
+קורא A: 278 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+קורא B: 278 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+קורא C: 3 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+
+הסכמה A מול B לכל שדה (מתוך הודעות ששניהם קראו):
+  er           276/278    99.3%
+  pre          270/278    97.1%
+  adj          278/278   100.0%
+  ex           278/278   100.0%
+  partial      278/278   100.0%
+  chg          278/278   100.0%
+  fut          278/278   100.0%
+  pol          278/278   100.0%
+  pe           250/251    99.6%
+  eps_gaap     251/251   100.0%
+  eps_adj      251/251   100.0%
+  sbc_rec      251/251   100.0%
+  tax_adj      249/251    99.2%
+  tax_sbc      241/251    96.0%
+  sbc_total    250/251    99.6%
+  sbc_rec_ps   242/251    96.4%
+  tax_adj_ps   233/251    92.8%
+  sh_dil       251/251   100.0%
+  sh_adj       251/251   100.0%
+  הערות: ex:no-adj=8, fut:no-adj=14, sbc_rec_ps:has-total=9, sh_adj:scale=3
+
+מחלוקות בשדות החמים (er,adj,ex,fut,chg,pol / pe,eps_gaap,eps_adj,sbc_rec,sbc_rec_ps,sh_dil): 3 הודעות (ממתינות לקורא C: 0)
+  לפי שדה: er=2, pe=1
+  ללא הכרעה גם אחרי C (SPLIT): 0
+
+מטריצות בלבול — הקונצנזוס של הקוראים מול secsbc.classify (sys_c = 2 הנספחים שהשרת קורא; sys_all = כל הנספחים)
+er (הודעת תוצאות):
+  קוראים\מערכת    False     True
+  False              20        5
+  True                0      253
+ex (כפי שנקרא: True / False / partial / None) — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             133        5
+  None               31        0
+  True               10       55
+  partial            19        0
+pol (מוציא? בלי רווח מותאם = False) — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             183        5
+  True               10       55
+pol — בהודעות תוצאות, כל הנספחים:
+  קוראים\מערכת    False     True
+  False             183        5
+  True               10       55
+pol — רק ההודעות שהשרת בוחר (picked):
+  קוראים\מערכת    False     True
+  False             167        5
+  True               10       48
+fut — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             159        5
+  None               24        0
+  True               10       55
+
+אי־התאמות pol (קונצנזוס מול sys_c), הודעות תוצאות:
+  AMAT   0001628280-25-051998 2025-11-13 picked=True cons=False sys=True h=-cExE-
+  AMAT   0001628280-26-007661 2026-02-12 picked=True cons=False sys=True h=-cExE-
+  AMAT   0001628280-26-035071 2026-05-14 picked=True cons=False sys=True h=P-cExE-
+  AMAT   0001628280-26-056699 2026-08-13 picked=True cons=False sys=True h=P-cExE-
+  AMAT   0001628280-26-073360 2026-11-12 picked=True cons=False sys=True h=-cEx-
+  AMT    0001053507-25-000147 2025-10-28 picked=True cons=True sys=False h=------c----
+  AMT    0001053507-26-000032 2026-02-24 picked=True cons=True sys=False h=------c------
+  AMT    0001053507-26-000094 2026-04-28 picked=True cons=True sys=False h=------c----
+  AMT    0001053507-26-000131 2026-07-28 picked=True cons=True sys=False h=------c----
+  AMT    0001053507-26-000154 2026-10-27 picked=True cons=True sys=False h=------c----
+  ARES   0001628280-25-047895 2025-11-03 picked=True cons=True sys=False h=-----x
+  ARES   0001628280-26-005596 2026-02-05 picked=True cons=True sys=False h=-----x
+  ARES   0001628280-26-029083 2026-05-01 picked=True cons=True sys=False h=-----x
+  ARES   0001628280-26-051191 2026-07-31 picked=True cons=True sys=False h=-----x
+  ARES   0001628280-26-067994 2026-10-29 picked=True cons=True sys=False h=-----x
+אי־התאמות er:
+  ABBV   0001551152-25-000043 2025-10-03 picked=False cons=False sys=True
+  ABBV   0001551152-26-000002 2026-01-07 picked=False cons=False sys=True
+  ABBV   0001551152-26-000011 2026-04-03 picked=True cons=False sys=True
+  ABBV   0001551152-26-000021 2026-07-06 picked=True cons=False sys=True
+  ABBV   0001551152-26-000030 2026-10-05 picked=True cons=False sys=True
+לא ברור (pol=None בקונצנזוס) בהודעות תוצאות: 
+חלקי (partial): A:0001090872-25-000034, A:0001090872-25-000070, A:0001090872-26-000015, A:0001090872-26-000052, A:0001090872-26-000062, ABT:0001628280-26-025365, ABT:0001628280-26-048377, ABT:0001628280-26-066601, ADI:0000006281-25-000142, ADI:0000006281-25-000151, ADI:0000006281-26-000015, ADI:0000006281-26-000050, ADI:0000006281-26-000072, APD:0000002969-25-000051, ARE:0001035443-25-000199, ARE:0001035443-26-000014, ARE:0001035443-26-000045, ARE:0001035443-26-000067, ARE:0001035443-26-000077
+שינוי מדיניות (chg≠none): 

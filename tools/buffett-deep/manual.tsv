@@ -1,0 +1,10 @@
+# פסיקות ידניות — בדיקה מול המקור (מידע ציבורי בלבד). ledger.py מחליף את הפסיקה האוטומטית ושומר אותה ב־auto.
+# sym	e	comp	verdict	cause	הראיה
+AEP	2026-09-30	gaap	V2	pr-basic	ההודעה (0000004904-26-000069) מדפיסה 2.18 "EPS is calculated using the weighted average basic common shares" (544M); המערכת = EarningsPerShareDiluted ב־10-Q ‏0000004904-26-000072 ‏(2.16)
+AJG	2026-03-31	sh	DIFF	sec-basic-only;moot:pol0	B-029: ב־companyfacts אין תג מניות מדולל (רק WeightedAverageNumberOfSharesOutstandingBasic ‏257.1M); ההודעה: מדולל 259.816M (+1.06%). המדיניות "לא מוציא" → הניכוי 0
+AJG	2026-06-30	sh	DIFF	sec-basic-only;moot:pol0	B-029: בסיסי 256.7M מול מדולל בהודעה 258.685M (+0.77%). הניכוי 0
+AJG	2026-09-30	sh	DIFF	sec-basic-only;moot:pol0	B-029: בסיסי 256.7M מול מדולל בהודעה 259.369M (+1.04%). הניכוי 0
+APO	2025-12-31	sh	DIFF	q4-est	B-029: q4Shares (הפסד ברבעון של השנה → מהבסיסי) 583.4M; ההודעה (0001858681-26-000007): "Weighted average shares outstanding - Diluted … 598" (בסיסי 594). הניכוי של הרבעון 0.2963 במקום 0.2891 — האריח ‎−0.1%
+APO	2025-12-31	gaap	DIFF	q4-est	B-029: 1.05 (הרווח ÷ מניות בהערכה) מול 1.07 בהודעה ("$660 $1.07")
+ARE	2026-06-30	street	DIFF	yahoo-unexplained	B-028: הרחוב של Yahoo ‏0.1514 — לא GAAP ‏(−0.43) ולא FFO ‏(1.73); לא מופיע בהודעה. הסדרה מעורבת: ‏12/2025 ו־3/2026 = GAAP
+ARE	2026-09-30	street	DIFF	yahoo-unexplained	B-028: ‏−0.0305 — לא GAAP ‏(−3.74) ולא FFO ‏(1.54)

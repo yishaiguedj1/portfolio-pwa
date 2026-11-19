@@ -30,6 +30,36 @@ HOT_NUM = ('pe', 'eps_gaap', 'eps_adj', 'sbc_rec', 'sbc_rec_ps', 'sh_dil')
 UNIT = {'thousands': 1e3, 'thousand': 1e3, 'millions': 1e6, 'million': 1e6, 'billions': 1e9, 'billion': 1e9, 'units': 1, 'dollars': 1}
 
 
+MONTHS = {m: i + 1 for i, m in enumerate(('jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'))}
+
+
+def pe_norm(v):
+    """תאריך סוף הרבעון כפי שהקורא העתיק → YYYY-MM-DD. הקוראים כותבים גם 'September 30, 2025', ‏'June 30,2026', ‏'9/30/25',
+    ‏'31 March 2025', ‏'Mar 29, 2026' (גל 2); מה שלא מתפענח — None"""
+    if not isinstance(v, str):
+        return None
+    t = v.strip().lower().replace('.', '')
+    m = re.match(r'^(\d{4})-(\d{1,2})-(\d{1,2})', t)
+    if m:
+        y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    else:
+        m = re.match(r'^([a-z]{3})[a-z]*\s+(\d{1,2})\s*,?\s*(\d{4})$', t) or None
+        m2 = re.match(r'^(\d{1,2})\s+([a-z]{3})[a-z]*\s*,?\s*(\d{4})$', t)
+        m3 = re.match(r'^(\d{1,2})/(\d{1,2})/(\d{2,4})$', t)
+        if m and m.group(1) in MONTHS:
+            y, mo, d = int(m.group(3)), MONTHS[m.group(1)], int(m.group(2))
+        elif m2 and m2.group(2) in MONTHS:
+            y, mo, d = int(m2.group(3)), MONTHS[m2.group(2)], int(m2.group(1))
+        elif m3:
+            y, mo, d = int(m3.group(3)), int(m3.group(1)), int(m3.group(2))
+            y += 2000 if y < 100 else 0
+        else:
+            return None
+    if not (1 <= mo <= 12 and 1 <= d <= 31):
+        return None
+    return '%04d-%02d-%02d' % (y, mo, d)
+
+
 def num(v):
     """ערך מספרי כפי שהקורא העתיק — מספר, או מחרוזת כמו "$(1.04)" / "1,043" → float; אחרת None"""
     if isinstance(v, bool) or v is None:
@@ -80,7 +110,8 @@ def val(j, f):
     if f in CAT:
         v = j.get(f)
         return v if v in (True, False) or isinstance(v, str) else None
-    return (j.get('nums') or {}).get(f)
+    v = (j.get('nums') or {}).get(f)
+    return (pe_norm(v) or v) if f == 'pe' else v
 
 
 def same(f, a, b, ja=None, jb=None):
@@ -88,7 +119,8 @@ def same(f, a, b, ja=None, jb=None):
     if f in CAT:
         return a == b, ''
     if f == 'pe':
-        return (str(a)[:10] == str(b)[:10]) if a and b else (a is None and b is None), ''
+        na, nb = pe_norm(a), pe_norm(b)
+        return (na == nb) if na and nb else (a is None and b is None), ''
     x, y = num(a), num(b)
     if x is None or y is None:
         return (x is None and y is None), ''
@@ -201,6 +233,11 @@ def main():
                 agree[f] += ok
                 if note:
                     notes[f + ':' + note] += 1
+                if not ok and f == 'sbc_rec_ps' and num(val(js['A'], 'sbc_rec')) is not None and \
+                        same('sbc_rec', val(js['A'], 'sbc_rec'), val(js['B'], 'sbc_rec'), js['A'], js['B'])[0]:
+                    note = 'has-total'     # שניהם מסכימים על הסכום הכולל; הערך למניה רק אצל אחד — לא מחלוקת
+                    notes[f + ':' + note] += 1
+                    continue
                 if not ok and (f in HOT_CAT or f in HOT_NUM):
                     dis.append(f)
         cons = {}

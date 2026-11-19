@@ -94,10 +94,14 @@ def main():
     # ההודעה של הרבעון עצמו — לפי סוף התקופה שהקוראים העתיקו מכותרת העמודה (nums.pe), רק הודעות תוצאות
     from datetime import date
     OWN = {}
+    # הקוראים כותבים את התאריך גם כ־'September 30, 2025' / '9/30/25' (גל 2) — אותו נרמול כמו בהשוואה (readcmp.pe_norm)
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from readcmp import pe_norm, num, unit_of
     for acc, rd in RD.items():
         for x in rd.values():
-            pe = (x.get('nums') or {}).get('pe')
-            if x.get('er') and isinstance(pe, str) and len(pe) >= 10:
+            pe = pe_norm((x.get('nums') or {}).get('pe'))
+            if x.get('er') and pe:
+                x.setdefault('nums', {})['pe'] = pe
                 OWN.setdefault(acc, []).append(x)
 
     def own(cik, e):
@@ -112,12 +116,70 @@ def main():
                 except Exception:
                     pass
         return out
-    ACCK = {}
-    for (ck, _), acc in ACC.items():
+    ACCK, ACCF = {}, {}
+    for (ck, fd), acc in ACC.items():
         ACCK[acc] = ck
+        ACCF[acc] = fd
+    # חברות שכל ההודעות שלהן באוסף כבר נקראו — רבעון בלי הודעה אצלן = אין מקור (NOSRC), לא ממתין (PEND)
+    READ = {ck for ck in set(ACCK.values()) if all(a in RD for a, k in ACCK.items() if k == ck)}
+    # פיצולים מהצילום (`splitsUsed`, ‏`asOf`): ערך למניה כפי שהודפס בהודעה × המקדם = הערך המותאם של היום (Yahoo, המערכת)
+    SPL = {}
+
+    def spf(sym, filed):
+        if sym not in SPL:
+            sp = os.path.join(w, 'r%s' % n, 'snap', sym + '.json')
+            try:
+                sn = json.load(open(sp))
+                SPL[sym] = (sn.get('splitsUsed') or [], sn.get('asOf') or '9999')
+            except Exception:
+                SPL[sym] = ([], '9999')
+        f = 1.0
+        if not filed:
+            return f
+        sl, asof = SPL[sym]
+        for d, rto in sl:
+            if filed < d <= asof and rto:
+                f /= rto
+        return f
+
+    def pr_match(comp, sv, x, f):
+        """ההודעה (קורא אחד) מול ערך המערכת: None — אין ערך בהודעה; אחרת (שווה?, איך)"""
+        p = x.get('nums') or {}
+        if comp == 'gaap':
+            v = num(p.get('eps_gaap'))
+            return None if v is None else (same('gaap', sv, v * f), 'eps_gaap')
+        keys = ('sh_dil', 'sh_adj') if comp == 'sh' else ('sbc_total',)
+        u = unit_of(x)
+        seen = False
+        for k in keys:
+            v = num(p.get(k))
+            if v is None:
+                continue
+            seen = True
+            v = v / f if comp == 'sh' else v
+            # יחידת הטבלה; טבלת המניות לפעמים ביחידה אחרת מטבלת הכסף — קנה מידה של 1000^k, ונרשם
+            if u and same(comp, sv, v * u):
+                return True, k
+            for sc in (1, 1e3, 1e6, 1e9):
+                if same(comp, sv, v * sc):
+                    return True, '%s@%g' % (k, sc)
+        return (False, keys[0]) if seen else None
     rows = []
 
+    # פסיקות ידניות (manual.tsv) — אחרי בדיקה מול המקור; הפסיקה האוטומטית נשמרת ב־auto
+    MAN = {}
+    mp = os.environ.get('BD_MANUAL') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'manual.tsv')
+    if os.path.exists(mp):
+        for l in open(mp, encoding='utf-8'):
+            a = l.rstrip('\n').split('\t')
+            if len(a) >= 5 and not a[0].startswith('#'):
+                MAN[(a[0], a[1], a[2])] = (a[3], a[4])
+
     def add(sym, e, comp, sysv, verdict, **kw):
+        m = MAN.get((sym, e, comp))
+        if m:
+            kw.update(auto=verdict, cause=m[1], how_v='manual')
+            verdict = m[0]
         rows.append(dict(sym=sym, e=e, comp=comp, sys=sysv, verdict=verdict, **kw))
 
     for sym, m in sorted(M.items()):
@@ -136,13 +198,36 @@ def main():
             rd = RD.get(acc, {}) if acc else {}
             ow = own(cik, e)                      # ההודעה של הרבעון עצמו (לפי הקוראים)
             pr = [x.get('nums', {}) for _, x in ow if x.get('nums')]
-            adj = [p.get('eps_adj') for p in pr if isinstance(p.get('eps_adj'), (int, float))]
             st = (r.get('hq') or {}).get('a')
-            if adj:
-                agree = [same('street', st, a) for a in adj]
-                add(sym, e, 'street', st, 'V2' if all(agree) else 'DIFF', pr=adj[0], src='yahoo|pr')
+            # רחוב (Yahoo, מותאם לפיצולים של היום) מול ההודעה של הרבעון × מקדם הפיצול מאז שהודפסה.
+            # אין רווח מותאם בהודעה — מול GAAP שבהודעה (חברה שמדווחת רק GAAP: הרחוב = GAAP)
+            adj = [(num(x['nums'].get('eps_adj')), spf(sym, ACCF.get(a))) for a, x in ow if x.get('nums')]
+            adj = [(v, f) for v, f in adj if v is not None]
+            src = 'yahoo|pr'
+            if not adj:
+                adj = [(num(x['nums'].get('eps_gaap')), spf(sym, ACCF.get(a))) for a, x in ow if x.get('nums')]
+                adj = [(v, f) for v, f in adj if v is not None]
+                src = 'yahoo|pr-gaap'
+            if adj and st is not None:
+                agree = [same('street', st, v * f) for v, f in adj]
+                kw = {'split': adj[0][1]} if adj[0][1] != 1 else {}
+                if not all(agree) and src == 'yahoo|pr':
+                    # הרחוב של Yahoo = ה־GAAP שבהודעה, לא המותאם (AMT ‏AFFO, ‏AEE ‏12/2025, ‏ARE) — הערך אמיתי, ההגדרה שאלה נפרדת
+                    gg = [(num(x['nums'].get('eps_gaap')), spf(sym, ACCF.get(a))) for a, x in ow if x.get('nums')]
+                    gg = [(v, f) for v, f in gg if v is not None]
+                    if gg and all(same('street', st, v * f) for v, f in gg):
+                        agree, src, kw['cause'] = [True], 'yahoo|pr-gaap', 'street=gaap≠adj'
+                if not all(agree):
+                    kw['cause'] = 'street≠gaap:no-adj' if src == 'yahoo|pr-gaap' else 'street≠pr'
+                add(sym, e, 'street', st, 'V2' if all(agree) else 'DIFF', pr=adj[0][0], src=src, **kw)
+            elif st is not None and ow and all(x.get('adj') is False for _, x in ow) and r.get('g') is not None:
+                # ההודעה בלי מדד מותאם ובלי רווח רבעוני (ATO: רק מתחילת השנה) — הרחוב מול ה־GAAP של המערכת (מאומת מול SEC)
+                ok = same('street', st, r.get('g'))
+                add(sym, e, 'street', st, 'V2' if ok else 'DIFF', pr=r.get('g'), src='yahoo|sec-gaap', **({} if ok else {'cause': 'street≠gaap:no-adj'}))
+            elif st is not None and not ow and cik in READ:
+                add(sym, e, 'street', st, 'NOSRC', src='yahoo', cause='no-pr')   # לרבעון אין הודעה ב־SEC (AES — הפסיקה לפרסם ב־2.02)
             else:
-                add(sym, e, 'street', st, 'PEND', src='yahoo')
+                add(sym, e, 'street', st, 'PEND' if st is not None else 'NULL', src='yahoo')
             # GAAP, תגמול, מניות: המערכת מול החילוץ העצמאי (אותו תג) + frame + ההודעה
             for comp, key, xc in (('gaap', 'g', 'eps'), ('sbc', 'sbc', 'sbc'), ('sh', 'sh', 'sh')):
                 sv = r.get(key)
@@ -178,6 +263,21 @@ def main():
                     v = 'V2'
                     if fr is not None and same(comp if comp != 'gaap' else 'gaap', sv / (x.get('split') or 1) if comp == 'gaap' else sv * (x.get('split') or 1) if comp == 'sh' else sv, fr):
                         v = 'V2+frame'
+                # המקור השלישי — ההודעה לעיתונות של הרבעון (הקוראים, גל 2), מותאמת לפיצולים מאז שהודפסה
+                pm = [pr_match(comp, sv, xx, spf(sym, ACCF.get(a))) for a, xx in ow]
+                pm = [m for m in pm if m is not None]
+                if pm:
+                    pok = [m[0] for m in pm]
+                    kw['pr_how'] = pm[0][1]
+                    if all(pok):
+                        v = {'V2': 'V3', 'V2+frame': 'V3', 'V2~': 'V2', 'PEND~': 'V2', 'PEND': 'V2', 'DIFF': 'SPLIT'}.get(v, v)
+                    elif not any(pok):
+                        if v in ('V2', 'V2+frame'):
+                            v, kw['cause'] = 'SPLIT', kw.get('cause') or 'pr≠sec'
+                        elif v in ('V2~', 'PEND~', 'PEND'):
+                            v = 'DIFF'
+                    else:
+                        v, kw['cause'] = 'SPLIT', 'pr-mixed'
                 add(sym, e, comp, sv, v, **kw)
             # המדיניות: מה שהמערכת החליטה לרבעון מול מה שהקוראים קראו **בהודעה של הרבעון עצמו** (גם כשהמערכת לקחה הודעה אחרת —
             # near45, B-004/B-010 — היעד הוא ההודעה של הרבעון)
@@ -195,7 +295,13 @@ def main():
                     v = 'SPLIT'
                 else:
                     v = 'PEND' if not kn else 'V2' if kn[0] == bool(r.get('pol')) else 'DIFF'
-                add(sym, e, 'pol', r.get('pol'), v, acc=oacc, how=pb.get('how') + ('' if oacc == acc else ':other'), readers=''.join('-' if x is None else '1' if x else '0' for x in rp))
+                kw = {}
+                if v in ('DIFF', 'SPLIT') and b.get('yGaap'):
+                    kw['cause'] = 'moot:yGaap'   # הרחוב = GAAP ב־3 רבעונים לפחות → הניכוי 0 בכל מקרה (AMT: ‏AFFO מוציא, הרחוב לא)
+                add(sym, e, 'pol', r.get('pol'), v, acc=oacc, how=pb.get('how') + ('' if oacc == acc else ':other'), readers=''.join('-' if x is None else '1' if x else '0' for x in rp), **kw)
+            elif cik in READ and not ow:
+                # אין הודעה לרבעון; המדיניות נגררת מהודעה קודמת — אין מקור לאמת. בלי תגמול — הניכוי 0 בכל מקרה
+                add(sym, e, 'pol', r.get('pol'), 'NOSRC', acc=acc, how=pb.get('how'), cause='no-pr' + (';moot:no-sbc' if r.get('sbc') is None else ''))
             else:
                 add(sym, e, 'pol', r.get('pol'), 'PEND', acc=acc, how=pb.get('how'))
             # הניכוי: זהות מול המימוש העצמאי
@@ -229,7 +335,7 @@ def main():
         for comp in ('pe', 'fpe', 'bpe', 'bfpe'):
             sv, iv = (m.get('tiles') or {}).get(comp), (i.get('tiles') or {}).get(comp)
             add(sym, '', comp, sv, 'V2' if (sv is None and iv is None) or same(comp, sv, iv) else 'DIFF', indep=iv)
-    cols = ['sym', 'e', 'comp', 'sys', 'verdict', 'xb', 'xb_how', 'frame', 'split', 'pr', 'indep', 'acc', 'how', 'readers', 'src', 'cause']
+    cols = ['sym', 'e', 'comp', 'sys', 'verdict', 'xb', 'xb_how', 'frame', 'split', 'pr', 'indep', 'acc', 'how', 'readers', 'src', 'cause', 'pr_how', 'auto', 'how_v']
     op = gzip.open(out, 'wt', newline='') if out.endswith('.gz') else open(out, 'w', newline='')
     with op as fo:
         wr = csv.DictWriter(fo, fieldnames=cols, extrasaction='ignore')
