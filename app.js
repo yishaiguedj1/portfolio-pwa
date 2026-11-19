@@ -1200,7 +1200,7 @@ he: {
   btnDelete: ICON_TRASH + 'מחק',
   todayChg: 'היום {v}',
   dayToday: 'היום', dayYest: 'אתמול', dayDow1: 'שני', dayDow2: 'שלישי', dayDow3: 'רביעי', dayDow4: 'חמישי', dayDow5: 'שישי',
-  subValLbl: 'שווי', subGlLbl: 'שינוי מהקנייה',
+  subValLbl: 'שווי', subGlLbl: 'שינוי מהקנייה', subAthLbl: 'שיא',
   buyChg: 'מהקנייה {v}',
   kvShares: 'מניות',
   kvAvg: 'מחיר ממוצע',
@@ -3133,7 +3133,7 @@ en: {
   btnDelete: ICON_TRASH + 'Delete',
   todayChg: 'Today {v}',
   dayToday: 'Today', dayYest: 'Yesterday', dayDow1: 'Mon', dayDow2: 'Tue', dayDow3: 'Wed', dayDow4: 'Thu', dayDow5: 'Fri',
-  subValLbl: 'Value', subGlLbl: 'Gain',
+  subValLbl: 'Value', subGlLbl: 'Gain', subAthLbl: 'ATH',
   buyChg: 'Since purchase {v}',
   kvShares: 'Shares',
   kvAvg: 'Avg price',
@@ -8249,8 +8249,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.184.1';
-const APP_VERSION = 'v840';
+const APP_RELEASE = '2.184.2';
+const APP_VERSION = 'v841';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -18114,7 +18114,11 @@ function stockSubHTML(p, m) {
   // 18/11/2026: "היום" רק בזמן יום המסחר; מתחילת המסחר הלילי ועד הפתיחה — "אתמול" / שם היום (sessionDayLabel)
   let html = '<span class="day-chg ' + cls(day) + '">' + (day === null ? '—' : esc(sessionDayLabel(p && p.sym)) + ' ' + fmtPct(day, true) + dayAmtHTML) + '</span>';
   if (p && p.watch) { // v240: מעקב — בלי שווי/רווח; ההערה (אם יש) במקום השווי
-    return html + '<span class="sub-val wl-sub-note">' + (p.note ? '<span class="wl-note-txt">' + esc(p.note) + '</span> ' : '') + '<span class="chev">▾</span></span>';
+    if (p.note) return html + '<span class="sub-val wl-sub-note"><span class="wl-note-txt">' + esc(p.note) + '</span></span>';
+    // 18/11/2026 (בקשת המשתמש): בלי החץ ▾ — במקומו השיא (ATH) והמרחק ממנו, כמו "שווי" בכרטיס אחזקה: תווית אפורה, מחיר, אחוז צבעוני
+    const off = m.ath && m.offAth !== null && isFinite(m.offAth) ? (Math.abs(m.offAth) < 0.005 ? 0 : m.offAth) : null;
+    return html + '<span class="sub-val wl-ath">' + (m.ath ? '<span class="sub-lbl">' + esc(t('subAthLbl')) + '</span> ' + fmtPx(m.ath.price, p.sym) +
+      (off === null ? '' : ' <span class="wl-ath-pct ' + cls(off) + '">' + fmtPct(off, true) + '</span>') : '') + '</span>';
   }
   // 18/11/2026 (בקשת המשתמש): תווית משנית לפני הנתון — "שווי" / "שינוי" (ת־עיצוב: תווית אפורה קטנה, הנתון בולט)
   html += '<span class="sub-val"><span class="sub-lbl">' + esc(t('subValLbl')) + '</span> ' + (m.value === null ? '—' : money(toCur(m.value), cur)) + '</span>'; // 2.184.1: בלי החץ ▾ ליד השווי (בקשת המשתמש)
