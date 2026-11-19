@@ -1672,19 +1672,27 @@ html[data-app="cashflow"] .login-overlay { background: linear-gradient(160deg, #
 .earn-row:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .earn-veil { background: rgba(0, 0, 0, 0); transition: background-color .22s ease; }
 .earn-veil.show { background: rgba(0, 0, 0, .42); }
-.earn-sheet { transform: translateY(100%); transition: transform .28s cubic-bezier(.2, .9, .25, 1); padding: 8px 18px calc(18px + env(safe-area-inset-bottom)); border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
+.earn-sheet { transform: translateY(100%); transition: transform .28s cubic-bezier(.2, .9, .25, 1); padding: 8px 18px calc(14px + env(safe-area-inset-bottom)); border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  /* 19/11/2026: גובה מרבי — בלעדיו גיליון ארוך ברח מעל המסך והחלק העליון נחתך. הכותרת והכפתורים קבועים, רק הגוף נגלל (כשאין ברירה) */
+  display: flex; flex-direction: column; max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 12px); }
 .earn-veil.show .earn-sheet { transform: none; }
 .sheet-grab { width: 38px; height: 5px; border-radius: var(--pill); background: var(--outline); margin: 2px auto 14px; }
-.es-head { display: flex; align-items: center; gap: 12px; }
-.es-head .stock-logo { width: 52px; height: 52px; border-radius: var(--radius-sm); }
-.es-id { min-width: 0; }
-.es-title { font-size: 19px; font-weight: 800; }
+.earn-sheet > .sheet-grab { flex: none; margin-bottom: 10px; }
+.es-head { flex: none; display: flex; align-items: flex-start; gap: 12px; }
+.es-head .stock-logo { flex: none; width: 52px; height: 52px; border-radius: var(--radius-sm); }
+.es-id { flex: 1; min-width: 0; }
+.es-title { font-size: 19px; font-weight: 800; line-height: 1.25; }
 .es-name { font-size: 14px; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.es-when { margin: 14px 0 16px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); }
-.es-day { font-size: 16.5px; font-weight: 700; }
-.es-meta { font-size: 13.5px; color: var(--on-surface-var); margin-top: 2px; }
-.es-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; border-radius: var(--pill); margin-bottom: 10px; }
-.es-btn .ic { width: 20px; height: 20px; }
+.es-day { font-size: 15px; font-weight: 700; margin-top: 6px; }
+.es-meta { font-size: 13px; color: var(--on-surface-var); margin-top: 1px; }
+.es-x-close { flex: none; width: 34px; height: 34px; margin-top: -2px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: var(--surface-2); color: var(--on-surface); cursor: pointer; }
+.es-x-close svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.es-body { flex: 0 1 auto; line-height: 1.38; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; margin-inline: -18px; padding-inline: 18px; }
+.es-body::-webkit-scrollbar { display: none; }
+.es-acts { flex: none; display: flex; gap: 10px; margin-top: 12px; }
+.es-btn { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 7px; border-radius: var(--pill); margin: 0; padding-inline: 10px; font-size: 15.5px; }
+.es-btn span { unicode-bidi: plaintext; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.es-btn .ic { flex: none; width: 20px; height: 20px; }
 /* 15/11/2026: צפי לדוח — שורות קטנות בכרטיס, וטבלה בגיליון (אנליסטים / הנהלה) */
 .earn-x { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 4px; margin-top: 2px; font-size: 13px; color: var(--on-surface); line-height: 1.35; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .earn-x b { font-weight: 500; color: var(--on-surface-var); }
@@ -1700,13 +1708,13 @@ html[data-app="cashflow"] .login-overlay { background: linear-gradient(160deg, #
 .earn-tone.neu { color: var(--on-surface-var); background: color-mix(in srgb, var(--on-surface) 8%, transparent); }
 .earn-fc-v { font-size: 12px; font-weight: 600; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
 .earn-flag { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: var(--pill); font-size: 11.5px; font-weight: 700; white-space: nowrap; color: var(--warn-fg); background: var(--warn-bg); }
-.esx-sec { margin-top: 12px; padding-top: 10px; border-top: .5px solid var(--card-border); }
+.esx-sec { margin-top: 10px; padding-top: 9px; border-top: .5px solid var(--card-border); }
 .esx-st { font-size: 13.5px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
 .esx-st .earn-tone { margin-inline-start: 0; }
 .esx-sec .esx-meta { margin-top: 4px; }
-.esx-flag { font-size: 12.5px; margin-top: 8px; padding: 6px 10px; border-radius: var(--radius-sm); color: var(--on-surface); background: var(--warn-bg); }
+.esx-flag { font-size: 12.5px; line-height: 1.38; margin-top: 7px; padding: 6px 11px; border-radius: var(--radius-sm); color: var(--on-surface); background: var(--warn-bg); }
 .esx-flag > span { color: var(--warn-fg); }
-.es-x { margin: -4px 0 16px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); }
+.es-x { margin: 14px 0 0; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); }
 .esx-title { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
 .esx-grid { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); column-gap: 12px; row-gap: 8px; align-items: baseline; }
 .esx-grid.one { grid-template-columns: auto minmax(0, 1fr); }
@@ -1725,7 +1733,7 @@ html[data-app="cashflow"] .login-overlay { background: linear-gradient(160deg, #
 .earn-tone.pos { color: var(--gain); background: color-mix(in srgb, var(--gain) 14%, transparent); }
 .earn-tone.neg { color: var(--loss); background: color-mix(in srgb, var(--loss) 14%, transparent); }
 .esx-title .earn-tone { font-size: 12px; }
-.es-note { font-size: 12.5px; color: var(--on-surface-var); text-align: center; margin: 0 0 8px; }
+.es-note { flex: none; font-size: 12px; color: var(--on-surface-var); text-align: center; margin: 8px 0 0; }
 .es-cancel { display: block; width: 100%; background: none; border: 0; padding: 12px; font: inherit; font-size: 16px; font-weight: 600; color: var(--on-surface-var); cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .earn-sheet, .earn-veil { transition: none; } }
 .wl-earn { margin-top: 6px; font-size: 14px; color: var(--on-surface-var); }
