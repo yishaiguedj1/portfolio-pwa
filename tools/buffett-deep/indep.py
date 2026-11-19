@@ -119,7 +119,10 @@ def compute(snap, pxk=None):
         i = len(fy) - 1
         pretax = (A.get('pretax') or [None] * len(fy))[i] if A.get('pretax') else None
         tax = (A.get('tax') or [None] * len(fy))[i] if A.get('tax') else None
-    t = min(max(tax / pretax, 0.10), 0.35) if fin(pretax) and pretax > 0 and fin(tax) else 0.21
+    # שיעור המס (ההגדרה מ־#718/#721, ‏docs/buffett-method-research.md §6.4, §13.12–13.13): ריט — 0 (אין מגן מס); שיעור הדוחות רק
+    # בתחום 10%–30% (מחוץ לתחום — לא נלקח, לא נחתך), אחרת 21%. ‏TODO (גל 3): השיעור שהוצהר בהודעה ‏(r[4]) ו־r[9] — לפי רבעון
+    tr = tax / pretax if fin(pretax) and pretax > 0 and fin(tax) else None
+    t = 0.0 if snap.get('reit') else (tr if tr is not None and 0.10 <= tr <= 0.30 else 0.21)
     hist = [h for h in (snap.get('hist') or []) if h and h.get('q') and fin(h.get('a'))]
     sbcx = snap.get('sbcX') or []
     rows = []
@@ -140,15 +143,24 @@ def compute(snap, pxk=None):
             return out
         sb = sbc * (1 - t) / sh if fin(sbc) and sbc > 0 else 0.0
         pol, rec = policy(sbcx, e)
-        rows.append({'e': e, 's': hq['a'], 'g': g, 'sbc': sbc, 'sh': sh, 'sb': sb, 'pol': pol, 'rec': rec})
+        bx = (snap.get('bx') or {}).get(e) or []
+        amz = bx[3] if len(bx) > 3 and fin(bx[3]) and bx[3] > 0 else 0.0
+        rows.append({'e': e, 's': hq['a'], 'g': g, 'sbc': sbc, 'sh': sh, 'sb': sb, 'pol': pol, 'rec': rec, 'amz': amz * (1 - 0.21) / sh})
     ygaap = sum(1 for r in rows if abs(r['s'] - r['g']) <= max(0.02, 0.02 * abs(r['s']))) >= 3
+    # רבעון שבו הרחוב = GAAP (חצי אחוז) — התגמול כבר ירד בו (B-028)
+    eqg = lambda r: abs(r['s'] - r['g']) <= max(0.005, 0.005 * abs(r['s']))
+    # סדרה מעורבת: בדיוק שני רבעונים = GAAP, ובאחר החברה מוציאה — לא ידוע מה הרחוב, אין אריח
+    if not ygaap and sum(1 for r in rows if eqg(r)) == 2 and any(r['pol'] == 1 and not eqg(r) for r in rows):
+        out['why'] = 'mixed-street'
+        return out
     for r in rows:
-        if r['pol'] == 0 or ygaap:
-            r['ded'] = 0.0
-        elif r['pol'] == 1:
-            r['ded'] = r['sb']
-        else:
-            r['ded'] = min(max(r['s'] - r['g'], 0.0), r['sb'])
+        r['ded'] = r['sb'] if r['pol'] == 1 and not ygaap and not eqg(r) else 0.0
+    if all(r['pol'] is None for r in rows) and not ygaap:
+        # בלי הודעות: הפער של 12 החודשים פחות ההפחתה מרכישות, עד התגמול אחרי מס — כסכום (§6.9, §13.5)
+        cap = sum(r['sb'] for r in rows)
+        tot = min(max(sum(r['s'] - r['g'] - r['amz'] for r in rows), 0.0), cap)
+        for r in rows:
+            r['ded'] = tot * r['sb'] / cap if cap > 0 else 0.0
     st = sum(r['s'] for r in rows)
     g = sum(r['g'] for r in rows)
     if st * g > 0 and abs(st) > 0.05 and abs(g) > 0.05 and (abs(st / g) > 8 or abs(st / g) < 0.125):

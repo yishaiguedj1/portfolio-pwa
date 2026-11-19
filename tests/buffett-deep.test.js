@@ -58,7 +58,10 @@ ok(M.EXA.buf.pol === 'ex' && M.EXA.rows.every((x) => x.pol === 1 && x.ded === x.
 ok(M.INC.buf.ded === 0 && M.INC.note === 'anBPolIn', 'כולל: אין ניכוי, ההערה "כולל"');
 ok(M.MIX.buf.pol === 'mix' && M.MIX.rows[2].ded === 0 && M.MIX.rows[0].ded > 0, 'מעורב: הניכוי רק ברבעונים שמוציאים');
 ok(M.CHG.buf.f.chg === true && M.CHG.buf.f.ded === 0 && M.CHG.noteF === 'anBFutIn', '"מעכשיו כולל": בלי ניכוי צפוי, ההערה בצפוי');
-ok(M.UNK.buf.pol === '?' && Math.abs(M.UNK.rows[0].ded - 0.01) < 1e-9 && M.UNK.rows[2].ded === M.UNK.rows[2].sbAt, 'לא ידוע: עד גובה הפער, ולא יותר מהתגמול');
+{ // לא ידוע (מ־#721): הפער של 12 החודשים פחות ההפחתה מרכישות, עד התגמול אחרי מס — כסכום, לא לפי רבעון
+  const u = M.UNK.rows, gap = u.reduce((t, r) => t + r.hq.a - r.g - r.amz, 0), cap = u.reduce((t, r) => t + r.sbAt, 0);
+  ok(M.UNK.buf.pol === '?' && Math.abs(M.UNK.buf.ded - Math.min(Math.max(gap, 0), cap)) < 1e-9 && M.UNK.buf.ded <= cap + 1e-12, 'לא ידוע: עד גובה הפער, ולא יותר מהתגמול');
+}
 ok(M.YGA.buf.yGaap && M.YGA.buf.ded === 0, 'רחוב = GAAP ב־3 מ־4: אין ניכוי גם כשמוציא');
 ok(M.NOH.buf === null && /^no-hist:/.test(M.NOH.why), 'אין רחוב → null עם סיבה');
 ok(M.ANN.now.kind === 'fy' && M.ANN.buf, '"עכשיו" = השנה האחרונה — מחושב');

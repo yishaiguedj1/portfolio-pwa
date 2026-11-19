@@ -39,13 +39,13 @@ function nullWhy(A, co) {
   return 'units';
 }
 
-// ההודעה שנבחרה לרבעון — אותו כלל כמו sbcPol, כדי לרשום *איזו* הודעה קבעה (התאריך והאורך), לא רק את התוצאה
-function polRec(co, e) {
-  const L = Array.isArray(co.sbcX) ? co.sbcX : [];
-  if (!L.length) return null;
-  const t = Date.parse(e), w = L.filter((r) => { const d = (Date.parse(r[0]) - t) / D864; return d > 0 && d <= 100; });
-  if (w.length) return { how: 'win', r: w.reduce((a, b) => ((b[3] || 0) > (a[3] || 0) ? b : a)) };
-  return { how: 'near45', r: L.reduce((a, b) => (Math.abs(Date.parse(b[0]) - t - 45 * D864) < Math.abs(Date.parse(a[0]) - t - 45 * D864) ? b : a)) };
+// ההודעה שנבחרה לרבעון — sbcRel של analysis.js עצמו (החלון של 100 יום בלי הודעה על רבעון אחר, קודם ספירת האזכורים r[8], אחר כך
+// האורך; בלי חלון — הקרובה ל־45 יום). כאן רק נרשם *איך* נבחרה (win/near45), כדי שכל רבעון ייכנס ליומן עם ההודעה שקבעה
+function polRec(A, co, e) {
+  const r = A.sbcRel(co, e);
+  if (!r) return null;
+  const t = Date.parse(e), d = (Date.parse(r[0]) - t) / D864;
+  return { how: d > 0 && d <= 100 && !(r[7] && Math.abs(Date.parse(r[7]) - t) > 10 * D864) ? 'win' : 'near45', r };
 }
 
 function model(sb, d, mac, fx, pxk) {
@@ -75,15 +75,30 @@ function model(sb, d, mac, fx, pxk) {
     if (m > 0) { const px2 = A.pxFrom(co, k, m * 1.1); out.inv[k] = { m11: m * 1.1, px: num(px2), back: px2 ? num(px2 / (k === 'bpe' ? b.eps : b.f.eps)) : null }; }
   }
   if (!b) return out;
-  // השורות לפי רבעון — מאותן פונקציות, ובדיקה מול הסכומים של bufCalc
-  const n = co.q.length, L = n - 1, hist = (co.hist || []).filter((x) => x && x.q && x.a != null && isFinite(x.a)), t = b.t, rows = [];
+  // השורות לפי רבעון — מאותן פונקציות (sbcRel, ‏bufTau, ‏sbcAmt; מ־#721, ‏SV=4), ובדיקה מול הסכומים של bufCalc
+  const n = co.q.length, L = n - 1, hist = (co.hist || []).filter((x) => x && x.q && x.a != null && isFinite(x.a)), rows = [];
+  const fy = A.periodList(co, 'fy').filter((x) => x.kind === 'fy').slice(-1)[0], TOK = (x) => x >= 0.1 && x <= 0.3;
+  let pt = A.raw(co, 'pretax', p), tx = A.raw(co, 'tax', p);
+  if (!(pt > 0 && tx != null) && fy) { pt = A.raw(co, 'pretax', fy); tx = A.raw(co, 'tax', fy); }
+  const xt = pt > 0 && tx != null && TOK(tx / pt) ? tx / pt : null;
   for (let i = L - 3; i <= L; i++) {
     const e = co.q[i], hq = hist.find((x) => Math.abs(Date.parse(x.q) - Date.parse(e)) <= 20 * D864);
-    const g = co.Q.eps[i], sh = co.Q.sh[i], sbc = co.Q.sbc ? co.Q.sbc[i] : null, sbAt = sbc > 0 ? sbc * (1 - t) / sh : 0;
-    const pol = A.sbcPol(co, e), pr = polRec(co, e);
-    rows.push({ e, hq: hq ? { q: hq.q, a: hq.a, est: hq.e } : null, g, sbc, sh, sbAt, pol, polBy: pr ? { how: pr.how, filed: pr.r[0], ex: pr.r[1], fut: pr.r[2], n: pr.r[3] } : null });
+    const g = co.Q.eps[i], sh = co.Q.sh[i], sbc = co.Q.sbc ? co.Q.sbc[i] : null;
+    const pr = polRec(A, co, e), rel = pr ? pr.r : null, tau = A.bufTau(co, rel, e, xt), am = A.sbcAmt(co, i, rel, tau.t);
+    const ns = rel && rel[10] > 1.15 * sh && rel[10] < 4 * sh ? rel[10] : sh, sbAt = am.v * (1 - tau.t) / ns;
+    const amz = (co.bx && co.bx[e] && co.bx[e][3]) || 0;
+    rows.push({ e, hq: hq ? { q: hq.q, a: hq.a, est: hq.e } : null, g, sbc, sh, ns, amt: am.v, as: am.s, oth: !!am.oth, t: tau.t, ts: tau.s, sbAt,
+      pre: am.v / ns, amz: amz > 0 ? amz * (1 - 0.21) / sh : 0, pol: rel ? (rel[1] ? 1 : 0) : null,
+      polBy: pr ? { how: pr.how, filed: pr.r[0], ex: pr.r[1], fut: pr.r[2], n: pr.r[3], k: pr.r[8] || 0, pp: pr.r[11] ? 1 : 0 } : null });
   }
-  for (const r of rows) r.ded = r.pol === 0 || b.yGaap ? 0 : r.pol === 1 ? r.sbAt : Math.min(Math.max(r.hq.a - r.g, 0), r.sbAt);
+  const eqG = (r) => Math.abs(r.hq.a - r.g) <= Math.max(0.005, 0.005 * Math.abs(r.hq.a));
+  for (const r of rows) { r.eqG = eqG(r); r.ded = r.pol === 1 && !b.yGaap && !r.eqG ? r.sbAt : 0; }
+  if (!rows.some((r) => r.pol === 1 || r.pol === 0) && !b.yGaap) {
+    // בלי הודעות: הפער פחות ההפחתה מרכישות, עד התגמול אחרי מס — כסכום, ולא לפי רבעון
+    const sa = rows.reduce((t, r) => t + r.hq.a - r.g - r.amz, 0), cap = rows.reduce((t, r) => t + r.sbAt, 0);
+    const tot = Math.min(Math.max(sa, 0), cap);
+    for (const r of rows) r.ded = cap > 0 ? tot * r.sbAt / cap : 0;
+  }
   out.rows = rows;
   const sum = (k) => rows.reduce((s, r) => s + (k === 'a' ? r.hq.a : r[k]), 0);
   const close = (x, y) => Math.abs(x - y) <= 1e-9 * Math.max(1, Math.abs(x), Math.abs(y));
