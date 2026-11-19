@@ -1924,4 +1924,61 @@ ${row('ro', 'us-gaap_CostOfRevenue', 'Cost of sales', ['1', '2', '3', '4', '5', 
       { ns: 'us-gaap', tag: 'LiabilitiesAndStockholdersEquity', label: 'Total liabilities and stockholders’ equity', total: true, v: [308167] }] } };
     ok(F.debtFace(cof, 'USD').tot.get('2014-12-31') === 47577e6, '(40) F38: ‏"Total other debt" (כולל ריפו) — סכום־ביניים, לא נספר שוב (47,577, לא 84,410)');
   }
+  /* ---------- (41) גל 9: ‏F39 (סכום־ביניים בלי "Total"), ‏F40 (איגוח חייבים), ‏F41 (השורות שאחרי הסך), ‏F37 (הרבעון הרביעי מההודעה) ---------- */
+  {
+    const P9 = require(path.join(root, 'ibkr-proxy/lib/secpr.js')), B9 = require(path.join(root, 'ibkr-proxy/lib/bsfiled.js'));
+    const row = (tag, label, v, total) => ({ ns: tag.includes(':') ? tag.split(':')[0] : 'us-gaap', tag: tag.includes(':') ? tag.split(':')[1] : tag, label, v, ...(total ? { total: true } : {}) });
+    // F39 (Dominion ‏10-K ‏2017, עמודת 2016): ‏"Long-Term Debt" ‏30,231 = ‏24,878 + ‏2,980 + ‏2,373 ("Remarketable subordinated notes" — לא זוהתה כחוב)
+    const dom = { bs: { cols: [{ end: '2017-12-31' }, { end: '2016-12-31' }], scale: { cur: 1e6, sh: 1 }, rows: [row('Assets', 'Total assets', [76585, 71610], 1),
+      row('LongTermDebtCurrent', 'Securities due within one year', [3078, 1709]), row('ShortTermBorrowings', 'Short-term debt', [2298, 3155]),
+      row('LiabilitiesCurrent', 'Total current liabilities', [9636, 8115], 1), row('LongTermLineOfCredit', 'Long-term debt', [25588, 24878]),
+      row('d:SubordinatedDebtLongTermAffiliates', 'Junior subordinated notes', [3981, 2980]), row('d:RemarketableSubordinatedNotesNoncurrent', 'Remarketable subordinated notes', [1379, 2373]),
+      row('LongTermDebtNoncurrent', 'Long-Term Debt', [30948, 30231]), row('DeferredTaxLiabilitiesNoncurrent', 'Deferred income taxes', [4523, 8602]),
+      row('Liabilities', 'Total liabilities', [57215, 54770], 1), row('LiabilitiesAndStockholdersEquity', 'Total liabilities and equity', [76585, 71610], 1)] } };
+    const d9 = F.debtFace(dom, 'USD');
+    ok(d9.tot.get('2016-12-31') === 35095e6 && d9.tot.get('2017-12-31') === 36324e6, '(41) F39: סכום־ביניים בלי "Total" שכולל שורה שלא זוהתה כחוב — במקום השורות (35,095, לא 62,953)');
+    // ...אבל רצף שיש בו שורה שאינה חוב במפורש (ריפו) — השורה לא נכנסת (הכלל של F38)
+    const rp = JSON.parse(JSON.stringify(dom)); rp.bs.rows[6] = row('FederalFundsPurchasedAndSecuritiesSoldUnderAgreementsToRepurchase', 'Securities sold under agreements to repurchase', [1379, 2373]);
+    ok(F.debtFace(rp, 'USD').tot.get('2016-12-31') === (1709 + 3155 + 24878 + 2980) * 1e6, '(41) F39: ריפו ברצף — לא סכום של חוב, השורות נשארות');
+    // F40 (Targa ‏2015): ‏"Accounts receivable securitization facility" ב־CollateralizedFinancings — חוב
+    const trg = { bs: { cols: [{ end: '2015-12-31' }], scale: { cur: 1e6, sh: 1 }, rows: [row('Assets', 'Total assets', [13253.7], 1),
+      row('AccountsPayableAndAccruedLiabilitiesCurrent', 'Accounts payable and accrued liabilities', [657.1]), row('CollateralizedFinancings', 'Accounts receivable securitization facility', [219.3]),
+      row('LiabilitiesCurrent', 'Total current liabilities', [881.6], 1), row('LongTermDebtNoncurrent', 'Long-term debt', [5718.8]),
+      row('NotesReceivableNet', 'Notes receivable', [12]), row('LiabilitiesAndStockholdersEquity', 'Total liabilities and owners’ equity', [13253.7], 1)] } };
+    ok(Math.abs(F.debtFace(trg, 'USD').tot.get('2015-12-31') - 5938.1e6) < 1, '(41) F40: איגוח חייבים — חוב (5,938.1); "Notes receivable" — לא');
+    // F41: slim שומר את החלויות שאחרי "סך התחייבויות והון" (Seagate ‏10-Q ‏2020), ומאזן ישן בלעדיהן נקרא שוב רק כשהשוטפות לא מסתכמות
+    const stx = { cols: [{ end: '2020-10-02' }], scale: { cur: 1e6, sh: 1 }, rows: [row('Assets', 'Total assets', [8000], 1), row('AccountsPayableCurrent', 'Accounts payable', [1500]),
+      row('LiabilitiesCurrent', 'Total current liabilities', [1525], 1), row('LongTermDebtNoncurrent', 'Long-term debt, less current portion', [4138]),
+      row('LiabilitiesAndStockholdersEquity', 'Total liabilities and equity', [8000], 1), row('LongTermDebtCurrent', 'Less: current portion of debt', [25]), row('Goodwill', 'Goodwill', [1237])] };
+    const sl = B9.slim(stx), old = { ...sl, rows: sl.rows.slice(0, 5) }; delete old.t;
+    ok(sl.t === 1 && sl.rows.length === 6 && sl.rows[5].tag === 'LongTermDebtCurrent' && F.debtFace({ bs: sl }, 'USD').tot.get('2020-10-02') === 4163e6, '(41) F41: slim — החלויות שאחרי הסך נשמרות (4,163)');
+    ok(B9.needBs({ bs: old }) && !B9.needBs({ bs: sl }) && !B9.needBs({ bs: { ...old, rows: old.rows.map((r) => (r.tag === 'LiabilitiesCurrent' ? { ...r, v: [1500] } : r)) } }),
+      '(41) F41: needBs — רק מאזן ישן שהשוטפות שלו גדולות מהשורות שלפניהן');
+    const got = [];
+    const gt = async (u) => { got.push(u); if (/FilingSummary/.test(u)) return '<Report><HtmlFileName>R2.htm</HtmlFileName><ShortName>Condensed Consolidated Balance Sheets</ShortName><MenuCategory>Statements</MenuCategory></Report>'; throw new Error('http_404'); };
+    const rm = await B9.readMissing({ form: '10-Q', bs: old, is: { rows: [] } }, 'https://x/', null, gt);
+    ok(rm && rm.bs && rm.bs.t === 1 && !B9.needBs({ bs: rm.bs }), '(41) F41: readMissing — דף שלא נמצא: מסומן t, לא נקרא שוב בכל סבב');
+    // F37: שורות הרווח בהודעה (CrowdStrike ‏Q4 FY2026), והרבעון שנמחק בכוונה — מההודעה, לא מ־Yahoo
+    const CR = '<table><tr><td></td><td>Three Months Ended</td><td>Year Ended</td></tr><tr><td>Net income (loss)</td><td>40,775</td><td>(86,735)</td><td>(161,165)</td><td>(12,566)</td></tr>'
+      + '<tr><td>Net income (loss) attributable to non-controlling interest</td><td>2,084</td><td>(449)</td><td>1,337</td><td>2,675</td></tr>'
+      + '<tr><td>Net income (loss) attributable to CrowdStrike</td><td>$</td><td>38,691</td><td>$</td><td>(86,286)</td><td>$</td><td>(162,502)</td><td>$</td><td>(15,241)</td></tr>'
+      + '<tr><td>Net income (loss) per share attributable to CrowdStrike common stockholders, diluted</td><td>$</td><td>0.15</td><td>$</td><td>(0.35)</td><td>$</td><td>(0.65)</td><td>$</td><td>(0.06)</td></tr></table>';
+    const ni9 = P9.parseNi(CR);
+    ok(ni9.length === 2 && ni9[1].v.join() === '38691,-86286,-162502,-15241' && !ni9.some((r) => /non-controlling|per share/.test(r.label)), '(41) F37: parseNi — שורות הרווח, בלי זכויות מיעוט ובלי רווח למניה');
+    const E = ['2025-04-30', '2025-07-31', '2025-10-31', '2026-01-31'];
+    const mk = () => ({ fy: ['2025-01-31', '2026-01-31'], q: E.slice(), A: { ni: [-19271e3, -162502e3] }, Q: { ni: [-104264e3, -70153e3, -33997e3, null], eps: [-0.42, -0.28, -0.14, null], sh: [248e6, 250e6, 251e6, 252e6] },
+      qmix: [{ k: 'qmix', m: 'ni', p: E[3], x: 'rst' }, { k: 'qmix', m: 'op', p: E[3], x: 'rst' }, { k: 'qmix', m: 'op', p: E[2], x: 'rst' }], shEst: [E[3]], derived: {}, splitsUsed: [] });
+    const s9 = mk(), P = { [E[3]]: { end: E[3], ni: ni9, rows: P9.parse(CR).concat([{ t: 0, label: 'Weighted-average shares used, diluted', v: [258133, 248000, 246000, 245000] }]) } };
+    const o9 = F.q4Ni(s9, P);
+    ok(o9.length === 1 && s9.Q.ni[3] === 38691e3 && !s9.qmix.some((x) => x.m === 'ni') && s9.qmix.some((x) => x.m === 'op'), '(41) F37: q4Ni — הרבעון מהשורה המאומתת בעמודה השנתית (38.7M); הסימון qmix של הרווח יורד');
+    F.q4Press(s9, P);
+    ok(s9.Q.eps[3] === 0.15, '(41) F37: הרווח למניה של הרבעון — מאותה הודעה (0.15)');
+    const s0 = mk(); s0.A.ni[1] = -170000e3;
+    ok(F.q4Ni(s0, P).length === 0 && s0.Q.ni[3] == null, '(41) F37: העמודה השנתית לא שווה לשנתי שלנו — לא נוגעים');
+    const s1 = mk(), y1 = { q: E.slice(), Q: { ni: [-104e6, -70e6, -34e6, 59377e3], op: [1, 2, 3, 13786e3] } }; s1.Q.op = [5, 6, null, null];
+    F.yQuarterFill(s1, y1, true, []);
+    ok(s1.Q.ni[3] == null && s1.Q.op[3] == null && s1.Q.op[2] === 3, '(41) F37: רבעון רביעי שנמחק בכוונה (qmix rst) — לא ממלאים מ־Yahoo; רבעון באמצע השנה — כמו קודם');
+    ok(B9.prNeed({ rows: [{ label: 'Diluted EPS', v: [1] }], pv: 4 }, '2026-01-31', Date.parse('2026-11-19')) && !B9.prNeed({ rows: [{ label: 'Diluted EPS', v: [1] }], pv: 4 }, '2020-01-31', Date.parse('2026-11-19'))
+      && !B9.prNeed({ rows: [{ label: 'Diluted EPS', v: [1] }], pv: 4, nv: 1 }, '2026-01-31', Date.parse('2026-11-19')), '(41) F37: prNeed — רשומה מהשנתיים האחרונות בלי nv נקראת שוב פעם אחת');
+  }
 })().catch((e) => { console.error('נכשל:', e.stack || e.message); process.exit(1); });

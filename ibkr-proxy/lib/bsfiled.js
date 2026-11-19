@@ -25,14 +25,34 @@ const SX_LIVE = 2;           // הודעות תוצאות חדשות (מדיני
 const PERIODIC = /^(10-K|10-Q|10-KT|10-QT)$/; // בלי ‎/A‎ — תיקון עלול להכיל דוחות של חברה אחרת (כמו ב־secxbrl)
 const key = (cik) => PRE + String(cik).padStart(10, '0') + '.json.gz';
 
-/* צד ההתחייבויות בלבד: מסך הנכסים ועד "סך התחייבויות והון" (כולל) — מה ש־debtFace קורא. בלי סך נכסים — הכל */
+/* צד ההתחייבויות בלבד: מסך הנכסים ועד "סך התחייבויות והון" (כולל) — מה ש־debtFace קורא. בלי סך נכסים — הכל.
+   גל 9 (F41): וגם שורת חלויות שוטפות שדף ה־R הציג **אחרי** "סך התחייבויות והון" (Seagate ‏10-Q ‏2020: "Less: current portion of debt"
+   ‏25; ‏Halliburton ‏10-K ‏2021: ‏695) — debtFace סופר אותה כשהיא משלימה את "סך התחייבויות שוטפות". עד היום החיתוך זרק אותה, והחוב
+   בייצור היה רק הלא שוטף (STX ‏2020–2024 ב־14 הגשות, ‏HAL ‏2020–2021). ‏t: 1 — נחתך בכלל הזה */
+const TAIL_C = new Set(['LongTermDebtCurrent', 'LongTermDebtAndCapitalLeaseObligationsCurrent', 'OtherLongTermDebtCurrent', 'ConvertibleNotesPayableCurrent',
+  'ConvertibleDebtCurrent', 'SeniorNotesCurrent', 'SecuredDebtCurrent', 'UnsecuredDebtCurrent']);
 function slim(p) {
   if (!p || !p.rows) return null;
   const a0 = p.rows.findIndex((r) => r.tag === 'Assets');
   let z = p.rows.findIndex((r) => r.tag === 'LiabilitiesAndStockholdersEquity');
   if (z < 0) z = p.rows.length - 1;
-  const rows = (a0 >= 0 && z >= a0 ? p.rows.slice(a0, z + 1) : p.rows).map((r) => ({ ns: r.ns, tag: r.tag, label: r.label, total: r.total, v: r.v }));
-  return { cols: p.cols, scale: p.scale, rows };
+  const tail = a0 >= 0 && z >= a0 ? p.rows.slice(z + 1).filter((r) => r.ns === 'us-gaap' && TAIL_C.has(r.tag)) : [];
+  const rows = (a0 >= 0 && z >= a0 ? p.rows.slice(a0, z + 1).concat(tail) : p.rows).map((r) => ({ ns: r.ns, tag: r.tag, label: r.label, total: r.total, v: r.v }));
+  return { cols: p.cols, scale: p.scale, rows, t: 1 };
+}
+/* מאזן שנשמר לפני F41 (בלי t) ש"סך התחייבויות שוטפות" שלו גדול מהשורות שלפניו בעמודה כלשהי — חסרה שורה, אולי זו שאחרי הסך.
+   רק אותו נקרא שוב (FilingSummary ודף המאזן), לא כל המאזנים: העלאת V מוחקת את כל הרשומה (גם ההודעות לעיתונות והתגמול) */
+function lcGap(bs) {
+  if (!bs || bs.t || !bs.rows || !bs.cols) return false;
+  const rows = bs.rows, a0 = rows.findIndex((r) => r.tag === 'Assets'), lc = rows.findIndex((r, i) => i > a0 && r.tag === 'LiabilitiesCurrent');
+  if (a0 < 0 || lc < 0) return false;
+  const from = rows.slice(a0 + 1, lc).reduce((k, r, i) => (r.total || /^total\b/i.test(r.label || '') ? a0 + 1 + i : k), a0);
+  const vLc = SECFACE.rowVals(bs, rows[lc]);
+  return bs.cols.some((c, ci) => {
+    if (vLc[ci] == null) return false;
+    let t = 0; for (let k = from + 1; k < lc; k++) { const x = SECFACE.rowVals(bs, rows[k])[ci]; if (x != null) t += x; }
+    return vLc[ci] - t > Math.max(1, 1e-4 * Math.abs(vLc[ci]));
+  });
 }
 
 /* דף התזרים — רק השורות של פחת/הפחתות ושל רכישת רכוש קבוע (מה ש־bsfCf קורא); שאר הדף לא נשמר */
@@ -54,7 +74,8 @@ const dead = (r) => !!(r.err && r.err !== 'nobs' && r.err !== 'empty');
 const needCf = (r) => !!(r && annual(r) && !r.cf && !r.cfErr && !dead(r));
 // דף רווח והפסד: 10-K (גל 5, F20) וגם 10-Q (גל 6 — F20 ברבעונים; הגשה שכבר נשמרה בלעדיו מושלמת ב־readMissing)
 const needIs = (r) => !!(r && !r.is && !r.isErr && !dead(r));
-const needX = (r) => needCf(r) || needIs(r);
+const needBs = (r) => !!(r && r.bs && lcGap(r.bs));
+const needX = (r) => needCf(r) || needIs(r) || needBs(r);
 /* דף אחד של הגשה שנתית לפי הסוג (cf / is): {cf} / {cfErr} (נשמר) / null (תקלת רשת). xml — FilingSummary כשכבר נקרא */
 async function readSt(k, base, xml, getText) {
   const E = k + 'Err';
@@ -70,7 +91,15 @@ const readCf = (base, xml, getText) => readSt('cf', base, xml, getText);
 /* מה שחסר בהגשה שנתית שכבר נשמרה (התזרים / רווח והפסד) — FilingSummary פעם אחת. {…} / null (תקלת רשת באחד מהם) */
 async function readMissing(r, base, xml, getText) {
   const out = {};
-  if (xml == null && needX(r)) { try { xml = await getText(base + 'FilingSummary.xml'); } catch (e) { if (!/http_404/.test(String(e && e.message))) return null; return { ...(needCf(r) ? { cfErr: 'nofs' } : {}), ...(needIs(r) ? { isErr: 'nofs' } : {}) }; } }
+  if (xml == null && needX(r)) { try { xml = await getText(base + 'FilingSummary.xml'); } catch (e) { if (!/http_404/.test(String(e && e.message))) return null; return { ...(needCf(r) ? { cfErr: 'nofs' } : {}), ...(needIs(r) ? { isErr: 'nofs' } : {}), ...(needBs(r) ? { bs: { ...r.bs, t: 1 } } : {}) }; } }
+  // גל 9 (F41): המאזן מחדש, עם השורות שאחרי הסך. בכל תוצאה שאינה תקלת רשת — מסומן t, ולא נקרא שוב
+  if (needBs(r)) {
+    const pick = SECFACE.pickStatements(xml);
+    let h = null;
+    if (pick.bs) { try { h = await getText(base + pick.bs); } catch (e) { if (!/http_404/.test(String(e && e.message))) return Object.keys(out).length ? out : null; } }
+    const bs = h ? slim(SECFACE.parseR(h)) : null;
+    out.bs = bs && bs.rows.length ? bs : { ...r.bs, t: 1 };
+  }
   for (const k of ['cf', 'is']) {
     if (!(k === 'cf' ? needCf : needIs)(r)) continue;
     const c = await readSt(k, base, xml, getText).catch(() => null);
@@ -121,7 +150,11 @@ const PR_V = 4; // גרסת המפענח של ההודעות (2 — רצף הט�
 // גל 8 (4): המפענח משנה מספרים בתוך שורות שכבר נשמרו (".45" בלי אפס מוביל, "($" בתא משלו — secpr.js), ולכן כל רשומה מלפני 4 —
 // גם רשומה תקינה — נקראת שוב פעם אחת (~16 אלף בקשות ביקום, ~2 שעות של עבודת הרקע). מעכשיו כל רשומה נשמרת עם pv
 const PR_ALL = 4;
-const prNeed = (r) => !r || (r.pv || 1) < PR_ALL || ((!!r.err || (!!r.rows && !r.rows.some(SECPR.shRow))) && (r.pv || 1) < PR_V);
+// גל 9 (F37): שורות הרווח הנקי (ni, ‏secpr.parseNi; ‏nv) — רשומה עם שורות מהשנתיים האחרונות (‏800 יום — ה־12 חודשים של המסך) בלי nv
+// נקראת שוב פעם אחת (~2 הודעות לחברה, ~1,000 קבצים ביקום); הישנות — לא (מחוץ לחלון, ובלי עומס על הסבב של PR_V 4)
+const PR_NI = 1, PR_NI_DAYS = 800;
+const prNeed = (r, end, now) => !r || (r.pv || 1) < PR_ALL || ((!!r.err || (!!r.rows && !r.rows.some(SECPR.shRow))) && (r.pv || 1) < PR_V)
+  || (!!end && !!r.rows && (r.nv || 0) < PR_NI && (now || Date.now()) - Date.parse(end) < PR_NI_DAYS * 864e5);
 async function readPr(cik, it, getText) {
   let last = { end: it.end, err: 'nofile', pv: PR_V }, first = null, fbr = null;
   const sh = (x) => !!x && x.rows.some(SECPR.shRow);
@@ -135,7 +168,7 @@ async function readPr(cik, it, getText) {
     if (main) names = [k.doc];
     if (!names.length) { last = { end: it.end, err: 'noex', pv: PR_V }; continue; }
     // כמה קבצים באותה הגשה: עד שנמצאה גם שורת מניות (UPS: ‏EX-99.1 — רק התאמות לרווח המתואם; הדוחות המלאים ב־EX-99.2)
-    let rows = [], files = [], fb = null;
+    let rows = [], files = [], fb = null, ni = [];
     for (const nm of names) {
       let h;
       try { h = await getText(base + nm); } catch (e) { if (/http_404/.test(String(e && e.message))) continue; return null; }
@@ -144,15 +177,16 @@ async function readPr(cik, it, getText) {
       // בלי "מדולל" בכלל — "רווח למניה" ו"מניות" (גל 6, F30; מסומן b — q4Press מקבל רק בשנה בלי דילול). רק כגיבוי: קובץ אחר עם "מדולל" גובר
       if (!r0.length) { const e = SECPR.parseEps(h); if (e.length && (!fb || (!sh(fb) && e.some(SECPR.shRow)))) fb = { rows: e, file: nm }; continue; }
       const r = r0.map((x) => ({ ...x, t: x.t + 1000 * files.length }));
+      ni = ni.concat(SECPR.parseNi(h).map((x) => ({ ...x, t: x.t + 1000 * files.length })));
       rows = rows.concat(r); files.push(nm);
       if (r.some(SECPR.isShares)) break;
     }
-    const rec = rows.length ? { end: it.end, acc: k.acc, filed: k.filed, file: files.join(' '), rows } : null;
+    const rec = rows.length ? { end: it.end, acc: k.acc, filed: k.filed, file: files.join(' '), rows, ...(ni.length ? { ni } : {}), nv: PR_NI } : null;
     // מועמד בלי שורת מניות — ממשיכים למועמד הבא (גל 6, F31 — AbbVie ‏2025: ‏8-K של תחזית ב־6 בינואר עם "Diluted EPS Range",
     // ההודעה על התוצאות ב־31 בינואר; בלי מניות q4From לא מאמת כלום)
     if (sh(rec)) return { ...rec, pv: PR_V };
     if (rec && !first) first = { ...rec, pv: PR_V };
-    if (fb && (!fbr || (!sh(fbr) && sh(fb)))) fbr = { end: it.end, acc: k.acc, filed: k.filed, file: fb.file, rows: fb.rows, pv: PR_V };
+    if (fb && (!fbr || (!sh(fbr) && sh(fb)))) fbr = { end: it.end, acc: k.acc, filed: k.filed, file: fb.file, rows: fb.rows, pv: PR_V, nv: PR_NI };
     if (main && !rec && !fb) last = { end: it.end, err: 'noex', pv: PR_V };
   }
   return (sh(fbr) && fbr) || first || fbr || last;
@@ -250,7 +284,7 @@ async function fillAll(cik, deps) {
   // ההודעות לעיתונות: לכל 10-K (סוף השנה = reportDate) שעוד אין לו רשומה
   o.p = o.p || {};
   const ends = [...new Set(list.filter((f) => /^10-K/.test(f.form) && f.rep).map((f) => f.rep))];
-  const its = SECPR.pickItems(merge8k(sub, files), ends).filter((it) => prNeed(o.p[it.end]));
+  const its = SECPR.pickItems(merge8k(sub, files), ends).filter((it) => prNeed(o.p[it.end], it.end, deps.now));
   let prLeft = 0;
   for (const it of its) {
     if (deps.budgetMs && Date.now() - t0 > deps.budgetMs) { prLeft++; continue; }
@@ -298,4 +332,4 @@ async function tick(deps = {}) {
   return { ok: true, done, added, failed, i, ms: Date.now() - t0 };
 }
 
-module.exports = { load, fillSx, fillAll, tick, slim, slimCf, slimIs, needCf, needIs, needX, readMissing, periodic, readOne, readCf, readPr, prNeed, PR_V, merge8k, key, PRE, V, SINCE_Y, MAX_LIVE };
+module.exports = { load, fillSx, fillAll, tick, slim, slimCf, slimIs, needCf, needIs, needBs, lcGap, needX, readMissing, periodic, readOne, readCf, readPr, prNeed, PR_V, PR_NI, merge8k, key, PRE, V, SINCE_Y, MAX_LIVE };

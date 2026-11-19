@@ -256,11 +256,14 @@ function debtFace(face, cur) {
     // גל 4: גם "(portion measured at fair value: 2015 - $4,844…)" (AIG ‏2015). בשם התגית — בלי סעיף "Excluding …" (Con Edison: ‏ed:LongTermDebtExcludingHeldForSale —
     // "בלי המוחזק למכירה", נפסלה על "held for sale"; ‏2021–2024 בלי החוב לזמן ארוך)
     const r = rows[i], lab = (r.label || '').replace(/\s*\((includ|inclusive|of which|portion|measured)[^)]*\d[^)]*\)/ig, ''), txt = lab + ' ' + r.tag.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\s+Excluding\b.*$/, '');
+    // גל 9 (F40): "Accounts receivable securitization facility" (Targa ‏2014–2016, ‏CollateralizedFinancings) — הלוואה מובטחת בחייבים, כמו
+    // VST בגל 4; שם התגית שם לא הייתה של חוב, ו־"receivable" ב־DEBT_NOT פסל את השורה. "receivable(s)" שלפני "securitization" — לא נכס
+    const labX = lab.replace(/\breceivables?\s+(?=securiti[sz]ation)/ig, ''), txtX = txt.replace(/\breceivables?\s+(?=securiti[sz]ation)/ig, '');
     const cat = r.ns === 'us-gaap' ? DEBT_OF.get(r.tag) || null : null;
     const isTot = r.total || /^total\b/i.test(lab);
-    const labD = DEBT_LAB.test(lab) && !DEBT_NOT.test(lab.replace(/,?\s*(measured |carried )?at fair value/ig, ''));
+    const labD = DEBT_LAB.test(labX) && !DEBT_NOT.test(labX.replace(/,?\s*(measured |carried )?at fair value/ig, ''));
     const debt = (cat || !DEBT_NOTAG.test(r.tag)) && (cat ? !(DEBT_NOT.test(lab) && !DEBT_LAB.test(lab.replace(DEBT_NOT, '')))
-      : DEBT_SOFT.test(r.tag) ? labD : !DEBT_NOT.test(txt) && DEBT_LAB.test(txt))
+      : DEBT_SOFT.test(r.tag) ? labD : !DEBT_NOT.test(txtX) && DEBT_LAB.test(txtX))
       && !(FIN_LEASE.test(lab) && !DEBT_LAB.test(lab.replace(/(financ\w*|capital) leases?( obligations?| liabilit\w*)?/ig, '')));
     if (!debt) { if (isTot) grp++; continue; }
     const v = SECFACE.rowVals(S, r);
@@ -276,6 +279,25 @@ function debtFace(face, cur) {
         sub = cs.length > 0 && cs.some((i) => v[i]) && cs.every((i) => Math.abs(last.reduce((t, l) => t + (l.v[i] || 0), 0) - v[i]) <= Math.max(1e-9, 1e-4 * Math.abs(v[i])));
       }
       if (sub) continue;
+    }
+    // גל 9 (F39): סכום־ביניים בלי "Total" של רצף שורות שמעליו, שלא כולן זוהו כחוב (Dominion ‏10-K ‏2017: ‏"Long-term debt" ‏24,878 +
+    // ‏"Junior subordinated notes" ‏2,980 + ‏"Remarketable subordinated notes" ‏2,373 = ‏"Long-Term Debt" ‏30,231 ב־LongTermDebtNoncurrent;
+    // השורה השלישית לא זוהתה כחוב, ולכן הכלל שלמעלה — רק השורות שנספרו — לא תפס, והחוב נספר פעמיים). רצף של לפחות שתי שורות
+    // רצופות מעליה (עד "סך"), לפחות אחת מהן נספרה, ששווה לה בכל עמודה — השורה במקום השורות שנספרו ברצף. שורה ברצף שהיא במפורש
+    // לא חוב (DEBT_NOT — ריפו, ‏F38) — השורה לא נכנסת (הכלל של F38 לסך)
+    if (!isTot && cat && lines.length) {
+      const cs = v.map((y, ci) => ci).filter((ci) => v[ci] != null), acc = v.map(() => 0), run = [];
+      let hit = false, deb = false, bad = false;
+      for (let k = i - 1; k > a0 && !hit; k--) {
+        const rk = rows[k]; if (rk.total || /^total\b/i.test(rk.label || '')) break;
+        const vk = SECFACE.rowVals(S, rk);
+        vk.forEach((y, ci) => { if (y != null && ci < acc.length) acc[ci] += y; });
+        const ln = lines.find((l) => l.tag === rk.tag && l.v.every((y, ci) => y === vk[ci]));
+        run.push(ln || null); deb = deb || !!ln; bad = bad || (!ln && DEBT_NOT.test(rk.label || ''));
+        hit = run.length >= 2 && deb && cs.some((ci) => v[ci]) && cs.every((ci) => Math.abs(acc[ci] - v[ci]) <= Math.max(1e-9, 1e-4 * Math.abs(v[ci])));
+      }
+      if (hit && bad) continue;
+      if (hit) for (const l of run) if (l) lines.splice(lines.indexOf(l), 1);
     }
     if (isTot) {
       const prev = lines.filter((l) => l.grp === grp), x = c0 >= 0 ? v[c0] : null;
@@ -1920,6 +1942,11 @@ function yQuarterFill(sec, y, grossOnFace, checks) {
     const Q = sec.Q[k] || (sec.Q[k] = sec.q.map(() => null));
     sec.q.forEach((e, i) => {
       if (Q[i] != null) return;
+      // גל 9 (F37): רבעון רביעי שמחקנו בכוונה — הרבעונים 1–3 הוצגו מחדש אחרי הדוח השנתי (qmix ‏rst), או שהוסר (q4drop). Yahoo גוזר
+      // אותו "שנתי פחות 9 חודשים מקוריים" — בסיס מעורב (CrowdStrike ‏FY2026: ‏59.4M במקום 38.7M שבהודעה) — ולא ממלאים ממנו. רק סוף
+      // שנה: ברבעון האחרון של שנה פתוחה (‏rst בתזרים — BDX, ‏SPGI, ‏OXY…) החסימה מרוקנת את ה־12 חודשים (מועמד F42, ‏wave-9.md)
+      const fyEnd = (sec.fy || []).some((f) => Math.abs(day(f) - day(e)) <= 5);
+      if (fyEnd && ((sec.qmix || []).some((x) => x.m === k && x.p === e && x.x === 'rst') || (sec.cfy || []).some((x) => x.k === 'q4drop' && x.m === k && x.p === e))) return;
       const j = y.q.findIndex((x) => Math.abs(day(x) - day(e)) < 10);
       if (j < 0 || y.Q[k][j] == null || yComp(y, k, y.q[j])) return;
       Q[i] = y.Q[k][j]; (qfill[k] = qfill[k] || []).push(e); checks.push({ k: 'qfy', m: k, p: e });
@@ -1947,6 +1974,40 @@ function q4Eps(sec, y) {
    ‎1.24; P&G 2024: ‎1.26 במקום ‎1.27). ההודעה מדפיסה את שניהם: הזוג מאותה עמודה שמכפלתו = הרווח של הרבעון שלנו (הבסיס של הרווח
    למניה, לבעלי המניות או הנקי — Southwest 2022: הרווח לבעלי המניות נגזר משנה שתויגה שגוי, והנקי ‎−$220M = ‎−0.37 × 594M), והמניות
    עד 10% מההערכה (אחרי הפיצולים שאחרי ההודעה). המניות מחליפות את ההערכה, והרווח למניה — כשהוא נגזר. נרשם qsh (src 8k) */
+/* גל 9 (F37, ‏B-011 של בדיקת מכפיל באפט): רבעון רביעי של הרווח הנקי שנמחק בכוונה (qmix ‏rst — הרבעונים 1–3 הוצגו מחדש אחרי הדוח
+   השנתי, ו"שנתי פחות 9 חודשים" מערבב בסיסים) — משורת הרווח בהודעה לעיתונות (secpr.parseNi). השורה מאומתת בעמודה של השנה (= השנתי
+   שלנו בדיוק, באותו קנה מידה — אלפים / מיליונים), והרבעון — לפי מבנה הטבלה: "שלושה חודשים (השנה, אשתקד) · שנה (השנה, אשתקד)" — העמודה
+   הראשונה (4 עמודות, השנה בשלישית), או "רבעון · שנה" (2 עמודות). סכום הרבעונים שלנו + הרבעון רק בדיקת סבירות (עד 10%): בשנת הצגה מחדש
+   הרבעונים שלנו עצמם על בסיסים שונים (CrowdStrike: רבעונים 1–2 הוצגו מחדש ב־10-Q של FY2027, השלישי עוד לא — ‏‎−208.4 + 38.7 מול
+   ‏‎−162.5), והאימות המדויק הוא העמודה השנתית באותה שורה. CrowdStrike ‏FY2026: ‏"Net income (loss) attributable to CrowdStrike"
+   ‏38,691 / ‏(86,286) / ‏(162,502) / ‏(15,241). נרשם qsh (‏m ‏ni, ‏src ‏8k) */
+function q4Ni(sec, P) {
+  const out = [];
+  if (!P || !sec || !sec.Q || !sec.q || !sec.A) return out;
+  for (const k of ['ni', 'nic']) {
+    const Q = sec.Q[k], A = sec.A[k]; if (!Q || !A) continue;
+    sec.q.forEach((e, i) => {
+      if (Q[i] != null || !(sec.qmix || []).some((x) => x.m === 'ni' && x.p === e && x.x === 'rst')) return;
+      const fi = sec.fy.findIndex((f) => Math.abs(day(f) - day(e)) <= 5); if (fi < 0 || A[fi] == null || !A[fi]) return;
+      const s0 = sec.fy[fi - 1] || '0000', qs = sec.q.map((qe, j) => [qe, Q[j]]).filter(([qe]) => qe > s0 && qe < e && day(e) - day(qe) < 300);
+      if (qs.length !== 3 || qs.some(([, v]) => v == null)) return;
+      const r = Object.values(P).find((x) => x && x.ni && Math.abs(day(x.end) - day(e)) <= 5); if (!r) return;
+      const q3 = qs.reduce((t, [, v]) => t + v, 0), cand = new Set();
+      for (const row of r.ni) for (const sc of [1, 1e3, 1e6]) {
+        const n = row.v.length, ja = n === 4 ? 2 : n === 2 ? 1 : -1, x = ja > 0 ? row.v[0] : null;
+        if (x == null || row.v[ja] == null || Math.abs(row.v[ja] * sc - A[fi]) > Math.max(sc, 1e-4 * Math.abs(A[fi]))) continue;
+        if (Math.abs(q3 + x * sc - A[fi]) <= 0.1 * Math.max(Math.abs(A[fi]), Math.abs(q3), Math.abs(x * sc))) cand.add(x * sc);
+      }
+      if (cand.size !== 1) return;
+      const v = [...cand][0];
+      Q[i] = v; out.push({ k: 'qsh', m: k, p: e, f: v, v: null, src: '8k' });
+    });
+  }
+  // הרבעון מוצג עכשיו — בלי הסימון "הרבעונים לא מוצגים" (anFlQmix) לרווח באותו רבעון; ‏niPr — ל־q4Press (הרווח למניה)
+  sec.niPr = [...new Set(out.map((o) => o.p))];
+  if (out.length) sec.qmix = sec.qmix.filter((x) => !((x.m === 'ni' || x.m === 'nic') && out.some((o) => o.p === x.p)));
+  return out;
+}
 function q4Press(sec, P) {
   const out = [];
   if (!P || !sec || !sec.Q || !sec.q) return out;
@@ -1979,7 +2040,9 @@ function q4Press(sec, P) {
       out.push({ k: 'qsh', m: 'sh', p: e, f: m.sh, v: sh, src: '8k' });
     }
     const ours = sec.Q.eps && sec.Q.eps[i];
-    if (der.includes(e) && ours != null && Math.abs(ours - m.eps) >= 0.005) { sec.Q.eps[i] = m.eps; out.push({ k: 'qsh', m: 'eps', p: e, f: m.eps, v: ours, src: '8k' }); }
+    // גל 9 (F37): רבעון שהרווח שלו בא מההודעה (q4Ni) — גם הרווח למניה ממנה (עד היום ריק: הרבעון נמחק, ואין ממה לגזור)
+    const niPr = ours == null && (sec.niPr || []).includes(e) && sec.Q.eps;
+    if (niPr || (der.includes(e) && ours != null && Math.abs(ours - m.eps) >= 0.005)) { sec.Q.eps[i] = m.eps; out.push({ k: 'qsh', m: 'eps', p: e, f: m.eps, v: ours == null ? null : ours, src: '8k' }); }
   });
   return out;
   /* רבעון רביעי מתויג (גל 4): הרווח למניה שתויג רחוק מהרווח של הרבעון — רווח למניה × מניות שונה מכל בסיס של הרווח ביותר
@@ -2447,7 +2510,7 @@ async function fundamentals(sym0) {
     if ((f.m === 'rev' || f.m === 'cogs') && sec.A.gp && sec.A.rev[f.i] != null && sec.A.cogs && sec.A.cogs[f.i] != null && (sec.A.gp[f.i] == null || (sec.gpd || []).includes(sec.fy[f.i])))
       sec.A.gp[f.i] = sec.A.rev[f.i] - sec.A.cogs[f.i];
   }
-  const q4p = useSec ? q4Press(sec, secPr) : [];
+  const q4p = useSec ? q4Ni(sec, secPr).concat(q4Press(sec, secPr)) : [];
   const qsh = useSec ? qShares(sec, y) : [];
   const qeps = useSec ? q4Eps(sec, y) : [];
   const checks = useSec ? validate(sec).concat(crossCheck(sec, y), fcRes.out, ffix, sec.cfy || [], q4p, qsh, qeps) : [];
@@ -2574,7 +2637,7 @@ async function handle(body, res) {
 
 // בקשה ל־SEC עם המזהה (עבודת הרקע של המאזנים — server.js → startBsf → lib/bsfiled.js)
 const secText = (u) => getText(u, { headers: { 'User-Agent': SEC_UA() } }, 15000);
-module.exports = { handle, fundamentals, tagQ, BX_TAGS, holes, q4Press, fxMonthly, adrRatio, FX_FRED, capexNil, debtFace, bsfDebt, bsfCf, bsfIs, secText, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
+module.exports = { handle, fundamentals, tagQ, BX_TAGS, holes, q4Press, q4Ni, fxMonthly, adrRatio, FX_FRED, capexNil, debtFace, bsfDebt, bsfCf, bsfIs, secText, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
   industryFor, industryData, _cache: cache,
   // התגיות המועמדות לכל שורה — לכלי ההשוואה (fundxcheck: SEC גולמי גם לתקופות שהושלמו מתגית משנית). נשמט ב־f9db4c74 — tools/fund-xcheck.js מצפה לו
   TAGS: { gaap: { ...FLOW, ...INST }, ifrs: IFRS } };
