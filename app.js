@@ -1081,10 +1081,10 @@ he: {
   anBGaap: 'לשם השוואה: רווח מדווח',
   anBGaapS: 'כולל גם הפחתה מרכישות וחד־פעמי',
   anBPolEx: 'לפי ההודעות לעיתונות של החברה ב־SEC, הרווח המותאם שלה לא כולל את התגמול במניות, ולכן הורדנו את כולו.',
-  anBPolIn: 'לפי ההודעות לעיתונות של החברה ב־SEC, הרווח המותאם שלה כבר כולל את התגמול במניות, ולכן אין מה להוריד.',
+  anBPolIn: 'לפי ההודעות לעיתונות של החברה ב־SEC, הרווח המותאם שלה כבר מוריד את התגמול במניות כהוצאה, ולכן לא מורידים אותו פעם שנייה. בתזרים המזומנים, לעומת זאת, הוא מוחזר כהוצאה שלא יצאה במזומן, ולכן שם כן מורידים אותו.',
   anBPolMix: 'החברה שינתה את ההגדרה במהלך השנה. הורדנו את התגמול במניות רק ברבעונים שבהם הרווח המותאם לא כלל אותו.',
   anBPolUnk: 'לא נמצאה הודעה לעיתונות לבדיקה. ההנחה: הרווח המותאם לא כולל את התגמול במניות, ולכן הורדנו אותו עד גובה הפער מול הרווח המדווח.',
-  anBPolGaap: 'הרווח שהאנליסטים סופרים זהה לרווח המדווח, שכבר כולל את התגמול במניות.',
+  anBPolGaap: 'האנליסטים סופרים וצופים כאן את הרווח המדווח, שכבר מוריד את התגמול במניות כהוצאה, ולכן לא מורידים אותו פעם שנייה. בתזרים המזומנים, לעומת זאת, הוא מוחזר כהוצאה שלא יצאה במזומן, ולכן שם כן מורידים אותו.',
   anBFutIn: 'לפי ההודעה האחרונה של החברה, הרווח המותאם כולל מעכשיו את התגמול במניות, ולכן התחזית נשארת כמו שהיא.',
   anXFy: 'התזרים החופשי ב־12 החודשים האחרונים ({f}) ÷ שווי השוק. כמה מזומן העסק מייצר ביחס למחיר — כמו "ריבית" על ההשקעה.',
   anXNc: 'מזומן והשקעות ({c}) פחות חוב ({d}). יותר מזומן מחוב = ביטחון.',
@@ -3044,10 +3044,10 @@ en: {
   anBGaap: 'For comparison: reported profit',
   anBGaapS: 'Also includes acquisition amortization and one-offs',
   anBPolEx: 'According to the company’s press releases at the SEC, its adjusted profit excludes stock-based pay, so we deducted all of it.',
-  anBPolIn: 'According to the company’s press releases at the SEC, its adjusted profit already includes stock-based pay, so there is nothing to deduct.',
+  anBPolIn: 'According to the company’s press releases at the SEC, its adjusted profit already deducts stock-based pay as an expense, so we don’t deduct it twice. In the cash flow statement, by contrast, it is added back as a non-cash expense, so there we do deduct it.',
   anBPolMix: 'The company changed its definition during the year. We deducted stock-based pay only in the quarters where adjusted profit excluded it.',
   anBPolUnk: 'No press release was found to check. Assumption: adjusted profit excludes stock-based pay, so we deducted it up to the gap to reported profit.',
-  anBPolGaap: 'The profit analysts count equals reported profit, which already includes stock-based pay.',
+  anBPolGaap: 'Here analysts count and forecast reported profit, which already deducts stock-based pay as an expense, so we don’t deduct it twice. In the cash flow statement, by contrast, it is added back as a non-cash expense, so there we do deduct it.',
   anBFutIn: 'According to the company’s latest release, adjusted profit now includes stock-based pay, so the forecast stays as is.',
   anXFy: 'Free cash flow over the last 12 months ({f}) ÷ market cap. How much cash the business makes relative to the price — like “interest” on the investment.',
   anXNc: 'Cash and investments ({c}) minus debt ({d}). More cash than debt = safety.',
@@ -8309,8 +8309,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.186.3';
-const APP_VERSION = 'v846';
+const APP_RELEASE = '2.186.4';
+const APP_VERSION = 'v847';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');

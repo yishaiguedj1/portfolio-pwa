@@ -9,7 +9,7 @@
 'use strict';
 const SECPR = require('./secpr');
 
-const SV = 1;          // גרסת המסווג — שינוי בכללים = מספר חדש, וההודעות נקראות מחדש
+const SV = 2;          // גרסת המסווג — שינוי בכללים = מספר חדש, וההודעות נקראות מחדש (2: המשפט כולו בעדות במילים, 19/11/2026)
 const MAX = 6;         // הודעות אחרונות (4 רבעוני ה־12 חודשים + מרווח להודעה מקדימה)
 const DAYS = 460;
 
@@ -27,8 +27,9 @@ const PROSE = /^(?:\s*expenses?)?\s*(?:associated|in anticipation|which|that|is|
 // שורה עם מספרים מיד אחריה (ABNB: שורה בטבלת EBITDA — לא "תיאור במילים")
 const NUMROW = /^(?:\s*expenses?\d?)?\s*(?:\(\d\)\s*)?(?:\$\s*)?(?:\(?\d|-\s|—)/;
 // היעד של טבלת ההתאמה: השורה הראשונה מהסוגים האלה אחרי שורת התגמול
-const TGT = /(?:non-gaap|adjusted|core|cash)\s+(?:diluted\s+)?(?:net income|net earnings|earnings per (?:diluted )?share|eps|(?:diluted )?(?:net )?(?:income|earnings|profit) per (?:diluted |common )?share|net income per (?:diluted )?share|net income attributable)/;
-const OTHER = /(?:non-gaap|adjusted)\s+(?:operating (?:income|expenses?|margin|profit)|gross (?:profit|margin)|ebitda|ebit\b|free cash flow|segment)|segment (?:profit|operating income)|ebitda|operating activities|cash flows? from|effective (?:income )?tax rate|tax rate/;
+// גם בצורה "net income on non-gaap basis" (AVGO — כל שורה בטבלה: "<מדד> on gaap basis" … "<מדד> on non-gaap basis")
+const TGT = /(?:non-gaap|adjusted|core|cash)\s+(?:diluted\s+)?(?:net income|net earnings|earnings per (?:diluted )?share|eps|(?:diluted )?(?:net )?(?:income|earnings|profit) per (?:diluted |common )?share|net income per (?:diluted )?share|net income attributable)|(?:net income|net earnings|(?:diluted )?(?:net )?(?:income|earnings) per (?:diluted |common )?share)(?: - diluted)? on (?:a )?non-gaap basis/;
+const OTHER = /(?:non-gaap|adjusted)\s+(?:operating (?:income|expenses?|margin|profit)|gross (?:profit|margin)|ebitda|ebit\b|free cash flow|segment)|segment (?:profit|operating income)|ebitda|operating activities|cash flows? from|effective (?:income )?tax rate|tax rate|(?:gross (?:margin|profit)|operating (?:income|expenses?|margin)|research and development|selling, general and administrative(?: expenses?)?|cost of (?:revenue|products|sales|goods sold)|provision for income taxes) on (?:a )?non-gaap basis/;
 // דוח תזרים המזומנים (MSFT, ‏DIS) מול טבלת התאמה — מה הופיע אחרון לפני השורה
 const CF = /operating activities|cash provided by|cash flows? (?:from|provided)|net cash/g;
 const REC = /reconcil|non-gaap|adjusted|as reported|\bgaap\b/g;
@@ -53,9 +54,10 @@ function classify(raw) {
     const back = t.slice(Math.max(0, i - 1500), i), inCf = lastOf(back, CF) > lastOf(back, REC);
     const after = t.slice(i + m[0].length, i + m[0].length + 1500), a = after.search(TGT), b = after.search(OTHER), prose = PROSE.test(after.slice(0, 60)), row = NUMROW.test(after.slice(0, 40));
     if (!prose && !inCf && a >= 0 && (b < 0 || a < b)) { hits.push('E'); continue; }
-    // במילים: "non-GAAP net income / results / measures … exclude … stock-based compensation" — באותו משפט, לא על EBITDA בלבד (UBER, ‏IBM)
-    const b350 = t.slice(Math.max(0, i - 350), i), s = b350.slice(b350.lastIndexOf('. ') + 1);
-    if (!row && /non-gaap|adjusted/.test(s) && /exclud/.test(s) && !/ebitda/.test(s) && /net income|per share|\beps\b|earnings|results|measures|guidance/.test(s)) { hits.push('P'); continue; }
+    // במילים: "non-GAAP net income / results / measures … exclude … stock-based compensation" — באותו משפט, לא על EBITDA בלבד (UBER, ‏IBM).
+    // המשפט כולו: בלי תחילת משפט בטווח — לא נספר (APP 4Q25: הגדרה ארוכה של Adjusted EBITDA, שהחיתוך שלה השאיר רק "net income adjusted … excluding")
+    const b700 = t.slice(Math.max(0, i - 700), i), dot = b700.lastIndexOf('. '), s = dot >= 0 ? b700.slice(dot + 1) : '';
+    if (!row && s && /non-gaap|adjusted/.test(s) && /exclud/.test(s) && !/ebitda|number of shares|share count|weighted[- ]average shares/.test(s) && /net income|per share|\beps\b|earnings|results|measures|guidance/.test(s)) { hits.push('P'); continue; }
     hits.push(inCf ? 'c' : '-');
   }
   const ex = !nowNeg && hits.some((h) => h === 'E' || h === 'P');
@@ -88,8 +90,9 @@ async function readOne(cik, k, getText) {
 }
 
 /* לתשובה: [[תאריך הגשה, ex, fut, אורך], …] — רק הודעות תוצאות, מהישנה לחדשה. כמה הודעות לאותו רבעון (הודעה מקדימה, עדכון
-   תחזית) — הלקוח בוחר את הארוכה, ההודעה המלאה */
-const forClient = (sx) => Object.values(sx || {}).filter((r) => r && r.er && r.sv === SV).sort((a, b) => (a.filed < b.filed ? -1 : 1))
+   תחזית) — הלקוח בוחר את הארוכה, ההודעה המלאה. רשומה מגרסת מסווג קודמת — נשלחת עד שעבודת הרקע קוראת אותה מחדש (fillSx),
+   כדי שהחלפת גרסה לא תשאיר את כל החברות בלי מדיניות לכמה שעות */
+const forClient = (sx) => Object.values(sx || {}).filter((r) => r && r.er && r.sv > 0).sort((a, b) => (a.filed < b.filed ? -1 : 1))
   .map((r) => [r.filed, r.ex ? 1 : 0, r.fut ? 1 : 0, r.n || 0]);
 
 module.exports = { classify, pick, readOne, forClient, text, SV, MAX };
