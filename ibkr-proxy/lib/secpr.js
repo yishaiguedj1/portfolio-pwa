@@ -203,4 +203,10 @@ const epsLike = (r) => r.v.every((x) => x == null || Math.abs(x) < 5000) && r.v.
 const shLab = (r) => /share|weight|average|outstanding/i.test(r.label + ' ' + (r.ctx || '')) && !/per (common )?share|earnings per|income per|loss per|\beps\b/i.test(r.label);
 const shRow = (r) => !yearsOnly(r) && (shLab(r) || !epsLike(r));
 
-module.exports = { shRow, parse, parseText, parseEps, pickItems, ALT, exhibits, q4From, isShares, num };
+/* גל 9 (F37): שורות הרווח הנקי בהודעה — "Net income (loss)", ‏"Net income (loss) attributable to CrowdStrike" — לרבעון רביעי שנמחק
+   בכוונה (הרבעונים 1–3 הוצגו מחדש, ‏qmix ‏rst): העמודה של השנה מאמתת את השורה מול השנתי שלנו, ועמודה אחרת באותה שורה היא הרבעון.
+   לא רווח למניה, לא זכויות מיעוט, לא מותאם */
+const NI_ROW = /^net (income|loss|earnings|\(loss\)|\(income\))/i;
+const NI_NOT = /per (common |diluted |basic )?share|non.?controlling|minority|margin|adjusted|non.?gaap|excluding|before|from continuing|from discontinued|%/i;
+const parseNi = (html) => parse(html, (l) => NI_ROW.test(l) && !NI_NOT.test(l)).slice(0, 24).map(({ t, label, v }) => ({ t, label, v }));
+module.exports = { shRow, parse, parseText, parseEps, parseNi, pickItems, ALT, exhibits, q4From, isShares, num };
