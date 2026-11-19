@@ -501,8 +501,11 @@ function bufBU(co) {
   return { pt, ig, am, ro, ebt, t, D, eps, gap, flag: gap == null || Math.abs(gap) > 0.1, etr, byTax };
 }
 const buOf = (co) => (!co ? null : '_bu' in co ? co._bu : (co._bu = bufBU(co)));
-// ‏P/EBT — שווי שוק (מחיר × המניות של החישוב) ÷ רווח לפני מס של באפט; רווח לא חיובי → "—"
-const pebtOf = (co) => { const u = buOf(co), px = pxF(co); return u && px && u.ebt > 0 ? px * u.D / u.ebt : null; };
+// ‏P/EBT (החלטת המשתמש 19/11: "לפי מה שבאפט היה בוחר") — "regular pre-tax earnings" (2012): אותו רווח של מכפיל באפט, לפני מס
+// בשיעור הרגיל של החברה. ‏P/EBT = מכפיל באפט × (1 − τ) — הנוסחה של באפט עצמו (1991). דרך ב (מהדוחות) — בקרה בגיליון בלבד, כי
+// ב־GAAP יש חד־פעמיים שאין דרך לזהות אוטומטית (Pfizer: ‏36.5 מול 7). ריט — אין (בלי מס, ה־AFFO הוא הבסיס); רווח לא חיובי → "—"
+const ebtPs = (co) => { const b = bufEps(co); return b && !b.reit && b.eps > 0 && b.tl < 1 ? b.eps / (1 - b.tl) : null; };
+const pebtOf = (co) => { const e = ebtPs(co), px = pxF(co); return e && px ? px / e : null; };
 // האג"ח שמולו משווים: הארוך (30 שנה) בארה"ב; בת"א — הריבית הישראלית שיש (10 שנים)
 const bondOf = () => (!MAC ? null : MAC.rf30 > 0 ? { r: MAC.rf30, y: 30 } : MAC.rf > 0 ? { r: MAC.rf, y: 10 } : null);
 const bondFor = (co) => (/\.TA$/.test(co.sym) ? (MAC && MAC.rfIL > 0 ? { r: MAC.rfIL, y: 10, il: 1 } : null) : bondOf());
@@ -1391,7 +1394,7 @@ const MED = {
   fpe: { u: 'x', inv: (v, c, sh, r) => (r.fpe > 0 && r.price > 0 ? v * r.price / r.fpe : null) },
   bpe: { u: 'x', inv: (v, c, sh, r) => { const b = bufEps(r); return b && b.eps > 0 ? v * b.eps : null; } },
   bfpe: { u: 'x', inv: (v, c, sh, r) => { const b = bufEps(r); return b && b.f && b.f.eps > 0 ? v * b.f.eps : null; } },
-  pebt: { u: 'x', inv: (v, c, sh, r) => { const u = buOf(r); return u && u.ebt > 0 ? v * u.ebt / u.D : null; } },
+  pebt: { u: 'x', inv: (v, c, sh, r) => { const e = ebtPs(r); return e ? v * e : null; } },
   fy: { u: '%', inv: (v, c, sh) => (c.fcf > 0 ? c.fcf / v / sh : null) },
   pfcf: { u: 'x', inv: (v, c, sh) => (c.fcf > 0 ? v * c.fcf / sh : null) },
   ps: { u: 'x', inv: (v, c, sh) => (c.rev > 0 ? v * c.rev / sh : null) },
@@ -2285,29 +2288,26 @@ function bufSheet(key) {
 }
 /* גל 3: אריח P/EBT — הרמז הוא תשואת הרווח לפני מס מול האג"ח הארוך. ריט/IFRS/בלי דרך א — אין אריח */
 function pebtFact(co, fact) {
-  const v = pebtOf(co); if (v == null && !buOf(co)) return null;
+  const v = pebtOf(co), b = bufEps(co); if (!b || b.reit) return null;
   const bd = bondFor(co);
   return fact(T('anFPebt'), fmt(v, 'x', co, 1), v > 0 && bd ? T('anHPebt', { y: strip(pct(1 / v, 1)), b: strip(pct(bd.r, 1)) }) : T('anHPebt0'), 'pebt');
 }
 /* הגיליון: דרך ב שורה אחר שורה, התשואות מול האג"ח, רצפת 10% (אסיפת 2003) והבקרה מול דרך א */
 function pebtSheet() {
-  const co = S.co, u = buOf(co), b = bufEps(co), px = pxF(co), v = pebtOf(co), bd = bondFor(co);
+  const co = S.co, u = buOf(co), b = bufEps(co), px = pxF(co), v = pebtOf(co), bd = bondFor(co), e = ebtPs(co);
   openSheet(T('anFPebt'), (bdEl, rec) => {
     bdEl.append(h('p', { class: 'an-ex an-ex-lg' }, T('anXPebt')));
-    if (!u) { bdEl.append(h('p', { class: 'an-ex' }, T('anXBufNone'))); return; }
+    if (!b || b.reit) { bdEl.append(h('p', { class: 'an-ex' }, T('anXBufNone'))); return; }
     const m = (x) => fmt(x, 'money', co), ps = (x) => fmt(x, 'ps', co);
     const row = (tt, sub, val, strong) => h('div', { class: 'an-row' }, h('div', { class: 'an-rt' }, h('b', {}, tt), sub ? h('span', {}, sub) : null),
       h('div', { class: 'an-rv', style: strong ? 'font-weight:800' : null }, val));
-    const rows = [row(T('anPtG'), T('anPtGS'), m(u.pt))];
-    if (u.ig) rows.push(row(T('anPtIg'), T('anPtIgS'), m(-u.ig)));
-    if (u.am > 0) rows.push(row(T('anPtAm'), T('anPtAmS'), m(u.am)));
-    if (u.ro > 0) rows.push(row(T('anPtRo'), T('anPtRoS'), m(u.ro)));
-    rows.push(row(T('anPtB'), null, m(u.ebt), true),
-      row(T('anFPebt'), px ? T('anPtMcS', { m: strip(m(px * u.D)) }) : null, v ? fmt(v, 'x', co, 1) : T('anBNeg'), true));
-    if (u.pt > 0 && px) rows.push(row(T('anPtRaw'), T('anPtRawS'), fmt(px * u.D / u.pt, 'x', co, 1)));
+    // החישוב: רווח לפי באפט (אחרי מס) ← המס בשיעור הרגיל ← לפני מס ← המכפיל
+    const rows = [row(T('anBEps'), T('anPtES'), ps(b.eps))];
+    if (e) rows.push(row(T('anPtTx'), T('anPtTxS', { t: strip(pct(b.tl, 0)) }), ps(e - b.eps)), row(T('anPtB'), null, ps(e), true));
+    rows.push(row(T('anFPebt'), px ? T('anBMultS', { p: strip(ps(px)) }) : null, v ? fmt(v, 'x', co, 1) : T('anBNeg'), true));
     bdEl.append(h('div', { class: 'an-list' }, ...rows));
     // תשואות מול האג"ח: לפני מס (1 ÷ P/EBT) ואחרי מס (1 ÷ מכפיל באפט)
-    const ya = b && b.eps > 0 && px ? b.eps / px : null, yb = v > 0 ? 1 / v : null;
+    const ya = b.eps > 0 && px ? b.eps / px : null, yb = v > 0 ? 1 / v : null;
     const yr = [];
     if (yb != null) yr.push(row(T('anYPre'), null, pct(yb, 1)));
     if (ya != null) yr.push(row(T('anYAft'), T('anYAftS'), pct(ya, 1)));
@@ -2315,9 +2315,17 @@ function pebtSheet() {
     if (yr.length) bdEl.append(h('div', { class: 'an-list' }, ...yr));
     if (ya != null && bd) bdEl.append(h('p', { class: 'an-ex' }, T(ya > bd.r ? 'anYOver' : 'anYUnder', { d: strip(pct(Math.abs(ya - bd.r), 1)) })));
     if (ya != null && ya < 0.1) bdEl.append(h('p', { class: 'an-ex an-warn' }, T('anY10')));
-    // הבקרה: דרך ב אחרי מס מול דרך א (האריח "מכפיל באפט")
-    if (b) bdEl.append(h('p', { class: 'an-ex' + (u.flag ? ' an-warn' : '') }, u.gap == null ? T('anBuNeg')
-      : T(u.byTax ? 'anBuTax' : u.flag ? 'anBuFlag' : 'anBuOk', { a: strip(ps(b.eps)), b: strip(ps(u.eps)), g: strip(pct(Math.abs(u.gap), 0)), t: strip(pct(u.t, 0)), e: strip(pct(u.etr, 0)) })));
+    // הבקרה — דרך ב, מלמטה מהדוחות (SEC בלבד): לפני מס בדוח − רווחי השקעות + הפחתה מרכישות + ארגון מחדש שלא חוזר
+    if (u) {
+      const cr = [row(T('anPtG'), T('anPtGS'), m(u.pt))];
+      if (u.ig) cr.push(row(T('anPtIg'), T('anPtIgS'), m(-u.ig)));
+      if (u.am > 0) cr.push(row(T('anPtAm'), T('anPtAmS'), m(u.am)));
+      if (u.ro > 0) cr.push(row(T('anPtRo'), T('anPtRoS'), m(u.ro)));
+      cr.push(row(T('anPtBu'), null, m(u.ebt), true));
+      bdEl.append(h('p', { class: 'an-ex' }, T('anBuHead')), h('div', { class: 'an-list' }, ...cr));
+      bdEl.append(h('p', { class: 'an-ex' + (u.flag ? ' an-warn' : '') }, u.gap == null ? T('anBuNeg')
+        : T(u.byTax ? 'anBuTax' : u.flag ? 'anBuFlag' : 'anBuOk', { a: strip(ps(b.eps)), b: strip(ps(u.eps)), g: strip(pct(Math.abs(u.gap), 0)), t: strip(pct(u.t, 0)), e: strip(pct(u.etr, 0)) })));
+    }
     if (MED.pebt && canEdM(co, 'pebt')) medForm(bdEl, 'pebt', rec);
   }, { small: true });
 }
@@ -2340,5 +2348,5 @@ function estSheet() {
 }
 
 /* בדיקות (node) — הפונקציות הטהורות */
-export const _test = { bufCalc, bufEps, bpeOf, bfpeOf, bufBU, buOf, pebtOf, bondFor, sbcPol, sbcRel, bufTau, sbcAmt, isAdj, r40Of, multAvg, calcDefaults, calcRun, calcMults, irr, estGrowth, qRun, qBack, ttmPoints, cmpPrev, restated, cagrBetween, growthOf, finInputs, riValue, impliedRoe, reitInputs, lossView, fairOf, flagsAt, srcDef, rawName, RAWK, OWN_TAG, prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath, setPx, real, pxReal, MED, metNow, pxFrom, canEdM, medTxt, medVal, medHist,
+export const _test = { bufCalc, bufEps, bpeOf, bfpeOf, bufBU, buOf, pebtOf, ebtPs, bondFor, sbcPol, sbcRel, bufTau, sbcAmt, isAdj, r40Of, multAvg, calcDefaults, calcRun, calcMults, irr, estGrowth, qRun, qBack, ttmPoints, cmpPrev, restated, cagrBetween, growthOf, finInputs, riValue, impliedRoe, reitInputs, lossView, fairOf, flagsAt, srcDef, rawName, RAWK, OWN_TAG, prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath, setPx, real, pxReal, MED, metNow, pxFrom, canEdM, medTxt, medVal, medHist,
   setEnv: (e) => { E = e; } };

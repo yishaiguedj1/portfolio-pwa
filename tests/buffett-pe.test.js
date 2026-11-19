@@ -428,7 +428,7 @@ ok(!X.classify(EMR.replace('(dollars in millions, unaudited)', '')).ex, 'בלי 
   const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   const keys = ['anFBpe', 'anFBfpe', 'anCmpFwd', 'anHFpeAdj', 'anHBpe', 'anHBfpe', 'anXFpeAdj', 'anXBpe', 'anXBfpe', 'anXBufNone', 'anBStreet', 'anBStreetS', 'anBSbc', 'anBSbcS',
     'anBFwd', 'anBFwd0', 'anBFwdY', 'anBSbcF', 'anBSbcFS', 'anBEps', 'anBMultS', 'anBNeg', 'anBGaap', 'anBGaapS', 'anBPolEx', 'anBPolIn', 'anBPolMix', 'anBPolUnk', 'anBPolGaap', 'anBFutIn', 'anBSbcSP', 'anBSbcSD', 'anBSbcSR', 'anBSbcSB', 'anBOth', 'anBPart', 'anFPebt', 'anHPebt', 'anHPebt0', 'anXPebt', 'anPtG', 'anPtGS', 'anPtIg', 'anPtIgS', 'anPtAm', 'anPtAmS',
-    'anPtRo', 'anPtRoS', 'anPtB', 'anPtMcS', 'anPtRaw', 'anPtRawS', 'anYPre', 'anYAft', 'anYAftS', 'anYBond', 'anYBondIL', 'anYOver', 'anYUnder', 'anY10', 'anBuOk', 'anBuFlag', 'anBuNeg', 'anBuTax'];
+    'anPtRo', 'anPtRoS', 'anPtB', 'anPtES', 'anPtTx', 'anPtTxS', 'anPtBu', 'anBuHead', 'anYPre', 'anYAft', 'anYAftS', 'anYBond', 'anYBondIL', 'anYOver', 'anYUnder', 'anY10', 'anBuOk', 'anBuFlag', 'anBuNeg', 'anBuTax'];
   ok(keys.every((k) => (app.match(new RegExp('\\n  ' + k + ': ', 'g')) || []).length === 2), 'כל המחרוזות בעברית ובאנגלית');
   /* ---------- גל 3: דרך ב (מלמטה), ‏P/EBT, תשואת רווח מול האג"ח (docs/buffett-pe.md §2ג) ---------- */
   {
@@ -438,12 +438,12 @@ ok(!X.classify(EMR.replace('(dollars in millions, unaudited)', '')).ex, 'בלי 
     let c3 = mk({ hist: hs, sbcX: last4.map((i) => rel(q[i], 1)), bx: bxOf((i) => [Q.sbc[i], Q.sbc[i], null, 1e8, 2e8, 9e9]) });
     let u = A.bufBU(c3), b3 = A.bufCalc(c3);
     ok(u && near(u.pt, ptS, 1) && u.ig === 8e8 && u.am === 4e8 && near(u.ebt, ptS - 8e8 + 4e8, 1), 'דרך ב: לפני מס בדוח − רווחי השקעות (העמודה הראשונה, בלי ערבוב) + הפחתה מרכישות');
-    ok(near(u.eps, u.ebt * (1 - b3.tl) / 1e9) && near(A.pebtOf(c3), 400 * 1e9 / u.ebt), 'אחרי מס — בשיעור של דרך א; ‏P/EBT = שווי שוק ÷ הרווח לפני מס של באפט');
+    ok(near(u.eps, u.ebt * (1 - b3.tl) / 1e9) && near(A.pebtOf(c3), 400 / b3.eps * (1 - b3.tl)) && near(A.ebtPs(c3), b3.eps / (1 - b3.tl)), 'אחרי מס — בשיעור של דרך א; ‏P/EBT = מכפיל באפט × (1 − τ) — הרווח של מכפיל באפט, לפני מס (באפט 1991)');
     ok(u.flag === false && Math.abs(u.gap) <= 0.1, 'פער של עד 10% מול דרך א — בלי דגל');
     c3 = mk({ hist: hist(1), sbcX: last4.map((i) => rel(q[i], 1)), bx: bxOf((i) => [Q.sbc[i], Q.sbc[i], null, null, null, 3e9]) });
     u = A.bufBU(c3);
     ok(u.ig === 12e9 && u.am === 0 && u.flag === true, 'בלי העמודה הראשונה — השקעות בכלל; רחוב רחוק מהחישוב מלמטה → דגל');
-    ok(A.bufBU(mk({ hist: hist(1), sbcX: last4.map((i) => rel(q[i], 1)) })) === null, 'בלי bx (IFRS) — אין דרך ב ואין אריח');
+    { const c4 = mk({ hist: hist(1), sbcX: last4.map((i) => rel(q[i], 1)) }); ok(A.bufBU(c4) === null && A.pebtOf(c4) > 0, 'בלי bx (IFRS) — אין בקרה מלמטה, אבל יש P/EBT (מהרווח של מכפיל באפט)'); }
     c3 = mk({ hist: hs, sbcX: last4.map((i) => rel(q[i], 1)), bx: { ...bxOf((i) => [Q.sbc[i], Q.sbc[i], null, i === L ? 5e8 : null, null, null]), ttm: [null, null, null, 1.2e9, null, null] } });
     ok(A.bufBU(c3).am === 1.2e9, 'הפחתה רק בשנתי (Emerson) — 12 החודשים מהשרתון, לא רבעון אחד');
     const FU3 = require(path.join(root, 'ibkr-proxy/lib/fundamentals.js'));
