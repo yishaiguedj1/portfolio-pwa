@@ -1149,7 +1149,7 @@ he: {
   earnXCard: 'צפי', earnXFy: 'דוח שנתי', earnXAnY: 'אנליסטים · שנתי', earnXQtr: 'רבעון', earnXTonePos: 'מגמה חיובית', earnXToneNeg: 'מגמה שלילית', earnXToneNeu: 'מגמה ניטרלית',
   earnXD90: 'הצפי לרווח למניה {v} ב־90 יום', earnXRevs: 'ב־30 יום: {up} העלו, {dn} הורידו', earnXBeat: 'עקפה את הצפי ב־{b} מ־{n} הרבעונים האחרונים', earnXBeatWarn: '. רוב החברות עוקפות: הצפי יורד לקראת הדוח, ולכן עקיפה לבדה אינה ראיה לדוח טוב', earnXExpUp: 'ציפיות: צמיחה', earnXExpDown: 'ציפיות: ירידה', earnXExpMix: 'ציפיות: מעורב', earnXExpFlat: 'ציפיות: יציב', earnXRevS: 'הכנסות {v}', earnXEpsS: 'רווח {v}', earnXEpsNc: 'רווח — לא בר השוואה', earnXBizUp: 'העסק: משתפר', earnXBizDown: 'העסק: נחלש', earnXBizFlat: 'העסק: יציב', earnXFlag: 'יש חריגה', earnXExpT: 'ציפיות לרבעון', earnXExpWhy: 'הצפי של האנליסטים מול הרבעון המקביל אשתקד. הרווח מוחרג כשבאותו רבעון היה רווח חד־פעמי או לא־תפעולי גדול', earnXBizT: 'מצב העסק', earnXBizWhy: 'מהדוחות שכבר פורסמו: הרבעון האחרון מול המקביל אשתקד; המרת מזומן — 4 רבעונים. תזרים חופשי אחרי השקעות ותשלום במניות', earnXBMg: 'שולי רווח תפעולי {v} נק׳', earnXBFcf: 'תזרים חופשי למניה {v}', earnXBSh: 'מספר המניות {v}', earnXBCc: 'המרת מזומן {v}', earnXFOne: 'רווח חד־פעמי או לא־תפעולי גדול — הרווח למניה לא משקף את העסק', earnXFAcq: 'רכישה משמעותית בשנה האחרונה — חלק מהצמיחה לא אורגנית, והרווח ברבעון יכול לרדת זמנית', earnXFAdj: 'הרווח ״של הרחוב״ ברבעון האחרון {a} מול {g} לפי GAAP — יש החרגות גדולות', earnXFCash: 'הרווח לא מגובה במזומן (המרת מזומן {v})', earnXDisc: 'הערכת מצב מנתונים פומביים — לא תחזית ולא המלצה. הרווח בצפי הוא ״רווח הרחוב״: לפעמים מותאם ולפעמים GAAP.',
   earnXBeatAvg: ' (בממוצע {v})', earnXToneSrc: 'המגמה לפי שינויי הצפי של האנליסטים (Yahoo) — לא תחזית ולא המלצה.',
-  calReport: 'דוח רבעוני', calAddAria: 'הוספת הדוח של {sym} ליומן', calGoogle: 'Google Calendar', calOther: 'יומן אחר',
+  calReport: 'דוח רבעוני', calAddAria: 'הוספת הדוח של {sym} ליומן', calGoogle: 'יומן Google', calOther: 'יומן אחר',
   calIcsNote: 'יומן אחר — אפל, סמסונג, Outlook — כולל תזכורות יום לפני ושעה לפני.', calIcsDone: 'הקובץ ירד — פתח אותו כדי להוסיף ליומן', calLocal: '{t} שעון ישראל',
   calEventTitle: 'דוח רבעוני · {sym}{name}', calEventDesc: 'פרסום הדוח הרבעוני של {sym}', calEventEst: 'תאריך משוער (לפי Yahoo Finance)',
   earnDate: 'דוח: {date}',
@@ -8309,8 +8309,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.186.5';
-const APP_VERSION = 'v848';
+const APP_RELEASE = '2.187.0';
+const APP_VERSION = 'v850';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');

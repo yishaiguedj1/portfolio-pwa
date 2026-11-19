@@ -1691,7 +1691,7 @@ html[data-app="cashflow"] .login-overlay { background: linear-gradient(160deg, #
 .es-body::-webkit-scrollbar { display: none; }
 .es-acts { flex: none; display: flex; gap: 10px; margin-top: 12px; }
 .es-btn { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 7px; border-radius: var(--pill); margin: 0; padding-inline: 10px; font-size: 15.5px; }
-.es-btn span { unicode-bidi: plaintext; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.es-btn span { unicode-bidi: plaintext; min-width: 0; text-align: center; line-height: 1.15; text-wrap: balance; } /* לפי ת־עיצוב: תווית כפתור לא נחתכת בשלוש נקודות — קצרה, ובמסך צר נשברת לשורה שנייה */
 .es-btn .ic { flex: none; width: 20px; height: 20px; }
 /* 15/11/2026: צפי לדוח — שורות קטנות בכרטיס, וטבלה בגיליון (אנליסטים / הנהלה) */
 .earn-x { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 4px; margin-top: 2px; font-size: 13px; color: var(--on-surface); line-height: 1.35; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -117,7 +117,7 @@ const day = (s) => Date.parse(s + 'T00:00:00Z') / 864e5;
 // העומק: Kroger — הרבעון הראשון 16 שבועות, ‏111 יום, לא נכנס אף פעם; Costco, PepsiCo, Domino's, AutoZone — הרביעי)
 const qLen = (d) => (d >= 80 && d <= 100) || (d >= 110 && d <= 119);
 const PER_SHARE = new Set(['eps', 'dps']);
-const F20_Q = false; // F20 ברבעונים — כבוי (גל 6: ‏worse ‏49 במדידה; ראו bsfIs)
+const F20_Q = true; // F20 ברבעונים — דולק מגל 7 (F32: ‏1,212 ערכים על כל היקום, ‏worse 0; בגל 6 — ‏worse ‏49, כבוי). ‏wave-7.md
 // זרימות שבהן אפשר לבדוק שהרבעונים מאותו בסיס כמו השנה (qmix)
 const QPOS = ['cogs', 'dep', 'sbc', 'int']; // הכנסות, מחקר והשקעות הוניות — יכולים להיות מרוכזים ברבעון אחד בצדק
 /* באיזה דוח מופיעה כל שורה (לבחירת התגית לפי הדוח שהחברה הגישה — lib/secface.js) */
@@ -379,18 +379,24 @@ function bsfCf(have, cur, tags) {
 const IS_KEYS = ['int', 'pretax', 'cogs', 'rnd', 'tax', 'op'], IS_ABS = new Set(['int', 'cogs', 'rnd']);
 /* q (גל 6 — F20 ברבעונים): אותו שרשור על דפי רווח והפסד של 10-Q, בעמודות של 3 חודשים. כל 10-Q מדפיס את הרבעון ואת אותו רבעון
    בשנה הקודמת, ולכן השרשור הוא לכל רבעון פיסקלי לחוד — וכל שרשרת מתחילה בעוגן (שורה ששווה לסדרה שלנו בשני הרבעונים שלה) */
+/* גל 7 (F32): ברבעונים גם 10-K שמדפיס עמודות של 3 חודשים בדף הרווח והפסד (Iron Mountain, ‏Baxter, ‏Eaton, ‏Kraft Heinz — שמונה
+   רבעונים בדוח השנתי) — הוא ההגשה האחרונה שמדפיסה את הרבעונים האלה, אחרי ההצגה מחדש; ובלעדיו השרשור חזר לערך של ה־10-Q המקורי */
 function bsfIs(have, cur, ours, q) {
-  const MON = q ? 3 : 12, FORM = q ? /^10-Q/ : /^10-K/;
-  const ann = Object.values(have || {}).filter((x) => x && x.is && x.is.rows && FORM.test(x.form)).sort((a, b) => (a.filed < b.filed ? 1 : -1));
+  const MON = q ? 3 : 12, FORM = q ? /^10-[QK]/ : /^10-K/;
+  let ann = Object.values(have || {}).filter((x) => x && x.is && x.is.rows && FORM.test(x.form)).sort((a, b) => (a.filed < b.filed ? 1 : -1));
   const out = {};
   if (!ann.length) return out;
   const near = (a, b) => Math.abs(a - b) <= Math.max(5e5, 5e-3 * Math.abs(b));
   // כל שורה: {סוף → ערך} בעמודות של 12 חודשים
   const yv = (x) => x.is.rows.map((r) => { const o = new Map(); SECFACE.rowVals(x.is, r).forEach((v, ci) => { const c = x.is.cols[ci]; if (v != null && c && c.months === MON && SECFACE.colOk(c, cur) && !o.has(c.end)) o.set(c.end, v); }); o.tag = r.ns + ':' + r.tag; return o; }).filter((o) => o.size);
-  const Y = ann.map(yv);
+  let Y = ann.map(yv);
+  // הגשה בלי אף עמודה בתקופה הזו (10-K בלי רבעונים) — לא בשרשור
+  if (q) { ann = ann.filter((_, i) => Y[i].length); Y = Y.filter((r) => r.length); if (!ann.length) return out; }
   const printed = new Map();
   for (const rows of Y) for (const o of rows) for (const [e, v] of o) { if (!printed.has(e)) printed.set(e, []); printed.get(e).push(Math.abs(v)); }
   out.printed = printed;
+  // ההגשה האחרונה שמדפיסה כל תקופה, בשורה כלשהי (ann ממוין מהחדשה) — לשמירה של F32: ערך שנלקח מהגשה ישנה יותר אינו ההצגה האחרונה
+  out.lastF = new Map(); Y.forEach((rows, i) => { for (const o of rows) for (const e of o.keys()) if (!out.lastF.has(e)) out.lastF.set(e, ann[i].filed); });
   // השנה של כל 10-K (סוף העמודה המאוחרת של 12 חודשים) — תיקון של ערך קיים רק כשהדוח של אותה שנה עצמה בחלון (AMD ‏2010,
   // ‏CCI ‏2009–2012: הדוח המקורי לפני החלון, והשנה הודפסה רק אחר כך — אחרי הצגה מחדש; הערך שלנו מהדוח המקורי ולא שגוי)
   out.own = Y.map((rows) => { let m = null; for (const o of rows) for (const e of o.keys()) if (!m || e > m) m = e; return m; }).filter(Boolean);
@@ -413,16 +419,31 @@ function bsfIs(have, cur, ours, q) {
       if (T.length && NI.length) u0 = uniq(Y[0].filter((o) => o.size >= 2 && !T.includes(o) && !NI.includes(o) && T.some((t) => NI.some((n) => [...o].every(([e, v]) => t.has(e) && n.has(e) && near(v - t.get(e), n.get(e)))))));
     }
     if (u0.length !== 1) continue;
-    const est = new Map([...u0[0]].map(([e, v]) => [e, f(v)])), M = new Map([...est].map(([e, v]) => [e, { v, filed: ann[0].filed }]));
+    const est = new Map([...u0[0]].map(([e, v]) => [e, f(v)])), M = new Map([...est].map(([e, v]) => [e, { v, filed: ann[0].filed, tag: u0[0].tag }]));
+    // ברבעונים (גל 7 — F32): התגית של השורה שקבעה כל רבעון. ב־10-Q יש רק עמודה חופפת אחת (אותו רבעון אשתקד), ושוויון בעמודה אחת
+    // הוא לפעמים מקרי (Cardinal ‏op ← שורת המס, ‏AT&T ‏op ← "Broadcast, programming", ‏DaVita ‏pretax ← "Other revenues"). לכן:
+    // שורה בתגית של הרבעון החופף גוברת; שורה בתגית אחרת — רק כשאין בהגשה שורה בתגית הזו (התגית הוחלפה); ואם השורה בתגית הזו
+    // לא שווה (הצגה מחדש של הרבעון החופף) — ממשיכים בה: העמודה של אשתקד בהגשה הזו היא ההצגה האחרונה של אותו רבעון
+    const eTag = new Map([...u0[0].keys()].map((e) => [e, u0[0].tag]));
+    const put = (o, i) => { for (const [e, v] of o) if (!est.has(e)) { est.set(e, f(v)); eTag.set(e, o.tag); M.set(e, { v: f(v), filed: ann[i].filed, tag: o.tag }); } };
     for (let i = 1; i < ann.length; i++) {
       const u = uniq(Y[i].filter((o) => same(o, est)));
-      if (u.length === 1) { for (const [e, v] of u[0]) if (!est.has(e)) { est.set(e, f(v)); M.set(e, { v: f(v), filed: ann[i].filed }); } continue; }
+      if (q) {
+        const t0 = new Set(); for (const o of Y[i]) for (const e of o.keys()) if (eTag.has(e)) t0.add(eTag.get(e));
+        const fresh = (o) => [...o.keys()].some((e) => !est.has(e));
+        const ut = u.filter((o) => t0.has(o.tag)), tr = uniq(Y[i].filter((o) => t0.has(o.tag)));
+        if (ut.length === 1) { put(ut[0], i); continue; }
+        if (!tr.length && u.length === 1) { put(u[0], i); continue; }
+        if (tr.length === 1 && !u.length && fresh(tr[0])) { put(tr[0], i); continue; }
+        if (tr.length || u.length) continue;
+      }
+      if (u.length === 1) { put(u[0], i); continue; }
       if (u.length) continue;
       // F28 (גל 6) — עוגן מחדש: השרשור נשבר (הדוח הזה הדפיס את השנים שכבר נקבעו על בסיס אחר — Ameriprise: ה־10-K של 2023 לפני
       // ההצגה מחדש של 2024), אבל שורה אחת בו שווה לסדרה שלנו בשתי שנים לפחות — זו השורה; השנים החדשות שלה נקבעות, והשרשור ממשיך ממנה
       const a = anchor(Y[i]).filter((o) => [...o.keys()].some((e) => !est.has(e)));
       if (a.length !== 1) continue;
-      for (const [e, v] of a[0]) { if (!est.has(e)) M.set(e, { v: f(v), filed: ann[i].filed }); est.set(e, f(v)); }
+      for (const [e, v] of a[0]) { if (!est.has(e)) M.set(e, { v: f(v), filed: ann[i].filed, tag: a[0].tag }); est.set(e, f(v)); eTag.set(e, a[0].tag); }
     }
     out[k] = M;
   }
@@ -1546,9 +1567,21 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
     const ISQ = bsfIs(bsf, rc || cur || 'USD', oq, true);
     const prAt = (P, e) => { let pr = P.get(e); if (!pr) for (const [k2, v2] of P) if (Math.abs(day(k2) - day(e)) <= 7) { pr = v2; break; } return pr; };
     const fyOf = (e) => fyEnds.find((f) => { const s0 = yearOf.get(f); return s0 && e > s0 && e <= f; });
-    // כבוי (גל 6, המדידה): 932 ערכים — better ‏289, ‏worse ‏49, ‏neither ‏524. כל 10-Q מדפיס רק שני רבעונים (השנה ואשתקד), ולכן השרשור
-    // נשבר בכל הצגה מחדש, והעוגן מחדש קופץ לבסיס המקורי (Iron Mountain ‏pretax ‏2015-Q1: ‏57.7M מה־10-Q המקורי במקום ‏41.1M שהוצג
-    // מחדש). דפי ה־10-Q נשארים — ל־F29 (אילו רבעונים מודפסים). ‏wave-6.md §3
+    // ההגשה האחרונה (companyfacts, כל התגיות של המדד) שדיווחה תקופה של פחות משנה שמסתיימת ברבעון הזה — רבעון או מצטבר
+    // עלות מכר שתוקנה ב"בסיס אחד לתקופה" (fixes) היא ההכנסות פחות הרווח הגולמי של ההגשה של ההכנסות — גם התאריכים שלהן נחשבים
+    // (Danaher ‏2018: ‏1,754.7 מה־10-K שהציג מחדש את הרבעונים אחרי Envista; ה־10-Q של 2019 מדפיס ‏2,051.8 על הבסיס הקודם)
+    // עובדה של רבעון בודד נספרת רק כשהיא בערך שלנו (CoStar ‏2016-Q1: הערך שלנו ‏47.8M בתגית אחת מה־10-Q המקורי; ‏27.9M בתגית אחרת,
+    // המודפס, תויג שוב ב־10-K של 2018 — זה לא "הערך שלנו הוגש מאוחר יותר"). מצטבר, ובסיס העלות (הכנסות ורווח גולמי) — כל ערך
+    const lateOf = (k, e, old) => {
+      let F = '';
+      const fx = k === 'cogs' && fixes.some((x) => x.m === 'cogs' && x.p === e), ks = fx ? ['cogs', 'rev', 'gp'] : [k];
+      const ours = (h) => fx || old == null || [h.v, ...(h.all ? h.all.values() : [])].some((v) => v != null && near(Math.abs(v), Math.abs(old)));
+      for (const k2 of ks) for (const mk of (merged[k2] && (merged[k2].fs || [merged[k2]])) || []) for (const [kk, h] of mk.dur || []) { const [s2, e2] = kk.split('|'); if (Math.abs(day(e2) - day(e)) <= 7 && day(e2) - day(s2) < 300 && (day(e2) - day(s2) > 100 || ours(h))) { const L = lastOf(h); if (L > F) F = L; } }
+      return F;
+    };
+    // גל 6: כבוי — ‏932 ערכים, ‏worse ‏49: כל 10-Q מדפיס רק שני רבעונים, והשרשור קפץ בכל הצגה מחדש לבסיס המקורי (Iron Mountain ‏pretax
+    // ‏2015-Q1: ‏57.7M מה־10-Q המקורי במקום ‏41.1M שהוצג מחדש). גל 7 (F32): גם 10-K עם עמודות של 3 חודשים בשרשור, המשך לפי תגית,
+    // ושתי השמירות של ההגשה המאוחרת למטה — ‏1,212 ערכים, ‏worse 0 (ה־49 נשארים כמו שהם). ‏wave-7.md §1
     if (F20_Q) for (const k of IS_KEYS) {
       const M = ISQ[k]; if (!M) continue;
       for (const e of qEnds) {
@@ -1558,6 +1591,12 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
         if (old != null && near(IS_ABS.has(k) ? Math.abs(old) : old, p.v)) continue;
         if (old != null && !ISQ.own.some((x) => Math.abs(day(x) - day(e)) <= 7)) continue;
         if (old != null) { const pr = prAt(ISQ.printed, e); if (pr && pr.some((v) => near(Math.abs(old), v))) continue; }
+        // גל 7 (F32): הערך שלנו הוגש אחרי ההגשה שממנה השרשור לקח את הרבעון — הצגה מאוחרת יותר (ביאור רבעוני מוצג מחדש ב־10-K:
+        // Axon ‏2023-Q1, ‏Parker ‏2019-Q4, ‏Tyson ‏2019-Q3, ‏Live Nation; או 10-Q מאוחר שמדפיס רבעון ישן: Equinix, ‏HP) — לא מוחלף
+        if (old != null && lateOf(k, e, old) > p.filed) continue;
+        // הגשה מאוחרת יותר מדפיסה את הרבעון בשורות אחרות, ולא בשורה שלנו (Baxter ‏10-K ‏2025: הכנסות, רווח גולמי ורווח נקי ברבעונים
+        // אחרי ההצגה מחדש של מכירת Kidney Care — עלות המכר שלנו ‏1,477 = ‏2,441 − ‏964 שם; ה־10-Q של 2024 מדפיס ‏2,238 על הבסיס הקודם)
+        if (old != null && (bsfAt(ISQ.lastF, e) || '') > p.filed) continue;
         if (!Q[k]) Q[k] = {};
         Q[k][e] = p.v; cfy.push({ k: old == null ? 'ffill' : 'ffix', m: k, p: e, f: p.v, v: old == null ? null : old, q: 1 });
         const f = fyOf(e); if (f) (chg[k] = chg[k] || new Set()).add(f);
@@ -1566,13 +1605,31 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
     // F29 (גל 6): הרבעון הרביעי נגזר (השנה פחות שלושה רבעונים) לפני התיקונים של F20 — בשנה שהשנתי או אחד הרבעונים בה השתנו
     // הוא נשאר מהערכים הישנים (Keysight ‏2015: השנה ‏388 המודפס, הרבעונים ‏124+154+124+157 = ‏559 הישן). גוזרים מחדש רק כששלושת
     // הרבעונים מודפסים ב־10-Q באותה סדרה (ISQ.printed); אחרת, כשהשנתי תוקן (ffix), הרבעון הרביעי הנגזר יורד — הוא מבסיס אחר
+    // גל 7 (F33): השנתי שלנו מודפס ב־10-K הראשון שאחרי ההגשות האחרונות של שלושת הרבעונים — אותו בסיס. אחרת השנה הוצגה מחדש
+    // מאוחר יותר והרבעונים לא (International Paper ‏2015: השנתי ‏14,313 מה־10-K של 2018, אחרי מכירת פעילות; הרבעונים מה־10-Q של
+    // 2016 — ‏11,703; הרבעון הרביעי היה יוצא ‏2,610 במקום ~3,765)
+    // אין עדיין 10-K אחרי ההצגה האחרונה של הרבעונים (Casey's ‏2026: הרבעון הראשון מודפס שוב ב־10-Q של השנה הבאה, ה־10-K הבא עוד לא
+    // הוגש) — ה־10-K האחרון שמדפיס את השנה, וכל אחד משלושת הרבעונים שלנו כבר מודפס כך בהגשה האחרונה שלפניו (לא הוצג מחדש אחריו)
+    const colsAt = (x, mon, e) => x.is.cols.map((c, ci) => [c, ci]).filter(([c]) => c && c.months === mon && Math.abs(day(c.end) - day(e)) <= 7).map(([, ci]) => ci);
+    const prints = (x, cis, v) => x.is.rows.some((r) => { const w = SECFACE.rowVals(x.is, r); return cis.some((ci) => w[ci] != null && near(Math.abs(w[ci]), Math.abs(v))); });
+    const pages = (re) => Object.values(bsf).filter((x) => x && x.is && x.is.rows && re.test(x.form)).sort((a, b) => (a.filed < b.filed ? -1 : 1));
+    const annNext = (k, e, qs) => {
+      const T = qs.reduce((m, x) => { const f = bsfAt(ISQ.lastF || new Map(), x) || ''; return f > m ? f : m; }, '');
+      const K = pages(/^10-K/), after = K.filter((x) => x.filed > T);
+      for (const x of after) { const cis = colsAt(x, 12, e); if (cis.length) return prints(x, cis, A[k][e]); }
+      if (after.length) return false;
+      const Kb = K.filter((x) => colsAt(x, 12, e).length).pop();
+      if (!Kb || !prints(Kb, colsAt(Kb, 12, e), A[k][e])) return false;
+      const P = pages(/^10-[QK]/).filter((x) => x.filed <= Kb.filed);
+      return qs.every((q) => { const x = P.filter((y) => colsAt(y, 3, q).length).pop(); return !!x && prints(x, colsAt(x, 3, q), Q[k][q]); });
+    };
     for (const k of IS_KEYS) {
       for (const e of chg[k] || []) {
         if (!Q[k] || A[k] == null || A[k][e] == null) continue;
         const der = (derived[k] || []).includes(e);
         if (Q[k][e] != null && !der) continue; // רבעון רביעי מדווח — לא נגזר
         const s0 = yearOf.get(e), qs = qEnds.filter((x) => x > s0 && x < e && day(e) - day(x) < 300);
-        const ok = qs.length === 3 && qs.every((x) => Q[k][x] != null) && qs.every((x) => { const pr = prAt(ISQ.printed || new Map(), x); return pr && pr.some((v) => near(Math.abs(Q[k][x]), v)); });
+        const ok = qs.length === 3 && qs.every((x) => Q[k][x] != null) && qs.every((x) => { const pr = prAt(ISQ.printed || new Map(), x); return pr && pr.some((v) => near(Math.abs(Q[k][x]), v)); }) && annNext(k, e, qs);
         const old = Q[k][e];
         if (ok) {
           const v = A[k][e] - qs.reduce((t, x) => t + Q[k][x], 0);
