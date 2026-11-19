@@ -15,6 +15,11 @@
 מעוגל שני ערכים שונים באותה תגית (שתי תקופות שמתעגלות לאותו סוף חודש) — "דו־משמעי", לא "לא תואם".
 פסקי הדין: better (החדש מודפס, הישן לא), worse (הפוך), both, neither, ambig (שני ערכים באותה תגית), nofsds (אין הגשה ב־FSDS
 שמדפיסה — בדרך כלל 2009–2011, לפני הכיסוי, או רבעון בתזרים).
+
+--bsf (גל 6): כשב־FSDS אין הכרעה (neither / nofsds) — פסק דין שני מדפי ה־R עצמם (<w>/bsf, ‏bsf.js): ה־10-K האחרון שמדפיס את
+השנה בדוח של המדד (עמודה של 12 חודשים, עד 7 ימים), כל השורות בכל תגית. פסקי הדין: better-r / worse-r / both-r / neither-r / nor
+(אין דף). למה: FSDS לא שומר שורה עם מימד (PACCAR — ‏"Truck, Parts and Other"; ‏D.R. Horton — מגזר), חלק מההגשות בו חלקיות
+(YUM ‏2018: ‏151 ערכים), ולפני 2014 אין בו כלום; הדף המודפס הוא האמת שהמשתמש היה רואה. רק שנתי, ורק רווח והפסד ותזרים.
 """
 import argparse
 import datetime as dt
@@ -23,6 +28,38 @@ import os
 import subprocess
 from collections import Counter
 import sqlite3
+
+def bsf_printed(w, c, st, end, cache):
+    """כל הערכים (מוחלטים) שה־10-K האחרון שמדפיס את השנה `end` מדפיס בדף `st` ('is'/'cf') בעמודה של 12 חודשים. None — אין דף"""
+    if c not in cache:
+        f = os.path.join(w, 'bsf', '%010d.json' % c)
+        cache[c] = json.load(open(f, encoding='utf-8')) if os.path.exists(f) else {}
+    h = cache[c]
+    h = h.get('f', h) if isinstance(h, dict) else {}
+    e0 = dt.date.fromisoformat(end)
+    best = None
+    for x in h.values():
+        if not isinstance(x, dict) or not str(x.get('form', '')).startswith('10-K') or not x.get(st):
+            continue
+        d = x[st]
+        cols = [i for i, col in enumerate(d.get('cols') or []) if col and col.get('months') == 12
+                and abs((dt.date.fromisoformat(col['end']) - e0).days) <= 7]
+        if cols and (best is None or x['filed'] > best[0]['filed']):
+            best = (x, cols)
+    if not best:
+        return None
+    x, cols = best
+    d = x[st]
+    sc = d.get('scale') or {}
+    out = set()
+    for r in d.get('rows') or []:
+        for i in cols:
+            v = r['v'][i] if i < len(r.get('v') or []) else None
+            if v is None:
+                continue
+            f = (sc.get('cols') or [None] * (i + 1))[i] if sc.get('cols') and i < len(sc['cols']) and sc['cols'][i] is not None else sc.get('cur', 1)
+            out.add(abs(round(v * (f or 1))))
+    return sorted(out)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
@@ -67,6 +104,7 @@ def main():
     ap.add_argument('--ciks', default=os.path.join(HERE, 'ciks.tsv'))
     ap.add_argument('--out', default=None)
     ap.add_argument('--anytag', action='store_true', help='גל 5 (F20): כל שורה בדוח, לא רק התגיות של המוצר')
+    ap.add_argument('--bsf', action='store_true', help='גל 6: neither / nofsds — פסק דין שני מדפי ה־R של כל 10-K (<w>/bsf)')
     o = ap.parse_args()
     TAGS, ST = product_tags(os.path.abspath(o.fs))
     keys = set(o.keys.split(','))
@@ -77,7 +115,7 @@ def main():
             cik.setdefault(p[0], int(p[1]))
     ch = [r for r in json.load(open(os.path.join(o.w, 'allcmp.json'), encoding='utf-8')) if r[2] in keys and TAGS.get(r[2])]
     db = sqlite3.connect(o.db)
-    res, cnt = [], Counter()
+    res, cnt, bcache = [], Counter(), {}
     for sym, mode, k, end, old, new in ch:
         c = cik.get(sym)
         sts = [STMT[s] for s in ST.get(k, ['is'])]
@@ -103,14 +141,22 @@ def main():
             else:
                 a, b = any(same(old, x, k) for x in printed), any(same(new, x, k) for x in printed)
                 v = 'both' if a and b else 'better' if b else 'worse' if a else 'neither'
+        if o.bsf and v in ('neither', 'nofsds') and mode == 'A' and c and ST.get(k, ['is'])[0] in ('is', 'cf') and k not in PER_SHARE and k != 'sh':
+            pr = bsf_printed(o.w, c, ST.get(k, ['is'])[0], end, bcache)
+            if pr is None:
+                v = v + '/nor'
+            else:
+                a, b = any(same(old, x, k) for x in pr), any(same(new, x, k) for x in pr)
+                v = ('both' if a and b else 'better' if b else 'worse' if a else 'neither') + '-r'
+                printed = pr
         cnt[(k, v)] += 1
-        res.append([sym, mode, k, end, old, new, v] + ([printed] if rows else []))
+        res.append([sym, mode, k, end, old, new, v] + ([printed] if printed else []))
     by = {}
     for (k, v), n in sorted(cnt.items()):
         by.setdefault(k, {})[v] = n
     print(json.dumps(by, ensure_ascii=False))
     for r in res:
-        if r[6] in ('worse', 'neither', 'ambig'):
+        if r[6] in ('worse', 'neither', 'ambig', 'worse-r', 'neither-r') or r[6].endswith('/nor'):
             print(' ', *r)
     json.dump(res, open(o.out or os.path.join(o.w, 'judge.json'), 'w'))
 

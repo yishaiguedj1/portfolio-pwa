@@ -20,8 +20,9 @@ const text = (h) => String(h).replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '
   .replace(/&amp;/g, '&').replace(/&#8212;|&#x2014;|&mdash;/gi, '—').replace(/&#8211;|&#x2013;|&ndash;/gi, '–')
   .replace(/&#\d+;|&\w+;/g, ' ').replace(/\s+/g, ' ').trim();
 
-/* שורות "מדולל" בכל הטבלאות. כל שורה: תווית + ערכים מספריים לפי הסדר (עמודות "$" ו־")" נפרדות מתאחדות) */
-function parse(html) {
+/* שורות "מדולל" בכל הטבלאות. כל שורה: תווית + ערכים מספריים לפי הסדר (עמודות "$" ו־")" נפרדות מתאחדות).
+   want — מסנן אחר לתווית (parseEps); בלעדיו "dilut" בתווית או בכותרת שמעליה */
+function parse(html, want) {
   const out = [];
   const tables = String(html).split(/<table/i).slice(1);
   tables.forEach((tb, ti) => {
@@ -34,9 +35,9 @@ function parse(html) {
       for (const c of cells) { const n = num(c); if (n === undefined && !v.length) lab.push(c); else if (n !== undefined) v.push(n); }
       const label = lab.join(' ');
       if (!v.length) { if (label) ctx = label.slice(0, 80); continue; }
-      if (!/dilut/i.test(label) && !/dilut/i.test(ctx)) continue;
+      if (want ? !want(label) : !/dilut/i.test(label) && !/dilut/i.test(ctx)) continue;
       if (!v.some((x) => x != null)) continue;
-      out.push({ t: ti, label: label.slice(0, 80), ctx: /dilut/i.test(label) ? '' : ctx, v });
+      out.push(want ? { t: ti, label: label.slice(0, 80), ctx: '', v, b: 1 } : { t: ti, label: label.slice(0, 80), ctx: /dilut/i.test(label) ? '' : ctx, v });
       if (out.length >= 40) return;
     }
   });
@@ -69,6 +70,14 @@ function parseText(html) {
   flush();
   return out;
 }
+
+/* רווח למניה בלי המילה "מדולל" (18/11/2026, גל 6 — F30): חברות חשמל ואחרות מדפיסות "Net income per share" / "GAAP Basic Earnings
+   Per Share" ו־"Weighted average shares" (Fox, ‏Loews, ‏NiSource). רק כש־parse ו־parseText לא מצאו שורת "מדולל", והשורות מסומנות b —
+   q4Press מקבל אותן רק בשנה שבה המניות הבסיסיות = המדוללות בדוח השנתי (noDil), כך שאין הבדל בין השניים. רק התווית עצמה (לא כותרת
+   כמו "except per share data"); רווח מתואם, דיבידנד והון למניה — לא */
+const EPS_L = /per (common )?share|earnings per|\beps\b/i, EPS_X = /except|in (millions|thousands)|dividend|book value|adjust|non-gaap|operating|excluding|pro forma|guidance|outlook|cash flow|distribut/i;
+const SH_L = /weighted|average (common |number of )?shares|average common shares|shares outstanding/i;
+const parseEps = (html) => parse(html, (l) => (EPS_L.test(l) && !EPS_X.test(l)) || (SH_L.test(l) && !EPS_L.test(l)));
 
 /* 8-K רק עם 7.01 / ‏8.01 / ‏9.01 — מועמד חלופי (F25) */
 const ALT = /^\s*(7\.01|8\.01|9\.01)(\s*,\s*(7\.01|8\.01|9\.01))*\s*$/;
@@ -150,4 +159,11 @@ const annOk = (re, rs, i, f, pf, ann) => !!ann && ann.sh > 0 && re.v.some((e0, j
 const isShares = (r) => (/share|weight|average|outstanding/i.test(r.label + ' ' + (r.ctx || '')) && !/per (common )?share|earnings per|income per|loss per|\beps\b/i.test(r.label))
   || r.v.some((x) => x != null && Math.abs(x) >= 1000);
 
-module.exports = { parse, parseText, pickItems, ALT, exhibits, q4From, isShares, num };
+/* שורה ש־q4From יכול להשתמש בה כמניות (גל 6, F31 — ההחלטה אם להמשיך למועמד הבא): תווית של מניות, או שורה שאינה רווח למניה
+   ואינה רק שנים ("2028" בתחזית — Ecolab ‏2025). isShares לבדו גם החמיץ שורת מניות אמיתית וגם ספר שנה */
+const yearsOnly = (r) => r.v.every((x) => x == null || (Number.isInteger(x) && x >= 1990 && x <= 2100));
+const epsLike = (r) => r.v.every((x) => x == null || Math.abs(x) < 5000) && r.v.some((x) => x != null && Math.round(x) !== x);
+const shLab = (r) => /share|weight|average|outstanding/i.test(r.label + ' ' + (r.ctx || '')) && !/per (common )?share|earnings per|income per|loss per|\beps\b/i.test(r.label);
+const shRow = (r) => !yearsOnly(r) && (shLab(r) || !epsLike(r));
+
+module.exports = { shRow, parse, parseText, parseEps, pickItems, ALT, exhibits, q4From, isShares, num };
