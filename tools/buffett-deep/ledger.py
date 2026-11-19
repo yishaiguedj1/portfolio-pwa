@@ -80,6 +80,13 @@ def main():
             if 'skip' not in r:
                 X[(r['sym'], r['e'], r['c'])] = r
     RD = load_readers(w)
+    # הודעות שהסינון של prslim.py דילג עליהן (אין בהן per share/EPS — לא הודעת תוצאות לפי הרובריקה): er=false בלי קורא ('S')
+    sp = os.path.join(w, 'prl', 'skip.tsv')
+    if os.path.exists(sp):
+        for l in open(sp):
+            a = l.rstrip('\n').split('\t')
+            if len(a) >= 2 and a[1] not in RD:
+                RD[a[1]] = {'S': {'acc': a[1], 'cik': a[0], 'er': False, 'skip': a[2] if len(a) > 2 else 'noeps'}}
     # סימול → CIK (שני סוגי מניות של אותה חברה — GOOG/GOOGL, ‏FOX/FOXA — חולקים CIK ואת אותן הודעות)
     CIK = {}
     for l in open(os.environ.get('BD_CIKS') or os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'fund-deep', 'ciks.tsv')):

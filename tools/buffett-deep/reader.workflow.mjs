@@ -1,13 +1,14 @@
 // גל 2 של בדיקת העומק של מכפיל באפט — קורא בלתי תלוי אחד (A, ‏B או C) על קבוצות של הודעות לעיתונות.
 // מריצים דרך הכלי Workflow (רק באישור מפורש של המשתמש): scriptPath = הקובץ הזה, ‏args:
 //   { who: 'A'|'B'|'C', wave: 'w2', bd: '<תיקיית העבודה>', template: '<תוכן prompt-reader.txt / prompt-reader-c.txt>',
+//     dir: 'prt' (ברירת מחדל) או 'prl' (prslim.py, רק אחרי שהאימות עבר),
 //     batches: <batches.json מ־batches.py, או cbatches.json מ־readcmp.py לקורא C> }
 // הפלט: <bd>/read/<wave>/<who>/<id>.jsonl (שורה לכל הודעה). אחר כך: readcmp.py → (C על המחלוקות) → ledger.py.
 // שני קוראים — שני Workflows נפרדים במקביל (כל אחד עד ~10 סוכנים בו־זמנית).
 export const meta = {
   name: 'buffett-reader',
   description: 'גל 2 — קורא בלתי תלוי אחד (A, B או C) על ההודעות לעיתונות, לפי הרובריקה',
-  phases: [{ title: 'קריאה', detail: 'סוכן אחד לכל קבוצה של הודעות (עד ~350 אלף תווים)' }],
+  phases: [{ title: 'קריאה', detail: 'סוכן אחד לכל קבוצה של הודעות (עד ~170 אלף תווים)' }],
 }
 const SCHEMA = {
   type: 'object',
@@ -32,7 +33,7 @@ const res = await parallel(args.batches.map((b) => () => {
     : 'אין בקבוצה שלך קובץ חריג באורכו — כל קובץ נקרא במלואו.'
   // רשימת הקבוצה: b.list (נתיב מלא), או לפי ה־id בתיקייה של batches.py
   const list = b.list || args.bd + '/read/' + wave + '/batches/' + b.id + '.txt'
-  const p = args.template.split('{LIST}').join(list).split('{DIR}').join(args.bd + '/prt').split('{OUT}').join(out)
+  const p = args.template.split('{LIST}').join(list).split('{DIR}').join(args.bd + '/' + (args.dir || 'prt')).split('{OUT}').join(out)
     .split('{WORK}').join(work).split('{BD}').join(args.bd).split('{BIG}').join(big)
     .split('{FIELDS}').join(JSON.stringify(b.fields || {}))
   return agent(p, { label: who + ':' + b.id + ' ' + b.syms.join(','), phase: 'קריאה', schema: SCHEMA })
