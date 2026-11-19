@@ -50,18 +50,46 @@ ok(!X.classify('investor day presentation. our strategy for the decade.').er, '�
 ok(X.classify('exxonmobil announces third-quarter 2026 results. earnings per share assuming dilution $1.88 net income attributable').er, 'הודעת תוצאות גם בלי "diluted" כמילה (XOM, MRK)');
 ok(X.classify('<p>GAAP net income</p><td>277</td><p>Stock-based compensation</p><td>630</td><p>Non-GAAP net income</p><td>1,050</td><p>three months ended</p><p>diluted per share</p>').ex, 'HTML — מנוקה לפני הסיווג');
 
+/* ---------- גל 2 (SV=6): ארגון מחדש ורכישות, שורות תגמול נוספות, הרווח המותאם, AFFO ורווחי השקעות ---------- */
+r = C('(in millions, except per share data) three months ended september 30, 2026 2025 gaap net income $ 502 $ 503 stock-based compensation 633 492 amortization of purchased intangibles 198 33 business combination and other related costs 35 19 impairment of assets - - severance costs 87 24 (gains) losses on strategic investments, net (3) (7) income tax effects (180) (150) non-gaap net income $ 1,050 $ 980 non-gaap net income per share - diluted (2)(3) $ 1.00 $ 0.95. non-gaap diluted eps of $1.00');
+ok(JSON.stringify(r.rx) === JSON.stringify([[2, 35, 19], [1, 87, 24]]) && r.u === 1e6 && r.yo === 1 && r.ae === 1, 'שורות ארגון מחדש ורכישה בגישור לרווח המותאם (NOW): בלי הפחתה ובלי השקעות; היחידות, סדר השנים והרווח המותאם');
+r = C('non-gaap income from operations reconciliation restructuring costs 40 10 non-gaap operating income $ 900 $ 800');
+ok(r.rx == null, 'שורת ארגון מחדש שהיעד שלה הרווח התפעולי — לא נספרת');
+r = C('net cash provided by operating activities net income 100 restructuring charges 40 10 non-gaap net income 150');
+ok(r.rx == null, 'ארגון מחדש בדוח התזרים — לא');
+r = C('(in thousands) gaap net income 1,000 transaction-related and non-operating items 47,409 236,431 amortization and other acquisition-related costs 182 104 adjusted net income $ 1,273,602');
+ok(r.rx == null, 'שורה מעורבת ("non-operating") והפחתה שקשורה לרכישה — לא ארגון מחדש ורכישות (KKR, ‏CAH)');
+r = C('(in thousands) net income attributable to kkr 900,000 equity-based compensation - time based 63,287 58,270 equity-based compensation - market condition 88,437 117,832 amortization of acquired intangibles 715 12,695 adjusted net income $ 1,273,602 $ 1,645,493');
+ok(JSON.stringify(r.sa) === JSON.stringify([63287, 58270]) && JSON.stringify(r.so) === JSON.stringify([[88437, 117832]]), 'שורת תגמול נוספת באותה טבלה (KKR, ‏market condition) — so, לא שורת התגמול הרגילה');
+r = C('gaap net income 1,000 equity-based compensation - other 90,715 86,026 equity-based compensation - acquisition-related 80,652 83,257 equity-based compensation - business combination grants 20,935 16,592 distributable earnings 385,460 341,002');
+ok(r.so && r.so.length === 2 && r.so[0][0] === 80652 && r.so[1][0] === 20935, 'שתי שורות תגמול נוספות (Blue Owl)');
+r = C('gaap net income 100 share-based compensation 517 355 share-based compensation-related charges 12 4 non-gaap net income per share, diluted $ 0.85 $ 0.75 share-based compensation - per share 0.64 0.52');
+ok(r.so == null, 'שורת "related charges" ושורה למניה — לא שורות תגמול נוספות (PANW)');
+r = C('adjusted eps guidance to at least $8.20 from a range of $7.90 to $8.10. adjusted eps (2) $ 2.09 $ 1.60 at least $8.20. adjusted eps of $2.09 increased from $1.60');
+ok(r.ae === 2.09, 'הרווח המותאם — הערך השכיח, לא התחזית ולא הטווח (CVS)');
+r = C('fre per adjusted share $ 1.15 $ 1.42 ani per adjusted share $ 1.41 $ 1.78');
+ok(r.ae === 1.41, 'מנהלות השקעות: ANI למניה מותאמת, לא FRE (KKR)');
+r = C('adjusted funds from operations ( affo ) increased 3.7% to $1.12 per share. normalized ffo per share $ 1.10 $ 1.09 affo per share $ 1.12 $ 1.08. raising our 2026 affo per share guidance to $4.45-$4.46');
+ok(r.af === 1.12 && r.ae == null, 'AFFO למניה (Realty Income) — לא התחזית');
+r = C('affo attributable to amt common stockholders per share $ 2.87 3.2 %');
+ok(r.af === 2.87, 'AFFO למניה אחרי "attributable to" (AMT)');
+r = C('for q3 2026, the net effect of the loss on equity securities of $8.7 billion decreased the provision for income tax, net income, and diluted net income per common share by $1.9 billion, $6.7 billion, and $0.55, respectively.');
+ok(r.ig === -0.55, 'השפעת הפסד על ניירות ערך הוניים למניה — עם סימן (Alphabet)');
+r = C('for q2 2026, the net effect of the gain on equity securities of $99.0 billion increased the provision for income tax, net income, and diluted net income per common share by $21.9 billion, $77.1 billion, and $6.26, respectively.');
+ok(r.ig === 6.26, 'השפעת רווח — חיובית');
+
 /* ---------- בחירת ההודעות והתשובה ללקוח ---------- */
 const sub = { filings: { recent: {
   form: ['8-K', '10-Q', '8-K', '8-K', '8-K'], items: ['2.02,9.01', '', '7.01', '2.02', '2.02'],
-  accessionNumber: ['0000001-26-000009', '0000001-26-000008', '0000001-26-000007', '0000001-26-000005', '0000001-24-000001'],
-  filingDate: ['2026-10-28', '2026-10-29', '2026-09-01', '2026-07-22', '2024-07-20'], primaryDocument: ['a.htm', 'q.htm', 'b.htm', 'c.htm', 'd.htm'],
+  accessionNumber: ['0000001-26-000009', '0000001-26-000008', '0000001-26-000007', '0000001-26-000005', '0000001-23-000001'],
+  filingDate: ['2026-10-28', '2026-10-29', '2026-09-01', '2026-07-22', '2023-07-20'], primaryDocument: ['a.htm', 'q.htm', 'b.htm', 'c.htm', 'd.htm'],
   reportDate: ['2026-10-28', '2026-09-30', '', '', ''] } } };
 const pk = X.pick(sub, Date.parse('2026-11-18'));
-ok(pk.length === 2 && pk[0].acc === '0000001-26-000009' && pk[1].filed === '2026-07-22', 'pick — רק 8-K עם 2.02 מ־15 החודשים האחרונים, החדש קודם');
+ok(pk.length === 2 && pk[0].acc === '0000001-26-000009' && pk[1].filed === '2026-07-22', 'pick — רק 8-K עם 2.02 משלוש השנים האחרונות (DAYS 1100, גל 2), החדש קודם');
 const fc = X.forClient({ a: { filed: '2026-10-28', er: true, ex: true, fut: false, n: 900, sv: X.SV }, b: { filed: '2026-07-22', er: true, ex: false, fut: false, n: 800, sv: X.SV },
   c: { filed: '2026-09-01', er: false, ex: false, fut: false, sv: X.SV }, d: { filed: '2026-04-22', er: true, ex: true, fut: true, sv: X.SV - 1 },
   e: { filed: '2026-01-28', er: true, ex: true, fut: true, n: 950, tr: 0.21, sa: [633, 492], nt: 0, qe: '2025-12-31', tb: 1, ns: 1.6e9, pp: 1, sv: X.SV } });
-ok(JSON.stringify(fc) === JSON.stringify([['2026-01-28', 1, 1, 950, 0.21, [633, 492], 0, '2025-12-31', 0, 1, 1.6e9, 1], ['2026-04-22', 1, 1, 0, null, null, 0, null, 0, 0, null, 0], ['2026-07-22', 0, 0, 800, null, null, 0, null, 0, 0, null, 0], ['2026-10-28', 1, 0, 900, null, null, 0, null, 0, 0, null, 0]]),
+ok(JSON.stringify(fc) === JSON.stringify([['2026-01-28', 1, 1, 950, 0.21, [633, 492], 0, '2025-12-31', 0, 1, 1.6e9, 1, null, 0, 0, null, null, null, null], ['2026-04-22', 1, 1, 0, null, null, 0, null, 0, 0, null, 0, null, 0, 0, null, null, null, null], ['2026-07-22', 0, 0, 800, null, null, 0, null, 0, 0, null, 0, null, 0, 0, null, null, null, null], ['2026-10-28', 1, 0, 900, null, null, 0, null, 0, 0, null, 0, null, 0, 0, null, null, null, null]]),
   'forClient — רק הודעות תוצאות, מהישנה לחדשה; גרסת מסווג קודמת נשלחת עד הקריאה מחדש (בלי שיעור מס, סכום ורבעון); מגרסה 3 — גם הם');
 // סוף הרבעון שההודעה מדווחת עליו: המאוחר שלפני ההגשה — לא השנה הקודמת (APA), לא רבעון התחזית (CRM)
 ok(X.classify('year ended december 31, 2025 results … three months ended september 30, 2026 net income', '2026-11-04').qe === '2026-09-30', 'סוף הרבעון — התאריך המאוחר שלפני ההגשה, לא "year ended" הקודם (APA)');
@@ -188,7 +216,7 @@ ok(!X.classify(EMR.replace('(dollars in millions, unaudited)', '')).ex, 'בלי 
   // הודעה ישנה שיצאה מהחלון — נמחקת
   const o2 = { v: BSF.V, f: {}, sx: { '0000001-20-000001': { filed: '2020-01-01', er: true, ex: true, fut: true, sv: X.SV } } };
   await BSF.fillSx('1234', sub, o2, { getText, now: Date.parse('2026-11-18') }, 6);
-  ok(!o2.sx['0000001-20-000001'] && Object.keys(o2.sx).length === 2, 'fillSx — רק 15 החודשים האחרונים נשמרים');
+  ok(!o2.sx['0000001-20-000001'] && Object.keys(o2.sx).length === 2, 'fillSx — רק שלוש השנים האחרונות נשמרות');
 
   /* ---------- החישוב במנתח ---------- */
   const src = fs.readFileSync(path.join(root, 'analysis.js'), 'utf8');
@@ -321,9 +349,43 @@ ok(!X.classify(EMR.replace('(dollars in millions, unaudited)', '')).ex, 'בלי 
   co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, [Q.sbc[i] / 1e6])) });
   ok(near(A.bufCalc(co).ded, sumAt((i) => Q.sbc[i], 0.21)), 'תשובה בלי bx — הסדרה הכללית משמשת כייחוס');
   // שיעור המס: ריט → 0; השיעור האחרון שהוצהר בהודעה קרובה (MRVL); מחוץ ל־10%–30% — לא; בלי הצהרה — הדוחות (0–35%); אחרת 21%
+  // גל 2: שדות ההודעה r[7..18] (qe, k, tb, ns, pp, rx, u, yo, so, ae, af, ig)
+  const w2x = (r, f) => { const a = r.slice(); const d = [null, 0, 0, null, 0, null, 0, 0, null, null, null, null]; while (a.length < 19) a.push(d[a.length - 7]); for (const k in f) a[k] = f[k]; return a; };
+  co = mk({ hist: hist(1), sic: 6798, sbcX: last4.map((i) => w2x(relX(q[i], 1, 0.21, null), { 7: q[i], 17: 2.5 })) });
+  b = A.bufCalc(co);
+  ok(near(b.ded, sumAt((i) => Q.sbc[i], 0)) && b.ts === 'reit' && b.t === 0 && near(b.st, 10) && b.reit && b.f == null, 'ריט — הבסיס AFFO מההודעה, התגמול יורד במלואו (בלי מגן מס), בלי מכפיל צפוי');
+  co = mk({ hist: hist(1), sic: 6798, sbcX: last4.map((i, j) => w2x(relX(q[i], 1, 0.21, null), { 7: q[i], 17: j === 2 ? null : 2.5 })) });
+  ok(A.bufCalc(co) === null, 'ריט — רבעון בלי AFFO בהודעה: אין אריח (החלטת המשתמש ל־B-028)');
   co = mk({ hist: hist(1), sic: 6798, sbcX: last4.map((i) => relX(q[i], 1, 0.21, null)) });
   b = A.bufCalc(co);
-  ok(near(b.ded, sumAt((i) => Q.sbc[i], 0)) && b.ts === 'reit' && b.t === 0, 'ריט — בלי מגן מס: התגמול יורד במלואו');
+  ok(b && near(b.ded, sumAt((i) => Q.sbc[i], 0)) && !b.reit, 'ריט עם הודעות מגרסה קודמת (בלי שדות גל 2) — החישוב של גל 1 עד הקריאה מחדש');
+  // בדיקת הרחוב מול ההנהלה: הרווח המותאם בהודעה שונה ביותר מ־3% וגם מ־0.03$ — המספר של ההודעה; יחס של פיצול — לא
+  co = mk({ hist: hist(0), sbcX: last4.map((i) => w2x(relX(q[i], 1, 0.21, null), { 7: q[i], 16: +(Q.eps[i] + 0.5).toFixed(2) })) });
+  b = A.bufCalc(co);
+  ok(b.nAe === 4 && near(b.st, last4.reduce((x, i) => x + +(Q.eps[i] + 0.5).toFixed(2), 0)), 'הרחוב שונה מההנהלה — המספר של ההודעה בכל רבעון');
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => w2x(relX(q[i], 1, 0.21, null), { 7: q[i], 16: +(Q.eps[i] + 1.01).toFixed(2) })) });
+  ok(A.bufCalc(co).nAe === 0, 'הפרש קטן (פחות מ־3% או מ־0.03$) — הרחוב של Yahoo נשאר');
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => w2x(relX(q[i], 1, 0.21, null), { 7: q[i], 16: +((Q.eps[i] + 1) * 5).toFixed(2) })) });
+  ok(A.bufCalc(co).nAe === 0, 'יחס של פיצול מניות (פי 5) — לא מחליפים');
+  // רווחי השקעות ברחוב (Alphabet): הרחוב = GAAP והחברה מפרסמת את ההשפעה למניה → GAAP פחות ההשפעה; הרחוב כבר בלעדיהם (GOOG) — לא נוגעים
+  co = mk({ hist: hist(0), sbcX: last4.map((i) => w2x(relX(q[i], 0, 0.21, null), { 7: q[i], 18: 0.4 })) });
+  b = A.bufCalc(co);
+  ok(near(b.st, last4.reduce((x, i) => x + Q.eps[i], 0) - 1.6) && near(b.ig, 1.6) && b.ded === 0, 'הרחוב כולל רווחי השקעות — GAAP פחות ההשפעה שהחברה פרסמה');
+  co = mk({ hist: hist(-0.4), sbcX: last4.map((i) => w2x(relX(q[i], 0, 0.21, null), { 7: q[i], 18: 0.4 })) });
+  ok(near(A.bufCalc(co).ig, 0), 'הרחוב כבר בלי רווחי ההשקעות — לא נוגעים');
+  // ארגון מחדש ורכישות (§13.6): חוזרים — הממוצע של 12 הרבעונים אחרי מס; לא חוזרים — מוצגים בנפרד, לא מורדים
+  const q12 = q.slice(-12), sbcX12 = (f) => q12.map((e, j) => w2x(relX(e, 1, 0.21, [Q.sbc[q.indexOf(e)] / 1e6]), { 7: e, 12: f(j) }));
+  co = mk({ hist: hist(1), sbcX: sbcX12((j) => (j % 3 === 0 ? null : [[1, 120, 80]])), bx: Object.fromEntries(q12.map((e) => [e, [null, Q.sbc[q.indexOf(e)], null, null]])) });
+  b = A.bufCalc(co);
+  const avg = 120e6 * 8 / 12;
+  ok(near(b.ra, 4 * avg * 0.79 / 1e9) && near(b.eps, b.st - b.ded - b.ra) && near(b.f.ra, 4 * avg * 0.79 / 1e9), 'ארגון מחדש חוזר (8 מתוך 12) — הממוצע של 12 הרבעונים, אחרי מס, גם בצפוי');
+  co = mk({ hist: hist(1), sbcX: sbcX12((j) => (j === 11 ? [[2, 300, 0]] : null)), bx: Object.fromEntries(q12.map((e) => [e, [null, Q.sbc[q.indexOf(e)], null, null]])) });
+  b = A.bufCalc(co);
+  ok(b.ra === 0 && near(b.raOne, 300e6 * 0.79 / 1e9), 'עלות רכישה חד־פעמית — לא מורדת, מוצגת בנפרד');
+  // שורות תגמול נוספות (KKR, ‏Blue Owl) — באותה עמודה וסדר גודל כמו השורה הרגילה, כשחוזרות
+  co = mk({ hist: hist(1), sbcX: q12.map((e) => w2x(relX(e, 1, 0.21, [Q.sbc[q.indexOf(e)] / 1e6, 1]), { 7: e, 15: [[Q.sbc[q.indexOf(e)] / 2e6, 2]] })), bx: Object.fromEntries(q12.map((e) => [e, [null, Q.sbc[q.indexOf(e)] * 1.5, null, null]])) });
+  b = A.bufCalc(co);
+  ok(near(b.ded, sumAt((i) => Q.sbc[i] * 1.5, 0.21)) && !b.oth, 'שורת תגמול נוספת שחוזרת — מנוכה (וההערה "בשורות אחרות" יורדת)');
   co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, null).concat([q[i], 3, 1])) });
   b = A.bufCalc(co);
   ok(near(b.ded, sumAt((i) => Q.sbc[i], 0)) && b.ts === 'tb' && b.t === 0, 'המס של המדד המותאם כבר כולל את הטבת המס (מנהלות השקעות) — לפני מס');
