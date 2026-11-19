@@ -8309,8 +8309,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.187.0';
-const APP_VERSION = 'v850';
+const APP_RELEASE = '2.188.1';
+const APP_VERSION = 'v852';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -20073,16 +20073,18 @@ function txRowHTML(r, opts) {
   const o = opts || {}, buy = r.side === 'BUY';
   const tot = fmtTradeMoney(r.qty * r.price, r.cur);
   const qp = esc(txQty(r.qty)) + ' × ' + esc(fmtTradeMoney(r.price, r.cur));
-  const tag = r.src === 'ibkr' ? srcTagHTML('ibkr', r.acct) : '<span class="tx-man">' + esc(t('manualTag')) + '</span>';
   const ed = r.src === 'manual';
-  const lead = o.logo ? stockLogoHTML(r.sym) : '<span class="tx-side ' + (buy ? 'b' : 's') + '" aria-hidden="true">' + (buy ? '+' : '−') + '</span>';
-  const t1 = o.logo   // בתוך שנה: התגית בשורה הראשונה (השנייה כבר מלאה בתאריך ובכמות)
-    ? '<b dir="ltr">' + esc(dispSym(r.sym)) + '</b> <span class="' + (buy ? 'tx-g' : 'tx-l') + '">' + esc(buy ? t('buySide') : t('sellSide')) + '</span> ' + tag
+  /* 19/11/2026 (בקשת המשתמש): המקור במקום קבוע — תג עגול קטן בפינת העיגול/הלוגו שבתחילת השורה (לפי ת־עיצוב), לא בתוך
+     הטקסט שנשבר לשורה אחרת בכל עסקה. ידנית — בלי תג (העיפרון בסוף השורה מסמן אותה), עם תווית לקורא המסך */
+  const tag = r.src === 'ibkr' ? '<span class="tx-src">' + srcTagHTML('ibkr', r.acct) + '</span>' : '<span class="sr-only">' + esc(t('manualTag')) + '</span>';
+  const lead = '<span class="tx-lead">' + (o.logo ? stockLogoHTML(r.sym) : '<span class="tx-side ' + (buy ? 'b' : 's') + '" aria-hidden="true">' + (buy ? '+' : '−') + '</span>') + tag + '</span>';
+  const t1 = o.logo
+    ? '<b dir="ltr">' + esc(dispSym(r.sym)) + '</b> <span class="' + (buy ? 'tx-g' : 'tx-l') + '">' + esc(buy ? t('buySide') : t('sellSide')) + '</span>'
     : '<b>' + esc(buy ? t('buySide') : t('sellSide')) + '</b> <span dir="ltr">' + qp + '</span>';
   const d = o.logo ? esc(fmtDateIL(r.date).slice(0, 5)) + ' · <span dir="ltr">' + qp + '</span>' : esc(fmtDateIL(r.date)) + (r.time ? ' · ' + esc(r.time) : '');
   const after = o.after === null || o.after === undefined ? '' : '<div class="tx-e2">' + esc(t('txAfter', { n: txQty(o.after) })) + '</div>';
   return '<div class="tx-row' + (ed ? ' ed' : '') + (r.shadow ? ' dim' : '') + '"' + (ed ? ' role="button" tabindex="0" data-mt="' + esc(r.id) + '"' : '') + '>' +
-    lead + '<div class="tx-mid"><div class="tx-t1">' + t1 + '</div><div class="tx-t2">' + d + (o.logo ? '' : ' ' + tag) + '</div>' +
+    lead + '<div class="tx-mid"><div class="tx-t1">' + t1 + '</div><div class="tx-t2">' + d + '</div>' +
     (r.shadow ? '<div class="tx-t2">' + esc(t('mtShadowed', { sym: r.sym })) + '</div>' : '') + '</div>' +
     '<div class="tx-end"><div class="tx-e1">' + esc(tot) + '</div>' + after + '</div>' +
     (ed ? '<span class="tx-edit" aria-hidden="true">' + ICON_EDIT + '</span>' : '') + '</div>';

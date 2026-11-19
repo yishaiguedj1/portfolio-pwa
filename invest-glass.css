@@ -140,6 +140,7 @@ main .ext-sess.closed .ext-dot { display: none !important; }
 main .ext-sess.closed .ext-line:first-child { display: none !important; }
 main .stock-logo { border-radius: 50% !important; }
 main .src-tag { background: var(--lg-fill) !important; color: var(--on-surface-var) !important; }
+main .tx-src .src-tag { background: var(--tx-src-bg) !important; } /* 19/11/2026: תג המקור בעסקאות — אטום, כמו תג בפינת אייקון */
 main .stock-sub { border-top: .5px solid var(--lg-sep) !important; padding-top: 10px !important; margin-top: 2px !important; }
 main .stock-sub :is(.day-chg, .buy-chg) { font-weight: 600 !important; }
 
