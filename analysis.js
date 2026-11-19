@@ -456,7 +456,7 @@ function bufCalc(co) {
   const sh0 = Q.sh[L], raOne = !raOn && w2.raLast > 0 && rows.some((r) => r.rx) ? w2.raLast * (1 - last.t) / sh0 : 0;
   const out = { st, g, gap: st - g, ded, eps: st - ded - ra, sbcAt, ra, raOne, so, nAe: rows.filter((r) => r.rep === 'ae').length, ig: rows.filter((r) => r.rep === 'ig').reduce((t, r) => t + (r.s0 - r.s), 0),
     reit: !!reit, t: pre > 0 ? 1 - sbcAt / pre : last.t, ts: last.ts, asrc: last.as, oth: rows.some((r) => r.oth && r.pol === 1), pp: rows.some((r) => r.as === 'pp' && r.pol === 1),
-    yGaap, pol: p1 && p0 ? 'mix' : p1 ? 'ex' : p0 ? 'in' : '?', f: null };
+    yGaap, pol: p1 && p0 ? 'mix' : p1 ? 'ex' : p0 ? 'in' : '?', f: null, tl: last.t, raOneP: raOne > 0 ? w2.raLast : 0 };
   const e1 = (co.est || []).find((e) => e.p === '+1y') || {};
   const fe = co.fe > 0 ? co.fe : e1.eps;
   if (fe != null && isFinite(fe) && !reit) {
@@ -474,6 +474,38 @@ function bufCalc(co) {
   return out;
 }
 const bufEps = (co) => (!co ? null : '_buf' in co ? co._buf : (co._buf = bufCalc(co)));
+/* גל 3 — דרך ב, "מלמטה" (§6.10 במחקר): רווח לפני מס לפי GAAP ב־12 החודשים, פחות רווחי השקעות (ממומשים ולא ממומשים), ועוד הפחתה
+   של נכסים שנרכשו ועוד ארגון מחדש שלא חוזר (דרך א לא מורידה את שניהם). זה ה"רווח לפני מס של באפט" — אחרי ריבית, פחת ותגמול במניות —
+   הבסיס ל־P/EBT. אחרי מס, באותו שיעור של דרך א, ועל אותן מניות — הבקרה של דרך א: פער מעל 10% → דגל (§6.2).
+   רק SEC (ב־IFRS אין bx), לא ריט (τ=0 וה־AFFO הוא הבסיס), ורק כשדרך א חושבה (אותם 4 רבעונים) */
+function bufBU(co) {
+  const b = bufEps(co);
+  if (!b || b.reit || !co.bx || !co.Q || !co.Q.sh) return null;
+  const L = co.q.length - 1, D = co.Q.sh[L], P = nowP(co), ni = raw(co, 'ni', P), tx0 = raw(co, 'tax', P);
+  // בלי תגית לפני מס ב־10-Q (Marvell, ‏Flex — רק בשנתי): רווח נקי + מס
+  let pt = raw(co, 'pretax', P);
+  if ((pt == null || !isFinite(pt)) && ni != null && tx0 != null && isFinite(ni + tx0)) pt = ni + tx0;
+  if (!(D > 0) || pt == null || !isFinite(pt)) return null;
+  const qs = co.q.slice(L - 3, L + 1).map((e) => co.bx[e] || []), tt = co.bx.ttm || [];
+  // 4 רבעונים מאותה תגית; חסר רבעון — 12 החודשים של אותה תגית מהשרתון (tagTTM — Emerson מתייגת רק בשנתי); אחרת מה שיש
+  const all = (k) => qs.every((r) => r[k] != null && isFinite(r[k]));
+  const sum = (k) => (!all(k) && tt[k] != null && isFinite(tt[k]) ? tt[k] : qs.reduce((t, r) => t + (r[k] != null && isFinite(r[k]) ? r[k] : 0), 0));
+  const has = (k) => qs.some((r) => r[k] != null) || tt[k] != null;
+  // רווחי השקעות: עמודה אחת לכל 4 הרבעונים (ני"ע הוניים, ואם אין — השקעות בכלל), בלי ערבוב
+  const ig = has(4) ? sum(4) : has(5) ? sum(5) : 0, am = Math.max(0, sum(3)), ro = b.raOneP || 0;
+  const ebt = pt - ig + am + ro, t = b.tl, eps = ebt * (1 - t) / D;
+  const gap = eps > 0 ? (b.eps - eps) / Math.abs(eps) : null;
+  // פירוק: כשהרחוב הוא GAAP (META), הוא אחרי המס בפועל ולא בשיעור המנורמל. אם במס של הדוח הפער יורד מתחת ל־10% — הפער הוא מהמס
+  const tx = tx0, etr = pt > 0 && tx != null && isFinite(tx) ? tx / pt : null;
+  const epsE = etr != null ? ebt * (1 - etr) / D : null, byTax = gap != null && Math.abs(gap) > 0.1 && epsE > 0 && Math.abs(b.eps - epsE) <= 0.1 * epsE;
+  return { pt, ig, am, ro, ebt, t, D, eps, gap, flag: gap == null || Math.abs(gap) > 0.1, etr, byTax };
+}
+const buOf = (co) => (!co ? null : '_bu' in co ? co._bu : (co._bu = bufBU(co)));
+// ‏P/EBT — שווי שוק (מחיר × המניות של החישוב) ÷ רווח לפני מס של באפט; רווח לא חיובי → "—"
+const pebtOf = (co) => { const u = buOf(co), px = pxF(co); return u && px && u.ebt > 0 ? px * u.D / u.ebt : null; };
+// האג"ח שמולו משווים: הארוך (30 שנה) בארה"ב; בת"א — הריבית הישראלית שיש (10 שנים)
+const bondOf = () => (!MAC ? null : MAC.rf30 > 0 ? { r: MAC.rf30, y: 30 } : MAC.rf > 0 ? { r: MAC.rf, y: 10 } : null);
+const bondFor = (co) => (/\.TA$/.test(co.sym) ? (MAC && MAC.rfIL > 0 ? { r: MAC.rfIL, y: 10, il: 1 } : null) : bondOf());
 const bpeOf = (co) => { const b = bufEps(co), px = pxF(co); return b && px && b.eps > 0 ? px / b.eps : null; };
 const bfpeOf = (co) => { const b = bufEps(co), px = pxF(co); return b && b.f && px && b.f.eps > 0 ? px / b.f.eps : null; };
 // "רווח הרחוב" רחוק מהרווח המדווח — המכפיל הצפוי של Yahoo מחושב על רווח מותאם
@@ -1297,7 +1329,7 @@ function wireSwipe() {
 /* ---------- מחיר לבדיקה: הסימון, השורה "מה שונה", הגיליון והחזרה ---------- */
 /* data-dep: ערך שנגזר מהמחיר הערוך — נקודה כתומה קטנה לידו; 'ed' — הנתון שהמשתמש ערך בעצמו (כתום מודגש, בלי נקודה) */
 const DEP = (k) => (S.co && S.co.pxEd ? (k && S.px && S.px.k === 'm' && S.px.key === k ? 'ed' : '') : null);
-const PX_FACT = new Set(['mcap', 'pe', 'fpe', 'bpe', 'bfpe', 'fy']), PX_CMP = new Set(['fy', 'pe', 'fpe', 'bpe', 'bfpe']);
+const PX_FACT = new Set(['mcap', 'pe', 'fpe', 'bpe', 'bfpe', 'pebt', 'fy']), PX_CMP = new Set(['fy', 'pe', 'fpe', 'bpe', 'bfpe']);
 /* המחיר שנותן את התשואה השנתית הרצויה בתרחיש הבסיס של המחשבון (null — אין מחיר כזה, למשל רווח שלילי) */
 function retPx(co) {
   if (!co || S.reqEd == null || co.fxMix) return null;
@@ -1359,6 +1391,7 @@ const MED = {
   fpe: { u: 'x', inv: (v, c, sh, r) => (r.fpe > 0 && r.price > 0 ? v * r.price / r.fpe : null) },
   bpe: { u: 'x', inv: (v, c, sh, r) => { const b = bufEps(r); return b && b.eps > 0 ? v * b.eps : null; } },
   bfpe: { u: 'x', inv: (v, c, sh, r) => { const b = bufEps(r); return b && b.f && b.f.eps > 0 ? v * b.f.eps : null; } },
+  pebt: { u: 'x', inv: (v, c, sh, r) => { const u = buOf(r); return u && u.ebt > 0 ? v * u.ebt / u.D : null; } },
   fy: { u: '%', inv: (v, c, sh) => (c.fcf > 0 ? c.fcf / v / sh : null) },
   pfcf: { u: 'x', inv: (v, c, sh) => (c.fcf > 0 ? v * c.fcf / sh : null) },
   ps: { u: 'x', inv: (v, c, sh) => (c.rev > 0 ? v * c.rev / sh : null) },
@@ -1366,7 +1399,7 @@ const MED = {
   pb: { u: 'x', inv: (v, c, sh) => (c.eq > 0 ? v * c.eq / sh : null) },
   pffo: { u: 'x', inv: (v, c, sh) => (c.ffo > 0 ? v * c.ffo / sh : null) },
 };
-const MED_N = { mcap: 'anFMcap', pe: 'anFPe', fpe: 'anFFpe', bpe: 'anFBpe', bfpe: 'anFBfpe', fy: 'anFFy', pfcf: 'anLPfcf', ps: 'anLPs', evebit: 'anLEv', pb: 'anLPb', pffo: 'anLPffo' };
+const MED_N = { mcap: 'anFMcap', pe: 'anFPe', fpe: 'anFFpe', bpe: 'anFBpe', bfpe: 'anFBfpe', pebt: 'anFPebt', fy: 'anFFy', pfcf: 'anLPfcf', ps: 'anLPs', evebit: 'anLEv', pb: 'anLPb', pffo: 'anLPffo' };
 /* הערך של היום — בדיוק כמו במסך */
 function metNow(co, key) {
   if (!co || !(co.price > 0) || co.fxMix) return null;
@@ -1375,6 +1408,7 @@ function metNow(co, key) {
   if (key === 'fpe') return co.fpe > 0 ? co.fpe : null;
   if (key === 'bpe') return bpeOf(co);
   if (key === 'bfpe') return bfpeOf(co);
+  if (key === 'pebt') return pebtOf(co);
   if (key === 'fy') return c.fcf != null && mc ? c.fcf / mc : null;
   if (key === 'pe') return c.eps > 0 ? co.price / c.eps : null;
   const a = multHist(co)[key]; return a && a.length ? a[a.length - 1] : null;
@@ -1576,6 +1610,7 @@ function factsEl(co) {
   return h('div', { class: 'an-facts' }, fact(T('anFMcap'), fmt(mcap, 'money', co), T('anHMcap'), 'mcap'), fact(T('anFPe'), fmt(pe, 'x', co, 1), T('anHPe'), 'pe'),
     fact(T('anFFpe'), fmt(co.fpe, 'x', co, 1), T(isAdj(co) ? 'anHFpeAdj' : 'anHFpe'), 'fpe'),
     fact(T('anFBpe'), fmt(bpeOf(co), 'x', co, 1), T('anHBpe'), 'bpe'), fact(T('anFBfpe'), fmt(bfpeOf(co), 'x', co, 1), T('anHBfpe'), 'bfpe'),
+    pebtFact(co, fact),
     fact(T('anFFy'), pct(fy), T('anHFy'), 'fy'),
     fact(c.netcash >= 0 ? T('anNetCash') : T('anNetDebt'), fmt(Math.abs(c.netcash || 0), 'money', co), T('anHNc'), 'nc'));
 }
@@ -2207,6 +2242,7 @@ function checkSheet(k) {
 }
 function factSheet(key) {
   if (key === 'bpe' || key === 'bfpe') { bufSheet(key); return; }
+  if (key === 'pebt') { pebtSheet(); return; }
   const co = S.co, c = ctx(co, nowP(co));
   const X = { mcap: [T('anFMcap'), T('anXMcap', { s: strip(fmt(co.sharesOut, 'shares', co)) })],
     pe: [T('anFPe'), T('anXPeF', { e: strip(fmt(c.eps, 'ps', co)) })],
@@ -2247,6 +2283,44 @@ function bufSheet(key) {
     if (MED[key] && canEdM(co, key)) medForm(bd, key, rec);
   }, { small: true });
 }
+/* גל 3: אריח P/EBT — הרמז הוא תשואת הרווח לפני מס מול האג"ח הארוך. ריט/IFRS/בלי דרך א — אין אריח */
+function pebtFact(co, fact) {
+  const v = pebtOf(co); if (v == null && !buOf(co)) return null;
+  const bd = bondFor(co);
+  return fact(T('anFPebt'), fmt(v, 'x', co, 1), v > 0 && bd ? T('anHPebt', { y: strip(pct(1 / v, 1)), b: strip(pct(bd.r, 1)) }) : T('anHPebt0'), 'pebt');
+}
+/* הגיליון: דרך ב שורה אחר שורה, התשואות מול האג"ח, רצפת 10% (אסיפת 2003) והבקרה מול דרך א */
+function pebtSheet() {
+  const co = S.co, u = buOf(co), b = bufEps(co), px = pxF(co), v = pebtOf(co), bd = bondFor(co);
+  openSheet(T('anFPebt'), (bdEl, rec) => {
+    bdEl.append(h('p', { class: 'an-ex an-ex-lg' }, T('anXPebt')));
+    if (!u) { bdEl.append(h('p', { class: 'an-ex' }, T('anXBufNone'))); return; }
+    const m = (x) => fmt(x, 'money', co), ps = (x) => fmt(x, 'ps', co);
+    const row = (tt, sub, val, strong) => h('div', { class: 'an-row' }, h('div', { class: 'an-rt' }, h('b', {}, tt), sub ? h('span', {}, sub) : null),
+      h('div', { class: 'an-rv', style: strong ? 'font-weight:800' : null }, val));
+    const rows = [row(T('anPtG'), T('anPtGS'), m(u.pt))];
+    if (u.ig) rows.push(row(T('anPtIg'), T('anPtIgS'), m(-u.ig)));
+    if (u.am > 0) rows.push(row(T('anPtAm'), T('anPtAmS'), m(u.am)));
+    if (u.ro > 0) rows.push(row(T('anPtRo'), T('anPtRoS'), m(u.ro)));
+    rows.push(row(T('anPtB'), null, m(u.ebt), true),
+      row(T('anFPebt'), px ? T('anPtMcS', { m: strip(m(px * u.D)) }) : null, v ? fmt(v, 'x', co, 1) : T('anBNeg'), true));
+    if (u.pt > 0 && px) rows.push(row(T('anPtRaw'), T('anPtRawS'), fmt(px * u.D / u.pt, 'x', co, 1)));
+    bdEl.append(h('div', { class: 'an-list' }, ...rows));
+    // תשואות מול האג"ח: לפני מס (1 ÷ P/EBT) ואחרי מס (1 ÷ מכפיל באפט)
+    const ya = b && b.eps > 0 && px ? b.eps / px : null, yb = v > 0 ? 1 / v : null;
+    const yr = [];
+    if (yb != null) yr.push(row(T('anYPre'), null, pct(yb, 1)));
+    if (ya != null) yr.push(row(T('anYAft'), T('anYAftS'), pct(ya, 1)));
+    if (bd) yr.push(row(T(bd.il ? 'anYBondIL' : 'anYBond', { y: bd.y }), null, pct(bd.r, 1)));
+    if (yr.length) bdEl.append(h('div', { class: 'an-list' }, ...yr));
+    if (ya != null && bd) bdEl.append(h('p', { class: 'an-ex' }, T(ya > bd.r ? 'anYOver' : 'anYUnder', { d: strip(pct(Math.abs(ya - bd.r), 1)) })));
+    if (ya != null && ya < 0.1) bdEl.append(h('p', { class: 'an-ex an-warn' }, T('anY10')));
+    // הבקרה: דרך ב אחרי מס מול דרך א (האריח "מכפיל באפט")
+    if (b) bdEl.append(h('p', { class: 'an-ex' + (u.flag ? ' an-warn' : '') }, u.gap == null ? T('anBuNeg')
+      : T(u.byTax ? 'anBuTax' : u.flag ? 'anBuFlag' : 'anBuOk', { a: strip(ps(b.eps)), b: strip(ps(u.eps)), g: strip(pct(Math.abs(u.gap), 0)), t: strip(pct(u.t, 0)), e: strip(pct(u.etr, 0)) })));
+    if (MED.pebt && canEdM(co, 'pebt')) medForm(bdEl, 'pebt', rec);
+  }, { small: true });
+}
 function estSheet() {
   const co = S.co;
   openSheet(T('anEstTitle'), (b) => {
@@ -2266,5 +2340,5 @@ function estSheet() {
 }
 
 /* בדיקות (node) — הפונקציות הטהורות */
-export const _test = { bufCalc, bufEps, bpeOf, bfpeOf, sbcPol, sbcRel, bufTau, sbcAmt, isAdj, r40Of, multAvg, calcDefaults, calcRun, calcMults, irr, estGrowth, qRun, qBack, ttmPoints, cmpPrev, restated, cagrBetween, growthOf, finInputs, riValue, impliedRoe, reitInputs, lossView, fairOf, flagsAt, srcDef, rawName, RAWK, OWN_TAG, prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath, setPx, real, pxReal, MED, metNow, pxFrom, canEdM, medTxt, medVal, medHist,
+export const _test = { bufCalc, bufEps, bpeOf, bfpeOf, bufBU, buOf, pebtOf, bondFor, sbcPol, sbcRel, bufTau, sbcAmt, isAdj, r40Of, multAvg, calcDefaults, calcRun, calcMults, irr, estGrowth, qRun, qBack, ttmPoints, cmpPrev, restated, cagrBetween, growthOf, finInputs, riValue, impliedRoe, reitInputs, lossView, fairOf, flagsAt, srcDef, rawName, RAWK, OWN_TAG, prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath, setPx, real, pxReal, MED, metNow, pxFrom, canEdM, medTxt, medVal, medHist,
   setEnv: (e) => { E = e; } };

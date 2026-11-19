@@ -194,7 +194,7 @@ ok(!X.classify(EMR.replace('(dollars in millions, unaudited)', '')).ex, 'בלי 
   const r = FU.tagQ(f, ['2025-12-31', '2026-03-31', '2026-06-30', '2026-09-30', '2026-12-31']);
   ok(r['2026-09-30'] === 120 && r['2026-03-31'] === 100 && r['2026-06-30'] === 110 && r['2025-12-31'] === 95 && !('2026-12-31' in r),
     'tagQ — רבעון ישיר, חצי שנה פחות רבעון, שנה פחות שלושה רבעונים; בלי ערך — חסר (לא מתגית אחרת)');
-  ok(FU.BX_TAGS.length === 4 && FU.BX_TAGS[0] === 'AllocatedShareBasedCompensationExpense' && FU.BX_TAGS[1] === 'ShareBasedCompensation', 'סדר התגיות של bx — כמו ב־sbcAmt');
+  ok(FU.BX_TAGS.length === 6 && FU.BX_TAGS[4] === 'EquitySecuritiesFvNiGainLoss' && FU.BX_TAGS[0] === 'AllocatedShareBasedCompensationExpense' && FU.BX_TAGS[1] === 'ShareBasedCompensation', 'סדר התגיות של bx — כמו ב־sbcAmt');
 }
 
 /* ---------- השמירה בשרתון: load קורא עד 2 הודעות חדשות, שומר ב־o.sx, ומחזיר sx ---------- */
@@ -427,8 +427,36 @@ ok(!X.classify(EMR.replace('(dollars in millions, unaudited)', '')).ex, 'בלי 
   ok(/const note = fwd && b\.f\.chg \? 'anBFutIn'/.test(src), 'ההערה "מעכשיו כולל" — רק כשהחברה הודיעה על שינוי, לא בכל חברה שכוללת ממילא');
   const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   const keys = ['anFBpe', 'anFBfpe', 'anCmpFwd', 'anHFpeAdj', 'anHBpe', 'anHBfpe', 'anXFpeAdj', 'anXBpe', 'anXBfpe', 'anXBufNone', 'anBStreet', 'anBStreetS', 'anBSbc', 'anBSbcS',
-    'anBFwd', 'anBFwd0', 'anBFwdY', 'anBSbcF', 'anBSbcFS', 'anBEps', 'anBMultS', 'anBNeg', 'anBGaap', 'anBGaapS', 'anBPolEx', 'anBPolIn', 'anBPolMix', 'anBPolUnk', 'anBPolGaap', 'anBFutIn', 'anBSbcSP', 'anBSbcSD', 'anBSbcSR', 'anBSbcSB', 'anBOth', 'anBPart'];
+    'anBFwd', 'anBFwd0', 'anBFwdY', 'anBSbcF', 'anBSbcFS', 'anBEps', 'anBMultS', 'anBNeg', 'anBGaap', 'anBGaapS', 'anBPolEx', 'anBPolIn', 'anBPolMix', 'anBPolUnk', 'anBPolGaap', 'anBFutIn', 'anBSbcSP', 'anBSbcSD', 'anBSbcSR', 'anBSbcSB', 'anBOth', 'anBPart', 'anFPebt', 'anHPebt', 'anHPebt0', 'anXPebt', 'anPtG', 'anPtGS', 'anPtIg', 'anPtIgS', 'anPtAm', 'anPtAmS',
+    'anPtRo', 'anPtRoS', 'anPtB', 'anPtMcS', 'anPtRaw', 'anPtRawS', 'anYPre', 'anYAft', 'anYAftS', 'anYBond', 'anYBondIL', 'anYOver', 'anYUnder', 'anY10', 'anBuOk', 'anBuFlag', 'anBuNeg', 'anBuTax'];
   ok(keys.every((k) => (app.match(new RegExp('\\n  ' + k + ': ', 'g')) || []).length === 2), 'כל המחרוזות בעברית ובאנגלית');
+  /* ---------- גל 3: דרך ב (מלמטה), ‏P/EBT, תשואת רווח מול האג"ח (docs/buffett-pe.md §2ג) ---------- */
+  {
+    const ptS = last4.reduce((s, i) => s + Q.pretax[i], 0);
+    // הרחוב = GAAP + התגמול אחרי מס (מה שהחברה מוציאה), הפחתה 0.1B ורווח השקעות 0.2B ברבעון
+    const hs = last4.map((i) => ({ q: q[i], a: Q.eps[i] + Q.sbc[i] * 0.8 / 1e9, e: Q.eps[i] }));
+    let c3 = mk({ hist: hs, sbcX: last4.map((i) => rel(q[i], 1)), bx: bxOf((i) => [Q.sbc[i], Q.sbc[i], null, 1e8, 2e8, 9e9]) });
+    let u = A.bufBU(c3), b3 = A.bufCalc(c3);
+    ok(u && near(u.pt, ptS, 1) && u.ig === 8e8 && u.am === 4e8 && near(u.ebt, ptS - 8e8 + 4e8, 1), 'דרך ב: לפני מס בדוח − רווחי השקעות (העמודה הראשונה, בלי ערבוב) + הפחתה מרכישות');
+    ok(near(u.eps, u.ebt * (1 - b3.tl) / 1e9) && near(A.pebtOf(c3), 400 * 1e9 / u.ebt), 'אחרי מס — בשיעור של דרך א; ‏P/EBT = שווי שוק ÷ הרווח לפני מס של באפט');
+    ok(u.flag === false && Math.abs(u.gap) <= 0.1, 'פער של עד 10% מול דרך א — בלי דגל');
+    c3 = mk({ hist: hist(1), sbcX: last4.map((i) => rel(q[i], 1)), bx: bxOf((i) => [Q.sbc[i], Q.sbc[i], null, null, null, 3e9]) });
+    u = A.bufBU(c3);
+    ok(u.ig === 12e9 && u.am === 0 && u.flag === true, 'בלי העמודה הראשונה — השקעות בכלל; רחוב רחוק מהחישוב מלמטה → דגל');
+    ok(A.bufBU(mk({ hist: hist(1), sbcX: last4.map((i) => rel(q[i], 1)) })) === null, 'בלי bx (IFRS) — אין דרך ב ואין אריח');
+    c3 = mk({ hist: hs, sbcX: last4.map((i) => rel(q[i], 1)), bx: { ...bxOf((i) => [Q.sbc[i], Q.sbc[i], null, i === L ? 5e8 : null, null, null]), ttm: [null, null, null, 1.2e9, null, null] } });
+    ok(A.bufBU(c3).am === 1.2e9, 'הפחתה רק בשנתי (Emerson) — 12 החודשים מהשרתון, לא רבעון אחד');
+    const FU3 = require(path.join(root, 'ibkr-proxy/lib/fundamentals.js'));
+    const fx = (rows) => ({ dur: new Map(rows.map(([s, e, v]) => [s + '|' + e, { v }])) });
+    ok(FU3.tagTTM(fx([['2025-10-01', '2026-09-30', 1116]]), '2026-09-30') === 1116, 'tagTTM: שנה שמסתיימת ברבעון האחרון');
+    ok(FU3.tagTTM(fx([['2025-01-01', '2025-12-31', 400], ['2026-01-01', '2026-06-30', 250], ['2025-01-01', '2025-06-30', 190]]), '2026-06-30') === 460, 'tagTTM: שנה קודמת + מצטבר − המצטבר המקביל');
+    ok(FU3.tagTTM(fx([['2026-04-01', '2026-06-30', 90]]), '2026-06-30') === null, 'tagTTM: רק רבעון — null');
+    c3 = mk({ hist: hs, sbcX: last4.map((i) => rel(q[i], 1)), bx: bxOf((i) => [Q.sbc[i], Q.sbc[i], null, 0, 0, null]) });
+    const v0 = A.pebtOf(c3); A.setPx(c3, 800);
+    ok(near(A.pebtOf(c3), v0 * 2) && near(A.MED.pebt.inv(v0, null, 1e9, A.real(c3)), 400), 'מחיר ערוך — ‏P/EBT זז ביחס ישר, וההיפוך מחזיר את המחיר');
+    ok(/fact\(T\('anFBfpe'\)[^\n]*\n    pebtFact\(co, fact\),/.test(src) && /if \(key === 'pebt'\) \{ pebtSheet\(\); return; \}/.test(src), 'האריח אחרי "מכפיל באפט צפוי", והלחיצה פותחת את הגיליון');
+    ok(/MAC\.rf30 > 0 \? \{ r: MAC\.rf30, y: 30 \}/.test(src), 'האג"ח הארוך (30 שנה) קודם ל־10 שנים');
+  }
   const fsrc = fs.readFileSync(path.join(root, 'ibkr-proxy/lib/fundamentals.js'), 'utf8');
   ok(/nq: n \|\| null, sbcX,/.test(fsrc) && /sbcX = bsf && bsf\.sx/.test(fsrc), 'התשובה של op:fund כוללת sbcX');
   console.log(`\nכל ${n} הבדיקות עברו ✓`);

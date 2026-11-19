@@ -616,6 +616,7 @@ const fr = F.parseFred('observation_date,DGS10\n2021-10-20,1.60\n2026-10-21,5.10
 ok(fr.rf === 0.05 && fr.rfDate === '2026-10-23' && near(fr.rf5, 0.0505, 1e-6), 'FRED: הריבית האחרונה וממוצע 5 שנים (בלי ימים ריקים ובלי מה שלפני 5 שנים)');
 const tr = F.parseTreasury('Date,"1 Mo","10 Yr","30 Yr"\n10/23/2026,4.11,5.00,5.33\n10/22/2026,4.11,4.96,5.29\n');
 ok(tr.length === 2 && tr[1][0] === '2026-10-23' && tr[1][1] === 5, 'Treasury: עמודת 10 Yr ותאריך ISO');
+ok(F.parseTreasury('Date,"1 Mo","10 Yr","30 Yr"\n10/23/2026,4.11,5.00,5.33\n', '30 Yr')[0][1] === 5.33, 'Treasury: עמודת 30 Yr — האג"ח הארוך של מכפיל באפט (גל 3)');
 ok(F.industryFor('Internet Content & Information') === 'Software (Internet)' && F.industryFor('Packaged Foods') === 'Food Processing' && F.industryFor('???') === 'Total Market (without financials)', 'ענף Damodaran לפי הענף של Yahoo');
 ok(F.industryFor('Beverages - Non - Alcoholic') === 'Beverage (Soft)' && F.industryFor('Beverages—Non-Alcoholic') === 'Beverage (Soft)' && F.industryFor('Beverages - Brewers') === 'Beverage (Alcoholic)', 'קוקה־קולה = משקאות קלים (Yahoo כותב היום "Non - Alcoholic")');
 ok(JSON.stringify(F.parsePeers({ finance: { result: [{ recommendedSymbols: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => ({ symbol: 'S' + i })) }] } }, 'X')) === '["S1","S2","S3","S4","S5","S6"]' && F.parsePeers(null, 'X').length === 0, 'parsePeers: עד 6, ותשובה ריקה = רשימה ריקה');
