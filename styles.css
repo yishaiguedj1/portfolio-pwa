@@ -958,6 +958,14 @@ main .tabpage :is(.ranges, .chip-row, .stock-sort-row, .wl-tabs, .tx-years, .st-
 .stock[data-watch] .stock-sub > .day-chg { grid-area: 1 / 2; }
 .stock[data-watch] .stock-sub > .sub-val { grid-area: 1 / 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .stock-sub .wl-ath-pct:not(.pos):not(.neg) { color: var(--on-surface-var); }
+/* 19/11/2026 (בקשת המשתמש: "שלעולם לא יתנגשו, נקי לפי ת־עיצוב"): הכל בשורה אחת, וכל הטקסט בשורה (השיא והגלולה, כולל
+   הסכום בכסף) קטן יחד בקנה מידה אחד (--wk) לפי האורך שלה — fitWatchSubs ב־app.js, עם רווח נדיב (WK_GAP) ביניהם */
+.stock[data-watch] .stock-sub { --wk: 1; }
+.stock[data-watch] .stock-sub > .day-chg { font-size: calc(14px * var(--wk)); }
+.stock[data-watch] .stock-sub .day-amt { font-size: calc(13.5px * var(--wk)); margin-inline-start: calc(4px * var(--wk)); }
+.stock[data-watch] .stock-sub .wl-ath .sub-lbl { font-size: calc(12.5px * var(--wk)); }
+.stock[data-watch] .stock-sub .wl-ath-pct { font-size: calc(15px * var(--wk)); }
+main .stock[data-watch] .stock-sub > .day-chg { gap: calc(6px * var(--wk)) !important; padding: 2px calc(9px * var(--wk)) !important; }
 .stock-sub .buy-chg, .stock-sub .buy-amt { font-weight: 600; font-size: 13.5px; font-variant-numeric: tabular-nums; }
 .stock-sub .buy-chg:not(.pos):not(.neg), .stock-sub .buy-amt:not(.pos):not(.neg) { color: var(--on-surface-var); }
 .day-chg { font-weight: 700; font-variant-numeric: tabular-nums; }
