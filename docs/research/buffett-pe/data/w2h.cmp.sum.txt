@@ -1,0 +1,84 @@
+גל 2 — השוואת הקוראים (w2h). הודעות ברשימות: 261
+קורא A: 261 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+קורא B: 261 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+קורא C: 18 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+
+הסכמה A מול B לכל שדה (מתוך הודעות ששניהם קראו):
+  er           260/261    99.6%
+  pre          258/261    98.9%
+  adj          261/261   100.0%
+  ex           257/261    98.5%
+  partial      257/261    98.5%
+  chg          261/261   100.0%
+  fut          261/261   100.0%
+  pol          261/261   100.0%
+  pe           253/253   100.0%
+  eps_gaap     250/253    98.8%
+  eps_adj      250/253    98.8%
+  sbc_rec      243/253    96.0%
+  tax_adj      240/253    94.9%
+  tax_sbc      248/253    98.0%
+  sbc_total    242/253    95.7%
+  sbc_rec_ps   247/253    97.6%
+  tax_adj_ps   242/253    95.7%
+  sh_dil       253/253   100.0%
+  sh_adj       253/253   100.0%
+  הערות: ex:no-adj=7, fut:no-adj=7, sbc_rec:scale=5, sbc_rec_ps:has-total=6, sbc_total:scale=5, sh_adj:swap=23, tax_adj:scale=10
+
+מחלוקות בשדות החמים (er,adj,ex,fut,chg,pol / pe,eps_gaap,eps_adj,sbc_rec,sbc_rec_ps,sh_dil): 18 הודעות (ממתינות לקורא C: 0)
+  לפי שדה: sbc_rec=10, ex=4, eps_gaap=3, eps_adj=3, er=1
+  ללא הכרעה גם אחרי C (SPLIT): 0
+
+מטריצות בלבול — הקונצנזוס של הקוראים מול secsbc.classify (sys_c = 2 הנספחים שהשרת קורא; sys_all = כל הנספחים)
+er (הודעת תוצאות):
+  קוראים\מערכת    False     True
+  False               3        4
+  True                0      254
+ex (כפי שנקרא: True / False / partial / None) — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             135        5
+  None               40        0
+  True                5       52
+  partial            12        5
+pol (מוציא? בלי רווח מותאם = False) — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             187       10
+  True                5       52
+pol — בהודעות תוצאות, כל הנספחים:
+  קוראים\מערכת    False     True
+  False             187       10
+  True                5       52
+pol — רק ההודעות שהשרת בוחר (picked):
+  קוראים\מערכת    False     True
+  False             177       10
+  True                5       44
+fut — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             147       10
+  None               40        0
+  True                5       52
+
+אי־התאמות pol (קונצנזוס מול sys_c), הודעות תוצאות:
+  O      0000726728-25-000146 2025-11-03 picked=True cons=True sys=False h=---------------
+  O      0000726728-26-000009 2026-02-24 picked=True cons=True sys=False h=---------------
+  O      0000726728-26-000028 2026-05-06 picked=True cons=True sys=False h=-----------
+  O      0000726728-26-000044 2026-08-05 picked=True cons=True sys=False h=--------
+  O      0000726728-26-000056 2026-11-02 picked=True cons=True sys=False h=----------
+  PAYX   0000723531-26-000004 2026-09-23 picked=True cons=partial sys=True h=cEE-
+  PAYX   0001193125-25-224146 2025-09-30 picked=True cons=partial sys=True h=-EEoc
+  PAYX   0001193125-25-325838 2025-12-19 picked=True cons=partial sys=True h=-EEoc
+  PAYX   0001193125-26-122887 2026-03-25 picked=True cons=partial sys=True h=-EEoc
+  PAYX   0001193125-26-280314 2026-06-24 picked=True cons=partial sys=True h=-EEoc
+  PM     0001628280-25-045579 2025-10-21 picked=True cons=False sys=True h=EE
+  PM     0001628280-26-005932 2026-02-06 picked=True cons=False sys=True h=EE
+  PM     0001628280-26-026385 2026-04-22 picked=True cons=False sys=True h=EE
+  PM     0001628280-26-049107 2026-07-22 picked=True cons=False sys=True h=EE
+  PM     0001628280-26-066596 2026-10-21 picked=True cons=False sys=True h=EE
+אי־התאמות er:
+  REGN   0001104659-25-096921 2025-10-06 picked=False cons=False sys=True
+  REGN   0001104659-26-040661 2026-04-08 picked=True cons=False sys=True
+  REGN   0001104659-26-080562 2026-07-06 picked=True cons=False sys=True
+  REGN   0001104659-26-113895 2026-10-06 picked=True cons=False sys=True
+לא ברור (pol=None בקונצנזוס) בהודעות תוצאות: 
+חלקי (partial): PAYX:0000723531-26-000004, PAYX:0001193125-25-224146, PAYX:0001193125-25-325838, PAYX:0001193125-26-122887, PAYX:0001193125-26-280314, PLD:0001193125-25-239551, PLD:0001193125-26-017256, PODD:0001145197-25-000067, PODD:0001145197-26-000026, PRU:0001137774-26-000012, PRU:0001137774-26-000087, PSA:0001628280-26-007684, PYPL:0001633917-25-000194, PYPL:0001633917-26-000021, PYPL:0001633917-26-000065, PYPL:0001633917-26-000080, PYPL:0001633917-26-000086
+שינוי מדיניות (chg≠none): 

@@ -192,3 +192,19 @@ ISRG	2026-06-30	sbc	DIFF	sys≠rec	כנ"ל — ~0.4% במכפיל
 ISRG	2026-09-30	sbc	DIFF	sys≠rec	כנ"ל — ~0.4% במכפיל
 LITE	2025-12-27	sbc	DIFF	B-044	B-044: הסדרה הרבעונית מערבבת תגיות — Q2 ו־Q3 של שנת 2026 מ־AllocatedShareBasedCompensationExpense ‏(39.3/41.2, ההוצאה בדוח הרווח, 0001628280-26-005129 ו־-030777), ‏Q1 מהתזרים (42.4); התזרים: 87.8−42.4 = 45.4 ו־129.4−87.8 = 41.6; בהתאמה בהודעה "Stock-based compensation and related payroll taxes" ‏47.9/46.8 (כולל מס שכר). ההשפעה על המכפיל ~0.6% (מתחת לסובלנות)
 LITE	2026-03-28	sbc	DIFF	B-044	B-044: כנ"ל — 41.2 (Allocated) מול 41.6 (התזרים)
+REGN	2025-12-31	pol	DIFF	B-047	8-K מקדים על IPR&D (er שגוי) נבחר לרבעונים בלי הודעה בחלון → mix; "מה אם" bpe 19.66 במקום 18.13
+REGN	2026-03-31	pol	DIFF	B-047	8-K מקדים על IPR&D (er שגוי) נבחר לרבעונים בלי הודעה בחלון → mix; "מה אם" bpe 19.66 במקום 18.13
+REGN	2026-06-30	pol	DIFF	B-047	8-K מקדים על IPR&D (er שגוי) נבחר לרבעונים בלי הודעה בחלון → mix; "מה אם" bpe 19.66 במקום 18.13
+REGN	2026-09-30	pol	DIFF	B-047	8-K מקדים על IPR&D (er שגוי) נבחר לרבעונים בלי הודעה בחלון → mix; "מה אם" bpe 19.66 במקום 18.13
+PAYX	2025-11-30	pol	DIFF	B-048	tax shortfall/(windfall) related to employee SBC → ex; הקוראים: חלקי (replacement awards בלי סכום) → in; bpe 20.19 במקום 20.89
+PAYX	2026-02-28	pol	DIFF	B-048	tax shortfall/(windfall) related to employee SBC → ex; הקוראים: חלקי (replacement awards בלי סכום) → in; bpe 20.19 במקום 20.89
+PAYX	2026-05-31	pol	DIFF	B-048	tax shortfall/(windfall) related to employee SBC → ex; הקוראים: חלקי (replacement awards בלי סכום) → in; bpe 20.19 במקום 20.89
+PAYX	2026-08-31	pol	DIFF	B-048	tax shortfall/(windfall) related to employee SBC → ex; הקוראים: חלקי (replacement awards בלי סכום) → in; bpe 20.19 במקום 20.89
+PM	2025-12-31	pol	V2	B-049;moot:ded0	two-class "share-based payment awards" → ex; ded=0
+PM	2026-03-31	pol	V2	B-049;moot:ded0	two-class "share-based payment awards" → ex; ded=0
+PM	2026-06-30	pol	V2	B-049;moot:ded0	two-class "share-based payment awards" → ex; ded=0
+PM	2026-09-30	pol	V2	B-049;moot:ded0	two-class "share-based payment awards" → ex; ded=0
+O	2025-12-31	pol	V2	reit	AFFO מחזיר את התגמול; ריט → t=0, לגל 5
+O	2026-03-31	pol	V2	reit	AFFO מחזיר את התגמול; ריט → t=0, לגל 5
+O	2026-06-30	pol	V2	reit	AFFO מחזיר את התגמול; ריט → t=0, לגל 5
+O	2026-09-30	pol	V2	reit	AFFO מחזיר את התגמול; ריט → t=0, לגל 5
