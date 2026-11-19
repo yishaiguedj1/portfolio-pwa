@@ -5,8 +5,8 @@
 יראה לאיזו שורת יעד (רווח למניה / EBITDA / תפעולי) שורת התגמול מתאימה. שני פלטים לכל הודעה:
 - <BD_DIR>/prt/<CIK>/<acc>.txt — הטקסט המלא (כל הנספחים שנשמרו, לפי הסדר).
 - <BD_DIR>/prs/<CIK>/<acc>.txt — הקטעים לקורא: הכותרת, כל משפט/שורה עם "non-GAAP"/"adjusted" + "exclud"/"per share",
-  וכל הופעה של תגמול במניות עם הקשר רחב (25 שורות אחרי, 8 לפני), ממוזגים בלי כפילויות. מכוון ל־recall: מה שלא נכנס כאן
-  לא יכול להכריע את השאלה. כשהטקסט המלא קצר מ־40 אלף תווים — הקטעים = הטקסט המלא.
+  כל שורת התאמה / רווח / מניות עם הקשר, וכל הופעה של תגמול במניות עם הקשר רחב (25 שורות אחרי, 8 לפני), ממוזגים בלי כפילויות. מכוון ל־recall: מה שלא נכנס כאן
+  לא יכול להכריע את השאלה. כשהטקסט המלא קצר מ־100 אלף תווים (כמעט כל ההודעות; לקח הפיילוט, 19/11: בקטעים חסרה טבלת ההתאמה שבה התגמול *לא* מופיע) — הקטעים = הטקסט המלא.
 שימוש: BD_DIR=<dir> python3 tools/buffett-deep/prtext.py [--cik 1090872]
 """
 import html
@@ -87,6 +87,7 @@ def to_lines(raw):
 SBC = re.compile(r'(stock|share|equity)[- ]?based|stock compensation|share-based payment|equity compensation|stock[- ]settled', re.I)
 NG = re.compile(r'non-?gaap|adjusted|core earnings|cash eps|excluding|exclud', re.I)
 PS = re.compile(r'per (diluted )?share|\beps\b|net income|earnings', re.I)
+REC = re.compile(r'reconcil|specified items|special items|non-?gaap|as adjusted|tax (effect|impact)|weighted[- ]average|diluted', re.I)
 CHG = re.compile(r'no longer|will (now )?(include|exclude)|beginning (with|in)|going forward|change[sd]? (in|to) (our|its) non-?gaap', re.I)
 
 
@@ -95,8 +96,9 @@ def snippets(lines):
     for i, s in enumerate(lines):
         if SBC.search(s):
             keep.update(range(max(0, i - 8), min(len(lines), i + 26)))
-        elif NG.search(s) and (PS.search(s) or 'exclud' in s.lower()):
-            keep.update(range(max(0, i - 1), min(len(lines), i + 2)))
+        elif NG.search(s) or REC.search(s) or PS.search(s):
+            # שורות ההתאמה והרווח — גם בלי תגמול (כדי שהקורא יראה שהוא *לא* ברשימה), עם הקשר
+            keep.update(range(max(0, i - 3), min(len(lines), i + 4)))
         elif CHG.search(s) and NG.search(s):
             keep.update(range(max(0, i - 2), min(len(lines), i + 3)))
     out, prev = [], -2
@@ -136,7 +138,7 @@ def main():
                 raw = open(f, encoding='utf-8', errors='replace').read()
                 full.append('=== %s ===' % nm)
                 full.extend(to_lines(raw))
-            for d, lines in (('prt', full), ('prs', full if sum(map(len, full)) < 40000 else full[:1] + snippets(full[1:]))):
+            for d, lines in (('prt', full), ('prs', full if sum(map(len, full)) < 100000 else full[:1] + snippets(full[1:]))):
                 od = os.path.join(BD, d, cik)
                 os.makedirs(od, exist_ok=True)
                 with open(os.path.join(od, it['acc'] + '.txt'), 'w') as fo:
