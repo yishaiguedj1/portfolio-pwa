@@ -248,10 +248,17 @@ ok(/^Stock-based compensation \| 630 \| \(492\)$/m.test(txt) && /^Non-GAAP net i
     { sym: 'EXA', e, c: 'sbc', used: true, sys: M.EXA.rows[3].sbc, same: { last: M.EXA.rows[3].sbc, how: 'ytd' }, ok: true },
     { sym: 'EXA', e, c: 'eps', used: true, sys: M.EXA.rows[3].g, same: { last: M.EXA.rows[3].g + 0.05, how: 'q' }, ok: false },
   ].map((o) => JSON.stringify(o)).join('\n') + '\n');
-  fs.writeFileSync(path.join(W, 'pr', '9.json'), JSON.stringify({ sym: 'EXA', cik: 9, items: [{ acc, filed }] }));
+  const e2 = M.EXA.rows[2].e, acc2 = '0000000009-26-000001';
+  fs.writeFileSync(path.join(W, 'pr', '9.json'), JSON.stringify({ sym: 'EXA', cik: 9, items: [{ acc, filed }, { acc: acc2, filed: '2001-01-01' }] }));
   for (const who of ['A', 'B']) {
     fs.mkdirSync(path.join(W, 'read', who), { recursive: true });
     fs.writeFileSync(path.join(W, 'read', who, 'p.jsonl'), JSON.stringify({ acc, cik: 9, er: true, adj: true, ex: true, nums: { pe: e, eps_adj: street } }) + '\n');
+  }
+  // הרבעון הקודם — בגל (read/w2): ‏A ו־C קוראים כמו המערכת, ‏B חולק → רוב של שניים = V3 (לא SPLIT)
+  const pol2 = !!M.EXA.rows[2].pol;
+  for (const [who, ex] of [['A', pol2], ['B', !pol2], ['C', pol2]]) {
+    fs.mkdirSync(path.join(W, 'read', 'w2', who), { recursive: true });
+    fs.writeFileSync(path.join(W, 'read', 'w2', who, 'b00.jsonl'), JSON.stringify({ acc: acc2, cik: 9, er: true, adj: true, ex, nums: { pe: e2 } }) + '\n');
   }
   const cks = path.join(W, 'ciks.tsv');
   fs.writeFileSync(cks, 'EXA\t9\n');
@@ -262,6 +269,35 @@ ok(/^Stock-based compensation \| 630 \| \(492\)$/m.test(txt) && /^Non-GAAP net i
   ok(v('pol') === 'V3' && v('street') === 'V2' && v('sbc') === 'V2' && v('gaap') === 'DIFF' && v('ded') === 'V2' && v('bpe', '') === 'V2',
     'ledger.py: מדיניות V3 (שני קוראים), רחוב V2 (ההודעה), תגמול V2, ‏GAAP ‏DIFF, ניכוי ואריח — זהות');
   ok(v('pol', M.EXA.rows[0].e) === 'PEND', 'ledger.py: רבעון בלי קריאה — PEND');
+  ok(v('pol', e2) === 'V3', 'ledger.py: מחלוקת A/B שהקורא השלישי הכריע כמו המערכת — V3 (רוב), מתוך read/w2');
+}
+
+// readcmp.py: השוואת הקוראים — יחידות, החלפת sh_dil/sh_adj, מספרים רק בהודעת תוצאות, מחלוקות ל־C ומטריצה מול המסווג
+{
+  const BD = path.join(tmp, 'rc'), WD = path.join(BD, 'read', 'w2');
+  for (const d of ['A', 'B', 'C', 'batches']) fs.mkdirSync(path.join(WD, d), { recursive: true });
+  const accs = ['0000000001-26-000001', '0000000001-26-000002', '0000000001-26-000003', '0000000001-26-000004'];
+  fs.writeFileSync(path.join(WD, 'batches', 'b00.txt'), accs.map((a) => '1/' + a + '.txt').join('\n') + '\n');
+  fs.writeFileSync(path.join(WD, 'batches.json'), JSON.stringify([{ id: 'b00', list: path.join(WD, 'batches', 'b00.txt') }]));
+  fs.writeFileSync(path.join(BD, 'sys.jsonl'), accs.map((acc, i) => JSON.stringify({ sym: 'RCX', cik: 1, acc, filed: '2026-0' + (i + 1) + '-15', sys: true,
+    c: { er: i !== 2, ex: true, fut: true, h: 'E' }, call: { er: i !== 2, ex: true, fut: true } })).join('\n') + '\n');
+  const row = (acc, o, nums) => JSON.stringify({ acc, cik: '1', er: true, pre: false, adj: true, ex: true, partial: false, chg: 'none', fut: true, quote: 'q', conf: 'high', ...o, nums: { pe: '2026-03-31', eps_gaap: 1.04, eps_adj: 1.5, ...nums } });
+  const w = (who, lines) => fs.writeFileSync(path.join(WD, who, 'b00.jsonl'), lines.join('\n') + '\n');
+  w('A', [row(accs[0], {}, { sbc_rec: 630, unit: 'millions', sh_dil: null, sh_adj: 138 }), row(accs[1], {}, {}),
+    row(accs[2], { er: false, adj: false, ex: null }, { pe: null }), row(accs[3], {}, {})]);
+  w('B', [row(accs[0], {}, { sbc_rec: 630000, unit: 'thousands', sh_dil: 138 }), row(accs[1], { ex: false, fut: false }, {}),
+    row(accs[2], { er: false, adj: false, ex: null }, {}), row(accs[3], { ex: false, fut: false }, {})]);
+  w('C', [row(accs[3], { ex: false, fut: false }, {})]);
+  execFileSync('python3', ['-I', path.join(T, 'readcmp.py'), BD, 'w2']);
+  const C = fs.readFileSync(path.join(WD, 'cmp.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+  const by = (a) => C.find((r) => r.acc === a);
+  const disp = fs.readFileSync(path.join(WD, 'disputes.txt'), 'utf8');
+  ok(by(accs[0]).dis.length === 0 && by(accs[0]).cons.sh_dil === 138, 'readcmp.py: יחידות (מיליונים מול אלפים) והחלפת sh_dil/sh_adj — הסכמה');
+  ok(by(accs[2]).dis.length === 0, 'readcmp.py: בהודעה שאינה הודעת תוצאות המספרים לא נבדקים');
+  ok(disp.includes(accs[1]) && !disp.includes(accs[3]) && !disp.includes(accs[0]) && by(accs[1]).dis.includes('ex'),
+    'readcmp.py: מחלוקת על ex בלי הכרעה → disputes.txt; מחלוקת ש־C הכריע — לא');
+  ok(by(accs[3]).cons.ex === false && fs.readFileSync(path.join(WD, 'cmp.sum.txt'), 'utf8').includes(accs[3]),
+    'readcmp.py: רוב של שניים (B+C) מול המסווג — מופיע באי־ההתאמות');
 }
 
 fs.rmSync(tmp, { recursive: true, force: true });

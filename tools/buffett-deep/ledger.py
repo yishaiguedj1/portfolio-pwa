@@ -54,7 +54,8 @@ def load_jsonl(p):
 def load_readers(w):
     R = {}
     for who in ('A', 'B', 'C'):
-        for f in sorted(glob.glob(os.path.join(w, 'read', who, '*.jsonl'))):
+        # הפיילוט (read/<who>) ואחריו הגלים (read/w2/<who>…) — קריאה מאוחרת של אותה הודעה גוברת
+        for f in sorted(glob.glob(os.path.join(w, 'read', who, '*.jsonl'))) + sorted(glob.glob(os.path.join(w, 'read', 'w*', who, '*.jsonl'))):
             for l in open(f):
                 l = l.strip()
                 if not l:
@@ -180,11 +181,20 @@ def main():
                 add(sym, e, comp, sv, v, **kw)
             # המדיניות: מה שהמערכת החליטה לרבעון מול מה שהקוראים קראו **בהודעה של הרבעון עצמו** (גם כשהמערכת לקחה הודעה אחרת —
             # near45, B-004/B-010 — היעד הוא ההודעה של הרבעון)
-            rp = [x.get('ex') for _, x in ow if 'ex' in x]
+            # partial (רק תגמול מיוחד מוצא) או בלי רווח מותאם למניה (adj=false, ‏AAPL) = לא מוציא; None = "לא ברור".
+            # ההכרעה — רוב של שני קוראים לפחות (A+B, או C במחלוקת)
+            rp = [False if x.get('partial') is True or x.get('adj') is False else x.get('ex') for _, x in ow if 'ex' in x]
             oacc = ow[0][0] if ow else None
             if rp:
-                agree = [bool(x) == bool(r.get('pol')) for x in rp if x is not None]
-                v = 'V3' if agree and all(agree) and len(agree) >= 2 else ('SPLIT' if len({bool(x) for x in rp if x is not None}) > 1 else ('V2' if agree and all(agree) else 'DIFF'))
+                kn = [bool(x) for x in rp if x is not None]
+                nt, nf = kn.count(True), kn.count(False)
+                maj = True if nt >= 2 and nt > nf else False if nf >= 2 and nf > nt else None
+                if maj is not None:
+                    v = 'V3' if maj == bool(r.get('pol')) else 'DIFF'
+                elif nt and nf:
+                    v = 'SPLIT'
+                else:
+                    v = 'PEND' if not kn else 'V2' if kn[0] == bool(r.get('pol')) else 'DIFF'
                 add(sym, e, 'pol', r.get('pol'), v, acc=oacc, how=pb.get('how') + ('' if oacc == acc else ':other'), readers=''.join('-' if x is None else '1' if x else '0' for x in rp))
             else:
                 add(sym, e, 'pol', r.get('pol'), 'PEND', acc=acc, how=pb.get('how'))
