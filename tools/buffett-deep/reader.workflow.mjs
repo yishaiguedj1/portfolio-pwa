@@ -30,7 +30,9 @@ const res = await parallel(args.batches.map((b) => () => {
   const big = b.big.length
     ? 'הקובץ ' + b.big.join(', ') + ' ארוך במיוחד (' + b.chars + ' תווים — כנראה דוח שנתי שהוגש כ־6-K/8-K). נסה לקרוא אותו במלואו. אם ההקשר לא מספיק: קרא במלואם את תחילת כל נספח (גבולות הנספחים: grep -n "^=== ") ואת כל קטע שבו מופיעים non-GAAP / adjusted / underlying / per share / share-based / stock-based / quarter / period ended (grep -n, ואז Read של 150 שורות לפני ואחרי כל מופע), והחזר את ה־acc ב־partial_read. אם זו לא הודעת תוצאות של תקופה — er=false.'
     : 'אין בקבוצה שלך קובץ חריג באורכו — כל קובץ נקרא במלואו.'
-  const p = args.template.split('{LIST}').join(b.list).split('{DIR}').join(args.bd + '/prt').split('{OUT}').join(out)
+  // רשימת הקבוצה: b.list (נתיב מלא), או לפי ה־id בתיקייה של batches.py
+  const list = b.list || args.bd + '/read/' + wave + '/batches/' + b.id + '.txt'
+  const p = args.template.split('{LIST}').join(list).split('{DIR}').join(args.bd + '/prt').split('{OUT}').join(out)
     .split('{WORK}').join(work).split('{BD}').join(args.bd).split('{BIG}').join(big)
     .split('{FIELDS}').join(JSON.stringify(b.fields || {}))
   return agent(p, { label: who + ':' + b.id + ' ' + b.syms.join(','), phase: 'קריאה', schema: SCHEMA })
