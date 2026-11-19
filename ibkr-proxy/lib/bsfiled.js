@@ -13,6 +13,7 @@
 const zlib = require('zlib');
 const SECFACE = require('./secface');
 const SECPR = require('./secpr');
+const SBC = require('./secsbc');
 const R2 = require('./r2');
 
 const PRE = 'fund/bsf/';
@@ -20,6 +21,7 @@ const V = 1;                 // גרסת המבנה (שינוי בחיתוך / �
 const SINCE_Y = 13;          // כמה שנים אחורה (המסך: 12 שנים ו־~48 רבעונים)
 const MAX_LIVE = 4;          // הגשות חסרות שנקראות בתוך op:'fund'
 const LIVE_MS = 3000;        // תקרת הזמן שלהן
+const SX_LIVE = 2;           // הודעות תוצאות חדשות (מדיניות התגמול במניות, lib/secsbc.js) שנקראות בתוך op:'fund'
 const PERIODIC = /^(10-K|10-Q|10-KT|10-QT)$/; // בלי ‎/A‎ — תיקון עלול להכיל דוחות של חברה אחרת (כמו ב־secxbrl)
 const key = (cik) => PRE + String(cik).padStart(10, '0') + '.json.gz';
 
@@ -197,20 +199,36 @@ async function fill(cik, list, o, deps, max, ms) {
   return { o, added };
 }
 
-/* בתוך op:'fund': מה שיש ב־R2 + עד MAX_LIVE ההגשות החסרות החדשות ביותר. {f, p} (p — ההודעות לעיתונות, רק מה שכבר נשמר) /
-   null — אין R2 / תקלה */
+/* בתוך op:'fund': מה שיש ב־R2 + עד MAX_LIVE ההגשות החסרות החדשות ביותר. {f, p, sx} (p — ההודעות לעיתונות, רק מה שכבר נשמר;
+   sx — מדיניות התגמול במניות בהודעות התוצאות, SBC.forClient — עד SX_LIVE חדשות נקראות כאן, השאר בעבודת הרקע) / null — אין R2 / תקלה */
 async function load(cik, sub, deps = {}) {
   try {
     const o = (await getObj(cik, deps)) || { v: V, f: {} };
     const list = periodic(sub, null, SINCE_Y, deps.now);
-    let added = 0;
-    if (deps.getText && list.some((f) => !o.f[f.acc] || needX(o.f[f.acc]))) {
-      const live = Promise.race([fill(cik, list, o, { ...deps, par: MAX_LIVE }, MAX_LIVE, LIVE_MS), new Promise((r) => setTimeout(() => r(null), LIVE_MS + 500))]);
-      const r = await live; if (r) added = r.added;
-      if (added) await Promise.race([putObj(cik, o, deps).catch(() => false), new Promise((r) => setTimeout(r, 1500))]);
-    }
-    return Object.keys(o.f).length || (o.p && Object.keys(o.p).length) ? { f: o.f, p: o.p || {} } : null;
+    const race = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r(null), ms))]);
+    const fP = deps.getText && list.some((f) => !o.f[f.acc] || needX(o.f[f.acc]))
+      ? race(fill(cik, list, o, { ...deps, par: MAX_LIVE }, MAX_LIVE, LIVE_MS), LIVE_MS + 500) : null;
+    const sP = deps.getText ? race(fillSx(cik, sub, o, deps, SX_LIVE), LIVE_MS + 500).catch(() => 0) : null;
+    const [r, sx] = await Promise.all([fP, sP]);
+    const added = (r ? r.added : 0) + (sx || 0);
+    if (added) await race(putObj(cik, o, deps).catch(() => false), 1500);
+    return Object.keys(o.f).length || (o.p && Object.keys(o.p).length) || (o.sx && Object.keys(o.sx).length)
+      ? { f: o.f, p: o.p || {}, sx: SBC.forClient(o.sx) } : null;
   } catch (e) { return null; }
+}
+
+/* מדיניות התגמול במניות (lib/secsbc.js): הודעות התוצאות מ־15 החודשים האחרונים שעוד לא נקראו (או נקראו בגרסה קודמת של
+   המסווג) — עד max, החדשות קודם, במקביל. מחזיר כמה נוספו */
+async function fillSx(cik, sub, o, deps, max) {
+  o.sx = o.sx || {};
+  const miss = SBC.pick(sub, deps.now).filter((k) => !o.sx[k.acc] || o.sx[k.acc].sv !== SBC.SV).slice(0, max);
+  const got = await Promise.all(miss.map((k) => SBC.readOne(cik, k, deps.getText).catch(() => null)));
+  let n = 0;
+  got.forEach((r, i) => { if (r) { o.sx[miss[i].acc] = r; n++; } });
+  // רק 15 החודשים האחרונים נשמרים (הישנות לא משמשות)
+  const keep = new Set(SBC.pick(sub, deps.now).map((k) => k.acc));
+  for (const a of Object.keys(o.sx)) if (!keep.has(a)) { delete o.sx[a]; n++; }
+  return n;
 }
 
 /* עבודת הרקע: חברה אחת — כל ההגשות החסרות מ־SINCE_Y שנים (גם מדפי ההמשך של submissions). "at" נרשם רק כשלא נשאר חסר */
@@ -236,7 +254,11 @@ async function fillAll(cik, deps) {
     const r = await readPr(cik, it, deps.getText).catch(() => null);
     if (r) { o.p[it.end] = r; added++; } else prLeft++;
   }
-  const left = list.filter((f) => !o.f[f.acc] || needX(o.f[f.acc])).length + prLeft;
+  // מדיניות התגמול במניות בהודעות התוצאות (lib/secsbc.js)
+  let sxLeft = 0;
+  if (!deps.budgetMs || Date.now() - t0 <= deps.budgetMs) added += await fillSx(cik, sub, o, deps, SBC.MAX).catch(() => 0);
+  sxLeft = SBC.pick(sub, deps.now).filter((k) => !(o.sx || {})[k.acc] || o.sx[k.acc].sv !== SBC.SV).length;
+  const left = list.filter((f) => !o.f[f.acc] || needX(o.f[f.acc])).length + prLeft + sxLeft;
   if (!left) o.at = new Date(deps.now || Date.now()).toISOString();
   if (added || !left) await putObj(cik, o, deps);
   return { n: list.length, added, left };
@@ -273,4 +295,4 @@ async function tick(deps = {}) {
   return { ok: true, done, added, failed, i, ms: Date.now() - t0 };
 }
 
-module.exports = { load, fillAll, tick, slim, slimCf, slimIs, needCf, needIs, needX, readMissing, periodic, readOne, readCf, readPr, prNeed, PR_V, merge8k, key, PRE, V, SINCE_Y, MAX_LIVE };
+module.exports = { load, fillSx, fillAll, tick, slim, slimCf, slimIs, needCf, needIs, needX, readMissing, periodic, readOne, readCf, readPr, prNeed, PR_V, merge8k, key, PRE, V, SINCE_Y, MAX_LIVE };

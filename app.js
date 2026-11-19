@@ -683,6 +683,9 @@ he: {
   anFMcap: 'שווי שוק',
   anFPe: 'מכפיל רווח',
   anFFpe: 'מכפיל צפוי',
+  anFBpe: 'מכפיל באפט',
+  anFBfpe: 'מכפיל באפט צפוי',
+  anCmpFwd: 'שנה הבאה',
   anFFy: 'תשואת מזומן',
   anNetCash: 'מזומן נטו',
   anNetDebt: 'חוב נטו',
@@ -915,8 +918,11 @@ he: {
   anInYear: 'בשנה האחרונה', anSince: 'מאז {y}', an10Y: '10Y',
   anGone: 'המניה לא נסחרת מאז {d} — המחיר והנתונים מאותו יום',
   anHMcap: 'מחיר כל החברה',
-  anHPe: 'כמה שנים של רווח משלמים',
+  anHPe: 'לפי הרווח המדווח',
   anHFpe: 'לפי הרווח הצפוי',
+  anHFpeAdj: 'לפי הרווח המותאם',
+  anHBpe: 'אחרי תגמול במניות',
+  anHBfpe: 'צפוי, אחרי תגמול במניות',
   anHFy: 'מזומן בשנה ÷ מחיר',
   anHNc: 'מזומן פחות חוב',
   anHPfcf: 'כמה שנים של מזומן חופשי משלמים',
@@ -1056,6 +1062,30 @@ he: {
   anXMcap: 'מחיר × {s} מניות. כמה עולה לקנות את כל החברה.',
   anXPeF: 'מחיר ÷ רווח למניה ב־12 החודשים האחרונים ({e}, לפי הדוחות, בדילול). כמה שנים של הרווח של היום משלמים.',
   anXFpe: 'מחיר ÷ רווח למניה צפוי, לפי Yahoo. הרווח הצפוי בדרך כלל "מתואם" (לא לפי כללי החשבונאות), ולכן המכפיל נראה נמוך יותר.',
+  anXFpeAdj: 'מחיר ÷ רווח למניה צפוי, לפי Yahoo. אצל החברה הזו זה רווח מותאם: בלי חלק מההוצאות שבדוחות (למשל תגמול במניות והפחתה מרכישות). לכן המכפיל נמוך מהמכפיל לפי הרווח המדווח. מכפיל באפט מחזיר פנימה את התגמול במניות.',
+  anXBpe: 'מחיר ÷ רווח למניה ב־12 החודשים האחרונים לפי באפט: הרווח המותאם של החברה, פחות התגמול במניות. באפט רואה בתגמול במניות משכורת לכל דבר, ולכן מוריד אותו. את הפחתת הנכסים מרכישות הוא לא מוריד, כי לרוב היא לא עלות כלכלית.',
+  anXBfpe: 'מחיר ÷ רווח למניה צפוי לשנה הבאה לפי באפט: אותו רווח צפוי של "מכפיל צפוי", פחות התגמול במניות הצפוי.',
+  anXBufNone: 'אין מספיק נתונים לחישוב. צריך את הרווח שדווח בכל אחד מ־4 הרבעונים האחרונים, תחזית לשנה הבאה, ומחיר באותו מטבע של הדוחות.',
+  anBStreet: 'רווח מותאם',
+  anBStreetS: '4 הרבעונים האחרונים, כפי שהאנליסטים סופרים',
+  anBSbc: 'פחות תגמול במניות',
+  anBSbcS: 'אחרי מס {t}',
+  anBFwd: 'רווח צפוי ל־{y}',
+  anBFwd0: 'רווח צפוי',
+  anBFwdY: 'כמו במכפיל הצפוי',
+  anBSbcF: 'פחות תגמול במניות צפוי',
+  anBSbcFS: '{r} מההכנסות, כמו ב־12 החודשים האחרונים · אחרי מס {t}',
+  anBEps: 'רווח למניה לפי באפט',
+  anBMultS: 'מחיר {p} ÷ רווח לפי באפט',
+  anBNeg: 'אין (הפסד)',
+  anBGaap: 'לשם השוואה: רווח מדווח',
+  anBGaapS: 'כולל גם הפחתה מרכישות וחד־פעמי',
+  anBPolEx: 'לפי ההודעות לעיתונות של החברה ב־SEC, הרווח המותאם שלה לא כולל את התגמול במניות, ולכן הורדנו את כולו.',
+  anBPolIn: 'לפי ההודעות לעיתונות של החברה ב־SEC, הרווח המותאם שלה כבר מוריד את התגמול במניות כהוצאה, ולכן לא מורידים אותו פעם שנייה. בתזרים המזומנים, לעומת זאת, הוא מוחזר כהוצאה שלא יצאה במזומן, ולכן שם כן מורידים אותו.',
+  anBPolMix: 'החברה שינתה את ההגדרה במהלך השנה. הורדנו את התגמול במניות רק ברבעונים שבהם הרווח המותאם לא כלל אותו.',
+  anBPolUnk: 'לא נמצאה הודעה לעיתונות לבדיקה. ההנחה: הרווח המותאם לא כולל את התגמול במניות, ולכן הורדנו אותו עד גובה הפער מול הרווח המדווח.',
+  anBPolGaap: 'האנליסטים סופרים וצופים כאן את הרווח המדווח, שכבר מוריד את התגמול במניות כהוצאה, ולכן לא מורידים אותו פעם שנייה. בתזרים המזומנים, לעומת זאת, הוא מוחזר כהוצאה שלא יצאה במזומן, ולכן שם כן מורידים אותו.',
+  anBFutIn: 'לפי ההודעה האחרונה של החברה, הרווח המותאם כולל מעכשיו את התגמול במניות, ולכן התחזית נשארת כמו שהיא.',
   anXFy: 'התזרים החופשי ב־12 החודשים האחרונים ({f}) ÷ שווי השוק. כמה מזומן העסק מייצר ביחס למחיר — כמו "ריבית" על ההשקעה.',
   anXNc: 'מזומן והשקעות ({c}) פחות חוב ({d}). יותר מזומן מחוב = ביטחון.',
   anXNd: 'מזומן והשקעות ({c}) פחות חוב ({d}). יש חוב נטו — כדאי לבדוק את יכולת ההחזר בלשונית "דוחות".',
@@ -1200,7 +1230,7 @@ he: {
   btnDelete: ICON_TRASH + 'מחק',
   todayChg: 'היום {v}',
   dayToday: 'היום', dayYest: 'אתמול', dayDow1: 'שני', dayDow2: 'שלישי', dayDow3: 'רביעי', dayDow4: 'חמישי', dayDow5: 'שישי',
-  subValLbl: 'שווי', subGlLbl: 'שינוי מהקנייה', subAthLbl: 'שיא',
+  subValLbl: 'שווי', subGlLbl: 'שינוי מהקנייה', subAthLbl: 'מהשיא',
   buyChg: 'מהקנייה {v}',
   kvShares: 'מניות',
   kvAvg: 'מחיר ממוצע',
@@ -2616,6 +2646,9 @@ en: {
   anFMcap: 'Market cap',
   anFPe: 'P/E',
   anFFpe: 'Forward P/E',
+  anFBpe: 'Buffett P/E',
+  anFBfpe: 'Buffett fwd P/E',
+  anCmpFwd: 'Next year',
   anFFy: 'Cash yield',
   anNetCash: 'Net cash',
   anNetDebt: 'Net debt',
@@ -2848,8 +2881,11 @@ en: {
   anInYear: 'Past year', anSince: 'Since {y}', an10Y: '10Y',
   anGone: 'Not traded since {d} — price and data are from that day',
   anHMcap: 'Price of the whole company',
-  anHPe: 'Years of profit you pay for',
+  anHPe: 'On reported profit',
   anHFpe: 'On expected profit',
+  anHFpeAdj: 'On adjusted profit',
+  anHBpe: 'After stock pay',
+  anHBfpe: 'Expected, after stock pay',
   anHFy: 'Cash per year ÷ price',
   anHNc: 'Cash minus debt',
   anHPfcf: 'Years of free cash you pay for',
@@ -2989,6 +3025,30 @@ en: {
   anXMcap: 'Price × {s} shares. What it costs to buy the whole company.',
   anXPeF: 'Price ÷ EPS over the last 12 months ({e}, as reported, diluted). How many years of today’s profit you pay.',
   anXFpe: 'Price ÷ expected EPS, from Yahoo. Expected earnings are usually “adjusted” (non-GAAP), so the multiple looks lower.',
+  anXFpeAdj: 'Price ÷ expected EPS, from Yahoo. For this company it is adjusted profit: some reported expenses are left out (such as stock-based pay and acquisition amortization), so the multiple is lower than on reported profit. The Buffett P/E puts stock-based pay back in.',
+  anXBpe: 'Price ÷ EPS over the last 12 months the Buffett way: the company’s adjusted profit minus stock-based pay. Buffett treats stock-based pay as salary like any other, so he deducts it. He does not deduct amortization of acquired intangibles, which is usually not an economic cost.',
+  anXBfpe: 'Price ÷ expected EPS for next year the Buffett way: the same expected profit as the forward P/E, minus expected stock-based pay.',
+  anXBufNone: 'Not enough data. This needs the reported profit for each of the last 4 quarters, a forecast for next year, and a price in the reporting currency.',
+  anBStreet: 'Adjusted profit',
+  anBStreetS: 'Last 4 quarters, as analysts count it',
+  anBSbc: 'Less stock-based pay',
+  anBSbcS: 'After tax {t}',
+  anBFwd: 'Expected profit for {y}',
+  anBFwd0: 'Expected profit',
+  anBFwdY: 'As in the forward P/E',
+  anBSbcF: 'Less expected stock-based pay',
+  anBSbcFS: '{r} of revenue, as in the last 12 months · after tax {t}',
+  anBEps: 'EPS the Buffett way',
+  anBMultS: 'Price {p} ÷ Buffett EPS',
+  anBNeg: 'None (loss)',
+  anBGaap: 'For comparison: reported profit',
+  anBGaapS: 'Also includes acquisition amortization and one-offs',
+  anBPolEx: 'According to the company’s press releases at the SEC, its adjusted profit excludes stock-based pay, so we deducted all of it.',
+  anBPolIn: 'According to the company’s press releases at the SEC, its adjusted profit already deducts stock-based pay as an expense, so we don’t deduct it twice. In the cash flow statement, by contrast, it is added back as a non-cash expense, so there we do deduct it.',
+  anBPolMix: 'The company changed its definition during the year. We deducted stock-based pay only in the quarters where adjusted profit excluded it.',
+  anBPolUnk: 'No press release was found to check. Assumption: adjusted profit excludes stock-based pay, so we deducted it up to the gap to reported profit.',
+  anBPolGaap: 'Here analysts count and forecast reported profit, which already deducts stock-based pay as an expense, so we don’t deduct it twice. In the cash flow statement, by contrast, it is added back as a non-cash expense, so there we do deduct it.',
+  anBFutIn: 'According to the company’s latest release, adjusted profit now includes stock-based pay, so the forecast stays as is.',
   anXFy: 'Free cash flow over the last 12 months ({f}) ÷ market cap. How much cash the business makes relative to the price — like “interest” on the investment.',
   anXNc: 'Cash and investments ({c}) minus debt ({d}). More cash than debt = safety.',
   anXNd: 'Cash and investments ({c}) minus debt ({d}). There is net debt — check the ability to repay in “Financials”.',
@@ -3133,7 +3193,7 @@ en: {
   btnDelete: ICON_TRASH + 'Delete',
   todayChg: 'Today {v}',
   dayToday: 'Today', dayYest: 'Yesterday', dayDow1: 'Mon', dayDow2: 'Tue', dayDow3: 'Wed', dayDow4: 'Thu', dayDow5: 'Fri',
-  subValLbl: 'Value', subGlLbl: 'Gain', subAthLbl: 'ATH',
+  subValLbl: 'Value', subGlLbl: 'Gain', subAthLbl: 'From ATH',
   buyChg: 'Since purchase {v}',
   kvShares: 'Shares',
   kvAvg: 'Avg price',
@@ -8249,8 +8309,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.185.0';
-const APP_VERSION = 'v842';
+const APP_RELEASE = '2.186.4';
+const APP_VERSION = 'v847';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -12252,7 +12312,41 @@ function initScrollSaver() {
 
 /* התאמת גודל מספרים גדולים לרוחב הכרטיס — נשארים גדולים ככל האפשר,
    אבל מתכווצים אוטומטית לפי אורך המספר כדי שאף ספרה לא תיחתך. */
+/* 19/11/2026 (בקשת המשתמש: "מהשיא" וגלולת היום לעולם לא יתנגשו — הכל בשורה אחת, הסכום בכסף תמיד, ורק גודל הטקסט
+   משתנה לפי האורך; רווח נדיב, מסודר ונקי לפי ת־עיצוב): בכל כרטיס מעקב כל השורה קטנה יחד (--wk) עד שבין השיא לגלולה
+   נשארים לפחות WK_GAP. שורה שנכנסת — בגודל המלא. יציבות: באותו רוחב, טיק חי רק מקטין (סכום שמשנה אורך כל כמה שניות,
+   כמו BTC, לא מקפיץ את הגודל הלוך ושוב); גדל בחזרה בציור מחדש של הכרטיס או בשינוי רוחב. */
+const WK_GAP = 22, WK_FLOOR = 0.5;
+function fitWatchSubs() {
+  if (typeof document === 'undefined' || !document.getElementById) return;
+  const list = document.getElementById('wishlistList');
+  if (!list || !list.querySelectorAll || !list.clientWidth) return; // מוסתר — נמדוד כשיוצג
+  const vw = (typeof window !== 'undefined' && window.innerWidth) || 0;
+  const free = (x) => {
+    const a = x.querySelector('.wl-ath'), p = x.querySelector('.day-chg');
+    return a && p ? x.clientWidth - a.scrollWidth - p.offsetWidth : Infinity;
+  };
+  const setK = (x, k) => { if (k >= 1) x.style.removeProperty('--wk'); else x.style.setProperty('--wk', String(k)); };
+  for (const x of list.querySelectorAll('.stock[data-watch] .stock-sub')) {
+    const key = vw + '|' + list.clientWidth + '|' + x.textContent;
+    if (x._wkKey === key) continue; // טיק חי שלא שינה טקסט — בלי מדידה
+    const sameW = x._wkW === vw + '|' + list.clientWidth;
+    x._wkKey = key; x._wkW = vw + '|' + list.clientWidth;
+    if (!x.clientWidth) { x._wkKey = ''; continue; }
+    let k = sameW && x._wkK ? x._wkK : 1; // יציבות — לא גדל בחזרה בטיק חי
+    setK(x, k);
+    if (free(x) < WK_GAP) { // הערכה ליניארית, ואז צעדים קטנים עד שנכנס (הריפוד והעיגול לא ליניאריים)
+      const a = x.querySelector('.wl-ath'), p = x.querySelector('.day-chg');
+      const need = a.scrollWidth + p.offsetWidth;
+      if (need > 0) k = Math.max(WK_FLOOR, Math.min(k, Math.floor(k * (x.clientWidth - WK_GAP) / need * 100) / 100));
+      setK(x, k);
+      while (free(x) < WK_GAP && k > WK_FLOOR) { k = Math.round((k - 0.02) * 100) / 100; setK(x, k); }
+    }
+    x._wkK = k;
+  }
+}
 function fitNumbers(page) {
+  try { fitWatchSubs(); } catch (e) {}
   // v193: רק בטאב הנראה, וקריאות/כתיבות בקבוצות — לפני כן כל מספר עשה עד 40 סבבי מדידה→שינוי (layout thrash)
   // 14/10/2026: page = העמוד שנכנס בקובייה — המספרים מותאמים כבר בגרירה, ולא משנים גודל באמצע הסיבוב
   const SEL = '.stat-value, .lg-pct, .pension-total';
@@ -17943,6 +18037,38 @@ function renderWishlist(opts) {
     out.push(card);
   }
   listSync(list, out);
+  try { fitWatchSubs(); } catch (e) {}
+  try { wlWarmHist(items.map((w) => w.sym)); } catch (e) {}
+}
+/* 19/11/2026 (בקשת המשתמש: "מהשיא" רק בחלק מכרטיסי המעקב): השיא מחושב מההיסטוריה היומית, ו־warmHistories טוען רק
+   את התיק והעסקאות — לכן מניית מעקב שלא נפתחה נשארה בלי השורה. כאן: מהמטמון בטלפון אם הוא טרי, ומה שחסר או ישן —
+   בבקשה אחת לשרתון (histBatchWarm, עד 40). כל סימבול פעם אחת בסשן; כשל ברשת → המטמון הישן, אם יש */
+const _wlHistTried = new Set();
+let _wlHistBusy = false;
+function wlWarmHist(syms) {
+  if (_wlHistBusy || typeof localStorage === 'undefined') return;
+  const need = [], stale = {};
+  let got = false;
+  for (const raw of syms) {
+    const sym = normalizeSym(raw);
+    if (!sym || state.hist[sym] || _wlHistTried.has(sym) || !isChartableSym(sym)) continue;
+    let rec = null;
+    try { rec = loadHistCacheRec(sym); } catch (e) {}
+    const has = !!(rec && rec.rows && rec.rows.length);
+    const age = has ? Date.now() - (Number(rec.at) || 0) : Infinity;
+    if (has && age >= 0 && age < 24 * 60 * 60 * 1000) { restoreHistRows(sym, rec); _wlHistTried.add(sym); got = true; continue; }
+    if (need.length >= 40) continue; // השאר — בציור הבא
+    _wlHistTried.add(sym);
+    need.push(sym);
+    if (has) stale[sym] = rec;
+  }
+  if (!need.length) { if (got) renderWishlist(); return; }
+  _wlHistBusy = true;
+  histBatchWarm(need).catch(() => null).then(() => {
+    for (const sym of need) if (!state.hist[sym] && stale[sym]) { try { restoreHistRows(sym, stale[sym]); } catch (e) {} }
+    _wlHistBusy = false;
+    renderWishlist();
+  });
 }
 
 /* v88/v93: לוגו חברה לכרטיס מניה — עם אות ראשונה כגיבוי אם הלוגו לא נטען.
@@ -18115,10 +18241,11 @@ function stockSubHTML(p, m) {
   let html = '<span class="day-chg ' + cls(day) + '">' + (day === null ? '—' : esc(sessionDayLabel(p && p.sym)) + ' ' + fmtPct(day, true) + dayAmtHTML) + '</span>';
   if (p && p.watch) { // v240: מעקב — בלי שווי/רווח; ההערה (אם יש) במקום השווי
     if (p.note) return html + '<span class="sub-val wl-sub-note"><span class="wl-note-txt">' + esc(p.note) + '</span></span>';
-    // 18/11/2026 (בקשת המשתמש): בלי החץ ▾ — במקומו השיא (ATH) והמרחק ממנו, כמו "שווי" בכרטיס אחזקה: תווית אפורה, מחיר, אחוז צבעוני
+    // 18/11/2026 (בקשת המשתמש): בלי החץ ▾ — במקומו המרחק מהשיא (ATH)
+    // 19/11/2026 (בקשת המשתמש): בלי מחיר השיא (הוא בכרטיס הפתוח) — "מהשיא −93.93%", כדי שלא יעלה על גלולת היום
     const off = m.ath && m.offAth !== null && isFinite(m.offAth) ? (Math.abs(m.offAth) < 0.005 ? 0 : m.offAth) : null;
-    return html + '<span class="sub-val wl-ath">' + (m.ath ? '<span class="sub-lbl">' + esc(t('subAthLbl')) + '</span> ' + fmtPx(m.ath.price, p.sym) +
-      (off === null ? '' : ' <span class="wl-ath-pct ' + cls(off) + '">' + fmtPct(off, true) + '</span>') : '') + '</span>';
+    return html + '<span class="sub-val wl-ath">' + (off === null ? '' : '<span class="sub-lbl">' + esc(t('subAthLbl')) + '</span> ' +
+      '<span class="wl-ath-pct ' + cls(off) + '">' + fmtPct(off, true) + '</span>') + '</span>';
   }
   // 18/11/2026 (בקשת המשתמש): תווית משנית לפני הנתון — "שווי" / "שינוי" (ת־עיצוב: תווית אפורה קטנה, הנתון בולט)
   html += '<span class="sub-val"><span class="sub-lbl">' + esc(t('subValLbl')) + '</span> ' + (m.value === null ? '—' : money(toCur(m.value), cur)) + '</span>'; // 2.184.1: בלי החץ ▾ ליד השווי (בקשת המשתמש)
