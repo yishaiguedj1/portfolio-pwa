@@ -1905,10 +1905,16 @@ ${row('ro', 'us-gaap_CostOfRevenue', 'Cost of sales', ['1', '2', '3', '4', '5', 
       + '<tr><td>Effect of dilutive securities</td><td>29</td><td>40</td></tr><tr><td>Average Shares Outstanding Assuming Dilution</td><td>4,329</td><td>4,322</td></tr></table>';
     const ko8 = P8.parse(KO8);
     ok(!ko8.some((r) => r.label === 'Average Shares Outstanding') && P8.q4From(ko8, 1457e6, 4320e6, 1).sh === 4329e6, '(40) F36: יש "Assuming Dilution" — לא השורה שמתחת ל־"Diluted" (הבסיסי)');
-    // התקרה (40 שורות): קודם הטבלאות שיש בהן רווח למניה וגם שורת מניות (Air Products ‏FY2015 — טבלת התאמה ארוכה בראש ההודעה)
+    // F36 — מה לא: מניות לסוף תקופה (Regions), שורה מתחת ל־"Net income … basic and diluted" (TransDigm), תווית מדוללת שנשברה (Genuine Parts)
+    const tb8 = (rows) => P8.parse('<table>' + rows.map((r) => '<tr>' + r.map((c) => '<td>' + c + '</td>').join('') + '</tr>').join('') + '</table>').map((r) => r.label);
+    ok(tb8([['Diluted', '242.1', '241.7'], ['Actual shares outstanding at year end', '241', '240.6']]).join('|') === 'Diluted'
+      && tb8([['Net income applicable to common stock - basic and diluted', '141,673', '108,157'], ['Weighted-average common shares outstanding', '53,609', '52,579']]).join('|') === 'Net income applicable to common stock - basic and diluted'
+      && !tb8([['Diluted net income per common share', '1.07', '1.07'], ['Weighted average common shares outstanding', '150,552', '152,996'], ['assuming dilution', '151,355', '154,084']]).includes('Weighted average common shares outstanding'),
+    '(40) F36: לא מניות לסוף תקופה, לא מתחת לשורת רווח, ולא כשיש שורה מדוללת מפורשת (גם בתווית שנשברה)');
+    // התקרה (150 שורות, עד גל 8 — 40): טבלת התאמה ארוכה בראש ההודעה לא דוחקת את טבלת המניות (Air Products ‏FY2015)
     const big = '<table><tr><td>Operating Income Margin Net Income Diluted EPS</td></tr>' + Array.from({ length: 45 }, (_, i) => '<tr><td>Item ' + i + '</td><td>' + (10 + i) + '.5</td><td>.47</td></tr>').join('') + '</table>';
     const ap8 = P8.parse(big + '<table><tr><td>Diluted EPS</td><td>1.58</td></tr><tr><td>Weighted Average Common Shares Diluted (in millions)</td><td>217.7</td></tr></table>');
-    ok(ap8.length === 40 && ap8.some((r) => /Weighted Average/.test(r.label)) && ap8[0].label === 'Item 0' && P8.q4From(ap8, 344.5e6, 217.8e6, 1).sh === 217.7e6, '(40) parse: מעבר ל־40 שורות — הטבלה עם המניות נשמרת');
+    ok(ap8.length === 47 && ap8[46].label === 'Weighted Average Common Shares Diluted (in millions)' && P8.q4From(ap8, 344.5e6, 217.8e6, 1).sh === 217.7e6, '(40) parse: מעבר ל־40 שורות — הטבלה עם המניות נשמרת (תקרה 150)');
     // F38 (Capital One ‏2014): ‏"Total other debt" ‏36,833 = ריפו ‏880 + ‏18,684 + ‏17,269 — סכום־ביניים כולל שורה שאינה חוב; לא נספר פעם שנייה
     const cof = { bs: { cols: [{ end: '2014-12-31' }], scale: { cur: 1e6, sh: 1 }, rows: [{ ns: 'us-gaap', tag: 'Assets', label: 'Total assets', total: true, v: [308167] },
       { ns: 'us-gaap', tag: 'Deposits', label: 'Total deposits', total: true, v: [205548] }, { ns: 'us-gaap', tag: 'SecuredDebt', label: 'Securitized debt obligations', v: [11624] },
