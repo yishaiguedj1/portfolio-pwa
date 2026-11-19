@@ -2271,7 +2271,7 @@ async function fundamentals(sym0) {
   const ysTs = safe(yahooTs(sym), 'yts');
   const nq = ta ? Promise.resolve(null) : safe(nasdaqForecast(sym), 'nq');
   const peersP = safe(yahooPeers(sym), 'peers');
-  let sec = null, cik = null, face = null, xbAdded = [], secPr = null;
+  let sec = null, cik = null, face = null, xbAdded = [], secPr = null, sbcX = null;
   if (!ta) {
     try {
       cik = (await cikMap()).get(secSym(sym)) || null;
@@ -2295,6 +2295,8 @@ async function fundamentals(sym0) {
         const m = await monthly;
         sec = normalizeSec(facts, (m && m.splits) || [], face, bsf && bsf.f);
         secPr = bsf && bsf.p; // ההודעות לעיתונות (q4Press)
+        sbcX = bsf && bsf.sx && bsf.sx.length ? bsf.sx : null; // מדיניות התגמול במניות לפי הודעות התוצאות (lib/secsbc.js) — "מכפיל באפט"
+
         if (sec && sub) { sec.sic = sub.sic || null; sec.sicDesc = sub.sicDescription || null; sec.fye = sub.fiscalYearEnd || null;
           const fl = ((sub.filings && sub.filings.recent && sub.filings.recent.filingDate) || [])[0]; sec.lastFiled = fl || null; }
       }
@@ -2380,7 +2382,7 @@ async function fundamentals(sym0) {
     sic: useSec ? sec.sic : null, sicDesc: useSec ? sec.sicDesc : null, fye: useSec ? sec.fye : null, lastFiled: useSec ? sec.lastFiled : null,
     prof: s ? s.prof : null, price: s ? s.price : null, prev: s ? s.prev : null,
     sharesOut: sharesOut || (s && s.sharesOut) || null, fill, qfill, fpe: s ? s.fpe : null, peg: s ? s.peg : null, beta: s ? s.beta : null,
-    est: s ? s.est : [], hist: s ? s.hist : [], nextEarn: s ? s.nextEarn : null, nq: n || null,
+    est: s ? s.est : [], hist: s ? s.hist : [], nextEarn: s ? s.nextEarn : null, nq: n || null, sbcX,
     px: m ? m.px : null, fxm, splits: m ? m.splits : [], splitsUsed: useSec ? sec.splitsUsed || [] : [], peers: peers || [],
     ind: industryFor(s && s.prof && s.prof.industry), checks, errs,
     // מקור ושקיפות (שכבה 6): התגית שנבחרה לכל שורה, הדוח שמולו נבדקנו, וכמה ערכים תאמו לו

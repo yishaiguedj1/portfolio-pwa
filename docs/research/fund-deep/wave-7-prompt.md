@@ -2,7 +2,7 @@
 
 > נשמר בסוף גל 6, על הענף `claude/fund-deep-wave-6`. **אחרי דחיסת הקשר — לקרוא שוב את הקובץ הזה.**
 
-גל 7 של בדיקת העומק של מנתח החברות. גל 6 (2.185.0 (842)) נמצא בענף `claude/fund-deep-wave-6`, ב־PR שעדיין לא מוזג. הממצאים שלו (F28–F31) ב־`docs/research/fund-deep/wave-6.md`, והלקחים ב־`docs/fund-deep-audit.md` §9ה.
+גל 7 של בדיקת העומק של מנתח החברות. גל 6 (2.186.0 (843), #709) נמצא בענף `claude/fund-deep-wave-6`, ב־PR שעדיין לא מוזג. הממצאים שלו (F28–F31) ב־`docs/research/fund-deep/wave-6.md`, והלקחים ב־`docs/fund-deep-audit.md` §9ה.
 
 ## 0. פתיחה
 1. הצ'קליסט של CLAUDE.md (סעיף 13); ‏`list_sessions` (mine, limit 15).
