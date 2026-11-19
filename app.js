@@ -1070,6 +1070,12 @@ he: {
   anBStreetS: '4 הרבעונים האחרונים, כפי שהאנליסטים סופרים',
   anBSbc: 'פחות תגמול במניות',
   anBSbcS: 'אחרי מס {t}',
+  anBSbcSP: 'אחרי מס {t}, השיעור שהחברה מצהירה',
+  anBSbcSD: 'אחרי מס {t}, השיעור הפדרלי',
+  anBSbcSR: 'ריט — בלי מגן מס',
+  anBSbcSB: 'לפני מס — המס של החברה כבר כולל את הטבת המס על התגמול',
+  anBPart: 'החברה הוציאה מהרווח המותאם רק חלק מהתגמול במניות, ורק אותו מורידים כאן. השאר כבר כלול ברווח.',
+  anBOth: 'בדוחות התגמול במניות גדול יותר: חלק ממנו רשום בגישור בשורות אחרות (רכישות, ארגון מחדש), ולא הורד כאן.',
   anBFwd: 'רווח צפוי ל־{y}',
   anBFwd0: 'רווח צפוי',
   anBFwdY: 'כמו במכפיל הצפוי',
@@ -1083,7 +1089,7 @@ he: {
   anBPolEx: 'לפי ההודעות לעיתונות של החברה ב־SEC, הרווח המותאם שלה לא כולל את התגמול במניות, ולכן הורדנו את כולו.',
   anBPolIn: 'לפי ההודעות לעיתונות של החברה ב־SEC, הרווח המותאם שלה כבר מוריד את התגמול במניות כהוצאה, ולכן לא מורידים אותו פעם שנייה. בתזרים המזומנים, לעומת זאת, הוא מוחזר כהוצאה שלא יצאה במזומן, ולכן שם כן מורידים אותו.',
   anBPolMix: 'החברה שינתה את ההגדרה במהלך השנה. הורדנו את התגמול במניות רק ברבעונים שבהם הרווח המותאם לא כלל אותו.',
-  anBPolUnk: 'לא נמצאה הודעה לעיתונות לבדיקה. ההנחה: הרווח המותאם לא כולל את התגמול במניות, ולכן הורדנו אותו עד גובה הפער מול הרווח המדווח.',
+  anBPolUnk: 'לא נמצאה הודעה לעיתונות לבדיקה. את הפער מול הרווח המדווח ייחסנו קודם להפחתה מרכישות (באפט לא מוריד אותה), ואת היתר לתגמול במניות, עד גובהו אחרי מס.',
   anBPolGaap: 'האנליסטים סופרים וצופים כאן את הרווח המדווח, שכבר מוריד את התגמול במניות כהוצאה, ולכן לא מורידים אותו פעם שנייה. בתזרים המזומנים, לעומת זאת, הוא מוחזר כהוצאה שלא יצאה במזומן, ולכן שם כן מורידים אותו.',
   anBFutIn: 'לפי ההודעה האחרונה של החברה, הרווח המותאם כולל מעכשיו את התגמול במניות, ולכן התחזית נשארת כמו שהיא.',
   anXFy: 'התזרים החופשי ב־12 החודשים האחרונים ({f}) ÷ שווי השוק. כמה מזומן העסק מייצר ביחס למחיר — כמו "ריבית" על ההשקעה.',
@@ -1383,7 +1389,7 @@ he: {
   depNote: 'סכומים שליליים = כסף שהופקד לתיק. הרשומה החיובית (+₪37,000 ב־19/02/2025) היא משיכה/תיקון כפי שמופיעה בגיליון.',
   records: '{n} רשומות',
   addDeposit: 'הוספת הפקדה',
-  depKindIn: 'הפקדה', depKindOut: 'משיכה', depTileIn: 'הפקדות · {n}', depTileOut: 'משיכות · {n}',
+  depKindIn: 'הפקדה', depKindOut: 'משיכה', depKvIn: 'הפקדות', depKvOut: 'משיכות', depKvNet: 'נטו',
   btnEditRow: 'ערוך',
   btnDeleteRow: 'מחק',
   adjTitle: 'משיכה/תיקון',
@@ -3033,6 +3039,12 @@ en: {
   anBStreetS: 'Last 4 quarters, as analysts count it',
   anBSbc: 'Less stock-based pay',
   anBSbcS: 'After tax {t}',
+  anBSbcSP: 'After tax {t}, the rate the company states',
+  anBSbcSD: 'After tax {t}, the US federal rate',
+  anBSbcSR: 'A REIT — no tax shield',
+  anBSbcSB: 'Pre-tax — the company’s tax already includes the tax benefit of this compensation',
+  anBPart: 'The company excluded only part of its stock-based pay from adjusted earnings, so only that part is deducted here. The rest is already in the earnings.',
+  anBOth: 'The filings show more stock-based pay: part of it sits in other reconciliation lines (acquisitions, restructuring) and isn’t deducted here.',
   anBFwd: 'Expected profit for {y}',
   anBFwd0: 'Expected profit',
   anBFwdY: 'As in the forward P/E',
@@ -3046,7 +3058,7 @@ en: {
   anBPolEx: 'According to the company’s press releases at the SEC, its adjusted profit excludes stock-based pay, so we deducted all of it.',
   anBPolIn: 'According to the company’s press releases at the SEC, its adjusted profit already deducts stock-based pay as an expense, so we don’t deduct it twice. In the cash flow statement, by contrast, it is added back as a non-cash expense, so there we do deduct it.',
   anBPolMix: 'The company changed its definition during the year. We deducted stock-based pay only in the quarters where adjusted profit excluded it.',
-  anBPolUnk: 'No press release was found to check. Assumption: adjusted profit excludes stock-based pay, so we deducted it up to the gap to reported profit.',
+  anBPolUnk: 'No press release was found to check. We first attributed the gap to reported profit to acquisition amortization (Buffett doesn’t deduct it), and the rest to stock-based pay, up to its after-tax amount.',
   anBPolGaap: 'Here analysts count and forecast reported profit, which already deducts stock-based pay as an expense, so we don’t deduct it twice. In the cash flow statement, by contrast, it is added back as a non-cash expense, so there we do deduct it.',
   anBFutIn: 'According to the company’s latest release, adjusted profit now includes stock-based pay, so the forecast stays as is.',
   anXFy: 'Free cash flow over the last 12 months ({f}) ÷ market cap. How much cash the business makes relative to the price — like “interest” on the investment.',
@@ -3346,7 +3358,7 @@ en: {
   depNote: 'Negative amounts = money deposited into the portfolio. The positive entry (+₪37,000 on 19/02/2025) is a withdrawal/correction as shown in the sheet.',
   records: '{n} records',
   addDeposit: 'Add deposit',
-  depKindIn: 'Deposit', depKindOut: 'Withdrawal', depTileIn: 'Deposits · {n}', depTileOut: 'Withdrawals · {n}',
+  depKindIn: 'Deposit', depKindOut: 'Withdrawal', depKvIn: 'Deposits', depKvOut: 'Withdrawals', depKvNet: 'Net',
   btnEditRow: 'Edit',
   btnDeleteRow: 'Delete',
   adjTitle: 'Withdrawal/correction',
@@ -8309,8 +8321,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.187.0';
-const APP_VERSION = 'v850';
+const APP_RELEASE = '2.190.1';
+const APP_VERSION = 'v855';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -20073,16 +20085,18 @@ function txRowHTML(r, opts) {
   const o = opts || {}, buy = r.side === 'BUY';
   const tot = fmtTradeMoney(r.qty * r.price, r.cur);
   const qp = esc(txQty(r.qty)) + ' × ' + esc(fmtTradeMoney(r.price, r.cur));
-  const tag = r.src === 'ibkr' ? srcTagHTML('ibkr', r.acct) : '<span class="tx-man">' + esc(t('manualTag')) + '</span>';
   const ed = r.src === 'manual';
-  const lead = o.logo ? stockLogoHTML(r.sym) : '<span class="tx-side ' + (buy ? 'b' : 's') + '" aria-hidden="true">' + (buy ? '+' : '−') + '</span>';
-  const t1 = o.logo   // בתוך שנה: התגית בשורה הראשונה (השנייה כבר מלאה בתאריך ובכמות)
-    ? '<b dir="ltr">' + esc(dispSym(r.sym)) + '</b> <span class="' + (buy ? 'tx-g' : 'tx-l') + '">' + esc(buy ? t('buySide') : t('sellSide')) + '</span> ' + tag
-    : '<b>' + esc(buy ? t('buySide') : t('sellSide')) + '</b> <span dir="ltr">' + qp + '</span>';
+  /* 19/11/2026 (בקשת המשתמש): המקור במקום קבוע — תג עגול קטן בקצה השורה הראשונה (לפי ת־עיצוב), לא בתוך שורת התאריך
+     שנשברה לשורה אחרת בכל עסקה. ידנית — בלי תג (העיפרון בסוף השורה מסמן אותה), עם תווית לקורא המסך */
+  const tag = r.src === 'ibkr' ? '<span class="tx-src">' + srcTagHTML('ibkr', r.acct) + '</span>' : '<span class="sr-only">' + esc(t('manualTag')) + '</span>';
+  const lead = '<span class="tx-lead">' + (o.logo ? stockLogoHTML(r.sym) : '<span class="tx-side ' + (buy ? 'b' : 's') + '" aria-hidden="true">' + (buy ? '+' : '−') + '</span>') + '</span>';
+  const t1 = o.logo
+    ? '<b dir="ltr">' + esc(dispSym(r.sym)) + '</b> <span class="' + (buy ? 'tx-g' : 'tx-l') + '">' + esc(buy ? t('buySide') : t('sellSide')) + '</span>' + tag
+    : '<b>' + esc(buy ? t('buySide') : t('sellSide')) + '</b> <span dir="ltr">' + qp + '</span>' + tag;
   const d = o.logo ? esc(fmtDateIL(r.date).slice(0, 5)) + ' · <span dir="ltr">' + qp + '</span>' : esc(fmtDateIL(r.date)) + (r.time ? ' · ' + esc(r.time) : '');
   const after = o.after === null || o.after === undefined ? '' : '<div class="tx-e2">' + esc(t('txAfter', { n: txQty(o.after) })) + '</div>';
   return '<div class="tx-row' + (ed ? ' ed' : '') + (r.shadow ? ' dim' : '') + '"' + (ed ? ' role="button" tabindex="0" data-mt="' + esc(r.id) + '"' : '') + '>' +
-    lead + '<div class="tx-mid"><div class="tx-t1">' + t1 + '</div><div class="tx-t2">' + d + (o.logo ? '' : ' ' + tag) + '</div>' +
+    lead + '<div class="tx-mid"><div class="tx-t1">' + t1 + '</div><div class="tx-t2">' + d + '</div>' +
     (r.shadow ? '<div class="tx-t2">' + esc(t('mtShadowed', { sym: r.sym })) + '</div>' : '') + '</div>' +
     '<div class="tx-end"><div class="tx-e1">' + esc(tot) + '</div>' + after + '</div>' +
     (ed ? '<span class="tx-edit" aria-hidden="true">' + ICON_EDIT + '</span>' : '') + '</div>';
@@ -20299,9 +20313,13 @@ function renderDeposits() {
   const shown = depositsNewestFirst(DEPOSITS).filter((x) => srcPass(sf, isIbkrDeposit(x.d) ? 'ibkr' : 'manual'));
   // 15/11/2026 (בקשת המשתמש): כרטיס זכוכית לכל שנה במקום רשימה אחת ארוכה — השנה האחרונה פתוחה
   const yrOpen = state._depYrOpen || (state._depYrOpen = new Map());
-  depYearGroups(shown).forEach((g, k) => ul.appendChild(buildDepYear(g, yrOpen.has(g.y) ? yrOpen.get(g.y) : k === 0, ed, yrOpen)));
+  // 19/11/2026 (בקשת המשתמש): שבבי שנה כמו בעסקאות — "הכל" = כל השנים לאורך העמוד, שנה = רק הכרטיס שלה, פתוח
+  const groups = depYearGroups(shown);
+  const selY = depYearsBar(groups);
+  if (selY === 'all') groups.forEach((g, k) => ul.appendChild(buildDepYear(g, yrOpen.has(g.y) ? yrOpen.get(g.y) : k === 0, ed, yrOpen)));
+  else ul.appendChild(buildDepYear(groups.find((g) => g.y === selY), true, ed, yrOpen));
   if (!shown.length && DEPOSITS.length && !(hasMf && srcPass(sf, 'manual'))) ul.appendChild(el('p', 'fine', t('srcFilterEmpty')));
-  if (hasMf && srcPass(sf, 'manual')) {
+  if (hasMf && srcPass(sf, 'manual') && selY === 'all') {
     const head = el('li', 'dep-sub');
     head.innerHTML = '<span><b>' + esc(t('depManualTitle')) + '</b><br><span class="r-note">' +
       esc(t('depManualNote')) + '</span></span>';
@@ -20324,6 +20342,30 @@ function renderDeposits() {
       ul.appendChild(li);
     }
   }
+}
+
+/* שבבי השנים בשורת הכלים (אותו רכיב כמו בעסקאות, tx-y) — מחזיר את השנה שנבחרה או 'all' */
+function depYearsBar(groups) {
+  const box = document.getElementById('depYears');
+  const show = groups.length > 1;
+  let y = state._depY || 'all';
+  if (y !== 'all' && !groups.some((g) => g.y === y)) y = state._depY = 'all';   // הסינון הסתיר את השנה — חוזרים ל"הכל"
+  if (!box) return show ? y : 'all';
+  if (!box._wired && box.addEventListener) {
+    box._wired = true;
+    box.addEventListener('click', (e) => {
+      const b = e.target && e.target.closest && e.target.closest('[data-depy]');
+      if (!b || b.dataset.depy === (state._depY || 'all')) return;
+      state._depY = b.dataset.depy;
+      renderDeposits();
+    });
+  }
+  const chip = (v, lbl, n) => '<button type="button" class="tx-y' + (y === v ? ' on' : '') + '" data-depy="' + esc(v) + '" aria-pressed="' + (y === v) + '">' +
+    esc(lbl) + (n == null ? '' : '<small>' + n + '</small>') + '</button>';
+  const html = !show ? '' : chip('all', t('txAll')) + groups.map((g) => chip(g.y, g.y, g.items.length)).join('');
+  if (box._h !== html) { box._h = html; box.innerHTML = html; }
+  box.classList.toggle('hidden', !show);
+  return show ? y : 'all';
 }
 
 /* טהורה: הפקדות (כבר מהחדשה לישנה) בקבוצות לפי שנה, עם הנטו בשקלים (חיובי = נכנס לתיק) */
@@ -20358,18 +20400,18 @@ function depMonthName(m) {
   try { return new Intl.DateTimeFormat(state.lang === 'en' ? 'en-US' : 'he-IL', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2000, Number(m) - 1, 1))); } catch (e) { return m; }
 }
 const depNetTxt = (v) => ltrNum((v < 0 ? '−' : '') + '₪' + numLoc(Math.abs(v), { maximumFractionDigits: 0 }));
-const ICON_DEP_CHEV = '<svg class="dep-yr-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
 function buildDepYear(g, open, ed, yrOpen) {
   const li = el('li', 'dep-yr' + (open ? ' open' : ''));
   li.dataset.yr = g.y;
   const id = 'depYr-' + g.y.replace(/\W/g, '_');
-  const h = el('button', 'dep-yr-h');
+  const h = el('button', 'tx-yr-h dep-yr-h');
   h.type = 'button';
   h.setAttribute('aria-expanded', open ? 'true' : 'false');
   h.setAttribute('aria-controls', id);
-  const net = depNetTxt(g.net);
-  h.innerHTML = '<span class="dep-yr-t"><b>' + esc(g.y) + '</b><span>' + esc(t('records', { n: g.items.length })) + '</span></span>' +
-    '<span class="dep-yr-net">' + net + '</span>' + ICON_DEP_CHEV;
+  // אותו כרטיס שנה כמו בעסקאות: שנה, מספר רשומות וחץ — ומתחת הפקדות, משיכות ונטו
+  const kv = (lbl, v, cls) => '<span><small>' + esc(lbl) + '</small><b class="' + cls + '">' + depNetTxt(v) + '</b></span>';
+  h.innerHTML = '<span class="tx-yr-top"><b>' + esc(g.y) + '</b><span>' + esc(t('records', { n: g.items.length })) + '</span>' + TX_CHEV + '</span>' +
+    '<span class="tx-kv">' + kv(t('depKvIn'), g.sumIn, 'tx-g') + kv(t('depKvOut'), g.sumOut, g.sumOut ? 'tx-l' : '') + kv(t('depKvNet'), g.net, '') + '</span>';
   h.addEventListener('click', () => {
     const on = !li.classList.contains('open');
     if (on && li.parentElement) {   // אקורדיון: שנה אחת פתוחה — הרשימה לא חוזרת להיות ארוכה
@@ -20387,12 +20429,6 @@ function buildDepYear(g, open, ed, yrOpen) {
   li.appendChild(h);
   const body = el('div', 'dep-yr-body');
   const inner = el('div', 'dep-yr-in');
-  if (g.nOut) {   // יש משיכות — שני אריחים (בלי משיכות הנטו בכותרת אומר הכל)
-    const tile = (cls, lbl, v) => '<div class="dep-tile"><span>' + esc(lbl) + '</span><b class="' + cls + '">' + depNetTxt(v) + '</b></div>';
-    const tiles = el('div', 'dep-tiles');
-    tiles.innerHTML = tile('in', t('depTileIn', { n: g.nIn }), g.sumIn) + tile('out', t('depTileOut', { n: g.nOut }), g.sumOut);
-    inner.appendChild(tiles);
-  }
   const list = el('ul', 'rows dep-yr-list');
   list.id = id;
   for (const mo of g.months) {

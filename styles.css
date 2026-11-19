@@ -1986,43 +1986,24 @@ html[data-app="cashflow"] .login-overlay { background: linear-gradient(160deg, #
 .dep-add svg { width: 22px; height: 22px; }
 .dep-bar .src-pop { inset-inline-end: auto; inset-inline-start: 0; }   /* הסינון ליד ה־+ בקצה ההתחלה — הבועה נפתחת לתוך המסך */
 #depositList { display: flex; flex-direction: column; gap: 10px; }
-.rows li.dep-yr {
-  display: block; padding: 0; border: 1px solid var(--glass-border); border-radius: var(--radius); overflow: hidden;
-  background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
-  box-shadow: var(--glass-hi), var(--shadow-sm);
-}
-.dep-yr-h {
-  display: flex; align-items: center; gap: 10px; width: 100%; margin: 0; padding: 14px 16px; border: 0; background: none;
-  color: var(--on-surface); font: inherit; text-align: start; cursor: pointer; -webkit-tap-highlight-color: transparent;
-  transition: transform .2s cubic-bezier(.3, 1.3, .5, 1);
-}
+/* 19/11/2026: שבבי השנים בשורת הכלים, ליד הסינון — אותו רכיב כמו בעסקאות (.tx-y) */
+.dep-bar .dep-years { flex: 1 1 auto; min-width: 0; margin: 0; }
+/* כרטיס שנה — אותו כרטיס כמו בעסקאות (.tx-yr-h / .tx-yr-top / .tx-kv), עם פתיחה חלקה */
+.rows li.dep-yr { display: block; padding: 0; border: 0; border-radius: var(--radius); overflow: hidden; background: var(--gl-card); box-shadow: var(--gl-card-sh); }
+.dep-yr-h { -webkit-tap-highlight-color: transparent; transition: transform .2s cubic-bezier(.3, 1.3, .5, 1); }
 .dep-yr-h:active { transform: scale(.98); }
 .dep-yr-h:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; border-radius: var(--radius); }
-.dep-yr-t { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 8px; }
-.dep-yr-t b { font-size: 22px; font-weight: 700; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
-.dep-yr-t span { font-size: 13px; color: var(--on-surface-var); }
-.dep-yr-net { flex: none; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
-.dep-yr-chev { flex: none; width: 18px; height: 18px; color: var(--on-surface-var); transition: transform .34s cubic-bezier(.3, 1.2, .5, 1); }
-.dep-yr.open .dep-yr-chev { transform: rotate(180deg); }
 .dep-yr-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .34s cubic-bezier(.2, .9, .25, 1); }
 .dep-yr.open .dep-yr-body { grid-template-rows: 1fr; }
-.dep-yr-in { min-height: 0; overflow: hidden; padding-inline: 12px; visibility: hidden; transition: visibility 0s .34s; }
+.dep-yr-in { min-height: 0; overflow: hidden; padding-inline: 0; visibility: hidden; transition: visibility 0s .34s; }
 .dep-yr.open .dep-yr-in { visibility: visible; transition: none; }
-.dep-yr-list { padding-bottom: 12px; }
-/* אריחי סיכום — רק בשנה שיש בה משיכות */
-.dep-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.dep-tile { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--radius-xs); background: var(--surface-2); }
-.dep-tile span { font-size: 12.5px; color: var(--on-surface-var); }
-.dep-tile b { font-size: 17px; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; text-align: start; }
-.dep-tile b.in { color: var(--gain); }
-.dep-tile b.out { color: var(--loss); }
-/* חודש — כותרת קטנה, והשורות שלו בקבוצה מעוגלת */
-.rows li.dep-mo { padding: 10px 4px 5px; border: 0; font-size: 13px; font-weight: 600; color: var(--on-surface-var); }
+.dep-yr-list { padding-bottom: 6px; }
+/* חודש ושורות — כמו בעסקאות (.tx-mo / .tx-row): כותרת קטנה, שורות שטוחות וקו דק רק בין שורות צמודות */
+.rows li.dep-mo { display: flex; justify-content: space-between; gap: 8px; padding: 10px 16px 2px; border: 0; font-size: 12px; font-weight: 700; color: var(--on-surface-var); }
 .dep-mo-net { font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
-.rows li.dep-row { gap: 10px; padding: 10px 12px; background: var(--surface-2); border-bottom: 1px solid var(--separator); font-size: 15px; }
+.rows li.dep-row { gap: 12px; padding: 11px 16px; background: transparent; border: 0; border-radius: 0; font-size: 15px; }
 .rows li.dep-row > :first-child { flex: none; }
-.dep-yr-list > li.dep-row:first-child, .dep-yr-list > li.dep-mo + li.dep-row { border-start-start-radius: var(--radius-xs); border-start-end-radius: var(--radius-xs); }
-.dep-yr-list > li.dep-row:last-child, .dep-yr-list > li.dep-row:has(+ li.dep-mo) { border-bottom: 0; border-end-start-radius: var(--radius-xs); border-end-end-radius: var(--radius-xs); }
+.dep-yr-list > li.dep-row + li.dep-row { border-top: .5px solid var(--separator); }
 .dep-ic { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; }
 .dep-ic svg { width: 14px; height: 14px; }
 .dep-ic.in { color: var(--gain); background: color-mix(in srgb, var(--gain) 15%, transparent); }
@@ -2037,7 +2018,7 @@ html[data-app="cashflow"] .login-overlay { background: linear-gradient(160deg, #
 .dep-ed { flex: none; display: grid; place-items: center; width: 32px; height: 32px; margin-inline-end: -6px; padding: 0; border: 0; background: none; color: var(--on-surface-var); cursor: pointer; }
 .dep-ed .ic { width: 17px; height: 17px; stroke: currentColor; }
 .rows li.dep-row.form-li { display: block; }
-@media (prefers-reduced-motion: reduce) { .dep-yr-h, .dep-yr-body, .dep-yr-chev { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .dep-yr-h, .dep-yr-body { transition: none; } }
 
 /* v146: תיק דמו + איפוס נפרד */
 .demo-card { text-align: center; background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 14%, var(--surface)), var(--surface)); border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--card-border)); }
@@ -2760,8 +2741,8 @@ html[data-theme="dark"] .lib-root .lib-back { background: var(--gl-back) !import
 
 /* ==== 15/11/2026 (בקשת המשתמש): העסקאות לפי חברות ולפי שנים — ניהול תיק לפי ת־תיק, בזכוכית לפי ת־עיצוב ====
    בתוך הלשונית, מתחת להדר: בורר "חברות | שנים", שנים לסינון, רשימת חברות שנפתחות במקום / כרטיסי שנים. */
-#tab-trades { --tx-g: #1FA846; }
-[data-theme="dark"] #tab-trades { --tx-g: var(--gain); }
+#tab-trades, #tab-deposits { --tx-g: #1FA846; }
+[data-theme="dark"] :is(#tab-trades, #tab-deposits) { --tx-g: var(--gain); }
 .tx-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
 .tx-seg { flex: 1; display: flex; padding: 3px; border-radius: var(--pill); background: var(--gl-card); box-shadow: var(--gl-card-sh); }   /* בלי טשטוש — כמו שאר הכרטיסים: זכוכית בתוך פאה מסתובבת נצבעת כפס אטום */
 .tx-seg button { flex: 1; border: 0; background: transparent; color: var(--on-surface-var); font: inherit; font-size: 15.5px; font-weight: 600;
@@ -2833,7 +2814,19 @@ html[data-theme="dark"] .lib-root .lib-back { background: var(--gl-back) !import
 .tx-row .tx-t1 { font-size: 15px; }
 .tx-row .tx-t1 > span { font-size: 13.5px; }
 .tx-row .tx-e1 { font-size: 15px; }
-.tx-man { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: var(--radius-xs); background: var(--gl-fill); color: var(--on-surface-var); }
+/* 19/11/2026: המקור — תג עגול בקצה השורה הראשונה, תמיד באותו מקום ובאותו גודל; הטקסט נקטע לפניו */
+.tx-lead { flex: none; display: grid; }
+.tx-row .tx-t1 { display: flex; align-items: center; gap: 5px; }
+.tx-row .tx-t1 > * { flex: none; }
+.tx-row .tx-t1 > span[dir] { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tx-src { flex: none; margin-inline-start: auto; padding-inline-start: 6px; display: flex; line-height: 0; --tx-src-bg: #fff; }
+[data-theme="dark"] .tx-src { --tx-src-bg: #3a3a3c; }
+.tx-src .src-tag, main .tx-src .src-tag { margin: 0; padding: 0; width: 16px; height: 16px; display: grid; place-items: center; border-radius: var(--pill);
+  background: var(--tx-src-bg); box-shadow: 0 1px 2px rgb(0 0 0 / .22); }
+.tx-src .src-tag .ib-logo, .tx-src .src-tag img { width: 10px; height: 10px; }
+.tx-src .src-tag.src-sec { width: auto; padding-inline: 4px; font-size: 8px; line-height: 16px; }
+.tx-src .src-tags { gap: 0; }
+.tx-src .src-tags > .src-tag + .src-tag { margin-inline-start: -7px; }
 .tx-edit { flex: none; color: var(--on-surface-var); opacity: .55; display: grid; }
 .tx-edit svg { width: 15px; height: 15px; }
 .tx-yr { border-radius: var(--radius); background: var(--gl-card); box-shadow: var(--gl-card-sh); overflow: hidden; margin-bottom: 10px; }
