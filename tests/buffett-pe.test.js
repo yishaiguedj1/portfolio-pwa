@@ -115,6 +115,12 @@ ok(c3.ex && JSON.stringify(c3.sa) === '[63287,58270,205314]' && c3.tb === 1, 'KK
 const TBS = [['our methodology uses the tax benefits from certain expenses that are not included in these non-gaap metrics, such as equity-based compensation from the vesting', 'ARES'],
   ['this adjustment reflects the benefit of deductions available to the company on certain expense items that are excluded from the underlying calculation of distributable earnings, such as equity-based compensation', 'CG'],
   ['current income taxes payable reflect the benefit of tax deductions that are excluded when calculating distributable earnings (e.g., equity-based compensation expenses, transaction expenses', 'OWL']];
+// B-030 ‏(Ciena): "adjusted (non-gaap)" עם סוגריים; התגמול מפוצל לפי פונקציה בגישור ההוצאות, והסך עובר לגישור הרווח הנקי (בשרשרת)
+const CIEN = 'three months ended operating expense reconciliation (gaap non-gaap) gaap operating expense $ 458,086 $ 429,544 share-based compensation-research and development 20,173 16,749 share-based compensation-sales and marketing 16,623 13,277 total adjustments related to operating expense 58,056 49,360 adjusted (non-gaap) operating expense $ 400,030 $ 380,184 income from operations reconciliation (gaap non-gaap) gaap income from operations $ 301,179 total adjustments related to operating expense 58,056 total adjustments related to income from operations 74,549 adjusted (non-gaap) income from operations $ 375,728 net income reconciliation (gaap non-gaap) gaap net income $ 266,418 $ 50,308 exclude gaap provision for income taxes 44,203 15,511 income before income taxes 310,621 65,819 total adjustments related to income from operations 74,549 57,561 adjusted income before income taxes 384,593 123,380 non-gaap tax provision on adjusted income before income taxes 76,919 27,144 adjusted (non-gaap) net income $ 307,674 $ 96,236 diluted';
+c3 = X.classify(CIEN);
+ok(c3.ex && c3.sa === null && Math.abs(c3.tr - 0.2) < 1e-9, 'גישור בשרשרת (CIEN, ‏B-030) — מוציא; פיצול לפי פונקציה — בלי שורה (הסכום מה־XBRL); השיעור המשתמע 20%');
+ok(!X.classify(CIEN.replace('total adjustments related to income from operations 74,549 57,561 ', '')).ex, 'בלי שורת הסך בגישור הרווח הנקי — התגמול בגישור התפעולי לבד אינו עדות');
+ok(X.classify('three months ended gaap net income 100 stock-based compensation 40 adjusted (non-gaap) net income 140 diluted').ex, '"adjusted (non-gaap) net income" — יעד');
 const NSS = [['distributable earnings ( de ) of $1.7 billion ($1.32/share) in the quarter', 1.288e9, 'BX'], ['distributable earnings of $385.5 million, or $0.24 per adjusted share capital metrics', 1.606e9, 'OWL'],
   ['adjusted net income ( ani ) of $1.6 billion ($1.78/adjusted share)', 0.899e9, 'KKR']];
 for (const [t, v, nm] of NSS) ok(Math.abs(X.classify('three months ended net income 900 equity-based compensation 63 distributable earnings 1,200 adjusted net income 1,100. ' + t).ns / v - 1) < 0.001, 'בסיס המניות של המדד למניה — ' + nm);
@@ -250,6 +256,8 @@ ok(X.classify('three months ended gaap net income 100 stock-based compensation e
   ok(near(A.bufCalc(co).ded, sumAt((i) => Q.sbc[i] * 0.98, 0.21)), 'העמודה הראשונה — גם כשהשנייה (שנה קודמת) קרובה יותר ל־XBRL (Salesforce ‏805 מול ‏820, ‏XBRL ‏819)');
   co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, [Q.sbc[i - 4] / 1e6, Q.sbc[i] / 1e6])), bx: Object.fromEntries(q.slice(-12).map((e) => [e, [null, Q.sbc[q.indexOf(e)], null, null]])) });
   ok(near(A.bufCalc(co).ded, sumAt((i) => Q.sbc[i], 0.21)), 'שנה קודמת בעמודה הראשונה (מתאימה ל־XBRL של לפני שנה) — העמודה השנייה');
+  co = mk({ hist: hist(1), sbcX: last4.map((i) => relX(q[i], 1, 0.21, [Q.sbc[i] * 1.26 / 1e6, Q.sbc[i] / 1e6])), bx: bxOf((i) => [null, Q.sbc[i], null, null]) });
+  ok(near(A.bufCalc(co).ded, sumAt((i) => Q.sbc[i] * 1.26, 0.21)), 'השורה בגישור גדולה מה־XBRL ב־26% (Bloom, ‏B-033) — עדיין העמודה הראשונה, לא הרבעון הקודם');
   // שורה של 5 רבעונים (מנהלות השקעות): הכיוון מהתזוזה מול ההודעה של הרבעון הקודם; בלי תזוזה — עמודת מצטבר של רבעונים רצופים
   const S = (j) => Q.sbc[j] * (1 + 0.04 * (j % 5)), bx12 = Object.fromEntries(q.slice(-12).map((e) => [e, [null, S(q.indexOf(e)), null, null]]));
   const five = (i) => [i - 4, i - 3, i - 2, i - 1, i].map((j) => S(j) / 1e3);

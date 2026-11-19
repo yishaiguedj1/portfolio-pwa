@@ -35,11 +35,12 @@ const PROSE = /^(?:\s*expenses?)?\s*(?:associated|in anticipation|which|that|is|
 const NUMROW = /^(?:\s*expenses?\d?)?\s*(?:\(\d\)\s*)?(?:\$\s*)?(?:\(?\d|-\s|—)/;
 // היעד של טבלת ההתאמה: השורה הראשונה מהסוגים האלה אחרי שורת התגמול
 // גם בצורה "net income on non-gaap basis" (AVGO — כל שורה בטבלה: "<מדד> on gaap basis" … "<מדד> on non-gaap basis")
+// "adjusted (non-gaap) net income" — הסוגריים באמצע (Ciena, ‏B-030).
 // מנהלות השקעות (B-027): ‏"after-tax realized income" (Ares), ‏"distributable earnings" (Blackstone, ‏Carlyle, ‏TPG, ‏Blue Owl) — הרווח
 // למניה שעליו הרחוב בנוי. ‏"fee-related earnings" — לא רווח לבעלים, אבל ה־DE וה־RI נבנים ממנו (Blue Owl: הגישור מהרווח לפני מס
 // ל־FRE, ואחריו ל־DE, יותר מ־1,500 תווים אחרי שורת התגמול) — מה שהוצא ממנו הוצא גם מהם. "\b" — לא "unrealized income"
-const TGT = /\b(?:after-tax |adjusted )?(?:realized income|distributable earnings|fee[- ]related earnings)|(?:non-gaap|adjusted|core|cash)\s+(?:diluted\s+)?(?:net income|net earnings|earnings per (?:diluted )?share|eps|(?:diluted )?(?:net )?(?:income|earnings|profit) per (?:diluted |common )?share|net income per (?:diluted )?share|net income attributable)|(?:net income|net earnings|(?:diluted )?(?:net )?(?:income|earnings) per (?:diluted |common )?share)(?: - diluted)? on (?:a )?non-gaap basis/;
-const OTHER = /(?:non-gaap|adjusted)\s+(?:operating (?:income|expenses?|margin|profit)|gross (?:profit|margin)|ebitda|ebit\b|free cash flow|segment)|segment (?:profit|operating income)|ebitda|operating activities|cash flows? from|effective (?:income )?tax rate|tax rate|(?:gross (?:margin|profit)|operating (?:income|expenses?|margin)|research and development|selling, general and administrative(?: expenses?)?|cost of (?:revenue|products|sales|goods sold)|provision for income taxes) on (?:a )?non-gaap basis/;
+const TGT = /\b(?:after-tax |adjusted )?(?:realized income|distributable earnings|fee[- ]related earnings)|(?:non-gaap|adjusted|core|cash)\s+(?:\((?:non-gaap|adjusted)\)\s+)?(?:diluted\s+)?(?:net income|net earnings|earnings per (?:diluted )?share|eps|(?:diluted )?(?:net )?(?:income|earnings|profit) per (?:diluted |common )?share|net income per (?:diluted )?share|net income attributable)|(?:net income|net earnings|(?:diluted )?(?:net )?(?:income|earnings) per (?:diluted |common )?share)(?: - diluted)? on (?:a )?non-gaap basis/;
+const OTHER = /(?:non-gaap|adjusted)\s+(?:\((?:non-gaap|adjusted)\)\s+)?(?:operating (?:income|expenses?|margin|profit)|gross (?:profit|margin)|ebitda|ebit\b|free cash flow|segment)|segment (?:profit|operating income)|ebitda|operating activities|cash flows? from|effective (?:income )?tax rate|tax rate|(?:gross (?:margin|profit)|operating (?:income|expenses?|margin)|research and development|selling, general and administrative(?: expenses?)?|cost of (?:revenue|products|sales|goods sold)|provision for income taxes) on (?:a )?non-gaap basis/;
 // דוח תזרים המזומנים (MSFT, ‏DIS) מול טבלת התאמה — מה הופיע אחרון לפני השורה
 const CF = /operating activities|cash provided by|cash flows? (?:from|provided)|net cash/g;
 const REC = /reconcil|non-gaap|adjusted|as reported|\bgaap\b/g;
@@ -90,8 +91,9 @@ function taxRate(t) {
 /* בלי הצהרה במילים — השיעור המשתמע מטבלת הגישור: ההפרשה למס ה־non-GAAP ÷ (הרווח הנקי ה־non-GAAP + ההפרשה). Broadcom: "provision for
    income taxes on non-gaap basis $ 3,118" ו־"net income on non-gaap basis $ 16,372" → ‏16.0%. אומת מול Flex, שגם מצהירה (21%): המשתמע
    20.9%–21.1% בחמש ההודעות. רק שורות בטבלה (מספר מיד אחרי התווית), באותה טבלה (עד 3,000 תווים) */
-const PL = /(?:non-gaap|adjusted) (?:provision for income taxes|income tax (?:expense|provision)|provision for taxes|income taxes)|provision for income taxes on (?:a )?non-gaap basis/g;
-const NL = /(?:non-gaap|adjusted) net (?:income|earnings)(?! per| attributable to non)(?: attributable to [a-z.,' ]{0,40}?)?|net income on (?:a )?non-gaap basis/g;
+// "non-gaap tax provision on adjusted income before income taxes 76,919 … adjusted (non-gaap) net income $ 307,674" (Ciena — 20.0%)
+const PL = /(?:non-gaap|adjusted) (?:provision for income taxes|income tax (?:expense|provision)|provision for taxes|income taxes)|provision for income taxes on (?:a )?non-gaap basis|non-gaap tax provision(?: on [a-z ]{0,50}?income taxes)?/g;
+const NL = /(?:non-gaap|adjusted)(?: \((?:non-gaap|adjusted)\))? net (?:income|earnings)(?! per| attributable to non)(?: attributable to [a-z.,' ]{0,40}?)?|net income on (?:a )?non-gaap basis/g;
 const NV = /^\s*(?:\(\w{1,2}\)\s*)*(?:\$\s*)?(\(?)((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\)?/;
 function rowsOf(t, re) {
   const out = [];
@@ -125,8 +127,9 @@ function qEnd(t, filed) {
    הלקוח מתאים את הסדר מול ה־XBRL של אותו רבעון (bufCalc). nt — השורה "net of tax" (כבר אחרי מס) */
 // עד 8 מספרים מהשורה (5 רבעונים ושני מצטברים — Blackstone, ‏Carlyle, ‏Apollo): העמודה של הרבעון היא לרוב הראשונה, אבל לא תמיד — Intuit מציגה את רבעוני השנה זה לצד זה (543 521 485 … ‏1,549),
 // והרבעון השלישי הוא השלישי. הלקוח בוחר את הקרוב ל־XBRL של אותו רבעון. "‎-related charges" (Palo Alto, ‏Snowflake), הערות שוליים "(2)(3)"
-// "- time based 63,287" / "- other 90,715" (KKR, ‏Blue Owl — כמה שורות תגמול, הראשונה היא הרגילה)
-const ROWP = /^(?:\s*(?:[-–]\s+[a-z][a-z -]{0,40}?(?=\s+\(?\$?\s*\d)|expenses?|costs?|-?\s*related (?:charges?|expenses?|costs?)|\(\w{1,2}\)|\d(?=\s)|,?\s*net of (?:income )?tax(?:es)?|\(?after[- ]tax\)?|[-–:*]))*/;
+// "- time based 63,287" / "- other 90,715" (KKR, ‏Blue Owl — כמה שורות תגמול, הראשונה היא הרגילה). לא פיצול לפי פונקציה
+// ("-research and development", Ciena) — שורה אחת היא רק חלק מהתגמול, והסכום נלקח מה־XBRL
+const ROWP = /^(?:\s*(?:[-–]\s+(?!(?:cost|research|sales|selling|marketing|general|products?|services?|technology|operations|r&d)\b)[a-z][a-z -]{0,40}?(?=\s+\(?\$?\s*\d)|expenses?|costs?|-?\s*related (?:charges?|expenses?|costs?)|\(\w{1,2}\)|\d(?=\s)|,?\s*net of (?:income )?tax(?:es)?|\(?after[- ]tax\)?|[-–:*]))*/;
 const NUM = /^\s*(?:\$\s*)?(\(?)\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\s*\)?(?!\s*%)|^\s*(?:\$\s*)?[-–—](?=\s)/;
 function rowVals(after) {
   let s = after.slice(0, 220).replace(ROWP, ''), m;
@@ -137,6 +140,21 @@ function rowVals(after) {
 // טבלת תחזית (Salesforce: "q3 fy27 gaap diluted net income per share range … stock-based compensation expense $ 1.29") — לא הרבעון שדווח
 const GUIDE_T = /guidance|outlook|\brange\b|expect|forecast/g, ENDED = /(?:months|weeks|quarter|year) ended/g;
 
+/* "total adjustments related to income from operations … adjusted (non-gaap) net income" (Ciena, ‏B-030): גישור הרווח הנקי לוקח את סך
+   ההתאמות של הרווח התפעולי — כולל התגמול שבגישור ההוצאות. רק כשהשורה בתוך גישור הרווח הנקי: עד 400 תווים לפניה "gaap net income" או
+   "income before income taxes" בלי יעד אחר אחריו, ועד 600 תווים אחריה רווח נקי מותאם לפני כל יעד אחר */
+const CARRY = /total (?:non-gaap )?adjustments (?:related )?to (?:income from operations|operating (?:income|loss|expenses?))/g;
+function carried(t) {
+  let m;
+  CARRY.lastIndex = 0;
+  while ((m = CARRY.exec(t))) {
+    const bk = t.slice(Math.max(0, m.index - 400), m.index), h = Math.max(lastOf(bk, /gaap net (?:income|earnings)|income before (?:provision for )?income taxes/g), -1);
+    if (h < 0 || OTHER.test(bk.slice(h))) continue;
+    const fw = t.slice(m.index + m[0].length, m.index + m[0].length + 600), a = fw.search(TGT), b = fw.search(OTHER);
+    if (a >= 0 && (b < 0 || a < b)) return true;
+  }
+  return false;
+}
 function classify(raw, filed) {
   const t = raw && raw.length && /</.test(raw.slice(0, 2000)) ? text(raw) : String(raw || '').toLowerCase().replace(/\s+/g, ' ');
   // הודעת תוצאות: רבעון + רווח למניה (MRK ו־XOM לא כותבות "diluted")
@@ -166,9 +184,12 @@ function classify(raw, filed) {
     // המשפט כולו: בלי תחילת משפט בטווח — לא נספר (APP 4Q25: הגדרה ארוכה של Adjusted EBITDA, שהחיתוך שלה השאיר רק "net income adjusted … excluding")
     const b700 = t.slice(Math.max(0, i - 700), i), dot = b700.lastIndexOf('. '), s = dot >= 0 ? b700.slice(dot + 1) : '';
     if (!row && s && /non-gaap|adjusted/.test(s) && /exclud/.test(s) && !/ebitda|number of shares|share count|weighted[- ]average shares/.test(s) && /net income|per share|\beps\b|earnings|results|measures|guidance/.test(s)) { hits.push('P'); continue; }
-    hits.push(inCf ? 'c' : '-');
+    // גישור בשרשרת (Ciena): התגמול בגישור ההוצאות התפעוליות, והסך שלהן עובר לגישור הרווח הנקי — ראו CARRY
+    const mo = !prose && !inCf && b >= 0 && (a < 0 || b < a) ? after.slice(b).match(OTHER) : null;
+    hits.push(mo && /operating (?:income|expenses?|profit)|gross (?:profit|margin)/.test(mo[0]) && !/ebitda|segment|cash|tax/.test(mo[0]) ? 'o' : inCf ? 'c' : '-');
   }
-  const ex = !nowNeg && hits.some((h) => h === 'E' || h === 'P');
+  const carry = hits.includes('o') && carried(t);
+  const ex = !nowNeg && (hits.some((h) => h === 'E' || h === 'P') || carry);
   return { ex, fut: ex && !futNeg, er, n: t.length, h: (nowNeg ? 'N' : futNeg ? 'F' : '') + hits.join('').slice(0, 40), tr: taxRate(t), tb: ex && TB.test(t) ? 1 : 0, ns: ex ? nShares(t) : null, sa: ex ? sa : null, nt: ex && sa != null ? nt : 0, qe: qEnd(t, filed), k: hits.length };
 }
 
