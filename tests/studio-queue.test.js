@@ -44,10 +44,10 @@ ok(/if \(!q \|\| !S\.WL_RE\.test\(String\(q\)\)\) return false;/.test(loop), 'ע
 
 // 6. הטלפון — פונקציות טהורות מהקוד עצמו
 const cut = (a1, b1) => st.slice(st.indexOf(a1), st.indexOf(b1));
-const P = new Function("const FINAL = ['done', 'failed', 'cancelled'];\n" + cut('export function quKinds', 'const quPhRank').replace(/export /g, '') + '\nreturn { quKinds, quGroups };')();
-ok(P.quKinds({ tr: true, vi: true, ka: true }, true).join() === 'vt,ka', 'quKinds: ניתוח + תרגום = ניתוח עם "גם תרגום" (העלאה אחת); וקריוקי');
-ok(P.quKinds({ tr: true, vi: true }, false).join() === 'vi,tr', 'quKinds: בלי "גם תרגום" — שתי עבודות');
-ok(P.quKinds({ tr: true }, true).join() === 'tr' && P.quKinds({ ka: true }, true).join() === 'ka' && !P.quKinds({}, true).length, 'quKinds: כל כלי לבד; כלום — כלום');
+const P = new Function("const FINAL = ['done', 'failed', 'cancelled'];\n" + cut('export function quMove', 'const quPhRank').replace(/export /g, '') + '\nreturn { quMove, quGroups };')();
+ok(P.quMove(['a', 'b', 'c'], 2, -1).join() === 'a,c,b' && P.quMove(['a', 'b', 'c'], 0, 1).join() === 'b,a,c', 'quMove: למעלה ולמטה');
+const m0 = ['a', 'b'];
+ok(P.quMove(m0, 0, -1).join() === 'a,b' && P.quMove(m0, 1, 1).join() === 'a,b' && P.quMove(m0, 1, -1) !== m0 && m0.join() === 'a,b', 'quMove: בקצוות — בלי שינוי; לא משנה את המקור');
 const R = (id, qu, state, created, qn) => ({ id, created, srv: { state }, spec: Object.assign({}, qu ? { qu } : {}, qn ? { qn } : {}) });
 const gs = P.quGroups([R('1', 'qB', 'running', 30), R('2', 'qB', 'done', 20, 'ב'), R('3', 'qA', 'queued', 10, 'א'), R('4', null, 'running', 5), R('5', 'qC', 'done', 1)]);
 ok(gs.map((g) => g.qu).join() === 'qA,qB' && gs[1].qn === 'ב' && gs[1].done === 1 && gs[1].all.length === 2 && gs[1].on.length === 1,
@@ -58,7 +58,36 @@ ok(/if \(WL_RE\.test\(String\(sp\.qu \|\| ''\)\)\) \{ spec\.qu = sp\.qu;/.test(s
 ok(/else if \(ui\.view === 'qnew'\) pageQu\(p\);/.test(st) && /x === 'qnew' \? \['act', null\]/.test(st), 'הדף והניווט ("חזור" — לעמוד הפעילות)');
 ok(/inQ = new Set\(gs\.flatMap/.test(st) && /actSplit\(store\.jobs\.filter\(\(r\) => !inQ\.has\(r\.id\)\)/.test(st), 'עמוד הפעילות: עבודות התור בקבוצה משלהן, השאר כמו קודם');
 ok(/for \(const \[id, fo\] of made\) \{ quPend\.delete\(id\); paintSoon\(\); try \{ await startRun\(id, fo\); \}/.test(st), 'ההעלאות — אחת אחרי השנייה');
-ok(/qu: q\.qu \};/.test(st) && /if \(k === 'ka'\) \{ ff\.ka = true; kaSpec\(ff, spec\); \}/.test(st) && /viSpecOf\(Object\.assign\(ff, \{ vi: true, vf: 'auto', vt: k === 'vt' \}\), spec\)/.test(st), 'quSpec: אותן פונקציות של הטפסים, עם התור');
+// 7א. סבב 2 (19/11, בקשת המשתמש): עבודה אחרי עבודה דרך הטופס הרגיל, ורק בסוף "להתחיל את כל העבודות"
+ok(/if \(f && f\.qd && !ui\.starting\) \{ quTake\(f\); return; \}/.test(st), 'הטופס הרגיל במצב תור: "להוסיף לתור" — לרשימה, לא יוצר עבודה');
+ok(/const spec = formSpec\(f, file, pr, sm\);/.test(st) && /const spec = formSpec\(f, f\.fileObj, pr \|\| \{\}, sm\);/.test(st), 'אותו spec ב"להתחיל" וב"להוסיף לתור" (formSpec)');
+ok(/const listOk = \(f\) => !!\(btOk\(f\) && f\.fileObj && !f\.qd\);/.test(st) && /end: f\.ka \|\| f\.vi \|\| f\.qd \? null : saveTop/.test(st), 'בתור: בלי "עוד סרטון" ובלי טיוטה');
+ok(/const spec = Object\.assign\(\{\}, it\.spec, \{ qu: q\.qu \}, qn \? \{ qn \} : \{\}\);/.test(st), 'ההתחלה: כל עבודה עם ה־spec שלה, באותו תור');
+ok(/r\.addEventListener\('contextmenu'/.test(cut('function pageQu', 'function quItemSub')) && /if \(o\.menu\) r\.addEventListener\('contextmenu'/.test(st), 'לחיצה ארוכה: ברשימה ובעמוד הפעילות');
+ok(/net\.api\('qctl', \{ job: rec\.id, a, all: !!all \}\)/.test(st), 'השהיה / המשך / לראש התור — op: qctl');
+// 7ג. השרתון: qctl, השהיה בלי קריאות ובלי תקרת זמן
+{
+  const t0 = 1e12;
+  const Q = (x) => Object.assign({ id: 'x', qu: 'q1', state: 'queued', eng: 'api', sid: '', fired: t0, created: t0 - 10, spec: { eng: 'api' } }, x);
+  ok(S.effState(Q({}), t0 + 10 * 3600e3).state === 'queued' && S.effState(Q({}), t0 + S.QU_WAIT + 1).state === 'failed', 'עבודה בתור מחכה לתורה — לא "אין שרת" אחרי 6 שעות (עד QU_WAIT)');
+  ok(S.effState(Q({ qh: t0, sid: null }), t0 + 30 * 24 * 3600e3).state === 'queued', 'מושהית — בלי תקרת זמן');
+  ok(S.effState(Q({ qz: 10 * 3600e3 }), t0 + S.QU_WAIT + 3600e3).state === 'queued', 'הזמן בהשהיה (qz) לא נספר');
+  ok(S.effState(Object.assign(Q({}), { qu: undefined }), t0 + 7 * 3600e3).state === 'failed', 'עבודה רגילה — כמו קודם (6 שעות)');
+  ok(S.quWaiting(Q({}), t0) && S.quWaiting(Q({ state: 'new' }), t0) && !S.quWaiting(Q({ sid: 's1' }), t0) && !S.quWaiting(Q({ state: 'running' }), t0) && !S.quWaiting(Q({ pk: t0 }), t0), 'quWaiting: רק מה שעוד לא נלקח');
+  const hp = S.quPatch(Q({}), 'hold', t0 + 5);
+  ok(hp.qh === t0 + 5 && hp.sid === null, 'השהיה: qh, ו־sid: null — מחוץ לשאילתת הלקיחה');
+  const rp = S.quPatch(Q({ qh: t0, sid: null, qz: 100 }), 'run', t0 + 1000);
+  ok(rp.qh === 0 && rp.sid === '' && rp.qz === 1100 && !('sid' in S.quPatch(Q({ qh: t0, state: 'new' }), 'run', t0 + 1)), 'המשך: sid חוזר (רק בתור לשרת), והזמן נצבר ב־qz');
+  ok(S.quPatch(Q({ qh: t0 }), 'hold', t0) === null && S.quPatch(Q({}), 'run', t0) === null, 'השהיה/המשך כפולים — בלי כתיבה');
+  ok(S.quTop([Q({ id: 'a', fired: t0 + 5 }), Q({ id: 'b', fired: t0 + 9 }), Q({ id: 'c', fired: t0 + 1, sid: 's1' })], t0 + 50) === t0 + 4, 'לראש התור: לפני כל מה שמחכה (לא מה שכבר נלקח)');
+  ok(S.quKey({ qo: 5, fired: 9 }) === 5 && S.quKey({ fired: 9 }) === 9, 'quKey: qo קודם, אחרת fired');
+  const pub = S.publicJob(Q({ qh: t0, qo: 77 }), t0);
+  ok(pub.qh === 1 && pub.qo === 77 && S.publicJob(Object.assign(Q({ qh: t0 }), { qu: undefined }), t0).qh === 0, 'publicJob: qh ו־qo — רק בתור');
+  const op = api.slice(api.indexOf("if (op === 'qctl') {"), api.indexOf("if (op === 'cancel') {"));
+  ok(/\['hold', 'run', 'top'\]\.includes\(a\)/.test(op) && /S\.quWaiting\(j, now\)/.test(op) && /limited\('qc\|' \+ uid, 60\)/.test(op), 'qctl: פעולות מוגדרות, רק מה שמחכה, מגביל קצב');
+  ok(/sid: job\.qu && job\.qh \? null : ''/.test(api), 'queueApi: מושהית בזמן ההעלאה — נשארת מושהית כשהיא נכנסת לתור');
+  ok(/if \(job\.qu && job\.qh\) continue;/.test(loop) && /S\.quKey\(a\) - S\.quKey\(b\)/.test(api), 'הלקיחה: מדלגת על מושהית, ולפי quKey');
+}
 ok(/go1\.disabled = !n \|\| n > QU_MAX/.test(st) && /export const QU_MAX = 40;/.test(st) && S.maxActive() >= 40, 'עד QU_MAX בפעם אחת (בתוך מגבלת העבודות הפעילות של השרתון)');
 // 7ב. מנהל העבודות (19/11, בקשת המשתמש): בלי "אחרונה" — מה שהסתיים ועוד לא נפתח
 {

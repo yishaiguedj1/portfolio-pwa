@@ -6,7 +6,7 @@
      test → עבודת "בדיקת חיבור" + הפעלת ה־Routine (פעם בדקה לכל היותר). בלי חיבור ל־Claude: conn_missing (not_connected = Drive)
      drive → גישה זמנית ל־Drive (שעה) להעלאה מהטלפון
      gdConfig (בלי התחברות) · gdConnect · gdStatus · gdToken · gdDisconnect → חיבור Drive של הסטודיו (v357: לקוח OAuth נפרד, studioDrive/{uid})
-     create { spec } · file { job, which: a|v, id, folder } · start { job } · jobs · job { job } · cancel { job } · remove { job }
+     create { spec } · file { job, which: a|v, id, folder } · start { job } · jobs · job { job } · cancel { job } · remove { job } · qctl { job, a: hold|run|top, all }
      resume { job } → v361: הפעלה חוזרת של עבודה שנכשלה / בוטלה / נתקעה — העובד ממשיך מנקודת השמירה האחרונה
      rules { rl } → v367: החוקים שלך (תקציב, מצב מקסימלי, אישור לפני צריבה) · halt { on } → מתג החירום: עוצר את כל הסוכנים
        (מבטל את מפתחות העבודות הפעילות, והמגדל עוצר את הסשן בבדיקה הבאה) ומשהה הפעלות עד "להחזיר"
@@ -1688,7 +1688,7 @@ async function queueApi(deps, uid, job, now) {
     if (!r.ok) return r;
     rx = r.patch;
   }
-  await patchJob(deps, job.id, Object.assign({ state: 'queued', eng: 'api', sid: '', pk: 0, vw: 0, kh: '', kx: 0, fired: now, fires: (job.fires || 0) + 1,
+  await patchJob(deps, job.id, Object.assign({ state: 'queued', eng: 'api', sid: job.qu && job.qh ? null : '', pk: 0, vw: 0, kh: '', kx: 0, fired: now, fires: (job.fires || 0) + 1,
     err: '', ed: '', warn: '', use: null, tw: null, sess: null, updated: now }, rx));
   return { ok: true };
 }
@@ -2027,7 +2027,7 @@ async function server(req, res, body, deps) {
     // poll: העבודה הוותיקה ביותר שמחכה לשרת
     // 1/11/2026: עבודת הבדיקה שאחרי עדכון (sm) — אחרי כל עבודה של משתמש (היא "רצה כשיש מקום"; לפני כן תפסה את השרת
     // והסרטון האמיתי חיכה "בתור לשרת" עד שהזיכרון התפנה)
-    const qd = (await query(deps, 'studioJobs', { state: 'queued', eng: 'api', sid: '' }, 30)).sort((a, b) => (a.sm === 1) - (b.sm === 1) || ((a.spec || {}).vi === 1) - ((b.spec || {}).vi === 1) || (a.fired || 0) - (b.fired || 0));   // 9/11/2026: ניתוח — אחרי התרגום (התרגום קודם)
+    const qd = (await query(deps, 'studioJobs', { state: 'queued', eng: 'api', sid: '' }, 30)).sort((a, b) => (a.sm === 1) - (b.sm === 1) || ((a.spec || {}).vi === 1) - ((b.spec || {}).vi === 1) || S.quKey(a) - S.quKey(b));   // 19/11/2026: quKey — "לראש התור" (qo), אחרת fired   // 9/11/2026: ניתוח — אחרי התרגום (התרגום קודם)
     // 21/10/2026: השרת כבר מריץ עבודה ושואל אם יש עוד — רק עבודה שהשיא הצפוי שלה נכנס בזיכרון שנשאר לו (fit).
     // לפי הסדר: אם הוותיקה לא נכנסת, לא מקדימים לה עבודה קטנה (אחרת עבודה ארוכה מחכה לנצח מאחורי קצרות)
     const fit = S.normFit(body.fit);
@@ -2059,6 +2059,7 @@ async function server(req, res, body, deps) {
       if (job.kind === 'lb' && hb.lb !== 1) continue;   // 16/11/2026: עבודת־העזר של המאגר — רק לעובד שמכיר אותה (עובד ישן היה מסמן worker_unknown_kind)   // 9/11/2026: ניתוח — רק לעובד שמכיר אותו (hb.vi); עובד ישן היה מריץ אותו כתרגום, עם Claude
       if (job.bw && !br.includes(job.id) && !lost.includes(job.id)) continue;   // 01/11/2026 (I3): מחכה לתור החיסכון — רק כשהסוכן אמר שהתשובות חזרו (או שהתור שלה אבד)
       if (job.vw && !((job.spec && job.spec.ph === 1 ? job.fph : job.fv) || {}).id) continue;   // 15/10/2026: מחכה לסרטון — לא תופסים שרת עד שהוא נרשם (24/10: בתרגום בטלפון — לקובץ המדידות)
+      if (job.qu && job.qh) continue;   // 19/11/2026: מושהית (בדרך כלל לא מגיעה לכאן — sid: null)
       if (await quFull(job)) continue;   // 19/11/2026: התור כבר מריץ QU_PAR — מחכה, ולא חוסם עבודות של אחרים ולא עבודות רגילות (continue, לא break)
       if (fit && (S.peakNeed(job, fit) > fit.mb || S.perfBlock(job, fit))) {   // 5/11/2026: וגם הקבלה החזויה (perfBlock)
         // 17/11/2026: למה היא מחכה — נכתב רק כשהשתנה (patchIf לא יבוא אחריו בפנייה הזו: יוצאים מהלולאה)
@@ -4708,6 +4709,26 @@ async function handler(req, res, deps = {}) {
       // לא נכנסה אליה עד השמירה הבאה, שלפעמים לא הגיעה
       if (S.FINAL.includes(st)) await learnSave(deps, Object.assign({}, job, { utl: tl }), now);
       return res.status(200).json({ ok: true });
+    }
+    if (op === 'qctl') {
+      // 19/11/2026 (בקשת המשתמש): ניהול תור העבודות מהלחיצה הארוכה — hold (השהיה), run (המשך), top (לראש התור).
+      // all — כל התור (hold/run). רק מה שעוד לא נלקח לשרת: מה שרץ ממשיך עד הסוף, בלי לפגוע בתהליך
+      const a = body.a;
+      if (!job.qu || !['hold', 'run', 'top'].includes(a) || (body.all === true && a === 'top')) return res.status(400).json({ ok: false, error: 'bad_params' });
+      if (limited('qc|' + uid, 60)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+      const mine = (await listJobs(deps, uid)).filter((j) => j.qu === job.qu);
+      const tg = (body.all === true ? mine : mine.filter((j) => j.id === job.id)).filter((j) => S.quWaiting(j, now));
+      if (!tg.length && body.all !== true) return res.status(409).json({ ok: false, error: 'state' });
+      const top = S.quTop(mine, now);
+      let n = 0;
+      for (const j of tg) {
+        const pt = S.quPatch(j, a, now, top);
+        if (!pt) continue;
+        await patchJob(deps, j.id, Object.assign(pt, { updated: now }));
+        Object.assign(j, pt); n++;
+        if (j.id === job.id) Object.assign(job, pt);
+      }
+      return res.status(200).json({ ok: true, n, job: view(job), jobs: tg.map(view) });
     }
     if (op === 'cancel') {
       await closeJobOps(deps, uid, job.id, now);
