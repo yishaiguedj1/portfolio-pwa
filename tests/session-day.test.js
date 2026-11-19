@@ -72,4 +72,5 @@ ok(/\.stock-sub \.sub-lbl \{[^}]*color: var\(--on-surface-var\)/.test(css), 'ה�
 ok(/\.stock-sub \{[^}]*grid-template-columns: minmax\(0, 1fr\)/.test(css) && /\.stock-sub > \.day-chg \{[^}]*white-space: nowrap/.test(css), 'שורות המשנה בעמודה אחת והגלולה לא נשברת (2.184.1)');
 ok(!/<span class="sub-val">[^;]*chev/.test(subSrc), 'בלי החץ ▾ ליד השווי (2.184.1)');
 ok(/'<span class="sub-val wl-ath">'/.test(subSrc) && /t\('subAthLbl'\)/.test(subSrc) && !/chev/.test(subSrc), 'מעקב: השיא במקום החץ ▾ (2.184.2)');
-ok(/subAthLbl: 'שיא'/.test(src) && /subAthLbl: 'ATH'/.test(src), 'תווית השיא בשתי השפות');
+ok(/subAthLbl: 'מהשיא'/.test(src) && /subAthLbl: 'From ATH'/.test(src), 'תווית השיא בשתי השפות');
+ok(!/wl-ath[\s\S]{0,400}fmtPx\(m\.ath\.price/.test(subSrc), 'מעקב: בלי מחיר השיא בשורה — רק "מהשיא" והאחוז (19/11)');
