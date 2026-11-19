@@ -67,8 +67,10 @@ r = C('gaap net income 100 share-based compensation 517 355 share-based compensa
 ok(r.so == null, 'שורת "related charges" ושורה למניה — לא שורות תגמול נוספות (PANW)');
 r = C('adjusted eps guidance to at least $8.20 from a range of $7.90 to $8.10. adjusted eps (2) $ 2.09 $ 1.60 at least $8.20. adjusted eps of $2.09 increased from $1.60');
 ok(r.ae === 2.09, 'הרווח המותאם — הערך השכיח, לא התחזית ולא הטווח (CVS)');
-r = C('fre per adjusted share $ 1.15 $ 1.42 ani per adjusted share $ 1.41 $ 1.78');
+r = C('fee related earnings per adjusted share of $1.15. adjusted net income per adjusted share of $1.41, up from $1.18');
 ok(r.ae === 1.41, 'מנהלות השקעות: ANI למניה מותאמת, לא FRE (KKR)');
+r = C('fre per adjusted share $ 1.15 $ 1.42 ani per adjusted share $ 1.41 $ 1.78');
+ok(r.ae == null, 'רווח מותאם רק מטקסט רץ — בטבלה העמודה והתקופה לא ודאיות (BX, APO, EMR)');
 r = C('adjusted funds from operations ( affo ) increased 3.7% to $1.12 per share. normalized ffo per share $ 1.10 $ 1.09 affo per share $ 1.12 $ 1.08. raising our 2026 affo per share guidance to $4.45-$4.46');
 ok(r.af === 1.12 && r.ae == null, 'AFFO למניה (Realty Income) — לא התחזית');
 r = C('affo attributable to amt common stockholders per share $ 2.87 3.2 %');
@@ -367,6 +369,8 @@ ok(!X.classify(EMR.replace('(dollars in millions, unaudited)', '')).ex, 'בלי 
   ok(A.bufCalc(co).nAe === 0, 'הפרש קטן (פחות מ־3% או מ־0.03$) — הרחוב של Yahoo נשאר');
   co = mk({ hist: hist(1), sbcX: last4.map((i) => w2x(relX(q[i], 1, 0.21, null), { 7: q[i], 16: +((Q.eps[i] + 1) * 5).toFixed(2) })) });
   ok(A.bufCalc(co).nAe === 0, 'יחס של פיצול מניות (פי 5) — לא מחליפים');
+  co = mk({ hist: hist(0), sbcX: last4.map((i, j) => w2x(relX(q[i], 1, 0.21, null), { 7: q[i], 16: +(j === 1 ? (Q.eps[i] + 0.5) * 3 : Q.eps[i] + 0.5).toFixed(2) })) });
+  ok(A.bufCalc(co).nAe === 0, 'רבעון אחד שונה מההנהלה ולא הוחלף — לא מחליפים אף רבעון (Uber, הכל או כלום)');
   // רווחי השקעות ברחוב (Alphabet): הרחוב = GAAP והחברה מפרסמת את ההשפעה למניה → GAAP פחות ההשפעה; הרחוב כבר בלעדיהם (GOOG) — לא נוגעים
   co = mk({ hist: hist(0), sbcX: last4.map((i) => w2x(relX(q[i], 0, 0.21, null), { 7: q[i], 18: 0.4 })) });
   b = A.bufCalc(co);

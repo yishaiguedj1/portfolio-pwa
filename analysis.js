@@ -347,7 +347,9 @@ function rowAt(co, i, rel, am, row) {
   if (x == null) return null;
   if (same) return x * am.m;
   // בלי יחידות בטבלה ועם נקודה עשרונית — שורה למניה (ADBE "acquisition-related expenses 0.04"); עם יחידות — מיליונים (PANW ‏7.3)
-  if (!rel[13] && row.some((v) => v % 1 !== 0) && row.every((v) => Math.abs(v) < 20)) return sh > 0 ? x * sh : null;
+  // שורה שמערבבת שלמים ועשרוניים (HON — טבלה אופקית: לפני מס, אחרי מס, למניה) — לא ידוע
+  const nz = row.filter((v) => v !== 0);
+  if (!rel[13] && nz.some((v) => v % 1 !== 0)) return nz.every((v) => v % 1 !== 0 && Math.abs(v) < 20) && sh > 0 ? x * sh : null;
   const m = rel[13] || (am && !rel[6] && [1e6, 1e3, 1].includes(am.m) ? am.m : 0);
   return m ? x * m : null;
 }
@@ -412,14 +414,18 @@ function bufCalc(co) {
     // ההודעה (הניכוי הופך בדיוק את מה שהחברה הוציאה, אז הבסיס הוא המספר שלה). בלי יחס של פיצול ובתחום פי 0.4–2.5
     let st = reit ? rel[17] : hq.a, rep = reit ? 'af' : null;
     const ae = own ? rel[16] : null;
-    if (!reit && ae != null && Math.abs(st - ae) > Math.max(0.03, 0.03 * Math.abs(ae)) && st * ae > 0 && ae / st >= 0.4 && ae / st <= 2.5 && !splitLike(ae / st)) { st = ae; rep = 'ae'; }
+    const aeD = !reit && ae != null && Math.abs(st - ae) > Math.max(0.03, 0.03 * Math.abs(ae));
+    if (aeD && st * ae > 0 && ae / st >= 0.4 && ae / st <= 2.5 && !splitLike(ae / st)) { st = ae; rep = 'ae'; }
     // רווחי השקעות ברחוב (§13.14, ‏Alphabet): כשהחברה מפרסמת את השפעתם למניה (ig) והרחוב קרוב יותר ל־GAAP מאשר ל־GAAP בלעדיהם —
     // הרחוב = GAAP פחות ההשפעה. באפט: רווחי השקעות, ממומשים ולא ממומשים, אינם רווח העסק
     const ig = own && !reit ? rel[18] : null;
     if (ig != null && ig !== 0 && rep == null && Math.abs(st - gi) <= Math.abs(st - (gi - ig))) { st = gi - ig; rep = 'ig'; }
     rows.push({ s: st, s0: reit ? null : hq.a, rep, g: gi, sb: amv * (1 - tau.t) / ns, pre: amv / ns, pol: rel ? (rel[1] ? 1 : 0) : null, t: tau.t, ts: tau.s, as: am.s, oth: !!am.oth && !(so > 0),
-      so: so * (1 - tau.t) / ns, ra: w2.raAvg * (1 - tau.t) / ns, rx: own && Array.isArray(rel[12]), amz: amz > 0 ? amz * (1 - 0.21) / sh : 0 });
+      so: so * (1 - tau.t) / ns, ra: w2.raAvg * (1 - tau.t) / ns, rx: own && Array.isArray(rel[12]), amz: amz > 0 ? amz * (1 - 0.21) / sh : 0, aeX: aeD && rep !== 'ae' });
   }
+  // החלפה בהנהלה — הכל או כלום (Uber: ‏0.81 מול 1.17 הוחלף, ו־0.88 מול 0.25 לא — חלון מעורב של שני מדדים): רבעון אחד שהמספר שלו שונה
+  // מההנהלה ולא הוחלף → מחזירים את כולם ל־Yahoo
+  if (rows.some((r) => r.aeX) && rows.some((r) => r.rep === 'ae')) for (const r of rows) if (r.rep === 'ae') { r.s = r.s0; r.rep = null; }
   const yGaap = !reit && rows.filter((r) => Math.abs(r.s - r.g) <= Math.max(0.02, 0.02 * Math.abs(r.s))).length >= 3;
   // סדרה מעורבת של Yahoo (B-028; TPG: ‏0.29 ו־0.39 = GAAP, ו־‎−0.05 ו־0.65 — לא GAAP ולא המדד של ההודעה): בדיוק שני רבעונים = GAAP, ובאחר
   // החברה מוציאה את התגמול — אין על מה לנכות (לא ידוע מה הרחוב), אין אריח
