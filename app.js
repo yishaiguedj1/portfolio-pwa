@@ -1074,6 +1074,7 @@ he: {
   anBSbcSD: 'אחרי מס {t}, השיעור הפדרלי',
   anBSbcSR: 'ריט — בלי מגן מס',
   anBSbcSB: 'לפני מס — המס של החברה כבר כולל את הטבת המס על התגמול',
+  anBPart: 'החברה הוציאה מהרווח המותאם רק חלק מהתגמול במניות, ורק אותו מורידים כאן. השאר כבר כלול ברווח.',
   anBOth: 'בדוחות התגמול במניות גדול יותר: חלק ממנו רשום בגישור בשורות אחרות (רכישות, ארגון מחדש), ולא הורד כאן.',
   anBFwd: 'רווח צפוי ל־{y}',
   anBFwd0: 'רווח צפוי',
@@ -3042,6 +3043,7 @@ en: {
   anBSbcSD: 'After tax {t}, the US federal rate',
   anBSbcSR: 'A REIT — no tax shield',
   anBSbcSB: 'Pre-tax — the company’s tax already includes the tax benefit of this compensation',
+  anBPart: 'The company excluded only part of its stock-based pay from adjusted earnings, so only that part is deducted here. The rest is already in the earnings.',
   anBOth: 'The filings show more stock-based pay: part of it sits in other reconciliation lines (acquisitions, restructuring) and isn’t deducted here.',
   anBFwd: 'Expected profit for {y}',
   anBFwd0: 'Expected profit',
@@ -8319,8 +8321,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.190.0';
-const APP_VERSION = 'v854';
+const APP_RELEASE = '2.190.1';
+const APP_VERSION = 'v855';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
