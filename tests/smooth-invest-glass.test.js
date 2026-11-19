@@ -38,6 +38,7 @@ ok(scrollers.length >= 4, 'נמצאו השורות הנגללות ב־styles.css
 const hs = app.match(/const HS_ROWS = '([^']*)'/);
 ok(hs && hr && hs[1] === 'main .tabpage :is(' + hr[1] + '):not(.stock-chips)', 'HS_ROWS ב־app.js = הבורר ב־styles.css');
 ok(/try \{ initHScroll\(\); \} catch/.test(app), 'initHScroll נקרא באתחול');
+ok(/function initHScroll\(\)[\s\S]{0,1400}classList\.contains\('drag-active'\)\) \{ s = null; return; \}/.test(app), 'גרירת טאב רשימה (drag-active) — השורה לא נגללת עם האצבע (19/11/2026)');
 ok((app.match(/\|\| (?:\(typeof hsRow === 'function' && )?hsRow\((el|n)\)/g) || []).length >= 3, 'החלקת הלשוניות (שני המנועים) וגלגלת המחשב מכירות את השורות');
 const fl = app.match(/function hsFling\(v, dt\) \{[^}]*\}/);
 const hsFling = fl && new Function(fl[0] + '; return hsFling;')();
