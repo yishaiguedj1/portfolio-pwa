@@ -111,7 +111,16 @@
     - **סכום חלקי** (`PART`, השדה `pp`, ‏r[11] אצל הלקוח): "includes $61 million, $46 million net of tax, related to certain share-based compensation". כשאין עדות מלאה (E/P) — מוציא, ו־`sa` = הסכום לפני מס בדולרים. ‏`sbcAmt` לוקח אותו כמו שהוא (`'pp'`), בלי התאמה ל־XBRL, כי הוא חלק קטן ממנו. הערה מתחת לחישוב: `anBPart`.
     - סכום מעורב ("$123 million … of other adjustments, which includes a gain … and certain share-based compensation", ‏CMCSA ‏4/2026) — לא עדות, והרבעון בלי ניכוי. זו הערכת חסר קטנה (כ־0.01$ למניה), ולא מנחשים.
   - **B-036** ‏(CRWV): ‏"adjusted net loss" ב־`TGT` (`net loss` לצד `net (loss) income`). אין ל־CRWV היסטוריית רחוב ב־Yahoo, ולכן אין לה אריח היום.
-  - על 192 ההודעות במטמון רק DGX, ‏CMCSA ו־CRWV משתנות. ב־31 החברות של ה־QA המכפיל זהה, חוץ מ־DGX ‏(24.9←23.5, הרחוב כולו) ו־CMCSA ‏(7.2←6.8, ניכוי 0.03 במקום 0.22).
+- **גרסה 5 (19/11/2026, ‏B-037 ו־B-038)**:
+  - **B-037** ‏(ED): שורת גורם שינוי ב־EPS ("lower stock based compensation 13 0.04" בטבלת "variation of reported eps and adjusted eps") — זהה ב־GAAP ובמותאם, לא הוצאה. ‏lower/higher/increased/decreased/reduced ב־`SKIP_PRE`. היום אין לזה השפעה על האריח.
+  - **B-038** ‏(EMR): ‏"adjusted stock compensation (non-gaap)" הוא מדד של התגמול עצמו (בלי חלק השילוב של AspenTech), לא יעד. "adjusted" ו־"integration-related" ב־`SKIP_PRE`, ו־"compensation (gaap)/(non-gaap)" ב־`SKIP_POST`.
+    - **השורש:** כל אזכור בטבלה הזו מצא יעד ("adjusted earnings per share excludes…" בהגדרות) יותר מ־1,000 תווים אחריו.
+    - **חלק השילוב בטבלה** (`PARTT`): ‏"integration-related stock compensation expense 9 1 4" — סכום חלקי (`pp`). הרבעון הנוכחי נקבע לפי סדר השנים בכותרת שלפני השורה: "2025 2026" — האחרון, ‏"2026 2025" — הראשון. כך הערת שוליים באמצע לא משנה. היחידות נלקחות מ־"in millions/thousands" לפני הטבלה, ובלי יחידות — אין סכום.
+    - ב־EMR זה 4 מיליון $ ברבעון מתוך כ־55–68. המכפיל 25.6←24.7, הניכוי 0.02 במקום 0.25.
+  - **כמה הודעות השרת שומר** (שאלת בדיקת העומק): בשרת החי (19/11) יש 5 הודעות לכל חברה (EMR, ‏DGX, ‏CMCSA, ‏AAPL, ‏MSFT, ‏ED). ‏`pick` לוקח עד `MAX`=6 מ־460 הימים האחרונים.
+    - בבקשה (`op:'fund'`) נקראות עד `SX_LIVE`=2 הודעות. השאר נקראות בעבודת הרקע (`fillAll` → `fillSx`, עד 6).
+    - צילום עם 2 הודעות בלבד הוא מלפני שעבודת הרקע הגיעה לחברה. אחרי העלאת `SV` חברה נקראת מחדש רק אחרי ש־`at` שלה ישן מ־20 שעות (`FRESH`). עד אז הלקוח מקבל את הרשומות הקודמות.
+  - גרסאות 4 ו־5 יחד: על 203 ההודעות במטמון רק DGX, ‏CMCSA, ‏CRWV, ‏ED ו־EMR משתנות. ב־31 החברות של ה־QA המכפיל זהה, חוץ מ־DGX ‏(24.9←23.5, הרחוב כולו) ו־CMCSA ‏(7.2←6.8, ניכוי 0.03 במקום 0.22).
 - **גרסה**: `SV` — שינוי בכללים = מספר חדש, ואז כל ההודעות נקראות מחדש בעבודת הרקע.
 
 ## 4. השמירה וההגעה ללקוח
