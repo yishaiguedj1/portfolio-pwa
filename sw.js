@@ -4,7 +4,7 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v860';
+const CACHE_NAME = 'portfolio-pwa-v861';
 const HASHES = {
   "./": "293e00139ef7e6f49fe967d68af217ac",
   "./index.html": "293e00139ef7e6f49fe967d68af217ac",
@@ -14,7 +14,7 @@ const HASHES = {
   "./academy-glass.css": "689d316e8872779cdf9808f3cf285272",
   "./studio-glass.css": "d54e6727b159ff068609af08418f51a8",
   "./desktop.css": "22dcb3bea6e645027d3146b31d66712a",
-  "./app.js": "68a6108f6b3533e2e3d0c26de833bd6e",
+  "./app.js": "5fec330a33acb8e6eb04fcab62791d70",
   "./returns.js": "afe0d262348852fd10982ef2d0239545",
   "./cloud.js": "d403f6c76884375dc9999b80660f1ddf",
   "./firebase-config.js": "a4adfadcd5fe3b79a29e9fa0eeb94df0",
@@ -80,7 +80,7 @@ const HASHES = {
   "./academy.html": "9c6de2f5fd2634d07d9c0e0a6dc9ebe7",
   "./academy-app.js": "8f943cfa4b1bbb60bc8d83d4304d9978",
   "./strings-academy.js": "153bc044ffa59bd8c9c0b4cdb9080438",
-  "./core.js": "97651bfdfe6cab4b1cc8289c43e533a6",
+  "./core.js": "1c995c37e443266ba1e6d808abb763bc",
   "./auth.js": "465d3bc983806d8a2f462e567725df21",
   "./shell.js": "568d54e3e8ef15bf5ebba098dabcab24",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -89,7 +89,7 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "5adf67f5d3053c3df90e90d4c6a42335",
+  "./studio.js": "61f73d7f6fb0a2dc9a3a18cd23978e2a",
   "./studio.css": "344bbc2e22e588d07d9697936a40c46e",
   "./studionet.js": "204b0f8988e2ab721e8c3a4e5eacec13",
   "./studioplay.js": "15609fe2c3eb0a9364ed585642a8bfaa",

@@ -3495,7 +3495,7 @@ export const QU_MAX = 40;   // עבודות בתור בפעם אחת (בתוך M
 const quPend = new Set();    // עבודות מהתור שמחכות להעלאה שלהן (בזיכרון — אחרי רענון: "בחר שוב", כמו כל העלאה שנקטעה)
 const quRunning = (qu) => store.jobs.filter((r) => r.spec && r.spec.qu === qu && r.srv && r.srv.state === 'running').length;
 let qf = null;              // הטופס של התור (בזיכרון בלבד — הקבצים לא נשמרים): { qu, qn, files, tr, vi, ka }
-const quOk = () => apiMode() && !!ui.r2;
+const quOk = () => !!(ui.api && ui.api.servers > 0 && ui.r2);   // 19/11/2026 (2.192.1, צילום המשתמש: אין כרטיס): יש שרת ו־R2 — בלי תלות במנוע שבהגדרות (עד היום רק apiMode, ו"המנוי שלי" הסתיר את התור)
 /* מה נוצר לכל סרטון. ניתוח + תרגום = ניתוח עם "גם תרגום" (vt) — העלאה ותמלול אחד, והתרגום נוצר בשרת באותו תור */
 export function quKinds(q, vtCan) {
   const k = [];
@@ -3613,7 +3613,7 @@ function quUsd(q, ks) {   // אומדן: תרגום (startEstimate) + ניתוח
   for (const m of q.files) {
     const d = m.dur || 3600;
     for (const k of ks) {
-      if (k === 'tr' || k === 'vt') t += startEstimate(mode, d, curNorm(), ui.api, true).usd;
+      if (k === 'vt' || (k === 'tr' && !ryMode())) t += startEstimate(mode, d, curNorm(), ui.api, true).usd;   // "המנוי שלי" — התרגום בלי עלות API
       if (k === 'vi' || k === 'vt') t += viUsd(mode, 'auto', d);
     }
   }
@@ -3624,6 +3624,7 @@ function quSpec(k, m, q) {
   const ff = Object.assign(freshForm(null), { fileObj: m.fileObj, file: m.file, dur: m.dur || 0 });
   const spec = { name: m.file.name, size: m.file.size, type: m.file.type || '', dur: m.dur || 0, from: ff.from, to: ff.to, mode: modeFor(ff.mode, ui.mf),
     out: OUTS.filter((x) => ff.out[x]), style: ff.style, terms: '', eng: 'api', cap: store.settings.cap, qu: q.qu };
+  if (ryMode()) spec.ry = 1;   // "המנוי שלי" — התרגום דרך ה־Routine שלך (ניתוח וקריוקי מוחקים ry — kaSpec/viSpecOf); העתק־הדבק לא מתאים לתור — השרת של המערכת
   const qn = String(q.qn || '').trim().slice(0, 60);
   if (qn) spec.qn = qn;
   if (k === 'ka') { ff.ka = true; kaSpec(ff, spec); }
