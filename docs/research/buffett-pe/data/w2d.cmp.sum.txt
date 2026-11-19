@@ -1,0 +1,82 @@
+גל 2 — השוואת הקוראים (w2d). הודעות ברשימות: 372
+קורא A: 372 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+קורא B: 372 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+קורא C: 5 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+
+הסכמה A מול B לכל שדה (מתוך הודעות ששניהם קראו):
+  er           372/372   100.0%
+  pre          367/372    98.7%
+  adj          372/372   100.0%
+  ex           372/372   100.0%
+  partial      372/372   100.0%
+  chg          372/372   100.0%
+  fut          372/372   100.0%
+  pol          372/372   100.0%
+  pe           245/245   100.0%
+  eps_gaap     245/245   100.0%
+  eps_adj      245/245   100.0%
+  sbc_rec      240/245    98.0%
+  tax_adj      234/245    95.5%
+  tax_sbc      245/245   100.0%
+  sbc_total    230/245    93.9%
+  sbc_rec_ps   235/245    95.9%
+  tax_adj_ps   214/245    87.3%
+  sh_dil       245/245   100.0%
+  sh_adj       245/245   100.0%
+  הערות: ex:no-adj=5, fut:no-adj=3, sbc_rec:scale=5, sbc_rec_ps:has-total=10, sbc_total:scale=10, sh_adj:swap=4, sh_dil:swap=1, tax_adj:scale=11
+
+מחלוקות בשדות החמים (er,adj,ex,fut,chg,pol / pe,eps_gaap,eps_adj,sbc_rec,sbc_rec_ps,sh_dil): 5 הודעות (ממתינות לקורא C: 0)
+  לפי שדה: sbc_rec=5
+  ללא הכרעה גם אחרי C (SPLIT): 4
+
+מטריצות בלבול — הקונצנזוס של הקוראים מול secsbc.classify (sys_c = 2 הנספחים שהשרת קורא; sys_all = כל הנספחים)
+er (הודעת תוצאות):
+  קוראים\מערכת    False     True
+  False             115       12
+  True                0      245
+ex (כפי שנקרא: True / False / partial / None) — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             170        1
+  None               22        0
+  True                0       35
+  partial            13        4
+pol (מוציא? בלי רווח מותאם = False) — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             205        5
+  True                0       35
+pol — בהודעות תוצאות, כל הנספחים:
+  קוראים\מערכת    False     True
+  False             205        5
+  True                0       35
+pol — רק ההודעות שהשרת בוחר (picked):
+  קוראים\מערכת    False     True
+  False             192        4
+  True                0       30
+fut — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             183        5
+  None               22        0
+  True                0       35
+
+אי־התאמות pol (קונצנזוס מול sys_c), הודעות תוצאות:
+  ED     0001047862-25-000139 2025-11-06 picked=True cons=False sys=True h=-E
+  EMR    0000032604-25-000079 2025-11-05 picked=False cons=partial sys=True h=c---------EE----
+  EMR    0000032604-26-000006 2026-02-03 picked=True cons=partial sys=True h=c----EEE
+  EMR    0000032604-26-000034 2026-05-05 picked=True cons=partial sys=True h=c----EEE-
+  EMR    0000032604-26-000042 2026-08-04 picked=True cons=partial sys=True h=c-----EEE-
+אי־התאמות er:
+  ECL    0001104659-26-032446 2026-03-20 picked=True cons=False sys=True
+  EMR    0000032604-26-000047 2026-10-13 picked=True cons=False sys=True
+  ES     0001104659-25-098981 2025-10-14 picked=False cons=False sys=True
+  ES     0001104659-26-079426 2026-07-01 picked=True cons=False sys=True
+  EXPD   0001193125-26-466274 2026-11-18 picked=True cons=False sys=True
+  FANG   0001539838-26-000070 2026-04-13 picked=True cons=False sys=True
+  FANG   0001539838-26-000134 2026-07-13 picked=True cons=False sys=True
+  FANG   0001539838-26-000177 2026-10-08 picked=True cons=False sys=True
+  FDX    0001048911-26-000108 2026-07-21 picked=True cons=False sys=True
+  FDX    0001048911-26-000126 2026-10-28 picked=True cons=False sys=True
+  FDXF   0001628280-26-045515 2026-06-25 picked=True cons=False sys=True
+  FDXF   0001628280-26-054314 2026-08-06 picked=True cons=False sys=True
+לא ברור (pol=None בקונצנזוס) בהודעות תוצאות: 
+חלקי (partial): EL:0001001250-25-000097, EMR:0000032604-25-000079, EMR:0000032604-26-000006, EMR:0000032604-26-000034, EMR:0000032604-26-000042, EMR:0000032604-26-000049, EXR:0001289490-26-000007, FDS:0001628280-26-022203, FDS:0001628280-26-046338, FDS:0001628280-26-063888, FISV:0000798354-25-000168, FISV:0000798354-26-000006, FIS:0001136893-25-000125, FIS:0001136893-26-000009, FISV:0000798354-26-000014, FISV:0000798354-26-000028, FISV:0000798354-26-000039
+שינוי מדיניות (chg≠none): 
