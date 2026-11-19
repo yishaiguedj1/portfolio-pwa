@@ -8,7 +8,7 @@
 export const meta = {
   name: 'buffett-reader',
   description: 'גל 2 — קורא בלתי תלוי אחד (A, B או C) על ההודעות לעיתונות, לפי הרובריקה',
-  phases: [{ title: 'קריאה', detail: 'סוכן אחד לכל קבוצה של הודעות (עד ~170 אלף תווים)' }],
+  phases: [{ title: 'קריאה', detail: 'סוכן אחד לכל קבוצה של הודעות (עד ~350 אלף תווים)' }],
 }
 const SCHEMA = {
   type: 'object',

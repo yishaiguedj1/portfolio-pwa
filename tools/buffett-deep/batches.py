@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """גל 2 — חלוקת ההודעות לעיתונות לקבוצות לקוראים (בדיקת העומק של מכפיל באפט, docs/buffett-pe-audit.md).
 
-שימוש: python3 -I tools/buffett-deep/batches.py <BD> <wave> <start> <count> [max_chars=170000] [big=300000]
+שימוש: python3 -I tools/buffett-deep/batches.py <BD> <wave> <start> <count> [max_chars=350000] [big=300000]
   <BD>     — תיקיית העבודה (pr/<cik>.json מ־prfetch.js, ‏prt/<cik>/<acc>.txt מ־prtext.py)
   <wave>   — שם הגל (w2, ‏w2b…); הפלט: <BD>/read/<wave>/batches/bNN.txt ו־batches.json
   <start> <count> — טווח החברות לפי סדר אלפביתי של הסימול (0 50 = 50 הראשונות; 50 50 = הבאות)
@@ -73,7 +73,7 @@ def pack(comps, max_chars, big):
 
 def main():
     bd, wave, start, count = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
-    max_chars = int(sys.argv[5]) if len(sys.argv) > 5 else 170000
+    max_chars = int(sys.argv[5]) if len(sys.argv) > 5 else 350000
     big = int(sys.argv[6]) if len(sys.argv) > 6 else 300000
     comps = universe(bd)[start:start + count]
     out = os.path.join(bd, 'read', wave)

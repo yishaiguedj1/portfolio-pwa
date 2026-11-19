@@ -1,0 +1,93 @@
+גל 2 — השוואת הקוראים (w2e). הודעות ברשימות: 260
+קורא A: 260 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+קורא B: 260 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+קורא C: 8 שורות · חסרות 0 · עודפות 0 · פגומות/כפולות 0
+
+הסכמה A מול B לכל שדה (מתוך הודעות ששניהם קראו):
+  er           260/260   100.0%
+  pre          259/260    99.6%
+  adj          259/260    99.6%
+  ex           254/260    97.7%
+  partial      256/260    98.5%
+  chg          260/260   100.0%
+  fut          258/260    99.2%
+  pol          259/260    99.6%
+  pe           253/253   100.0%
+  eps_gaap     253/253   100.0%
+  eps_adj      253/253   100.0%
+  sbc_rec      251/253    99.2%
+  tax_adj      249/253    98.4%
+  tax_sbc      253/253   100.0%
+  sbc_total    252/253    99.6%
+  sbc_rec_ps   250/253    98.8%
+  tax_adj_ps   229/253    90.5%
+  sh_dil       253/253   100.0%
+  sh_adj       253/253   100.0%
+  הערות: ex:no-adj=2, fut:no-adj=2, sbc_rec_ps:has-total=3, sbc_total:scale=1, sh_adj:swap=13
+
+מחלוקות בשדות החמים (er,adj,ex,fut,chg,pol / pe,eps_gaap,eps_adj,sbc_rec,sbc_rec_ps,sh_dil): 8 הודעות (ממתינות לקורא C: 0)
+  לפי שדה: ex=6, fut=2, sbc_rec=2, pol=1, adj=1
+  ללא הכרעה גם אחרי C (SPLIT): 0
+
+מטריצות בלבול — הקונצנזוס של הקוראים מול secsbc.classify (sys_c = 2 הנספחים שהשרת קורא; sys_all = כל הנספחים)
+er (הודעת תוצאות):
+  קוראים\מערכת    False     True
+  False               2        5
+  True                0      253
+ex (כפי שנקרא: True / False / partial / None) — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             165        7
+  None               39        0
+  True               13       12
+  partial            17        0
+pol (מוציא? בלי רווח מותאם = False) — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             220        7
+  None                1        0
+  True               13       12
+pol — בהודעות תוצאות, כל הנספחים:
+  קוראים\מערכת    False     True
+  False             220        7
+  None                1        0
+  True               13       12
+pol — רק ההודעות שהשרת בוחר (picked):
+  קוראים\מערכת    False     True
+  False             216        7
+  None                1        0
+  True               13       12
+fut — בהודעות תוצאות:
+  קוראים\מערכת    False     True
+  False             182        7
+  None               39        0
+  True               13       12
+
+אי־התאמות pol (קונצנזוס מול sys_c), הודעות תוצאות:
+  GEN    0000849399-25-000087 2025-11-06 picked=True cons=True sys=False h=c------
+  GEN    0000849399-26-000002 2026-02-05 picked=True cons=True sys=False h=c------
+  GEN    0000849399-26-000014 2026-05-07 picked=True cons=True sys=False h=c------
+  GEN    0000849399-26-000081 2026-10-28 picked=True cons=True sys=False h=c------
+  HONA   0002089271-26-000020 2026-08-05 picked=True cons=False sys=True h=c---P-
+  HONA   0002089271-26-000031 2026-10-28 picked=True cons=False sys=True h=c---P
+  HST    0001070750-26-000038 2026-02-18 picked=True cons=True sys=False h=----------
+  HST    0001070750-26-000077 2026-05-06 picked=True cons=True sys=False h=------------
+  HST    0001070750-26-000122 2026-08-05 picked=True cons=True sys=False h=---------
+  HST    0001070750-26-000152 2026-11-04 picked=True cons=True sys=False h=---------
+  IDXX   0001104659-25-105185 2025-11-03 picked=True cons=False sys=True h=xx---xPP----
+  IDXX   0001104659-26-008904 2026-02-02 picked=True cons=False sys=True h=xxx---xPP----
+  IDXX   0001104659-26-055203 2026-05-05 picked=True cons=False sys=True h=xx---xPP----
+  IDXX   0001104659-26-090033 2026-08-04 picked=True cons=False sys=True h=x-x---xPP----
+  IDXX   0001104659-26-120892 2026-11-02 picked=True cons=False sys=True h=xx---xPP---
+  INCY   0000879169-25-000115 2025-10-28 picked=True cons=True sys=False h=--------
+  INCY   0000879169-26-000006 2026-02-10 picked=True cons=True sys=False h=-------
+  INCY   0000879169-26-000023 2026-04-28 picked=True cons=True sys=False h=-------
+  INCY   0000879169-26-000053 2026-07-28 picked=True cons=True sys=False h=-----------
+  INCY   0000879169-26-000063 2026-10-29 picked=True cons=True sys=False h=-----------
+אי־התאמות er:
+  GEHC   0001932393-26-000039 2026-07-23 picked=True cons=False sys=True
+  GS     0000886982-26-000004 2026-01-08 picked=True cons=False sys=True
+  HON    0000773840-26-000084 2026-06-29 picked=True cons=False sys=True
+  HPE    0001645590-25-000111 2025-10-15 picked=True cons=False sys=True
+  HRL    0000048465-25-000047 2025-10-29 picked=True cons=False sys=True
+לא ברור (pol=None בקונצנזוס) בהודעות תוצאות: HRL:0000048465-26-000013
+חלקי (partial): FTV:0001659166-25-000129, FTV:0001659166-26-000003, FTV:0001659166-26-000039, GEHC:0001932393-25-000052, GEHC:0001932393-26-000006, GEHC:0001932393-26-000030, GEHC:0001932393-26-000045, GEHC:0001932393-26-000058, HOOD:0001783879-26-000164, HOOD:0001783879-26-000170, HPQ:0000047217-26-000027, HPQ:0000047217-26-000048, HRL:0000048465-26-000018, HRL:0000048465-26-000024, HRL:0000048465-26-000053, IFF:0000051253-25-000047, IFF:0000051253-26-000003
+שינוי מדיניות (chg≠none): GPN:0001123360-25-000075:now, GPN:0001123360-26-000004:now, HST:0001070750-25-000164:now, HST:0001070750-26-000038:now
