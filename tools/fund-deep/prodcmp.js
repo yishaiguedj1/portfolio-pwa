@@ -6,7 +6,8 @@
 // גל 8: ‏--keys — כל מדד ברבעונים (ברירת מחדל: החוב). דף הרווח והפסד של כל 10-Q (F20 ברבעונים, F29, ‏F33) מגיע לייצור רק דרך
 // עבודת הרקע — כך רואים לכל חברה אם הסבב בשרת כבר הגיע אליה (bsf) או שעוד לא (face). השורות: [סימבול, מסלול, a, b, both, none, מדד]
 // גל 8: ‏--xb — כמו בשרתון: ההגשות שעוד לא ב־companyfacts (`secxbrl.patchFacts`, מטמון ב־<w>/xbraw; בלי זה רבעון אחרון שקיים רק
-// בייצור נספר none), וה־CIK הקודם (CIK_PREV); רבעון שהשרתון מילא מ־Yahoo (`qfill`) — לא משווים. עלות מכר ורווח גולמי בחברה עם זרוע מימון (gpx 'fin') — מ־Yahoo בשרתון, לא משווים.
+// בייצור נספר none); רבעון שהשרתון מילא מ־Yahoo (`qfill`) — לא משווים. עלות מכר ורווח גולמי בחברה עם זרוע מימון (gpx 'fin') — מ־Yahoo בשרתון, לא משווים.
+// תמיד (לא רק ב־‏--xb): ה־CIK הקודם (CIK_PREV) — העובדות, והדוח השנתי כשלישות החדשה אין עדיין (גל 8: XOM — 45 רבעונים ב־none בלי זה).
 'use strict';
 const fs = require('fs'), zlib = require('zlib'), path = require('path');
 const AR = process.argv.slice(2), opt = (k, d) => { const i = AR.indexOf('--' + k); return i < 0 ? d : AR[i + 1]; };
@@ -34,14 +35,16 @@ for (const [sym, c] of rows) {
   if (!fs.existsSync(bf)) { T.nobsf = (T.nobsf || 0) + 1; continue; }
   const d = JSON.parse(fs.readFileSync(dp)), gz = (f) => JSON.parse(zlib.gunzipSync(fs.readFileSync(f)));
   let facts = gz(cf);
+  // הישות הקודמת (CIK_PREV) — תמיד, כמו בשרתון (גל 8: בלי זה XOM — 45 רבעונים ב־none)
+  const pv = F.CIK_PREV && F.CIK_PREV[cik], pf = pv && path.join(W, 'debt', pv + '.cf.json.gz');
+  if (pf && fs.existsSync(pf)) facts = F.mergeFacts(gz(pf), facts);
   if (XB) {
-    const pv = F.CIK_PREV && F.CIK_PREV[cik], pf = pv && path.join(W, 'debt', pv + '.cf.json.gz');
-    if (pf && fs.existsSync(pf)) facts = F.mergeFacts(gz(pf), facts);
     const sf = path.join(W, 'debt', cik + '.sub.json.gz');
     if (fs.existsSync(sf)) facts = (await require(path.join(path.dirname(path.resolve(FS)), 'secxbrl')).patchFacts(facts, gz(sf), cik, { merge: F.mergeFacts,
       getText: net, getJson: async (u) => JSON.parse(await net(u)) }).catch(() => ({ facts }))).facts;
   }
-  const ff = path.join(W, 'debt', cik + '.face.json'), f0 = fs.existsSync(ff) ? JSON.parse(fs.readFileSync(ff)) : null, face = f0 && !f0.err ? f0 : null;
+  const rf = (k) => { const ff = path.join(W, 'debt', k + '.face.json'), f0 = fs.existsSync(ff) ? JSON.parse(fs.readFileSync(ff)) : null; return f0 && !f0.err ? f0 : null; };
+  const face = rf(cik) || (pv ? rf(pv) : null); // כמו בשרתון: בלי דוח שנתי לישות החדשה — הדוח של הקודמת
   let a, b; try { a = F.normalizeSec(facts, [], face, JSON.parse(fs.readFileSync(bf))); b = F.normalizeSec(facts, [], face, null); } catch (e) { continue; }
   if (!a || !b) continue;
   for (const key of KEYS) {
