@@ -19,7 +19,8 @@
 --bsf (גל 6): כשב־FSDS אין הכרעה (neither / nofsds) — פסק דין שני מדפי ה־R עצמם (<w>/bsf, ‏bsf.js): ה־10-K האחרון שמדפיס את
 השנה בדוח של המדד (עמודה של 12 חודשים, עד 7 ימים), כל השורות בכל תגית. פסקי הדין: better-r / worse-r / both-r / neither-r / nor
 (אין דף). למה: FSDS לא שומר שורה עם מימד (PACCAR — ‏"Truck, Parts and Other"; ‏D.R. Horton — מגזר), חלק מההגשות בו חלקיות
-(YUM ‏2018: ‏151 ערכים), ולפני 2014 אין בו כלום; הדף המודפס הוא האמת שהמשתמש היה רואה. רק שנתי, ורק רווח והפסד ותזרים.
+(YUM ‏2018: ‏151 ערכים), ולפני 2014 אין בו כלום; הדף המודפס הוא האמת שהמשתמש היה רואה. רק רווח והפסד ותזרים. גל 7: גם ברבעונים — ההגשה האחרונה
+(10-Q, או 10-K שמדפיס עמודות של 3 חודשים) שמדפיסה את הרבעון.
 """
 import argparse
 import datetime as dt
@@ -29,37 +30,48 @@ import subprocess
 from collections import Counter
 import sqlite3
 
-def bsf_printed(w, c, st, end, cache):
-    """כל הערכים (מוחלטים) שה־10-K האחרון שמדפיס את השנה `end` מדפיס בדף `st` ('is'/'cf') בעמודה של 12 חודשים. None — אין דף"""
+def bsf_pages(w, c, st, end, cache, months=12):
+    """[(הגשה, ערכים)] — כל ההגשות שמדפיסות את התקופה `end` בדף `st` ('is'/'cf') בעמודה של `months` חודשים (עד 7 ימים), מהחדשה.
+    12 — רק 10-K; ‏3 (גל 7) — 10-Q, או 10-K שמדפיס עמודות של 3 חודשים. הערכים — מוחלטים, בכל השורות"""
     if c not in cache:
         f = os.path.join(w, 'bsf', '%010d.json' % c)
         cache[c] = json.load(open(f, encoding='utf-8')) if os.path.exists(f) else {}
     h = cache[c]
     h = h.get('f', h) if isinstance(h, dict) else {}
     e0 = dt.date.fromisoformat(end)
-    best = None
+    pages = []
     for x in h.values():
-        if not isinstance(x, dict) or not str(x.get('form', '')).startswith('10-K') or not x.get(st):
+        if not isinstance(x, dict) or not str(x.get('form', '')).startswith('10-K' if months == 12 else '10-') or not x.get(st):
             continue
         d = x[st]
-        cols = [i for i, col in enumerate(d.get('cols') or []) if col and col.get('months') == 12
+        cols = [i for i, col in enumerate(d.get('cols') or []) if col and col.get('months') == months
                 and abs((dt.date.fromisoformat(col['end']) - e0).days) <= 7]
-        if cols and (best is None or x['filed'] > best[0]['filed']):
-            best = (x, cols)
-    if not best:
-        return None
-    x, cols = best
-    d = x[st]
-    sc = d.get('scale') or {}
-    out = set()
-    for r in d.get('rows') or []:
-        for i in cols:
-            v = r['v'][i] if i < len(r.get('v') or []) else None
-            if v is None:
-                continue
-            f = (sc.get('cols') or [None] * (i + 1))[i] if sc.get('cols') and i < len(sc['cols']) and sc['cols'][i] is not None else sc.get('cur', 1)
-            out.add(abs(round(v * (f or 1))))
-    return sorted(out)
+        if not cols:
+            continue
+        sc = d.get('scale') or {}
+        out, filled = set(), 0
+        for r in d.get('rows') or []:
+            got = False
+            for i in cols:
+                v = r['v'][i] if i < len(r.get('v') or []) else None
+                if v is None:
+                    continue
+                f = (sc.get('cols') or [None] * (i + 1))[i] if sc.get('cols') and i < len(sc['cols']) and sc['cols'][i] is not None else sc.get('cur', 1)
+                out.add(abs(round(v * (f or 1))))
+                got = True
+            filled += got
+        # עמודה חלקית (גל 7): העמודה של התקופה מלאה בפחות ממחצית השורות של הדף — הצגה של כמה שורות בלבד, לא דוח מלא של התקופה
+        x = dict(x, _part=filled * 2 < len(d.get('rows') or []))
+        pages.append((x, sorted(out)))
+    pages.sort(key=lambda p: p[0]['filed'], reverse=True)
+    return pages
+
+
+def bsf_printed(w, c, st, end, cache, months=12):
+    """כל הערכים (מוחלטים) שה־10-K האחרון שמדפיס את השנה `end` מדפיס בדף `st` ('is'/'cf') בעמודה של 12 חודשים. None — אין דף"""
+    p = bsf_pages(w, c, st, end, cache, months)
+    return p[0][1] if p else None
+
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
@@ -141,13 +153,20 @@ def main():
             else:
                 a, b = any(same(old, x, k) for x in printed), any(same(new, x, k) for x in printed)
                 v = 'both' if a and b else 'better' if b else 'worse' if a else 'neither'
-        if o.bsf and v in ('neither', 'nofsds') and mode == 'A' and c and ST.get(k, ['is'])[0] in ('is', 'cf') and k not in PER_SHARE and k != 'sh':
-            pr = bsf_printed(o.w, c, ST.get(k, ['is'])[0], end, bcache)
-            if pr is None:
+        if o.bsf and v in ('neither', 'nofsds') and c and ST.get(k, ['is'])[0] in ('is', 'cf') and k not in PER_SHARE and k != 'sh':
+            pages = bsf_pages(o.w, c, ST.get(k, ['is'])[0], end, bcache, 12 if mode == 'A' else 3)
+            # ברבעונים (גל 7): 10-K שמדפיס רק חלק מהשורות ברבעונים (Iron Mountain — הרווח התפעולי; Baxter — הכנסות, רווח גולמי ורווח
+            # נקי), או הגשה שהעמודה של הרבעון בה חלקית (TransDigm ‏10-Q ‏2019-08: שישה רבעונים, והמוקדמים רק ברווח הנקי; Williams-Sonoma),
+            # ואין בו אף אחד משני הערכים — לא מכריע; ממשיכים להגשה הבאה, והפסק מסומן ‎-rk
+            skip = 0
+            while mode != 'A' and len(pages) > 1 and (pages[0][0]['form'].startswith('10-K') or pages[0][0].get('_part')) and not any(same(old, x, k) or same(new, x, k) for x in pages[0][1]):
+                pages, skip = pages[1:], skip + 1
+            if not pages:
                 v = v + '/nor'
             else:
+                pr = pages[0][1]
                 a, b = any(same(old, x, k) for x in pr), any(same(new, x, k) for x in pr)
-                v = ('both' if a and b else 'better' if b else 'worse' if a else 'neither') + '-r'
+                v = ('both' if a and b else 'better' if b else 'worse' if a else 'neither') + ('-rk' if skip else '-r')
                 printed = pr
         cnt[(k, v)] += 1
         res.append([sym, mode, k, end, old, new, v] + ([printed] if printed else []))
@@ -156,7 +175,7 @@ def main():
         by.setdefault(k, {})[v] = n
     print(json.dumps(by, ensure_ascii=False))
     for r in res:
-        if r[6] in ('worse', 'neither', 'ambig', 'worse-r', 'neither-r') or r[6].endswith('/nor'):
+        if r[6] in ('worse', 'neither', 'ambig', 'worse-r', 'neither-r', 'worse-rk', 'neither-rk') or r[6].endswith('/nor'):
             print(' ', *r)
     json.dump(res, open(o.out or os.path.join(o.w, 'judge.json'), 'w'))
 

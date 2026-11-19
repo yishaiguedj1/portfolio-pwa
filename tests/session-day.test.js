@@ -79,7 +79,7 @@ ok(!/wl-ath[\s\S]{0,400}fmtPx\(m\.ath\.price/.test(subSrc), 'מעקב: בלי מ
 // חסר/ישן — בקשה אחת לשרתון; כשל → המטמון הישן; כל סימבול פעם אחת; ובסוף ציור מחדש
 (async () => {
   const run = (c) => vm.runInContext(c, sb);
-  ok(/listSync\(list, out\);\s*try \{ wlWarmHist\(items\.map/.test(src), 'renderWishlist מחמם את היסטוריית המעקב');
+  ok(/listSync\(list, out\);\s*try \{ fitWatchSubs\(\); \} catch \(e\) \{\}\s*try \{ wlWarmHist\(items\.map/.test(src), 'renderWishlist מחמם את היסטוריית המעקב');
   const now = Date.now();
   const recs = { FRESH: { at: now - 3600e3, rows: [{ date: '2026-01-02', close: 10 }] }, OLD: { at: now - 3 * 864e5, rows: [{ date: '2025-01-02', close: 7 }] } };
   const asked = [];
@@ -98,3 +98,40 @@ ok(!/wl-ath[\s\S]{0,400}fmtPx\(m\.ath\.price/.test(subSrc), 'מעקב: בלי מ
   await new Promise((r) => setTimeout(r, 0));
   ok(asked.length === 2 && renders === 1, 'כל סימבול פעם אחת בסשן');
 })().catch((e) => { console.error('FAIL - ' + e.message); process.exit(1); });
+
+// 19/11/2026: "מהשיא" וגלולת היום לעולם לא מתנגשים — הכל בשורה אחת, הסכום בכסף תמיד, ורק גודל הטקסט בשורה (--wk)
+// משתנה לפי האורך שלה, עם רווח WK_GAP (החלטות המשתמש)
+{
+  ok(/\.stock\[data-watch\] \.stock-sub > \.day-chg \{ font-size: calc\(14px \* var\(--wk\)\)/.test(css) && /\.stock\[data-watch\] \.stock-sub \.day-amt \{ font-size: calc\(13\.5px \* var\(--wk\)\)/.test(css), 'עיצוב: כל הגדלים בשורה לפי --wk, כולל הסכום');
+  ok(!/day-amt \{ display: none/.test(css) && !/wk-stack/.test(css), 'הסכום לא מוסתר, ואין מעבר לשתי שורות');
+  ok(/function fitNumbers\(page\) \{\s*try \{ fitWatchSubs\(\); \}/.test(src), 'fitNumbers מתאים גם את שורות המעקב (טיק חי, מעבר טאב, שינוי רוחב)');
+  const mk = (ath, pill) => {
+    const st = {};
+    const sub = { textContent: ath + '|' + pill, clientWidth: 280,
+      style: { setProperty: (k, v) => { st[k] = +v; }, removeProperty: (k) => { delete st[k]; } } };
+    sub.k = () => st['--wk'] || 1;
+    sub.w = { ath, pill };
+    const a = { get scrollWidth() { return sub.w.ath * sub.k() + 2; } }, p = { get offsetWidth() { return sub.w.pill * sub.k() + 8; } }; // ריפוד לא ליניארי
+    sub.querySelector = (q) => (q === '.wl-ath' ? a : p);
+    return sub;
+  };
+  let subs = [];
+  const list = { clientWidth: 300, querySelectorAll: () => subs };
+  sb.document.getElementById = (id) => (id === 'wishlistList' ? list : null);
+  const fit = () => run('fitWatchSubs()');
+  const gapOk = (x) => x.clientWidth - x.querySelector('.wl-ath').scrollWidth - x.querySelector('.day-chg').offsetWidth >= 22;
+  subs = [mk(90, 120), mk(110, 240), mk(120, 320)];
+  fit();
+  ok(subs[0].k() === 1, 'שורה קצרה — בגודל המלא');
+  ok(subs[1].k() < 1 && subs[2].k() < subs[1].k(), 'שורה ארוכה — קטנה, וארוכה יותר — קטנה יותר (לכל כרטיס לפי האורך שלו)');
+  ok(subs.every(gapOk), 'בכל הכרטיסים רווח של 22 לפחות — בלי התנגשות');
+  ok(subs[2].k() >= 0.5 && 280 - (120 * subs[2].k() + 2) - (320 * subs[2].k() + 8) < 22 + 0.03 * 440, 'הקטנה מינימלית — לא יותר ממה שצריך');
+  const k1 = subs[1].k();
+  subs[1].textContent += 'x'; subs[1].w = { ath: 90, pill: 100 };
+  fit();
+  ok(subs[1].k() === k1, 'טיק חי שקיצר את הטקסט — הגודל לא קופץ בחזרה');
+  subs[1].textContent += 'y'; subs[1].w = { ath: 110, pill: 300 };
+  fit();
+  ok(subs[1].k() < k1 && gapOk(subs[1]), 'טיק חי שהאריך — קטן עוד, עם רווח');
+  sb.document.getElementById = () => null;
+}

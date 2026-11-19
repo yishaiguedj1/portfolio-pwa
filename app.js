@@ -1070,6 +1070,12 @@ he: {
   anBStreetS: '4 הרבעונים האחרונים, כפי שהאנליסטים סופרים',
   anBSbc: 'פחות תגמול במניות',
   anBSbcS: 'אחרי מס {t}',
+  anBSbcSP: 'אחרי מס {t}, השיעור שהחברה מצהירה',
+  anBSbcSD: 'אחרי מס {t}, השיעור הפדרלי',
+  anBSbcSR: 'ריט — בלי מגן מס',
+  anBSbcSB: 'לפני מס — המס של החברה כבר כולל את הטבת המס על התגמול',
+  anBPart: 'החברה הוציאה מהרווח המותאם רק חלק מהתגמול במניות, ורק אותו מורידים כאן. השאר כבר כלול ברווח.',
+  anBOth: 'בדוחות התגמול במניות גדול יותר: חלק ממנו רשום בגישור בשורות אחרות (רכישות, ארגון מחדש), ולא הורד כאן.',
   anBFwd: 'רווח צפוי ל־{y}',
   anBFwd0: 'רווח צפוי',
   anBFwdY: 'כמו במכפיל הצפוי',
@@ -1083,7 +1089,7 @@ he: {
   anBPolEx: 'לפי ההודעות לעיתונות של החברה ב־SEC, הרווח המותאם שלה לא כולל את התגמול במניות, ולכן הורדנו את כולו.',
   anBPolIn: 'לפי ההודעות לעיתונות של החברה ב־SEC, הרווח המותאם שלה כבר מוריד את התגמול במניות כהוצאה, ולכן לא מורידים אותו פעם שנייה. בתזרים המזומנים, לעומת זאת, הוא מוחזר כהוצאה שלא יצאה במזומן, ולכן שם כן מורידים אותו.',
   anBPolMix: 'החברה שינתה את ההגדרה במהלך השנה. הורדנו את התגמול במניות רק ברבעונים שבהם הרווח המותאם לא כלל אותו.',
-  anBPolUnk: 'לא נמצאה הודעה לעיתונות לבדיקה. ההנחה: הרווח המותאם לא כולל את התגמול במניות, ולכן הורדנו אותו עד גובה הפער מול הרווח המדווח.',
+  anBPolUnk: 'לא נמצאה הודעה לעיתונות לבדיקה. את הפער מול הרווח המדווח ייחסנו קודם להפחתה מרכישות (באפט לא מוריד אותה), ואת היתר לתגמול במניות, עד גובהו אחרי מס.',
   anBPolGaap: 'האנליסטים סופרים וצופים כאן את הרווח המדווח, שכבר מוריד את התגמול במניות כהוצאה, ולכן לא מורידים אותו פעם שנייה. בתזרים המזומנים, לעומת זאת, הוא מוחזר כהוצאה שלא יצאה במזומן, ולכן שם כן מורידים אותו.',
   anBFutIn: 'לפי ההודעה האחרונה של החברה, הרווח המותאם כולל מעכשיו את התגמול במניות, ולכן התחזית נשארת כמו שהיא.',
   anXFy: 'התזרים החופשי ב־12 החודשים האחרונים ({f}) ÷ שווי השוק. כמה מזומן העסק מייצר ביחס למחיר — כמו "ריבית" על ההשקעה.',
@@ -1149,8 +1155,8 @@ he: {
   earnXCard: 'צפי', earnXFy: 'דוח שנתי', earnXAnY: 'אנליסטים · שנתי', earnXQtr: 'רבעון', earnXTonePos: 'מגמה חיובית', earnXToneNeg: 'מגמה שלילית', earnXToneNeu: 'מגמה ניטרלית',
   earnXD90: 'הצפי לרווח למניה {v} ב־90 יום', earnXRevs: 'ב־30 יום: {up} העלו, {dn} הורידו', earnXBeat: 'עקפה את הצפי ב־{b} מ־{n} הרבעונים האחרונים', earnXBeatWarn: '. רוב החברות עוקפות: הצפי יורד לקראת הדוח, ולכן עקיפה לבדה אינה ראיה לדוח טוב', earnXExpUp: 'ציפיות: צמיחה', earnXExpDown: 'ציפיות: ירידה', earnXExpMix: 'ציפיות: מעורב', earnXExpFlat: 'ציפיות: יציב', earnXRevS: 'הכנסות {v}', earnXEpsS: 'רווח {v}', earnXEpsNc: 'רווח — לא בר השוואה', earnXBizUp: 'העסק: משתפר', earnXBizDown: 'העסק: נחלש', earnXBizFlat: 'העסק: יציב', earnXFlag: 'יש חריגה', earnXExpT: 'ציפיות לרבעון', earnXExpWhy: 'הצפי של האנליסטים מול הרבעון המקביל אשתקד. הרווח מוחרג כשבאותו רבעון היה רווח חד־פעמי או לא־תפעולי גדול', earnXBizT: 'מצב העסק', earnXBizWhy: 'מהדוחות שכבר פורסמו: הרבעון האחרון מול המקביל אשתקד; המרת מזומן — 4 רבעונים. תזרים חופשי אחרי השקעות ותשלום במניות', earnXBMg: 'שולי רווח תפעולי {v} נק׳', earnXBFcf: 'תזרים חופשי למניה {v}', earnXBSh: 'מספר המניות {v}', earnXBCc: 'המרת מזומן {v}', earnXFOne: 'רווח חד־פעמי או לא־תפעולי גדול — הרווח למניה לא משקף את העסק', earnXFAcq: 'רכישה משמעותית בשנה האחרונה — חלק מהצמיחה לא אורגנית, והרווח ברבעון יכול לרדת זמנית', earnXFAdj: 'הרווח ״של הרחוב״ ברבעון האחרון {a} מול {g} לפי GAAP — יש החרגות גדולות', earnXFCash: 'הרווח לא מגובה במזומן (המרת מזומן {v})', earnXDisc: 'הערכת מצב מנתונים פומביים — לא תחזית ולא המלצה. הרווח בצפי הוא ״רווח הרחוב״: לפעמים מותאם ולפעמים GAAP.',
   earnXBeatAvg: ' (בממוצע {v})', earnXToneSrc: 'המגמה לפי שינויי הצפי של האנליסטים (Yahoo) — לא תחזית ולא המלצה.',
-  calReport: 'דוח רבעוני', calAddAria: 'הוספת הדוח של {sym} ליומן', calGoogle: 'הוספה ל־Google Calendar', calOther: 'יומן אחר (אפל, סמסונג, Outlook)',
-  calIcsNote: 'ביומן אחר נוצרות גם תזכורות — יום לפני ושעה לפני.', calIcsDone: 'הקובץ ירד — פתח אותו כדי להוסיף ליומן', calLocal: '{t} שעון ישראל',
+  calReport: 'דוח רבעוני', calAddAria: 'הוספת הדוח של {sym} ליומן', calGoogle: 'יומן Google', calOther: 'יומן אחר',
+  calIcsNote: 'יומן אחר — אפל, סמסונג, Outlook — כולל תזכורות יום לפני ושעה לפני.', calIcsDone: 'הקובץ ירד — פתח אותו כדי להוסיף ליומן', calLocal: '{t} שעון ישראל',
   calEventTitle: 'דוח רבעוני · {sym}{name}', calEventDesc: 'פרסום הדוח הרבעוני של {sym}', calEventEst: 'תאריך משוער (לפי Yahoo Finance)',
   earnDate: 'דוח: {date}',
   twrOfficial: 'TWR רשמי של IBKR',
@@ -1383,7 +1389,7 @@ he: {
   depNote: 'סכומים שליליים = כסף שהופקד לתיק. הרשומה החיובית (+₪37,000 ב־19/02/2025) היא משיכה/תיקון כפי שמופיעה בגיליון.',
   records: '{n} רשומות',
   addDeposit: 'הוספת הפקדה',
-  depKindIn: 'הפקדה', depKindOut: 'משיכה', depTileIn: 'הפקדות · {n}', depTileOut: 'משיכות · {n}',
+  depKindIn: 'הפקדה', depKindOut: 'משיכה', depKvIn: 'הפקדות', depKvOut: 'משיכות', depKvNet: 'נטו',
   btnEditRow: 'ערוך',
   btnDeleteRow: 'מחק',
   adjTitle: 'משיכה/תיקון',
@@ -3033,6 +3039,12 @@ en: {
   anBStreetS: 'Last 4 quarters, as analysts count it',
   anBSbc: 'Less stock-based pay',
   anBSbcS: 'After tax {t}',
+  anBSbcSP: 'After tax {t}, the rate the company states',
+  anBSbcSD: 'After tax {t}, the US federal rate',
+  anBSbcSR: 'A REIT — no tax shield',
+  anBSbcSB: 'Pre-tax — the company’s tax already includes the tax benefit of this compensation',
+  anBPart: 'The company excluded only part of its stock-based pay from adjusted earnings, so only that part is deducted here. The rest is already in the earnings.',
+  anBOth: 'The filings show more stock-based pay: part of it sits in other reconciliation lines (acquisitions, restructuring) and isn’t deducted here.',
   anBFwd: 'Expected profit for {y}',
   anBFwd0: 'Expected profit',
   anBFwdY: 'As in the forward P/E',
@@ -3046,7 +3058,7 @@ en: {
   anBPolEx: 'According to the company’s press releases at the SEC, its adjusted profit excludes stock-based pay, so we deducted all of it.',
   anBPolIn: 'According to the company’s press releases at the SEC, its adjusted profit already deducts stock-based pay as an expense, so we don’t deduct it twice. In the cash flow statement, by contrast, it is added back as a non-cash expense, so there we do deduct it.',
   anBPolMix: 'The company changed its definition during the year. We deducted stock-based pay only in the quarters where adjusted profit excluded it.',
-  anBPolUnk: 'No press release was found to check. Assumption: adjusted profit excludes stock-based pay, so we deducted it up to the gap to reported profit.',
+  anBPolUnk: 'No press release was found to check. We first attributed the gap to reported profit to acquisition amortization (Buffett doesn’t deduct it), and the rest to stock-based pay, up to its after-tax amount.',
   anBPolGaap: 'Here analysts count and forecast reported profit, which already deducts stock-based pay as an expense, so we don’t deduct it twice. In the cash flow statement, by contrast, it is added back as a non-cash expense, so there we do deduct it.',
   anBFutIn: 'According to the company’s latest release, adjusted profit now includes stock-based pay, so the forecast stays as is.',
   anXFy: 'Free cash flow over the last 12 months ({f}) ÷ market cap. How much cash the business makes relative to the price — like “interest” on the investment.',
@@ -3112,8 +3124,8 @@ en: {
   earnXCard: 'Est.', earnXFy: 'Annual report', earnXAnY: 'Analysts · FY', earnXQtr: 'Quarter', earnXTonePos: 'Trending up', earnXToneNeg: 'Trending down', earnXToneNeu: 'Flat',
   earnXD90: 'EPS estimate {v} over 90 days', earnXRevs: 'Last 30 days: {up} up, {dn} down', earnXBeat: 'Beat estimates in {b} of the last {n} quarters', earnXBeatWarn: '. Most companies beat: estimates drift down before the report, so a beat alone is not evidence of a good report', earnXExpUp: 'Expectations: growth', earnXExpDown: 'Expectations: decline', earnXExpMix: 'Expectations: mixed', earnXExpFlat: 'Expectations: flat', earnXRevS: 'Revenue {v}', earnXEpsS: 'EPS {v}', earnXEpsNc: 'EPS — not comparable', earnXBizUp: 'Business: improving', earnXBizDown: 'Business: weakening', earnXBizFlat: 'Business: steady', earnXFlag: 'Distortion', earnXExpT: 'Quarter expectations', earnXExpWhy: 'Analyst estimates vs. the same quarter last year. EPS is excluded when that quarter had a large one-off or non-operating item', earnXBizT: 'Business health', earnXBizWhy: 'From published reports: latest quarter vs. the same quarter last year; cash conversion over 4 quarters. Free cash flow after capex and stock compensation', earnXBMg: 'Operating margin {v} pts', earnXBFcf: 'Free cash flow per share {v}', earnXBSh: 'Share count {v}', earnXBCc: 'Cash conversion {v}', earnXFOne: 'Large one-off or non-operating item — EPS does not reflect the business', earnXFAcq: 'Significant acquisition in the past year — part of the growth is not organic, and quarterly profit may dip temporarily', earnXFAdj: 'Street EPS last quarter {a} vs. {g} GAAP — large exclusions', earnXFCash: 'Earnings not backed by cash (cash conversion {v})', earnXDisc: 'An assessment from public data — not a forecast or advice. The EPS estimate is street EPS: sometimes adjusted, sometimes GAAP.',
   earnXBeatAvg: ' (avg {v})', earnXToneSrc: 'Trend from analyst estimate revisions (Yahoo) — not a forecast or advice.',
-  calReport: 'Earnings', calAddAria: 'Add the {sym} earnings report to your calendar', calGoogle: 'Add to Google Calendar', calOther: 'Other calendar (Apple, Samsung, Outlook)',
-  calIcsNote: 'Other calendars also get reminders — a day before and an hour before.', calIcsDone: 'Downloaded — open it to add to your calendar', calLocal: '{t} local time',
+  calReport: 'Earnings', calAddAria: 'Add the {sym} earnings report to your calendar', calGoogle: 'Google Calendar', calOther: 'Other calendar',
+  calIcsNote: 'Other calendar — Apple, Samsung, Outlook — includes reminders a day and an hour before.', calIcsDone: 'Downloaded — open it to add to your calendar', calLocal: '{t} local time',
   calEventTitle: 'Earnings · {sym}{name}', calEventDesc: '{sym} quarterly earnings report', calEventEst: 'Estimated date (per Yahoo Finance)',
   earnDate: 'Earnings: {date}',
   twrOfficial: "IBKR's official TWR",
@@ -3346,7 +3358,7 @@ en: {
   depNote: 'Negative amounts = money deposited into the portfolio. The positive entry (+₪37,000 on 19/02/2025) is a withdrawal/correction as shown in the sheet.',
   records: '{n} records',
   addDeposit: 'Add deposit',
-  depKindIn: 'Deposit', depKindOut: 'Withdrawal', depTileIn: 'Deposits · {n}', depTileOut: 'Withdrawals · {n}',
+  depKindIn: 'Deposit', depKindOut: 'Withdrawal', depKvIn: 'Deposits', depKvOut: 'Withdrawals', depKvNet: 'Net',
   btnEditRow: 'Edit',
   btnDeleteRow: 'Delete',
   adjTitle: 'Withdrawal/correction',
@@ -8309,8 +8321,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.186.3';
-const APP_VERSION = 'v846';
+const APP_RELEASE = '2.190.1';
+const APP_VERSION = 'v855';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -12312,7 +12324,41 @@ function initScrollSaver() {
 
 /* התאמת גודל מספרים גדולים לרוחב הכרטיס — נשארים גדולים ככל האפשר,
    אבל מתכווצים אוטומטית לפי אורך המספר כדי שאף ספרה לא תיחתך. */
+/* 19/11/2026 (בקשת המשתמש: "מהשיא" וגלולת היום לעולם לא יתנגשו — הכל בשורה אחת, הסכום בכסף תמיד, ורק גודל הטקסט
+   משתנה לפי האורך; רווח נדיב, מסודר ונקי לפי ת־עיצוב): בכל כרטיס מעקב כל השורה קטנה יחד (--wk) עד שבין השיא לגלולה
+   נשארים לפחות WK_GAP. שורה שנכנסת — בגודל המלא. יציבות: באותו רוחב, טיק חי רק מקטין (סכום שמשנה אורך כל כמה שניות,
+   כמו BTC, לא מקפיץ את הגודל הלוך ושוב); גדל בחזרה בציור מחדש של הכרטיס או בשינוי רוחב. */
+const WK_GAP = 22, WK_FLOOR = 0.5;
+function fitWatchSubs() {
+  if (typeof document === 'undefined' || !document.getElementById) return;
+  const list = document.getElementById('wishlistList');
+  if (!list || !list.querySelectorAll || !list.clientWidth) return; // מוסתר — נמדוד כשיוצג
+  const vw = (typeof window !== 'undefined' && window.innerWidth) || 0;
+  const free = (x) => {
+    const a = x.querySelector('.wl-ath'), p = x.querySelector('.day-chg');
+    return a && p ? x.clientWidth - a.scrollWidth - p.offsetWidth : Infinity;
+  };
+  const setK = (x, k) => { if (k >= 1) x.style.removeProperty('--wk'); else x.style.setProperty('--wk', String(k)); };
+  for (const x of list.querySelectorAll('.stock[data-watch] .stock-sub')) {
+    const key = vw + '|' + list.clientWidth + '|' + x.textContent;
+    if (x._wkKey === key) continue; // טיק חי שלא שינה טקסט — בלי מדידה
+    const sameW = x._wkW === vw + '|' + list.clientWidth;
+    x._wkKey = key; x._wkW = vw + '|' + list.clientWidth;
+    if (!x.clientWidth) { x._wkKey = ''; continue; }
+    let k = sameW && x._wkK ? x._wkK : 1; // יציבות — לא גדל בחזרה בטיק חי
+    setK(x, k);
+    if (free(x) < WK_GAP) { // הערכה ליניארית, ואז צעדים קטנים עד שנכנס (הריפוד והעיגול לא ליניאריים)
+      const a = x.querySelector('.wl-ath'), p = x.querySelector('.day-chg');
+      const need = a.scrollWidth + p.offsetWidth;
+      if (need > 0) k = Math.max(WK_FLOOR, Math.min(k, Math.floor(k * (x.clientWidth - WK_GAP) / need * 100) / 100));
+      setK(x, k);
+      while (free(x) < WK_GAP && k > WK_FLOOR) { k = Math.round((k - 0.02) * 100) / 100; setK(x, k); }
+    }
+    x._wkK = k;
+  }
+}
 function fitNumbers(page) {
+  try { fitWatchSubs(); } catch (e) {}
   // v193: רק בטאב הנראה, וקריאות/כתיבות בקבוצות — לפני כן כל מספר עשה עד 40 סבבי מדידה→שינוי (layout thrash)
   // 14/10/2026: page = העמוד שנכנס בקובייה — המספרים מותאמים כבר בגרירה, ולא משנים גודל באמצע הסיבוב
   const SEL = '.stat-value, .lg-pct, .pension-total';
@@ -12786,7 +12832,9 @@ function earnXSheetHTML(ex) {
   if (why.length) h += '<div class="esx-meta">' + esc(why.join(' · ')) + '</div>';
   if (a && a.h && a.h.n) h += '<div class="esx-meta">' + esc(t('earnXBeat', { b: a.h.b, n: a.h.n }) + (a.h.s != null ? t('earnXBeatAvg', { v: sp(a.h.s / 100) }) : '') + t('earnXBeatWarn')) + '</div>';
   if (g) h += '<div class="esx-meta">' + esc(t('earnXSrc', { d: fmtDateIL(g.fd) })) + '</div>';
-  if (tn) h += '<div class="esx-meta esx-fine">' + esc(t('earnXToneSrc')) + '</div>';
+  // 19/11/2026: הסתייגות אחת בגיליון — שורת המקור של המגמה רק כשאין את ההסתייגות הכללית בסוף
+  const hasDisc = !!(a && a.q && (earnXExp(a, ex.b) || earnXBiz(ex.b)));
+  if (tn && !hasDisc) h += '<div class="esx-meta esx-fine">' + esc(t('earnXToneSrc')) + '</div>';
   // 17/11/2026: שני האותות והדגלים — הפירוט שמאחורי שורות הכרטיס
   if (a && a.q) {
     const ep = earnXExp(a, ex.b), bz = earnXBiz(ex.b), fl = earnXFlags(a, ex.b);
@@ -12830,20 +12878,22 @@ function openEarnCalSheet(r, name) {
   const sh = el('div', 'pf-sheet earn-sheet');
   sh.setAttribute('role', 'dialog');
   sh.setAttribute('aria-modal', 'true');
+  // 19/11/2026 (בקשת המשתמש): הכל במסך אחד ובזכוכית — התאריך בכותרת, ✕ במקום "ביטול", שני כפתורי היומן בשורה אחת;
+  // הגוף נגלל בתוך הגיליון רק כשהמסך נמוך מדי (הכותרת והכפתורים תמיד גלויים)
   sh.innerHTML = '<div class="sheet-grab" aria-hidden="true"></div>' +
     '<div class="es-head">' + stockLogoHTML(r.sym) +
       '<div class="es-id"><div class="es-title"><span dir="ltr">' + esc(r.sym.replace(/\.TA$/i, '')) + '</span> · ' + esc(t('calReport')) + '</div>' +
-      '<div class="es-name">' + esc(name) + '</div></div></div>' +
-    '<div class="es-when"><div class="es-day">' + esc(dayTxt) + '</div>' +
+      '<div class="es-name">' + esc(name) + '</div>' +
+      '<div class="es-day">' + esc(dayTxt) + '</div>' +
       '<div class="es-meta">' + esc([when, tm, local ? t('calLocal', { t: local }) : '', r.est ? t('earnEst') : ''].filter(Boolean).join(' · ')) + '</div></div>' +
-    earnXSheetHTML(earnXFor(earnXAll()[r.sym], r.date)) +
-    '<button type="button" class="btn es-btn es-google">' + CAL_ICON_CUR + '<span>' + esc(t('calGoogle')) + '</span></button>' +
-    '<button type="button" class="btn secondary-btn es-btn es-ics">' + CAL_ICON_CUR + '<span>' + esc(t('calOther')) + '</span></button>' +
-    '<div class="es-note">' + esc(t('calIcsNote')) + '</div>' +
-    '<button type="button" class="es-cancel">' + esc(t('btnCancel')) + '</button>';
+      '<button type="button" class="es-x-close" aria-label="' + esc(t('btnClose')) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>' +
+    '<div class="es-body">' + earnXSheetHTML(earnXFor(earnXAll()[r.sym], r.date)) + '</div>' +
+    '<div class="es-acts"><button type="button" class="btn es-btn es-google">' + CAL_ICON_CUR + '<span>' + esc(t('calGoogle')) + '</span></button>' +
+    '<button type="button" class="btn secondary-btn es-btn es-ics">' + CAL_ICON_CUR + '<span>' + esc(t('calOther')) + '</span></button></div>' +
+    '<div class="es-note">' + esc(t('calIcsNote')) + '</div>';
   veil.appendChild(sh);
   veil.addEventListener('click', (e) => { if (e.target === veil) closeEarnCalSheet(); });
-  sh.querySelector('.es-cancel').addEventListener('click', closeEarnCalSheet);
+  sh.querySelector('.es-x-close').addEventListener('click', closeEarnCalSheet);
   sh.querySelector('.es-google').addEventListener('click', () => {
     try { window.open(earnGoogleUrl(ev), '_blank', 'noopener'); } catch (e) {}
     closeEarnCalSheet();
@@ -18003,6 +18053,7 @@ function renderWishlist(opts) {
     out.push(card);
   }
   listSync(list, out);
+  try { fitWatchSubs(); } catch (e) {}
   try { wlWarmHist(items.map((w) => w.sym)); } catch (e) {}
 }
 /* 19/11/2026 (בקשת המשתמש: "מהשיא" רק בחלק מכרטיסי המעקב): השיא מחושב מההיסטוריה היומית, ו־warmHistories טוען רק
@@ -20034,16 +20085,18 @@ function txRowHTML(r, opts) {
   const o = opts || {}, buy = r.side === 'BUY';
   const tot = fmtTradeMoney(r.qty * r.price, r.cur);
   const qp = esc(txQty(r.qty)) + ' × ' + esc(fmtTradeMoney(r.price, r.cur));
-  const tag = r.src === 'ibkr' ? srcTagHTML('ibkr', r.acct) : '<span class="tx-man">' + esc(t('manualTag')) + '</span>';
   const ed = r.src === 'manual';
-  const lead = o.logo ? stockLogoHTML(r.sym) : '<span class="tx-side ' + (buy ? 'b' : 's') + '" aria-hidden="true">' + (buy ? '+' : '−') + '</span>';
-  const t1 = o.logo   // בתוך שנה: התגית בשורה הראשונה (השנייה כבר מלאה בתאריך ובכמות)
-    ? '<b dir="ltr">' + esc(dispSym(r.sym)) + '</b> <span class="' + (buy ? 'tx-g' : 'tx-l') + '">' + esc(buy ? t('buySide') : t('sellSide')) + '</span> ' + tag
-    : '<b>' + esc(buy ? t('buySide') : t('sellSide')) + '</b> <span dir="ltr">' + qp + '</span>';
+  /* 19/11/2026 (בקשת המשתמש): המקור במקום קבוע — תג עגול קטן בקצה השורה הראשונה (לפי ת־עיצוב), לא בתוך שורת התאריך
+     שנשברה לשורה אחרת בכל עסקה. ידנית — בלי תג (העיפרון בסוף השורה מסמן אותה), עם תווית לקורא המסך */
+  const tag = r.src === 'ibkr' ? '<span class="tx-src">' + srcTagHTML('ibkr', r.acct) + '</span>' : '<span class="sr-only">' + esc(t('manualTag')) + '</span>';
+  const lead = '<span class="tx-lead">' + (o.logo ? stockLogoHTML(r.sym) : '<span class="tx-side ' + (buy ? 'b' : 's') + '" aria-hidden="true">' + (buy ? '+' : '−') + '</span>') + '</span>';
+  const t1 = o.logo
+    ? '<b dir="ltr">' + esc(dispSym(r.sym)) + '</b> <span class="' + (buy ? 'tx-g' : 'tx-l') + '">' + esc(buy ? t('buySide') : t('sellSide')) + '</span>' + tag
+    : '<b>' + esc(buy ? t('buySide') : t('sellSide')) + '</b> <span dir="ltr">' + qp + '</span>' + tag;
   const d = o.logo ? esc(fmtDateIL(r.date).slice(0, 5)) + ' · <span dir="ltr">' + qp + '</span>' : esc(fmtDateIL(r.date)) + (r.time ? ' · ' + esc(r.time) : '');
   const after = o.after === null || o.after === undefined ? '' : '<div class="tx-e2">' + esc(t('txAfter', { n: txQty(o.after) })) + '</div>';
   return '<div class="tx-row' + (ed ? ' ed' : '') + (r.shadow ? ' dim' : '') + '"' + (ed ? ' role="button" tabindex="0" data-mt="' + esc(r.id) + '"' : '') + '>' +
-    lead + '<div class="tx-mid"><div class="tx-t1">' + t1 + '</div><div class="tx-t2">' + d + (o.logo ? '' : ' ' + tag) + '</div>' +
+    lead + '<div class="tx-mid"><div class="tx-t1">' + t1 + '</div><div class="tx-t2">' + d + '</div>' +
     (r.shadow ? '<div class="tx-t2">' + esc(t('mtShadowed', { sym: r.sym })) + '</div>' : '') + '</div>' +
     '<div class="tx-end"><div class="tx-e1">' + esc(tot) + '</div>' + after + '</div>' +
     (ed ? '<span class="tx-edit" aria-hidden="true">' + ICON_EDIT + '</span>' : '') + '</div>';
@@ -20260,9 +20313,13 @@ function renderDeposits() {
   const shown = depositsNewestFirst(DEPOSITS).filter((x) => srcPass(sf, isIbkrDeposit(x.d) ? 'ibkr' : 'manual'));
   // 15/11/2026 (בקשת המשתמש): כרטיס זכוכית לכל שנה במקום רשימה אחת ארוכה — השנה האחרונה פתוחה
   const yrOpen = state._depYrOpen || (state._depYrOpen = new Map());
-  depYearGroups(shown).forEach((g, k) => ul.appendChild(buildDepYear(g, yrOpen.has(g.y) ? yrOpen.get(g.y) : k === 0, ed, yrOpen)));
+  // 19/11/2026 (בקשת המשתמש): שבבי שנה כמו בעסקאות — "הכל" = כל השנים לאורך העמוד, שנה = רק הכרטיס שלה, פתוח
+  const groups = depYearGroups(shown);
+  const selY = depYearsBar(groups);
+  if (selY === 'all') groups.forEach((g, k) => ul.appendChild(buildDepYear(g, yrOpen.has(g.y) ? yrOpen.get(g.y) : k === 0, ed, yrOpen)));
+  else ul.appendChild(buildDepYear(groups.find((g) => g.y === selY), true, ed, yrOpen));
   if (!shown.length && DEPOSITS.length && !(hasMf && srcPass(sf, 'manual'))) ul.appendChild(el('p', 'fine', t('srcFilterEmpty')));
-  if (hasMf && srcPass(sf, 'manual')) {
+  if (hasMf && srcPass(sf, 'manual') && selY === 'all') {
     const head = el('li', 'dep-sub');
     head.innerHTML = '<span><b>' + esc(t('depManualTitle')) + '</b><br><span class="r-note">' +
       esc(t('depManualNote')) + '</span></span>';
@@ -20285,6 +20342,30 @@ function renderDeposits() {
       ul.appendChild(li);
     }
   }
+}
+
+/* שבבי השנים בשורת הכלים (אותו רכיב כמו בעסקאות, tx-y) — מחזיר את השנה שנבחרה או 'all' */
+function depYearsBar(groups) {
+  const box = document.getElementById('depYears');
+  const show = groups.length > 1;
+  let y = state._depY || 'all';
+  if (y !== 'all' && !groups.some((g) => g.y === y)) y = state._depY = 'all';   // הסינון הסתיר את השנה — חוזרים ל"הכל"
+  if (!box) return show ? y : 'all';
+  if (!box._wired && box.addEventListener) {
+    box._wired = true;
+    box.addEventListener('click', (e) => {
+      const b = e.target && e.target.closest && e.target.closest('[data-depy]');
+      if (!b || b.dataset.depy === (state._depY || 'all')) return;
+      state._depY = b.dataset.depy;
+      renderDeposits();
+    });
+  }
+  const chip = (v, lbl, n) => '<button type="button" class="tx-y' + (y === v ? ' on' : '') + '" data-depy="' + esc(v) + '" aria-pressed="' + (y === v) + '">' +
+    esc(lbl) + (n == null ? '' : '<small>' + n + '</small>') + '</button>';
+  const html = !show ? '' : chip('all', t('txAll')) + groups.map((g) => chip(g.y, g.y, g.items.length)).join('');
+  if (box._h !== html) { box._h = html; box.innerHTML = html; }
+  box.classList.toggle('hidden', !show);
+  return show ? y : 'all';
 }
 
 /* טהורה: הפקדות (כבר מהחדשה לישנה) בקבוצות לפי שנה, עם הנטו בשקלים (חיובי = נכנס לתיק) */
@@ -20319,18 +20400,18 @@ function depMonthName(m) {
   try { return new Intl.DateTimeFormat(state.lang === 'en' ? 'en-US' : 'he-IL', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2000, Number(m) - 1, 1))); } catch (e) { return m; }
 }
 const depNetTxt = (v) => ltrNum((v < 0 ? '−' : '') + '₪' + numLoc(Math.abs(v), { maximumFractionDigits: 0 }));
-const ICON_DEP_CHEV = '<svg class="dep-yr-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
 function buildDepYear(g, open, ed, yrOpen) {
   const li = el('li', 'dep-yr' + (open ? ' open' : ''));
   li.dataset.yr = g.y;
   const id = 'depYr-' + g.y.replace(/\W/g, '_');
-  const h = el('button', 'dep-yr-h');
+  const h = el('button', 'tx-yr-h dep-yr-h');
   h.type = 'button';
   h.setAttribute('aria-expanded', open ? 'true' : 'false');
   h.setAttribute('aria-controls', id);
-  const net = depNetTxt(g.net);
-  h.innerHTML = '<span class="dep-yr-t"><b>' + esc(g.y) + '</b><span>' + esc(t('records', { n: g.items.length })) + '</span></span>' +
-    '<span class="dep-yr-net">' + net + '</span>' + ICON_DEP_CHEV;
+  // אותו כרטיס שנה כמו בעסקאות: שנה, מספר רשומות וחץ — ומתחת הפקדות, משיכות ונטו
+  const kv = (lbl, v, cls) => '<span><small>' + esc(lbl) + '</small><b class="' + cls + '">' + depNetTxt(v) + '</b></span>';
+  h.innerHTML = '<span class="tx-yr-top"><b>' + esc(g.y) + '</b><span>' + esc(t('records', { n: g.items.length })) + '</span>' + TX_CHEV + '</span>' +
+    '<span class="tx-kv">' + kv(t('depKvIn'), g.sumIn, 'tx-g') + kv(t('depKvOut'), g.sumOut, g.sumOut ? 'tx-l' : '') + kv(t('depKvNet'), g.net, '') + '</span>';
   h.addEventListener('click', () => {
     const on = !li.classList.contains('open');
     if (on && li.parentElement) {   // אקורדיון: שנה אחת פתוחה — הרשימה לא חוזרת להיות ארוכה
@@ -20348,12 +20429,6 @@ function buildDepYear(g, open, ed, yrOpen) {
   li.appendChild(h);
   const body = el('div', 'dep-yr-body');
   const inner = el('div', 'dep-yr-in');
-  if (g.nOut) {   // יש משיכות — שני אריחים (בלי משיכות הנטו בכותרת אומר הכל)
-    const tile = (cls, lbl, v) => '<div class="dep-tile"><span>' + esc(lbl) + '</span><b class="' + cls + '">' + depNetTxt(v) + '</b></div>';
-    const tiles = el('div', 'dep-tiles');
-    tiles.innerHTML = tile('in', t('depTileIn', { n: g.nIn }), g.sumIn) + tile('out', t('depTileOut', { n: g.nOut }), g.sumOut);
-    inner.appendChild(tiles);
-  }
   const list = el('ul', 'rows dep-yr-list');
   list.id = id;
   for (const mo of g.months) {

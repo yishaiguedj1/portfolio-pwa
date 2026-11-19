@@ -241,51 +241,153 @@ const fyVals = (co, k, n) => fyList(co).slice(-n).map((p) => ctx(co, p)[k]);
    היא בעצם GAAP (שווה לרווח המדווח ב־3 מ־4 הרבעונים — PLTR) — לא מורידים. מדיניות לא ידועה — עד גובה הפער מול הרווח המדווח.
    null: מטבע שונה, אין 4 רבעונים רצופים עד "עכשיו", חסר רווח בפועל של Yahoo לרבעון */
 const D864 = 864e5;
-/* מדיניות הרבעון שהסתיים ב־e: 1 מוציא / 0 כולל / null (אין הודעות). כמה הודעות עד 100 יום אחרי הרבעון — הארוכה (ההודעה המלאה,
-   לא הודעה מקדימה); אין בחלון — הקרובה ביותר */
-function sbcPol(co, e) {
+/* ההודעה של הרבעון שהסתיים ב־e (רשומה של sbcX, או null — אין הודעות). כמה הודעות עד 100 יום אחרי הרבעון — הארוכה (ההודעה המלאה,
+   לא הודעה מקדימה); אין בחלון — הקרובה ביותר ל־45 יום אחריו. הודעה שמדווחת על רבעון אחר (r[7] — סוף הרבעון שבה, מגרסה 3 של
+   המסווג; Marvell ‏2/11/2026: הודעת מיזוג עם הכנסות מקדימות לרבעון הבא, 93 יום אחרי הרבעון שהסתיים ב־1/8) — לא בחלון. בתוך החלון —
+   קודם זו שמזכירה את התגמול הכי הרבה פעמים (r[8]; הודעת תוצאות מלאה מזכירה אותו בתזרים או בגישור, והודעת המיזוג — אף פעם, אף
+   שהיא ארוכה ממנה), ורק אחר כך הארוכה */
+function sbcRel(co, e) {
   const L = Array.isArray(co.sbcX) ? co.sbcX : [];
   if (!L.length) return null;
-  const t = Date.parse(e), w = L.filter((r) => { const d = (Date.parse(r[0]) - t) / D864; return d > 0 && d <= 100; });
-  if (w.length) return w.reduce((a, b) => ((b[3] || 0) > (a[3] || 0) ? b : a))[1] ? 1 : 0;
-  return L.reduce((a, b) => (Math.abs(Date.parse(b[0]) - t - 45 * D864) < Math.abs(Date.parse(a[0]) - t - 45 * D864) ? b : a))[1] ? 1 : 0;
+  const t = Date.parse(e), w = L.filter((r) => { const d = (Date.parse(r[0]) - t) / D864; return d > 0 && d <= 100 && !(r[7] && Math.abs(Date.parse(r[7]) - t) > 10 * D864); });
+  if (w.length) return w.reduce((a, b) => ((b[8] || 0) > (a[8] || 0) || ((b[8] || 0) === (a[8] || 0) && (b[3] || 0) > (a[3] || 0)) ? b : a));
+  return L.reduce((a, b) => (Math.abs(Date.parse(b[0]) - t - 45 * D864) < Math.abs(Date.parse(a[0]) - t - 45 * D864) ? b : a));
+}
+// מדיניות הרבעון: 1 מוציא / 0 כולל / null (אין הודעות)
+function sbcPol(co, e) { const r = sbcRel(co, e); return r ? (r[1] ? 1 : 0) : null; }
+/* שיעור המס על התגמול ברבעון (19/11/2026, גל 1 של שיטת באפט; docs/buffett-method-research.md §6.4, §13.1, §13.12, §13.13). הרווח המותאם
+   של הרחוב מחושב בשיעור ה־non-GAAP שהחברה מצהירה — ולכן הניכוי באותו שיעור, לא בשיעור האפקטיבי של הדוחות (מעוות בהטבות המס של
+   התגמול עצמו: Palantir ‏1.2%). הסדר: ריט → 0 (מחלק את הרווח ולא משלם מס חברות — אין מגן מס); השיעור בהודעה של הרבעון; השיעור
+   האחרון שהוצהר בהודעה קרובה (עד 400 יום — Marvell ‏11% כשלרבעון אין רווח לפני מס ב־XBRL); מס ÷ רווח לפני מס ב־12 החודשים, ואם
+   חסר — בשנה האחרונה; אחרת 21% (השיעור הפדרלי). כל שיעור מחוץ ל־10%–30% — לא נלקח (האינווריאנט של §6.12; שיעור הדוחות של Meta
+   ‏4.6% ושל Broadcom ‏5.4% — הטבות חד־פעמיות, לא המס על התגמול) */
+const TAU_OK = (x) => x >= 0.1 && x <= 0.3;
+function bufTau(co, rel, e, xt) {
+  if (co.reit) return { t: 0, s: 'reit' };
+  const L = Array.isArray(co.sbcX) ? co.sbcX : [], at = Date.parse(e) + 45 * D864;
+  // המס של המדד המותאם כבר כולל את הטבת המס על התגמול (r[9], מנהלות השקעות) — הניכוי לפני מס, אחרת המגן נספר פעמיים
+  if ((rel && rel[9]) || L.some((r) => r[9] && Math.abs(Date.parse(r[0]) - at) <= 400 * D864)) return { t: 0, s: 'tb' };
+  if (rel && TAU_OK(rel[4])) return { t: rel[4], s: 'pr' };
+  let best = null;
+  for (const r of L) if (TAU_OK(r[4])) { const d = Math.abs(Date.parse(r[0]) - at); if (d <= 400 * D864 && (!best || d < best.d)) best = { d, t: r[4] }; }
+  if (best) return { t: best.t, s: 'pr' };
+  if (xt != null) return { t: xt, s: 'x' };
+  return { t: 0.21, s: 'd' };
+}
+/* סכום התגמול ברבעון i (§13.11): השורה שהחברה הוציאה בגישור שבהודעה — הרחוב בנוי עליה, ולכן הניכוי הופך בדיוק אותה. תגמול שרשום
+   בשורת רכישות או ארגון מחדש (Palo Alto: ‏684 בדוח הרווח, 517 בשורת התגמול) — לא כאן. המספרים בשורה גולמיים (מיליונים, אלפים, למניה),
+   וסדר הגודל נקבע מול ה־XBRL של אותו רבעון (יחס 0.4–1.6; עד
+   1.25 העמודה הראשונה של Bloom נפסלה — ה־XBRL של הרבעון ‏45.1 מול 57.0 בגישור, B-033 — ונלקח הרבעון הקודם. פי 2 ומעלה — חצי שנה או שנה). העמודה: הראשונה — לא "הקרובה ל־XBRL" (Salesforce: ‏805 ברבעון, ‏820 שנה
+   קודם, וה־XBRL ‏819 כולל תגמול של ארגון מחדש); חוץ משורה של רבעוני השנה זה לצד זה וסך בסוף (Intuit: ‏543 521 485 ‏1,549 — הסך
+   = סכום הקודמים, והרבעון = האחרון לפניו), ושנה קודמת בעמודה הראשונה (מתאימה ל־XBRL של לפני שנה, והשנייה — לרבעון). בלי שורה —
+   XBRL מתגית אחת (co.bx, בלי ערבוב בין רבעונים): ההוצאה בדוח הרווח (חוץ מתיוג חלקי — פחות מחצי מהתזרים), התוספת בתזרים, הגידול
+   בהון; ובתשובה ישנה — Q.sbc. oth — הדוחות גדולים ב־15% ומעלה מהשורה (תגמול בשורות אחרות) */
+/* העמודה של הרבעון בשורה של כמה רבעונים (null — לא נקבע מהמבנה). (א) התזוזה מול השורה בהודעה של הרבעון הקודם: 5 רבעונים מהישן
+   לחדש (Blackstone, ‏Carlyle: "301,562 358,364 561,217 353,753 329,217" — ברבעון הבא אותה שורה זזה שמאלה) → החמישית; מהחדש לישן
+   (Blue Owl) → הראשונה. (ב) בלי הודעה קודמת: עמודה שהיא סכום של 2–4 רבעונים רצופים לפניה — המצטבר מתחילת השנה או 12 חודשים
+   (Intuit ‏543 521 485 ‏1,549; ‏Apollo ‏… 156 129 145 ‏313 430; ‏Carlyle ‏… 121.8 117 102.3 ‏289.3 341.1). הכיוון — לפי היחס בין הרבעון
+   לרבעון שלפניו, מול אותו יחס ב־XBRL (בלי XBRL — מהישן לחדש) */
+function sbcCol(co, i, rel, vs, refOf) {
+  const near = (a, b) => a > 0 && b > 0 && Math.abs(a / b - 1) <= 0.005;
+  const rp = i > 0 ? sbcRel(co, co.q[i - 1]) : null, pv = rp && rp[0] !== rel[0] && Array.isArray(rp[5]) ? rp[5].filter((v) => v > 0) : null;
+  if (pv && vs.length >= 5 && pv.length >= 5) {
+    let o = 0, w = 0;
+    for (let j = 0; j < 4; j++) { if (near(vs[j], pv[j + 1])) o++; if (near(vs[j + 1], pv[j])) w++; }
+    if (o >= 3 && o > w) return vs[4];
+    if (w >= 3 && w > o) return vs[0];
+  }
+  const dec = vs.some((v) => v % 1 !== 0), r0 = refOf(i), r1 = i > 0 ? refOf(i - 1) : 0;
+  for (let k = 2; k < vs.length; k++) for (let j = k - 1; j >= 1; j--) for (let n = 2; n <= Math.min(4, j + 1); n++) {
+    const sm = vs.slice(j - n + 1, j + 1).reduce((a, b) => a + b, 0);
+    if (Math.abs(vs[k] - sm) > 0.002 * vs[k] + (dec ? 0.15 : 0)) continue;
+    const a = j - n + 1;
+    if ((a === 0 && j === k - 1) || !(r0 > 0 && r1 > 0)) return vs[j];
+    const g = Math.log(r0 / r1), so = Math.abs(Math.log(vs[j] / vs[j - 1]) - g), sn = Math.abs(Math.log(vs[a] / vs[a + 1]) - g);
+    return sn < so ? vs[a] : vs[j];
+  }
+  return null;
+}
+function sbcAmt(co, i, rel, t) {
+  const e = co.q[i], x = (co.bx && co.bx[e]) || [], al = x[0], cf = x[1], ap = x[2], mq = co.Q.sbc ? co.Q.sbc[i] : null, sh = co.Q.sh ? co.Q.sh[i] : null;
+  const refOf = (j) => { const y = (co.bx && co.bx[co.q[j]]) || []; return Math.max(y[0] > 0 ? y[0] : 0, y[1] > 0 ? y[1] : 0, y.length ? 0 : co.Q.sbc && co.Q.sbc[j] > 0 ? co.Q.sbc[j] : 0); };
+  const ref = refOf(i);
+  // חלק מהתגמול, עם הסכום בהודעה (r[11], ‏Comcast) — בדולרים, בלי התאמה ל־XBRL (הוא חלק קטן ממנו)
+  if (rel && rel[11] && Array.isArray(rel[5]) && rel[5][0] > 0) return { v: rel[5][0], s: 'pp', oth: false };
+  if (rel && Array.isArray(rel[5]) && ref > 0) {
+    let vs = rel[5].filter((v) => v > 0);
+    const one = sbcCol(co, i, rel, vs, refOf);
+    if (one != null) vs = [one];
+    // סדר הגודל: מיליונים, אלפים, יחידות, ולמניה (רק מספר עם נקודה עשרונית) × המניות
+    const fit = (v0, R) => { for (const m of [1e6, 1e3, 1, v0 % 1 !== 0 && sh > 0 ? sh : 0]) { if (!m) continue; const v = rel[6] ? v0 * m / (1 - t) : v0 * m; if (v / R >= 0.4 && v / R <= 1.6) return v; } return null; };
+    let pick = null;
+    const r4 = i >= 4 ? refOf(i - 4) : 0, a = fit(vs[0], ref), b = vs.length > 1 ? fit(vs[1], ref) : null;
+    if (a != null && b != null && r4 > 0 && Math.abs(a / r4 - 1) <= 0.01 && Math.abs(b / ref - 1) <= 0.01 && Math.abs(a / ref - 1) > 0.01) pick = b;
+    else for (const v0 of vs) { const v = fit(v0, ref); if (v != null) { pick = v; break; } }
+    if (pick != null) return { v: pick, s: 'pr', oth: ref > 1.15 * pick };
+  }
+  if (al > 0 && !(cf > 0 && al < 0.5 * cf)) return { v: al, s: 'al' };
+  if (cf > 0) return { v: cf, s: 'cf' };
+  if (ap > 0) return { v: ap, s: 'ap' };
+  return mq > 0 ? { v: mq, s: 'q' } : { v: 0, s: null };
 }
 function bufCalc(co) {
   if (!co || co.fxMix || co.fxNote || !co.q || !co.Q) return null;
   const n = co.q.length, L = n - 1, p = nowP(co);
   if (n < 4 || !p || Math.abs(Date.parse(co.q[L]) - Date.parse(p.end)) > 5 * D864 || !qRun(co, L - 3, L)) return null;
   const hist = (co.hist || []).filter((x) => x && x.q && x.a != null && isFinite(x.a));
-  const c = ctx(co, p), t = c.t, Q = co.Q;
+  const c = ctx(co, p), Q = co.Q;
+  // שיעור המס בדוחות: 12 החודשים, ואם חסר רבעון — השנה האחרונה (§13.13), בתחום 10%–30%
+  const fy = fyList(co).slice(-1)[0];
+  let pt = raw(co, 'pretax', p), tx = raw(co, 'tax', p);
+  if (!(pt > 0 && tx != null) && fy) { pt = raw(co, 'pretax', fy); tx = raw(co, 'tax', fy); }
+  const xt = pt > 0 && tx != null && TAU_OK(tx / pt) ? tx / pt : null;
   const rows = [];
   for (let i = L - 3; i <= L; i++) {
     const e = co.q[i], hq = hist.find((x) => Math.abs(Date.parse(x.q) - Date.parse(e)) <= 20 * D864);
     const gi = Q.eps ? Q.eps[i] : null, sh = Q.sh ? Q.sh[i] : null;
     if (!hq || gi == null || !isFinite(gi) || !(sh > 0)) return null;
-    rows.push({ s: hq.a, g: gi, sb: Q.sbc && Q.sbc[i] > 0 ? Q.sbc[i] * (1 - t) / sh : 0, pol: sbcPol(co, e) });
+    const rel = sbcRel(co, e), tau = bufTau(co, rel, e, xt), am = sbcAmt(co, i, rel, tau.t), amz = (co.bx && co.bx[e] && co.bx[e][3]) || 0;
+    // Up-C (Blackstone, ‏Blue Owl): המדד למניה של הרחוב מחולק על כל המניות והיחידות (r[10], מההודעה), לא על Class A שב־XBRL
+    const ns = rel && rel[10] > 1.15 * sh && rel[10] < 4 * sh ? rel[10] : sh;
+    rows.push({ s: hq.a, g: gi, sb: am.v * (1 - tau.t) / ns, pre: am.v / ns, pol: rel ? (rel[1] ? 1 : 0) : null, t: tau.t, ts: tau.s, as: am.s, oth: !!am.oth,
+      amz: amz > 0 ? amz * (1 - 0.21) / sh : 0 });
   }
   const yGaap = rows.filter((r) => Math.abs(r.s - r.g) <= Math.max(0.02, 0.02 * Math.abs(r.s))).length >= 3;
-  let st = 0, g = 0, ded = 0, sbcAt = 0, exAt = 0, exDed = 0, p1 = 0, p0 = 0;
+  // סדרה מעורבת של Yahoo (B-028; TPG: ‏0.29 ו־0.39 = GAAP, ו־‎−0.05 ו־0.65 — לא GAAP ולא המדד של ההודעה): בדיוק שני רבעונים = GAAP, ובאחר
+  // החברה מוציאה את התגמול — אין על מה לנכות (לא ידוע מה הרחוב), אין אריח
+  const eqG = (r) => Math.abs(r.s - r.g) <= Math.max(0.005, 0.005 * Math.abs(r.s));
+  if (!yGaap && rows.filter(eqG).length === 2 && rows.some((r) => r.pol === 1 && !eqG(r))) return null;
+  let st = 0, g = 0, ded = 0, sbcAt = 0, pre = 0, exAt = 0, exDed = 0, p1 = 0, p0 = 0, amz = 0;
   for (const r of rows) {
     if (r.pol === 1) p1++; else if (r.pol === 0) p0++;
-    const d = r.pol === 0 || yGaap ? 0 : r.pol === 1 ? r.sb : clamp(r.s - r.g, 0, r.sb);
-    st += r.s; g += r.g; ded += d; sbcAt += r.sb;
+    // הרחוב של הרבעון = GAAP (סדרה מעורבת של Yahoo — TPG, ‏ARE, ‏B-028): התגמול כבר ירד בו
+    const d = r.pol === 1 && !yGaap && !eqG(r) ? r.sb : 0;
+    st += r.s; g += r.g; ded += d; sbcAt += r.sb; pre += r.pre; amz += r.amz;
     if (r.pol !== 0) { exAt += r.sb; exDed += d; }
   }
+  // אין הודעות (חברה זרה): קודם מייחסים את הפער מול הרווח המדווח להפחתה מרכישות (שבאפט לא מוריד), ורק את היתר לתגמול — עד התגמול
+  // אחרי מס (§6.9, §13.5)
+  const unk = !p1 && !p0;
+  if (unk && !yGaap) { ded = clamp(st - g - amz, 0, sbcAt); exDed = ded; }
   // יחידות שונות (אגורות מול שקלים, מניה מול ADR) — לא מחשבים. בסימנים הפוכים (רווח מותאם מול הפסד מדווח — SNOW) היחס לא אומר כלום
   if (st * g > 0 && Math.abs(st) > 0.05 && Math.abs(g) > 0.05 && (Math.abs(st / g) > 8 || Math.abs(st / g) < 0.125)) return null;
-  const out = { st, g, gap: st - g, ded, eps: st - ded, sbcAt, t, yGaap, pol: p1 && p0 ? 'mix' : p1 ? 'ex' : p0 ? 'in' : '?', f: null };
+  const last = rows[rows.length - 1];
+  // t — השיעור האפקטיבי על כל הניכוי (לתצוגה); ts — המקור ברבעון האחרון; asrc — מקור הסכום (pr: ההודעה); oth — תגמול בשורות אחרות
+  const out = { st, g, gap: st - g, ded, eps: st - ded, sbcAt, t: pre > 0 ? 1 - sbcAt / pre : last.t, ts: last.ts, asrc: last.as, oth: rows.some((r) => r.oth && r.pol === 1), pp: rows.some((r) => r.as === 'pp' && r.pol === 1),
+    yGaap, pol: p1 && p0 ? 'mix' : p1 ? 'ex' : p0 ? 'in' : '?', f: null };
   const e1 = (co.est || []).find((e) => e.p === '+1y') || {};
   const fe = co.fe > 0 ? co.fe : e1.eps;
   if (fe != null && isFinite(fe)) {
     // fut — הרווח המותאם מוציא את התגמול גם מעכשיו; chg — ההודעה האחרונה מוציאה, אבל הודיעה שמעכשיו לא (INTU). מוציאה ממילא לא = לא שינוי
     const er = (Array.isArray(co.sbcX) ? co.sbcX : []).slice(-1)[0], fut = er ? !!er[2] : null, chg = !!er && !!er[1] && !er[2];
     const frac = exAt > 0 ? exDed / exAt : fut ? 1 : 0;
-    const rate = c.sbc > 0 && c.rev > 0 ? c.sbc / c.rev : null;
+    // שיעור התגמול מההכנסות — מאותם סכומים שנוכו (לא Q.sbc המעורב)
+    const rate = pre > 0 && c.rev > 0 ? rows.reduce((t, r, j) => t + r.pre * Q.sh[L - 3 + j], 0) / c.rev : null;
     const fs = rate != null ? rate * (e1.rev > 0 ? e1.rev : c.rev) : 0;
-    const fd = fut === false ? 0 : frac * fs * (1 - t) / Q.sh[L];
+    const fd = fut === false ? 0 : frac * fs * (1 - last.t) / Q.sh[L];
     // השנה ומספר האנליסטים — רק כשהרווח של המכפיל הצפוי הוא ממוצע +1y (עד 1%)
     const same = e1.eps != null && Math.abs(fe - e1.eps) <= 0.01 * Math.max(Math.abs(e1.eps), 0.05);
-    out.f = { base: fe, ded: fd, eps: fe - fd, end: same ? e1.end || null : null, n: same ? e1.n || null : null, rate, fut, chg };
+    out.f = { base: fe, ded: fd, eps: fe - fd, end: same ? e1.end || null : null, n: same ? e1.n || null : null, rate, fut, chg, t: last.t };
   }
   return out;
 }
@@ -2037,13 +2139,13 @@ function bufSheet(key) {
   openSheet(T(fwd ? 'anFBfpe' : 'anFBpe'), (bd, rec) => {
     bd.append(h('p', { class: 'an-ex an-ex-lg' }, T(fwd ? 'anXBfpe' : 'anXBpe')));
     if (!b || (fwd && !b.f)) { bd.append(h('p', { class: 'an-ex' }, T('anXBufNone'))); return; }
-    const ps = (v) => fmt(v, 'ps', co), tx = pct(b.t, 0), eps = fwd ? b.f.eps : b.eps, ded = fwd ? b.f.ded : b.ded;
+    const ps = (v) => fmt(v, 'ps', co), tx = pct(fwd ? b.f.t ?? b.t : b.t, 0), eps = fwd ? b.f.eps : b.eps, ded = fwd ? b.f.ded : b.ded;
     const row = (tt, s, v, strong) => h('div', { class: 'an-row' }, h('div', { class: 'an-rt' }, h('b', {}, tt), s ? h('span', {}, s) : null),
       h('div', { class: 'an-rv', style: strong ? 'font-weight:800' : null }, v));
     const rows = fwd
       ? [row(yr ? T('anBFwd', { y: yr }) : T('anBFwd0'), b.f.n ? T('anNAnalysts', { n: b.f.n }) : T('anBFwdY'), ps(b.f.base)),
         row(T('anBSbcF'), ded > 0 && b.f.rate != null ? T('anBSbcFS', { r: strip(pct(b.f.rate)), t: strip(tx) }) : null, ps(-ded))]
-      : [row(T('anBStreet'), T('anBStreetS'), ps(b.st)), row(T('anBSbc'), ded > 0 ? T('anBSbcS', { t: strip(tx) }) : null, ps(-ded))];
+      : [row(T('anBStreet'), T('anBStreetS'), ps(b.st)), row(T('anBSbc'), ded > 0 ? T({ reit: 'anBSbcSR', tb: 'anBSbcSB', pr: 'anBSbcSP', d: 'anBSbcSD' }[b.ts] || 'anBSbcS', { t: strip(tx) }) : null, ps(-ded))];
     rows.push(row(T('anBEps'), null, ps(eps), true),
       row(T(fwd ? 'anFBfpe' : 'anFBpe'), px ? T('anBMultS', { p: strip(ps(px)) }) : null, eps > 0 && px ? fmt(px / eps, 'x', co, 1) : T('anBNeg'), true));
     if (!fwd) rows.push(row(T('anBGaap'), T('anBGaapS'), ps(b.g)));
@@ -2051,6 +2153,8 @@ function bufSheet(key) {
     const same = Math.abs(b.gap) <= 0.02 * Math.max(Math.abs(b.st), 0.05);
     const note = fwd && b.f.chg ? 'anBFutIn' : same ? 'anBPolGaap' : { ex: 'anBPolEx', in: 'anBPolIn', mix: 'anBPolMix' }[b.pol] || 'anBPolUnk';
     bd.append(h('p', { class: 'an-ex' }, T(note)));
+    if (!fwd && b.oth && b.ded > 0) bd.append(h('p', { class: 'an-ex' }, T('anBOth')));
+    if (!fwd && b.pp && b.ded > 0) bd.append(h('p', { class: 'an-ex' }, T('anBPart')));
     if (MED[key] && canEdM(co, key)) medForm(bd, key, rec);
   }, { small: true });
 }
@@ -2073,5 +2177,5 @@ function estSheet() {
 }
 
 /* בדיקות (node) — הפונקציות הטהורות */
-export const _test = { bufCalc, bufEps, bpeOf, bfpeOf, sbcPol, isAdj, r40Of, multAvg, calcDefaults, calcRun, calcMults, irr, estGrowth, qRun, qBack, ttmPoints, cmpPrev, restated, cagrBetween, growthOf, finInputs, riValue, impliedRoe, reitInputs, lossView, fairOf, flagsAt, srcDef, rawName, RAWK, OWN_TAG, prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath, setPx, real, pxReal, MED, metNow, pxFrom, canEdM, medTxt, medVal, medHist,
+export const _test = { bufCalc, bufEps, bpeOf, bfpeOf, sbcPol, sbcRel, bufTau, sbcAmt, isAdj, r40Of, multAvg, calcDefaults, calcRun, calcMults, irr, estGrowth, qRun, qBack, ttmPoints, cmpPrev, restated, cagrBetween, growthOf, finInputs, riValue, impliedRoe, reitInputs, lossView, fairOf, flagsAt, srcDef, rawName, RAWK, OWN_TAG, prep, indFix, pickPeers, peerRow, ctx, periodList, hasTTM, raw, multHist, autoInputs, dcf, scenarios, reverseG, multModel, uncertainty, checks, piotroski, altman, fmt, sgn, cagrN, epsPath, setPx, real, pxReal, MED, metNow, pxFrom, canEdM, medTxt, medVal, medHist,
   setEnv: (e) => { E = e; } };

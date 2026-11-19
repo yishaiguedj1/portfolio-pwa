@@ -54,12 +54,12 @@
 
 /* ---------- 1. עגולים ---------- */
 :where(.icon-btn, .ann-more, .learn-exp, .lib-round, .mg-ib, .st-lk-x, .st-rate-b, .st-al-add, .tr-copy, .tr-gg, .tr-ib, .tr-say, .tr-sw, .wl-title-btn,
-    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .an-pxed, .tx-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic, .tab-disc, .tab-glow, .adm-tab i, .ss-add, .dep-add) {
+    .st-outb, .st-advx, .st-pl-b, .an-x, .es-x-close, .an-cback, .an-back, .an-pxed, .tx-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic, .tab-disc, .tab-glow, .adm-tab i, .ss-add, .dep-add) {
   border-radius: 50% !important;
 }
 /* ---------- 2. החומר — כל הכפתורים (פריטי סגמנט: רק הנבחר; השאר יושבים על המסילה) ---------- */
 :where(.icon-btn, .ann-more, .learn-exp, .lib-round, .mg-ib, .st-lk-x, .st-rate-b, .st-al-add, .tr-copy, .tr-gg, .tr-ib, .tr-say, .tr-sw, .wl-title-btn,
-    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .an-pxed, .tx-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic, .tab-disc, .adm-tab i, .ss-add, .dep-add,
+    .st-outb, .st-advx, .st-pl-b, .an-x, .es-x-close, .an-cback, .an-back, .an-pxed, .tx-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic, .tab-disc, .adm-tab i, .ss-add, .dep-add,
     .btn, .dlg-btn, .st-btn, .st-plus, .an-btn, .an-edrow-b, .tx-btn, .adm-btn, .bk-cta, .lib-signin, .lib-btn, .google-btn, .sheet-btn, .ed-btn, .ed-fetch, .earn-more,
     .st-jobs-more, .st-lk-paste, .st-mini, .st-cpill, .st-ai-b, .st-se-b, .st-rs-chip, .st-wbtn, .st-chip, .st-lk-q, .st-pill, .col-pill, .lib-bkpill,
     .lib-chip, .pl-chip, .lib-sortbtn, .mg-pill, .mg-tok, .mg-ab, .mg-tb.p, .mg-ok56, .subpage-back, .lib-back, .st-back, .adm-back, .fx-pill,
@@ -75,7 +75,7 @@
 }
 
 :where(.icon-btn, .ann-more, .learn-exp, .lib-round, .mg-ib, .st-lk-x, .st-rate-b, .tr-copy, .tr-gg, .tr-ib, .tr-say, .tr-sw, .wl-title-btn,
-    .st-outb, .st-advx, .st-pl-b, .an-x, .an-cback, .an-back, .an-pxed, .tx-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic,
+    .st-outb, .st-advx, .st-pl-b, .an-x, .es-x-close, .an-cback, .an-back, .an-pxed, .tx-back, .kc-back, .kc-fab, .kc-now, .kc-plus, .kc-hint-x, .rd-ic,
     .btn, .dlg-btn, .st-btn, .an-btn, .an-edrow-b, .tx-btn, .adm-btn, .bk-cta, .lib-signin, .lib-btn, .google-btn, .sheet-btn, .ed-btn, .ed-fetch, .earn-more,
     .st-jobs-more, .st-lk-paste, .st-mini, .st-cpill, .st-ai-b, .st-se-b, .st-rs-chip, .st-wbtn, .st-chip, .st-lk-q, .col-pill, .lib-bkpill,
     .lib-chip, .pl-chip, .lib-sortbtn, .mg-pill, .mg-tok, .mg-ab, .subpage-back, .lib-back, .st-back, .adm-back,

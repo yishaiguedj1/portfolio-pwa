@@ -27,11 +27,11 @@ ok(g[0].months.map((m) => m.m + ':' + m.items.length + ':' + m.net).join() === '
 ok(g[2].months[0].m === '', 'בלי תאריך — בלי כותרת חודש');
 ok(/'dep-mo'/.test(app) && /!r\.classList\.contains\('dep-mo'\)/.test(app), 'כותרת חודש בכרטיס, ולא נספרת כשורה במקלדת');
 ok(g[1].items.every((x) => typeof x.i === 'number'), 'האינדקס המקורי נשמר לעריכה/מחיקה');
-ok(/depYearGroups\(shown\)\.forEach\(\(g, k\) => ul\.appendChild\(buildDepYear\(g, yrOpen\.has\(g\.y\) \? yrOpen\.get\(g\.y\) : k === 0/.test(app), 'ברירת מחדל: השנה האחרונה פתוחה, ומה שהמשתמש פתח נשמר בין ציורים');
+ok(/groups\.forEach\(\(g, k\) => ul\.appendChild\(buildDepYear\(g, yrOpen\.has\(g\.y\) \? yrOpen\.get\(g\.y\) : k === 0/.test(app), 'ברירת מחדל: השנה האחרונה פתוחה, ומה שהמשתמש פתח נשמר בין ציורים');
 ok(/:scope > \.dep-yr\.open/.test(app), 'אקורדיון — פתיחת שנה סוגרת את האחרות');
 ok(/aria-expanded/.test(pick('function buildDepYear(', 'function buildDepositRow(')), 'נגישות: aria-expanded על כותרת השנה');
 ok(/p\.matches\('\.dep-yr\.open'\)/.test(app), 'מקלדת במחשב: שורות של שנה פתוחה נספרות, של סגורה — לא');
-ok(/\.rows li\.dep-yr \{[^}]*backdrop-filter: var\(--glass-blur\)/.test(css) && /\.dep-yr-body \{[^}]*grid-template-rows: 0fr/.test(css), 'עיצוב: כרטיס זכוכית ופתיחה חלקה');
+ok(/\.rows li\.dep-yr \{[^}]*background: var\(--gl-card\)/.test(css) && /\.dep-yr-body \{[^}]*grid-template-rows: 0fr/.test(css), 'עיצוב: כרטיס זכוכית כמו בעסקאות ופתיחה חלקה');
 ok(/\.dep-yr-in \{[^}]*padding-inline/.test(css), 'יישור לוגי בלבד');
 ok(g[1].nIn === 1 && g[1].nOut === 1 && g[1].sumIn === 1000 && g[1].sumOut === 300, 'אריחי השנה: הפקדות ומשיכות בנפרד');
 ok(R("depIsOut({ amount: 300 })") && !R("depIsOut({ amount: -300 })") && R("depIsOut({ amount: 0, cur: 'USD', amt: 50 })") && !R("depIsOut({ amount: 0, cur: 'USD', amt: -50 })"), 'משיכה מול הפקדה (גם במטבע זר בלי סכום בשקלים)');
@@ -41,4 +41,13 @@ ok(/dir="auto"/.test(row) && /\.dep-note \{[^}]*text-overflow: ellipsis/.test(cs
 ok(/if \(ed\)[\s\S]*'dep-ed'/.test(row) && /const ed = !isIbkrMode\(\);/.test(app), 'עיפרון בכל שורה במצב ידני; IBKR — לקריאה בלבד');
 ok(!/editDepositsBtn/.test(app) && /id="depAddBtn"/.test(fs.readFileSync(path.join(root, 'index.html'), 'utf8')), 'בלי מצב עריכה — "+" בשורת הכלים');
 ok(/'mini-btn danger', t\('btnDeleteRow'\)/.test(pick('function showEditDepositForm(', 'function showAddDepositForm(')), 'מחיקה מתוך טופס העריכה');
+// 19/11/2026: שבבי שנה כמו בעסקאות, וכרטיס/חודש/שורה באותו עיצוב
+const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+ok(/<div class="dep-bar">[\s\S]*?<div class="tx-years dep-years hidden" id="depYears" role="group"/.test(html), 'שבבי השנים בשורת הכלים, באותו רכיב כמו בעסקאות');
+const bar = pick('function depYearsBar(', 'function depYearGroups(');
+ok(/class="tx-y'/.test(bar) && /t\('txAll'\)/.test(bar) && /groups\.length > 1/.test(bar) && /y = state\._depY = 'all'/.test(bar), 'שבבים: "הכל" + שנה עם מספר רשומות; שנה אחת — בלי שבבים; שנה שנעלמה בסינון — חזרה ל"הכל"');
+ok(/else ul\.appendChild\(buildDepYear\(groups\.find\(\(g\) => g\.y === selY\), true/.test(app), 'שנה נבחרת — רק הכרטיס שלה, פתוח');
+const yr = pick('function buildDepYear(', 'function buildDepositRow(');
+ok(/'tx-yr-h dep-yr-h'/.test(yr) && /tx-yr-top/.test(yr) && /tx-kv/.test(yr) && /TX_CHEV/.test(yr) && /depKvIn/.test(yr) && /depKvOut/.test(yr) && /depKvNet/.test(yr), 'כותרת השנה כמו בעסקאות: שנה, רשומות, חץ, והפקדות/משיכות/נטו');
+ok(/\.rows li\.dep-mo \{[^}]*padding: 10px 16px 2px;[^}]*font-size: 12px; font-weight: 700/.test(css) && /\.dep-yr-list > li\.dep-row \+ li\.dep-row \{ border-top/.test(css), 'חודשים ושורות כמו בעסקאות (tx-mo, קו רק בין שורות צמודות)');
 console.log('# dep-years: ' + n + ' בדיקות עברו');
