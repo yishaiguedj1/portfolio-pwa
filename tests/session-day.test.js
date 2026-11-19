@@ -74,3 +74,27 @@ ok(!/<span class="sub-val">[^;]*chev/.test(subSrc), 'בלי החץ ▾ ליד ה
 ok(/'<span class="sub-val wl-ath">'/.test(subSrc) && /t\('subAthLbl'\)/.test(subSrc) && !/chev/.test(subSrc), 'מעקב: השיא במקום החץ ▾ (2.184.2)');
 ok(/subAthLbl: 'מהשיא'/.test(src) && /subAthLbl: 'From ATH'/.test(src), 'תווית השיא בשתי השפות');
 ok(!/wl-ath[\s\S]{0,400}fmtPx\(m\.ath\.price/.test(subSrc), 'מעקב: בלי מחיר השיא בשורה — רק "מהשיא" והאחוז (19/11)');
+
+// 19/11/2026: "מהשיא" רק בחלק מכרטיסי המעקב — ההיסטוריה של מניות המעקב לא נטענה. wlWarmHist: מטמון טרי מיד,
+// חסר/ישן — בקשה אחת לשרתון; כשל → המטמון הישן; כל סימבול פעם אחת; ובסוף ציור מחדש
+(async () => {
+  const run = (c) => vm.runInContext(c, sb);
+  ok(/listSync\(list, out\);\s*try \{ wlWarmHist\(items\.map/.test(src), 'renderWishlist מחמם את היסטוריית המעקב');
+  const now = Date.now();
+  const recs = { FRESH: { at: now - 3600e3, rows: [{ date: '2026-01-02', close: 10 }] }, OLD: { at: now - 3 * 864e5, rows: [{ date: '2025-01-02', close: 7 }] } };
+  const asked = [];
+  let renders = 0;
+  sb.loadHistCacheRec = (s) => recs[s] || null;
+  sb.histBatchWarm = async (syms) => { asked.push(...syms); run('state.hist').NEW = [{ date: '2026-11-18', close: 5 }]; };
+  sb.renderWishlist = () => { renders++; };
+  sb.restoreHistRows = (s, r) => { run('state.hist')[s] = r.rows; return r.rows; };
+  run('wlWarmHist(["FRESH", "OLD", "NEW"])');
+  ok(run('state.hist').FRESH && !asked.includes('FRESH'), 'מטמון טרי — מיד, בלי רשת');
+  await new Promise((r) => setTimeout(r, 0));
+  ok(asked.join() === 'OLD,NEW', 'ישן וחסר — בבקשה אחת');
+  ok(run('state.hist').NEW && run('state.hist').OLD && run('state.hist').OLD[0].close === 7, 'מה שהשרתון לא החזיר — מהמטמון הישן');
+  ok(renders === 1, 'ציור מחדש אחד בסוף');
+  run('wlWarmHist(["FRESH", "OLD", "NEW"])');
+  await new Promise((r) => setTimeout(r, 0));
+  ok(asked.length === 2 && renders === 1, 'כל סימבול פעם אחת בסשן');
+})().catch((e) => { console.error('FAIL - ' + e.message); process.exit(1); });

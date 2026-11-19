@@ -8309,8 +8309,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.186.1';
-const APP_VERSION = 'v844';
+const APP_RELEASE = '2.186.2';
+const APP_VERSION = 'v845';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -18003,6 +18003,37 @@ function renderWishlist(opts) {
     out.push(card);
   }
   listSync(list, out);
+  try { wlWarmHist(items.map((w) => w.sym)); } catch (e) {}
+}
+/* 19/11/2026 (בקשת המשתמש: "מהשיא" רק בחלק מכרטיסי המעקב): השיא מחושב מההיסטוריה היומית, ו־warmHistories טוען רק
+   את התיק והעסקאות — לכן מניית מעקב שלא נפתחה נשארה בלי השורה. כאן: מהמטמון בטלפון אם הוא טרי, ומה שחסר או ישן —
+   בבקשה אחת לשרתון (histBatchWarm, עד 40). כל סימבול פעם אחת בסשן; כשל ברשת → המטמון הישן, אם יש */
+const _wlHistTried = new Set();
+let _wlHistBusy = false;
+function wlWarmHist(syms) {
+  if (_wlHistBusy || typeof localStorage === 'undefined') return;
+  const need = [], stale = {};
+  let got = false;
+  for (const raw of syms) {
+    const sym = normalizeSym(raw);
+    if (!sym || state.hist[sym] || _wlHistTried.has(sym) || !isChartableSym(sym)) continue;
+    let rec = null;
+    try { rec = loadHistCacheRec(sym); } catch (e) {}
+    const has = !!(rec && rec.rows && rec.rows.length);
+    const age = has ? Date.now() - (Number(rec.at) || 0) : Infinity;
+    if (has && age >= 0 && age < 24 * 60 * 60 * 1000) { restoreHistRows(sym, rec); _wlHistTried.add(sym); got = true; continue; }
+    if (need.length >= 40) continue; // השאר — בציור הבא
+    _wlHistTried.add(sym);
+    need.push(sym);
+    if (has) stale[sym] = rec;
+  }
+  if (!need.length) { if (got) renderWishlist(); return; }
+  _wlHistBusy = true;
+  histBatchWarm(need).catch(() => null).then(() => {
+    for (const sym of need) if (!state.hist[sym] && stale[sym]) { try { restoreHistRows(sym, stale[sym]); } catch (e) {} }
+    _wlHistBusy = false;
+    renderWishlist();
+  });
 }
 
 /* v88/v93: לוגו חברה לכרטיס מניה — עם אות ראשונה כגיבוי אם הלוגו לא נטען.
