@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="wUpdated">Updated %1$s</string>
-    <string name="wManual">Manual</string>
     <string name="wDesc">Your whole portfolio on the home screen: price, daily change and after-hours. Tap a stock to open it.</string>
     <string name="wEmpty">Open Invest and tap the screen — your stock list will move to the widget.</string>
     <string name="wLoading">Loading prices…</string>
