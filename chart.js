@@ -2117,7 +2117,7 @@ function openSheet(title, fill, opt) {
   const sh = { el: null, modal: null };
   const body = h('div', { class: 'kc-sh-body' });
   const panel = h('div', { class: 'kc-sheet' + (opt && opt.wide ? ' wide' : ''), role: 'dialog', 'aria-label': title },
-    h('div', { class: 'kc-sh-head' }, h('div', { class: 'kc-sh-title', text: title }), btn('kc-ib', T('kcClose'), () => closeSheet(sh), ICON.close)), body);
+    h('div', { class: 'kc-sh-head' }, (opt && opt.head) || h('div', { class: 'kc-sh-title', text: title }), btn('kc-ib', T('kcClose'), () => closeSheet(sh), ICON.close)), body);
   sh.el = h('div', { class: 'kc-sh-back' + (opt && opt.clear ? ' clear' : ''), onclick: (e) => { if (e.target === sh.el) closeSheet(sh); } }, panel);
   root.appendChild(sh.el);
   if (opt && opt.onClose) sh.onClose = opt.onClose;
@@ -3020,7 +3020,7 @@ function openAlerts() {
     drawList();
     bgShow();
     bgSync(true);   // ברירת מחדל: פתיחת החלון (נגיעה) = בקשת הרשאה אם עוד לא נשאלה, ורישום לרקע
-  });
+  }, { head: alertHead(c.sym) });
 }
 
 /* 20/11/2026 (בקשת המשתמש): מכל הקמה/עריכה של התראה — קישור למסך הניהול של כל ההתראות (app.js openAlertsHub) */
@@ -3035,6 +3035,13 @@ function noteToggle(note) {
   const b = btn('kc-btn', T('kcNoteBtn'), () => { note.hidden = false; b.hidden = true; try { note.focus(); } catch (e) { /* בלי מקלדת */ } });
   b.hidden = !note.hidden;
   return b;
+}
+/* 20/11/2026 (בקשת המשתמש): כותרת חלונית ההתראה — לוגו עגול, הסימבול מודגש ושם החברה מתחתיו (במקום "התראות · SYM") */
+function alertHead(sym) {
+  const lg = h('span', { class: 'kc-alh-logo', html: E.logoHTML ? E.logoHTML(sym) : '' });   // HTML קבוע של האפליקציה (תמונת לוגו)
+  const nm = (E.name && E.name(sym)) || '';
+  return h('div', { class: 'kc-sh-title kc-alh' }, lg,
+    h('span', { class: 'kc-alh-tx' }, h('b', { text: sym }), h('small', { text: nm && nm !== sym ? nm : T('kcPriceAlerts') })));
 }
 function alertCount() { let n = 0; for (const k of Object.keys((S.store && S.store.alerts) || {})) n += (S.store.alerts[k] || []).length; return n; }
 /* המחיר החי למסך הניהול — גם למניות שאינן בתיק (בקשה אחת ל־/api/quotes, עד 40) → { SYM: מחיר } */
@@ -3108,7 +3115,7 @@ export async function openStockAlert(sym, env, id, px) {
           close();
         })));
     if (!a0) setTimeout(() => { try { price.focus(); price.select(); } catch (e) { /* בלי מקלדת */ } }, 60);
-  }, { root, onClose: () => { if (fl) setTimeout(() => fl.remove(), 160); } });
+  }, { root, head: alertHead(sym), onClose: () => { if (fl) setTimeout(() => fl.remove(), 160); } });
 }
 
 /* עונתיות: ממוצע תשואה לכל חודש + מפת חום לפי שנים (כמו Seasonals של TradingView Premium) */
