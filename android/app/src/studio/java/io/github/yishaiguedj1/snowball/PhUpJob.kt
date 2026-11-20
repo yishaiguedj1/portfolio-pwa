@@ -22,10 +22,11 @@ class PhUpJob : JobService() {
         if (!PhCore.PID_RE.matches(pid)) return false
         stopped = false
         val title = PhStore.get(this, pid)?.optString("name") ?: ""
-        setNotification(params, PhWork.N_VID, PhWork.vprogress(this, title, 0f), JOB_END_NOTIFICATION_POLICY_REMOVE)
+        val nid = nidOf(pid)
+        setNotification(params, nid, PhWork.vprogress(this, title, 0f), JOB_END_NOTIFICATION_POLICY_REMOVE)
         Thread {
             val done = try {
-                PhWork.video(this, pid, { stopped }) { n -> runCatching { setNotification(params, PhWork.N_VID, n, JOB_END_NOTIFICATION_POLICY_REMOVE) } }
+                PhWork.video(this, pid, { stopped }) { n -> runCatching { setNotification(params, nid, n, JOB_END_NOTIFICATION_POLICY_REMOVE) } }
             } catch (e: Throwable) { false }
             if (!stopped) jobFinished(params, !done)
         }.start()
@@ -40,14 +41,19 @@ class PhUpJob : JobService() {
     }
 
     companion object {
-        private const val JOB_ID = 4300
+        /** 20/11/2026 (תור עבודות): משימה לכל סרטון — עם מזהה קבוע אחד, כל תזמון החליף את הקודם, ובתור רק הסרטון האחרון עלה.
+         *  24 ביטים מה־pid (אקראי) → טווח משלו (0x43000000+), רחוק מ־4100/4300 ומשאר המשימות של Studio */
+        fun idOf(pid: String): Int = 0x43000000 or (pid.substring(1, 7).toInt(16) and 0xFFFFFF)
+        /** ההתראה של כל משימה — משלה (אחרת הסיום של אחת מוחק את ההתראה של אחרת). PhService (מתחת ל־14) — N_VID כמו קודם */
+        fun nidOf(pid: String): Int = 0x4500000 or (pid.substring(1, 6).toInt(16) and 0xFFFFF)
 
         /** true = תוזמן (אנדרואיד 14+, האפליקציה גלויה); false = PhService יעלה אחרי הקול */
         fun schedule(ctx: Context, pid: String): Boolean {
             if (Build.VERSION.SDK_INT < 34) return false
             val r = PhStore.get(ctx, pid)
             val left = maxOf(0L, (r?.optLong("size") ?: 0L))
-            val info = JobInfo.Builder(JOB_ID, ComponentName(ctx, PhUpJob::class.java))
+            if (!PhCore.PID_RE.matches(pid)) return false
+            val info = JobInfo.Builder(idOf(pid), ComponentName(ctx, PhUpJob::class.java))
                 .setUserInitiated(true)
                 .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
                 // 1/11/2026: כמה עולה — המערכת מתזמנת ומעריכה את המשימה לפי זה (בלי — "לא ידוע")

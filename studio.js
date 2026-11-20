@@ -224,6 +224,7 @@ export const PH_CAP_NU = 5;
 /* 5/11/2026: Studio שמעביר את הסרטון שבחר (nu) לדף לתצוגה בעורך — "חיתוך לפני התרגום" בלי בחירה שנייה (phpv) */
 export const PH_CAP_PV = 6;
 export const PH_CAP_Q = 7;    // 20/11/2026: phq — כמה עבודות בפתיחה אחת, ההעלאות אחת אחרי השנייה (תור עבודות)
+export const PH_CAP_YD = 8;   // 20/11/2026: phq2 — בתור גם קישורים שיורדים בטלפון (יוטיוב חוסם את השרת), ובחירה מרובה (‎#phpicks=)
 export function normJob(j) {
   if (!j || typeof j !== 'object' || !JOB_RE.test(String(j.id || ''))) return null;
   const sp = j.spec && typeof j.spec === 'object' ? j.spec : {};
@@ -3587,8 +3588,10 @@ export function quSer(f, clone) {
 }
 /* "pid.עבודה.מפתח~…" לאפליקציה (phq) — רק מה שעבר את התבניות של PhCore. טהורה */
 export function phQList(xs) {
-  return (xs || []).filter((x) => x && /^p[0-9a-f]{16}$/.test(x.p) && /^j[A-Za-z0-9_-]{20}$/.test(x.j) && /^[A-Za-z0-9_-]{43}$/.test(x.k)).map((x) => x.p + '.' + x.j + '.' + x.k).join('~');
+  return (xs || []).filter((x) => x && /^p[0-9a-f]{16}$/.test(x.p) && /^j[A-Za-z0-9_-]{20}$/.test(x.j) && /^[A-Za-z0-9_-]{43}$/.test(x.k) && (!x.u || /^https?:\/\/\S{3,2040}$/i.test(x.u)))
+    .map((x) => x.p + '.' + x.j + '.' + x.k + (x.u ? '.' + b64u(x.u) : '')).join('~');   // 20/11/2026: ‎.<base64url> — קישור להורדה בטלפון (phq2)
 }
+const b64u = (t) => btoa(String.fromCharCode(...new TextEncoder().encode(String(t)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const qdrClone = (v) => (typeof structuredClone === 'function' ? structuredClone(v) : JSON.parse(JSON.stringify(v)));
 function quDrIdx() {
   const ids = [...quDr.values()].flat().map((x) => x.id);
@@ -3692,8 +3695,9 @@ function quPhPrep(items, qn) {
   return pr;
 }
 function phQOpen(pr) {
-  const q = phQList(pr.res.filter((r) => r.j).map((r) => ({ p: r.it.f.ph.pid, j: r.j.job.id, k: r.k })));
-  if (q) location.href = phIntent('phq', { b: proxyBase(), q });
+  const ok = pr.res.filter((r) => r.j), yd = ok.some((r) => r.it.f.ph.yd);
+  const q = phQList(ok.map((r) => ({ p: r.it.f.ph.pid, j: r.j.job.id, k: r.k, u: r.it.f.ph.yd ? r.it.f.ph.u : '' })));
+  if (q) location.href = yd ? phIntent('phq2', { b: proxyBase(), q }, 'yqold') : phIntent('phq', { b: proxyBase(), q });   // phq2 — Studio ישן: ‎#phpick=!yqold
 }
 /* החלון של "להתחיל": כל עבודה — זמן ועלות; סך הכל — עלות, זמן עבודה, ומתי הכל מוכן (QU_PAR במקביל); כמה נשאר החודש */
 function quGoAsk(qu) {
@@ -3702,7 +3706,7 @@ function quGoAsk(qu) {
   const box = h('div', 'st-qgo');
   for (const it of l) {
     const r = h('div', 'st-qgo-r');
-    r.append(h('b', null, it.name), h('span', null, [it.k === 'vi' ? T('studioDialVi') : it.k === 'ka' ? T('studioDialKa') : T('studioActTr'), it.sec ? quTm(it.sec) : '—', it.usd ? fmtUsd(it.usd) : T('studioQuFree')].join(' · ')));
+    r.append(h('b', null, it.name), h('span', null, [it.k === 'vi' ? T('studioDialVi') : it.k === 'ka' ? T('studioDialKa') : T('studioActTr'), it.sec ? quTm(it.sec) : '—', it.usd ? fmtUsd(it.usd) : it.sec ? T('studioQuFree') : ''].filter(Boolean).join(' · ')));
     box.append(r);
   }
   const usd = Math.round(l.reduce((a, x) => a + x.usd, 0) * 100) / 100, work = l.reduce((a, x) => a + x.sec, 0);
@@ -3899,11 +3903,11 @@ function quAdd(k) {
    תיקייה שלמה, קובץ ZIP, בחירה מרובה או תיקייה שלמה מ־Drive (גם מקישור לתיקייה משותפת), ורשימת קישורים — לכל קישור האיכות
    הרגילה של הורדה מקישור (linkRec: ‏1080 או הכי קרוב מתחתיו, עם הקול שלו). f.qb = המקורות הנוספים (בזיכרון, עד QB_MAX);
    "להוסיף N לתור" (quBatchGo) = עבודה נפרדת לכל מקור — עותק של הטופס עם המקור שלו — וכולן לרשימה ("להתחיל" כרגיל) */
-export const QB_MAX = 50;
-const qbUse = (f) => !!(f && f.qd && !f.subs && !f.ph);
+export const QB_MAX = 40;   // = PhCore.Q_MAX (כמה עבודות האפליקציה מקבלת בפתיחה אחת)
+const qbUse = (f) => !!(f && f.qd && !f.subs && !(f.ph && !f.ph.nu));   // 20/11/2026: גם כשהראשי נבחר דרך האפליקציה (nu)
 const qbOf = (f) => (qbUse(f) ? f.qb || (f.qb = []) : []);
 const qbN = (f) => (qbUse(f) ? (f.qb || []).length : 0);
-const qbHasMain = (f) => !!(f.fileObj || f.drive || (f.link && f.linkOk));
+const qbHasMain = (f) => !!(f.fileObj || f.drive || (f.link && f.linkOk) || (f.ph && f.ph.nu));
 const qbAv = (f) => !!(f.ka || f.vi);   // בשיר ובניתוח — גם קבצי קול
 /* רק סרטונים (ובשיר/ניתוח — גם קול), בסדר הטבעי של הנתיב/השם (פרק 2 לפני פרק 10). טהורה */
 export function mediaPick(files, av) {
@@ -3935,6 +3939,7 @@ function qbAdd(f, items) {
     if (l.length >= QB_MAX) { full = true; break; }
     if (x.t === 'd' && (l.some((y) => y.t === 'd' && y.drive.id === x.drive.id) || (f.drive && f.drive.id === x.drive.id))) continue;
     if (x.t === 'u' && l.some((y) => y.t === 'u' && y.u === x.u)) continue;
+    if (x.t === 'p' && (l.some((y) => y.t === 'p' && y.ph.pid === x.ph.pid) || (f.ph && f.ph.pid === x.ph.pid))) continue;
     l.push(x);
   }
   if (full) flashSafe(T('studioQbMax', { n: QB_MAX }));
@@ -3952,7 +3957,7 @@ function qbTrkAll(f) {
   (async () => {
     try {
       for (;;) {
-        const x = (f.qb || []).find((y) => (y.t === 'f' || y.t === 'd') && !y.pp);
+        const x = (f.qb || []).find((y) => (y.t === 'f' || y.t === 'd' || y.t === 'p') && !y.pp);
         if (!x) break;
         x.pp = 1;
         try { if (!qbAv(f)) await qbTrk(x); } catch (e) {}
@@ -3963,8 +3968,10 @@ function qbTrkAll(f) {
   })();
 }
 async function qbTrk(x) {
-  const g = x.g = { trk: null, ns: null, _rb: null, dur: (x.t === 'f' ? x.dur : x.drive.dur) || 0 };
-  const file = x.t === 'f' ? x.fileObj : net.rangeBlob((force) => gb().token(force), x.drive.id, x.drive.size, x.drive.name);
+  const g = x.g = { trk: null, ns: null, _rb: null, dur: (x.t === 'd' ? x.drive.dur : x.dur) || 0 };
+  // p — נבחר דרך האפליקציה: החיפוש ברשת לפי טביעת האצבע (oh), והכתוביות שבקובץ — מה שהאפליקציה החזירה (z), כמו phTracks
+  const file = x.t === 'f' ? x.fileObj : x.t === 'p' ? { name: x.file.name, size: x.file.size, oh: x.oh || '', ph: x.ph.pid }
+    : net.rangeBlob((force) => gb().token(force), x.drive.id, x.drive.size, x.drive.name);
   if (file.remote) g._rb = file;
   if (file.size > 0 && net.subsFind) {
     const key = String(file.name || '') + '|' + file.size;
@@ -3975,7 +3982,9 @@ async function qbTrk(x) {
     }
     g.ns = v; g._nsKey = key;
   }
-  if (/\.(mkv|mk3d|webm|mp4|m4v|mov)$/i.test(file.name || '')) {
+  if (x.t === 'p') {
+    if (x.z) try { const L = await phSubs(x.z); if (L.length) { trkSet(g, file, phTrkList(L), true); for (const t of L) g.trk.x['p:' + t.i] = phTrkX(t); } } catch (e) {}
+  } else if (/\.(mkv|mk3d|webm|mp4|m4v|mov)$/i.test(file.name || '')) {
     try { const L = await listTracks(file); if (L && L.tracks.length) { const h0 = trkSet(g, file, L.tracks, !file.remote); if (h0) await trkEnsure(g, [h0.id]); } } catch (e) {}
   }
   if (!g.trk) nsMerge(g, file);
@@ -4007,12 +4016,14 @@ function qbProbe(f) {
     const x = (f.qb || []).find((y) => y.t === 'u' && y.st === 'busy' && !y.go);
     if (!x) return;
     x.go = 1; qbPrN++;
-    qbProbe1(x).catch(() => { x.st = 'err'; x.e = 'net'; }).finally(() => { qbPrN--; qbPaint(f); qbProbe(f); });
+    qbProbe1(x, f).catch(() => { x.st = 'err'; x.e = 'net'; }).finally(() => { qbPrN--; qbPaint(f); qbProbe(f); });
   }
 }
-async function qbProbe1(x) {
+async function qbProbe1(x, f) {
+  // 20/11/2026 (בקשת המשתמש — "מאוד חשוב שיהיה לזה פיתרון"): יוטיוב חוסם את השרת — בתוך Studio לאנדרואיד הקישור יורד בטלפון
+  // (PhYt: אותו מנוע של "הורדה מקישור", ‏1080 או הכי קרוב מתחתיו עם הקול הטוב ביותר), ומשם עולה כמו סרטון שנבחר באפליקציה
+  if (!ui.yc && ytHost(x.u)) { if (qbYdOk(f)) Object.assign(x, { st: 'ok', yd: 1 }); else { x.st = 'err'; x.e = 'yt'; } return; }
   if (!ui.url) { x.st = 'err'; x.e = 'app'; return; }
-  if (!ui.yc && ytHost(x.u)) { x.st = 'err'; x.e = 'yt'; return; }   // יוטיוב חוסם את השרת — רק דרך האפליקציה, אחד־אחד
   const t0 = Date.now();
   let j = await net.api('urlProbe', { url: x.u });
   while (j && j.ok && j.probe && (j.probe.st === 'q' || j.probe.st === 'r') && Date.now() - t0 < LINK_WAIT_MS) {
@@ -4025,6 +4036,7 @@ async function qbProbe1(x) {
   x.st = 'err';
   x.e = !j || !j.ok ? (j && j.error === 'bad_url' ? 'bad_url' : 'net') : j.probe && j.probe.st === 'e' ? String(j.probe.e || 'fail').slice(0, 20) : j.probe && j.probe.st === 'q' ? 'no_take' : 'timeout';
 }
+const qbYdOk = (f) => nuPickOk(f);   // בתרגום בלבד (nu: לא קריוקי ולא ניתוח)
 const qbErr = (x) => (x.e === 'yt' ? T('studioQbErrYt') : x.e === 'app' ? T('studioLinkApiOnly') : BLIND_ERRS.includes(x.e) ? T('studioQbBlind') : T('studioQbErr'));
 const qbLinkOk = (x) => x.st === 'ok' || x.st === 'busy' || (x.st === 'err' && BLIND_ERRS.includes(x.e));
 /* ZIP — קוראים רק את הספרייה המרכזית (גם ZIP64). סרטון שנשמר בלי דחיסה = חתיכה מהקובץ עצמו (בלי להעתיק לזיכרון);
@@ -4103,6 +4115,9 @@ function qbPickMenu(f, at) {
   const acc = qbAv(f) ? 'audio/*,video/*,.mp3,.m4a,.flac,.wav,.ogg,.opus,.mkv,.mp4,.webm' : 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';
   const take = (fs) => { if (!mediaPick(fs, qbAv(f)).length) { flashSafe(T('studioQbNone')); return; } qbFiles(f, fs); };
   lbMenu(at, T('studioQbAddRow'), [
+    // 20/11/2026 (בקשת המשתמש — "שהעלאה תהיה בלי תקיעות ומהירה"): בתוך Studio לאנדרואיד — בחירה מרובה באפליקציה, וההעלאה
+    // ממנה (UIDT: ממשיכה גם כשהמסך כבוי והדף ברקע), בלי עותק ובלי הדפדפן
+    nuPickOk(f) ? { k: 'qb-app', icon: 'up', label: T('studioQbApp'), fn: () => nuPick(true, true) } : null,
     { k: 'qb-files', icon: 'film', label: T('studioQbFiles'), fn: () => qbInput({ multiple: true, accept: acc }, take) },
     { k: 'qb-dir', icon: 'folder', label: T('studioQbDir'), fn: () => qbInput({ dir: true, multiple: true }, take) },
     { k: 'qb-zip', icon: 'clip', label: T('studioQbZip'), fn: () => qbInput({ accept: '.zip,application/zip,application/x-zip-compressed' }, async (fs) => {
@@ -4116,6 +4131,7 @@ function qbRows(f) {
   if (!l) return null;
   const sub = (x) => {
     if (x.t === 'u') {
+      if (x.yd) return T('studioQbYd');
       if (x.st === 'busy') return T('studioQbChk');
       if (x.st === 'err') return qbErr(x);
       const o = ((x.r && x.r.q) || []).find((q) => q.v === x.v) || {};
@@ -4126,7 +4142,7 @@ function qbRows(f) {
   };
   const rows = l.map((x, i) => {
     const r = h('div', 'st-row st-ric');
-    r.append(tile(x.t === 'u' ? 'link' : x.t === 'd' ? 'cloud' : 'film', x.t === 'u' ? (qbLinkOk(x) ? 'red' : 'gray') : x.t === 'd' ? 'teal' : 'blue'));
+    r.append(tile(x.t === 'u' ? 'link' : x.t === 'd' ? 'cloud' : 'film', x.t === 'u' ? (qbLinkOk(x) ? 'red' : 'gray') : x.t === 'd' ? 'teal' : x.t === 'p' ? 'green' : 'blue'));
     const t = h('span', 'st-l'), nm = h('b');
     if (x.t === 'u') { const bd = h('bdi', null, x.st === 'ok' && x.r && x.r.t ? x.r.t : hostOf(x.u) || x.u); bd.dir = 'auto'; nm.append(bd); } else nm.append(fileNameEl(x.file.name));
     t.append(nm, h('small', x.t === 'u' && !qbLinkOk(x) ? 'st-warn' : null, sub(x)));
@@ -4140,6 +4156,8 @@ function qbRows(f) {
   box.append(secT(T('studioQbSec', { n: l.length })), list(...rows), note(T('studioQbNote', { n: l.length + (qbHasMain(f) ? 1 : 0) })));
   return box;
 }
+/* pid לקישור שיורד באפליקציה (= PhStore.newPid: ‏p + 16 תווי hex) */
+export const phPidNew = () => 'p' + Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('');
 /* "להוסיף N לתור": עבודה לכל מקור — עותק של הטופס (אותן הגדרות), עם המקור שלו */
 const QB_SRC = ['id', 'file', 'fileObj', 'handle', 'drive', 'link', 'linkOk', 'edl', 'pv', 'pvKey', 'sa', 'saX', 'trk', 'dur', 'more', 'subs', 'ph', 'ns', 'dl', '_rb', 'vm', 'qb', 'qlT', '_nsKey', 'why', 'whyDone', 'estOk', 'ryTried', 'qx', 'qgo'];
 function qbForm(f, x) {
@@ -4149,6 +4167,12 @@ function qbForm(f, x) {
   g.out = Object.assign({}, f.out); g.to = (f.to || []).slice();
   if (x.t === 'f') Object.assign(g, { fileObj: x.fileObj, file: x.file, dur: x.dur || 0 });
   else if (x.t === 'd') Object.assign(g, { drive: Object.assign({}, x.drive), file: x.file });
+  else if (x.t === 'p') Object.assign(g, { ph: Object.assign({}, x.ph), file: x.file, dur: x.dur || 0 });   // נבחר דרך האפליקציה — היא מעלה
+  else if (x.yd) {   // יוטיוב — יורד באפליקציה (PhYt). pid חדש מכאן; הגודל והאורך — מהטלפון אחרי ההורדה
+    const t = String(x.r && x.r.t ? x.r.t : urlTitle(x.u)).replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').trim().slice(0, 150) || 'video';
+    Object.assign(g, { ph: { pid: phPidNew(), nu: 1, yd: 1, u: x.u, w: 0, h: 0, dur: 0, cap: PH_CAP_YD }, file: { name: t + '.mp4', size: 1, type: 'video/*' }, dur: 0 });
+    return g;
+  }
   if (x.g) Object.assign(g, { trk: x.g.trk, ns: x.g.ns, _rb: x.g._rb, _nsKey: x.g._nsKey });   // הכתוביות שנמצאו — כמו בסרטון בודד
   else {
     const blind = !(x.st === 'ok' && x.r && x.v);   // לא נבדק / בלי רשימת איכויות — העובד בוחר לבד (הכי טוב עד 1080)
@@ -4158,6 +4182,7 @@ function qbForm(f, x) {
   return g;
 }
 async function qbSpec(g, x) {
+  if (g.ph) return g.ph.nu ? phSpecOf(g) : null;
   if (g.link) {
     if (x && !qbLinkOk(x)) return null;
     const L = g.link, pick = L.blind ? { h: 0 } : linkPick(L);
@@ -4179,7 +4204,7 @@ async function quBatchGo(f) {
   ui.starting = true; render('none');
   qbTrkAll(f);
   const t0 = Date.now();
-  while ((f.qb || []).some((x) => (x.t === 'f' || x.t === 'd') && x.pp !== 2) && Date.now() - t0 < QB_TRK_WAIT) await sleep(300);   // הכתוביות — לפני שהעבודות נשמרות
+  while ((f.qb || []).some((x) => (x.t === 'f' || x.t === 'd' || x.t === 'p') && x.pp !== 2) && Date.now() - t0 < QB_TRK_WAIT) await sleep(300);   // הכתוביות — לפני שהעבודות נשמרות
   const xs = f.qb.slice();
   delete f.qb; delete f.qlT;
   const devMain = !!(f.link && f.linkOk && f.link.to !== 'cloud');   // קישור שיורד בטלפון — אחרי כולם, בדרך הרגילה
@@ -4461,7 +4486,7 @@ function pageForm(p, editing) {
   const inp = h('input', 'st-file'); inp.type = 'file'; inp.hidden = true;
   inp.accept = f.ka || f.vi ? 'audio/*,video/*,.mp3,.m4a,.flac,.wav,.ogg,.opus,.mkv,.mp4,.webm' : 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';
   const took = (file, handle) => { formTake(f, file, handle); render('none'); };
-  const qbm = !!(f.qd && !f.subs && !f.ph);   // 20/11/2026: בתור — הבורר מרובה: הראשון לטופס, השאר לרשימה (qb) באותן הגדרות
+  const qbm = qbUse(f);   // 20/11/2026: בתור — הבורר מרובה: הראשון לטופס, השאר לרשימה (qb) באותן הגדרות
   if (qbm) inp.multiple = true;
   inp.addEventListener('change', () => {
     const fs = Array.from(inp.files || []);
@@ -4470,7 +4495,7 @@ function pageForm(p, editing) {
     took(fs[0], null);
   });
   const pick = () => {
-    if (nuPickOk(f)) { nuPick(); return; }   // 1/11/2026: בתוך Studio לאנדרואיד — דרך האפליקציה (תרגום רגיל בשרת)
+    if (nuPickOk(f)) { nuPick(qbm, false); return; }   // 1/11/2026: בתוך Studio לאנדרואיד — דרך האפליקציה (תרגום רגיל בשרת)
     if (canPickHandle() && !qbm) { pickWithHandle().then((r) => { if (r && r.file) took(r.file, r.handle); else if (!r) inp.click(); }); return; }
     inp.click();
   };
@@ -5036,12 +5061,13 @@ function phTracks(f, r) {
   if (!r.z) return;
   phSubs(r.z).then((L) => {
     if (form !== f || !f.ph || f.ph.pid !== r.pid || !L.length) return;
-    const tracks = L.map((t) => ({ id: 'p:' + t.i, kind: 'text', fmt: 'srt', lang: lang2(t.l) || '', name: t.t, def: false, forced: t.f, sdh: /\bSDH\b|hearing/i.test(t.t) }));
-    trkSet(f, vf, tracks, true);
-    for (const t of L) f.trk.x['p:' + t.i] = { st: 'ok', text: t.x, n: t.x.split(' --> ').length - 1 };
+    trkSet(f, vf, phTrkList(L), true);
+    for (const t of L) f.trk.x['p:' + t.i] = phTrkX(t);
     render('none');
   }, () => {});
 }
+const phTrkList = (L) => L.map((t) => ({ id: 'p:' + t.i, kind: 'text', fmt: 'srt', lang: lang2(t.l) || '', name: t.t, def: false, forced: t.f, sdh: /\bSDH\b|hearing/i.test(t.t) }));
+const phTrkX = (t) => ({ st: 'ok', text: t.x, n: t.x.split(' --> ').length - 1 });
 /* המקטע z: base64url → deflate בלי כותרת → [{i,l,t,f,x}] (PhCore.packSubs) */
 async function phSubs(z) {
   const b = Uint8Array.from(atob(String(z).replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((z.length + 3) % 4)), (c) => c.charCodeAt(0));
@@ -6135,15 +6161,45 @@ function phPick() {
    לא "תרגום בטלפון"). NU_ASK — הבקשה הייתה nu (Studio ישן לא מחזיר nu, והדף נטען מחדש בחזרה) */
 const NU_ASK = 'pwa_studio_nuask';
 export const nuPickOk = (f) => phOk() && !!f && !f.ka && !f.vi;   // 10/11: ניתוח — מהדפדפן (העובד מקבל קובץ רגיל)
-function nuPick() {
+/* 20/11/2026: many — בתור: בחירה מרובה באפליקציה (‎#phpicks=). toQb — הכל לרשימה (השורה "כמה קבצים"); בלי — הראשון לטופס */
+const QB_ASK = 'pwa_studio_qbask';
+function nuPick(many, toQb) {
   if (!phOk()) { flashSafe(T('studioLinkEApp')); return; }
-  try { sessionStorage.setItem(NU_ASK, '1'); } catch (e) {}
-  location.href = phIntent('phpick', { nu: 1 });
+  try { sessionStorage.setItem(NU_ASK, '1'); if (many && toQb) sessionStorage.setItem(QB_ASK, '1'); else sessionStorage.removeItem(QB_ASK); } catch (e) {}
+  location.href = phIntent('phpick', many ? { nu: 1, m: 1 } : { nu: 1 });
+}
+/* ‎#phpicks=<pid.b64>~… מ־PhActivity (בחירה מרובה, nu) — הראשון לטופס (אם לא ביקשו "הכל לרשימה"), השאר לרשימה של התור */
+export function studioPhPicks(arg) {
+  const a = String(arg || '');
+  if (a[0] === '!') return studioPhPick(a);
+  const parts = a.split('~').filter((x) => { const r = parsePhPick(x); return r && !r.e; }).slice(0, QB_MAX + 1);
+  if (!parts.length) return false;
+  let qa = false;
+  try { qa = sessionStorage.getItem(QB_ASK) === '1'; sessionStorage.removeItem(QB_ASK); } catch (e) {}
+  const f0 = form;
+  if (!f0 || !f0.qd || !qbUse(f0)) return studioPhPick(parts[0]);   // לא בתור (הדף נטען מחדש בדרך) — רק הראשון
+  let rest = parts;
+  if (!qa) { studioPhPick(parts[0]); rest = parts.slice(1); }
+  try { sessionStorage.removeItem(NU_ASK); } catch (e) {}
+  const f = form;
+  if (rest.length && f && qbUse(f)) qbAdd(f, rest.map(parsePhPick).map((r) => ({ t: 'p', ph: { pid: r.pid, w: r.w, h: r.h, dur: r.dur, cap: r.cap, nu: 1 },
+    file: { name: r.name, size: r.size, type: 'video/*' }, dur: r.dur, oh: r.oh, z: r.z })));
+  if (root) { if (ui.view !== 'new') go('new', null, 'none'); else render('none'); }
+  return true;
+}
+/* Studio ישן קיבל phq2 (קישורים להורדה בטלפון) — העבודות של הקישורים נוצרו ולא יתחילו: נמחקות (עדכון האפליקציה ואז שוב) */
+function phYdDrop() {
+  const now = Date.now();
+  const L = store.jobs.filter((r) => r && r.spec && r.spec.yd === 1 && r.up && r.up.ph && (!r.srv || r.srv.state === 'new') && now - (r.created || 0) < 3600e3);
+  for (const r of L) net.api('remove', { job: r.id }).catch(() => {});
+  if (L.length) { store.jobs = store.jobs.filter((r) => !L.includes(r)); save(); render('none'); }
 }
 /* ‎#phpick= מ־PhActivity: הסרטון נבחר והועתק לאחסון של Studio — הטופס עם הקובץ (בלי לקרוא אותו כאן) */
 export function studioPhPick(arg) {
   const r = parsePhPick(arg);
   if (!r) return false;
+  if (r.e === 'yqold') { flashSafe(T('studioQbYdOld')); phYdDrop(); return true; }   // 20/11/2026: Studio ישן — לא מכיר phq2
+  if (!r.e) { let qa = false; try { qa = sessionStorage.getItem(QB_ASK) === '1'; } catch (e) {} if (qa) return studioPhPicks(String(arg)); }   // ישן: בחירה אחת — לרשימה
   if (r.e === 'pvold') {   // 8/11/2026: phpv לא נמצא — הסרטון כבר בטופס, רק Studio לא מכיר את החיתוך
     try { sessionStorage.removeItem(PVP_KEY); } catch (e) {}
     flashSafe(T('studioEdPvOld')); return true;
@@ -6206,13 +6262,34 @@ function phErrText(c) {
     case 'no_audio': return T('studioPhENoAudio');
     case 'no_video': case 'probe': return T('studioPhEProbe');
     case 'noapp': return T('studioLinkEApp');
-    default: return T('studioPhEGen');
+    case 'yqold': return T('studioQbYdOld');
+    default: return /^dl_/.test(c) ? T('studioPhEDl') : T('studioPhEGen');
   }
 }
 function phPb(f) {
   const o = f.out || {};
   if (o.same || o.compact || o.mkv) return 'same';
   return o.small ? 'small' : '';
+}
+/* ה־spec של עבודה דרך האפליקציה (startPhone, והתור — qbSpec). 1/11/2026 (nu): תרגום רגיל בשרת — התוצרים, הסגנון והצריבה
+   כמו בבחירה מהדפדפן; האפליקציה רק מעלה (vc נקבע בשרתון) */
+function phSpecOf(f) {
+  const P = f.ph;
+  const ed = P.nu ? edlPre(normEdl(f.edl, P.dur || 0)) : null;   // 05/11/2026: חיתוך לפני התרגום גם דרך האפליקציה — האורך אחרי החיתוך
+  const spec = P.nu ? { name: f.file.name, size: f.file.size, type: 'video/*', dur: ed ? edlDur(ed, P.dur || 0) : P.dur || 0, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
+    out: OUTS.filter((k) => f.out[k]), style: f.style, ...(f.sty ? { sty: f.sty } : {}), terms: f.terms, nu: 1, eng: 'api', cap: store.settings.cap }
+    : { name: f.file.name, size: f.file.size, type: 'video/*', dur: P.dur || 0, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
+      out: [], style: f.style, terms: f.terms, ph: 1, eng: 'api', cap: store.settings.cap };
+  if (ed) spec.edl = ed;
+  if (!P.nu && f.pw === true) spec.pw = 1;   // שלב 2: הכל בטלפון — רק כשהופעל (30/10/2026: כבר לא ברירת המחדל)
+  if (!P.nu) spec.vc = 1;   // 29/10/2026: האפליקציה מעלה גם את הסרטון לענן, ברקע (לנגן מכל מכשיר, לשמירה ולהפקה מחדש) — העבודה לא מחכה לו
+  const pb = P.nu ? '' : phPb(f); if (pb) spec.pb = pb;
+  if (cpMode()) spec.cp = 1; else if (ryMode()) spec.ry = 1;
+  else if (P.nu && btOk(f) && f.bt) spec.bt = 1;   // 02/11/2026: חצי מחיר — גם דרך האפליקציה
+  else if (spec.pw && (P.cap || 0) >= PH_CAP_PT) spec.pt = 1;   // שלב 3: גם שלבי הטקסט בטלפון — השרת רק מעביר ל־Claude
+  if (P.w > 0 && P.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, P.w * P.h / (1920 * 1080))) * 1000) / 1000;
+  if (P.nu && P.yd) spec.yd = 1;   // 20/11/2026: קישור שיורד בטלפון (PhYt) — הגודל והאורך מהאפליקציה (השרתון: phStart, phUp)
+  return quStamp(f, spec);
 }
 function startPhone(f) {
   const P = f.ph;
@@ -6222,21 +6299,7 @@ function startPhone(f) {
   if (!langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }
   ui.starting = true; render('none');
   (async () => {
-    // 1/11/2026 (nu): תרגום רגיל בשרת — התוצרים, הסגנון והצריבה כמו בבחירה מהדפדפן; האפליקציה רק מעלה (vc נקבע בשרתון)
-    const ed = P.nu ? edlPre(normEdl(f.edl, P.dur || 0)) : null;   // 05/11/2026: חיתוך לפני התרגום גם דרך האפליקציה — האורך אחרי החיתוך
-    const spec = P.nu ? { name: f.file.name, size: f.file.size, type: 'video/*', dur: ed ? edlDur(ed, P.dur || 0) : P.dur || 0, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
-      out: OUTS.filter((k) => f.out[k]), style: f.style, ...(f.sty ? { sty: f.sty } : {}), terms: f.terms, nu: 1, eng: 'api', cap: store.settings.cap }
-      : { name: f.file.name, size: f.file.size, type: 'video/*', dur: P.dur || 0, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
-        out: [], style: f.style, terms: f.terms, ph: 1, eng: 'api', cap: store.settings.cap };
-    if (ed) spec.edl = ed;
-    if (!P.nu && f.pw === true) spec.pw = 1;   // שלב 2: הכל בטלפון — רק כשהופעל (30/10/2026: כבר לא ברירת המחדל)
-    if (!P.nu) spec.vc = 1;   // 29/10/2026: האפליקציה מעלה גם את הסרטון לענן, ברקע (לנגן מכל מכשיר, לשמירה ולהפקה מחדש) — העבודה לא מחכה לו
-    const pb = P.nu ? '' : phPb(f); if (pb) spec.pb = pb;
-    if (cpMode()) spec.cp = 1; else if (ryMode()) spec.ry = 1;
-    else if (P.nu && btOk(f) && f.bt) spec.bt = 1;   // 02/11/2026: חצי מחיר — גם דרך האפליקציה
-    else if (spec.pw && (P.cap || 0) >= PH_CAP_PT) spec.pt = 1;   // שלב 3: גם שלבי הטקסט בטלפון — השרת רק מעביר ל־Claude
-    if (P.w > 0 && P.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, P.w * P.h / (1920 * 1080))) * 1000) / 1000;
-    quStamp(f, spec);
+    const spec = phSpecOf(f);
     if (quHold(f, spec)) return;   // 20/11/2026: מהתור (Studio שיודע phq) — לרשימה; "להתחיל" פותח את האפליקציה פעם אחת לכולן
     // קודם יוצרים את העבודה ומבקשים מפתח (רשת — בלי נגיעה), ורק אז האומדן: הנגיעה ב"להתחיל" היא זו שפותחת את
     // האפליקציה (Chrome פותח intent רק מתוך נגיעה; אחרי await של רשת — כבר לא). ביטול — העבודה נמחקת. העבודה נשארת

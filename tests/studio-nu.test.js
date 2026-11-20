@@ -132,12 +132,12 @@ const { fakeR2, ENV } = require('./_r2fake');
   const A = (f) => fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball', f), 'utf8');
   const act = A('PhActivity.kt'), work = A('PhWork.kt'), pu = A('PhPu.kt'), upj = A('PhUpJob.kt'), pnet = A('PhNet.kt'), core = A('PhCore.kt'), pst = A('PhStore.kt');
   const src = fs.readFileSync(path.join(root, 'studio.js'), 'utf8');
-  ok(/"phpick" -> pick\(d\.getQueryParameter\("nu"\) == "1"\)/.test(act) && /FLAG_GRANT_PERSISTABLE_URI_PERMISSION/.test(act) && /takePersistableUriPermission\(u, Intent\.FLAG_GRANT_READ_URI_PERMISSION\)/.test(act),
+  ok(/"phpick" -> pick\(d\.getQueryParameter\("nu"\) == "1", d\.getQueryParameter\("m"\) == "1"\)/.test(act) && /FLAG_GRANT_PERSISTABLE_URI_PERMISSION/.test(act) && /takePersistableUriPermission\(u, Intent\.FLAG_GRANT_READ_URI_PERMISSION\)/.test(act),
     'הבחירה ל־nu: הרשאה קבועה ל־URI');
   const pp = act.slice(act.indexOf('private fun pickPu'), act.indexOf('private fun copy'));
   ok(pp.length > 100 && !/outputStream|copyTo/.test(pp) && /\.put\("uri", u\.toString\(\)\)\.put\("pu", true\)/.test(pp) && /\.put\("nu", 1\)/.test(pp), 'pickPu: בלי עותק — הרשומה שומרת את ה־URI, והאתר מקבל nu:1');
-  const cap = +(/const val CAP = (\d+)/.exec(core) || [])[1], capW = +(/export const PH_CAP_Q = (\d+)/.exec(src) || [])[1];
-  ok(cap === capW && cap === 7 && /export const PH_CAP_NU = 5;/.test(src) && /export const PH_CAP_PV = 6;/.test(src), 'CAP של האפליקציה = PH_CAP_Q באתר (7, תור עבודות), ו־nu מ־5');
+  const cap = +(/const val CAP = (\d+)/.exec(core) || [])[1], capW = +(/export const PH_CAP_YD = (\d+)/.exec(src) || [])[1];
+  ok(cap === capW && cap === 8 && /export const PH_CAP_Q = 7;/.test(src) && /export const PH_CAP_NU = 5;/.test(src) && /export const PH_CAP_PV = 6;/.test(src), 'CAP של האפליקציה = PH_CAP_YD באתר (8: קישורים בתור ובחירה מרובה; 7 — phq), ו־nu מ־5');
   // 5/11/2026: phpv — הסרטון של nu עובר לדף לתצוגה בעורך, כמו "שיתוף ← Studio" (Web Share Target), עם snbpv:<pid>
   const pv = act.slice(act.indexOf('private fun preview'), act.indexOf('/* ---------------------------------------------------------------- בחירה */'));
   ok(/"phpv" -> preview\(d\)/.test(act) && /r\.optBoolean\("pu"\)/.test(pv) && /setAction\(Intent\.ACTION_SEND\)\.setType\("video\/\*"\)/.test(pv)
@@ -164,8 +164,8 @@ const { fakeR2, ENV } = require('./_r2fake');
 
   /* ---------- 6. האתר ---------- */
   const st = await import(path.join(root, 'studio.js')).catch(() => null);
-  ok(/if \(nuPickOk\(f\)\) \{ nuPick\(\); return; \}/.test(src) && /export const nuPickOk = \(f\) => phOk\(\) && !!f && !f\.ka && !f\.vi;/.test(src), 'בתוך האפליקציה הבחירה הראשית דרכה (לא בשיר)');
-  ok(/phIntent\('phpick', \{ nu: 1 \}\)/.test(src) && /if \(r\.nu \|\| ask\) f\.ph\.nu = 1;/.test(src), 'nu=1 בבקשה; Studio ישן — לפי הבקשה ששמורה (NU_ASK)');
+  ok(/if \(nuPickOk\(f\)\) \{ nuPick\(qbm, false\); return; \}/.test(src) && /export const nuPickOk = \(f\) => phOk\(\) && !!f && !f\.ka && !f\.vi;/.test(src), 'בתוך האפליקציה הבחירה הראשית דרכה (לא בשיר)');
+  ok(/phIntent\('phpick', many \? \{ nu: 1, m: 1 \} : \{ nu: 1 \}\)/.test(src) && /if \(r\.nu \|\| ask\) f\.ph\.nu = 1;/.test(src), 'nu=1 בבקשה; Studio ישן — לפי הבקשה ששמורה (NU_ASK)');
   ok(/const spec = P\.nu \? \{ name: f\.file\.name[^\n]*\n\s*out: OUTS\.filter\(\(k\) => f\.out\[k\]\)[^\n]*nu: 1, eng: 'api'/.test(src) && /if \(!P\.nu\) spec\.vc = 1;/.test(src) && /else if \(rec\.spec\.nu && /.test(src),
     'nu: התוצרים מהטופס, בלי ph, וכרטיס משלו בדף העבודה');
   // 5/11/2026 (בקשת המשתמש): "חיתוך לפני התרגום" חזר גם כשהסרטון נבחר דרך האפליקציה — תצוגה מקובץ שנבחר שוב באותו גודל

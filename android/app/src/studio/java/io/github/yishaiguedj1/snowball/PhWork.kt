@@ -179,7 +179,7 @@ object PhWork {
      *  ומצרף את הסרטון כשהוא מגיע (PhUpJob, במקביל). קודק שאי אפשר להעתיק — noA: בלי קול, ו־video() מתחיל אחרי הסרטון */
     private fun upPu(ctx: Context, pid: String, stopped: () -> Boolean) {
         var r = PhStore.get(ctx, pid) ?: return
-        val title = r.optString("name")
+        var title = r.optString("name")
         val n = net(r)
         val work = PhStore.work(ctx, pid)
         fun stage(st: String, text: Int, p: Float = -1f) {
@@ -187,6 +187,12 @@ object PhWork {
             notify(ctx, progress(ctx, title, s(ctx, text), p))
         }
         try {
+            // 20/11/2026: קישור מהתור (phq2) — קודם ההורדה כאן (PhYt), ואז הכל כמו סרטון שנבחר
+            if (r.optString("yu").isNotEmpty() && r.optString("uri").isEmpty()) {
+                notify(ctx, progress(ctx, s(ctx, R.string.phYtT), s(ctx, R.string.phYtS), -1f))
+                r = PhYt.fetch(ctx, pid, r, stopped) { p -> notify(ctx, progress(ctx, s(ctx, R.string.phYtT), s(ctx, R.string.phYtS), p)) }
+                title = r.optString("name")
+            }
             PhPu.src(ctx, r)   // ההרשאה ל־URI עדיין בתוקף (אחרת src_gone)
             if (r.optString("aId").isEmpty() && !r.optBoolean("noA")) {
                 stage("audio", R.string.phAudio, 0f)
@@ -206,7 +212,8 @@ object PhWork {
             }
             if (!r.optBoolean("noA") && !r.optBoolean("started")) {
                 stage("start", R.string.phStart)
-                val sr = n.call("phStart", JSONObject().put("ov", r.optBoolean("ov")))
+                // ydur — האורך של מה שירד (PhYt): השרתון רושם אותו בעבודה (spec.yd) לפני הבדיקות של ההתחלה (התקציב והחוקים)
+                val sr = n.call("phStart", JSONObject().put("ov", r.optBoolean("ov")).apply { if (r.optDouble("ydur", 0.0) > 0) put("dur", r.optDouble("ydur")) })
                 if (!sr.optBoolean("ok")) throw Stop(sr.optString("error", "start"))
                 r = PhStore.update(ctx, pid) { it.put("started", true) } ?: r
             }
@@ -275,6 +282,17 @@ object PhWork {
             Thread.sleep(3000)
             r = PhStore.get(ctx, pid) ?: return true
         }
+        // 20/11/2026: תור עבודות — כל סרטון במשימה משלו (PhUpJob לפי pid), אבל עולים אחד אחרי השני (כל אחד כבר בחלקים במקביל)
+        while (!vLock.tryAcquire(2, java.util.concurrent.TimeUnit.SECONDS)) if (stopped0()) return false
+        vCancel = false   // "ביטול" בהתראה עוצר רק את הסרטון שעולה עכשיו — הבא בתור ממשיך
+        try { return video1(ctx, pid, r, stopped, show) } finally { vLock.release() }
+    }
+    private val vLock = java.util.concurrent.Semaphore(1)
+
+    private fun video1(ctx: Context, pid: String, r0: JSONObject, stopped: () -> Boolean, show: (Notification) -> Unit): Boolean {
+        var r = PhStore.get(ctx, pid) ?: r0
+        val pu = r.optBoolean("pu")
+        if (r.optString("vId").isNotEmpty() || r.optString("vE").isNotEmpty()) return true
         // 1/11/2026 (pu): הסרטון נקרא במקומו (URI), בלי העותק הפרטי
         val f: PhNet.Src = try { if (pu) PhPu.src(ctx, r) else PhNet.FileSrc(src(ctx, r)) } catch (e: Stop) {
             PhStore.update(ctx, pid) { it.put("vE", e.code) }
@@ -306,7 +324,7 @@ object PhWork {
             r = PhStore.update(ctx, pid) { it.put("vId", id) } ?: r
             // pu בלי קול (קודק שאי אפשר להעתיק): העבודה מתחילה עכשיו, מהסרטון
             if (pu && r.optBoolean("noA") && !r.optBoolean("started")) {
-                val st = n.call("phStart", JSONObject().put("ov", r.optBoolean("ov")))
+                val st = n.call("phStart", JSONObject().put("ov", r.optBoolean("ov")).apply { if (r.optDouble("ydur", 0.0) > 0) put("dur", r.optDouble("ydur")) })
                 if (st.optBoolean("ok")) {
                     PhStore.update(ctx, pid) { it.put("started", true) }
                     nm(ctx).notify(N_DONE, simple(ctx, s(ctx, R.string.phSent), s(ctx, R.string.phPuSentS), webIntent(ctx, r, "")))

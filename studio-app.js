@@ -2,7 +2,7 @@
    כמו academy-app.js: לפני הקובץ firebase-config.js, strings-studio.js, core.js, auth.js; אותו studio.js עם opt.standalone.
    קישור מהתראה (#studio=<עבודה>&v=play|subs) פותח את העבודה. עד שלב 5 ההתראות עדיין פותחות את האתר המאוחד. */
 import { openStudio } from './studio.js';
-import { studioShare, studioProbeRes, studioGot, studioDlErr, studioPhPick, studioPhErr } from './studio.js';   // 22/10/2026: קישור מהבועה כש־Studio כבר פתוחה; ההורדה בטלפון
+import { studioShare, studioProbeRes, studioGot, studioDlErr, studioPhPick, studioPhPicks, studioPhErr } from './studio.js';   // 22/10/2026: קישור מהבועה כש־Studio כבר פתוחה; ההורדה בטלפון
 import { createShell, appBoot, APP_URL, loginGate, accountCard, displayCard, advancedRow, advancedCards } from './shell.js';
 
 if (window.SNB_MOVING) await new Promise(() => {});   // שלב 5: הכתובת הישנה עוברת לחדשה (הסקריפט המוטבע) — לא מתחילים כאן
@@ -43,6 +43,7 @@ const hashArg = (k, max) => { const m = new RegExp('[#&]' + k + '=([^&]*)').exec
 // 30/10/2026 (הצילום: "חסרות הכתוביות שבקובץ"): ‎#phpick= כולל גם את הכתוביות שבקובץ (מקטע שלישי, עד 800 אלף — parsePhPick).
 // הגבול הישן (6100) חתך אותן, והפענוח נכשל בשקט
 const PHPICK_MAX = 810000;
+const PHPICKS_MAX = 41 * 6100;   // 20/11/2026: ‎#phpicks= — עד 40 בחירות (PhCore.Q_MAX), כל אחת בלי מקטע הכתוביות
 const share = hashArg('share', 4096);
 // שלב 2: קובץ שנמצא בדף (דפדפן הציד) — ‎&ref=<הדף>
 const shareRef = hashArg('ref', 2048);
@@ -52,8 +53,8 @@ const shareProbe = share ? hashArg('probe', 200000) : '';
 // 22/10/2026: ההורדה בטלפון — הקובץ שחזר (sw.js → ‎#got=<מפתח>) ושגיאה (‎#dle=<n>.<קוד>)
 const got = hashArg('got', 40), dle = hashArg('dle', 60);
 // 24/10/2026: תרגום בטלפון — הסרטון שנבחר ב־PhActivity (‎#phpick=) ושגיאה מהאפליקציה בקישור לעבודה (‎&phe=<קוד>)
-const phpick = hashArg('phpick', PHPICK_MAX), phe = link ? hashArg('phe', 24) : '';
-if (link || share || got || dle || phpick) { try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {} }
+const phpick = hashArg('phpick', PHPICK_MAX), phpicks = hashArg('phpicks', PHPICKS_MAX), phe = link ? hashArg('phe', 24) : '';
+if (link || share || got || dle || phpick || phpicks) { try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {} }
 const hs = history.state;
 /* ההדר המשותף (shell.js) — הלוגו של Studio, הקפסולה "חיבור ל־Claude" בהדר, ובתפריט מגדל הפיקוח. הגלובוס בתפריט הפתוח = ההגדרות */
 const sa = { auth: A, home: APP_URL.invest, ready };   // שלב 4: בכתובת הנפרדת — הכתובת של Invest
@@ -83,7 +84,7 @@ else if (first === 'boot') ready.then((st) => { if (st === 'out') loginGate({ ap
    הראשון של הדף = הבית המלא, ומסך הפתיחה של ה־TWA יורד אליו. התמונות כבר בזיכרון (נקראו בראש הדף — thumbsSync); אם עוד לא —
    האריחים מקבלים אותן כשהן מגיעות, במקום מסך ריק עד 400ms. qa-sweep: "ציור ראשון בלי תוכן" */
 Promise.resolve(openStudio({ standalone: sa, restore: hs && hs.studio && !share && !got ? hs : null, job: link ? link[1] : '', view: link && link[2] ? link[2] : '', t: link && link[3] ? +link[3] : 0, share, ref: shareRef, probe: shareProbe, to: shareTo, got, dle }))
-  .then(() => { if (phpick) studioPhPick(phpick); if (phe) studioPhErr(link[1], phe); });   // 24/10/2026: תרגום בטלפון
+  .then(() => { if (phpick) studioPhPick(phpick); if (phpicks) studioPhPicks(phpicks); if (phe) studioPhErr(link[1], phe); });   // 24/10/2026: תרגום בטלפון
 /* 27/10/2026: נגיעה בהתראה כש־Studio כבר פתוחה — sw.js מנווט לאותו דף עם ‎#studio=<עבודה>, וזה מגיע כשינוי ב־hash בלבד.
    עד היום רק הטעינה הראשונה קראה אותו, והנגיעה לא פתחה את העבודה */
 function jobLinkNow() {
@@ -102,14 +103,15 @@ if (typeof navigator !== 'undefined' && navigator.serviceWorker) navigator.servi
 });
 /* 22/10/2026: קישור מהבועה / משיתוף כש־Studio כבר פתוחה — אנדרואיד מעביר אותו ללשונית הקיימת כשינוי ב־hash, בלי טעינה */
 if (typeof window !== 'undefined') window.addEventListener('hashchange', () => {
-  const s = hashArg('share', 4096), pr = hashArg('probe', 200000), g = hashArg('got', 40), de = hashArg('dle', 60), pk = hashArg('phpick', PHPICK_MAX);
-  if (!s && !g && !pk && jobLinkNow()) return;
-  if (!s && !pr && !g && !de && !pk) return;
+  const s = hashArg('share', 4096), pr = hashArg('probe', 200000), g = hashArg('got', 40), de = hashArg('dle', 60), pk = hashArg('phpick', PHPICK_MAX), pks = hashArg('phpicks', PHPICKS_MAX);
+  if (!s && !g && !pk && !pks && jobLinkNow()) return;
+  if (!s && !pr && !g && !de && !pk && !pks) return;
   const r = hashArg('ref', 2048), to = hashArg('to', 10) === 'cloud' ? 'cloud' : '';
   try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
   if (s) studioShare(s, r, pr, to);   // 23/10/2026: מדפדפן הציד — עם התוצאה (pr); 24/10: ‏to=cloud מ־Studio DM
   else if (pr) studioProbeRes(pr);   // 22/10/2026: תוצאת הבדיקה בטלפון (DlActivity)
   if (g) studioGot(g);
   if (de) studioDlErr(de);
+  if (pks) studioPhPicks(pks);   // 20/11/2026: בחירה מרובה דרך האפליקציה (תור עבודות)
   if (pk) studioPhPick(pk);   // 24/10/2026: תרגום בטלפון — הסרטון שנבחר ב־PhActivity
 });

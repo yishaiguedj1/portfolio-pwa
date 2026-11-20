@@ -27,7 +27,7 @@ const ID = '1AbCdEfGhIjKlMnOpQ_rs-tu';
 ok(Z.driveFolderId('https://drive.google.com/drive/folders/' + ID + '?usp=sharing') === ID, 'driveFolderId: drive/folders');
 ok(Z.driveFolderId('https://drive.google.com/drive/u/1/folders/' + ID) === ID && Z.driveFolderId('https://drive.google.com/open?id=' + ID) === ID, 'driveFolderId: u/N ו־open?id');
 ok(Z.driveFolderId('https://drive.google.com/file/d/' + ID + '/view') === '' && Z.driveFolderId('סרטים') === '' && Z.driveFolderId('https://evil.com/drive.google.com/x') === '', 'driveFolderId: קובץ בודד / טקסט / דומיין אחר — לא תיקייה');
-ok(Z.QB_MAX === 50, 'QB_MAX = 50');
+ok(Z.QB_MAX === 40, 'QB_MAX = 40 (= PhCore.Q_MAX)');
 
 // 4. ZIP — כותב קטן לבדיקה (stored + deflate, תיקיות, __MACOSX, מוצפן)
 function zip(ents) {
@@ -92,5 +92,34 @@ ok(zz.n === 70 && zz.cdSize === 900 && zz.cdOff === 3 * 2 ** 32, 'zipZ64');
   ok(/x\.pp !== 2\) && Date\.now\(\) - t0 < QB_TRK_WAIT/.test(cut('async function quBatchGo', 'function pageQLinks')), 'quBatchGo: מחכה לכתוביות לפני השמירה');
   const mn = cut('function quDrPrep', 'function quDrSub');
   ok(/tracksFor\(f, f\.fileObj\)/.test(mn) && /inspectFor\(f, f\.fileObj\)/.test(mn) && /quDrOpen\(it, 'tracks'\)/.test(mn) && /quDrOpen\(it, 'cutsrc'\)/.test(mn), 'עריכת עבודה מהתור: הגדרות, כתוביות, חיתוך — עם הבדיקות של הקובץ');
+  // 20/11/2026: בתוך Studio לאנדרואיד — בחירה מרובה באפליקציה (ההעלאה ממנה) ויוטיוב שיורד בטלפון
+  {
+    const ql = cut('export function phQList', 'const qdrClone');
+    const Q = new Function('btoa', ql.replace(/export /g, '') + '\nreturn phQList;')((t) => Buffer.from(t, 'binary').toString('base64'));
+    const P = 'p0123456789abcdef', J = 'j' + 'A'.repeat(20), K = 'k'.repeat(43), U = 'https://www.youtube.com/watch?v=aB_c-1&t=5';
+    ok(Q([{ p: P, j: J, k: K }]) === P + '.' + J + '.' + K, 'phQList: בלי קישור — כמו קודם (phq)');
+    const it = Q([{ p: P, j: J, k: K, u: U }]).split('.');
+    ok(it.length === 4 && Buffer.from(it[3], 'base64url').toString() === U && /^[A-Za-z0-9_-]+$/.test(it[3]), 'phQList: קישור — base64url בסוף (= PhCore.qItem)');
+    ok(Q([{ p: P, j: J, k: K, u: 'javascript:alert(1)' }]) === '', 'phQList: רק http(s)');
+    const pr = cut('async function qbProbe1', 'const qbErr =');
+    ok(/if \(!ui\.yc && ytHost\(x\.u\)\) \{ if \(qbYdOk\(f\)\) Object\.assign\(x, \{ st: 'ok', yd: 1 \}\)/.test(pr) && pr.indexOf('ytHost') < pr.indexOf('if (!ui.url)'), 'יוטיוב בתור: בתוך האפליקציה — יורד בטלפון (גם בלי השרת)');
+    const fm = cut('function qbForm', 'async function qbSpec');
+    ok(/ph: \{ pid: phPidNew\(\), nu: 1, yd: 1, u: x\.u/.test(fm) && /x\.t === 'p'\) Object\.assign\(g, \{ ph: Object\.assign\(\{\}, x\.ph\)/.test(fm), 'qbForm: יוטיוב ובחירה מהאפליקציה — עבודה דרך האפליקציה (ph.nu)');
+    ok(/if \(g\.ph\) return g\.ph\.nu \? phSpecOf\(g\) : null;/.test(st) && /if \(P\.nu && P\.yd\) spec\.yd = 1;/.test(st), 'qbSpec → phSpecOf, ועם yd');
+    ok(/phIntent\('phq2', \{ b: proxyBase\(\), q \}, 'yqold'\)/.test(st) && /if \(r\.e === 'yqold'\) \{ flashSafe\(T\('studioQbYdOld'\)\); phYdDrop\(\);/.test(st), 'phq2 — Studio ישן מחזיר yqold: הודעה ומחיקת העבודות שלא יתחילו');
+    ok(/nuPickOk\(f\) \? \{ k: 'qb-app'/.test(st) && /nuPick\(true, true\)/.test(st) && /const qbm = qbUse\(f\);/.test(st), 'בורר מרובה דרך האפליקציה — בשורה "כמה קבצים" ובבורר הראשי בתור');
+    const pk2 = cut('export function studioPhPicks', '/* Studio ישן קיבל phq2');
+    ok(/if \(!qa\) \{ studioPhPick\(parts\[0\]\); rest = parts\.slice\(1\); \}/.test(pk2) && /t: 'p', ph: \{ pid: r\.pid/.test(pk2), '‎#phpicks=: הראשון לטופס (או הכל לרשימה), השאר — פריטי p');
+    const pid = new Function('crypto', cut('export const phPidNew', '/* "להוסיף N').replace('export ', '') + '\nreturn phPidNew;')(require('crypto').webcrypto)();
+    ok(/^p[0-9a-f]{16}$/.test(pid), 'phPidNew = PhCore.PID_RE');
+    const app = fs.readFileSync(path.join(__dirname, '..', 'studio-app.js'), 'utf8');
+    ok(/if \(pks\) studioPhPicks\(pks\);/.test(app) && /if \(phpicks\) studioPhPicks\(phpicks\);/.test(app), 'studio-app: ‎#phpicks= בטעינה ובשינוי hash');
+    const D = 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/', A = (f) => fs.readFileSync(path.join(__dirname, '..', D + f), 'utf8');
+    ok(/EXTRA_ALLOW_MULTIPLE/.test(A('PhActivity.kt')) && /"#phpicks=" \+ ok\.joinToString\("~"\)/.test(A('PhActivity.kt')), 'האפליקציה: בחירה מרובה → ‎#phpicks=');
+    ok(/fun idOf\(pid: String\)/.test(A('PhUpJob.kt')) && /JobInfo\.Builder\(idOf\(pid\)/.test(A('PhUpJob.kt')), 'PhUpJob: משימה לכל סרטון (מזהה קבוע אחד החליף את הקודם — בתור רק האחרון עלה)');
+    ok(/vLock\.tryAcquire/.test(A('PhWork.kt')) && /PhYt\.fetch\(ctx, pid, r, stopped\)/.test(A('PhWork.kt')), 'PhWork: הסרטונים עולים אחד אחרי השני; קישור יורד לפני הקול');
+    ok(/DlProbe\.DEFAULT_H/.test(A('PhYt.kt')) && /subs = DlEngine\.SUBS/.test(A('PhYt.kt')), 'PhYt: ברירת המחדל של הורדה מקישור (1080, הקול הטוב ביותר, כתוביות היוצר)');
+    ok(/android:host="phq2"/.test(fs.readFileSync(path.join(__dirname, '..', 'android/app/src/studio/AndroidManifest.xml'), 'utf8')), 'phq2 במניפסט');
+  }
   console.log('# ' + n + ' בדיקות');
 })().catch((x) => { console.error('FAIL - ' + x.stack); process.exit(1); });

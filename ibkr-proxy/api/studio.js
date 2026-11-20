@@ -2613,6 +2613,13 @@ async function phoneOp(req, res, body, deps) {
         await patchJob(deps, id, { vcp: { p: 1, at: now } });
         return res.status(200).json({ ok: true, now });
       }
+      // 20/11/2026 (yd): הסרטון ירד בטלפון — הגודל האמיתי נקבע בהעלאה הראשונה שלו (כל עוד לא נרשם סרטון), בגבולות של כל העלאה
+      if (op === 'phUp' && job.spec.yd === 1 && !(job.fv && job.fv.id) && Number(body.size) !== job.spec.size) {
+        const sz = Math.floor(Number(body.size));
+        if (!(sz > 0 && sz <= S.MAX_SIZE && sz === Number(body.size))) return res.status(400).json({ ok: false, error: 'too_big' });
+        job.spec = Object.assign({}, job.spec, { size: sz });
+        await patchJob(deps, id, { spec: job.spec });
+      }
       if (op === 'phUp' && Number(body.size) !== job.spec.size) return res.status(400).json({ ok: false, error: 'file_size' });
       const [code, out] = await r2Files(deps, { phUp: 'up', phParts: 'parts', phDone: 'done' }[op], body, job.uid, job.folder, 'phone');
       return res.status(code).json(Object.assign({ now }, out));
@@ -2662,6 +2669,11 @@ async function phoneOp(req, res, body, deps) {
     // phStart: פעם אחת, אחרי שהקול נרשם — אותן בדיקות של התחלה מהדף (תחזוקה ודגלים, מתג החירום והחוקים, תקלה רחבה)
     if (e.state !== 'new') return res.status(200).json({ ok: true, state: e.state, now });   // כבר התחילה — לא שוב
     if (nu ? !job.fa && !job.fv : job.spec && job.spec.pw === 1 ? !(job.fpw && job.fph) : !job.fa) return res.status(409).json({ ok: false, error: 'no_files' });   // nu: קול שאי אפשר להעתיק — מתחילים מהסרטון   // שלב 2: המילים והמדידות לפני ההתחלה
+    // 20/11/2026 (yd): האורך של מה שירד בטלפון — פעם אחת, לפני הבדיקות (התקציב והחוקים לפי האורך האמיתי)
+    if (job.spec.yd === 1 && !(job.spec.dur > 0) && Number(body.dur) > 0) {
+      job.spec = Object.assign({}, job.spec, { dur: Math.max(1, Math.min(24 * 3600, Math.round(Number(body.dur)))) });
+      await patchJob(deps, id, { spec: job.spec });
+    }
     const sbs = await sysBlock(deps, job, now, false, false);
     if (sbs) return res.status(409).json(Object.assign({ ok: false }, sbs));
     const stop = await ruleBlock(deps, job.uid, job, { ov: body.ov === true });   // ov — מה שאישרת בדף לפני המסירה לאפליקציה

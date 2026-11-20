@@ -357,7 +357,9 @@ function normSpec(s) {
   ph ? Object.assign({ ph: 1 }, s.pw === 1 ? { pw: 1 } : {}, s.pw === 1 && s.pt === 1 && s.cp !== 1 && s.ry !== 1 ? { pt: 1 } : {},
     PH_BURN.includes(s.pb) ? { pb: s.pb } : {}, s.vc === 1 ? { vc: 1 } : {}) : {},   // pb = מה הטלפון צורב בסוף (ריק = רק כתוביות)
   // 29/10/2026: vc = Studio לאנדרואיד מעלה גם את הסרטון לענן, ברקע ובלי לעכב את העבודה (לנגן ולשמירה) — העבודה לא מחכה לו
-  nu ? { nu: 1, vc: 1 } : {},   // vc — אותו מסלול הסרטון לענן (phVp, ‏phUp עם v) כמו בתרגום בטלפון
+  nu ? { nu: 1, vc: 1 } : {},
+  // 20/11/2026: yd = קישור (יוטיוב) שיורד ב־Studio לאנדרואיד (PhYt) — הגודל והאורך לא ידועים ביצירה; הטלפון מעדכן אותם (phStart, phUp)
+  nu && s.yd === 1 ? { yd: 1 } : {},   // vc — אותו מסלול הסרטון לענן (phVp, ‏phUp עם v) כמו בתרגום בטלפון
   !subs && !link && !ph && !vi && edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך). 05/11/2026: גם nu — העובד חותך את הקול ואת הסרטון שהאפליקציה מעלה
   // 21/10/2026: פיקסלים לשנייה ביחס ל־1080p30 (מהמידות שהטלפון קרא; העובד מתקן אחרי הקליטה) — לצפי של הצריבה
   Number.isFinite(+s.px) && +s.px >= 0.02 && +s.px <= 16 ? { px: Math.round(+s.px * 1000) / 1000 } : {},
@@ -2100,7 +2102,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, smAlias, smResolve, smRowsMerge, smEvict, smIsName, chKey, jobSeries, SM_BYTES, SM_READ, SM_GL, SM_CH, SM_NEW, SM_DONE, SM_LOCK, SM_UNSURE, SM_FIX, SM_WORKER, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
+module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, normVcp, bxOk, RATE_WHY, RATE_FLAG_MAX, normRate, START_RETRY, startDue, useAdd, PH_BURN, PH_META_MAX, PH_WORDS_MAX, PH_UP_MAX, MAX_SIZE, normPbn, normPpr, PPR_S, SUBS_MAX, SUBS_FPS, MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, smKey, seriesOf, normSm, smParse, smMerge, smForWorker, smAlias, smResolve, smRowsMerge, smEvict, smIsName, chKey, jobSeries, SM_BYTES, SM_READ, SM_GL, SM_CH, SM_NEW, SM_DONE, SM_LOCK, SM_UNSURE, SM_FIX, SM_WORKER, dualAb, DUAL_AB_UNTIL, rvAb, RV_AB_UNTIL, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, legacyMode, PUBLIC_MODES, DEFAULT_MODE, modeOk, engOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_MAX_ADMIN, goldMax, GOLD_REF_MAX, normGd, normGq, goldSources, isGold, isViGold, goldClone, normXe, XF_KEYS, XF_MAX, normXf, GOLD_ARMS, normArms, waveOrder, waveClone, XE_KEYS, XE_EFFORTS, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, DX_MAX, normDx, dxJob, dxName, LIB_MAX, libRole, libIds, normLibMeta, normLibDx, normLibDone, libSwap, libView, burnSuspect, lbJob, cuesSwap, rrSpec, rrJob, VV_MAX, viOut, isVv, canViVerify, vvJob, vvAdopt, VT_X, vtJob, vtOn, isVj, VJ_USD, isVp, VP_MODES, VP_USD, vpJob, viWave, vjPairs, normVjp, vjJob, vjRows, vjDecide,
