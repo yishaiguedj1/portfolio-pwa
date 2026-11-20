@@ -81,11 +81,27 @@ run(`POSITIONS.length = 0;
   mtSyncPositions();`);
 const syms = run('POSITIONS.map(p => p.sym + ":" + p.shares + (p.fromTrades ? "T" : "") + (p.src || "")).join(",")');
 ok(syms.includes('TRD:4Tmanual'), 'מניה לפי עסקאות נוצרת (fromTrades, ידני)');
-ok(syms.includes('IBK:5') && !syms.includes('IBK:6'), 'פוזיציית IBKR לא מושפעת מעסקה ידנית (מוצללת)');
+// 20/11/2026 (בקשת המשתמש): מניית IBKR + מניות שנקנו במקום אחר — כמות וממוצע משולבים, החלק של IBKR נשמר
+ok(syms.includes('IBK:6') && !syms.includes('IBK:6T'), 'מניית IBKR + עסקה ידנית → כמות משולבת (5+1), נשארת של IBKR');
+ok(run('JSON.stringify(POSITIONS.find(p => p.sym === "IBK").ib)') === '{"shares":5,"avg":50}' && run('POSITIONS.find(p => p.sym === "IBK").mtSh') === 1, 'החלק של IBKR (ib) והחלק הידני (mtSh) נשמרים');
+ok(near(run('POSITIONS.find(p => p.sym === "IBK").avg'), (5 * 50 + 1) / 6), 'ממוצע משולב לפי עלות');
+run('mtSyncPositions()');
+ok(run('POSITIONS.find(p => p.sym === "IBK").shares') === 6, 'סנכרון חוזר — לא מוסיף שוב (אידמפוטנטי)');
 ok(syms.includes('AVG:3manual'), 'ידני לפי ממוצע לא מושפע');
 ok(!syms.includes('GONE'), 'מניה שנמכרה כולה יורדת מהרשימה');
-ok(A('mtShadowed')('IBK') === true && A('mtShadowed')('TRD') === false, 'הצללה: IBK כן, TRD לא');
-ok(A('mtActiveTrades')().map((x) => x.id).join(',') === '1,3,4', 'עסקאות פעילות: בלי המוצללת');
+ok(A('mtShadowed')('IBK') === false && A('mtShadowed')('AVG') === true, 'הצללה לפי מניה: רק מחיר ממוצע ידני');
+ok(A('mtActiveTrades')().map((x) => x.id).join(',') === '1,2,3,4', 'עסקאות פעילות: גם של מניית IBKR');
+run(`DB.manualTrades = DB.manualTrades.filter(x => x.sym !== 'IBK'); mtSyncPositions();`);
+ok(run('JSON.stringify(POSITIONS.find(p => p.sym === "IBK"))').includes('"shares":5') && !run('"ib" in POSITIONS.find(p => p.sym === "IBK")'), 'העסקה הידנית נמחקה → חוזרים לכמות של IBKR');
+// כפילות: עסקה ידנית שזהה לעסקת IBKR (כמות וסכום, תאריך קרוב) = אותה עסקה
+const ibT = [{ symbol: 'IBK', date: '2026-01-03', side: 'BUY', qty: 10, price: 4 }, { symbol: 'IBK', date: '2026-01-03', side: 'BUY', qty: 10, price: 4 }];
+const dup = A('mtDupIds')([T('d1', '2026-01-02', 'IBK', 'BUY', 10, 4.01), T('d2', '2026-01-03', 'IBK', 'BUY', 10, 4), T('d3', '2026-01-03', 'IBK', 'BUY', 10, 4),
+  T('d4', '2026-01-03', 'IBK', 'BUY', 11, 4), T('d5', '2026-01-03', 'IBK', 'SELL', 10, 4), T('d6', '2026-03-03', 'IBK', 'BUY', 10, 4), T('d7', '2026-01-03', 'IBK', 'BUY', 10, 5)], ibT);
+ok([...dup].sort().join(',') === 'd2,d3', 'כפילות: אותה כמות וסכום — כל עסקת IBKR מכסה אחת (התאריך הקרוב קודם)');
+ok(A('mtDupIds')([T('e1', '2026-01-02', 'IBK', 'BUY', 10, 4.01)], ibT.slice(0, 1)).has('e1'), 'כפילות: סכום עד 1% ותאריך עד שבוע');
+ok(A('mtDupIds')([T('e2', '2026-01-03', 'IBK', 'BUY', 10, 4)], [{ symbol: 'IBK', date: '2026-01-03', qty: -10, price: 4 }]).size === 0, 'מכירה ב־IBKR (כמות שלילית) לא מכסה קנייה ידנית');
+const sh = A('mtShadowed');
+ok(sh(T('d2', '2026-01-03', 'IBK', 'BUY', 10, 4), [], new Set(['d2'])) === true && sh(T('d4', '2026-01-03', 'IBK', 'BUY', 11, 4), [], new Set(['d2'])) === false, 'הצללה לפי עסקה: רק הכפילה');
 run(`DB.manualTrades = DB.manualTrades.filter(x => x.sym !== 'TRD'); mtSyncPositions();`);
 ok(!run('POSITIONS.some(p => p.sym === "TRD")'), 'כל העסקאות של מניה נמחקו → המניה יורדת');
 
@@ -97,6 +113,7 @@ const tot = A('manualTotalsUSD')(
 ok(near(tot.value, 3 * 25 + 4 * 12), 'שווי ידני: ממוצע + עסקאות, בלי IBKR');
 ok(near(tot.gain, (25 - 20) * 3 + (48 - 40) + (30 - 20)), 'רווח ידני: ממוצע + לא־ממומש + ממומש של מניה שנסגרה');
 ok(tot.avgOnly === 1, 'ספירת מניות לפי ממוצע (לא בתשואה לאורך זמן)');
+ok(near(A('manualTotalsUSD')([{ sym: 'IBK', shares: 7, avg: 50, mtSh: 2, ib: { shares: 5, avg: 50 } }], [T('m', '2026-01-02', 'IBK', 'BUY', 2, 40)], { IBK: { close: 60 } }).value, 120), 'שווי ידני: החלק הידני של מניית IBKR (2 × 60)');
 const tot2 = A('manualTotalsUSD')([{ sym: 'AVG', shares: 3, avg: 20, src: 'manual' }], [], {});
 ok(tot2.missing === 1 && tot2.value === 0, 'בלי מחיר — לא נספר, מסומן חסר');
 
@@ -141,7 +158,15 @@ run(`ibkrFinishImport({ positions: [
     { symbol: 'IBK', qty: 7, costBasis: 350, markPrice: 60, currency: 'USD', asset: 'STK', levelOfDetail: 'SUMMARY' },
     { symbol: 'TRD', qty: 9, costBasis: 90, markPrice: 10, currency: 'USD', asset: 'STK', levelOfDetail: 'SUMMARY' } ],
     cashTransactions: [], cashBalances: [] });`);
-ok(run('POSITIONS.filter(p => p.sym === "TRD").length') === 1 && run('POSITIONS.find(p => p.sym === "TRD").shares') === 9, 'מניה ש־IBKR מחזיק: פוזיציה אחת (IBKR), העסקאות הידניות מוצללות');
+// 20/11/2026: בלי עסקה תואמת ב־IBKR — המניות הידניות הן בנוסף (מקום אחר): פוזיציה אחת, 9 + 4, שני מקורות
+ok(run('POSITIONS.filter(p => p.sym === "TRD").length') === 1 && run('POSITIONS.find(p => p.sym === "TRD").shares') === 13 && !run('POSITIONS.find(p => p.sym === "TRD").src'), 'מניה ש־IBKR מחזיק + עסקה ידנית אחרת: פוזיציה אחת של IBKR, כמות משולבת');
+// עסקת IBKR תואמת (אותה כמות וסכום) → זו אותה עסקה: נספרת רק של IBKR
+run(`ibkrFinishImport({ positions: [
+    { symbol: 'IBK', qty: 7, costBasis: 350, markPrice: 60, currency: 'USD', asset: 'STK', levelOfDetail: 'SUMMARY' },
+    { symbol: 'TRD', qty: 9, costBasis: 90, markPrice: 10, currency: 'USD', asset: 'STK', levelOfDetail: 'SUMMARY' } ],
+    trades: [{ symbol: 'TRD', date: '2026-01-02', side: 'BUY', qty: 4, price: 10, currency: 'USD' }],
+    cashTransactions: [], cashBalances: [] });`);
+ok(run('POSITIONS.find(p => p.sym === "TRD").shares') === 9 && run('mtShadowed(DB.manualTrades[0])') === true, 'עסקה ידנית זהה לעסקת IBKR → מוצללת, רק IBKR נספר');
 
 // --- 9. ניתוק IBKR לא מוחק ידניות ---
 run(`DB.ibkrSnapshot = { positions: [{ sym: 'OLD', name: 'OLD', shares: 1, avg: 1 }], deposits: [], cash: { usd: 0, ils: 0 } };
@@ -161,7 +186,7 @@ ok(/const mt = isIbkrMode\(\) \? manualTotalsUSD\(POSITIONS, mtActiveTrades\(\),
 ok(/ibkrReturnRows\(ibkrData\)/.test(src), 'גרף הביצועים: סדרה משולבת');
 ok(/if \((p\.watch \|\| )?!isIbkrMode\(\) \|\| p\.src === 'manual'\)/.test(src), 'כפתור עריכה גם למניות ידניות במצב IBKR');
 ok(/srcTagHTML\(positionSource\(p\)[,)]/.test(src), 'תגית "ידני" בכרטיס המניה (v147: תגית מקור משותפת — ידני/IBKR)');
-ok(/txUnify\(ib, man, mtShadowed\)/.test(src), 'טאב עסקאות: IBKR + ידניות יחד');
+ok(/txUnify\(ib, man, \(x\) => mtShadowed\(x, null/.test(src), 'טאב עסקאות: IBKR + ידניות יחד (עם הצללת כפילויות)');
 
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
 ok(require('./_swver').swVersionOk(ver), 'CACHE_NAME תואם לגרסה');
