@@ -213,6 +213,9 @@ html.kc-open { overflow: hidden; }
 .kc-field { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
 .kc-field > span { font-size: 14px; flex: none; }
 .kc-field .kc-in { max-width: 180px; }
+/* 20/11/2026 (בקשת המשתמש): בחלונית ההתראה — "מחיר מניה" ואחריו השדה, בהתחלה (ימין בעברית); הסימבול כבר בכותרת */
+.kc-field.kc-al-px { justify-content: flex-start; }
+.kc-field.kc-al-px > span { color: var(--kc-ink2); font-weight: 600; }
 .kc-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .kc-row > .kc-field { flex: 1; min-width: 140px; }
 .kc-row-end { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }

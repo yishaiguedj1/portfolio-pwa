@@ -3000,7 +3000,7 @@ function openAlerts() {
     }
     BG.onSt = bgShow;
     b.append(
-      h('label', { class: 'kc-field' }, h('span', { text: c.sym }), price),
+      h('label', { class: 'kc-field kc-al-px' }, h('span', { text: T('kcStockPx') }), price),
       seg([['cross', T('kcAlertCross')], ['up', T('kcAlertUp')], ['down', T('kcAlertDown')]], dir, (v) => { dir = v; }),
       note,
       h('div', { class: 'kc-row-end' }, noteToggle(note), btn('kc-btn pri', T('kcAlertAdd'), () => {
@@ -3081,7 +3081,7 @@ export async function openStockAlert(sym, env, id, px) {
     let dir = a0 ? a0.dir : 'cross';
     const close = () => closeSheet(sh);
     b.append(
-      h('label', { class: 'kc-field' }, h('span', { text: sym }), price),
+      h('label', { class: 'kc-field kc-al-px' }, h('span', { text: T('kcStockPx') }), price),
       seg([['cross', T('kcAlertCross')], ['up', T('kcAlertUp')], ['down', T('kcAlertDown')]], dir, (v) => { dir = v; }),
       note,
       h('div', { class: 'kc-row-end' },
