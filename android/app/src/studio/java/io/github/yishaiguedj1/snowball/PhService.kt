@@ -29,7 +29,7 @@ class PhService : Service() {
                 startForeground(PhWork.N_ID, PhWork.progress(this, "", PhWork.s(this, R.string.phPrep), -1f), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
                 return START_NOT_STICKY
             }
-            pid = if (burn) i.getStringExtra(X_PID) ?: return START_NOT_STICKY else q.poll() ?: return START_NOT_STICKY
+            pid = if (burn) i.getStringExtra(X_PID) ?: return START_NOT_STICKY else q.removeFirstOrNull() ?: return START_NOT_STICKY
             busy = true; stop = false
         }
         val title = PhStore.get(this, pid)?.optString("name") ?: ""
@@ -50,7 +50,7 @@ class PhService : Service() {
                             PhWork.video(this, p, { stop }) { n -> PhWork.nm(this).notify(PhWork.N_VID, n) }
                             PhWork.nm(this).cancel(PhWork.N_VID)
                         }
-                        cur = synchronized(q) { q.poll() }
+                        cur = synchronized(q) { q.removeFirstOrNull() }
                     }
                 }
             }
