@@ -9,6 +9,7 @@ import android.widget.FrameLayout
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.compose
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.Assume
