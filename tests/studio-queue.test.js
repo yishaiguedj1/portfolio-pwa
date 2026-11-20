@@ -44,10 +44,7 @@ ok(/if \(!q \|\| !S\.WL_RE\.test\(String\(q\)\)\) return false;/.test(loop), 'ע
 
 // 6. הטלפון — פונקציות טהורות מהקוד עצמו
 const cut = (a1, b1) => st.slice(st.indexOf(a1), st.indexOf(b1));
-const P = new Function("const FINAL = ['done', 'failed', 'cancelled'];\n" + cut('export function quMove', 'const quPhRank').replace(/export /g, '') + '\nreturn { quMove, quGroups };')();
-ok(P.quMove(['a', 'b', 'c'], 2, -1).join() === 'a,c,b' && P.quMove(['a', 'b', 'c'], 0, 1).join() === 'b,a,c', 'quMove: למעלה ולמטה');
-const m0 = ['a', 'b'];
-ok(P.quMove(m0, 0, -1).join() === 'a,b' && P.quMove(m0, 1, 1).join() === 'a,b' && P.quMove(m0, 1, -1) !== m0 && m0.join() === 'a,b', 'quMove: בקצוות — בלי שינוי; לא משנה את המקור');
+const P = new Function("const FINAL = ['done', 'failed', 'cancelled'];\n" + cut('export function quGroups', 'const quPhRank').replace(/export /g, '') + '\nreturn { quGroups };')();
 const R = (id, qu, state, created, qn) => ({ id, created, srv: { state }, spec: Object.assign({}, qu ? { qu } : {}, qn ? { qn } : {}) });
 const gs = P.quGroups([R('1', 'qB', 'running', 30), R('2', 'qB', 'done', 20, 'ב'), R('3', 'qA', 'queued', 10, 'א'), R('4', null, 'running', 5), R('5', 'qC', 'done', 1)]);
 ok(gs.map((g) => g.qu).join() === 'qA,qB' && gs[1].qn === 'ב' && gs[1].done === 1 && gs[1].all.length === 2 && gs[1].on.length === 1,
@@ -57,13 +54,19 @@ ok(gs.map((g) => g.qu).join() === 'qA,qB' && gs[1].qn === 'ב' && gs[1].done ===
 ok(/if \(WL_RE\.test\(String\(sp\.qu \|\| ''\)\)\) \{ spec\.qu = sp\.qu;/.test(st), 'normJob: qu נשמר אחרי סנכרון');
 ok(/else if \(ui\.view === 'qnew'\) pageQu\(p\);/.test(st) && /x === 'qnew' \? \['act', null\]/.test(st), 'הדף והניווט ("חזור" — לעמוד הפעילות)');
 ok(/inQ = new Set\(gs\.flatMap/.test(st) && /actSplit\(store\.jobs\.filter\(\(r\) => !inQ\.has\(r\.id\)\)/.test(st), 'עמוד הפעילות: עבודות התור בקבוצה משלהן, השאר כמו קודם');
-ok(/for \(const \[id, fo\] of made\) \{ quPend\.delete\(id\); paintSoon\(\); try \{ await startRun\(id, fo\); \}/.test(st), 'ההעלאות — אחת אחרי השנייה');
-// 7א. סבב 2 (19/11, בקשת המשתמש): עבודה אחרי עבודה דרך הטופס הרגיל, ורק בסוף "להתחיל את כל העבודות"
-ok(/if \(f && f\.qd && !ui\.starting\) \{ quTake\(f\); return; \}/.test(st), 'הטופס הרגיל במצב תור: "להוסיף לתור" — לרשימה, לא יוצר עבודה');
-ok(/const spec = formSpec\(f, file, pr, sm\);/.test(st) && /const spec = formSpec\(f, f\.fileObj, pr \|\| \{\}, sm\);/.test(st), 'אותו spec ב"להתחיל" וב"להוסיף לתור" (formSpec)');
+ok(/quChain\.then\(\(\) => \{ if \(!quPend\.delete\(id\)\) return null;/.test(st) && /const up = \(\) => quUp\(f, rec\.id, \(\) => startRun\(rec\.id, ext \? null : file\)\);/.test(st), 'ההעלאות מהתור — אחת אחרי השנייה; בוטלה בזמן ההמתנה — בלי העלאה');
+// 7א. 20/11 (בקשת המשתמש): "להוסיף לתור" = אותה התחלה כמו פרויקט רגיל, מכל מקור — עם סימון התור, ובסוף לעמוד התור
+ok(!/quTake|quStart/.test(st), 'בלי רשימה בזיכרון — העבודה נוצרת כמו פרויקט רגיל');
+ok((st.match(/quStamp\(f, /g) || []).length >= 4, 'כל המסלולים מסמנים את התור: סרטון/Drive, קובץ כתוביות, קישור לענן, דרך האפליקציה');
+ok((st.match(/jobOpen\(f, rec\)/g) || []).length >= 4, 'אחרי ההתחלה — לעמוד התור (מכל מסלול)');
+ok(/spec\.qu = f\.qu;/.test(st) && /if \(spec\.eng !== 'api'\) Object\.assign\(spec, \{ eng: 'api', cap: store\.settings\.cap \}\);\n  delete spec\.cp;/.test(st), 'quStamp: תמיד בשרת, בלי העתק־הדבק');
+ok(/replaceView\('qnew', f\.qu\);/.test(st), 'jobOpen: לעמוד התור עם העבודות');
+ok(/\.\.\.\(f\.qd && f\.qu \? \{ qu: f\.qu, qn: f\.qn \|\| '' \} : \{\}\)/.test(st) && /WL_RE\.test\(pend\.f\.qu\)\) Object\.assign\(f, \{ qd: 1, qu: pend\.f\.qu/.test(st), 'הורדה מקישור בטלפון — הטופס חוזר עם התור');
 ok(/const listOk = \(f\) => !!\(btOk\(f\) && f\.fileObj && !f\.qd\);/.test(st) && /end: f\.ka \|\| f\.vi \|\| f\.qd \? null : saveTop/.test(st), 'בתור: בלי "עוד סרטון" ובלי טיוטה');
-ok(/const spec = Object\.assign\(\{\}, it\.spec, \{ qu: q\.qu \}, qn \? \{ qn \} : \{\}\);/.test(st), 'ההתחלה: כל עבודה עם ה־spec שלה, באותו תור');
-ok(/r\.addEventListener\('contextmenu'/.test(cut('function pageQu', 'function quItemSub')) && /if \(o\.menu\) r\.addEventListener\('contextmenu'/.test(st), 'לחיצה ארוכה: ברשימה ובעמוד הפעילות');
+ok(/const quB = !f\.qd && quOk\(\) && nList === 1 && !\(f\.ph && !f\.ph\.nu\)/.test(st) && /foot\.append\(startBtn, quB \|\| ''/.test(st) && /ft\.append\(startBtn, quB \|\| ''/.test(st), 'בכל טופס רגיל — גם "להוסיף לתור"');
+ok(/Object\.assign\(f, \{ qd: 1, qx: 1, qu, qn: qn \|\| '' \}\); qf = \{ qu, qn: qn \|\| '' \}; startFromForm\(\);/.test(st) && /if \(f\.qx && !ui\.starting\) \{ delete f\.qd; delete f\.qx;/.test(st), 'quPickFor: תור קיים או חדש → אותה התחלה; ביטול — הטופס חוזר להיות רגיל');
+{ const pq = cut('function pageQu', 'function quKindMenu');
+  ok(/r\.spec\.qu === q\.qu/.test(pq) && /projRow\(r, \{ act: true, qu: true, menu:/.test(pq) && /if \(o\.menu\) r\.addEventListener\('contextmenu'/.test(st), 'עמוד התור: העבודות האמיתיות של התור, עם לחיצה ארוכה'); }
 ok(/net\.api\('qctl', \{ job: rec\.id, a, all: !!all \}\)/.test(st), 'השהיה / המשך / לראש התור — op: qctl');
 // 7ג. השרתון: qctl, השהיה בלי קריאות ובלי תקרת זמן
 {
@@ -88,7 +91,7 @@ ok(/net\.api\('qctl', \{ job: rec\.id, a, all: !!all \}\)/.test(st), 'השהיה
   ok(/sid: job\.qu && job\.qh \? null : ''/.test(api), 'queueApi: מושהית בזמן ההעלאה — נשארת מושהית כשהיא נכנסת לתור');
   ok(/if \(job\.qu && job\.qh\) continue;/.test(loop) && /S\.quKey\(a\) - S\.quKey\(b\)/.test(api), 'הלקיחה: מדלגת על מושהית, ולפי quKey');
 }
-ok(/go1\.disabled = !n \|\| n > QU_MAX/.test(st) && /export const QU_MAX = 40;/.test(st) && S.maxActive() >= 40, 'עד QU_MAX בפעם אחת (בתוך מגבלת העבודות הפעילות של השרתון)');
+ok(S.maxActive() >= 40, 'מגבלת העבודות הפעילות של השרתון');
 // 7ב. מנהל העבודות (19/11, בקשת המשתמש): בלי "אחרונה" — מה שהסתיים ועוד לא נפתח
 {
   const U = new Function("const FINAL = ['done', 'failed', 'cancelled'];\n" + cut('export const ACT_RECENT_MS', '/* דף בניית התור').replace(/export /g, '') + '\nreturn { actUnseen, ACT_RECENT_MS };')();
@@ -110,5 +113,5 @@ ok(/go1\.disabled = !n \|\| n > QU_MAX/.test(st) && /export const QU_MAX = 40;/.
   ok(cp.spawnSync(process.execPath, ['--check', tmp]).status === 0, 'studio.js — תחביר תקין כמודול (node --check על .mjs)');
 }
 ok(/const quOk = \(\) => !!\(ui\.api && ui\.api\.servers > 0 && ui\.r2\);/.test(st), '2.192.1: הכרטיס — כשיש שרת ו־R2, בלי תלות במנוע שבהגדרות');
-ok(/else if \(ryMode\(\)\) Object\.assign\(spec, \{ eng: 'api', cap: store\.settings\.cap, ry: 1 \}\);/.test(cut('function formSpec', 'function startFromForm')) && /if \(spec\.eng !== 'api'\) Object\.assign\(spec, \{ eng: 'api'/.test(st) && /delete spec\.cp;/.test(st) && /if \(it\.k === 'tr' && !sp\.ry\) t \+= startEstimate\(/.test(st), '2.192.1: "המנוי שלי" — התרגום דרכו (formSpec), ובלי עלות באומדן; תמיד בשרת, בלי העתק־הדבק');
+ok(/else if \(ryMode\(\)\) Object\.assign\(spec, \{ eng: 'api', cap: store\.settings\.cap, ry: 1 \}\);/.test(cut('function formSpec', 'function startFromForm')) && /if \(spec\.eng !== 'api'\) Object\.assign\(spec, \{ eng: 'api'/.test(st) && /delete spec\.cp;/.test(st), '2.192.1: "המנוי שלי" — התרגום דרכו (formSpec); תמיד בשרת, בלי העתק־הדבק');
 console.log('# ' + n + ' בדיקות');

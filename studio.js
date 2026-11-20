@@ -3493,25 +3493,53 @@ export function actSplit(jobs, phaseOf) {   // טהורה: [רצות, בתור]
    כדי לא להעמיס ולהשאיר מקום למשתמש אחר. עבודות רגילות — בלי שום מגבלה. ההגדרות — "הרגילות" שלך (כמו טופס חדש).
    הסרטונים עולים אחד אחרי השני (startRun של הקודם מסתיים), והשרת מתחיל כל עבודה כשהקול שלה עלה */
 export const QU_PAR = 2;    // = QU_PAR בשרתון (lib/studio.js) — tests/studio-queue.test.js משווה
-export const QU_MAX = 40;   // עבודות בתור בפעם אחת (בתוך MAX_ACTIVE_ADMIN של השרתון — 50 פעילות למשתמש)
 const quPend = new Set();    // עבודות מהתור שמחכות להעלאה שלהן (בזיכרון — אחרי רענון: "בחר שוב", כמו כל העלאה שנקטעה)
 const quRunning = (qu) => store.jobs.filter((r) => r.spec && r.spec.qu === qu && r.srv && r.srv.state === 'running').length;
 /* 19/11/2026 (בקשת המשתמש, סבב 2): התור נבנה עבודה אחרי עבודה — "להוסיף עבודה" → סוג (תרגום / ניתוח / קריוקי) → הטופס הרגיל
-   של הכלי עם כל ההגדרות שלו, ו"להוסיף לתור" (form.qd) במקום "להתחיל". העבודות נשמרות ברשימה (בזיכרון — הקבצים לא נשמרים), ורק
-   "להתחיל את כל העבודות" יוצר אותן בשרת. לחיצה ארוכה על עבודה ברשימה — עריכה, עוד עבודה לאותו סרטון, סדר, הסרה */
-let qf = null;              // { qu, qn, ex, items: [{ id, k, f, spec }] }
+   של הכלי עם כל ההגדרות שלו, ו"להוסיף לתור" (form.qd) במקום "להתחיל".
+   20/11/2026 (בקשת המשתמש: "שהכל יהיה למשתמש אותו דבר בין אם זה תור או עבודה רגילה"): "להוסיף לתור" = אותה התחלה בדיוק
+   כמו פרויקט רגיל, מכל מקור (סרטון, דרך האפליקציה, קישור, Drive, קובץ כתוביות) — רק עם סימון התור (quStamp), ובסוף חוזרים
+   לעמוד התור (jobOpen) עם כל העבודות שנוספו עד עכשיו. השרת מריץ QU_PAR מהתור במקביל, והשאר מחכות */
+let qf = null;              // { qu, qn } — התור שבעמוד (העבודות עצמן ב־store.jobs, לפי spec.qu)
 const quOk = () => !!(ui.api && ui.api.servers > 0 && ui.r2);   // 19/11/2026 (2.192.1): יש שרת ו־R2 — בלי תלות במנוע שבהגדרות
-/* כפתור הטופס במצב תור: "להוסיף לתור" (או "לשמור" בעריכה) במקום "להתחיל" */
-const quBtnL = (f, l) => (!f.qd ? l : f.qi ? T('studioQuSaveJob') : T('studioQuAdd'));
+/* כפתור הטופס במצב תור: "להוסיף לתור" במקום "להתחיל" */
+const quBtnL = (f, l) => (!f.qd ? l : T('studioQuAdd'));
 export const quKindOf = (f) => (f.ka ? 'ka' : f.vi ? 'vi' : 'tr');
-const quKindT = (k) => (k === 'ka' ? T('studioDialKa') : k === 'vi' ? T('studioDialVi') : T('studioActTr'));
 const QU_TILE = { tr: ['trans', 'blue'], vi: ['spark', 'teal'], ka: ['note', 'purple'] };
-/* עבודה מהרשימה — להזיז (d = -1 למעלה, 1 למטה). טהורה: מחזירה רשימה חדשה */
-export function quMove(items, i, d) {
-  const j = i + d, a = (items || []).slice();
-  if (i < 0 || i >= a.length || j < 0 || j >= a.length) return a;
-  [a[i], a[j]] = [a[j], a[i]];
-  return a;
+/* עבודה מטופס במצב תור — תמיד בשרת של המערכת ("המנוי שלי" — התרגום דרך ה־Routine שלך: ry נשאר), עם מזהה התור והשם.
+   העתק־הדבק לא מתאים לתור */
+function quStamp(f, spec) {
+  if (!f || !f.qd || !f.qu || !spec) return spec;
+  if (spec.eng !== 'api') Object.assign(spec, { eng: 'api', cap: store.settings.cap });
+  delete spec.cp;
+  spec.qu = f.qu;
+  const qn = String(f.qn || '').trim().slice(0, 60);
+  if (qn) spec.qn = qn;
+  return spec;
+}
+/* אחרי ההתחלה: עבודה רגילה — לדף העבודה; מהתור — לעמוד התור ("חזור" משם — למנהל העבודות) */
+function jobOpen(f, rec) {
+  if (!(f && f.qd && f.qu)) { replaceView('job', rec.id); return; }
+  if (qf && qf.qu !== f.qu) qf = null;
+  replaceView('qnew', f.qu);
+  if (CW_OK && stack.length === 2 && stRoot() !== 'act') { stack.splice(1, 0, { v: 'act', p: null }); syncState(); }
+}
+/* "להוסיף לתור" מטופס רגיל: לאיזה תור — תור פעיל או תור חדש (אין תור פעיל — ישר לתור חדש). אחר כך — אותה התחלה, ובסוף עמוד התור */
+function quPickFor(f, at) {
+  const take = (qu, qn) => { Object.assign(f, { qd: 1, qx: 1, qu, qn: qn || '' }); qf = { qu, qn: qn || '' }; startFromForm(); };
+  const gs = quGroups(store.jobs);
+  if (!gs.length) { take(wlNew(), ''); return; }
+  lbMenu(at, T('studioQuPickT'), [...gs.slice(0, 8).map((g) => ({ k: 'q-' + g.qu, icon: 'film', label: g.qn || T('studioQuT'), fn: () => take(g.qu, g.qn) })),
+    { k: 'q-new', icon: 'plus', label: T('studioQuNew'), fn: () => take(wlNew(), '') }]);
+}
+/* ההעלאות מהתור — אחת אחרי השנייה (בלי להעמיס על הרשת); עבודה רגילה — מיד */
+let quChain = Promise.resolve();
+function quUp(f, id, run) {
+  if (!(f && f.qd)) return run();
+  quPend.add(id); paintSoon();
+  const pr = quChain.then(() => { if (!quPend.delete(id)) return null; paintSoon(); return run(); })   // בוטלה בזמן ההמתנה — בלי העלאה.catch(() => {});
+  quChain = pr;
+  return pr;
 }
 /* הקבוצות לעמוד "פעילה" — טהורה: תור שיש בו עבודה שלא הסתיימה; בכל אחד — כל העבודות, כמה הסתיימו ומה עוד פתוח */
 export function quGroups(jobs) {
@@ -3603,141 +3631,44 @@ export function actUnseen(jobs, sna, now) {
   return (jobs || []).filter((r) => r && r.srv && (r.srv.state === 'done' || r.srv.state === 'failed') && !r.sn && t(r) >= (sna || 0) && now - t(r) < ACT_RECENT_MS)
     .sort((a, b) => t(b) - t(a));
 }
-/* דף בניית התור (ui.param = תור קיים להוספה, או null לתור חדש) */
+/* דף התור (ui.param = תור קיים, או null לתור חדש): השם, כל העבודות שנוספו עד עכשיו (עבודות אמיתיות — כמו במנהל העבודות),
+   ו"להוסיף עבודה" */
 function pageQu(p) {
-  const r0 = ui.param ? store.jobs.find((r) => r.spec && r.spec.qu === ui.param) : null;
-  const ex = r0 ? { qu: r0.spec.qu, qn: r0.spec.qn || '' } : null;   // הוספה לתור קיים — אותו מזהה ושם
-  if (!qf || (ex ? qf.qu !== ex.qu : qf.ex)) qf = { qu: ex ? ex.qu : wlNew(), qn: ex ? ex.qn : '', ex: !!ex, items: [] };
-  const q = qf, ttl = ex ? T('studioQuAddT') : T('studioQuNew');
+  const qu0 = ui.param || null;
+  if (!qf || (qu0 && qf.qu !== qu0)) qf = { qu: qu0 || wlNew(), qn: '' };
+  const q = qf;
+  const all = store.jobs.filter((r) => r.spec && r.spec.qu === q.qu && r.srv).sort((a, b) => (a.created || 0) - (b.created || 0));
+  if (all.length && !q.qn) q.qn = (all.find((r) => r.spec.qn) || { spec: {} }).spec.qn || '';
+  const ttl = all.length ? q.qn || T('studioQuT') : T('studioQuNew');
   p.append(navBar({ back: T('studioActT'), title: ttl, coll: true }), large(ttl));
   if (!quOk()) { p.append(note(T('studioQuNeedSrv'))); return; }
-  if (!ex) {
+  if (!all.length) {   // השם — לפני העבודה הראשונה (הוא נשמר בכל עבודה)
     const inp = h('input', 'st-in'); inp.type = 'text'; inp.dir = 'auto'; inp.maxLength = 60; inp.value = q.qn; inp.placeholder = T('studioQuNamePh');
     inp.setAttribute('aria-label', T('studioQuName'));
     inp.addEventListener('input', () => { q.qn = inp.value; });
     p.append(secT(T('studioQuName')), inp);
-  } else p.append(note(T('studioQuAddTo', { n: ex.qn || T('studioQuT') })));
-  // העבודות — כל אחת עם ההגדרות שלה. נגיעה = עריכה; לחיצה ארוכה = עוד אפשרויות
-  const rows = q.items.map((it, i) => {
-    const r = btn('st-row st-ric', null, () => quEdit(it), 'qu-it:' + it.id);
-    const [ic, c] = QU_TILE[it.k];
-    r.append(tile(ic, c), rowTxt(it.spec.name, quKindT(it.k) + ' · ' + quItemSub(it)), ico('chev', 'st-chev'));
-    r.addEventListener('contextmenu', (e) => { e.preventDefault(); quItemMenu(e.clientX || e.clientY ? { x: e.clientX, y: e.clientY } : r, it, i); });
-    return r;
-  });
-  const addRow = rowNav({ tile: tile('plus', 'blue'), label: T('studioQuAddJob'), onClick: () => quKindMenu(addRow, null), k: 'qu-addjob' });
-  p.append(secT(T('studioQuJobs', { n: q.items.length })), list(...rows, addRow));
-  p.append(note(q.items.length ? T('studioQuNote', { n: QU_PAR }) : T('studioQuEmpty')));
-  const n = q.items.length, usd = quUsd(q.items);
-  const go1 = btn('st-btn wide', ui.starting ? T('studioStarting') : T('studioQuGoAll', { n }), quStart, 'qu-start');
-  go1.disabled = !n || n > QU_MAX || ui.starting;
-  const ft = h('div', 'st-foot'); ft.append(go1, h('p', 'st-foot-n', !n ? '' : n > QU_MAX ? T('studioQuMax', { n: QU_MAX }) : usd > 0 ? T('studioQuEst', { usd: fmtUsd(usd) }) : T('studioQuSettings')));
-  p.append(ft);
+  }
+  const rows = all.map((r) => projRow(r, { act: true, qu: true, menu: (at) => quJobMenu(at, r) }));
+  const addRow = rowNav({ tile: tile('plus', 'blue'), label: T('studioQuAddJob'), onClick: () => quKindMenu(addRow), k: 'qu-addjob' });
+  p.append(secT(T('studioQuJobs', { n: all.length })), list(...rows, addRow));
+  p.append(note(all.length ? T('studioQuNote', { n: QU_PAR }) : T('studioQuEmpty')));
 }
-/* השורה השנייה של עבודה ברשימה: אורך, ובתרגום — השפות */
-function quItemSub(it) {
-  const sp = it.spec, ul = uiLang();
-  const lg = it.k === 'tr' && Array.isArray(sp.to) && sp.to.length ? (sp.from === 'auto' ? T('studioAuto') : langName(sp.from, ul)) + ' → ' + sp.to.map((x) => langName(x, ul)).join(', ') : '';
-  return [lg, sp.dur ? fmtDur(sp.dur) : fmtSize(sp.size)].filter(Boolean).join(' · ');
-}
-/* בחירת סוג העבודה — תרגום / ניתוח / קריוקי (רק מה שזמין). from = עבודה קיימת: אותו סרטון */
-function quKindMenu(at, from) {
+/* בחירת סוג העבודה — תרגום / ניתוח / קריוקי (רק מה שזמין) */
+function quKindMenu(at) {
   lbMenu(at, T('studioQuKindT'), [
-    { k: 'tr', icon: QU_TILE.tr[0], label: T('studioActTr'), fn: () => quAdd('tr', from) },
-    viTabOk() ? { k: 'vi', icon: QU_TILE.vi[0], label: T('studioDialVi'), fn: () => quAdd('vi', from) } : null,
-    kaOk() ? { k: 'ka', icon: QU_TILE.ka[0], label: T('studioDialKa'), fn: () => quAdd('ka', from) } : null]);
+    { k: 'tr', icon: QU_TILE.tr[0], label: T('studioActTr'), fn: () => quAdd('tr') },
+    viTabOk() ? { k: 'vi', icon: QU_TILE.vi[0], label: T('studioDialVi'), fn: () => quAdd('vi') } : null,
+    kaOk() ? { k: 'ka', icon: QU_TILE.ka[0], label: T('studioDialKa'), fn: () => quAdd('ka') } : null]);
 }
-/* עבודה חדשה לרשימה: הטופס הרגיל של הכלי (ההגדרות הרגילות שלך), במצב "להוסיף לתור" */
-function quAdd(k, from) {
+/* עבודה חדשה לתור: הטופס הרגיל של הכלי (ההגדרות הרגילות שלך), במצב "להוסיף לתור" */
+function quAdd(k) {
+  const q = qf; if (!q) return;
   const f = freshForm(null);
-  f.qd = 1;
+  Object.assign(f, { qd: 1, qu: q.qu, qn: q.qn || '' });
   if (k === 'ka') f.ka = true;
   if (k === 'vi') f.vi = true;
-  if (from && from.f.fileObj) formTake(f, from.f.fileObj, null);
   form = f;
   go('new', k === 'tr' ? null : k);
-}
-/* עריכת עבודה מהרשימה — עותק של הטופס שלה (ביטול לא משנה כלום) */
-function quEdit(it) {
-  form = Object.assign({}, it.f, { out: Object.assign({}, it.f.out), qd: 1, qi: it.id, why: null });
-  go('new', it.k === 'tr' ? null : it.k);
-}
-function quItemMenu(at, it, i) {
-  const q = qf; if (!q) return;
-  const mv = (d) => { q.items = quMove(q.items, i, d); render('none'); };
-  lbMenu(at, it.spec.name, [
-    { k: 'edit', icon: 'edit', label: T('studioQuMEdit'), fn: () => quEdit(it) },
-    { k: 'same', icon: 'plus', label: T('studioQuMSame'), fn: () => quKindMenu(at, it) },
-    i > 0 ? { k: 'up', icon: 'up', label: T('studioQuMUp'), fn: () => mv(-1) } : null,
-    i < q.items.length - 1 ? { k: 'down', icon: 'down', label: T('studioQuMDown'), fn: () => mv(1) } : null,
-    { k: 'del', icon: 'trash', label: T('studioQuMDel'), danger: true, fn: () => { q.items = q.items.filter((x) => x !== it); render('none'); } }]);
-}
-/* "להוסיף לתור" בטופס: אותן בדיקות ואותו spec כמו "להתחיל", בלי ליצור עבודה — העבודה נכנסת לרשימה */
-function quTake(f) {
-  const q = qf;
-  if (!q) { form = null; back(); return; }
-  if (f.link || f.drive || f.subs || f.ph) { flashSafe(T('studioQuFileOnly')); return; }
-  if (!f.fileObj) { flashSafe(T('studioPickToStart')); return; }
-  if (!f.ka && !f.vi && !langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }
-  if (f.ka && !kaOk()) { flashSafe(T('studioKaNoSrv')); return; }
-  ui.starting = true; render('none');
-  (async () => {
-    const sm = f.sa && f.sa.st === 'ok' ? f.sa.m : null;
-    const pr = sm && sm.dur ? { dur: sm.dur } : await probeVideo(f.fileObj).catch(() => ({ dur: 0 }));
-    ui.starting = false;
-    if (form !== f) { render('none'); return; }
-    const spec = formSpec(f, f.fileObj, pr || {}, sm);
-    // תמיד בשרת של המערכת (התור); "המנוי שלי" — התרגום דרך ה־Routine שלך (ry נשאר; ניתוח וקריוקי מוחקים אותו). העתק־הדבק לא מתאים לתור
-    if (spec.eng !== 'api') Object.assign(spec, { eng: 'api', cap: store.settings.cap });
-    delete spec.cp;
-    const it = { id: f.qi || wlNew(), k: quKindOf(f), f, spec };
-    const at = q.items.findIndex((x) => x.id === it.id);
-    if (at >= 0) q.items[at] = it; else q.items.push(it);
-    delete f.qi;
-    form = null;
-    back();
-  })();
-}
-function quUsd(items) {   // אומדן: תרגום (startEstimate) + ניתוח (viUsd, וגם התרגום שלו); קריוקי — בלי Claude. אורך לא ידוע — לפי שעה
-  let t = 0;
-  for (const it of items || []) {
-    const sp = it.spec, d = sp.dur || 3600;
-    if (it.k === 'tr' && !sp.ry) t += startEstimate(sp.mode, d, curNorm(), ui.api, true).usd * (sp.bt ? BT_EST : 1);
-    if (it.k === 'vi') t += viUsd(sp.mode, it.f.vf || 'auto', d) + (sp.vt ? startEstimate(sp.mode, d, curNorm(), ui.api, true).usd : 0);
-  }
-  return Math.round(t * 100) / 100;
-}
-/* "להתחיל את כל העבודות": אישור אחד עם אומדן → עבודה בשרתון לכל אחת (באותו תור) → ההעלאות אחת אחרי השנייה */
-function quStart() {
-  const q = qf;
-  if (!q || ui.starting || !quOk()) return;
-  const items = q.items.slice(), n = items.length;
-  if (!n || n > QU_MAX) return;
-  const run = async () => {
-    ui.starting = true; render('none');
-    const made = [];
-    const qn = String(q.qn || '').trim().slice(0, 60);
-    for (const it of items) {
-      const spec = Object.assign({}, it.spec, { qu: q.qu }, qn ? { qn } : {});
-      const jq = await net.api('create', { spec });
-      if (!jq.ok || !jq.job) { flashSafe(errText(jq.error)); break; }
-      const fo = it.f.fileObj;
-      const rec = normJob({ id: jq.job.id, created: jq.job.created || Date.now(), spec: jq.job.spec || spec, srv: jq.job,
-        fp: { name: fo.name, size: fo.size, lm: fo.lastModified || 0 }, vm: null, org: orgOf(it.f, null, 'api'),
-        up: isR2Folder(jq.job.folder) ? { folder: jq.job.folder } : {} });
-      if (!rec) continue;
-      store.jobs.unshift(rec); thumbFor(rec, null, fo); made.push([rec.id, fo]); quPend.add(rec.id);
-      q.items = q.items.filter((x) => x !== it);   // נוצרה — יוצאת מהרשימה (ניסיון חוזר אחרי תקלה — רק מה שנשאר)
-    }
-    ui.starting = false;
-    if (made.length) { save(); fnlAdd('start'); }
-    if (qf === q && !q.items.length) qf = null;
-    if (made.length && root && ui.view === 'qnew' && !q.items.length) replaceView('act', null); else render('none');
-    for (const [id, fo] of made) { quPend.delete(id); paintSoon(); try { await startRun(id, fo); } catch (e) {} }   // אחד אחרי השני — בלי להעמיס על הרשת
-  };
-  const usd = quUsd(items);
-  if (typeof askConfirm === 'function') askConfirm(T('studioQuAsk', { n, p: QU_PAR }) + (usd > 0 ? ' · ' + T('studioQuEst', { usd: fmtUsd(usd) }) : ''), run, { ok: T('studioQuGoAll', { n }) });
-  else run();
 }
 function pageHome(p, kaTab, viTab) {   // 10/11/2026: viTab — לשונית הניתוח (רשימה משלה, כמו הקריוקי)
   const pon = apiMode() ? ui.api.online > 0 : !!store.conn;
@@ -3923,6 +3854,7 @@ function pageForm(p, editing) {
   if (!editing && ui.param === 'ka') form.ka = true;   // 30/10/2026: הכלי בכתובת הדף — טופס שנבנה מחדש נשאר קריוקי
   if (!editing && ui.param === 'vi' && viOk(form)) form.vi = true;   // 10/11/2026: וגם ניתוח
   const f = form;
+  if (f.qx && !ui.starting) { delete f.qd; delete f.qx; delete f.qu; delete f.qn; }   // 20/11/2026: "להוסיף לתור" מטופס רגיל שלא הסתיים (ביטול באומדן) — חוזר להיות רגיל
   const saveTop = btn('st-txt bold', T('studioSave'), saveForm, 'nav-save');
   saveTop.disabled = !f.file || !!f.subs;
   // 30/10/2026: לשיר אין טיוטה — הטיוטות שייכות לתרגום (hidden לא הספיק: ה־CSS של הכפתור גובר)   // 22/10/2026: קובץ כתוביות — בלי טיוטה (הקובץ רק בזיכרון)
@@ -3990,7 +3922,7 @@ function pageForm(p, editing) {
     const driveRow = ui.gb ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'), onClick: () => { if (dp.st !== 'ok') dp.st = ''; go('dpick'); }, k: 'from-drive' }) : null;
     // 26/10/2026: קריוקי משיר רגיל — הליווי בלי הקול, והמילים נצבעות כשהן נשמעות (רק בשרת שלנו)
     // 30/10/2026: הקריוקי עבר ללשונית משלו (pageKa) — בלי מתג כאן
-    p.append(list(pickRow, f.ka || f.vi ? null : phRow, f.ka || f.vi ? null : pwRow, linkRow, f.ka || f.vi ? null : subsRow, driveRow));   // 10/11: ניתוח — בלי תרגום בטלפון ובלי קובץ כתוביות
+    p.append(list(pickRow, f.ka || f.vi || f.qd ? null : phRow, f.ka || f.vi || f.qd ? null : pwRow, linkRow, f.ka || f.vi ? null : subsRow, driveRow));   // 10/11: ניתוח — בלי תרגום בטלפון ובלי קובץ כתוביות
     const tk = f.trk && f.trk.tracks.length ? f.trk.tracks : null;   // שלב 4
     const hl = tk && f.trk.hlp != null && f.trk.src == null && hlpEngine() ? tk.find((t) => t.id === f.trk.hlp) : null;   // 26/10/2026
     const nsN = tk ? tk.filter((t) => t.net).length : 0, hv = nsN ? nsHave(f) : null, nid = f.ns && f.ns.id;   // 28/10/2026: גם מהרשת
@@ -4058,16 +3990,19 @@ function pageForm(p, editing) {
   const nList = listOk(f) ? 1 + (f.more || []).length : 1;
   const startBtn = btn('st-btn wide', ui.starting ? T('studioStarting') : quBtnL(f, nList > 1 ? T('studioStartN', { n: nList }) : T('studioStart')), startFromForm, 'start');
   startBtn.disabled = !(f.fileObj || f.drive || f.subs || f.ph || (f.link && f.linkOk)) || ui.starting;   // ph — תרגום בטלפון
-  if (f.subs) { const ft = h('div', 'st-foot'); ft.append(startBtn, h('p', 'st-foot-n', T('studioSubsStartNote'))); p.append(ft); return; }   // בלי טיוטה: הקובץ רק בזיכרון
+  // 20/11/2026 (בקשת המשתמש): בכל טופס — גם "להוסיף לתור" (תור קיים או חדש), באותה התחלה בדיוק. לא בתרגום בטלפון ולא ב"עוד סרטון"
+  const quB = !f.qd && quOk() && nList === 1 && !(f.ph && !f.ph.nu) ? btn('st-btn ghost wide', T('studioQuAdd'), () => quPickFor(f, quB), 'start-qu') : null;
+  if (quB) quB.disabled = startBtn.disabled;
+  if (f.subs) { const ft = h('div', 'st-foot'); ft.append(startBtn, quB || '', h('p', 'st-foot-n', T('studioSubsStartNote'))); p.append(ft); return; }   // בלי טיוטה: הקובץ רק בזיכרון
   // 25/10/2026: כפתור אחד, דבוק לתחתית המסך. הטיוטה — "שמירה" בסרגל העליון (עד היום גם כפתור שני כאן, אותה פעולה)
   const foot = h('div', 'st-foot');
-  foot.append(startBtn, h('p', 'st-foot-n', !f.file && !f.ph && !(f.link && f.linkOk) ? T('studioPickToStart') : !f.fileObj && !f.drive && !f.ph && !(f.link && f.linkOk) ? T('studioRepickNote') : f.drive ? T('studioStartNoteDrive') : T('studioStartNote')));
+  foot.append(startBtn, quB || '', h('p', 'st-foot-n', !f.file && !f.ph && !(f.link && f.linkOk) ? T('studioPickToStart') : !f.fileObj && !f.drive && !f.ph && !(f.link && f.linkOk) ? T('studioRepickNote') : f.drive ? T('studioStartNoteDrive') : T('studioStartNote')));
   p.append(foot);
 }
 /* "התחלה" לקובץ כתוביות: אומדן ואישור → עבודה בשרתון → העלאה (קובץ קטן) → רישום → תור השרת */
 function startSubs(f) {
   if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
-  if (!subsOk()) { flashSafe(T('studioSubsApiOnly')); return; }
+  if (!subsOk() && !(f.qd && quOk())) { flashSafe(T('studioSubsApiOnly')); return; }
   if (!ui.r2 && (!store.drive || !store.drive.connected)) {
     if (typeof askConfirm === 'function') askConfirm(T('studioNeedDrive'), connectDrive, { ok: T('studioDriveConnect') });
     else connectDrive();
@@ -4082,6 +4017,7 @@ function startSubs(f) {
     if (apiMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap });
     else if (ryMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap, ry: 1 });
     else Object.assign(spec, { eng: 'api', cap: store.settings.cap, cp: 1 });
+    quStamp(f, spec);
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
     if (est.min && typeof askConfirm === 'function') {
       const yes = await estAsk(est, f);
@@ -4100,7 +4036,7 @@ function startSubs(f) {
     if (refText) await refUpload(rec, refText);
     form = null;
     if (!root) { startRun(rec.id, blob); return; }
-    replaceView('job', rec.id);
+    jobOpen(f, rec);
     startRun(rec.id, blob);
   })();
 }
@@ -5388,7 +5324,7 @@ function startLink(f) {
     }
     const n = dlNonce();
     const ch = pick.ch && L.r.ch ? L.r.ch.map((c) => [c[0] - (pick.sec ? pick.sec[0] : 0), c[1]]).filter((c) => c[0] >= 0) : [];
-    const pend = { n, at: Date.now(), dur, f: { from: f.from, to: f.to, mode: f.mode, out: f.out, style: f.style, sty: f.sty || null, terms: f.terms, edl: null,
+    const pend = { n, at: Date.now(), dur, f: { from: f.from, to: f.to, mode: f.mode, out: f.out, style: f.style, sty: f.sty || null, terms: f.terms, edl: null, ...(f.qd && f.qu ? { qu: f.qu, qn: f.qn || '' } : {}),
       ...(f.ka ? { ka: true, lyr: kaLyr(f.lyr), bv: f.bv === true, gv: f.gv || 0, al: KA_AL.includes(f.al) ? f.al : '' } : {}) },   // 30/10/2026: שיר שהורד בטלפון חוזר לטופס של הקריוקי
       t: L.r.t, u: L.r.u || L.u, ch, th: L.r.th || '' };
     try { sessionStorage.setItem(DLP_KEY, JSON.stringify(pend)); } catch (e) {}
@@ -5440,7 +5376,7 @@ function startLinkCloud(f) {   // ישר לענן של Studio (העובד מור
   const L = f.link;
   if (!L || L.st !== 'ok' || ui.starting) return;
   if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
-  if (!apiMode() && !cpMode() && !ryMode() && !(f.ka && kaOk())) { flashSafe(T('studioLinkApiOnly')); return; }   // 25/10: גם "המנוי שלי" כשיש שרת (ry)
+  if (!apiMode() && !cpMode() && !ryMode() && !(f.ka && kaOk()) && !(f.qd && quOk())) { flashSafe(T('studioLinkApiOnly')); return; }   // 25/10: גם "המנוי שלי" כשיש שרת (ry)
   if (!f.ka && !f.vi && !langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }
   const pick = L.blind ? { h: 0 } : linkPick(L);   // 24/10/2026: "בלי בדיקה" — העובד בוחר לבד (הכי טוב עד 1080p, fetchurl.selector)
   if (!pick) return;
@@ -5456,6 +5392,7 @@ function startLinkCloud(f) {   // ישר לענן של Studio (העובד מור
     else if (cpMode()) spec.cp = 1;
     else if (ryMode()) spec.ry = 1;   // 24/10/2026: המנוי שלך — Claude דרך ה־Routine, לא מהמפתח של המערכת
     if (o.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, (o.h * o.h * 16 / 9) / (1920 * 1080))) * 1000) / 1000;
+    quStamp(f, spec);
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
     if (est.min && !f.ka && typeof askConfirm === 'function' && !f.vi) {
       const yes = await estAsk(est, f);
@@ -5479,7 +5416,7 @@ function startLinkCloud(f) {   // ישר לענן של Studio (העובד מור
     if (j.start) utlSend(rec.id);   // 25/10/2026: בלי runJob — המכשיר נשלח כאן
     form = null;
     if (!root) { if (!j.start) startRun(rec.id, null); return; }
-    replaceView('job', rec.id);
+    jobOpen(f, rec);
     if (!j.start) startRun(rec.id, null);
   })();
 }
@@ -5502,6 +5439,7 @@ async function gotFile(key) {
   const f = form;
   if (pend && pend.f) for (const k of ['from', 'to', 'mode', 'out', 'style', 'sty', 'terms']) if (pend.f[k] != null) f[k] = k === 'sty' ? normSty(pend.f[k]) : pend.f[k];
   if (pend && pend.f && pend.f.ka === true) Object.assign(f, { ka: true, lyr: kaLyr(pend.f.lyr), al: KA_AL.includes(pend.f.al) ? pend.f.al : undefined, bv: pend.f.bv === true, gv: KA_GV.includes(pend.f.gv) ? pend.f.gv : 0 });   // 30/10/2026
+  if (pend && pend.f && typeof pend.f.qu === 'string' && WL_RE.test(pend.f.qu)) Object.assign(f, { qd: 1, qu: pend.f.qu, qn: String(pend.f.qn || '').slice(0, 60) });   // 20/11/2026: מהתור
   f.fileObj = file; f.handle = { inbox: key }; f.drive = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
   f.dl = pend ? { t: pend.t, ch: pend.ch || [], th: pend.th || '', u: pend.u || '' } : null;   // u — לשם האתר במקור (org)
   inspectFor(f, file); if (!f.ka && !f.vi) tracksFor(f, file);
@@ -5666,6 +5604,7 @@ function startPhone(f) {
     else if (P.nu && btOk(f) && f.bt) spec.bt = 1;   // 02/11/2026: חצי מחיר — גם דרך האפליקציה
     else if (spec.pw && (P.cap || 0) >= PH_CAP_PT) spec.pt = 1;   // שלב 3: גם שלבי הטקסט בטלפון — השרת רק מעביר ל־Claude
     if (P.w > 0 && P.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, P.w * P.h / (1920 * 1080))) * 1000) / 1000;
+    quStamp(f, spec);
     // קודם יוצרים את העבודה ומבקשים מפתח (רשת — בלי נגיעה), ורק אז האומדן: הנגיעה ב"להתחיל" היא זו שפותחת את
     // האפליקציה (Chrome פותח intent רק מתוך נגיעה; אחרי await של רשת — כבר לא). ביטול — העבודה נמחקת. העבודה נשארת
     // "חדשה" עד שהאפליקציה מעלה את הקול ומתחילה אותה — לא עולה כלום עד אז
@@ -5694,7 +5633,7 @@ function startPhone(f) {
     const refText = trkRefSrt(f);   // רצועת ההשוואה — לתיקיית העבודה (סט הזהב בסוף)
     if (refText) refUpload(rec, refText);
     form = null;
-    if (root) replaceView('job', rec.id);
+    if (root) jobOpen(f, rec);
     // חלון האישור סוגר את עצמו ב־history.back (אסינכרוני) — ניווט בהיסטוריה אחרי ה־intent מבטל אותו. לכן אחרי afterBack
     // (כמו appGo); ההפעלה מהנגיעה עוד בתוקף. לא נפתח — הכפתור "להמשיך באפליקציה" בדף העבודה
     const hand = () => setTimeout(() => phHand(rec, 'ph'), 250);   // אחרי שדף העבודה סיים להתעדכן בהיסטוריה (replaceState מבטל ניווט שבדרך)
@@ -5848,7 +5787,7 @@ async function engSettle() {
   for (let i = 0; i < 2 && !engKnown(connNow(), ui.api); i++) { statusAt = 0; await refreshStatus(true); }
   return engKnown(connNow(), ui.api);
 }
-/* ה־spec מהטופס — "להתחיל" (startFromForm) ו"להוסיף לתור" (quTake) */
+/* ה־spec מהטופס — "להתחיל" (startFromForm) ו"להוסיף לתור" (עם quStamp) */
 function formSpec(f, file, pr, sm) {
   const ed = edlPre(normEdl(f.edl, pr.dur || 0));   // מ4: חיתוך לפני התרגום — האורך (ומכאן ההערכות) אחרי החיתוך
   const spec = { name: file.name, size: file.size, type: file.type || '', dur: ed ? edlDur(ed, pr.dur || 0) : pr.dur || 0, from: f.from, to: f.to,
@@ -5868,7 +5807,6 @@ function formSpec(f, file, pr, sm) {
 function startFromForm() {
   const f = form;
   pushAuto(true);   // 27/10/2026: ההתראות פעילות כברירת מחדל — הבקשה בלחיצה הזו (פעם אחת)
-  if (f && f.qd && !ui.starting) { quTake(f); return; }   // 19/11/2026: תור עבודות — העבודה נכנסת לרשימה, לא מתחילה
   if (f && !ui.starting && !engKnown(connNow(), ui.api)) {
     ui.starting = true; render('none');
     engSettle().then((ok) => {
@@ -5894,8 +5832,8 @@ function startFromForm() {
   // 11/10/2026: במצב השרת עם R2 הקבצים לא עוברים דרך Drive — חיבור Drive נדרש רק למקור מ־Drive / Routine
   // 26/10/2026: מקור מהרשימה של Studio (bx) — רק כשהשרת שלנו מתרגם; את Drive הוא קורא בחיבור של הרשימה, לא של הסטודיו
   const bx = !!(f.drive && f.drive.bx);
-  if (bx && !(apiMode() || cpMode() || ryMode())) { flashSafe(T('studioDpEng')); return; }
-  const needDrive = !((apiMode() || cpMode() || (bx && ryMode()) || (f.ka && kaOk())) && ui.r2 && (!f.drive || bx));
+  if (bx && !(apiMode() || cpMode() || ryMode() || (f.qd && quOk()))) { flashSafe(T('studioDpEng')); return; }
+  const needDrive = !((apiMode() || cpMode() || (bx && ryMode()) || (f.ka && kaOk()) || (f.qd && quOk())) && ui.r2 && (!f.drive || bx));   // תור — תמיד בשרת
   if (needDrive && (!store.drive || !store.drive.connected)) {
     if (typeof askConfirm === 'function') askConfirm(T('studioNeedDrive'), connectDrive, { ok: T('studioDriveConnect') });
     else connectDrive();
@@ -5908,7 +5846,7 @@ function startFromForm() {
     const file = f.fileObj || f.drive;   // מ־Drive: הפרטים מ־Drive (בלי לקרוא את הקובץ בטלפון)
     const sm = f.sa && f.sa.st === 'ok' ? f.sa.m : null;   // סבב 2: הבדיקה מהבחירה — בלי לקרוא את הקובץ שוב
     const pr = f.fileObj ? (sm && sm.dur ? { dur: sm.dur } : await probeVideo(file)) : { dur: f.drive.dur || 0 };
-    const spec = formSpec(f, file, pr, sm);   // 19/11/2026: משותף ל"להוסיף לתור" (quTake)
+    const spec = quStamp(f, formSpec(f, file, pr, sm));   // 20/11/2026: מהתור — אותו spec, עם סימון התור
     const extras = listOk(f) ? (f.more || []).filter((m) => m.fileObj) : [];
     if (extras.length) {
       spec.wl = wlNew();
@@ -5958,9 +5896,10 @@ function startFromForm() {
     if (more.length) save();
     const rest = async (p0) => { try { await p0; } catch (e) {} for (const [mid, fo] of more) { try { await startRun(mid, fo); } catch (e) {} } };
     form = null;
-    if (!root) { rest(startRun(rec.id, ext ? null : file)); return; }
-    replaceView('job', rec.id);
-    rest(startRun(rec.id, ext ? null : file));
+    const up = () => quUp(f, rec.id, () => startRun(rec.id, ext ? null : file));   // מהתור — ההעלאות אחת אחרי השנייה
+    if (!root) { rest(up()); return; }
+    jobOpen(f, rec);
+    rest(up());
   })();
 }
 
