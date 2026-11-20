@@ -5,6 +5,7 @@
     <string name="wDesc">כל התיק במסך הבית: מחיר, שינוי יומי ואחרי־מסחר. נגיעה במניה פותחת אותה.</string>
     <string name="wEmpty">פתח את Invest ונגע במסך — רשימת המניות תעבור לווידג׳ט.</string>
     <string name="wLoading">טוען מחירים…</string>
+    <string name="wFxShort">דולר</string>
     <string name="wFx">שער הדולר</string>
     <string name="wWatch">מעקב</string>
     <string name="wWatchLabel">רשימות מעקב</string>
