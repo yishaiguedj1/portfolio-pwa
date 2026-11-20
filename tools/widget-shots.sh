@@ -8,5 +8,5 @@ bash "$ROOT/tools/android-sdk.sh" >/dev/null
 export ANDROID_HOME="${ANDROID_HOME:-/opt/android-sdk}"
 cd "$ROOT/android"
 G=$(command -v gradle || echo /opt/gradle/bin/gradle)
-WIDGET_SHOTS="$OUT" "$G" --no-daemon -q --max-workers=2 :app:testInvestDebugUnitTest --tests '*WidgetShotTest*' --rerun-tasks
+WIDGET_SHOTS="$OUT" "$G" --no-daemon -q --max-workers=2 :app:testInvestDebugUnitTest --tests "*WidgetShotTest*" --rerun-tasks -i 2>&1 | grep -E "WidgetShot |FAILED|Exception" || true
 ls "$OUT"

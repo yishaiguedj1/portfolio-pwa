@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.os.Looper
 import android.view.View
 import android.widget.FrameLayout
 import androidx.compose.ui.unit.DpSize
@@ -17,6 +18,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
@@ -72,8 +74,16 @@ class WidgetShotTest {
         val host = FrameLayout(c)
         val v = rv.apply(c, host)
         host.addView(v, FrameLayout.LayoutParams(wPx, hPx))
-        host.measure(View.MeasureSpec.makeMeasureSpec(wPx, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(hPx, View.MeasureSpec.EXACTLY))
-        host.layout(0, 0, wPx, hPx)
+        // הרשימה (RemoteCollectionItems → ListView) בונה את השורות רק בפריסה, ולפעמים אחרי הודעה בלולאה — שלושה סבבים
+        repeat(3) {
+            shadowOf(Looper.getMainLooper()).idle()
+            host.measure(View.MeasureSpec.makeMeasureSpec(wPx, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(hPx, View.MeasureSpec.EXACTLY))
+            host.layout(0, 0, wPx, hPx)
+        }
+        val lists = mutableListOf<android.widget.AbsListView>()
+        fun find(x: View) { if (x is android.widget.AbsListView) lists += x; if (x is android.view.ViewGroup) for (i in 0 until x.childCount) find(x.getChildAt(i)) }
+        find(host)
+        println("WidgetShot $name: רשימות=${lists.size} פריטים=${lists.map { it.adapter?.count }} ילדים=${lists.map { it.childCount }}")
         val pad = (16 * d).toInt()
         val bmp = Bitmap.createBitmap(wPx + 2 * pad, hPx + 2 * pad, Bitmap.Config.ARGB_8888)
         val cv = Canvas(bmp)
