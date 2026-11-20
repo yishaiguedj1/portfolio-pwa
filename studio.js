@@ -3473,10 +3473,11 @@ function projRow(rec, o = {}) {
   live(r, () => {             // אחוז ומצב — מתעדכנים במקום
     const run = runs.get(rec.id), ph = jobPhase(rec, run), m = modelFor(rec);
     const qup = o.qu && ph === 'paused' && quPend.has(rec.id);   // 19/11/2026: תור עבודות — מחכה לתור שלה בהעלאה (הסרטונים עולים אחד אחרי השני)
-    const [c, l] = o.qu && quHeld(rec) && !FINAL.includes(ph) ? ['amber', T('studioBHeld')] : qaPending(rec) ? ['amber', T('studioBAsk')] : recovering(rec) ? ['amber', T('studioBRecover')] : qup || (o.act && ph === 'queued') ? ['amber', T('studioBQueued')] : rec.spec.vi && (ph === 'running' || ph === 'queued') ? ['green', T('studioBViRun')] : badgeFor(ph);   // 17/11/2026: ניתוח — לא "בתרגום"; בפעילות — התור בנפרד
+    const qrd = o.qu && ph === 'ready' && !rec.up.wait;   // 20/11/2026 (בקשת המשתמש): בתור, הסרטון שלה עוד לא עלה (דרך האפליקציה — אחד אחרי השני) — "בתור", לא "מוכן"
+    const [c, l] = o.qu && quHeld(rec) && !FINAL.includes(ph) ? ['amber', T('studioBHeld')] : qaPending(rec) ? ['amber', T('studioBAsk')] : recovering(rec) ? ['amber', T('studioBRecover')] : qup || qrd || ((o.act || o.qu) && ph === 'queued') ? ['amber', T('studioBQueued')] : rec.spec.vi && (ph === 'running' || ph === 'queued') ? ['green', T('studioBViRun')] : badgeFor(ph);   // 17/11/2026: ניתוח — לא "בתרגום"; בפעילות — התור בנפרד
     bd.className = 'st-badge ' + c; bd.textContent = l;
     const upping = ph === 'extract' || ph === 'audio' || ph === 'video';
-    tx.textContent = o.qu && quHeld(rec) && !FINAL.includes(ph) ? T('studioQuHeldS') : qup ? T('studioQuUpWait') : o.qu && ph === 'queued' && quRunning(rec.spec.qu) >= QU_PAR ? T('studioQuWait', { n: QU_PAR }) : o.act && ph === 'queued' ? nowLine(rec, run, ph) : upping ? Math.round(100 * (ph === 'video' ? run.p || 0 : m.stages[0].p || 0)) + '%' + (ph === 'video' && !rec.up.noAudio ? ' · ' + T('studioVideoShort') : '')
+    tx.textContent = o.qu && quHeld(rec) && !FINAL.includes(ph) ? T('studioQuHeldS') : qup || (qrd && quRunning(rec.spec.qu) < QU_PAR) ? T('studioQuUpWait') : qrd ? T('studioQuWait', { n: QU_PAR }) : o.qu && ph === 'queued' && quRunning(rec.spec.qu) >= QU_PAR ? T('studioQuWait', { n: QU_PAR }) : o.act && ph === 'queued' ? nowLine(rec, run, ph) : upping ? Math.round(100 * (ph === 'video' ? run.p || 0 : m.stages[0].p || 0)) + '%' + (ph === 'video' && !rec.up.noAudio ? ' · ' + T('studioVideoShort') : '')
       : m.bg ? T('studioNowBg') : ph === 'queued' && rec.srv && rec.srv.bw ? T('studioBwShort') : ph === 'running' || ph === 'queued' ? T('studioLeftShort', { t: fmtLeft(shownLeft(rec, m)) }) : '';
     const pct = ph === 'done' ? 1 : ph === 'video' ? run.p || 0 : upping ? m.stages[0].p || 0 : ph === 'running' || ph === 'queued' ? shownPct(rec, m.pct, 'h') : m.pct;
     bar.hidden = FINAL.includes(ph) || ph === 'ready';
@@ -3497,7 +3498,7 @@ export function actSplit(jobs, phaseOf) {   // טהורה: [רצות, בתור]
    (תרגום, ניתוח, קריוקי — כמה יחד), והכל נכנס לתור אחד (spec.qu). השרת מריץ עד QU_PAR מאותו תור במקביל, והשאר מחכות —
    כדי לא להעמיס ולהשאיר מקום למשתמש אחר. עבודות רגילות — בלי שום מגבלה. ההגדרות — "הרגילות" שלך (כמו טופס חדש).
    הסרטונים עולים אחד אחרי השני (startRun של הקודם מסתיים), והשרת מתחיל כל עבודה כשהקול שלה עלה */
-export const QU_PAR = 2;    // = QU_PAR בשרתון (lib/studio.js) — tests/studio-queue.test.js משווה
+export const QU_PAR = 3;    // 20/11/2026: 3 (היה 2) — = QU_PAR בשרתון (lib/studio.js) — tests/studio-queue.test.js משווה
 const quPend = new Set();    // עבודות מהתור שמחכות להעלאה שלהן (בזיכרון — אחרי רענון: "בחר שוב", כמו כל העלאה שנקטעה)
 const quRunning = (qu) => store.jobs.filter((r) => r.spec && r.spec.qu === qu && r.srv && r.srv.state === 'running').length;
 /* 19/11/2026 (בקשת המשתמש, סבב 2): התור נבנה עבודה אחרי עבודה — "להוסיף עבודה" → סוג (תרגום / ניתוח / קריוקי) → הטופס הרגיל

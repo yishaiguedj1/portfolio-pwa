@@ -31,7 +31,7 @@ ok(/if \(ui\.view === 'act'\) return 'act\|'/.test(st), 'עבודה עברה מ�
 ok(/ui\.view === 'home' \|\| ui\.view === 'vi' \|\| ui\.view === 'act'\) ms = /.test(st) && /\} else if \(ui\.view === 'home' \|\| ui\.view === 'vi' \|\| ui\.view === 'act'\) \{/.test(st), 'מתעדכן כמו הבית (אותו קצב, אותן קריאות)');
 ok(/: o\.act && ph === 'queued' \? nowLine\(rec, run, ph\)/.test(st), 'בתור — למה היא מחכה');
 ok(/const rows = jobs\.map\(\(rec\) => projRow\(rec\)\);/.test(st), 'הבית — אותה שורה (projRow)');
-ok(/qup \|\| \(o\.act && ph === 'queued'\) \? \['amber', T\('studioBQueued'\)\]/.test(st) && /rec\.spec\.vi && \(ph === 'running' \|\| ph === 'queued'\) \? \['green', T\('studioBViRun'\)\]/.test(st), 'התגית: "בתור" בפעילות; ניתוח — "בניתוח", לא "בתרגום"');
+ok(/qup \|\| qrd \|\| \(\(o\.act \|\| o\.qu\) && ph === 'queued'\) \? \['amber', T\('studioBQueued'\)\]/.test(st) && /rec\.spec\.vi && \(ph === 'running' \|\| ph === 'queued'\) \? \['green', T\('studioBViRun'\)\]/.test(st), 'התגית: "בתור" בפעילות; ניתוח — "בניתוח", לא "בתרגום"');
 // 17/11/2026: למה היא מחכה — מהשרתון (qw) לשורת התור
 ok(/qw: s\.qw && s\.qw\.r === 'mem' \? \{ r: 'mem', n: num\(s\.qw\.n\), f: num\(s\.qw\.f\) \}/.test(st), 'הטלפון: qw מנורמל (mem / perf / psi)');
 ok(/if \(q && q\.r === 'mem'\) return T\('studioQwMem'/.test(st) && /if \(q && q\.r === 'psi'\) return T\('studioQwPsi'\)/.test(st) && /if \(q && q\.r === 'perf'\) return T\('studioQwPerf'\)/.test(st), 'שורת התור — הסיבה מהשרתון לפני "עכשיו רצה"');
