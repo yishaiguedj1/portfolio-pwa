@@ -114,8 +114,8 @@ ok(/srcKind === 'trades' \|\| srcKind === 'holdings'/.test(src), 'השוואת �
 ok(/const mr = tr\.length \? manualTwrRows\(tr, manualHistOf/.test(src), 'הגרף במצב ידני: TWR מהעסקאות');
 ok(/function paintManualHead\(\)/.test(src) && /paintManualHead\(\);\n  \}/.test(src), 'כותרת התשואה במצב ידני = TWR');
 ok(!/ibkrPerfTitleEl/.test(html) && !/renderManualPerf/.test(src), 'כרטיס הביצועים הוסר (2.147.0)');
-ok(/id="pfWrap"[^>]*>(?:(?!<\/div><\/div>|id="pfChips").)*id="pfLegend" class="pf-key hidden"/s.test(html) && !/pfBenchToggles/.test(html) && !/renderPfBenchToggles/.test(src), 'מקרא גרף הביצועים צף בתוך הגרף, בלי כפתורי המדדים שמתחת (2.147.0)');
-ok(/<div class="section-head">\s*<h2 data-i18n="pfTitle">[^<]*<\/h2>\s*<div class="pf-tools" id="pfTools"><\/div>/.test(html), '"תשואה מתאריך" בשורת הכותרת (2.147.0)');
+ok(!/id="pfWrap"[^>]*>(?:(?!<\/div><\/div>|id="pfChips").)*id="pfLegend"/s.test(html) && !/pfBenchToggles/.test(html) && !/renderPfBenchToggles/.test(src), 'המקרא לא צף בתוך הגרף ואין כפתורי מדדים מתחתיו (2.198.0)');
+ok(/<div class="section-head">\s*<h2 data-i18n="pfTitle">[^<]*<\/h2>\s*<ul id="pfLegend" class="pf-key hidden"><\/ul>/.test(html) && !/id="pfTools"/.test(html), 'המקרא בשורת הכותרת, במקום "תשואה מתאריך" (2.198.0)');
 ok(/function pfFitH\(canvas\)/.test(src) && /const h = pfFitH\(canvas\);/.test(src) && /'pfNoteEl', 'pfPickBar', 'pfPickBubble'/.test(src), 'גובה הגרף לפי המסך — כל הכרטיס נכנס בין ההדר לסרגל (2.147.0)');
 ok(/manualHistOf\(sym\) \{ return stockChartRows\(/.test(src), 'כולל את המחיר של היום');
 console.log('\n' + n + ' בדיקות עברו');

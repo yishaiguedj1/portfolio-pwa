@@ -158,11 +158,10 @@ main .sort-chip:not(.on) { background: var(--lg-fill) !important; box-shadow: no
 main .tx-seg { background: var(--lg-fill) !important; }
 main .tx-seg button.on { background: var(--lg-knob) !important; color: var(--on-surface) !important; box-shadow: var(--lg-knob-sh) !important; }
 
-/* ===== 8. הגרף: אותו מקרא באותו מקום, בלי קופסה — הקו נראה דרכו ===== */
+/* ===== 8. הגרף: המקרא (בשורת הכותרת) בלי קופסה ===== */
 main .pf-key { background: transparent !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border: 0 !important; }
 main .pf-key .pk-row { background: transparent !important; box-shadow: none !important; }
-main .pf-key .pk-name { color: var(--on-surface-var) !important; font-weight: 500 !important; text-shadow: 0 0 6px var(--surface), 0 0 10px var(--surface) !important; }
-main .pf-key .pk-pct b { text-shadow: 0 0 6px var(--surface), 0 0 10px var(--surface) !important; }
+main .pf-key .pk-name { color: var(--on-surface-var) !important; font-weight: 500 !important; }
 main .pf-range-summary .rs-range { color: var(--on-surface-var) !important; }
 
 /* ===== 9. רווח/הפסד מהקנייה: עמודות מעוגלות בצבע רך, השם בלי קופסה ===== */

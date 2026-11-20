@@ -64,7 +64,7 @@ tap(110);
 ok(S().pfMeasure.pts.join(',') === '2', 'מצב מדידה: לחיצה שלישית מתחילה מדידה חדשה');
 
 // הכפתור קיים בכלי הגרף, עם אותה מחרוזת כמו בגרף המניה
-const tools = src.slice(src.indexOf('function renderPfTools'), src.indexOf('function closePfSheet'));
+const tools = src.slice(src.indexOf('const CAL_ICON'), src.indexOf('function closePfSheet'));
 ok(!/t\('measure'\)/.test(tools) && /pfAttachTouch\(canvas\)/.test(src), 'v267: כפתור "מדידה" הוסר מגרף הביצועים — מדידה בשתי אצבעות');
 ok(/showPfMeasureTip\(a, b\)/.test(src), 'v267: מדידה בשתי אצבעות מציגה את התוצאה בבועה');
 
