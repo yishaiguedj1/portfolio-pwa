@@ -1299,7 +1299,7 @@ he: {
   totalPortfolio: 'סך התיק',
   pieCash: 'מזומן',
   myPortfolio: 'התיק שלי',
-  pfHoldingsLegend: 'האחזקות הנוכחיות',
+  pfHoldingsLegend: 'התיק שלי',
   pfNoteManualTwr: 'תשואה משוקללת־זמן (TWR) בדולרים מהעסקאות הידניות — קנייה ומכירה לא נספרות כרווח, כמו ב־IBKR.',
   pfNoteHoldings: 'האחזקות הנוכחיות בדולרים לאורך זמן (אין עסקאות עם תאריך). להיסטוריה מדויקת — הוסיפו מניות "לפי עסקאות".',
   twrManual: 'TWR מהעסקאות הידניות',
@@ -3306,7 +3306,7 @@ en: {
   totalPortfolio: 'Portfolio total',
   pieCash: 'Cash',
   myPortfolio: 'My portfolio',
-  pfHoldingsLegend: 'Current holdings',
+  pfHoldingsLegend: 'My portfolio',
   pfNoteManualTwr: 'Time-weighted return (TWR) in USD from your manual trades — buys and sells are not counted as gains, like IBKR.',
   pfNoteHoldings: 'Current holdings in USD over time (no dated trades). For exact history, add stocks "by trades".',
   twrManual: 'TWR from manual trades',
@@ -8392,8 +8392,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.198.0';
-const APP_VERSION = 'v867';
+const APP_RELEASE = '2.199.0';
+const APP_VERSION = 'v868';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -10545,8 +10545,6 @@ function renderPfKey(host, series, showBench, ro) {
   const has = !!(series && series.length);
   host.classList.toggle('hidden', !has);
   if (!has) { host.innerHTML = ''; return; }
-  const canvas = document.getElementById('pfChart');
-  if (canvas) host.style.top = canvas.offsetTop + 'px'; // מתחת לבועת ההסבר של "מתאריך", כשהיא מוצגת
   host.classList.toggle('live', !!ro);
   const ret = (s) => {
     const last = s.pts.length - 1;
@@ -13912,7 +13910,7 @@ function fmtRetHTML(r) {
    נעילה לפריט, רטט קטן בכל מעבר והתווית בכפתור מתגלגלת. הקשה = פתיחה וגלילה בתוך הגלגלת; גרירה אנכית על הכפתור = גלגול ישיר.
    הבחירה נקבעת כשהגלילה נעצרת (הגרף מתעדכן חי, הגלגלת נשארת פתוחה); הקשה על הפריט שבאמצע / בחוץ / "חזור" — סגירה. */
 const PF_SHORT = { '1m': 'sr1M', '3m': 'sr3M', '6m': 'sr6M', ytd: 'rangeYtd', year: 'sr1Y', '3y': 'sr3Y', '5y': 'sr5Y', max: 'srMax' };
-const PF_YEAR_RANGES = ['year', '3y', '5y', 'max'];
+const PF_YEAR_RANGES = ['year', '3y', '5y', 'max', 'custom'];   // 20/11/2026 (בקשת המשתמש): "מתאריך…" כפריט אחרון בגלגלת — כמו בכרטיס המניה (YEAR_RANGES)
 const PF_WH_ROW = 36;   // גובה שורה בגלגלת; חמש שורות נראות, הפריט שבאמצע = הנבחר
 const ICON_UPDOWN = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"/></svg>';
 function pfShort(k) { const labelKey = PF_SHORT[k]; return t(labelKey); }
@@ -13947,7 +13945,11 @@ function renderPfChips() {
   if (yw && yw._sync) yw._sync(cur);
 }
 function pfYearWheel() {
-  return rangeWheel({ keys: PF_YEAR_RANGES, cur: pfCurRange, short: (k) => esc(pfShort(k)), long: (k) => esc(pfWhLong(k)), pick: pfPickRange, live: true });
+  /* "מתאריך" = אייקון לוח שנה בכפתור (התאריך עצמו בשורת התשואה); בגלגלת — אייקון + "מתאריך…". בחירה בו פותחת את גיליון התאריך (סימון בגרף / יומן) */
+  return rangeWheel({ keys: PF_YEAR_RANGES, cur: pfCurRange, live: true,
+    short: (k) => k === 'custom' ? CAL_ICON : esc(pfShort(k)),
+    long: (k) => k === 'custom' ? CAL_ICON + esc(t('srFrom')) : esc(pfWhLong(k)),
+    pick: (k) => { if (k === 'custom') openPfFromSheet(); else pfPickRange(k); } });
 }
 /* גלגלת טווח משותפת (ביצועי התיק, כרטיס המניה ורשימות המעקב).
    o = { keys, cur() → המפתח הנבחר, short(k)/long(k) → HTML לכפתור/לגלגלת, pick(k), live }.
@@ -14023,7 +14025,7 @@ function rangeWheel(o) {
     if (!raf) raf = requestAnimationFrame(paint);
     if (drag || !o.live) return;
     clearTimeout(settleT);
-    settleT = setTimeout(commit, 140);   // הגלילה נעצרה (גם במנגנון הנעילה) — קובעים
+    settleT = setTimeout(() => { if (keys[idxNow()] !== 'custom') commit(); }, 140);   // הגלילה נעצרה (גם במנגנון הנעילה) — קובעים; "מתאריך…" נקבע רק בסגירה (פותח גיליון)
   }, { passive: true });
   items.forEach((it, i) => it.addEventListener('click', () => {
     if (i === idxNow()) { moved = true; closeSrcPops(); return; }   // הקשה על הפריט שבאמצע = בחירה מפורשת
@@ -14073,57 +14075,15 @@ function rangeWheel(o) {
 
 let pfChartToken = 0;
 
-/* שורת כלי גרף הביצועים: כפתור "תשואה מתאריך" + תג טווח מותאם + צ'יפ מדידה.
-   המדידה עצמה מובנית בגרף — שתי לחיצות על נקודות. */
 /* אייקון לוח־שנה נקי בצבע המותג — מחליף את האימוג'י הצבעוני 📅 */
 const CAL_ICON = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2.5"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>';
-function renderPfTools() {
-  const box = document.getElementById('pfTools');
-  if (!box) return;
-  /* 03/11/2026 (סבב קפיצות 11, הקלטת Invest — "הלחצן תשואה מתאריך מתרענן כל רענון של העמוד"): כל ציור של הגרף (גם הרענון
-     המלא של המחירים) בנה את הכפתור מחדש — כפתור זכוכית חדש = שכבה חדשה, ובטלפון הוא מוצג פריים לפני שנצבע. אותו תוכן — נשאר */
-  const key = (state.pfCustomFrom || '') + '|' + t('pfFromBtn');
-  if (box._k === key && box.firstElementChild) {
-    if (!(state.pfMeasure && state.pfMeasure.pts.length >= 2)) { const c = document.getElementById('pfMeasureChip'); if (c) { c.classList.add('hidden'); c.innerHTML = ''; } }
-    return;
-  }
-  box._k = key;
-  box.innerHTML = '';
-  const wrap = el('div', 'pf-tools');
-
-  const fromBtn = el('button', 'chip-btn', CAL_ICON + esc(t('pfFromBtn')));
-  fromBtn.type = 'button';
-  fromBtn.addEventListener('click', openPfFromSheet);
-  wrap.appendChild(fromBtn);
-
-  // v267 (בקשת המשתמש): כפתור "מדידה" הוסר — מודדים בשתי אצבעות על הגרף (pfAttachTouch)
-
-  if (state.pfCustomFrom) {
-    const tag = el('span', 'pf-custom-tag', esc(t('pfCustom')) + ' · ' + fmtDateIL(state.pfCustomFrom));
-    wrap.appendChild(tag);
-    const clr = el('button', 'chip-btn', t('pfClearCustom'));
-    clr.type = 'button';
-    clr.addEventListener('click', () => {
-      state.pfCustomFrom = null;
-      state.pfRange = 'year';
-      state.pfMeasure.pts = [];
-      drawPfChart();
-    });
-    wrap.appendChild(clr);
-  }
-
-  box.appendChild(wrap);
-
-  const chip = el('div', 'measure-chip hidden');
-  chip.id = 'pfMeasureChip';
-  box.appendChild(chip);
-
-}
 
 /* גיליון "תשואה מתאריך": סימון בגרף או בחירה מהיומן */
 function closePfSheet() {
   const v = document.getElementById('pfSheetVeil');
   if (v) v.remove();
+  const yw = document.querySelector('#pfChips .rg-wheel');   // ביטול הגיליון: תווית הגלגלת חוזרת לטווח שבפועל
+  if (yw && yw._sync) yw._sync(pfCurRange());
 }
 function openPfFromSheet() {
   closePfSheet();
@@ -14567,7 +14527,6 @@ async function drawPfChart() {
     canvas._pfTapAttached = true;
   }
   renderPfChips();
-  renderPfTools();
   hidePfTip();
   updatePfPickUI();
   const my = ++pfChartToken;
@@ -14736,9 +14695,8 @@ function paintPfChart() {
   if (!series.length) return;
   const n = series[0].pts.length;
 
-  // 2.147.0: המקרא הצף נצבע לפני הגרף — גובהו קובע את המרווח העליון, כך שאף קו לא עובר מתחתיו
+  // 20/11/2026 (בקשת המשתמש): המקרא בשורת הכותרת (במקום "תשואה מתאריך") — לא מכסה את הגרף, אז אין מרווח עליון לפיו
   renderPfKey(legend, series, !!paint.showBench, pfReadout());
-  const keyH = legend && !legend.classList.contains('hidden') ? legend.offsetHeight : 0;
   const h = pfFitH(canvas);
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth || 320;
@@ -14763,15 +14721,6 @@ function paintPfChart() {
   // v125: ציר X לפי זמן, לא לפי אינדקס — בנתוני תקופות (נקודה לשנה) תקופה
   // של יום אחד תפסה רוחב של שנה שלמה והגרף היה מעוות
   const fr = pfTimeFractions(series[0].pts.map((p) => p.date));
-  // 2.147.0: מרווח עליון רק מתחת למקרא — הקווים באזור שלו יורדים מתחת לתחתיתו, ושאר הגרף מנצל את כל הגובה
-  const zoneR = keyH ? legend.offsetLeft + legend.offsetWidth + 4 : 0;
-  const topAt = (x) => (keyH && x <= zoneR ? keyH + 6 : padT); // 2.147.0: סמנים ופס המדידה לא נכנסים מתחת למקרא
-  if (keyH) {
-    const r = Math.min(0.6, (keyH + 6 - padT) / plotH);
-    let vz = -Infinity;
-    for (const s of series) s.pts.forEach((p, i) => { if (padL + (n <= 1 ? plotW / 2 : fr[i] * plotW) <= zoneR) vz = Math.max(vz, p.norm - 100); });
-    if (isFinite(vz) && r > 0) max = Math.max(max, min + (vz - min) / (1 - r));
-  }
   const X = (i) => padL + (n <= 1 ? plotW / 2 : fr[i] * plotW);
   const Y = (v) => padT + (1 - (v - min) / (max - min)) * plotH;
 
@@ -14782,7 +14731,7 @@ function paintPfChart() {
     const y = Y(v);
     ctx.strokeStyle = cssVar('--outline', '#E3E7E4');
     ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(y < keyH + 4 ? zoneR : padL, y); ctx.lineTo(w - padR, y); ctx.stroke(); // 2.147.0: לא מתחת למקרא
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
     ctx.fillStyle = cssVar('--on-surface-var', '#9AA5A0');
     ctx.textAlign = 'left';
     ctx.direction = 'ltr'; // v166: הסימן משמאל למספר גם בקנבס (ברירת המחדל יורשת RTL)
@@ -14825,8 +14774,8 @@ function paintPfChart() {
   if (ms.pts.length >= 2) {
     const a = Math.min(ms.pts[0], ms.pts[1]), b = Math.max(ms.pts[0], ms.pts[1]);
     ctx.fillStyle = marker + '1F';
-    const xa = X(a), xb = X(b), bt = topAt(xa);
-    ctx.fillRect(xa, bt, xb - xa, padT + plotH - bt);
+    const xa = X(a), xb = X(b);
+    ctx.fillRect(xa, padT, xb - xa, plotH);
   }
   const drawMarker = (i) => {
     const x = X(i), y = Y(pts0[i].norm - 100);
@@ -14834,8 +14783,7 @@ function paintPfChart() {
     ctx.fillStyle = marker + '2E'; ctx.fill();
     ctx.setLineDash([5, 4]);
     ctx.strokeStyle = marker; ctx.lineWidth = 1.5;
-    const lt = ms.pts.length >= 2 ? topAt(X(Math.min(ms.pts[0], ms.pts[1]))) : topAt(x); // במדידה — שני הקווים מגובה הפס
-    ctx.beginPath(); ctx.moveTo(x, lt); ctx.lineTo(x, padT + plotH); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH); ctx.stroke();
     ctx.setLineDash([]);
     ctx.beginPath(); ctx.arc(x, y, 6.5, 0, Math.PI * 2);
     ctx.fillStyle = marker; ctx.fill();

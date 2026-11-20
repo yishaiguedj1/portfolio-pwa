@@ -33,8 +33,7 @@ ok(/const cur = el\.firstElementChild;/.test(usl) && /cur\.className = nx\.class
 ok(/el\.innerHTML = html;\n  hdrPillFit\(el\.firstElementChild\);\n\}/.test(usl), 'בלי בועה קיימת — ציור רגיל');
 
 // 4. כרטיס הביצועים — הכפתור לא נבנה מחדש, ושכבת הטעינה לא מכסה גרף קיים
-const pt = app.slice(app.indexOf('function renderPfTools()'), app.indexOf('function renderPfTools()') + 1400);
-ok(/if \(box\._k === key && box\.firstElementChild\)/.test(pt) && pt.indexOf('box._k === key') < pt.indexOf("box.innerHTML = ''"), 'renderPfTools: אותו תוכן — בלי בנייה מחדש');
+ok(!/function renderPfTools/.test(app) && !/id="pfTools"/.test(R('index.html')), 'הלחצן "תשואה מתאריך" הוסר (2.199.0) — אין כפתור שמתרענן בכל ציור');
 ok(/if \(loading && !canvas\._pfMap\) \{\s*loading\.textContent = t\('loadingHist'\);/.test(app), 'שכבת "טוען היסטוריה" רק כשאין גרף');
 
 // 5. הגלאים ב־qa-sweep
