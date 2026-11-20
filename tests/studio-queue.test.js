@@ -43,6 +43,7 @@ ok(iq > 0 && ifit > iq, 'התור המלא נבדק לפני הזיכרון — 
 ok(/if \(!q \|\| !S\.WL_RE\.test\(String\(q\)\)\) return false;/.test(loop), 'עבודה רגילה (בלי qu) — בלי שום מגבלה');
 
 // 6. הטלפון — פונקציות טהורות מהקוד עצמו
+const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 const cut = (a1, b1) => st.slice(st.indexOf(a1), st.indexOf(b1));
 const P = new Function("const FINAL = ['done', 'failed', 'cancelled'];\n" + cut('export function quGroups', 'const quPhRank').replace(/export /g, '') + '\nreturn { quGroups };')();
 const R = (id, qu, state, created, qn) => ({ id, created, srv: { state }, spec: Object.assign({}, qu ? { qu } : {}, qn ? { qn } : {}) });
@@ -58,7 +59,26 @@ ok(/quChain\.then\(\(\) => \{ if \(!quPend\.delete\(id\)\) return null;/.test(st
 // 7א. 20/11 (בקשת המשתמש): "להוסיף לתור" = אותה התחלה כמו פרויקט רגיל, מכל מקור — עם סימון התור, ובסוף לעמוד התור
 // 7ד. 20/11 (בקשת המשתמש, הקלטת מסך): "להוסיף לתור" לא מתחיל — רשימה עם אומדן; "להתחיל" = חלון עם הכל, ואז כולן יחד
 ok(!/quTake|quStart/.test(st), 'בלי המנגנון הישן של סבב 1');
-ok((st.match(/if \(quHold\(f, spec\)\) return;/g) || []).length === 3 && !/quHold/.test(cut('function startPhone', '/* המפתח של העבודה')), 'quHold לפני היצירה בשרת: סרטון/Drive, קובץ כתוביות, קישור לענן (דרך האפליקציה — מיד, כמו קודם)');
+ok((st.match(/if \(quHold\(f, spec\)\) return;/g) || []).length === 4, 'quHold לפני היצירה בשרת: סרטון/Drive, קובץ כתוביות, קישור לענן, דרך האפליקציה');
+ok(/if \(f\.ph && !quPhOk\(f\)\) return false;/.test(st) && /f\.ph\.nu && \(f\.ph\.cap \|\| 0\) >= PH_CAP_Q/.test(st), 'דרך האפליקציה — רק Studio שיודע phq (ישן — מיד, כמו קודם)');
+// 7ה. סבב 2 (20/11): הרשימה נשמרת עם הקבצים — בלי לבחור שוב; דרך האפליקציה — פתיחה אחת לכולן
+ok(/IDB_STORES = \['handles', 'drafts', 'thumbs', 'qdr'\]/.test(st) && /quDrLoad\(\)\.catch/.test(st) && /idbOp\('qdr', 'put', it\.id/.test(st), 'הרשימה ב־IndexedDB (qdr), נטענת בפתיחה');
+ok(app.includes("'pwa_studio_qdr_v1'") && /export const QDR_LS = 'pwa_studio_qdr_v1';/.test(st) && /for \(const k of keys\) if \(!ids\.includes\(k\)\) idbOp\('qdr', 'del', k\);/.test(st), 'המזהים במפתח של החשבון (ACCOUNT_KEYS); מה שלא שלו — נמחק');
+{ const ga = cut('async function quGoAll', '/* הקבוצות לעמוד');
+  ok(ga.indexOf('if (pr && pr.done) phQOpen(pr);') > 0 && ga.indexOf('if (pr && pr.done) phQOpen(pr);') < ga.indexOf('await'), 'האפליקציה נפתחת עוד בתוך הנגיעה — לפני כל await');
+  ok(/onNo: \(\) => \{ if \(pr\) pr\.p\.then\(\(res\) => \{ for \(const r of res\) if \(r\.j\) net\.api\('remove'/.test(st), 'ביטול בחלון — העבודות שנוצרו מראש נמחקות'); }
+{
+  const Z = new Function(cut('export function quSer', 'const qdrClone').replace(/export /g, '') + '\nreturn { quSer, phQList };')();
+  const fo = { a: 1, qgo: 1, qx: 1, fn: () => 1, o: { b: 2 } };
+  const sv = Z.quSer(fo, (v) => { if (typeof v === 'function') throw new Error('x'); return JSON.parse(JSON.stringify(v)); });
+  ok(sv.a === 1 && sv.o.b === 2 && !('fn' in sv) && !('qgo' in sv) && !('qx' in sv), 'quSer: מה שאפשר להעתיק, בלי פונקציות ובלי סימוני ההתחלה');
+  const P = 'p0123456789abcdef', J = 'j' + 'A'.repeat(20), K = 'k'.repeat(43);
+  ok(Z.phQList([{ p: P, j: J, k: K }, { p: 'bad', j: J, k: K }, { p: P, j: J, k: 'x' }]) === P + '.' + J + '.' + K, 'phQList: רק מה שעובר את התבניות של PhCore');
+}
+{ const ka = fs.readFileSync(path.join(__dirname, '..', 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhActivity.kt'), 'utf8');
+  const sv = fs.readFileSync(path.join(__dirname, '..', 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhService.kt'), 'utf8');
+  ok(/"phq" -> goQ\(d\)/.test(ka) && /PhService\.enqueue\(this, pids\)/.test(ka) && /!r\.optBoolean\("pu"\)\) continue/.test(ka), 'האפליקציה: phq — כל פריט כמו go (רק בחירת nu), ולתור');
+  ok(/cur = synchronized\(q\) \{ q\.poll\(\) \}/.test(sv) && /if \(busy\) \{[^\n]*\n\s*startForeground\(/.test(sv), 'PhService: אחת אחרי השנייה; כבר רץ — מצטרפת לתור (עם startForeground)'); }
 ok(/if \(!f \|\| !f\.qd \|\| !f\.qu \|\| f\.qgo\) return false;/.test(st) && /if \(f && f\.qgo\) return Promise\.resolve\(true\);/.test(st), 'quHold רק בתור ולא בזמן ההתחלה; ההתחלה — בלי שאלת אומדן לכל עבודה');
 ok(/return \(async \(\) => \{\n    const file = f\.fileObj \|\| f\.drive;/.test(st) && /if \(f && f\.subs && !ui\.starting\) return startSubs\(f\);/.test(st) && /if \(L && L\.to === 'cloud'\) return startLinkCloud\(f\);/.test(st), 'startFromForm מחזיר הבטחה — ההתחלה של הרשימה אחת אחרי השנייה');
 { const ga = cut('async function quGoAll', '/* הקבוצות לעמוד');

@@ -89,6 +89,7 @@
                 <data android:scheme="snbstudio" android:host="phgo" />
                 <!-- 8/11/2026: phpv (חיתוך לפני התרגום ב־nu) — היה ב־PhActivity בלי שורה כאן, והדף קיבל ‎#phpick=!noapp -->
                 <data android:scheme="snbstudio" android:host="phpv" />
+                <data android:scheme="snbstudio" android:host="phq" />
             </intent-filter>
         </activity>
         <service

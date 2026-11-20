@@ -409,8 +409,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.201.0';
-const APP_VERSION = 'v874';
+const APP_RELEASE = '2.202.0';
+const APP_VERSION = 'v875';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -419,7 +419,7 @@ function appVersionLabel() {
 }
 
 const LS_OWNER = 'pwa_owner_v1', LS_STASH = 'pwa_stash_v1:', LS_LEGACY_OWNER = 'pwa_legacy_owner_v1';
-const ACCOUNT_KEYS = ['pwa_libstats_v1', 'pwa_aton_v1', 'pwa_libq_v1', 'pwa_libauth_v1', 'pwa_db_v1', 'pwa_ibkr_v1', 'pwa_predemo_v1', 'pwa_demo_ibkr_v1', 'pwa_wlactive_v1', 'pwa_srcfilter_v1', 'pwa_tdkey_v1', 'pwa_libbk_v1', 'pwa_libcoll_v1', 'pwa_studio_v1', 'pwa_pfbk_v1', 'pwa_charts_v1', 'pwa_accprof_v1', 'pwa_tax_v1', 'pwa_libpace_v1', 'pwa_stthumb_v1', 'pwa_libfeeds_v1', 'pwa_libsent_v1', 'pwa_udfb_v1', 'pwa_accreg_v1', 'pwa_pwset_v1'];   // v318: גיבוי הספרייה הפרטית · v320: אסופות הספרייה · v354: טיוטות הסטודיו · 14/10/2026: גיבוי Invest ל־Drive · 29/10/2026: פרטי החשבון לציור הראשון · 01/11/2026: הגדרות מרכז המס (הכנסה אחרת, הפסד מועבר) · 01/11/2026: קצב הקריאה (Academy) · 02/11/2026: התמונות שבראש הבית של Studio — לציור הראשון (סבב קפיצות 9) · 03/11/2026: המקורות של עיתון הבוקר ומה שנשלח למכשיר אחר (Academy Pro גל 6) · 06/11/2026: מה נכתב ישירות ב־Firestore כשהשרת לא היה זמין (שלב 4, cloud.js udCall) · 07/11/2026: הרישום השקט היומי והסיסמה אצלנו (שלב 2 גל 2, cloud.js accDaily/pwSetOnce) · 16/11/2026: הדוח של תיק הדמו (אקמן)
+const ACCOUNT_KEYS = ['pwa_libstats_v1', 'pwa_aton_v1', 'pwa_libq_v1', 'pwa_libauth_v1', 'pwa_db_v1', 'pwa_ibkr_v1', 'pwa_predemo_v1', 'pwa_demo_ibkr_v1', 'pwa_wlactive_v1', 'pwa_srcfilter_v1', 'pwa_tdkey_v1', 'pwa_libbk_v1', 'pwa_libcoll_v1', 'pwa_studio_v1', 'pwa_pfbk_v1', 'pwa_charts_v1', 'pwa_accprof_v1', 'pwa_tax_v1', 'pwa_libpace_v1', 'pwa_stthumb_v1', 'pwa_libfeeds_v1', 'pwa_libsent_v1', 'pwa_udfb_v1', 'pwa_accreg_v1', 'pwa_pwset_v1', 'pwa_studio_qdr_v1'];   // v318: גיבוי הספרייה הפרטית · v320: אסופות הספרייה · v354: טיוטות הסטודיו · 14/10/2026: גיבוי Invest ל־Drive · 29/10/2026: פרטי החשבון לציור הראשון · 01/11/2026: הגדרות מרכז המס (הכנסה אחרת, הפסד מועבר) · 01/11/2026: קצב הקריאה (Academy) · 02/11/2026: התמונות שבראש הבית של Studio — לציור הראשון (סבב קפיצות 9) · 03/11/2026: המקורות של עיתון הבוקר ומה שנשלח למכשיר אחר (Academy Pro גל 6) · 06/11/2026: מה נכתב ישירות ב־Firestore כשהשרת לא היה זמין (שלב 4, cloud.js udCall) · 07/11/2026: הרישום השקט היומי והסיסמה אצלנו (שלב 2 גל 2, cloud.js accDaily/pwSetOnce) · 16/11/2026: הדוח של תיק הדמו (אקמן) · 20/11/2026: העבודות שמחכות ל"להתחיל" בתור עבודות (Studio, QDR_LS)
 function accountOwner(store) {
   try { return (store || localStorage).getItem(LS_OWNER) || ''; } catch (e) { return ''; }
 }
