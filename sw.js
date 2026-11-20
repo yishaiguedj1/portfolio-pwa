@@ -14,7 +14,7 @@ const HASHES = {
   "./academy-glass.css": "689d316e8872779cdf9808f3cf285272",
   "./studio-glass.css": "d54e6727b159ff068609af08418f51a8",
   "./desktop.css": "22dcb3bea6e645027d3146b31d66712a",
-  "./app.js": "254f5a376bc52b44c125f45726fcfb8e",
+  "./app.js": "948c24cc5fad662d2086f1afdaa129b2",
   "./returns.js": "afe0d262348852fd10982ef2d0239545",
   "./cloud.js": "d403f6c76884375dc9999b80660f1ddf",
   "./firebase-config.js": "a4adfadcd5fe3b79a29e9fa0eeb94df0",
