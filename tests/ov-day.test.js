@@ -67,6 +67,18 @@ run(`state.quotes.AAA = { close: 110, prev: 100, session: 'regular' };`);
 ok(run('portfolioExtUSD()') === null, 'מסחר רגיל — בלי "היום" נפרד');
 ok(/portfolioExtUSD\(\)/.test(src.slice(src.indexOf('function renderOverview'))), 'הסקירה מציגה את שני הנתונים');
 
+// 20/11/2026: בזמן מסחר רגיל — יום המסחר הקודם מההיסטוריה (הסגירה שלפני הציטוט מול זו שלפניה), כולל מזומן
+run(`POSITIONS.length = 0; POSITIONS.push({ sym: 'AAA', name: 'A', shares: 10, avg: 50 });
+  state.quotes = { AAA: { close: 112, prev: 110, date: '2026-11-19', session: 'regular' } };
+  state.hist = { AAA: [{ date: '2026-11-17', close: 100 }, { date: '2026-11-18', close: 110 }, { date: '2026-11-19', close: 112 }] };`);
+const pd = run('portfolioPrevDayUSD()');
+ok(pd && pd.key === '2026-11-18' && near(pd.abs, 100, 1e-6) && near(pd.pct, 100 / 2000 * 100, 1e-6), 'יום המסחר הקודם: 18/11 מול 17/11, מול שווי הסגירה כולל מזומן');
+run(`state.hist = { AAA: [{ date: '2026-11-19', close: 112 }] };`);
+ok(run('portfolioPrevDayUSD()') === null, 'בלי היסטוריה — בלי עמודת יום קודם');
+ok(run('dayInfoLabel(dayInfoForKey("2026-11-18", Date.UTC(2026, 10, 19, 12), "UTC"))') === 'אתמול' &&
+   run('dayInfoLabel(dayInfoForKey("2026-11-20", Date.UTC(2026, 10, 22, 12), "UTC"))') === 'שישי', 'תווית ליום נתון: אתמול / שם היום');
+run(`state.hist = {};`);
+
 // הכרטיס בסקירה: שווי חי גם במצב IBKR, והדוח רק כגיבוי
 ok(/const liveAll = POSITIONS\.length && POSITIONS\.every\(/.test(src) && /if \(isIbkrMode\(\) && liveAll\) \{\s*vTxt = money\(total, cur\);/.test(src), 'מצב IBKR: שווי חי כשיש מחיר לכל אחזקה');
 ok(/\} else if \(isIbkrMode\(\)\) \{[\s\S]{0,300}ibkrReportTotal\(/.test(src), 'מצב IBKR: השווי מהדוח נשאר כגיבוי');

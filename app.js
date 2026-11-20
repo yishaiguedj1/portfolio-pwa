@@ -9454,9 +9454,12 @@ function lastSessionKey(sym, nowMs) {
   return null;
 }
 function sessionDayInfo(sym, nowMs, tz) {
+  try { const now = nowMs || Date.now(); return dayInfoForKey(lastSessionKey(sym, now), now, tz); } catch (e) { return null; }
+}
+/* 20/11/2026: התווית לתאריך מסחר נתון (YYYY-MM-DD) — משותף לשינוי היומי וליום המסחר הקודם בסקירה */
+function dayInfoForKey(key, nowMs, tz) {
   try {
     const now = nowMs || Date.now();
-    const key = lastSessionKey(sym, now);
     if (!key) return null;
     const diff = Math.round((keyUTC(tzDateKey(now, tz)) - keyUTC(key)) / 864e5);
     if (diff <= 0) return null;
@@ -9465,8 +9468,8 @@ function sessionDayInfo(sym, nowMs, tz) {
   } catch (e) { return null; }
 }
 /* התווית עצמה: "היום" / "אתמול" / "שישי" / "12/11" */
-function sessionDayLabel(sym, nowMs, tz) {
-  const i = sessionDayInfo(sym, nowMs, tz);
+function sessionDayLabel(sym, nowMs, tz) { return dayInfoLabel(sessionDayInfo(sym, nowMs, tz)); }
+function dayInfoLabel(i) {
   if (!i) return t('dayToday');
   if (i.k === 'yest') return t('dayYest');
   if (i.k === 'dow') return [t('dayDow1'), t('dayDow2'), t('dayDow3'), t('dayDow4'), t('dayDow5')][i.dow - 1] || t('dayToday');
@@ -10901,6 +10904,26 @@ function portfolioExtUSD() {
   if (!n) return null;
   const kind = Object.keys(kinds).sort((a, b) => kinds[b] - kinds[a])[0];
   return { abs: abs, pct: base > 0 ? abs / base * 100 : null, kind: kind };
+}
+/* 20/11/2026 (בקשת המשתמש): בזמן מסחר רגיל — השינוי של יום המסחר הקודם ("אתמול"), לצד "היום". מההיסטוריה היומית:
+   הסגירה של יום המסחר האחרון שלפני הציטוט מול הסגירה שלפניו, על כל התיק כולל מזומן. null כשחסרה היסטוריה. key — תאריך היום הזה */
+function portfolioPrevDayUSD() {
+  if (!POSITIONS.length) return null;
+  let abs = 0, base = cashUSD(), key = '';
+  for (const p of POSITIONS) {
+    const q = state.quotes[p.sym], hist = state.hist[p.sym];
+    if (!q || !hist || hist.length < 2) return null;
+    const qd = q.mdate || q.date;
+    let i = hist.length - 1;
+    while (i >= 0 && qd && hist[i].date >= qd) i--;
+    if (i < 1 || !(hist[i].close > 0) || !(hist[i - 1].close > 0)) return null;
+    const sh = Number(p.shares) || 0;
+    const v = nativeToUSD((hist[i].close - hist[i - 1].close) * sh, p.sym), b = nativeToUSD(hist[i - 1].close * sh, p.sym);
+    if (v === null || !isFinite(v) || b === null || !isFinite(b)) return null;
+    abs += v; base += b;
+    if (hist[i].date > key) key = hist[i].date;
+  }
+  return { abs: abs, pct: base > 0 ? abs / base * 100 : null, key: key };
 }
 /* המזומן בדולרים — פרוסה בעוגה וחלק מהמכנה של "משקל בתיק". רק יתרה חיובית
    (יתרה שלילית — מינוף — לא נכנסת לעוגה, והמשקלים נשארים מתוך המניות). טהורה. */
@@ -12568,12 +12591,21 @@ function renderOverview(light) {
       return '<span class="ov-day-it"><span class="ov-day-lbl">' + esc(lbl) + '</span><span class="ov-day-v ' + cls + '" dir="ltr">' +
         esc(fmtSignedMoney(z, cur)) + (pct === null || !isFinite(pct) ? '' : ' (' + esc(fmtPct(pct, true)) + ')') + '</span></span>';
     };
+    // 20/11/2026: בצד ימין תמיד יום המסחר האחרון שהסתיים ("אתמול"/שם היום, או "היום" אחרי הסגירה); בצד שמאל — המסחר
+    // המורחב (מוקדם/מאוחר/לילי). בזמן מסחר רגיל: ימין — יום המסחר הקודם, שמאל — "היום"
     const d = portfolioDayUSD();
     const x = portfolioExtUSD();
     // 18/11/2026: כמו בכרטיס — "אתמול"/שם היום מחוץ ליום המסחר; תיק משתי בורסות שהתוויות שלהן שונות — "היום"
     const lbls = Array.from(new Set(POSITIONS.map((p) => sessionDayLabel(/\.TA$/i.test(p.sym) ? 'X.TA' : 'SPY'))));
-    const html = (x ? pill(x.kind === 'pre' ? t('sessPreShort') : x.kind === 'night' ? t('sessNightShort') : t('sessPostShort'), x.abs, x.pct) : '') +
-      (d ? pill(lbls.length === 1 ? lbls[0] : t('ovDayLbl'), d.abs, d.pct) : '');
+    const dLbl = lbls.length === 1 ? lbls[0] : t('ovDayLbl');
+    let html;
+    if (!x && dLbl === t('dayToday')) {
+      const pd = portfolioPrevDayUSD();
+      html = (pd ? pill(dayInfoLabel(dayInfoForKey(pd.key)), pd.abs, pd.pct) : '') + (d ? pill(t('dayToday'), d.abs, d.pct) : '');
+    } else {
+      html = (d ? pill(dLbl, d.abs, d.pct) : '') +
+        (x ? pill(x.kind === 'pre' ? t('sessPreShort') : x.kind === 'night' ? t('sessNightShort') : t('sessPostShort'), x.abs, x.pct) : '');
+    }
     if (!html) { dEl.textContent = ''; dEl.classList.add('hidden'); }
     else { dEl.innerHTML = html; dEl.classList.remove('hidden'); }
   }
