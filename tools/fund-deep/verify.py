@@ -19,6 +19,7 @@
   OLD = שווה לגרסה ישנה (הוצג מחדש מאז)      DER = נגזר (רבעון 4 / תזרים מצטבר) ושווה לחישוב מחדש מהמודפס
   NOFACE = אין בדוחות עצמם (ביאור) — נבדק מול companyfacts/Nasdaq בלבד     DIFF = אין התאמה — ממצא
   MISS = יש בדוח ואין במסך     EXTRA = יש במסך ואין בשום מקור
+  FACE = מודפס בדוח של המדד בשורה מחוץ לרשימה של הבודק (גל 10 — הגדרה לבדיקה)     FACER = רק בדף ה־R (ב־FSDS השורה עם ממד)
 """
 import argparse
 import calendar
@@ -464,6 +465,7 @@ class Co:
         self.sym, self.d, self.s, self.pr, self.cfi = sym, disp, snap, pr, cfi
         self.nq = {'fy': nq_a or {}, 'q': nq_q or {}}
         self.cur = disp.get('cur') or 'USD'
+        self.bsf = {}  # גל 10: דפי ה־R (נטען ב־main)
         self.ends = {'fy': disp['raw']['fyE'], 'q': disp['raw']['q']}
         self.res = []
         # מה שהשרתון עצמו סימן לכל ערך (checks): cx0 = אין שורת השקעות הוניות בדוח (0 במכוון); qsh/qeps = רבעון שלא הודפס
@@ -682,11 +684,71 @@ class Co:
         if m in self.fill and mode == 'fy':
             rec['fill'] = 1  # השלמה שנתית מ־Yahoo
         if not c and not cfv and not rec.get('ytd'):
+            # גל 10 (סיווג ה־EXTRA אחרי הסבב של דפי ה־10-Q): לפני "אין מקור" — שלוש דרכים שהערך כן מודפס בדוח
+            hit = self.face_hit(m, ddate, qtrs, ours, u, j, mode)
+            if hit:
+                rec['verdict'], rec['why'] = hit
+                return self.add(**rec)
             rec['verdict'] = 'EXTRA'
             return self.add(**rec)
         rec['verdict'] = 'DIFF'
         rec['why'] = 'מודפס: %s · companyfacts: %s · מצטבר: %s' % (sorted({x[6] for x in c})[:4], sorted(cfv)[:4], rec.get('ytd', [])[:4])
         return self.add(**rec)
+
+    def face_hit(self, m, ddate, qtrs, ours, u, j=None, mode='fy'):
+        """גל 10: ערך בלי שורה ברשימת התגיות/התוויות של המדד — האם הוא בכל זאת מודפס בדוח של המדד באותה תקופה:
+           DER — מס: שוטף + נדחה מאותה הגשה (APA ‏2020: שתי שורות בלי סך), ישירות או מהמצטבר;
+           FACE — שורה אחרת בדוח של המדד (או המצטבר שלה פחות המצטבר הקודם באותה שורה), אותו ערך (Norwegian ‏"Total cruise operating
+                  expense", Moody's ‏"Operating", Apache ‏"Additions to oil and gas property") — ההגדרה של המוצר (F20, הדוח המודפס) רחבה
+                  מרשימת הבודק; לבדיקת ההגדרה, לא אומת;
+           FACER — ב־FSDS אין את השורה (שורה עם ממד — PACCAR ‏"Truck, Parts and Other", Target — או הגשה חדשה מ־FSDS), ובדף ה־R של
+                  ההגשה (‏<w>/bsf) היא מודפסת."""
+        TAXC = ('CurrentIncomeTaxExpenseBenefit', 'DeferredIncomeTaxExpenseBenefit', 'DeferredIncomeTaxesAndTaxCredits')
+
+        def vals(dd, q):
+            """{(תגית): (ערך, תווית, טופס, הוגש)} — מההגשה האחרונה; ועוד 'מס שוטף + נדחה' (סכום מאותה הגשה)"""
+            out, tx = {}, {}
+            for r in sorted((r for r in self.pr.by.get((dd, q), []) if r[3] in MET[m]['st'] and not r[4] and unit_ok(m, r[10], self.cur)), key=lambda r: r[2]):
+                out[r[6]] = (r[11], r[7], r[1], r[2])
+                if m == 'tax' and r[6] in TAXC:
+                    tx.setdefault(r[0], {})[r[6]] = (r[11], r[2])
+            for a, t in tx.items():
+                if len(t) >= 2:
+                    out['+'.join(sorted(t))] = (sum(v for v, _ in t.values()), 'מס שוטף + נדחה', '', max(f for _, f in t.values()))
+            return out
+
+        def verdict(tag, x, how):
+            if '+' in tag:
+                return 'DER', 'מס: %s (אותה הגשה%s)' % (tag.replace('+', ' + '), how)
+            return 'FACE', 'מודפס בדוח בשורה "%s" (%s, %s %s%s) — מחוץ לרשימה של הבודק' % (x[1], tag, x[2], fdate(x[3]), how)
+
+        ok = lambda v: same(ours, v, u) or (u == 'money' and same(abs(ours), abs(v), u))
+        for tag, x in vals(ddate, qtrs).items():
+            if ok(x[0]):
+                return verdict(tag, x, '')
+        if mode == 'q' and j is not None and MET[m]['kind'] == 'flow':
+            pe = self.prev_q(j)
+            if pe:
+                for k in (2, 3, 4):
+                    A, B = vals(ddate, k), vals(me(pe), k - 1)
+                    for tag, x in A.items():
+                        if tag in B and ok(x[0] - B[tag][0]):
+                            return verdict(tag, x, '; מצטבר %d − %d' % (k, k - 1))
+        if u == 'money' and MET[m]['st'] == ('IS',) and self.bsf:
+            e0 = dt.date(int(ddate[:4]), int(ddate[4:6]), int(ddate[6:]))
+            mon = 12 if qtrs == 4 else 3
+            for x in sorted((x for x in self.bsf.values() if isinstance(x, dict) and x.get('is')), key=lambda x: x.get('filed', ''), reverse=True):
+                d = x['is']
+                sc = d.get('scale') or {}
+                for i, col in enumerate(d.get('cols') or []):
+                    if not col or col.get('months') != mon or abs((dt.date.fromisoformat(col['end']) - e0).days) > 38:
+                        continue
+                    f = (sc.get('cols') or [None] * (i + 1))[i] if sc.get('cols') and i < len(sc['cols']) and sc['cols'][i] is not None else sc.get('cur', 1)
+                    for r in d.get('rows') or []:
+                        v = r['v'][i] if i < len(r.get('v') or []) else None
+                        if v is not None and same(abs(ours), abs(v * (f or 1)), u):
+                            return 'FACER', 'דף R של %s %s: "%s" (%s) — אין ב־FSDS (שורה עם ממד, או הגשה חדשה מ־FSDS)' % (x.get('form'), x.get('filed'), r.get('label'), r.get('tag'))
+        return None
 
     def check_series(self, mode):
         arr = self.d['raw']['A'] if mode == 'fy' else self.d['raw']['Q']
@@ -1313,6 +1375,12 @@ def main():
             co.pr8k = json.load(open(os.path.join(o.w, 'pr', '%010d.p.json' % ck), encoding='utf-8'))
         except Exception:
             co.pr8k = {}
+        # גל 10: דפי ה־R של כל הגשה (bsf.js) — לשורות ש־FSDS לא שומר (ממד)
+        try:
+            h = json.load(open(os.path.join(o.w, 'bsf', '%010d.json' % ck), encoding='utf-8'))
+            co.bsf = h.get('f', h) if isinstance(h, dict) else {}
+        except Exception:
+            co.bsf = {}
         res = co.run()
         der = check_derived(co) + check_growth(co) + check_facts(co, cache) + check_prices_mult(co, cache, not o.no_net)
         json.dump(res, open(os.path.join(outd, s + '.json'), 'w'), ensure_ascii=False)

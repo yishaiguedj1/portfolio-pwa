@@ -1348,9 +1348,15 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
   // ha = התקופה הארוכה (kk), comps = [[h, מפתח]] החלקים. חלק "בבסיס הישן" לדוח T = הוגש לפני T, והדוח שלו לא הציג מחדש את השנה
   // הקודמת. ההפרש נחשב רק כשהוא משמעותי: שלושה רבעים מהשינוי בשנה הקודמת מעל 2% מהתוצאה, והשינוי מעל 1% מהתקופה הארוכה
   // (תיקון קטן לאחור — לא; Arthur J. Gallagher: חצי שנה ‏445.7 → ‏448 — הרבעון השני של 2026 ‏$10M נשאר)
-  const subPick = (mk, kk, ha, comps) => {
-    const fsl = mk.fs || [mk], tot = (a, cs) => a - cs.reduce((t, x) => t + x, 0);
-    const old = (T, v) => { const D = restIn(fsl, kk, T); return D * 0.75 > 0.02 * Math.abs(v) && D > 0.01 * Math.abs(ha.v) && comps.some(([h, kc]) => lastOf(h) < T && !restIn(fsl, kc, lastOf(h))); };
+  // גל 10 (F42): כשהארוך וכל החלקים באים מאותה תגית — הצגה מחדש נבדקת רק בתגית הזו. Occidental ‏Q3 2026: סך התזרים התפעולי
+  // (9 חודשים ‏9,224 פחות חצי שנה ‏5,552) לא הוצג מחדש, ורק התגית של "פעילות נמשכת" (מועמדת אחרת) הציגה מחדש את 2025 — ה"בסיס
+  // המעורב" היה שגוי, והרבעון מולא מ־Yahoo. מעבר בין תגיות (Becton ‏Q2 FY26: סך ברבעון הראשון, "נמשכת" בחצי השנה) — כל המועמדות, כמו קודם.
+  // לא בערכים למניה: שם "הצגה מחדש" בתגית אחרת היא פיצול (Visa ‏FY2015 — דיבידנד ‏0.12 בחצי שנה, בתשעה חודשים ובשנה; רבעון ‏0).
+  // החלקים — תמיד כל המועמדות: eBay ‏Q3 2026 — תגית הסך של חצי השנה הקודמת נולדה רק בדוח החדש, וההצגה מחדש שלו נראית רק ב"נמשכת"
+  const tagOf = (fsl, parts) => fsl.find((f) => parts.every(([h, k]) => { const p = f.dur && f.dur.get(k); return p && Math.abs(p.v - h.v) <= 1e-9 * Math.max(1, Math.abs(h.v)); }));
+  const subPick = (mk, kk, ha, comps, k) => {
+    const fsl = mk.fs || [mk], one = fsl.length > 1 && !PER_SHARE.has(k) && tagOf(fsl, [[ha, kk], ...comps]), tot = (a, cs) => a - cs.reduce((t, x) => t + x, 0);
+    const old = (T, v) => { const D = restIn(one ? [one] : fsl, kk, T); return D * 0.75 > 0.02 * Math.abs(v) && D > 0.01 * Math.abs(ha.v) && comps.some(([h, kc]) => lastOf(h) < T && !restIn(fsl, kc, lastOf(h))); };
     const FL = ha.filed, F0 = ha.all && ha.all.size ? [...ha.all.keys()].sort()[0] : FL, a0 = ha.all && ha.all.has(F0) ? ha.all.get(F0) : ha.v;
     const ch = comps.map(([h]) => changedAt(h)).filter(Boolean), tC = ch.reduce((t, f) => (f > t ? f : t), ''), late = ch.some((f) => f > F0);
     const vL = tot(ha.v, comps.map(([h]) => h.v));
@@ -1401,7 +1407,7 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
         if (qLen(gap) && Q[k][e2] == null) {
           // השנה כפי שדווחה מול אותם תשעה חודשים — לא אחרי הצגה מחדש מאוחרת (AppLovin: 2023 אחרי ההצגה מחדש ‏$1.84B
           // פחות תשעה חודשים כפי שדווחו אז ‏$2.33B = רבעון שלילי). הדוח השנתי הראשון שהוגש אחרי החלק הקודם
-          const pk = subPick(merged[k], k2, h2, [[h1, k1]]), v0 = pk && pk.v, v = pk && nonNegQ(k, h2, h1, v0);
+          const pk = subPick(merged[k], k2, h2, [[h1, k1]], k), v0 = pk && pk.v, v = pk && nonNegQ(k, h2, h1, v0);
           if (v == null) { if (!qneg.some((x) => x.m === k && x.p === e2)) qneg.push({ k: 'qmix', m: k, p: e2, ...(pk ? {} : { x: 'rst' }) }); continue; }
           Q[k][e2] = v; qset.add(e2); (derived[k] = derived[k] || []).push(e2);
           if (v === v0 && pk.same) (dq[k] = dq[k] || {})[e2] = { k2, k1, F: pk.F };
@@ -1419,7 +1425,7 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
       if (qs.length === 3) {
         // רבעונים ישירים — אותו כלל של בסיס אחד כמו במצטבר (subPick); רבעון שחושב בעצמו (אין לו תקופה ישירה) — כמו קודם
         const dur = merged[k].dur, ka = s0 + '|' + e, hs = qs.map((q) => { for (const [kk, h] of dur) { const [a, b] = kk.split('|'), L = day(b) - day(a); if (b === q && qLen(L)) return [h, kk]; } return null; });
-        const pk = dur.has(ka) && hs.every((x, i) => x && x[0].v === Q[k][qs[i]]) ? subPick(merged[k], ka, dur.get(ka), hs) : { v: A[k][e] - qs.reduce((t, q) => t + Q[k][q], 0) };
+        const pk = dur.has(ka) && hs.every((x, i) => x && x[0].v === Q[k][qs[i]]) ? subPick(merged[k], ka, dur.get(ka), hs, k) : { v: A[k][e] - qs.reduce((t, q) => t + Q[k][q], 0) };
         if (!pk) { if (!qneg.some((x) => x.m === k && x.p === e)) qneg.push({ k: 'qmix', m: k, p: e, x: 'rst' }); continue; }
         const v = pk.v;
         if (v < 0 && k === 'capex' && !netCapex) { if (!qneg.some((x) => x.m === k && x.p === e)) qneg.push({ k: 'qmix', m: k, p: e }); continue; }
@@ -1738,7 +1744,10 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
         const der = (derived[k] || []).includes(e);
         if (Q[k][e] != null && !der) continue; // רבעון רביעי מדווח — לא נגזר
         const s0 = yearOf.get(e), qs = qEnds.filter((x) => x > s0 && x < e && day(e) - day(x) < 300);
-        const ok = qs.length === 3 && qs.every((x) => Q[k][x] != null) && qs.every((x) => { const pr = prAt(ISQ.printed || new Map(), x); return pr && pr.some((v) => near(Math.abs(Q[k][x]), v)); }) && annNext(k, e, qs);
+        // גל 10 (F29 — Bloom ‏int ‏2020): "הרבעון מודפס" — בדיוק (עד 0.05M או 0.1%), לא בסובלנות של השרשור (0.5M): ריבית של 15–20M
+        // מ־companyfacts כולל צד קשור (‏15.2, ‏20.3) "שווה" ל־14.374 / ‏19.902 המודפסים, והרבעון הרביעי יצא מבסיס מעורב (‏20.022 במקום 21.246)
+        const nearX = (a, b) => Math.abs(a - b) <= Math.max(5e4, 1e-3 * Math.abs(b));
+        const ok = qs.length === 3 && qs.every((x) => Q[k][x] != null) && qs.every((x) => { const pr = prAt(ISQ.printed || new Map(), x); return pr && pr.some((v) => nearX(Math.abs(Q[k][x]), v)); }) && annNext(k, e, qs);
         const old = Q[k][e];
         if (ok) {
           const v = A[k][e] - qs.reduce((t, x) => t + Q[k][x], 0);
