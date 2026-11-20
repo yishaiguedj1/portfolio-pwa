@@ -2420,7 +2420,7 @@ const viJob = (id) => !!(store && store.jobs && store.jobs.some((r) => r && r.id
    (30/10) אבל ההורה שלו נשאר "ההגדרות" — stDialSync מסתיר את החוגה בכל דף שההגדרות בשרשרת שלו, ובנחיתה על המגדל (ועל כל
    דפי המשנה שלו) החוגה כולה ירדה. עכשיו המגדל אח בחוגה: ההורה = הבית, כמו הקריוקי והעבודה */
 export function chainFor(v, p) {
-  if ((v === 'lang' && p !== 'def') || v === 'tracks' || v === 'link' || v === 'linkfmt' || v === 'linksec' || v === 'fmthelp' || v === 'grab' || v === 'cutsrc' || v === 'dpick') { v = 'new'; p = form && form.ka ? 'ka' : form && form.vi ? 'vi' : null; }   // הטופס (והקובץ) לא שורדים רענון; 30/10: טופס של שיר — תחת הקריוקי
+  if ((v === 'lang' && p !== 'def') || v === 'tracks' || v === 'link' || v === 'qlinks' || v === 'linkfmt' || v === 'linksec' || v === 'fmthelp' || v === 'grab' || v === 'cutsrc' || v === 'dpick') { v = 'new'; p = form && form.ka ? 'ka' : form && form.vi ? 'vi' : null; }   // הטופס (והקובץ) לא שורדים רענון; 30/10: טופס של שיר — תחת הקריוקי
   const parent = (x, y) => (x === stRoot() ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : x === 'qnew' ? ['act', null] : x === 'tower' || x === 'act' || x === 'lib' || x === 'home' || x === 'ka' || x === 'vi' || x === 'settings' ? [stRoot(), null] : (x === 'lang' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push' || x === 'credits') ? ['settings', null] : x === 'gloss' || x === 'series' ? ['rules', null] : x === 'ser' ? ['series', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : x === 'litem' ? ['lib', null] : x === 'vids' ? (vidsParent(y) || ['store', null]) : x === 'kasty' ? ['new', 'ka'] : (x === 'new' && y === 'ka') || (x === 'job' && kaJob(y)) ? ['ka', null] : (x === 'new' && y === 'vi') || (x === 'job' && viJob(y)) ? ['vi', null] : ['home', null]);   // 10/11/2026: ניתוח — תחת לשונית הניתוח   // 30/10: שיר — תחת הקריוקי
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
@@ -2522,7 +2522,7 @@ const ST_SIB = ['ka', 'home', 'vi', 'job', 'lib', 'tower'];   // 17/11/2026: ה�
    // 10/11/2026 (בקשת המשתמש): הניתוח במרכז ועמוד הבית; מימינו התרגום ומימין לו הקריוקי (מי שלא רואה אותו — החוגה של היום)
 /* עמוד הבית: הניתוח כשהלשונית זמינה, אחרת התרגום. השורש של כל השרשראות (chainFor), ההחלקה והפתיחה */
 const stRoot = () => (viTabOk() ? 'vi' : 'home');
-const ST_NOSWIPE = ['qnew', 'play', 'subs', 'cut', 'cutsrc', 'tracks', 'dpick', 'vids', 'link', 'linkfmt', 'linksec', 'fmthelp', 'grab', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr', 'litem'];   // עורכים, נגן וטפסים — בלי
+const ST_NOSWIPE = ['qnew', 'play', 'subs', 'cut', 'cutsrc', 'tracks', 'dpick', 'vids', 'link', 'qlinks', 'linkfmt', 'linksec', 'fmthelp', 'grab', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr', 'litem'];   // עורכים, נגן וטפסים — בלי
 const ST_TAB_KEYS = ['d', 't', 'r'];
 let swipePop = 0;
 let stDialJ = '';                 // העבודה שהחוגה פתחה — נשארת "העבודה" גם כשאחרת נעשית פעילה
@@ -3506,7 +3506,7 @@ const quRunning = (qu) => store.jobs.filter((r) => r.spec && r.spec.qu === qu &&
 let qf = null;              // { qu, qn } — התור שבעמוד (העבודות עצמן ב־store.jobs, לפי spec.qu)
 const quOk = () => !!(ui.api && ui.api.servers > 0 && ui.r2);   // 19/11/2026 (2.192.1): יש שרת ו־R2 — בלי תלות במנוע שבהגדרות
 /* כפתור הטופס במצב תור: "להוסיף לתור" במקום "להתחיל" */
-const quBtnL = (f, l) => (!f.qd ? l : T('studioQuAdd'));
+const quBtnL = (f, l) => (!f.qd ? l : qbN(f) ? T('studioQbAddN', { n: qbN(f) + (qbHasMain(f) ? 1 : 0) }) : T('studioQuAdd'));   // 20/11/2026: כמה מקורות — "להוסיף N לתור"
 export const quKindOf = (f) => (f.ka ? 'ka' : f.vi ? 'vi' : 'tr');
 const QU_TILE = { tr: ['trans', 'blue'], vi: ['spark', 'teal'], ka: ['note', 'purple'] };
 /* עבודה מטופס במצב תור — תמיד בשרת של המערכת ("המנוי שלי" — התרגום דרך ה־Routine שלך: ry נשאר), עם מזהה התור והשם.
@@ -3623,7 +3623,7 @@ async function quDrLoad() {
 }
 const quTm = (sec) => { const m = Math.max(1, Math.round((sec || 0) / 60)); return m < 60 ? T('studioMinShort', { m }) : T('studioHMShort', { t: fmtHM(m) }); };
 const quPhOk = (f) => !!(f && f.ph && f.ph.nu && (f.ph.cap || 0) >= PH_CAP_Q);   // Studio ישן — דרך האפליקציה מתחיל מיד, כמו קודם
-function quHold(f, spec) {
+function quHold(f, spec, quiet) {   // quiet — מתוך quBatchGo (כמה מקורות): בלי הודעה ובלי מעבר דף לכל אחד
   if (!f || !f.qd || !f.qu || f.qgo) return false;
   if (f.ph && !quPhOk(f)) return false;
   const d = spec.dur || 0, mode = spec.mode;
@@ -3637,17 +3637,42 @@ function quHold(f, spec) {
   if (f.qn) quDrNames[f.qu] = String(f.qn).slice(0, 60);
   delete f.qx;
   quDrPut(it);
+  if (quiet) return true;
   ui.starting = false; form = null;
   flashSafe(T('studioQuHeldOk'));
   jobOpen(f, null);
   return true;
 }
+/* 20/11/2026 (בקשת המשתמש: "שכל היכולות יהיו פתוחות, ולכל עבודה הגדרות וכתוביות שונות"): נגיעה בעבודה שממתינה —
+   מה לערוך בה: ההגדרות (הטופס המלא של הכלי), הכתוביות (מהקובץ ומהרשת — אותו דף כמו בעבודה רגילה), החיתוך, או הסרה.
+   הטופס נפתח עם הבדיקות של הקובץ (inspectFor / tracksFor) — מה שעוד לא רץ (למשל אחרי רענון) רץ עכשיו */
+function quDrPrep(f) {
+  if (f.fileObj && !f.sa) inspectFor(f, f.fileObj);
+  if (f.ka || f.vi || f.link || f.trk || (f.ns && f.ns.st !== 'none')) return;
+  if (f.fileObj) tracksFor(f, f.fileObj);
+  else if (f.drive && f.drive.size > 0) { try { tracksFor(f, net.rangeBlob((force) => gb().token(force), f.drive.id, f.drive.size, f.drive.name)); } catch (e) {} }
+}
+function quDrOpen(it, sub) {
+  form = it.f;
+  quDrPrep(it.f);
+  go('new', it.k === 'tr' ? null : it.k);
+  if (sub) go(sub);   // "חזור" — לטופס של העבודה, ומשם לתור
+}
 function quDrMenu(at, it) {
+  const f = it.f, nt = f.trk ? f.trk.tracks.length : 0;
   lbMenu(at, it.name, [
-    { k: 'edit', icon: 'edit', label: T('studioQuDrEdit'), fn: () => { form = it.f; go('new', it.k === 'tr' ? null : it.k); } },
+    { k: 'edit', icon: 'edit', label: T('studioQuDrSet'), fn: () => quDrOpen(it) },
+    !f.ka && !f.vi && nt ? { k: 'subs', icon: 'cc', label: T('studioQuDrSubs', { n: nt }), fn: () => quDrOpen(it, 'tracks') } : null,
+    !f.ka && !f.vi && f.fileObj ? { k: 'cut', icon: 'film', label: T('studioQuDrCut'), fn: () => quDrOpen(it, 'cutsrc') } : null,
     { k: 'rm', icon: 'trash', label: T('studioQuDrRm'), danger: true, fn: () => { quDrDel(it); render('none'); } }]);
 }
-const quDrRow = (it) => { const r = rowNav({ tile: tile(QU_TILE[it.k][0], QU_TILE[it.k][1]), label: it.name, sub: T('studioQuDrS', { t: it.sec ? quTm(it.sec) : '—', usd: it.usd ? fmtUsd(it.usd) : T('studioQuFree') }), onClick: () => quDrMenu(r, it), k: 'qdr:' + it.id }); return r; };
+/* השורה: השפות (בתרגום), זמן ועלות, וכתוביות רשמיות בשפת התרגום כשנמצאו */
+function quDrSub(it) {
+  const f = it.f, hv = !f.ka && !f.vi ? nsHave(f) : null;
+  return [it.k === 'tr' && f.to ? langsSum(normTo(f.to)) : '', it.sec ? T('studioQuDrS', { t: quTm(it.sec), usd: it.usd ? fmtUsd(it.usd) : T('studioQuFree') }) : T('studioQuDrNoDur'),
+    hv ? T('studioQuDrNs', { l: langName(hv.l, uiLang()) }) : ''].filter(Boolean).join(' · ');
+}
+const quDrRow = (it) => { const r = rowNav({ tile: tile(QU_TILE[it.k][0], QU_TILE[it.k][1]), label: it.name, sub: quDrSub(it), onClick: () => quDrMenu(r, it), k: 'qdr:' + it.id }); return r; };
 const quNameOf = (qu) => (qf && qf.qu === qu && qf.qn ? String(qf.qn) : quDrNames[qu] || (quDrOf(qu).find((x) => x.f.qn) || { f: {} }).f.qn || '');
 /* דרך האפליקציה: העבודות נוצרות כבר כשהחלון נפתח (רשת — בלי נגיעה), כדי שהנגיעה באישור תפתח את האפליקציה מיד */
 function quPhPrep(items, qn) {
@@ -3842,7 +3867,7 @@ function pageQu(p) {
   }
   const rows = all.map((r) => projRow(r, { act: true, qu: true, menu: (at) => quJobMenu(at, r) }));
   const addRow = rowNav({ tile: tile('plus', 'blue'), label: T('studioQuAddJob'), onClick: () => quKindMenu(addRow), k: 'qu-addjob' });
-  if (dr.length) p.append(secT(T('studioQuDrSec', { n: dr.length })), list(...dr.map(quDrRow), addRow));
+  if (dr.length) p.append(secT(T('studioQuDrSec', { n: dr.length })), list(...dr.map(quDrRow), addRow), note(T('studioQuDrHint')));
   if (all.length || !dr.length) p.append(secT(T('studioQuJobs', { n: all.length })), list(...rows, dr.length ? null : addRow));
   p.append(note(all.length ? T('studioQuNote', { n: QU_PAR }) : T('studioQuEmpty')));
   if (dr.length) {   // "להתחיל" — דבוק לתחתית, כמו בטפסים
@@ -3869,6 +3894,370 @@ function quAdd(k) {
   if (k === 'vi') f.vi = true;
   form = f;
   go('new', k === 'tr' ? null : k);
+}
+/* 20/11/2026 (בקשת המשתמש): בתור — הרבה מקורות יחד באותן הגדרות ובאותו סוג עבודה. בטופס במצב תור: בורר מרובה מהמכשיר,
+   תיקייה שלמה, קובץ ZIP, בחירה מרובה או תיקייה שלמה מ־Drive (גם מקישור לתיקייה משותפת), ורשימת קישורים — לכל קישור האיכות
+   הרגילה של הורדה מקישור (linkRec: ‏1080 או הכי קרוב מתחתיו, עם הקול שלו). f.qb = המקורות הנוספים (בזיכרון, עד QB_MAX);
+   "להוסיף N לתור" (quBatchGo) = עבודה נפרדת לכל מקור — עותק של הטופס עם המקור שלו — וכולן לרשימה ("להתחיל" כרגיל) */
+export const QB_MAX = 50;
+const qbUse = (f) => !!(f && f.qd && !f.subs && !f.ph);
+const qbOf = (f) => (qbUse(f) ? f.qb || (f.qb = []) : []);
+const qbN = (f) => (qbUse(f) ? (f.qb || []).length : 0);
+const qbHasMain = (f) => !!(f.fileObj || f.drive || (f.link && f.linkOk));
+const qbAv = (f) => !!(f.ka || f.vi);   // בשיר ובניתוח — גם קבצי קול
+/* רק סרטונים (ובשיר/ניתוח — גם קול), בסדר הטבעי של הנתיב/השם (פרק 2 לפני פרק 10). טהורה */
+export function mediaPick(files, av) {
+  const V = /\.(mp4|m4v|mkv|mov|webm|avi)$/i, A = /\.(mp3|m4a|flac|wav|ogg|opus)$/i;
+  const ok = (x) => x && x.size > 0 && !/(^|\/)\._/.test(String(x.webkitRelativePath || x.name || '')) && (/^video\//.test(x.type || '') || V.test(x.name || '') || (av && (/^audio\//.test(x.type || '') || A.test(x.name || ''))));
+  const key = (x) => String(x.webkitRelativePath || x.name || '');
+  return Array.from(files || []).filter(ok).sort((a, b) => key(a).localeCompare(key(b), undefined, { numeric: true }));
+}
+/* כל הקישורים מטקסט (שורה לכל אחד, או מודבקים בכל צורה) — בלי כפולים ובלי סימני פיסוק בסוף. טהורה */
+export function qbUrls(text) {
+  const out = [];
+  for (const m of String(text || '').matchAll(/https?:\/\/[^\s<>"'`]+/gi)) {
+    let u = m[0].replace(/[),.;!?\]]+$/, '');
+    try { u = new URL(u).href; } catch (e) { continue; }
+    if (!/^https?:$/.test(new URL(u).protocol) || out.includes(u)) continue;
+    out.push(u.slice(0, 2048));
+  }
+  return out;
+}
+/* מזהה התיקייה מקישור של Drive (drive/folders/…, ‏open?id=…, ‏folderview?id=…). טהורה */
+export function driveFolderId(s) {
+  const m = /drive\.google\.com\/(?:drive\/(?:u\/\d+\/)?(?:mobile\/)?folders\/|open\?id=|folderview\?id=)([A-Za-z0-9_-]{10,200})/.exec(String(s || ''));
+  return m ? m[1] : '';
+}
+function qbAdd(f, items) {
+  const l = qbOf(f);
+  let full = false;
+  for (const x of items) {
+    if (l.length >= QB_MAX) { full = true; break; }
+    if (x.t === 'd' && (l.some((y) => y.t === 'd' && y.drive.id === x.drive.id) || (f.drive && f.drive.id === x.drive.id))) continue;
+    if (x.t === 'u' && l.some((y) => y.t === 'u' && y.u === x.u)) continue;
+    l.push(x);
+  }
+  if (full) flashSafe(T('studioQbMax', { n: QB_MAX }));
+  qbDurs(f); qbProbe(f); qbTrkAll(f);
+  if (form === f && ui.view === 'new') render('none');
+}
+/* הכתוביות (מתוך הקובץ ומהרשת) לכל מקור ברשימה — אותה שרשרת כמו בסרטון בודד (tracksFor → nsFor/listTracks/trkSet/nsMerge):
+   אנגלית מהרשת או מהקובץ — עזר להגהה אוטומטי, והשאר — לבחירה בעריכת העבודה. ברקע, אחד אחרי השני; ב"להוסיף לתור"
+   מחכים למה שעוד רץ (עד QB_TRK_WAIT) */
+const QB_TRK_WAIT = 60e3;
+let qbTrkOn = false;
+function qbTrkAll(f) {
+  if (qbTrkOn) return;
+  qbTrkOn = true;
+  (async () => {
+    try {
+      for (;;) {
+        const x = (f.qb || []).find((y) => (y.t === 'f' || y.t === 'd') && !y.pp);
+        if (!x) break;
+        x.pp = 1;
+        try { if (!qbAv(f)) await qbTrk(x); } catch (e) {}
+        x.pp = 2;
+        qbPaint(f);
+      }
+    } finally { qbTrkOn = false; }
+  })();
+}
+async function qbTrk(x) {
+  const g = x.g = { trk: null, ns: null, _rb: null, dur: (x.t === 'f' ? x.dur : x.drive.dur) || 0 };
+  const file = x.t === 'f' ? x.fileObj : net.rangeBlob((force) => gb().token(force), x.drive.id, x.drive.size, x.drive.name);
+  if (file.remote) g._rb = file;
+  if (file.size > 0 && net.subsFind) {
+    const key = String(file.name || '') + '|' + file.size;
+    let v = nsCache.get(key);
+    if (!v) {
+      try { const r = await net.subsFind(file, file.name, { dur: g.dur }); v = r && r.ok && r.list.length ? { st: 'ok', id: r.id, list: r.list } : { st: 'none' }; } catch (e) { v = { st: 'none' }; }
+      nsCache.set(key, v);
+    }
+    g.ns = v; g._nsKey = key;
+  }
+  if (/\.(mkv|mk3d|webm|mp4|m4v|mov)$/i.test(file.name || '')) {
+    try { const L = await listTracks(file); if (L && L.tracks.length) { const h0 = trkSet(g, file, L.tracks, !file.remote); if (h0) await trkEnsure(g, [h0.id]); } } catch (e) {}
+  }
+  if (!g.trk) nsMerge(g, file);
+  if (g.trk && g.trk.busy) await trkWait(g);
+}
+const qbFiles = (f, files) => qbAdd(f, mediaPick(files, qbAv(f)).map((file) => ({ t: 'f', fileObj: file, file: { name: file.name, size: file.size, type: file.type || '' }, dur: 0 })));
+const qbDrive = (x) => ({ t: 'd', drive: { id: x.id, name: x.name, size: x.size, type: x.type, dur: x.dur || 0, bx: true }, file: { name: x.name, size: x.size, type: x.type } });
+const qbPaint = (f) => { if (form === f && ui.view === 'new') render('none'); };
+/* האורך של כל קובץ (לאומדן) — אחד אחרי השני, רק המטא־נתונים */
+let qbDurOn = false;
+async function qbDurs(f) {
+  if (qbDurOn) return;
+  qbDurOn = true;
+  try {
+    for (;;) {
+      const m = (f.qb || []).find((x) => x.t === 'f' && !x.dur && !x.dt);
+      if (!m) break;
+      m.dt = 1;
+      try { const x = await probeVideo(m.fileObj); if (x && x.dur) m.dur = x.dur; } catch (e) {}
+      qbPaint(f);
+    }
+  } finally { qbDurOn = false; }
+}
+/* בדיקת הקישורים בשרת (כמו linkCheckSrv) — עד QB_PAR יחד; מה שלא חזר בזמן — העובד בוחר לבד בהורדה (הכי טוב עד 1080) */
+const QB_PAR = 3;
+let qbPrN = 0;
+function qbProbe(f) {
+  while (qbPrN < QB_PAR) {
+    const x = (f.qb || []).find((y) => y.t === 'u' && y.st === 'busy' && !y.go);
+    if (!x) return;
+    x.go = 1; qbPrN++;
+    qbProbe1(x).catch(() => { x.st = 'err'; x.e = 'net'; }).finally(() => { qbPrN--; qbPaint(f); qbProbe(f); });
+  }
+}
+async function qbProbe1(x) {
+  if (!ui.url) { x.st = 'err'; x.e = 'app'; return; }
+  if (!ui.yc && ytHost(x.u)) { x.st = 'err'; x.e = 'yt'; return; }   // יוטיוב חוסם את השרת — רק דרך האפליקציה, אחד־אחד
+  const t0 = Date.now();
+  let j = await net.api('urlProbe', { url: x.u });
+  while (j && j.ok && j.probe && (j.probe.st === 'q' || j.probe.st === 'r') && Date.now() - t0 < LINK_WAIT_MS) {
+    await sleep(LINK_POLL_MS);
+    if (x.st !== 'busy') return;   // הוסר מהרשימה
+    j = await net.api('urlProbe', { pid: j.probe.id });
+  }
+  if (x.st !== 'busy') return;
+  if (j && j.ok && j.probe && j.probe.st === 'd' && j.probe.r) { const rec = linkRec(j.probe.r); Object.assign(x, { st: 'ok', r: j.probe.r, v: rec ? rec.v : '' }); return; }
+  x.st = 'err';
+  x.e = !j || !j.ok ? (j && j.error === 'bad_url' ? 'bad_url' : 'net') : j.probe && j.probe.st === 'e' ? String(j.probe.e || 'fail').slice(0, 20) : j.probe && j.probe.st === 'q' ? 'no_take' : 'timeout';
+}
+const qbErr = (x) => (x.e === 'yt' ? T('studioQbErrYt') : x.e === 'app' ? T('studioLinkApiOnly') : BLIND_ERRS.includes(x.e) ? T('studioQbBlind') : T('studioQbErr'));
+const qbLinkOk = (x) => x.st === 'ok' || x.st === 'busy' || (x.st === 'err' && BLIND_ERRS.includes(x.e));
+/* ZIP — קוראים רק את הספרייה המרכזית (גם ZIP64). סרטון שנשמר בלי דחיסה = חתיכה מהקובץ עצמו (בלי להעתיק לזיכרון);
+   דחוס (deflate) — פריסה בזרם (DecompressionStream). מוצפן או שיטה אחרת — מדלגים */
+const zu16 = (b, o) => b[o] | (b[o + 1] << 8);
+const zu32 = (b, o) => (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16)) + b[o + 3] * 0x1000000;
+const zu64 = (b, o) => zu32(b, o) + zu32(b, o + 4) * 0x100000000;
+export function zipEocd(t) {   // טהורה: הזנב של הקובץ → { n, cdSize, cdOff } (ו־z64 = מיקום רשומת ה־ZIP64) או null
+  for (let i = t.length - 22; i >= 0 && i >= t.length - 65557; i--) {
+    if (zu32(t, i) !== 0x06054b50) continue;
+    const o = { n: zu16(t, i + 10), cdSize: zu32(t, i + 12), cdOff: zu32(t, i + 16) };
+    if (o.n === 0xffff || o.cdSize === 0xffffffff || o.cdOff === 0xffffffff) {
+      if (i < 20 || zu32(t, i - 20) !== 0x07064b50) return null;
+      o.z64 = zu64(t, i - 12);
+    }
+    return o;
+  }
+  return null;
+}
+export const zipZ64 = (b) => (b.length >= 56 && zu32(b, 0) === 0x06064b50 ? { n: zu64(b, 32), cdSize: zu64(b, 40), cdOff: zu64(b, 48) } : null);
+export function zipCd(b, n) {   // טהורה: הספרייה המרכזית → [{ name, m, cs, us, lho, enc }]
+  const out = [], dec = new TextDecoder();
+  let p = 0;
+  for (let k = 0; k < n && p + 46 <= b.length && zu32(b, p) === 0x02014b50; k++) {
+    const fl = zu16(b, p + 8), m = zu16(b, p + 10), nl = zu16(b, p + 28), xl = zu16(b, p + 30), cl = zu16(b, p + 32);
+    let cs = zu32(b, p + 20), us = zu32(b, p + 24), lho = zu32(b, p + 42);
+    const name = dec.decode(b.subarray(p + 46, p + 46 + nl));
+    const xe = p + 46 + nl + xl;
+    for (let x = p + 46 + nl; x + 4 <= xe; x += 4 + zu16(b, x + 2)) {
+      if (zu16(b, x) !== 1) continue;   // ZIP64: רק השדות שהיו 0xFFFFFFFF, בסדר הזה
+      let q = x + 4;
+      if (us === 0xffffffff) { us = zu64(b, q); q += 8; }
+      if (cs === 0xffffffff) { cs = zu64(b, q); q += 8; }
+      if (lho === 0xffffffff) lho = zu64(b, q);
+    }
+    out.push({ name, m, cs, us, lho, enc: !!(fl & 1) });
+    p = xe + cl;
+  }
+  return out;
+}
+async function zipMedia(zf, av) {
+  const rd = async (a, b) => new Uint8Array(await zf.slice(a, b).arrayBuffer());
+  let o = zipEocd(await rd(Math.max(0, zf.size - 65557), zf.size));
+  if (o && o.z64 != null) o = zipZ64(await rd(o.z64, o.z64 + 56));
+  if (!o || o.cdSize > 64 * 1024 * 1024 || o.cdOff + o.cdSize > zf.size) throw Object.assign(new Error('zip'), { code: 'zip' });
+  const out = [];
+  for (const x of zipCd(await rd(o.cdOff, o.cdOff + o.cdSize), o.n)) {
+    const base = x.name.split('/').pop();
+    if (!base || x.enc || !x.us || !(x.m === 0 || x.m === 8) || /(^|\/)__MACOSX\//.test(x.name)) continue;
+    if (!mediaPick([{ name: base, size: x.us }], av).length) continue;
+    const lh = await rd(x.lho, x.lho + 30);
+    if (zu32(lh, 0) !== 0x04034b50) continue;
+    const st = x.lho + 30 + zu16(lh, 26) + zu16(lh, 28);
+    let bl = zf.slice(st, st + x.cs);
+    if (x.m === 8) {
+      if (typeof DecompressionStream !== 'function') continue;
+      bl = await new Response(bl.stream().pipeThrough(new DecompressionStream('deflate-raw'))).blob();
+    }
+    out.push(new File([bl], base, { type: '', lastModified: zf.lastModified || Date.now() }));
+  }
+  return out;
+}
+/* בורר זמני (נוצר בלחיצה, נמחק אחרי הבחירה או הביטול) */
+function qbInput(o, fn) {
+  const i = document.createElement('input');
+  i.type = 'file'; i.hidden = true; i.className = 'st-file';
+  if (o.multiple) i.multiple = true;
+  if (o.dir) { i.webkitdirectory = true; i.setAttribute('webkitdirectory', ''); }
+  if (o.accept) i.accept = o.accept;
+  i.addEventListener('change', () => { const fs = Array.from(i.files || []); i.remove(); if (fs.length) fn(fs); });
+  i.addEventListener('cancel', () => i.remove());
+  document.body.append(i);
+  i.click();
+}
+function qbPickMenu(f, at) {
+  const acc = qbAv(f) ? 'audio/*,video/*,.mp3,.m4a,.flac,.wav,.ogg,.opus,.mkv,.mp4,.webm' : 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';
+  const take = (fs) => { if (!mediaPick(fs, qbAv(f)).length) { flashSafe(T('studioQbNone')); return; } qbFiles(f, fs); };
+  lbMenu(at, T('studioQbAddRow'), [
+    { k: 'qb-files', icon: 'film', label: T('studioQbFiles'), fn: () => qbInput({ multiple: true, accept: acc }, take) },
+    { k: 'qb-dir', icon: 'folder', label: T('studioQbDir'), fn: () => qbInput({ dir: true, multiple: true }, take) },
+    { k: 'qb-zip', icon: 'clip', label: T('studioQbZip'), fn: () => qbInput({ accept: '.zip,application/zip,application/x-zip-compressed' }, async (fs) => {
+      flashSafe(T('studioQbZipBusy'));
+      try { const xs = await zipMedia(fs[0], qbAv(f)); if (!xs.length) flashSafe(T('studioQbNone')); else qbFiles(f, xs); } catch (e) { flashSafe(T('studioQbZipErr')); }
+    }) }]);
+}
+/* הרשימה בטופס: כל מקור עם הסרה, ושורת סיכום */
+function qbRows(f) {
+  const l = qbN(f) ? f.qb : null;
+  if (!l) return null;
+  const sub = (x) => {
+    if (x.t === 'u') {
+      if (x.st === 'busy') return T('studioQbChk');
+      if (x.st === 'err') return qbErr(x);
+      const o = ((x.r && x.r.q) || []).find((q) => q.v === x.v) || {};
+      return [x.r.d ? fmtDur(x.r.d) : '', qLabel(o.h || 0)].filter(Boolean).join(' · ');
+    }
+    const d = x.t === 'f' ? x.dur : x.drive.dur;
+    return [x.file.size ? fmtSize(x.file.size) : '', d ? fmtDur(d) : ''].filter(Boolean).join(' · ');
+  };
+  const rows = l.map((x, i) => {
+    const r = h('div', 'st-row st-ric');
+    r.append(tile(x.t === 'u' ? 'link' : x.t === 'd' ? 'cloud' : 'film', x.t === 'u' ? (qbLinkOk(x) ? 'red' : 'gray') : x.t === 'd' ? 'teal' : 'blue'));
+    const t = h('span', 'st-l'), nm = h('b');
+    if (x.t === 'u') { const bd = h('bdi', null, x.st === 'ok' && x.r && x.r.t ? x.r.t : hostOf(x.u) || x.u); bd.dir = 'auto'; nm.append(bd); } else nm.append(fileNameEl(x.file.name));
+    t.append(nm, h('small', x.t === 'u' && !qbLinkOk(x) ? 'st-warn' : null, sub(x)));
+    const del = btn('st-advx', null, () => { if (x.t === 'u') x.st = 'rm'; const k = l.indexOf(x); if (k >= 0) l.splice(k, 1); render('none'); }, 'qb-x:' + i);
+    del.append(ico('x')); del.setAttribute('aria-label', T('studioRemoveV'));
+    r.append(t, del);
+    return r;
+  });
+  const box = h('div');
+  box.style.display = 'contents';
+  box.append(secT(T('studioQbSec', { n: l.length })), list(...rows), note(T('studioQbNote', { n: l.length + (qbHasMain(f) ? 1 : 0) })));
+  return box;
+}
+/* "להוסיף N לתור": עבודה לכל מקור — עותק של הטופס (אותן הגדרות), עם המקור שלו */
+const QB_SRC = ['id', 'file', 'fileObj', 'handle', 'drive', 'link', 'linkOk', 'edl', 'pv', 'pvKey', 'sa', 'saX', 'trk', 'dur', 'more', 'subs', 'ph', 'ns', 'dl', '_rb', 'vm', 'qb', 'qlT', '_nsKey', 'why', 'whyDone', 'estOk', 'ryTried', 'qx', 'qgo'];
+function qbForm(f, x) {
+  const g = Object.assign({}, f);
+  for (const k of QB_SRC) delete g[k];
+  g.id = null;
+  g.out = Object.assign({}, f.out); g.to = (f.to || []).slice();
+  if (x.t === 'f') Object.assign(g, { fileObj: x.fileObj, file: x.file, dur: x.dur || 0 });
+  else if (x.t === 'd') Object.assign(g, { drive: Object.assign({}, x.drive), file: x.file });
+  if (x.g) Object.assign(g, { trk: x.g.trk, ns: x.g.ns, _rb: x.g._rb, _nsKey: x.g._nsKey });   // הכתוביות שנמצאו — כמו בסרטון בודד
+  else {
+    const blind = !(x.st === 'ok' && x.r && x.v);   // לא נבדק / בלי רשימת איכויות — העובד בוחר לבד (הכי טוב עד 1080)
+    g.link = { u: x.u, ref: '', st: 'ok', e: '', r: blind ? { t: urlTitle(x.u), u: x.u, d: 0, q: [], s: '', ch: [] } : x.r, v: blind ? '' : x.v, sec: null, ch: 1, at: Date.now(), to: 'cloud', blind: blind ? 1 : 0 };
+    g.linkOk = true;
+  }
+  return g;
+}
+async function qbSpec(g, x) {
+  if (g.link) {
+    if (x && !qbLinkOk(x)) return null;
+    const L = g.link, pick = L.blind ? { h: 0 } : linkPick(L);
+    return pick ? quStamp(g, linkSpecOf(g, L, pick)) : null;
+  }
+  if (g.fileObj) {
+    const sm = g.sa && g.sa.st === 'ok' ? g.sa.m : null;
+    const pr = sm && sm.dur ? { dur: sm.dur } : x && x.dur ? { dur: x.dur } : await probeVideo(g.fileObj).catch(() => null);
+    return quStamp(g, formSpec(g, g.fileObj, pr || { dur: 0 }, sm));
+  }
+  if (g.drive) return quStamp(g, formSpec(g, g.drive, { dur: g.drive.dur || 0 }, null));
+  return null;
+}
+async function quBatchGo(f) {
+  if (ui.starting) return;
+  if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
+  if (!f.ka && !f.vi && !langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }
+  if (f.ka && !kaOk()) { flashSafe(T('studioKaNoSrv')); return; }
+  ui.starting = true; render('none');
+  qbTrkAll(f);
+  const t0 = Date.now();
+  while ((f.qb || []).some((x) => (x.t === 'f' || x.t === 'd') && x.pp !== 2) && Date.now() - t0 < QB_TRK_WAIT) await sleep(300);   // הכתוביות — לפני שהעבודות נשמרות
+  const xs = f.qb.slice();
+  delete f.qb; delete f.qlT;
+  const devMain = !!(f.link && f.linkOk && f.link.to !== 'cloud');   // קישור שיורד בטלפון — אחרי כולם, בדרך הרגילה
+  const jobs = qbHasMain(f) && !devMain ? [[f, null]] : [];
+  for (const x of xs) jobs.push([qbForm(f, x), x]);
+  let n = 0, skip = 0;
+  for (const [g, x] of jobs) {
+    let spec = null;
+    try { spec = await qbSpec(g, x); } catch (e) { spec = null; }
+    if (spec && quHold(g, spec, true)) n++; else skip++;
+  }
+  ui.starting = false;
+  flashSafe(skip ? T('studioQbAddedSkip', { n, k: skip }) : T('studioQbAdded', { n }));
+  if (devMain) { startLink(f); return; }
+  form = null;
+  jobOpen(f, null);
+}
+/* דף "רשימת קישורים": מדביקים (שורה לכל קישור, או טקסט עם קישורים) → "הוספה" */
+function pageQLinks(p) {
+  const f = form;
+  if (!f || !qbUse(f)) { back(); return; }
+  const ta = h('textarea', 'st-in st-ql');
+  ta.dir = 'ltr'; ta.rows = 8; ta.spellcheck = false; ta.autocomplete = 'off'; ta.dataset.k = 'ql-in';
+  ta.placeholder = T('studioQlPh'); ta.setAttribute('aria-label', T('studioQbLinks'));
+  ta.value = f.qlT || '';
+  const add = btn('st-txt bold', T('studioLinkAdd'), () => qlAdd(f, ta.value), 'ql-add');
+  const cnt = h('p', 'st-foot-n');
+  const upd = () => { f.qlT = ta.value; const n = qbUrls(ta.value).length; add.disabled = !n; cnt.textContent = n ? T('studioQlN', { n }) : ''; };
+  ta.addEventListener('input', upd);
+  const paste = btn('st-btn tint wide', null, async () => {
+    let t = '';
+    try { t = await navigator.clipboard.readText(); } catch (e) { ta.focus(); flashSafe(T('studioLinkPasteNo')); return; }
+    if (!qbUrls(t).length) { flashSafe(T('studioLinkPasteNone')); return; }
+    ta.value = (ta.value.trim() ? ta.value.trim() + '\n' : '') + t.trim(); upd();
+  }, 'ql-paste');
+  paste.append(ico('copy'), h('span', null, T('studioLinkPaste')));
+  p.append(navBar({ back: T('studioNew'), title: T('studioQbLinks'), end: add }), h('div', 'st-gap sm'), ta, cnt, paste, note(T('studioQlNote')));
+  upd();
+}
+function qlAdd(f, text) {
+  const us = qbUrls(text);
+  if (!us.length) return;
+  f.qlT = '';
+  qbAdd(f, us.map((u) => ({ t: 'u', u, st: 'busy' })));
+  back();
+}
+/* Drive: בחירה מרובה, תיקייה שלמה, וקישור לתיקייה (גם משותפת) */
+function dpToggle(f, x) {
+  if (!x || x.folder || !(x.size > 0)) return;
+  const l = qbOf(f), i = l.findIndex((y) => y.t === 'd' && y.drive.id === x.id);
+  if (i >= 0) l.splice(i, 1); else qbAdd(f, [qbDrive(x)]);
+  dpPaint();
+}
+function dpFolder(id) {
+  dp.q = ''; dp.tab = 'f'; dp.path = [{ id, n: T('studioDpShared') }];
+  dpLoad();
+}
+async function dpAll(f, id) {   // כל הסרטונים בתיקייה — גם בתיקיות שבתוכה (עד 3 רמות, עד QB_MAX)
+  if (dp.all) return;
+  dp.all = 1; dpPaint();
+  const got = [], room = () => QB_MAX - qbN(f) - got.length;
+  try {
+    const walk = async (pid, d) => {
+      let page = '';
+      do {
+        const r = await net.browseList(() => gb().token(), { tab: 'f', parent: pid, page });
+        for (const x of r.files) {
+          if (room() <= 0) return;
+          if (x.folder) { if (d < 3) await walk(x.id, d + 1); } else if (x.size > 0 && !qbOf(f).some((y) => y.t === 'd' && y.drive.id === x.id)) got.push(qbDrive(x));
+        }
+        page = r.next;
+      } while (page && room() > 0);
+    };
+    await walk(id, 0);
+  } catch (e) { flashSafe(T('studioDriveErr')); }
+  dp.all = 0;
+  if (got.length) { qbAdd(f, got); flashSafe(T('studioQbDpAdded', { n: got.length })); } else flashSafe(T('studioQbNone'));
+  dpPaint();
 }
 function pageHome(p, kaTab, viTab) {   // 10/11/2026: viTab — לשונית הניתוח (רשימה משלה, כמו הקריוקי)
   const pon = apiMode() ? ui.api.online > 0 : !!store.conn;
@@ -4029,6 +4418,13 @@ const DROP_MEDIA = /\.(mp4|m4v|mkv|mov|webm|avi|mp3|m4a|flac|wav|ogg|opus)$/i, D
 function dropMedia(files) {
   const vids = files.filter((x) => /^video\//.test(x.type || '') || DROP_VIDEO.test(x.name || ''));
   const media = files.filter((x) => /^(video|audio)\//.test(x.type || '') || DROP_MEDIA.test(x.name || ''));
+  if (ui.view === 'new' && form && form.qd && !form.subs && !form.ph) {   // 20/11/2026: בתור — הכל לרשימה באותן הגדרות
+    const f = form, pk = mediaPick(files, qbAv(f));
+    if (!pk.length) { flashSafe(T('studioDropNone')); return; }
+    if (!qbHasMain(f) && !f.file) formTake(f, pk.shift(), null);
+    qbFiles(f, pk); render('none');
+    return;
+  }
   const inForm = ui.view === 'new' && form && !form.file;
   if (!inForm) form = freshForm(null);
   const f = form, pick = f.ka || f.vi ? media : vids;
@@ -4065,10 +4461,17 @@ function pageForm(p, editing) {
   const inp = h('input', 'st-file'); inp.type = 'file'; inp.hidden = true;
   inp.accept = f.ka || f.vi ? 'audio/*,video/*,.mp3,.m4a,.flac,.wav,.ogg,.opus,.mkv,.mp4,.webm' : 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';
   const took = (file, handle) => { formTake(f, file, handle); render('none'); };
-  inp.addEventListener('change', () => { const file = inp.files && inp.files[0]; if (file) took(file, null); });
+  const qbm = !!(f.qd && !f.subs && !f.ph);   // 20/11/2026: בתור — הבורר מרובה: הראשון לטופס, השאר לרשימה (qb) באותן הגדרות
+  if (qbm) inp.multiple = true;
+  inp.addEventListener('change', () => {
+    const fs = Array.from(inp.files || []);
+    if (!fs.length) return;
+    if (qbm && fs.length > 1) { const pk = mediaPick(fs, qbAv(f)); if (pk.length) { formTake(f, pk[0], null); qbFiles(f, pk.slice(1)); } return; }
+    took(fs[0], null);
+  });
   const pick = () => {
     if (nuPickOk(f)) { nuPick(); return; }   // 1/11/2026: בתוך Studio לאנדרואיד — דרך האפליקציה (תרגום רגיל בשרת)
-    if (canPickHandle()) { pickWithHandle().then((r) => { if (r && r.file) took(r.file, r.handle); else if (!r) inp.click(); }); return; }
+    if (canPickHandle() && !qbm) { pickWithHandle().then((r) => { if (r && r.file) took(r.file, r.handle); else if (!r) inp.click(); }); return; }
     inp.click();
   };
   let card;
@@ -4119,10 +4522,15 @@ function pageForm(p, editing) {
     const pwRow = f.ph && !f.ph.nu ? rowSwitch({ label: T('studioPhPw'), sub: T('studioPhPwS'), on: f.pw === true, onClick: () => { f.pw = f.pw !== true; render('none'); }, k: 'ph-pw' }) : null;   // 30/10/2026 (בקשת המשתמש): כבוי כברירת מחדל
     // 25/10/2026 (בקשת המשתמש — "נקי ומסודר לפי ת־עיצוב"): כל המקורות בקבוצה אחת, במקום שלוש קבוצות נפרדות
     // 26/10/2026 (בקשת המשתמש): "מ־Google Drive" = רשימה שלנו (pageDrivePick), לא Google Picker — הסרטון נשאר ב־Drive, בלי העלאה
-    const driveRow = ui.gb ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'), onClick: () => { if (dp.st !== 'ok') dp.st = ''; go('dpick'); }, k: 'from-drive' }) : null;
+    const driveRow = ui.gb ? rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : f.qd ? T('studioQbDpS') : T('studioFromDriveSub'), onClick: () => { if (dp.st !== 'ok') dp.st = ''; go('dpick'); }, k: 'from-drive' }) : null;
     // 26/10/2026: קריוקי משיר רגיל — הליווי בלי הקול, והמילים נצבעות כשהן נשמעות (רק בשרת שלנו)
     // 30/10/2026: הקריוקי עבר ללשונית משלו (pageKa) — בלי מתג כאן
-    p.append(list(pickRow, f.ka || f.vi || f.qd ? null : phRow, f.ka || f.vi || f.qd ? null : pwRow, linkRow, f.ka || f.vi ? null : subsRow, driveRow));   // 10/11: ניתוח — בלי תרגום בטלפון ובלי קובץ כתוביות
+    // 20/11/2026 (בקשת המשתמש): בתור — כמה מקורות יחד באותן הגדרות (קבצים, תיקייה, ZIP, רשימת קישורים; ב־Drive — בחירה מרובה)
+    const qbOn = !!(f.qd && !f.subs && !f.ph);
+    const qbRow = qbOn ? rowNav({ tile: tile('plus', 'blue'), label: T('studioQbAddRow'), sub: T('studioQbAddRowS', { n: QB_MAX }), onClick: () => qbPickMenu(f, qbRow), k: 'qb-pick' }) : null;
+    const qlRow = qbOn && ui.url ? rowNav({ tile: tile('link', 'red'), label: T('studioQbLinks'), sub: T('studioQbLinksS'), onClick: () => go('qlinks'), k: 'qb-links' }) : null;
+    p.append(list(pickRow, qbRow, f.ka || f.vi || f.qd ? null : phRow, f.ka || f.vi || f.qd ? null : pwRow, linkRow, qlRow, f.ka || f.vi || f.qd ? null : subsRow, driveRow));
+    const qbl = qbRows(f); if (qbl) p.append(qbl);   // 10/11: ניתוח — בלי תרגום בטלפון ובלי קובץ כתוביות
     const tk = f.trk && f.trk.tracks.length ? f.trk.tracks : null;   // שלב 4
     const hl = tk && f.trk.hlp != null && f.trk.src == null && hlpEngine() ? tk.find((t) => t.id === f.trk.hlp) : null;   // 26/10/2026
     const nsN = tk ? tk.filter((t) => t.net).length : 0, hv = nsN ? nsHave(f) : null, nid = f.ns && f.ns.id;   // 28/10/2026: גם מהרשת
@@ -4149,7 +4557,7 @@ function pageForm(p, editing) {
     const ky = kyCur();   // 31/10/2026: עיצוב הקריוקי — דף משלו (במקום עיצוב הכתוביות של הסרטונים)
     p.append(list(rowNav({ tile: tile('edit', 'purple'), label: T('studioKyT'), value: kySchName(kySchemeOf(ky)), onClick: () => go('kasty'), k: 'kasty' })));
     const startKa = btn('st-btn wide', ui.starting ? T('studioStarting') : quBtnL(f, T('studioKaStart')), startFromForm, 'start');
-    startKa.disabled = !(f.fileObj || f.drive || (f.link && f.linkOk)) || ui.starting;   // 01/11/2026: בלי מילים = תמלול אוטומטי
+    startKa.disabled = !(f.fileObj || f.drive || (f.link && f.linkOk) || qbN(f)) || ui.starting;   // 01/11/2026: בלי מילים = תמלול אוטומטי
     const ftn = h('p', 'st-foot-n', !kaLyr(f.lyr).trim() ? T('studioKaAutoStart') : T('studioKaStartNote'));
     kaFtn = ftn;
     p.append(footStart(f, startKa, ftn));
@@ -4189,11 +4597,11 @@ function pageForm(p, editing) {
   // התחלה: יוצרים עבודה בשרתון ומעלים ל־Drive (הקול קודם). טיוטה — אפשרות משנית
   const nList = listOk(f) ? 1 + (f.more || []).length : 1;
   const startBtn = btn('st-btn wide', ui.starting ? T('studioStarting') : quBtnL(f, nList > 1 ? T('studioStartN', { n: nList }) : T('studioStart')), startFromForm, 'start');
-  startBtn.disabled = !(f.fileObj || f.drive || f.subs || f.ph || (f.link && f.linkOk)) || ui.starting;   // ph — תרגום בטלפון
+  startBtn.disabled = !(f.fileObj || f.drive || f.subs || f.ph || (f.link && f.linkOk) || qbN(f)) || ui.starting;   // ph — תרגום בטלפון
   const quNo = nList > 1 || !!(f.ph && !f.ph.nu);   // בלי "להוסיף לתור": "עוד סרטון" (רשימת עבודה) ותרגום בטלפון
   if (f.subs) { p.append(footStart(f, startBtn, h('p', 'st-foot-n', T('studioSubsStartNote')), quNo)); return; }   // בלי טיוטה: הקובץ רק בזיכרון
   // 25/10/2026: כפתור אחד, דבוק לתחתית המסך. הטיוטה — "שמירה" בסרגל העליון (עד היום גם כפתור שני כאן, אותה פעולה)
-  p.append(footStart(f, startBtn, h('p', 'st-foot-n', !f.file && !f.ph && !(f.link && f.linkOk) ? T('studioPickToStart') : !f.fileObj && !f.drive && !f.ph && !(f.link && f.linkOk) ? T('studioRepickNote') : f.drive ? T('studioStartNoteDrive') : T('studioStartNote')), quNo));
+  p.append(footStart(f, startBtn, h('p', 'st-foot-n', qbN(f) ? T('studioQbFootN') : !f.file && !f.ph && !(f.link && f.linkOk) ? T('studioPickToStart') : !f.fileObj && !f.drive && !f.ph && !(f.link && f.linkOk) ? T('studioRepickNote') : f.drive ? T('studioStartNoteDrive') : T('studioStartNote')), quNo));
 }
 /* "התחלה" לקובץ כתוביות: אומדן ואישור → עבודה בשרתון → העלאה (קובץ קטן) → רישום → תור השרת */
 function startSubs(f) {
@@ -4304,7 +4712,7 @@ function viForm(p, f) {
   const est = dry ? T('studioViNote') : d ? T('studioViEst', { t: min < 60 ? T('studioMinShort', { m: min }) : T('studioHMShort', { t: fmtHM(min) }), usd: fmtUsd(viUsd(mode, f.vf, d)) }) : T('studioViEstH', { usd: fmtUsd(viUsd(mode, f.vf, 3600)) });
   const trEst = vt && !dry ? ' · ' + T('studioViTrEst', { usd: fmtUsd(startEstimate(mode, d || 3600, curNorm(), ui.api, true).usd) }) : '';   // התרגום — אותו אומדן כמו בטופס התרגום
   const go1 = btn('st-btn wide', ui.starting ? T('studioStarting') : quBtnL(f, dry ? T('studioViStart') : T('studioViGo')), startFromForm, 'start');
-  go1.disabled = !(f.fileObj || f.drive || (f.link && f.linkOk)) || ui.starting;
+  go1.disabled = !(f.fileObj || f.drive || (f.link && f.linkOk) || qbN(f)) || ui.starting;
   p.append(footStart(f, go1, h('p', 'st-foot-n', est + trEst)));
 }
 const viLrnSaved = () => !!(ui.lat > 0 && ui.lrn !== false && ui.api && ui.api.admin);   // משתמשים אחרים — לא נשמר לפני ה7 (docs/privacy.md)
@@ -5138,7 +5546,7 @@ function linkCard(L, small) {
 }
 /* 26/10/2026 (בקשת המשתמש): סרטון מ־Google Drive בעיצוב של Studio, במקום Google Picker. אחרונים · תיקיות · מסומנים, חיפוש
    בשם. הבחירה = מזהה הקובץ: הסרטון נשאר ב־Drive, בלי העלאה מהטלפון, והשרת מוריד אותו בעצמו (רק במצב השרת — bxOk בשרתון) */
-const dp = { st: '', tab: 'r', q: '', path: [], items: [], next: '', busy: false, seq: 0, email: '', err: '' };
+const dp = { st: '', tab: 'r', q: '', path: [], items: [], next: '', busy: false, seq: 0, email: '', err: '', all: 0 };
 const dpPaint = () => { if (root && ui.view === 'dpick') render('none'); };
 const dpKey = () => dp.tab + '|' + (dp.path.length ? dp.path[dp.path.length - 1].id : '') + '|' + dp.q.trim();
 async function dpLoad(more) {
@@ -5181,6 +5589,7 @@ function dpPick(f, x) {
 function dpRow(f, x) {
   const r = btn('st-row st-ric st-dp-row', null, () => {
     if (x.folder) { dp.path.push({ id: x.id, n: x.name }); dp.q = ''; dpLoad(); return; }
+    if (f.qd && !f.subs && !f.ph) { dpToggle(f, x); return; }   // 20/11/2026: בתור — בחירה מרובה
     dpPick(f, x);
   }, 'dp:' + x.id);
   if (x.folder) r.append(tile('folder', 'gray'));
@@ -5200,13 +5609,21 @@ function dpRow(f, x) {
   if (!x.folder) l.append(h('small', null, [x.size ? fmtSize(x.size) : '', x.at ? fmtDay(x.at) : ''].filter(Boolean).join(' · ')));
   r.append(l);
   if (x.folder) r.append(ico('chev', 'st-chev'));
+  else if (f.qd && !f.subs && !f.ph) {   // 20/11/2026: ✓ בסוף השורה — כמו rowCheck
+    const on = qbOf(f).some((y) => y.t === 'd' && y.drive.id === x.id);
+    const c = h('span', 'st-check' + (on ? ' on' : '')); c.append(ico('check'));
+    r.setAttribute('role', 'checkbox'); r.setAttribute('aria-checked', on ? 'true' : 'false');
+    r.append(c);
+  }
   return r;
 }
 const fmtDay = (ms) => { try { return new Intl.DateTimeFormat(uiLang(), { day: 'numeric', month: 'short', year: new Date(ms).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }).format(ms); } catch (e) { return ''; } };
 function pageDrivePick(p) {
   const f = form;
   if (!f) { back(); return; }
-  p.append(navBar({ back: f.id ? T('studioEditT') : T('studioNew'), title: T('studioDpT') }));
+  const qm = !!(f.qd && !f.subs && !f.ph), nSel = qm ? qbOf(f).filter((y) => y.t === 'd').length : 0;
+  const done = qm ? btn('st-txt bold', nSel ? T('studioQbDpDone', { n: nSel }) : T('studioQbDone'), back, 'dp-done') : null;
+  p.append(navBar({ back: f.id ? T('studioEditT') : T('studioNew'), title: T('studioDpT'), end: done }));
   if (!ui.gb) { p.append(h('div', 'st-empty st-empty-sm', T('studioDriveNoCfg'))); return; }
   if (dp.st === '') { dp.st = 'load'; setTimeout(() => dpLoad(), 0); }   // לא בתוך הציור
   if (dp.st === 'conn') {
@@ -5222,7 +5639,13 @@ function pageDrivePick(p) {
   const sq = h('input', 'st-in st-dp-q'); sq.type = 'search'; sq.placeholder = T('studioDpSearch'); sq.value = dp.q; sq.dataset.k = 'dp-q';
   sq.setAttribute('aria-label', T('studioDpSearch')); sq.autocomplete = 'off'; sq.spellcheck = false;
   let tmr = 0;
-  sq.addEventListener('input', () => { clearTimeout(tmr); tmr = setTimeout(() => { if (dp.q !== sq.value) { dp.q = sq.value; dpLoad(); } }, 350); });
+  sq.placeholder = T('studioDpSearch2');   // 20/11/2026: גם קישור לתיקייה (משותפת לכל מי שיש לו את הקישור)
+  sq.addEventListener('input', () => {
+    clearTimeout(tmr);
+    const fid = driveFolderId(sq.value);
+    if (fid) { sq.value = ''; dpFolder(fid); return; }
+    tmr = setTimeout(() => { if (dp.q !== sq.value) { dp.q = sq.value; dpLoad(); } }, 350);
+  });
   p.append(sq);
   if (!dp.q.trim()) {
     const seg = h('div', 'st-seg'); seg.setAttribute('role', 'tablist');
@@ -5237,6 +5660,11 @@ function pageDrivePick(p) {
     const up = btn('st-dp-up', null, () => { dp.path.pop(); dpLoad(); }, 'dp-up');
     up.append(ico('back'), h('bdi', null, dp.path.length > 1 ? dp.path[dp.path.length - 2].n : dp.tab === 's' ? T('studioPkStar') : T('studioPkMine')));
     p.append(up, secT(dp.path[dp.path.length - 1].n));
+    if (qm) {   // 20/11/2026: כל הסרטונים בתיקייה (וגם בתיקיות שבתוכה)
+      const all = btn('st-btn tint wide', dp.all ? T('studioDpLoading') : T('studioQbDpAll'), () => dpAll(f, dp.path[dp.path.length - 1].id), 'dp-all');
+      all.disabled = !!dp.all;
+      p.append(all, h('div', 'st-gap sm'));
+    }
   }
   if (dp.st === 'err' && !dp.items.length) {
     p.append(h('div', 'st-empty st-empty-sm', errText(dp.err)), btn('st-btn tint wide', T('studioGlRetry'), () => dpLoad(), 'dp-retry'));
@@ -5569,6 +5997,20 @@ function linkBlind(f) {
   startLinkCloud(f);
 }
 function blindUndo(L) { if (L && L.blind) { L.blind = 0; L.r = null; L.st = 'err'; L.e = L.e || 'timeout'; } }
+/* ה־spec של עבודה מקישור לענן (startLinkCloud, וגם כל קישור מרשימת הקישורים בתור — quBatchGo) */
+function linkSpecOf(f, L, pick) {
+  const dur = pick.sec ? pick.sec[1] - pick.sec[0] : L.r.d || 0;
+  const o = L.blind ? {} : L.r.q.find((x) => x.v === pick.v) || {};
+  const spec = { name: L.r.t, size: L.blind ? 1 : Math.max(1, linkSize(L)), type: 'video/url', dur, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
+    out: OUTS.filter((k) => f.out[k]), style: f.style, ...(f.sty ? { sty: f.sty } : {}), terms: f.terms, src: 'url', url: L.r.u || L.u, pick, eng: 'api', cap: store.settings.cap };
+  if (L.ref) spec.ref = L.ref;
+  if (f.ka) kaSpec(f, spec);   // 26/10/2026: קריוקי מקישור — כמו בסרטונים
+  else if (f.vi) viSpecOf(f, spec);   // 9/11/2026: ניתוח יבש מקישור (מנהל)
+  else if (cpMode()) spec.cp = 1;
+  else if (ryMode()) spec.ry = 1;   // 24/10/2026: המנוי שלך — Claude דרך ה־Routine, לא מהמפתח של המערכת
+  if (o.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, (o.h * o.h * 16 / 9) / (1920 * 1080))) * 1000) / 1000;
+  return spec;
+}
 function startLinkCloud(f) {   // ישר לענן של Studio (העובד מוריד) — כשהמשתמש בחר ובמקור שלא חוסם את השרת
   const L = f.link;
   if (!L || L.st !== 'ok' || ui.starting) return;
@@ -5580,15 +6022,7 @@ function startLinkCloud(f) {   // ישר לענן של Studio (העובד מור
   ui.starting = true; render('none');
   return (async () => {
     const dur = pick.sec ? pick.sec[1] - pick.sec[0] : L.r.d || 0;
-    const o = L.blind ? {} : L.r.q.find((x) => x.v === pick.v) || {};
-    const spec = { name: L.r.t, size: L.blind ? 1 : Math.max(1, linkSize(L)), type: 'video/url', dur, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
-      out: OUTS.filter((k) => f.out[k]), style: f.style, ...(f.sty ? { sty: f.sty } : {}), terms: f.terms, src: 'url', url: L.r.u || L.u, pick, eng: 'api', cap: store.settings.cap };
-    if (L.ref) spec.ref = L.ref;
-    if (f.ka) kaSpec(f, spec);   // 26/10/2026: קריוקי מקישור — כמו בסרטונים
-    else if (f.vi) viSpecOf(f, spec);   // 9/11/2026: ניתוח יבש מקישור (מנהל)
-    else if (cpMode()) spec.cp = 1;
-    else if (ryMode()) spec.ry = 1;   // 24/10/2026: המנוי שלך — Claude דרך ה־Routine, לא מהמפתח של המערכת
-    if (o.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, (o.h * o.h * 16 / 9) / (1920 * 1080))) * 1000) / 1000;
+    const spec = linkSpecOf(f, L, pick);
     quStamp(f, spec);
     if (quHold(f, spec)) return;
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
@@ -6028,6 +6462,7 @@ function startFromForm() {
     statusAt = 0;
     return refreshStatus(true).catch(() => {}).then(() => { ui.starting = false; return form === f ? startFromForm() : null; });
   }
+  if (f && f.qd && qbN(f) && !ui.starting && !f.qgo) return quBatchGo(f);   // 20/11/2026: כמה מקורות לתור — עבודה לכל אחד
   if (f && f.subs && !ui.starting) return startSubs(f);   // 22/10/2026: קובץ כתוביות קיים
   if (f && f.link && f.linkOk && !ui.starting) return startLink(f);   // 22/10/2026: מקישור — העובד מוריד
   if (f && f.ph && !ui.starting) { startPhone(f); return; }   // 24/10/2026: תרגום בטלפון — Studio לאנדרואיד מעלה
@@ -11651,7 +12086,8 @@ function render(kind, still, pre) {     // kind: none (ציור מחדש במק�
   else if (ui.view === 'adv') pageAdvanced(p);       // אפשרויות מתקדמות (כמו ב־Invest)
   else if (ui.view === 'cutsrc') pageCut(p, true);    // מ4: חיתוך לפני התרגום
   else if (ui.view === 'tracks') pageTracks(p);      // שלב 4: כתוביות בתוך הסרטון
-  else if (ui.view === 'link') pageLink(p);          // 22/10/2026: הורדה מקישור
+  else if (ui.view === 'link') pageLink(p);
+  else if (ui.view === 'qlinks') pageQLinks(p);      // 20/11/2026: רשימת קישורים לתור          // 22/10/2026: הורדה מקישור
   else if (ui.view === 'dpick') pageDrivePick(p);    // 26/10/2026: סרטון מ־Drive — הרשימה שלנו
   else if (ui.view === 'vids') pageVids(p);
   else if (ui.view === 'lib') pageLib(p);            // 17/11/2026: ספריית הסרטונים ב־Drive

@@ -22,7 +22,7 @@ ok(lc.indexOf("L.e = 'yt'") < lc.indexOf('linkCheckSrv(f, L, seq)'), 'שאר ה�
 ok(/case 'yt': return T\('studioLinkEYt'\);/.test(src), 'טקסט לשגיאת יוטיוב');
 const sc = src.slice(src.indexOf('function startLinkCloud('), src.indexOf('function startLinkCloud(') + 700);
 ok(/!apiMode\(\) && !cpMode\(\) && !ryMode\(\)/.test(sc), '"המנוי שלי" עם שרת — מתחיל עבודת קישור');
-ok(/else if \(ryMode\(\)\) spec\.ry = 1;/.test(src.slice(src.indexOf('function startLinkCloud('), src.indexOf('function startLinkCloud(') + 2500)), 'עבודת קישור במנוי — ry');
+ok(/else if \(ryMode\(\)\) spec\.ry = 1;/.test(src.slice(src.indexOf('function linkSpecOf('), src.indexOf('function linkSpecOf(') + 2500)), 'עבודת קישור במנוי — ry');
 ok(/sub: devDl\(\) \? T\('studioLinkRowS'\) : T\('studioLinkRowSCloud'\)/.test(src), 'בלי האפליקציה — השורה לא מבטיחה יוטיוב');
 for (const k of ['studioLinkEYt', 'studioLinkRowSCloud', 'studioLinkCloudNoteWeb'])
   ok((app.match(new RegExp(k + ': "', 'g')) || []).length === 2, 'מחרוזת בעברית ובאנגלית: ' + k);

@@ -1032,6 +1032,8 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-lk-in .st-in { flex: 1; min-width: 0; background: transparent; font-size: 16px; text-align: start; }
 .st-lk-in .st-in:placeholder-shown { direction: rtl; }
 [dir="ltr"] .st-lk-in .st-in:placeholder-shown { direction: ltr; }
+/* 20/11/2026: רשימת קישורים לתור */
+.st-in.st-ql { display: block; margin: 0 16px; width: calc(100% - 32px); min-height: 180px; resize: vertical; background: var(--st-card); font-size: 15px; line-height: 1.5; text-align: start; font-family: inherit; }
 .st-lk-paste { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 8px 14px; border-radius: var(--pill);
   background: var(--primary-container); color: var(--on-primary-container); font-size: 15px; font-weight: 700; }
 .st-lk-paste svg { width: 17px; height: 17px; }
