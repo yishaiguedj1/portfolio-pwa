@@ -3524,6 +3524,15 @@ function jobOpen(f, rec) {
   replaceView('qnew', f.qu);
   if (CW_OK && stack.length === 2 && stRoot() !== 'act') { stack.splice(1, 0, { v: 'act', p: null }); syncState(); }
 }
+/* 20/11/2026 (בקשת המשתמש): התחתית של כל טופס (תרגום, ניתוח, קריוקי) — דבוקה לתחתית: הכפתור הראשי, ומתחתיו "להוסיף לתור"
+   (כפתור משני), ואז ההערה */
+function footStart(f, main, n, no) {
+  const ft = h('div', 'st-foot');
+  const q = !no && !f.qd && quOk() ? btn('st-btn ghost wide st-foot-q', T('studioQuAdd'), () => quPickFor(f, q), 'start-qu') : null;
+  if (q) q.disabled = main.disabled;
+  ft.append(main, q || '', n);
+  return ft;
+}
 /* "להוסיף לתור" מטופס רגיל: לאיזה תור — תור פעיל או תור חדש (אין תור פעיל — ישר לתור חדש). אחר כך — אותה התחלה, ובסוף עמוד התור */
 function quPickFor(f, at) {
   const take = (qu, qn) => { Object.assign(f, { qd: 1, qx: 1, qu, qn: qn || '' }); qf = { qu, qn: qn || '' }; startFromForm(); };
@@ -3952,7 +3961,7 @@ function pageForm(p, editing) {
     startKa.disabled = !(f.fileObj || f.drive || (f.link && f.linkOk)) || ui.starting;   // 01/11/2026: בלי מילים = תמלול אוטומטי
     const ftn = h('p', 'st-foot-n', !kaLyr(f.lyr).trim() ? T('studioKaAutoStart') : T('studioKaStartNote'));
     kaFtn = ftn;
-    const ft = h('div', 'st-foot'); ft.append(startKa, ftn); p.append(ft);
+    p.append(footStart(f, startKa, ftn));
     return;
   }
   // שפות
@@ -3990,14 +3999,10 @@ function pageForm(p, editing) {
   const nList = listOk(f) ? 1 + (f.more || []).length : 1;
   const startBtn = btn('st-btn wide', ui.starting ? T('studioStarting') : quBtnL(f, nList > 1 ? T('studioStartN', { n: nList }) : T('studioStart')), startFromForm, 'start');
   startBtn.disabled = !(f.fileObj || f.drive || f.subs || f.ph || (f.link && f.linkOk)) || ui.starting;   // ph — תרגום בטלפון
-  // 20/11/2026 (בקשת המשתמש): בכל טופס — גם "להוסיף לתור" (תור קיים או חדש), באותה התחלה בדיוק. לא בתרגום בטלפון ולא ב"עוד סרטון"
-  const quB = !f.qd && quOk() && nList === 1 && !(f.ph && !f.ph.nu) ? btn('st-btn ghost wide', T('studioQuAdd'), () => quPickFor(f, quB), 'start-qu') : null;
-  if (quB) quB.disabled = startBtn.disabled;
-  if (f.subs) { const ft = h('div', 'st-foot'); ft.append(startBtn, quB || '', h('p', 'st-foot-n', T('studioSubsStartNote'))); p.append(ft); return; }   // בלי טיוטה: הקובץ רק בזיכרון
+  const quNo = nList > 1 || !!(f.ph && !f.ph.nu);   // בלי "להוסיף לתור": "עוד סרטון" (רשימת עבודה) ותרגום בטלפון
+  if (f.subs) { p.append(footStart(f, startBtn, h('p', 'st-foot-n', T('studioSubsStartNote')), quNo)); return; }   // בלי טיוטה: הקובץ רק בזיכרון
   // 25/10/2026: כפתור אחד, דבוק לתחתית המסך. הטיוטה — "שמירה" בסרגל העליון (עד היום גם כפתור שני כאן, אותה פעולה)
-  const foot = h('div', 'st-foot');
-  foot.append(startBtn, quB || '', h('p', 'st-foot-n', !f.file && !f.ph && !(f.link && f.linkOk) ? T('studioPickToStart') : !f.fileObj && !f.drive && !f.ph && !(f.link && f.linkOk) ? T('studioRepickNote') : f.drive ? T('studioStartNoteDrive') : T('studioStartNote')));
-  p.append(foot);
+  p.append(footStart(f, startBtn, h('p', 'st-foot-n', !f.file && !f.ph && !(f.link && f.linkOk) ? T('studioPickToStart') : !f.fileObj && !f.drive && !f.ph && !(f.link && f.linkOk) ? T('studioRepickNote') : f.drive ? T('studioStartNoteDrive') : T('studioStartNote')), quNo));
 }
 /* "התחלה" לקובץ כתוביות: אומדן ואישור → עבודה בשרתון → העלאה (קובץ קטן) → רישום → תור השרת */
 function startSubs(f) {
@@ -4108,7 +4113,7 @@ function viForm(p, f) {
   const trEst = vt && !dry ? ' · ' + T('studioViTrEst', { usd: fmtUsd(startEstimate(mode, d || 3600, curNorm(), ui.api, true).usd) }) : '';   // התרגום — אותו אומדן כמו בטופס התרגום
   const go1 = btn('st-btn wide', ui.starting ? T('studioStarting') : quBtnL(f, dry ? T('studioViStart') : T('studioViGo')), startFromForm, 'start');
   go1.disabled = !(f.fileObj || f.drive || (f.link && f.linkOk)) || ui.starting;
-  const ft = h('div', 'st-foot'); ft.append(go1, h('p', 'st-foot-n', est + trEst)); p.append(ft);
+  p.append(footStart(f, go1, h('p', 'st-foot-n', est + trEst)));
 }
 const viLrnSaved = () => !!(ui.lat > 0 && ui.lrn !== false && ui.api && ui.api.admin);   // משתמשים אחרים — לא נשמר לפני ה7 (docs/privacy.md)
 /* השדות של הקריוקי ל־spec (קובץ או קישור). המנוע — תמיד השרת שלנו */
