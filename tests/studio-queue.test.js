@@ -63,7 +63,7 @@ ok(/spec\.qu = f\.qu;/.test(st) && /if \(spec\.eng !== 'api'\) Object\.assign\(s
 ok(/replaceView\('qnew', f\.qu\);/.test(st), 'jobOpen: לעמוד התור עם העבודות');
 ok(/\.\.\.\(f\.qd && f\.qu \? \{ qu: f\.qu, qn: f\.qn \|\| '' \} : \{\}\)/.test(st) && /WL_RE\.test\(pend\.f\.qu\)\) Object\.assign\(f, \{ qd: 1, qu: pend\.f\.qu/.test(st), 'הורדה מקישור בטלפון — הטופס חוזר עם התור');
 ok(/const listOk = \(f\) => !!\(btOk\(f\) && f\.fileObj && !f\.qd\);/.test(st) && /end: f\.ka \|\| f\.vi \|\| f\.qd \? null : saveTop/.test(st), 'בתור: בלי "עוד סרטון" ובלי טיוטה');
-ok(/const quB = !f\.qd && quOk\(\) && nList === 1 && !\(f\.ph && !f\.ph\.nu\)/.test(st) && /foot\.append\(startBtn, quB \|\| ''/.test(st) && /ft\.append\(startBtn, quB \|\| ''/.test(st), 'בכל טופס רגיל — גם "להוסיף לתור"');
+ok((st.match(/p\.append\(footStart\(f, /g) || []).length === 4 && /const q = !no && !f\.qd && quOk\(\) \? btn\('st-btn ghost wide st-foot-q', T\('studioQuAdd'\)/.test(st), 'בכל הכלים (תרגום, קובץ כתוביות, ניתוח, קריוקי) — אותה תחתית עם "להוסיף לתור"');
 ok(/Object\.assign\(f, \{ qd: 1, qx: 1, qu, qn: qn \|\| '' \}\); qf = \{ qu, qn: qn \|\| '' \}; startFromForm\(\);/.test(st) && /if \(f\.qx && !ui\.starting\) \{ delete f\.qd; delete f\.qx;/.test(st), 'quPickFor: תור קיים או חדש → אותה התחלה; ביטול — הטופס חוזר להיות רגיל');
 { const pq = cut('function pageQu', 'function quKindMenu');
   ok(/r\.spec\.qu === q\.qu/.test(pq) && /projRow\(r, \{ act: true, qu: true, menu:/.test(pq) && /if \(o\.menu\) r\.addEventListener\('contextmenu'/.test(st), 'עמוד התור: העבודות האמיתיות של התור, עם לחיצה ארוכה'); }
