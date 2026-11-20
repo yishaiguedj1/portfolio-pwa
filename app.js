@@ -14248,10 +14248,21 @@ function pfFitH(canvas) {
   let other = card.offsetHeight - canvas.offsetHeight;
   for (const id of ['pfNoteEl', 'pfPickBar', 'pfPickBubble']) { const e = document.getElementById(id); if (e && e.offsetHeight) other -= e.offsetHeight; }
   const sum = document.getElementById('pfRangeSummary');
-  const ready = !!(sum && sum.offsetHeight); // בציור הראשון שורת התשואה עוד ריקה — אומדן, ונמדד שוב בציור הבא
-  if (!ready) other += 46;
-  const avail = viewH() - topCover() - bottomCover() - other - 16; // אותה מדידה כמו בכרטיס המניה (fitCardToScreen)
-  const hh = Math.round(Math.max(MIN, Math.min(MAX, avail)));
+  let ready = !!(sum && sum.offsetHeight);
+  // בציור הראשון שורת התשואה עוד ריקה — מודדים אותה עם תוכן זמני (באותו פריים, בלי צביעה); אומדן עבה (46) נשאר
+  // רווח של ~13px מעל החוגה, כי הציור הבא לא תמיד מגיע (20/11/2026)
+  if (!ready && sum && sum.offsetParent) {
+    const h0 = sum.offsetHeight;
+    sum.innerHTML = '<span class="rs-val">+0%</span>';
+    other += sum.offsetHeight - h0;
+    sum.innerHTML = '';
+    ready = true;
+  } else if (!ready) other += 46;
+  // 20/11/2026 (בקשת המשתמש: "כמו הכרטיסיה של המניה — כל המסך, מרחק נקי מהלוגו ומהבר"): אותה מדידה בדיוק כמו בכרטיס
+  // המניה (screenCardAvail — מהלוגו המכווץ עד המסילה הנראית של החוגה); בטלפון בלי תקרה, תקרה רק בתצוגת מחשב
+  const dk = document.documentElement && document.documentElement.classList && document.documentElement.classList.contains('dk');
+  const avail = screenCardAvail(card) - other;
+  const hh = Math.round(Math.max(MIN, Math.min(dk ? MAX : 4000, avail)));
   canvas._pfH = hh; canvas._pfHKey = ready ? key : '';
   canvas.style.height = hh + 'px';
   return hh;
@@ -18970,6 +18981,11 @@ function cardTopOff(card, docTop) {
   if (docTop == null && card && card.getBoundingClientRect) docTop = card.getBoundingClientRect().top + (window.scrollY || 0);
   return docTop != null && docTop - off < HDR_SHRINK_END ? base : off;
 }
+// 20/11/2026: הגובה הפנוי לכרטיס "מסך מלא" (כרטיס המניה הפתוח וכרטיס ביצועי התיק) — מרווח נקי ושווה מתחת ללוגו
+// (CARD_LOGO_GAP, בתוך cardTopOff) ומעל המסילה הנראית של החוגה (dockTop). מקור אחד לשני הכרטיסים.
+function screenCardAvail(card) {
+  return dockTop() - cardTopOff(card) - CARD_LOGO_GAP;
+}
 function scrollCardToTop(card) {
   if (!card || !card.getBoundingClientRect || typeof window === 'undefined' || !window.scrollTo) return;
   if (state.cardAnim) return; // v272: אנימציית הכרטיס כבר מנווטת את הגלילה — גלילה נוספת הייתה נלחמת בה
@@ -19000,8 +19016,8 @@ function fitCardToScreen(sym, card, smooth) {
     const head = card.querySelector('.stock-head');
     if (head) card._fitRO.observe(head);
   }
-  // מתחת ללוגו (cardTopOff) ו־10px מעל המסילה של החוגה. בטלפון בלי תקרה — הגרף משלים כל גובה מסך (תקרה רק בתצוגת מחשב)
-  const avail = dockTop() - cardTopOff(card) - 10;
+  // מתחת ללוגו (cardTopOff) ומעל המסילה של החוגה, באותו מרווח. בטלפון בלי תקרה — הגרף משלים כל גובה מסך (תקרה רק בתצוגת מחשב)
+  const avail = screenCardAvail(card);
   const cardH = card.getBoundingClientRect().height - body.getBoundingClientRect().height + Math.max(inner.offsetHeight, inner.scrollHeight);
   const dk = document.documentElement && document.documentElement.classList && document.documentElement.classList.contains('dk');
   const h = Math.round(Math.max(140, Math.min(dk ? 560 : 4000, cv.clientHeight + avail - cardH)));
