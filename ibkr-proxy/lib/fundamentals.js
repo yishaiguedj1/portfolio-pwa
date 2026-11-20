@@ -1744,7 +1744,10 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
         const der = (derived[k] || []).includes(e);
         if (Q[k][e] != null && !der) continue; // רבעון רביעי מדווח — לא נגזר
         const s0 = yearOf.get(e), qs = qEnds.filter((x) => x > s0 && x < e && day(e) - day(x) < 300);
-        const ok = qs.length === 3 && qs.every((x) => Q[k][x] != null) && qs.every((x) => { const pr = prAt(ISQ.printed || new Map(), x); return pr && pr.some((v) => near(Math.abs(Q[k][x]), v)); }) && annNext(k, e, qs);
+        // גל 10 (F29 — Bloom ‏int ‏2020): "הרבעון מודפס" — בדיוק (עד 0.05M או 0.1%), לא בסובלנות של השרשור (0.5M): ריבית של 15–20M
+        // מ־companyfacts כולל צד קשור (‏15.2, ‏20.3) "שווה" ל־14.374 / ‏19.902 המודפסים, והרבעון הרביעי יצא מבסיס מעורב (‏20.022 במקום 21.246)
+        const nearX = (a, b) => Math.abs(a - b) <= Math.max(5e4, 1e-3 * Math.abs(b));
+        const ok = qs.length === 3 && qs.every((x) => Q[k][x] != null) && qs.every((x) => { const pr = prAt(ISQ.printed || new Map(), x); return pr && pr.some((v) => nearX(Math.abs(Q[k][x]), v)); }) && annNext(k, e, qs);
         const old = Q[k][e];
         if (ok) {
           const v = A[k][e] - qs.reduce((t, x) => t + Q[k][x], 0);
