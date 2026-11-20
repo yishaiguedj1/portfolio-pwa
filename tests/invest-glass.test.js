@@ -36,8 +36,8 @@ ok(depth === 0 && !neg, 'סוגריים מאוזנים');
 /* ---------- הגבלה ל־Invest ---------- */
 const rules = body.replace(/@keyframes[^{]+\{(?:[^{}]*\{[^}]*\})*[^}]*\}/g, '').match(/[^{}]+\{[^{}]*\}/g) || [];
 const bad = rules.map((r) => r.slice(0, r.indexOf('{')).trim()).filter((sel) => sel && !/^@/.test(sel))
-  .filter((sel) => sel.split(/,(?![^(]*\))/).some((s) => { s = s.trim(); return !/^(html|main|:is\(main, \.appbar\)|\.appbar|html:not\(\.dk\) \.appbar|\.tabs|\.menu-veil|\.toast|\.ms(-[a-z0-9]+)?)(?=[\s:.#[]|$)/.test(s); }));
-ok(!bad.length, 'כל כלל מוגבל ל־html / main / ההדר / החוגה / התפריט / ההודעה / מסך החיפוש' + (bad.length ? ' — חריגים: ' + bad.slice(0, 4).join(' | ') : ''));
+  .filter((sel) => sel.split(/,(?![^(]*\))/).some((s) => { s = s.trim(); return !/^(html|main|:is\(main, \.appbar\)|\.appbar|html:not\(\.dk\) \.appbar|\.tabs|\.menu-veil|\.toast|\.ms(-[a-z0-9]+)?|\.pah(-[a-z0-9-]+)?)(?=[\s:.#[]|$)/.test(s); }));
+ok(!bad.length, 'כל כלל מוגבל ל־html / main / ההדר / החוגה / התפריט / ההודעה / מסך החיפוש / ניהול ההתראות' + (bad.length ? ' — חריגים: ' + bad.slice(0, 4).join(' | ') : ''));
 ok(/main \.card \{/.test(body) && !/(^|[{}])\s*\.card \{/.test(body), 'הכרטיסים רק בתוך main (לא כרטיסי האקדמיה/הסטודיו)');
 
 /* ---------- ההדר המתכווץ ---------- */
@@ -78,13 +78,45 @@ const app = R('app.js');
 ok(/<button id="msBtn" class="icon-btn" type="button" data-i18n-aria="msAria"/.test(index), 'index.html: כפתור החיפוש בהדר');
 ok(/\.appbar \.appbar-actions > #msBtn \{ grid-column: 7;/.test(body), 'הכפתור בעמודה 7 — ליד ☰, לא על כפתור המטבע');
 ok(/html\.dk \.appbar #msBtn \{ display: none;/.test(body), 'במחשב הכפתור מוסתר (יש ⌘K)');
-ok(/menu-open > #msBtn \{ opacity: 0; pointer-events: none;/.test(body), 'כשהתפריט פתוח — הכפתור נעלם');
+/* 20/11/2026 (בקשת המשתמש): כשהתפריט פתוח — הכפתור מתחלף לפעמון ופותח את ניהול כל התראות המחיר */
+ok(!/menu-open > #msBtn \{ opacity: 0/.test(body), 'כשהתפריט פתוח — הכפתור לא נעלם');
+ok(/btnFacesHTML\(ICON_FIND, ICON_BELL\)/.test(app), 'פני הכפתור: חיפוש / פעמון (אותה החלפה של הגלובוס והמטבע)');
+ok(/if \(mainMenuOpen\(\)\) \{ setMainMenuOpen\(false\); openAlertsHub\(\); \} else msOpen\(\);/.test(app), 'בתפריט פתוח — ניהול ההתראות; אחרת — החיפוש');
+ok(/msb\.setAttribute\('aria-label', open \? t\('kcPriceAlerts'\) : t\('msAria'\)\)/.test(app), 'התווית הנגישה מתחלפת עם הפנים');
+ok(/allAlerts: \(\) => openAlertsHub\(\)/.test(app) && /function allAlertsLink\(sh, inRow\)/.test(cj) && /const al = allAlertsLink\(sh\); if \(al\) b\.appendChild\(al\);/.test(cj) && /allAlertsLink\(sh, true\),\n\s+noteToggle\(note\),\n\s+a0 \? btn\('kc-btn danger'/.test(cj),
+  'מכל חלונית התראה (גרף + כרטיס המניה) — קישור "כל ההתראות"; בכרטיס — בשורת הכפתורים, ו"הערה" מימין ל"הסרה"');
+ok(/note\.hidden = !note\.value;/.test(cj) && (cj.match(/noteToggle\(note\)/g) || []).length === 3, 'תיבת ההערה מוסתרת עד הנגיעה ב"הערה" (או כשיש הערה)');
+ok(/allAlerts: null/.test(app) && /\.kc-root\.kc-float\.kc-over \{ z-index: 960; \}/.test(R('chart.css')) && /^\.pah \{ position: fixed; inset: 0; z-index: 950;/m.test(body),
+  'מתוך המסך: בלי קישור לעצמו, והחלונית מעליו');
+ok(/export function removeAlert\(sym, id, env\)/.test(cj) && /bgSoon\(\);\n\}/.test(cj.slice(cj.indexOf('export function removeAlert'))), 'מחיקה דרך chart.js — עם סנכרון לרקע');
+ok(/modalPush\(\(\) => closeAlertsHub\(true\)\)/.test(app), '"חזור" סוגר את המסך');
+{ // הסדר: החברה עם ההתראה הקרובה ביותר ליעד ראשונה; בתוך החברה — מהקרובה לרחוקה, שהופעלו בסוף
+  const src = app.slice(app.indexOf('function pahGroups('), app.indexOf('function pahTime('));
+  const pahGroups = new Function(src + '; return pahGroups;')();
+  const px = (s) => ({ AAA: 100, BBB: 50, CCC: 10 }[s] || 0);
+  const g = pahGroups({
+    AAA: [{ id: 1, p: 120 }, { id: 2, p: 95 }, { id: 3, p: 99, done: true }],
+    BBB: [{ id: 4, p: 51 }],
+    CCC: [{ id: 5, p: 5, done: true }],
+    DDD: [{ id: 6, p: 7 }],
+  }, px);
+  ok(g.map((x) => x.s).join() === 'BBB,AAA,DDD,CCC', 'סדר החברות לפי ההתראה הקרובה (בלי מחיר — אחריהן, רק הופעלו — בסוף): ' + g.map((x) => x.s).join());
+  ok(g[1].list.map((x) => x.a.id).join() === '2,1,3', 'בתוך החברה: 5% לפני 20%, שהופעלה בסוף');
+}
+for (const k of ['kcAllAlerts', 'pahEmpty', 'pahEmptySub', 'pahActive', 'pahFired', 'pahPickPh', 'pahFiredAt', 'pahDelQ', 'pahDeleted']) ok(new RegExp('\\n  ' + k + ': ').test(app) && app.split('\n  ' + k + ': ').length === 3, 'מחרוזת ' + k + ' בעברית ובאנגלית');
 ok(/\n  initMobileSearch\(\);/.test(app) && /function msOpen\(\)[\s\S]{0,3000}modalPush\(\(\) => msClose\(true\)\)/.test(app), 'נפתח בהפעלה, ו"חזור" סוגר (modalPush)');
 ok(/function msOpen\(\)[\s\S]{0,3000}visualViewport/.test(app) && /bottom: calc\(var\(--ms-kb\)/.test(body), 'השדה נצמד מעל המקלדת (visualViewport)');
 ok(/function msPaint\(\)[\s\S]{0,2500}deskCmdList\(\)[\s\S]{0,4000}deskInvestCmds\(q\)/.test(app), 'אותו מנוע של לוח הפקודות במחשב');
 ok(/function msMark\(label, q\) \{[\s\S]{0,300}esc\(L\.slice\(0, i\)\)/.test(app), 'ההדגשה עוברת esc — בלי HTML מהקלט');
 ok(/sc\(it\) >= 60\)\) hits = hits\.filter/.test(app), 'התאמה רופפת רק כשאין התאמה אמיתית');
 for (const k of ['msTitle', 'msPh', 'msMarket', 'msNoneSub', 'msClose']) ok((app.match(new RegExp('\\n  ' + k + ': ', 'g')) || []).length === 2, 'מחרוזת ' + k + ' בעברית ובאנגלית');
+
+/* ---------- 20/11/2026: כל הכרטיסים בזכוכית של כרטיס המניה ---------- */
+ok(/main \.card \{ background: var\(--gl-card\) !important;[^}]*box-shadow: var\(--gl-card-sh\) !important;[^}]*border-radius: var\(--radius-xl\)/.test(body), 'כרטיסי העמודים — אותו חומר של כרטיס המניה (--gl-card), לא מילוי אטום');
+ok(!/main \.card \{[^}]*--lg-card/.test(body), 'אין מילוי אטום (--lg-card) על כרטיסי העמודים');
+ok(/\.stock, \[data-theme="dark"\] \.stock \{ background: var\(--gl-card\)/.test(styles), 'כרטיס המניה עצמו על --gl-card (המקור שהכרטיסים מחקים)');
+ok(/html \.an-root :is\(\.an-card, \.an-rcard\) \{ background: var\(--gl-card\)/.test(body), 'מנתח החברות — הכרטיסים באותה זכוכית');
+ok(/main \.card :is\(input[^{]*select, textarea\) \{ background: var\(--lg-fill\)[^}]*border-color: transparent/.test(body), 'שדות בתוך כרטיס — מילוי רך בלי מסגרת');
 
 if (fails.length) { console.log('\nנכשלו ' + fails.length + '/' + n + ':\n- ' + fails.join('\n- ')); process.exit(1); }
 console.log('\n' + n + '/' + n + ' עברו');

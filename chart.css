@@ -16,6 +16,23 @@ html.kc-open { overflow: hidden; }
 /* גיליון התראה שנפתח מכרטיס המניה — בלי מסך הגרף: שורש שקוף, רק הגיליון לוכד נגיעות */
 .kc-root.kc-float { background: transparent; pointer-events: none; padding: 0; }
 .kc-root.kc-float > * { pointer-events: auto; }
+/* 20/11/2026: חלונית התראה שנפתחת ממסך הניהול של כל ההתראות (app.js .pah, z 950) — מעליו */
+.kc-root.kc-float.kc-over { z-index: 960; }
+/* הקישור "כל ההתראות" בתחתית חלונית ההתראה — שורה שקטה עם מונה וחץ */
+.kc-all-al { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 12px; padding: 12px 14px; border: 0; border-radius: var(--radius-sm); background: var(--kc-fill); color: var(--kc-ink); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform .3s cubic-bezier(.34, 1.56, .64, 1); }
+.kc-all-al > span:first-child { flex: 1; text-align: start; }
+.kc-all-al-n { font-size: 13px; color: var(--kc-ink2); }
+.kc-all-al::after { content: '›'; font-size: 22px; line-height: 1; color: var(--kc-ink2); }
+.kc-all-al:dir(rtl)::after { content: '‹'; }
+.kc-all-al:active { transform: scale(.97); }
+/* בשורת הכפתורים של חלונית ההתראה — בהתחלה (ימין בעברית), השאר נדחפים לסוף */
+.kc-all-al.in-row { width: auto; margin: 0; margin-inline-end: auto; padding: 0 14px; min-height: 40px; border-radius: var(--pill); font-size: 14px; }
+.kc-all-al.in-row > span:first-child { flex: none; }
+.kc-in[hidden], .kc-btn[hidden] { display: none; }
+.kc-row-end:has(> .kc-all-al.in-row) { flex-wrap: nowrap; gap: 6px; }
+.kc-row-end:has(> .kc-all-al.in-row) > .kc-btn { padding: 0 14px !important; min-width: 0 !important; }
+.kc-all-al.in-row { flex: 0 1 auto; min-width: 0; padding: 0 12px; gap: 6px; }
+.kc-all-al.in-row > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :where(.kc-root) button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
 :where(.kc-root) button:disabled { opacity: .35; cursor: default; }
 .kc-root svg { width: 20px; height: 20px; display: block; }
@@ -179,6 +196,14 @@ html.kc-open { overflow: hidden; }
 .kc-sh-head { display: flex; align-items: center; gap: 8px; padding: 10px 10px 6px 16px; flex: none; }
 [dir="rtl"] .kc-sh-head { padding: 10px 16px 6px 10px; }
 .kc-sh-title { font-weight: 700; font-size: 20px; flex: 1; min-width: 0; }
+.kc-alh { display: flex; align-items: center; gap: 12px; }
+.kc-alh-logo { flex: none; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; box-shadow: 0 0 0 .5px rgba(0, 0, 0, .1), 0 2px 8px rgba(0, 0, 0, .12); }
+.kc-alh-logo .stock-logo, .kc-alh-logo img { width: 40px; height: 40px; border-radius: 50%; }
+.kc-alh-t { flex: 1; min-width: 0; font-size: 20px; font-weight: 700; }
+.kc-alh-tx { display: flex; flex-direction: column; align-items: flex-end; min-width: 0; max-width: 55%; line-height: 1.2; text-align: end; }
+.kc-alh-tx b { font-size: 17px !important; }
+.kc-alh-tx b { font-size: 19px; font-weight: 750; letter-spacing: -.2px; }
+.kc-alh-tx small { font-size: 13px; font-weight: 500; color: var(--kc-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kc-sh-body { overflow-y: auto; padding: 4px 16px 16px; display: flex; flex-direction: column; gap: 10px; -webkit-overflow-scrolling: touch; user-select: text; -webkit-user-select: text; }
 .kc-sh-body > * { flex-shrink: 0; }   /* כשהתוכן ארוך מהמסך — לא לכווץ: בורר עם overflow (min-height 0) נמחץ לפס דק וכותרות עלו זו על זו */
 .kc-gt { font-size: 12.5px; font-weight: 600; color: var(--kc-ink2); margin-top: 6px; }
@@ -196,6 +221,9 @@ html.kc-open { overflow: hidden; }
 .kc-field { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
 .kc-field > span { font-size: 14px; flex: none; }
 .kc-field .kc-in { max-width: 180px; }
+/* 20/11/2026 (בקשת המשתמש): בחלונית ההתראה — "מחיר מניה" ואחריו השדה, בהתחלה (ימין בעברית); הסימבול כבר בכותרת */
+.kc-field.kc-al-px { justify-content: flex-start; }
+.kc-field.kc-al-px > span { color: var(--kc-ink2); font-weight: 600; }
 .kc-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .kc-row > .kc-field { flex: 1; min-width: 140px; }
 .kc-row-end { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
