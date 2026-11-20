@@ -8392,8 +8392,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.196.0';
-const APP_VERSION = 'v865';
+const APP_RELEASE = '2.197.0';
+const APP_VERSION = 'v866';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -9454,9 +9454,12 @@ function lastSessionKey(sym, nowMs) {
   return null;
 }
 function sessionDayInfo(sym, nowMs, tz) {
+  try { const now = nowMs || Date.now(); return dayInfoForKey(lastSessionKey(sym, now), now, tz); } catch (e) { return null; }
+}
+/* 20/11/2026: התווית לתאריך מסחר נתון (YYYY-MM-DD) — משותף לשינוי היומי וליום המסחר הקודם בסקירה */
+function dayInfoForKey(key, nowMs, tz) {
   try {
     const now = nowMs || Date.now();
-    const key = lastSessionKey(sym, now);
     if (!key) return null;
     const diff = Math.round((keyUTC(tzDateKey(now, tz)) - keyUTC(key)) / 864e5);
     if (diff <= 0) return null;
@@ -9465,8 +9468,8 @@ function sessionDayInfo(sym, nowMs, tz) {
   } catch (e) { return null; }
 }
 /* התווית עצמה: "היום" / "אתמול" / "שישי" / "12/11" */
-function sessionDayLabel(sym, nowMs, tz) {
-  const i = sessionDayInfo(sym, nowMs, tz);
+function sessionDayLabel(sym, nowMs, tz) { return dayInfoLabel(sessionDayInfo(sym, nowMs, tz)); }
+function dayInfoLabel(i) {
   if (!i) return t('dayToday');
   if (i.k === 'yest') return t('dayYest');
   if (i.k === 'dow') return [t('dayDow1'), t('dayDow2'), t('dayDow3'), t('dayDow4'), t('dayDow5')][i.dow - 1] || t('dayToday');
@@ -10856,18 +10859,71 @@ function totalsUSD() {
 /* v730: השינוי היומי של כל התיק בדולרים — סכום שינוי היום של כל אחזקה (מהסגירה הקודמת, כמו בכרטיס המניה),
    והאחוז מול שווי התיק בסגירה הקודמת כולל מזומן — כמו בכותרת של IBKR. null כשחסר מחיר או שינוי לאחזקה כלשהי
    (לא מציגים מספר חלקי). אחזקה שנקנתה היום נספרת מהסגירה הקודמת — קירוב. */
+/* 20/11/2026 (בקשת המשתמש): בדיוק כמו בכרטיס — המכנה הוא שווי התיק בסגירה שלפני יום המסחר, מהסגירה הרגילה (regClose)
+   ולא מהמחיר החי. עד עכשיו "שווי עכשיו − שינוי" — ובמסחר הלילי/המוקדם המחיר החי כבר כלל את התזוזה של היום, והאחוז זז. */
+function cashUSD() { const c = DB.cash || {}; return (Number(c.usd) || 0) + (state.fx ? (Number(c.ils) || 0) / state.fx : 0); }
+function regPxOf(q) { return q && q.regClose > 0 ? q.regClose : q ? q.close : null; }
 function portfolioDayUSD() {
   if (!POSITIONS.length) return null;
-  let abs = 0;
+  let abs = 0, prev = cashUSD();
   for (const p of POSITIONS) {
     const m = metrics(p.sym);
     if (!m.q || m.dayAbs === null || m.dayAbs === undefined || !isFinite(m.dayAbs)) return null;
-    const v = nativeToUSD(m.dayAbs * (Number(p.shares) || 0), p.sym);
-    if (v === null || !isFinite(v)) return null;
-    abs += v;
+    const sh = Number(p.shares) || 0;
+    const v = nativeToUSD(m.dayAbs * sh, p.sym);
+    const b = nativeToUSD((regPxOf(m.q) - m.dayAbs) * sh, p.sym);
+    if (v === null || !isFinite(v) || b === null || !isFinite(b)) return null;
+    abs += v; prev += b;
   }
-  const prev = totalsUSD().total - abs;
   return { abs: abs, pct: prev > 0 ? abs / prev * 100 : null };
+}
+/* 20/11/2026 (בקשת המשתמש): "היום" של כל התיק מחוץ למסחר הרגיל — כמו בועת הסשן בכרטיס (מסחר־לילי / מוקדם / מאוחר):
+   השינוי מהסגירה הרגילה האחרונה עד המחיר המורחב, לכל אחזקה בארה״ב שיש לה מחיר מורחב (אחרות — בלי שינוי מאז הסגירה).
+   האחוז מול שווי התיק בסגירה הרגילה כולל מזומן. null כשאין אף אחזקה במסחר מורחב או כשחסר מחיר. kind — הסשן הנפוץ. */
+function portfolioExtUSD() {
+  if (!POSITIONS.length) return null;
+  let abs = 0, base = cashUSD(), n = 0;
+  const kinds = {};
+  for (const p of POSITIONS) {
+    const q = state.quotes[p.sym];
+    const rp = regPxOf(q);
+    if (!(rp > 0)) return null;
+    const sh = Number(p.shares) || 0;
+    const b = nativeToUSD(rp * sh, p.sym);
+    if (b === null || !isFinite(b)) return null;
+    base += b;
+    const x = q.ext;
+    if (/\.TA$/i.test(p.sym) || !x || !(x.price > 0)) continue;
+    const ch = isFinite(x.ch) ? Number(x.ch) : x.price - rp;
+    const v = nativeToUSD(ch * sh, p.sym);
+    if (v === null || !isFinite(v)) return null;
+    abs += v; n++;
+    const k = x.kind === 'pre' || x.kind === 'night' ? x.kind : 'post';
+    kinds[k] = (kinds[k] || 0) + 1;
+  }
+  if (!n) return null;
+  const kind = Object.keys(kinds).sort((a, b) => kinds[b] - kinds[a])[0];
+  return { abs: abs, pct: base > 0 ? abs / base * 100 : null, kind: kind };
+}
+/* 20/11/2026 (בקשת המשתמש): בזמן מסחר רגיל — השינוי של יום המסחר הקודם ("אתמול"), לצד "היום". מההיסטוריה היומית:
+   הסגירה של יום המסחר האחרון שלפני הציטוט מול הסגירה שלפניו, על כל התיק כולל מזומן. null כשחסרה היסטוריה. key — תאריך היום הזה */
+function portfolioPrevDayUSD() {
+  if (!POSITIONS.length) return null;
+  let abs = 0, base = cashUSD(), key = '';
+  for (const p of POSITIONS) {
+    const q = state.quotes[p.sym], hist = state.hist[p.sym];
+    if (!q || !hist || hist.length < 2) return null;
+    const qd = q.mdate || q.date;
+    let i = hist.length - 1;
+    while (i >= 0 && qd && hist[i].date >= qd) i--;
+    if (i < 1 || !(hist[i].close > 0) || !(hist[i - 1].close > 0)) return null;
+    const sh = Number(p.shares) || 0;
+    const v = nativeToUSD((hist[i].close - hist[i - 1].close) * sh, p.sym), b = nativeToUSD(hist[i - 1].close * sh, p.sym);
+    if (v === null || !isFinite(v) || b === null || !isFinite(b)) return null;
+    abs += v; base += b;
+    if (hist[i].date > key) key = hist[i].date;
+  }
+  return { abs: abs, pct: base > 0 ? abs / base * 100 : null, key: key };
 }
 /* המזומן בדולרים — פרוסה בעוגה וחלק מהמכנה של "משקל בתיק". רק יתרה חיובית
    (יתרה שלילית — מינוף — לא נכנסת לעוגה, והמשקלים נשארים מתוך המניות). טהורה. */
@@ -12525,18 +12581,33 @@ function renderOverview(light) {
   // v730: שורת השינוי היומי של התיק (דולרים + אחוז) מתחת לשלושת הנתונים
   const dEl = document.getElementById('ovDay');
   if (dEl) {
-    const d = portfolioDayUSD();
-    const dv = d ? usdToCur(d.abs) : null;
-    if (dv === null || !isFinite(dv)) { dEl.textContent = ''; dEl.classList.add('hidden'); }
-    else {
-      const z = Math.abs(dv) < 0.005 ? 0 : dv;
+    // 20/11/2026 (בקשת המשתמש): כמו בכרטיס המניה — שני נתונים: "היום" מהמסחר הלילי/המוקדם/המאוחר (מהסגירה האחרונה),
+    // ולידו השינוי של יום המסחר האחרון ("אתמול" / שם היום / "היום" בזמן מסחר רגיל)
+    const pill = (lbl, abs, pct) => {
+      const v = usdToCur(abs);
+      if (v === null || !isFinite(v)) return '';
+      const z = Math.abs(v) < 0.005 ? 0 : v;
       const cls = z > 0 ? 'pos' : z < 0 ? 'neg' : '';
-      // 18/11/2026: כמו בכרטיס — "אתמול"/שם היום מחוץ ליום המסחר; תיק משתי בורסות שהתוויות שלהן שונות — "היום"
-      const lbls = Array.from(new Set(POSITIONS.map((p) => sessionDayLabel(/\.TA$/i.test(p.sym) ? 'X.TA' : 'SPY'))));
-      dEl.innerHTML = '<span class="ov-day-lbl">' + esc(lbls.length === 1 ? lbls[0] : t('ovDayLbl')) + '</span> <span class="ov-day-v ' + cls + '" dir="ltr">' +
-        esc(fmtSignedMoney(z, cur)) + (d.pct === null || !isFinite(d.pct) ? '' : ' (' + esc(fmtPct(d.pct, true)) + ')') + '</span>';
-      dEl.classList.remove('hidden');
+      return '<span class="ov-day-it"><span class="ov-day-lbl">' + esc(lbl) + '</span><span class="ov-day-v ' + cls + '" dir="ltr">' +
+        esc(fmtSignedMoney(z, cur)) + (pct === null || !isFinite(pct) ? '' : ' (' + esc(fmtPct(pct, true)) + ')') + '</span></span>';
+    };
+    // 20/11/2026: בצד ימין תמיד יום המסחר האחרון שהסתיים ("אתמול"/שם היום, או "היום" אחרי הסגירה); בצד שמאל — המסחר
+    // המורחב (מוקדם/מאוחר/לילי). בזמן מסחר רגיל: ימין — יום המסחר הקודם, שמאל — "היום"
+    const d = portfolioDayUSD();
+    const x = portfolioExtUSD();
+    // 18/11/2026: כמו בכרטיס — "אתמול"/שם היום מחוץ ליום המסחר; תיק משתי בורסות שהתוויות שלהן שונות — "היום"
+    const lbls = Array.from(new Set(POSITIONS.map((p) => sessionDayLabel(/\.TA$/i.test(p.sym) ? 'X.TA' : 'SPY'))));
+    const dLbl = lbls.length === 1 ? lbls[0] : t('ovDayLbl');
+    let html;
+    if (!x && dLbl === t('dayToday')) {
+      const pd = portfolioPrevDayUSD();
+      html = (pd ? pill(dayInfoLabel(dayInfoForKey(pd.key)), pd.abs, pd.pct) : '') + (d ? pill(t('dayToday'), d.abs, d.pct) : '');
+    } else {
+      html = (d ? pill(dLbl, d.abs, d.pct) : '') +
+        (x ? pill(x.kind === 'pre' ? t('sessPreShort') : x.kind === 'night' ? t('sessNightShort') : t('sessPostShort'), x.abs, x.pct) : '');
     }
+    if (!html) { dEl.textContent = ''; dEl.classList.add('hidden'); }
+    else { dEl.innerHTML = html; dEl.classList.remove('hidden'); }
   }
   // בסיס החישוב לפי סוג המשתמש (הפקדות מסונכרנות / עלות קנייה / הפקדות ידניות)
   const perf = portfolioPerformance(total, portfolioBasisInCur());
