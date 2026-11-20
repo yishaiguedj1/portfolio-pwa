@@ -412,6 +412,8 @@ export const wlNew = () => (Date.now().toString(36) + Math.random().toString(36)
 // 02/11/2026 (צילום המשתמש): גם סרטון שנבחר דרך Studio לאנדרואיד (ph.nu — תרגום רגיל בשרת) — לא רק מהדפדפן
 // 02/11/2026 (בקשת המשתמש): חצי מחיר — כרגע רק למנהל (גם נאכף בשרתון: create)
 const btOk = (f) => !!(ui.api && ui.api.admin) && !!(f && (f.fileObj || f.drive || (f.ph && f.ph.nu)) && !f.link && !f.ka && !(f.ph && !f.ph.nu) && !f.subs && !f.vi && apiMode());
+// 20/11/2026 (בקשת המשתמש): גם בתור עם כמה קבצים/תיקייה — "מתי" מוצג כשיש לפחות מקור אחד שמתאים (כל עבודה בודקת שוב ב־btOk שלה)
+const btQb = (f) => btOk(f) || !!(ui.api && ui.api.admin && apiMode() && !f.ka && !f.vi && qbN(f) && f.qb.some((x) => x.t === 'f' || x.t === 'd' || (x.t === 'p' && x.ph && x.ph.nu)));
 const listOk = (f) => !!(btOk(f) && f.fileObj && !f.qd);   // 19/11/2026: בתור — עבודה אחת לכל טופס
 export function startEstimate(mode, dur, norm, api, apiOn) {
   const d = dur > 0 ? dur : 0, m = modeById(mode);
@@ -4665,7 +4667,7 @@ function pageForm(p, editing) {
 
   // מצב התרגום — המומלץ מסומן ונבחר מראש
   p.append(secT(T('studioSecMode')), ...modePicker(f.mode, (id) => { f.mode = id; render('none'); }));
-  if (btOk(f)) p.append(secT(T('studioSecWhen')), list(   // 01/11/2026 (סבב 3, I3): חצי מחיר — רק כשבוחרים בו
+  if (btQb(f)) p.append(secT(T('studioSecWhen')), list(   // 01/11/2026 (סבב 3, I3): חצי מחיר — רק כשבוחרים בו
     rowRadio({ label: T('studioWhenNow'), sub: T('studioWhenNowS'), on: !f.bt, onClick: () => { f.bt = 0; render('none'); }, k: 'when:now' }),
     rowRadio({ label: T('studioWhenBt'), sub: T('studioWhenBtS'), on: !!f.bt, onClick: () => { f.bt = 1; render('none'); }, k: 'when:bt' })));
   // מה לקבל — "זהה למקור" כברירת מחדל, SRT תמיד
