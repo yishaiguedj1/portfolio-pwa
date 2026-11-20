@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2586 מפתחות מתוך 7290) */
+/* המחרוזות של studio (2587 מפתחות מתוך 7291) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1677,6 +1677,7 @@ he: {
   "studioQuNew": "תור עבודות חדש",
   "studioQuNewS": "מוסיפים עבודות אחת אחרי השנייה, מכל מקור · {n} רצות במקביל, והשאר מחכות",
   "studioQuNote": "השרת מריץ {n} עבודות מהתור במקביל, והשאר מחכות. סרטונים מהדפדפן עולים אחד אחרי השני — השאר את Studio פתוח עד שכולם עולים. לחיצה ארוכה על עבודה — עוד אפשרויות.",
+  "studioQuPickT": "לאיזה תור?",
   "studioQuRunAll": "להמשיך את התור",
   "studioQuRunDone": "ממשיך",
   "studioQuSec": "{n} · {d} מתוך {t} הסתיימו",
@@ -4265,6 +4266,7 @@ en: {
   "studioQuNew": "New job queue",
   "studioQuNewS": "Add jobs one by one, from any source · {n} run at once, the rest wait",
   "studioQuNote": "The server runs {n} jobs from the queue at once; the rest wait. Videos from the browser upload one after another — keep Studio open until they are all up. Long-press a job for more options.",
+  "studioQuPickT": "To which queue?",
   "studioQuRunAll": "Resume the queue",
   "studioQuRunDone": "Resumed",
   "studioQuSec": "{n} · {d} of {t} done",

@@ -3524,6 +3524,14 @@ function jobOpen(f, rec) {
   replaceView('qnew', f.qu);
   if (CW_OK && stack.length === 2 && stRoot() !== 'act') { stack.splice(1, 0, { v: 'act', p: null }); syncState(); }
 }
+/* "להוסיף לתור" מטופס רגיל: לאיזה תור — תור פעיל או תור חדש (אין תור פעיל — ישר לתור חדש). אחר כך — אותה התחלה, ובסוף עמוד התור */
+function quPickFor(f, at) {
+  const take = (qu, qn) => { Object.assign(f, { qd: 1, qx: 1, qu, qn: qn || '' }); qf = { qu, qn: qn || '' }; startFromForm(); };
+  const gs = quGroups(store.jobs);
+  if (!gs.length) { take(wlNew(), ''); return; }
+  lbMenu(at, T('studioQuPickT'), [...gs.slice(0, 8).map((g) => ({ k: 'q-' + g.qu, icon: 'film', label: g.qn || T('studioQuT'), fn: () => take(g.qu, g.qn) })),
+    { k: 'q-new', icon: 'plus', label: T('studioQuNew'), fn: () => take(wlNew(), '') }]);
+}
 /* ההעלאות מהתור — אחת אחרי השנייה (בלי להעמיס על הרשת); עבודה רגילה — מיד */
 let quChain = Promise.resolve();
 function quUp(f, id, run) {
@@ -3846,6 +3854,7 @@ function pageForm(p, editing) {
   if (!editing && ui.param === 'ka') form.ka = true;   // 30/10/2026: הכלי בכתובת הדף — טופס שנבנה מחדש נשאר קריוקי
   if (!editing && ui.param === 'vi' && viOk(form)) form.vi = true;   // 10/11/2026: וגם ניתוח
   const f = form;
+  if (f.qx && !ui.starting) { delete f.qd; delete f.qx; delete f.qu; delete f.qn; }   // 20/11/2026: "להוסיף לתור" מטופס רגיל שלא הסתיים (ביטול באומדן) — חוזר להיות רגיל
   const saveTop = btn('st-txt bold', T('studioSave'), saveForm, 'nav-save');
   saveTop.disabled = !f.file || !!f.subs;
   // 30/10/2026: לשיר אין טיוטה — הטיוטות שייכות לתרגום (hidden לא הספיק: ה־CSS של הכפתור גובר)   // 22/10/2026: קובץ כתוביות — בלי טיוטה (הקובץ רק בזיכרון)
@@ -3981,10 +3990,13 @@ function pageForm(p, editing) {
   const nList = listOk(f) ? 1 + (f.more || []).length : 1;
   const startBtn = btn('st-btn wide', ui.starting ? T('studioStarting') : quBtnL(f, nList > 1 ? T('studioStartN', { n: nList }) : T('studioStart')), startFromForm, 'start');
   startBtn.disabled = !(f.fileObj || f.drive || f.subs || f.ph || (f.link && f.linkOk)) || ui.starting;   // ph — תרגום בטלפון
-  if (f.subs) { const ft = h('div', 'st-foot'); ft.append(startBtn, h('p', 'st-foot-n', T('studioSubsStartNote'))); p.append(ft); return; }   // בלי טיוטה: הקובץ רק בזיכרון
+  // 20/11/2026 (בקשת המשתמש): בכל טופס — גם "להוסיף לתור" (תור קיים או חדש), באותה התחלה בדיוק. לא בתרגום בטלפון ולא ב"עוד סרטון"
+  const quB = !f.qd && quOk() && nList === 1 && !(f.ph && !f.ph.nu) ? btn('st-btn ghost wide', T('studioQuAdd'), () => quPickFor(f, quB), 'start-qu') : null;
+  if (quB) quB.disabled = startBtn.disabled;
+  if (f.subs) { const ft = h('div', 'st-foot'); ft.append(startBtn, quB || '', h('p', 'st-foot-n', T('studioSubsStartNote'))); p.append(ft); return; }   // בלי טיוטה: הקובץ רק בזיכרון
   // 25/10/2026: כפתור אחד, דבוק לתחתית המסך. הטיוטה — "שמירה" בסרגל העליון (עד היום גם כפתור שני כאן, אותה פעולה)
   const foot = h('div', 'st-foot');
-  foot.append(startBtn, h('p', 'st-foot-n', !f.file && !f.ph && !(f.link && f.linkOk) ? T('studioPickToStart') : !f.fileObj && !f.drive && !f.ph && !(f.link && f.linkOk) ? T('studioRepickNote') : f.drive ? T('studioStartNoteDrive') : T('studioStartNote')));
+  foot.append(startBtn, quB || '', h('p', 'st-foot-n', !f.file && !f.ph && !(f.link && f.linkOk) ? T('studioPickToStart') : !f.fileObj && !f.drive && !f.ph && !(f.link && f.linkOk) ? T('studioRepickNote') : f.drive ? T('studioStartNoteDrive') : T('studioStartNote')));
   p.append(foot);
 }
 /* "התחלה" לקובץ כתוביות: אומדן ואישור → עבודה בשרתון → העלאה (קובץ קטן) → רישום → תור השרת */
