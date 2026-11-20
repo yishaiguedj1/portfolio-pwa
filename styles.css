@@ -1215,14 +1215,10 @@ html[dir="ltr"] .stock-foot .kc-open-btn { order: -1; }   /* באנגלית (כ�
 .pf-range-summary .rs-val.pos { color: var(--gain, #1B7A3D); }
 .pf-range-summary .rs-val.neg { color: var(--loss, #C62828); }
 .pf-range-summary .rs-range { font-size: 13.5px; color: var(--on-surface-var); }
-/* 2.147.0: מקרא צף בפינה העליונה של גרף הביצועים (בקצה מול ציר האחוזים) — נקודה · שם · תשואה, בלי מסגרת.
-   שורת מדד היא כפתור הדלקה/כיבוי: כבוי = טבעת ריקה ושם מעומעם. הגרף שומר מרווח עליון בגובה המקרא. */
+/* 2.147.0: מקרא הביצועים — נקודה · שם · תשואה, בלי מסגרת. שורת מדד היא כפתור הדלקה/כיבוי: כבוי = טבעת ריקה ושם מעומעם.
+   20/11/2026 (בקשת המשתמש): המקרא עבר מצף על הגרף אל שורת הכותרת (במקום "תשואה מתאריך") — לא מסתיר את הגרף */
 #pfWrap canvas { height: 280px; }
-.pf-key { position: absolute; top: 0; inset-inline-end: -4px; z-index: 2; list-style: none; margin: 0; padding: 2px; display: flex; flex-direction: column; gap: 0;
-  border-radius: var(--radius-sm); background: var(--gb-body); -webkit-backdrop-filter: var(--gb-fx); backdrop-filter: var(--gb-fx); box-shadow: var(--gb-sh); } /* זכוכית — אותם משתנים כמו כפתורי הזכוכית */
-html[dir="ltr"] .pf-key { inset-inline-end: auto; inset-inline-start: -4px; }
-.chart-wrap.picking .pf-key { inset-inline-end: 4px; } /* בתוך המסגרת המקווקוות של "מתאריך" */
-html[dir="ltr"] .chart-wrap.picking .pf-key { inset-inline-end: auto; inset-inline-start: 4px; }
+.pf-key { list-style: none; margin: 0; margin-inline-start: auto; margin-inline-end: -8px; padding: 0; display: flex; flex-direction: column; gap: 0; }
 .pf-key.hidden { display: none; }
 .pf-key li { display: block; }
 /* 2.147.2 (בקשת המשתמש: "כמה שיותר מינימליסטית אבל עדיין ברורה"): שורות צפופות, טקסט 12.5, נקודה 7 — נגיעה נוחה נשמרת בגובה 24 */
@@ -1264,11 +1260,8 @@ html[dir="ltr"] .chart-wrap.picking .pf-key { inset-inline-end: auto; inset-inli
 }
 .pf-sheet .sheet-row { display: flex; gap: 10px; }
 .pf-sheet .sheet-row .btn { flex: 1; }
-/* כלי גרף הביצועים */
-.pf-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 2px 0 8px; }
-/* 2.147.0 (בקשת המשתמש): "תשואה מתאריך" בשורת הכותרת, בקצה */
-.section-head:has(#pfTools) { flex-wrap: wrap; row-gap: 8px; }
-.section-head .pf-tools { margin: 0; justify-content: flex-end; }
+/* כותרת ביצועי התיק: המקרא בקצה; אם אין מקום — יורד לשורה משלו */
+.section-head:has(#pfLegend) { flex-wrap: wrap; row-gap: 8px; }
 .pf-from-lbl { display: flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--on-surface-var); }
 .pf-from-lbl input[type="date"] { font: inherit; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--outline); background: var(--surface); color: var(--on-surface); }
 .pf-tip { position: absolute; z-index: 5; background: var(--surface); border: 1px solid var(--outline); border-radius: var(--radius-xs); padding: 8px 10px; font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,.14); pointer-events: none; max-width: 220px; }
