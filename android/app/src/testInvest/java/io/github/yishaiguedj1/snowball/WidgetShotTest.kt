@@ -58,7 +58,8 @@ class WidgetShotTest {
         card("QQQ", "Invesco QQQ Trust", "\$634.29", "⁦−\$14.47⁩ (⁦−2.19%⁩)", "neg", "−1.67%", "neg", "watch"),
     )
 
-    private fun seed(c: Context) {
+    private fun seed(c: Context, first: String? = null) {
+        val pf = if (first == null) pf else listOf(first) + pf.drop(1)
         val now = System.currentTimeMillis()
         val lists = """[{"i":"a","n":"תוכנה","s":"MSFT"},{"i":"b","n":"שבבים","s":"AMD"},{"i":"c","n":"פיננסים","s":"JPM"},{"i":"d","n":"מדדים","s":"SPX"}]"""
         c.getSharedPreferences("snowball_widget", Context.MODE_PRIVATE).edit()
@@ -142,6 +143,9 @@ class WidgetShotTest {
             seed(c)
             val t = if (night) "dark" else "light"
             shoot(c, SnowballWidget(), "pf-$t", 358, 588)
+            // שם ארוך בכרטיס העליון — לבדוק שהוא לא עולה על השקע
+            seed(c, wl[0].replace("Advanced Micro Devices", "Taiwan Semiconductor Manufacturing").replace("\"AMD\"", "\"TSM\"")); shoot(c, SnowballWidget(), "pf-$t-long", 358, 588)
+            seed(c)
             shoot(c, SnowballWatchWidget(), "wl-$t", 358, 588)
             shoot(c, SnowballWidget(), "pf-$t-narrow", 300, 520)
         }
