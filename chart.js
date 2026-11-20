@@ -2971,7 +2971,7 @@ function openLayoutSheet() {
 function openAlerts() {
   const c = act();
   if (!c) return;
-  openSheet(T('kcAlerts'), (b) => {
+  openSheet(T('kcAlerts'), (b, sh) => {
     const p0 = quotePrice(c.q) || (c.disp.length ? c.disp[c.disp.length - 1].close : 0), pr = L.precisionFor(p0);
     const price = h('input', { class: 'kc-in num', type: 'number', step: 'any', inputmode: 'decimal', value: p0 ? p0.toFixed(pr) : '' });
     const note = h('input', { class: 'kc-in', type: 'text', maxlength: '80', placeholder: T('kcAlertNote') });
@@ -3003,23 +3003,58 @@ function openAlerts() {
       h('label', { class: 'kc-field' }, h('span', { text: c.sym }), price),
       seg([['cross', T('kcAlertCross')], ['up', T('kcAlertUp')], ['down', T('kcAlertDown')]], dir, (v) => { dir = v; }),
       note,
-      h('div', { class: 'kc-row-end' }, btn('kc-btn pri', T('kcAlertAdd'), () => {
+      h('div', { class: 'kc-row-end' }, noteToggle(note), btn('kc-btn pri', T('kcAlertAdd'), () => {
         const v = parseFloat(price.value);
         if (!(v > 0)) return;
         const arr = S.store.alerts[c.sym] = S.store.alerts[c.sym] || [];
         if (arr.length >= 20) { if (E.flash) E.flash(T('kcAlertMax')); return; }
-        arr.push({ id: newId(), p: v, dir, note: note.value.trim().slice(0, 80), done: false, at: 0, b: curPx(c.sym) || p0 });
+        arr.push({ id: newId(), p: v, dir, note: note.value.trim().slice(0, 80), done: false, at: 0, b: curPx(c.sym) || p0, c: Date.now() });
         delete lastPx[c.sym];
-        save(); redraw(c.sym); drawList(); updBars(); note.value = '';
+        save(); redraw(c.sym); drawList(); updBars(); note.value = ''; note.hidden = true; for (const x of b.querySelectorAll('.kc-row-end > .kc-btn[hidden]')) x.hidden = false;
         bgSync(true);   // בלחיצה (מחווה של המשתמש) — הדפדפן מרשה לבקש הרשאת התראות
       })),
       bgRow,
       list,
     );
+    const al = allAlertsLink(sh); if (al) b.appendChild(al);
     drawList();
     bgShow();
     bgSync(true);   // ברירת מחדל: פתיחת החלון (נגיעה) = בקשת הרשאה אם עוד לא נשאלה, ורישום לרקע
   });
+}
+
+/* 20/11/2026 (בקשת המשתמש): מכל הקמה/עריכה של התראה — קישור למסך הניהול של כל ההתראות (app.js openAlertsHub) */
+function allAlertsLink(sh, inRow) {
+  if (!E || !E.allAlerts) return null;
+  return h('button', { class: 'kc-all-al' + (inRow ? ' in-row' : ''), type: 'button', onclick: () => { closeSheet(sh); setTimeout(() => E.allAlerts(), 160); } },
+    h('span', { text: T('kcAllAlerts') }), h('span', { class: 'kc-all-al-n num', text: String(alertCount()) }));
+}
+/* 20/11/2026 (בקשת המשתמש): תיבת ההערה מופיעה רק אחרי נגיעה ב"הערה" (או כשכבר יש הערה) */
+function noteToggle(note) {
+  note.hidden = !note.value;
+  const b = btn('kc-btn', T('kcNoteBtn'), () => { note.hidden = false; b.hidden = true; try { note.focus(); } catch (e) { /* בלי מקלדת */ } });
+  b.hidden = !note.hidden;
+  return b;
+}
+function alertCount() { let n = 0; for (const k of Object.keys((S.store && S.store.alerts) || {})) n += (S.store.alerts[k] || []).length; return n; }
+/* המחיר החי למסך הניהול — גם למניות שאינן בתיק (בקשה אחת ל־/api/quotes, עד 40) → { SYM: מחיר } */
+export async function alertPrices(syms, env) {
+  if (env) E = env;
+  const out = {};
+  try {
+    const j = await E.quotes(syms.slice(0, 40));
+    for (const k of Object.keys((j && j.ok && j.data) || {})) { const p = quotePrice(parseQuote(j.data[k])); if (p > 0) out[k] = p; }
+  } catch (e) { /* בלי רשת — המחירים שכבר באפליקציה */ }
+  return out;
+}
+/* מחיקה ממסך הניהול: אותו מאגר, אותו סנכרון לרקע */
+export function removeAlert(sym, id, env) {
+  sym = String(sym || '').toUpperCase();
+  const st = alStore(env), arr = (st.alerts[sym] || []).filter((x) => x.id !== id);
+  if (arr.length) st.alerts[sym] = arr; else delete st.alerts[sym];
+  for (const c of S.cells) if (c.sym === sym) drawAlerts(c);
+  if (ROOT) { save(); updBars(); } else saveNow();
+  bgSoon();
 }
 
 /* ---------- התראות מכרטיס המניה (app.js) — בלי לפתוח את הגרף. אותו מאגר (pwa_charts_v1) ואותו סנכרון לרקע ---------- */
@@ -3031,7 +3066,7 @@ export async function openStockAlert(sym, env, id, px) {
   const st = alStore(env);
   await ensureCss();
   let root = ROOT, fl = null;
-  if (!root) { fl = h('div', { class: 'kc-root kc-float' }); document.body.appendChild(fl); root = fl; }
+  if (!root || env.over) { fl = h('div', { class: 'kc-root kc-float' + (env.over ? ' kc-over' : '') }); document.body.appendChild(fl); root = fl; }
   const list = () => st.alerts[sym] || [];
   const a0 = id ? list().find((x) => x.id === id) : null;
   const cur = px > 0 ? px : curPx(sym), p0 = a0 ? a0.p : cur, pr = L.precisionFor(p0 || 1);
@@ -3050,6 +3085,8 @@ export async function openStockAlert(sym, env, id, px) {
       seg([['cross', T('kcAlertCross')], ['up', T('kcAlertUp')], ['down', T('kcAlertDown')]], dir, (v) => { dir = v; }),
       note,
       h('div', { class: 'kc-row-end' },
+        allAlertsLink(sh, true),
+        noteToggle(note),
         a0 ? btn('kc-btn danger', T('kcRemove'), () => { const arr = list().filter((x) => x.id !== a0.id); if (arr.length) st.alerts[sym] = arr; else delete st.alerts[sym]; done(); bgSoon(); close(); }) : null,
         a0 && a0.done ? btn('kc-btn', T('kcRearm'), () => { a0.done = false; a0.at = 0; a0.id = newId(); a0.b = cur || a0.p; done(); bgSync(true); close(); }) : null,
         btn('kc-btn pri', a0 ? T('kcSave') : T('kcAlertAdd'), () => {
@@ -3063,7 +3100,7 @@ export async function openStockAlert(sym, env, id, px) {
           } else {
             const arr = st.alerts[sym] = list();
             if (arr.length >= 20) { if (E.flash) E.flash(T('kcAlertMax')); return; }
-            arr.push({ id: newId(), p: v, dir, note: n, done: false, at: 0, b: cur || v });
+            arr.push({ id: newId(), p: v, dir, note: n, done: false, at: 0, b: cur || v, c: Date.now() });
           }
           delete lastPx[sym];
           done();

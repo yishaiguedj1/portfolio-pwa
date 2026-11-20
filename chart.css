@@ -16,6 +16,23 @@ html.kc-open { overflow: hidden; }
 /* גיליון התראה שנפתח מכרטיס המניה — בלי מסך הגרף: שורש שקוף, רק הגיליון לוכד נגיעות */
 .kc-root.kc-float { background: transparent; pointer-events: none; padding: 0; }
 .kc-root.kc-float > * { pointer-events: auto; }
+/* 20/11/2026: חלונית התראה שנפתחת ממסך הניהול של כל ההתראות (app.js .pah, z 950) — מעליו */
+.kc-root.kc-float.kc-over { z-index: 960; }
+/* הקישור "כל ההתראות" בתחתית חלונית ההתראה — שורה שקטה עם מונה וחץ */
+.kc-all-al { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 12px; padding: 12px 14px; border: 0; border-radius: var(--radius-sm); background: var(--kc-fill); color: var(--kc-ink); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform .3s cubic-bezier(.34, 1.56, .64, 1); }
+.kc-all-al > span:first-child { flex: 1; text-align: start; }
+.kc-all-al-n { font-size: 13px; color: var(--kc-ink2); }
+.kc-all-al::after { content: '›'; font-size: 22px; line-height: 1; color: var(--kc-ink2); }
+.kc-all-al:dir(rtl)::after { content: '‹'; }
+.kc-all-al:active { transform: scale(.97); }
+/* בשורת הכפתורים של חלונית ההתראה — בהתחלה (ימין בעברית), השאר נדחפים לסוף */
+.kc-all-al.in-row { width: auto; margin: 0; margin-inline-end: auto; padding: 0 14px; min-height: 40px; border-radius: var(--pill); font-size: 14px; }
+.kc-all-al.in-row > span:first-child { flex: none; }
+.kc-in[hidden], .kc-btn[hidden] { display: none; }
+.kc-row-end:has(> .kc-all-al.in-row) { flex-wrap: nowrap; gap: 6px; }
+.kc-row-end:has(> .kc-all-al.in-row) > .kc-btn { padding: 0 14px !important; min-width: 0 !important; }
+.kc-all-al.in-row { flex: 0 1 auto; min-width: 0; padding: 0 12px; gap: 6px; }
+.kc-all-al.in-row > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :where(.kc-root) button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
 :where(.kc-root) button:disabled { opacity: .35; cursor: default; }
 .kc-root svg { width: 20px; height: 20px; display: block; }
