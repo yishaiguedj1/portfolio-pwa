@@ -177,6 +177,7 @@ html[data-app="admin"] { --gb-force: #5E5CE6; --gb-ontx: #fff; }
 
 /* @glass-exempt — לא כפתורים במראה (נשארים כמו שהם):
    שורות/פריטי רשימה/כרטיסים: ack-hero tx-item adm-r ac-lens ac-person ac-step ac-tile ac-track adm-live adm-top an-key an-rcard an-row an-fact bk-card card col-card ft-row gb-row dep-yr-h
+     ניהול התראות המחיר (זכוכית משלו ב־invest-glass.css / chart.css): pah-ib pah-r pah-cta pah-co-add pah-ed pah-del kc-all-al
      ios-row ios-row-btn lib-cont lib-item lib-opt lib-row mg-opt mg-row rd-fontrow reset-cancel reset-open reset-opt row-link src-opt acx-opt st-alr
      st-banner st-filecard st-fnd st-l st-lk-rec st-newcard st-proj st-row st-twcard st-tower stock-head kc-li kc-wr kc-tg kc-fly-i st-pl-mr st-qa-b mg-pc mg-sc
      pk-row (מקרא גרף הביצועים — שורת טקסט צפה בתוך הגרף)

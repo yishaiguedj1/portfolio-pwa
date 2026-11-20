@@ -399,7 +399,7 @@ html .earn-sheet :is(.es-x-close, .es-btn):active { transform: scale(.94) !impor
 /* 17/11/2026 (בקשת המשתמש): חיפוש בטלפון — app.js msOpen. מחוץ לשכבה: מחלקות חדשות, בלי מה לעקוף.
    הכפתור בהדר בעמודה 7 (ליד ☰, מול הגלובוס וה־$); במחשב — מוסתר (⌘K וסרגל הצד); כשהתפריט פתוח — נעלם */
 .appbar .appbar-actions > #msBtn { grid-column: 7; grid-row: 1; }
-.appbar .appbar-actions.menu-open > #msBtn { opacity: 0; pointer-events: none; }
+/* 20/11/2026: כשהתפריט פתוח — הכפתור לא נעלם אלא מתחלף לפעמון (face-alt) שפותח את ניהול ההתראות */
 html.dk .appbar #msBtn { display: none; }
 .ms { position: fixed; inset: 0; z-index: 1200; color: var(--on-surface); --ms-kb: 0px;
   --ms-glass: rgba(255, 255, 255, .72); --ms-card: rgba(255, 255, 255, .82); --ms-sep: rgba(60, 60, 67, .14); --ms-fill: rgba(118, 118, 128, .12); --ms-sec: rgba(60, 60, 67, .6);
@@ -463,3 +463,86 @@ html[data-theme="dark"] .ms { --ms-glass: rgba(44, 44, 46, .72); --ms-card: rgba
 html.ms-open .tabs { opacity: 0; transform: translateY(30px); transition: opacity .2s, transform .3s; pointer-events: none; }
 html.ms-open, html.ms-open body { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .ms, .ms-list, .ms-bar, .ms-x, .ms-chip { transition: none; } }
+
+/* 20/11/2026 (בקשת המשתמש): ניהול כל התראות המחיר — app.js openAlertsHub. רשימה מקובצת לפי חברה, בזכוכית לפי ת־עיצוב, מחוץ לשכבה (מחלקות חדשות).
+   z 950: מעל גרף הנרות (900); חלונית העריכה שנפתחת מכאן — kc-over (960, chart.css) */
+.pah { position: fixed; inset: 0; z-index: 950; display: flex; flex-direction: column; color: var(--on-surface);
+  --pah-card: rgba(255, 255, 255, .74); --pah-fill: rgba(118, 118, 128, .12); --pah-sep: rgba(60, 60, 67, .14); --pah-sec: rgba(60, 60, 67, .6);
+  --pah-rim: inset 0 1px 0 rgba(255, 255, 255, .9), inset 0 0 0 .5px rgba(255, 255, 255, .6), 0 6px 24px rgba(0, 0, 0, .08);
+  --pah-spring: cubic-bezier(.34, 1.56, .64, 1);
+  background: color-mix(in srgb, var(--bg) 58%, transparent); -webkit-backdrop-filter: blur(28px) saturate(1.7); backdrop-filter: blur(28px) saturate(1.7);
+  opacity: 0; transition: opacity .24s ease; }
+html[data-theme="dark"] .pah { --pah-card: rgba(44, 44, 46, .7); --pah-fill: rgba(118, 118, 128, .24); --pah-sep: rgba(84, 84, 88, .5); --pah-sec: rgba(235, 235, 245, .6);
+  --pah-rim: inset 0 1px 0 rgba(255, 255, 255, .12), inset 0 0 0 .5px rgba(255, 255, 255, .08), 0 6px 24px rgba(0, 0, 0, .4); }
+.pah.on { opacity: 1; }
+.pah-top { flex: none; display: flex; align-items: center; gap: 12px; padding: calc(env(safe-area-inset-top) + 12px) 16px 10px; }
+.pah-hd { flex: 1; min-width: 0; }
+.pah-h1 { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -.5px; line-height: 1.15; }
+.pah-sub { font-size: 14px; color: var(--pah-sec); min-height: 18px; font-variant-numeric: tabular-nums; }
+.pah-ib { flex: none; width: 44px; height: 44px; border-radius: 50%; border: 0; display: grid; place-items: center; color: var(--on-surface); cursor: pointer;
+  background: var(--pah-card); box-shadow: var(--pah-rim); -webkit-backdrop-filter: blur(20px) saturate(1.8); backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-tap-highlight-color: transparent; transition: transform .45s var(--pah-spring), background .2s, color .2s; }
+.pah-ib svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+.pah-ib:active { transform: scale(.9); }
+.pah-add { background: var(--primary); color: #fff; box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 40%, transparent); }
+.pah-add svg { transition: transform .45s var(--pah-spring); }
+.pah-add.on svg { transform: rotate(45deg); }
+.pah-pick { flex: none; padding: 2px 16px 8px; animation: pah-in .32s cubic-bezier(.32, .72, 0, 1); }
+.pah-pick[hidden] { display: none; }
+.pah-field { display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 16px; border-radius: 24px; background: var(--pah-card); box-shadow: var(--pah-rim); }
+.pah-field svg { flex: none; width: 19px; height: 19px; fill: none; stroke: var(--pah-sec); stroke-width: 2.2; stroke-linecap: round; }
+.pah-in { flex: 1; min-width: 0; border: 0; background: none; font: inherit; font-size: 17px; color: var(--on-surface); outline: none; padding: 0; height: 100%; }
+.pah-in::-webkit-search-cancel-button { display: none; }
+.pah-res { margin-top: 8px; border-radius: 20px; overflow: hidden; background: var(--pah-card); box-shadow: var(--pah-rim); }
+.pah-res:empty { display: none; }
+.pah-r { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 54px; padding: 8px 14px; border: 0; background: none; font: inherit; color: inherit; text-align: start; cursor: pointer; position: relative; -webkit-tap-highlight-color: transparent; }
+.pah-r + .pah-r::before { content: ""; position: absolute; top: 0; inset-inline-start: 60px; inset-inline-end: 0; height: .5px; background: var(--pah-sep); }
+.pah-r:active { background: var(--pah-fill); }
+.pah-r-tx { display: flex; flex-direction: column; min-width: 0; }
+.pah-r-tx b { font-size: 16px; font-weight: 600; }
+.pah-r-tx small { font-size: 13px; color: var(--pah-sec); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pah-list { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 4px 16px calc(env(safe-area-inset-bottom) + 28px); }
+.pah-r .stock-logo { flex: none; width: 34px; height: 34px; border-radius: 50%; }
+/* חברה = כותרת (לוגו, סימבול ושם, מחיר עכשיו, "+") וכרטיס זכוכית אחד עם שורת התראה לכל יעד */
+.pah-co { margin-top: 18px; animation: pah-in .38s cubic-bezier(.32, .72, 0, 1) both; }
+.pah-co:first-child { margin-top: 8px; }
+.pah-co-h { display: flex; align-items: center; gap: 10px; padding: 0 4px 8px; }
+.pah-co-h .stock-logo { flex: none; width: 36px; height: 36px; border-radius: 50%; }
+.pah-co-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pah-co-tx b { font-size: 18px; font-weight: 750; letter-spacing: -.2px; }
+.pah-co-tx small { font-size: 13px; color: var(--pah-sec); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pah-now { flex: none; font-size: 15px; font-weight: 600; color: var(--pah-sec); direction: ltr; }
+.pah-co-add { flex: none; width: 34px; height: 34px; border: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 13%, transparent); -webkit-tap-highlight-color: transparent; transition: transform .45s var(--pah-spring); }
+.pah-co-add svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.pah-co-add:active { transform: scale(.88); }
+.pah-co-card { border-radius: 22px; overflow: hidden; background: var(--pah-card); box-shadow: var(--pah-rim); -webkit-backdrop-filter: blur(20px) saturate(1.8); backdrop-filter: blur(20px) saturate(1.8); }
+.pah-row { position: relative; display: flex; align-items: center; }
+.pah-row + .pah-row::before { content: ""; position: absolute; top: 0; inset-inline-start: 56px; inset-inline-end: 0; height: .5px; background: var(--pah-sep); }
+.pah-ed { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 58px; padding-block: 9px; padding-inline: 14px 4px; border: 0; background: none;
+  font: inherit; color: inherit; text-align: start; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s; }
+.pah-ed:active { background: var(--pah-fill); }
+.pah-row.done .pah-ed { opacity: .5; }
+.pah-arr { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: var(--pah-sec); background: var(--pah-fill); }
+.pah-arr svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.pah-row.up .pah-arr { color: var(--gain); background: color-mix(in srgb, var(--gain) 14%, transparent); }
+.pah-row.down .pah-arr { color: var(--loss); background: color-mix(in srgb, var(--loss) 14%, transparent); }
+.pah-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pah-tx b { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; align-self: flex-start; direction: ltr; }
+.pah-tx small { font-size: 13px; color: var(--pah-sec); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pah-d { flex: none; font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--pah-sec); padding: 2px 9px; border-radius: 9px; background: var(--pah-fill); direction: ltr; }
+.pah-d:empty { display: none; }
+.pah-d.pos { color: var(--gain); background: color-mix(in srgb, var(--gain) 12%, transparent); }
+.pah-d.neg { color: var(--loss); background: color-mix(in srgb, var(--loss) 12%, transparent); }
+.pah-del { flex: none; width: 44px; height: 44px; margin-inline-end: 4px; border: 0; border-radius: 50%; display: grid; place-items: center; background: none; color: var(--pah-sec); cursor: pointer;
+  -webkit-tap-highlight-color: transparent; transition: transform .45s var(--pah-spring), color .2s, background .2s; }
+.pah-del svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.pah-del:active { transform: scale(.88); color: var(--loss); background: color-mix(in srgb, var(--loss) 12%, transparent); }
+.pah-none { text-align: center; padding: 64px 24px 24px; color: var(--pah-sec); }
+.pah-none svg { width: 52px; height: 52px; opacity: .55; }
+.pah-none b { display: block; font-size: 20px; color: var(--on-surface); margin: 12px 0 6px; }
+.pah-none span { display: block; font-size: 15px; line-height: 1.5; }
+.pah-cta { margin-top: 20px; border: 0; border-radius: 24px; padding: 13px 24px; font: inherit; font-size: 16px; font-weight: 650; color: #fff; background: var(--primary); cursor: pointer; transition: transform .45s var(--pah-spring); }
+.pah-cta:active { transform: scale(.95); }
+@keyframes pah-in { from { opacity: 0; transform: translateY(10px); } }
+@media (prefers-reduced-motion: reduce) { .pah, .pah * { animation: none !important; transition: none !important; } }
