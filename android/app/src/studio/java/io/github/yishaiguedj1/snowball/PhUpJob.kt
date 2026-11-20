@@ -18,16 +18,22 @@ class PhUpJob : JobService() {
     @Volatile private var stopped = false
 
     override fun onStartJob(params: JobParameters): Boolean {
-        val pid = params.extras?.getString("pid") ?: return false
-        if (!PhCore.PID_RE.matches(pid)) return false
+        val pids = pidsOf(params.extras)
+        if (pids.isEmpty()) return false
         stopped = false
-        val title = PhStore.get(this, pid)?.optString("name") ?: ""
-        setNotification(params, PhWork.N_VID, PhWork.vprogress(this, title, 0f), JOB_END_NOTIFICATION_POLICY_REMOVE)
+        val title0 = PhStore.get(this, pids[0])?.optString("name") ?: ""
+        setNotification(params, PhWork.N_VID, PhWork.vprogress(this, title0, 0f), JOB_END_NOTIFICATION_POLICY_REMOVE)
         Thread {
-            val done = try {
-                PhWork.video(this, pid, { stopped }) { n -> runCatching { setNotification(params, PhWork.N_VID, n, JOB_END_NOTIFICATION_POLICY_REMOVE) } }
-            } catch (e: Throwable) { false }
-            if (!stopped) jobFinished(params, !done)
+            // 20/11/2026: תור עבודות — הסרטונים אחד אחרי השני, לפי סדר ההוספה (כל אחד ברוחב הפס המלא — העבודה שלו מתחילה מוקדם)
+            var all = true
+            for (pid in pids) {
+                if (stopped) break
+                val done = try {
+                    PhWork.video(this, pid, { stopped }) { n -> runCatching { setNotification(params, PhWork.N_VID, n, JOB_END_NOTIFICATION_POLICY_REMOVE) } }
+                } catch (e: Throwable) { false }
+                if (!done) all = false
+            }
+            if (!stopped) jobFinished(params, !all)
         }.start()
         return true
     }
@@ -35,28 +41,38 @@ class PhUpJob : JobService() {
     override fun onStopJob(params: JobParameters): Boolean {
         stopped = true
         // 1/11/2026: למה המערכת עצרה (רשת, מכסה, סוללה…) — נשלח עם הדיווח הבא (vcp.sr), למדידה של ההעלאה ברקע
-        if (Build.VERSION.SDK_INT >= 31) params.extras?.getString("pid")?.let { pid -> runCatching { PhStore.update(this, pid) { it.put("vSr", params.stopReason) } } }
+        if (Build.VERSION.SDK_INT >= 31) pidsOf(params.extras).forEach { pid -> runCatching { PhStore.update(this, pid) { it.put("vSr", params.stopReason) } } }
         return true   // לתזמן שוב — ממשיכים מהחלקים שכבר ב־R2
     }
 
     companion object {
         private const val JOB_ID = 4300
 
-        /** true = תוזמן (אנדרואיד 14+, האפליקציה גלויה); false = PhService יעלה אחרי הקול */
-        fun schedule(ctx: Context, pid: String): Boolean {
-            if (Build.VERSION.SDK_INT < 34) return false
-            val r = PhStore.get(ctx, pid)
-            val left = maxOf(0L, (r?.optLong("size") ?: 0L))
+        /** הסרטונים של המשימה — "pids" (רשימה מופרדת בפסיקים, לפי הסדר), או "pid" של משימה ישנה שכבר תוזמנה */
+        fun pidsOf(b: PersistableBundle?): List<String> =
+            ((b?.getString("pids") ?: b?.getString("pid") ?: "").split(',')).filter { PhCore.PID_RE.matches(it) }.distinct().take(PhCore.Q_MAX)
+
+        /** הסדר החדש: מה שכבר חיכה במשימה (ועוד לא עלה), ואחריו החדשים — בלי כפילויות. טהורה */
+        fun merge(old: List<String>, add: List<String>, pending: (String) -> Boolean): List<String> =
+            (old.filter(pending) + add).distinct().take(PhCore.Q_MAX)
+
+        /** true = תוזמן (אנדרואיד 14+, האפליקציה גלויה); false = PhService יעלה אחרי הקול.
+         *  20/11/2026 (תקלה: בתור של 9 פרקים רק האחרון עלה ורץ): משימה אחת (JOB_ID קבוע) — תזמון נוסף החליף את הקודם.
+         *  עכשיו המשימה נושאת רשימה: מה שעוד לא עלה מהמשימה הקודמת, ואחריו החדשים, ומעלה אותם לפי הסדר */
+        fun schedule(ctx: Context, pids: List<String>): Boolean {
+            if (Build.VERSION.SDK_INT < 34 || pids.isEmpty()) return false
+            val js = ctx.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
+            val old = try { pidsOf(js.getPendingJob(JOB_ID)?.extras) } catch (e: Throwable) { emptyList() }
+            val l = merge(old, pids) { p -> PhStore.get(ctx, p)?.let { it.optBoolean("vc") && it.optString("vId").isEmpty() && it.optString("vE").isEmpty() } ?: false }
+            val left = l.sumOf { maxOf(0L, PhStore.get(ctx, it)?.optLong("size") ?: 0L) }
             val info = JobInfo.Builder(JOB_ID, ComponentName(ctx, PhUpJob::class.java))
                 .setUserInitiated(true)
                 .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
                 // 1/11/2026: כמה עולה — המערכת מתזמנת ומעריכה את המשימה לפי זה (בלי — "לא ידוע")
                 .apply { if (left > 0) setEstimatedNetworkBytes(0L, left) }
-                .setExtras(PersistableBundle().apply { putString("pid", pid) })
+                .setExtras(PersistableBundle().apply { putString("pids", l.joinToString(",")) })
                 .build()
-            return try {
-                (ctx.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler).schedule(info) == JobScheduler.RESULT_SUCCESS
-            } catch (e: Throwable) { false }
+            return try { js.schedule(info) == JobScheduler.RESULT_SUCCESS } catch (e: Throwable) { false }
         }
     }
 }
