@@ -2430,6 +2430,7 @@ export function chainFor(v, p) {
 function leaving() {              // יציאה מדף: המפתח שהודבק באשף לא נשאר בזיכרון
   if (ui.view === 'play') playClose();   // מ1: הנגן נעצר ומשחרר את הסרטון
   if (ui.view === 'job') vaClose();
+  if (ui.view === 'act') actSel = null;   // 20/11/2026: מצב הבחירה לא נשאר אחרי יציאה
   if (ui.view === 'litem') lpStop();   // 17/11/2026: הנגן של פריט בספרייה       // PR 1.5ב: דף הניתוח — המקום נשמר, הנגן נעצר, תמונות השקפים משוחררות
   if (ui.view === 'subs') seStop();      // מ2: הנגן של העורך נעצר; העריכה נשארת בזיכרון
   if (ui.view === 'cut' || ui.view === 'cutsrc') ceStop();   // מ4–מ5: החיתוך עצמו נשמר (rrEdl / form.edl)
@@ -3452,7 +3453,7 @@ function jobsCardIn(rows) {
 }
 /* 17/11/2026: שורת עבודה — הבית (לפי כלי) ועמוד "פעילות" (o.act: כל הכלים, סוג העבודה, ובתור — למה היא מחכה) */
 function projRow(rec, o = {}) {
-  const r = btn('st-proj', null, () => { if (o.act) stDialJ = rec.id; go('job', rec.id); }, (o.act ? 'a:' : 'j:') + rec.id);   // מ"פעילות": העבודה נשארת תחת "פעילה" בחוגה
+  const r = btn('st-proj', null, () => { if (o.onSel) { o.onSel(); return; } if (o.act) stDialJ = rec.id; go('job', rec.id); }, (o.onSel ? 's:' : o.act ? 'a:' : 'j:') + rec.id);   // 20/11/2026: onSel — מצב בחירה במנהל העבודות   // מ"פעילות": העבודה נשארת תחת "פעילה" בחוגה
   const th = h('span', 'st-thumb'); th.append(ico('film'));
   paintThumb(th, rec);
   const bar = h('span', 'st-tprog'); const bi = h('i'); bar.append(bi); th.append(bar);
@@ -3467,7 +3468,8 @@ function projRow(rec, o = {}) {
   if (rec.spec.bt) sm.append(' · ' + T('studioBtTag'));   // 01/11/2026 (סבב 3): חצי מחיר
   info.append(nm, sm, stat);
   r.append(th, info);
-  if (o.menu) r.addEventListener('contextmenu', (e) => { e.preventDefault(); o.menu(e.clientX || e.clientY ? { x: e.clientX, y: e.clientY } : r); });   // 19/11/2026: לחיצה ארוכה — אפשרויות (תור עבודות)
+  if (o.onSel) { const c = h('span', 'st-check' + (o.sel ? ' on' : '')); c.append(ico('check')); r.append(c); r.setAttribute('role', 'checkbox'); r.setAttribute('aria-checked', o.sel ? 'true' : 'false'); }
+  else if (o.menu) r.addEventListener('contextmenu', (e) => { e.preventDefault(); o.menu(e.clientX || e.clientY ? { x: e.clientX, y: e.clientY } : r); });   // 19/11/2026: לחיצה ארוכה — אפשרויות (תור עבודות)
   live(r, () => {             // אחוז ומצב — מתעדכנים במקום
     const run = runs.get(rec.id), ph = jobPhase(rec, run), m = modelFor(rec);
     const qup = o.qu && ph === 'paused' && quPend.has(rec.id);   // 19/11/2026: תור עבודות — מחכה לתור שלה בהעלאה (הסרטונים עולים אחד אחרי השני)
@@ -3748,13 +3750,56 @@ const quFree = (r) => !!(r && r.srv && (r.srv.state === 'new' || r.srv.state ===
 function quSection(g) {
   const ph = (r) => jobPhase(r, runs.get(r.id));
   const on = g.on.slice().sort((a, b) => quHeld(a) - quHeld(b) || quPhRank(ph(a)) - quPhRank(ph(b)) || quWaitKey(a) - quWaitKey(b));
+  const tt = secT(T('studioQuSec', { n: g.qn || T('studioQuT'), d: g.done, t: g.all.length }));
+  if (actSel) {   // 20/11/2026: מצב בחירה — "כל הפרויקט" ואז כל עבודה
+    const allOn = on.every((r) => actSel.has(r.id));
+    const pr = rowCheck({ label: T('studioSelProj'), on: allOn, k: 'sel-q:' + g.qu, onClick: () => { for (const r of on) { if (allOn) actSel.delete(r.id); else actSel.add(r.id); } render('none'); } });
+    return [tt, list(pr, ...on.map((r) => actSelRow(r, { qu: true })))];
+  }
   const add = rowNav({ tile: tile('plus', 'blue'), label: T('studioQuAdd'), onClick: () => { qf = null; go('qnew', g.qu); }, k: 'qu-add:' + g.qu });
   const free = g.on.filter(quFree), held = free.filter(quHeld);
   const pz = free.length ? rowNav({ tile: tile(held.length === free.length ? 'play' : 'pause', 'orange'), label: held.length === free.length ? T('studioQuRunAll') : T('studioQuHoldAll'),
     sub: held.length === free.length ? T('studioQuHeldN', { n: held.length }) : T('studioQuHoldAllS'), onClick: () => quCtl(g.on[0], held.length === free.length ? 'run' : 'hold', true), k: 'qu-pz:' + g.qu }) : null;
   const nd = quDrOf(g.qu).length;
   const dr = nd ? rowNav({ tile: tile('clock', 'orange'), label: T('studioQuDrSec', { n: nd }), sub: T('studioQuDrGo'), onClick: () => { qf = null; go('qnew', g.qu); }, k: 'qu-dr:' + g.qu }) : null;
-  return [secT(T('studioQuSec', { n: g.qn || T('studioQuT'), d: g.done, t: g.all.length })), list(...on.map((r) => projRow(r, { act: true, qu: true, menu: (at) => quJobMenu(at, r) })), dr, pz, add)];
+  const del = rowNav({ tile: tile('trash', 'red'), label: T('studioQuDel'), sub: g.done ? T('studioQuDelS') : null, onClick: () => quDelMenu(del, g), k: 'qu-del:' + g.qu });
+  return [tt, list(...on.map((r) => projRow(r, { act: true, qu: true, menu: (at) => quJobMenu(at, r) })), dr, pz, add, del)];
+}
+/* 20/11/2026 (בקשת המשתמש): מחיקה — עבודה, כמה עבודות (מצב בחירה), התור (מה שלא הסתיים) או כל הפרויקט (גם מה שהסתיים).
+   מחיקה = ביטול (אם עוד לא הסתיימה) ואז remove — כמו "למחוק" בדף העבודה. בזו אחר זו (מגביל הקצב בשרתון) */
+let actSel = null;   // מצב בחירה במנהל העבודות: Set של מזהים, או null
+const actSelRow = (r, o) => projRow(r, Object.assign({ act: true, sel: actSel.has(r.id), onSel: () => { if (actSel.has(r.id)) actSel.delete(r.id); else actSel.add(r.id); render('none'); } }, o));
+async function jobsDel(ids) {
+  let ok = 0, bad = 0;
+  for (const id of ids) {
+    const rec = jobRec(id);
+    if (!rec) continue;
+    stopRun(id); bgAbort(id); quPend.delete(id);
+    if (rec.srv && !FINAL.includes(rec.srv.state)) await net.api('cancel', { job: id });
+    const j = rec.srv ? await net.api('remove', { job: id }) : { ok: true };
+    if (!j.ok && j.error !== 'no_job') { bad++; continue; }
+    store.jobs = store.jobs.filter((x) => x.id !== id); runs.delete(id); handleOp('del', id); draftDel(id); handleOp('del', 'po:' + id); idbOp('thumbs', 'del', id); thumbs.delete(id);
+    ok++;
+  }
+  save();
+  return { ok, bad };
+}
+function jobsDelAsk(ids, q, after) {
+  if (!ids.length) return;
+  askConfirm(q, async () => {
+    const { ok, bad } = await jobsDel(ids);
+    if (after) after();
+    flashSafe(bad ? T('studioSelDelPart', { n: ok, f: bad }) : T('studioSelDeleted', { n: ok }));
+    render('none');
+  }, { danger: true, ok: T('studioDeleteOk') });
+}
+function quDelMenu(at, g) {
+  const quIds = g.on.map((r) => r.id), prIds = g.all.map((r) => r.id);
+  const drop = () => { for (const it of quDrOf(g.qu).slice()) quDrDel(it); };   // גם העבודות שעוד לא התחילו (טיוטות התור)
+  const qu = () => jobsDelAsk(quIds, T('studioQuDelQuQ', { n: quIds.length }), drop), pr = () => jobsDelAsk(prIds, T('studioQuDelPrQ', { n: prIds.length }), drop);
+  if (!g.done) { qu(); return; }
+  lbMenu(at, g.qn || T('studioQuT'), [{ k: 'del-q', icon: 'trash', label: T('studioQuDelQu', { n: quIds.length }), danger: true, fn: qu },
+    { k: 'del-p', icon: 'trash', label: T('studioQuDelPr', { n: prIds.length }), danger: true, fn: pr }]);
 }
 /* לחיצה ארוכה על עבודה בתור — האפשרויות של מנהל עבודות */
 function quJobMenu(at, rec) {
@@ -3763,7 +3808,8 @@ function quJobMenu(at, rec) {
     { k: 'open', icon: 'chev', label: T('studioQuMOpen'), fn: () => { stDialJ = rec.id; go('job', rec.id); } },
     fr && !quHeld(rec) ? { k: 'top', icon: 'up', label: T('studioQuMTop'), fn: () => quCtl(rec, 'top') } : null,
     fr ? { k: 'hold', icon: quHeld(rec) ? 'play' : 'pause', label: quHeld(rec) ? T('studioQuMRun') : T('studioQuMHold'), fn: () => quCtl(rec, quHeld(rec) ? 'run' : 'hold') } : null,
-    !fin ? { k: 'cancel', icon: 'x', label: T('studioQuMCancel'), danger: true, fn: () => quCancel(rec) } : null]);
+    !fin ? { k: 'cancel', icon: 'x', label: T('studioQuMCancel'), danger: true, fn: () => quCancel(rec) } : null,
+    { k: 'del', icon: 'trash', label: T('studioQuMDel'), danger: true, fn: () => jobsDelAsk([rec.id], T('studioJobDelQ')) }]);
 }
 /* השהיה / המשך / לראש התור — בשרתון (op: qctl); all — כל מה שעוד לא נלקח בתור */
 async function quCtl(rec, a, all) {
@@ -3786,7 +3832,16 @@ function quCancel(rec) {
   else doIt();
 }
 function pageAct(p) {
-  p.append(navBar({ back: T('studioShort'), title: T('studioActT'), coll: true }), large(T('studioActT')));
+  const gs = quGroups(store.jobs), inQ = new Set(gs.flatMap((g) => g.all.map((r) => r.id)));
+  const [now, q] = actSplit(store.jobs.filter((r) => !inQ.has(r.id)), (r) => jobPhase(r, runs.get(r.id)));
+  const fin = actUnseen(store.jobs, store.sna, Date.now());   // 19/11/2026: הסתיימו ולא נפתחו (במקום "אחרונה")
+  const shown = [...gs.flatMap((g) => g.on), ...now, ...q, ...fin];
+  if (actSel) for (const id of [...actSel]) if (!shown.some((r) => r.id === id)) actSel.delete(id);   // נמחקה / הסתיימה בינתיים
+  if (actSel && !shown.length) actSel = null;
+  // 20/11/2026 (בקשת המשתמש): "לבחור" — בחירה מרובה (עבודות, או פרויקט שלם) ומחיקה
+  const sb = shown.length ? btn('st-txt', actSel ? T('studioSelDone') : T('studioSelBtn'), () => { actSel = actSel ? null : new Set(); render('none'); }, 'act-sel') : null;
+  p.append(navBar({ back: T('studioShort'), title: T('studioActT'), coll: true, end: sb }), large(T('studioActT')));
+  if (actSel) { pageActSel(p, gs, now, q, fin, shown); return; }
   const ab = accessBanner(); if (ab) p.append(ab);
   const hb = haltBanner(); if (hb) p.append(hb);
   if (quOk()) {   // 19/11/2026: תור עבודות חדש — פרויקט של הרבה סרטונים
@@ -3795,13 +3850,10 @@ function pageAct(p) {
     nc.append(plus, rowTxt(T('studioQuNew'), T('studioQuNewS', { n: QU_PAR })));
     p.append(nc);
   }
-  const gs = quGroups(store.jobs), inQ = new Set(gs.flatMap((g) => g.all.map((r) => r.id)));
   for (const g of gs) p.append(...quSection(g));
   const drOnly = [...quDr.keys()].filter((qu) => quDrOf(qu).length && !gs.some((g) => g.qu === qu));   // 20/11/2026: תור שעוד לא התחיל
   if (drOnly.length) p.append(secT(T('studioQuDrNew')), list(...drOnly.map((qu) => rowNav({ tile: tile('clock', 'orange'), label: quNameOf(qu) || T('studioQuT'),
     sub: T('studioQuDrSec', { n: quDrOf(qu).length }), onClick: () => { qf = null; go('qnew', qu); }, k: 'qu-drq:' + qu }))));
-  const [now, q] = actSplit(store.jobs.filter((r) => !inQ.has(r.id)), (r) => jobPhase(r, runs.get(r.id)));
-  const fin = actUnseen(store.jobs, store.sna, Date.now());   // 19/11/2026: הסתיימו ולא נפתחו (במקום "אחרונה")
   if (!now.length && !q.length && !gs.length && !fin.length && !drOnly.length) {
     const e = h('div', 'st-empty');
     const ic = h('span', 'st-empty-ic'); ic.append(ico('check'));
@@ -3812,6 +3864,19 @@ function pageAct(p) {
   if (now.length) p.append(secT(T('studioActNow', { n: now.length })), list(...now.map((r) => projRow(r, { act: true }))));
   if (q.length) p.append(secT(T('studioActQ', { n: q.length })), list(...q.map((r) => projRow(r, { act: true }))));
   if (fin.length) p.append(secT(T('studioActDone', { n: fin.length })), list(...fin.map((r) => projRow(r, { act: true }))));
+}
+/* מצב בחירה: "לבחור הכל", כל פרויקט (quSection) ושאר העבודות, ובתחתית "למחוק (N)" */
+function pageActSel(p, gs, now, q, fin, shown) {
+  const all = shown.length && shown.every((r) => actSel.has(r.id));
+  p.append(note(T('studioSelHint')), list(rowCheck({ label: T('studioSelAll'), on: all, k: 'sel-all', onClick: () => { if (all) actSel.clear(); else for (const r of shown) actSel.add(r.id); render('none'); } })));
+  for (const g of gs) p.append(...quSection(g));
+  if (now.length) p.append(secT(T('studioActNow', { n: now.length })), list(...now.map((r) => actSelRow(r))));
+  if (q.length) p.append(secT(T('studioActQ', { n: q.length })), list(...q.map((r) => actSelRow(r))));
+  if (fin.length) p.append(secT(T('studioActDone', { n: fin.length })), list(...fin.map((r) => actSelRow(r))));
+  const n = actSel.size, ft = h('div', 'st-foot');
+  const d = btn('st-btn danger wide', T('studioSelDel', { n }), () => jobsDelAsk([...actSel], T('studioSelDelQ', { n }), () => { actSel = null; }), 'sel-del');
+  d.disabled = !n;
+  ft.append(d); p.append(ft);
 }
 /* 19/11/2026 (בקשת המשתמש): במנהל העבודות — עבודות שהסתיימו (או נכשלו) ועוד לא נפתחו. "נפתחה" = rec.sn (בטלפון, נקבע בדף
    העבודה כשהיא כבר הסתיימה). רק מה שהסתיים מאז שהמכשיר התחיל לסמן (sna — בלי הצפה של עבודות ישנות בעדכון ובמכשיר חדש),
