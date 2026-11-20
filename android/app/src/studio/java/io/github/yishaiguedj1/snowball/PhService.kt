@@ -19,7 +19,7 @@ class PhService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val i = intent ?: return START_NOT_STICKY
         if (i.action == ACT_VCANCEL) { PhWork.vCancel = true; if (!busy) stopSelf(); return START_NOT_STICKY }   // רק הסרטון לענן
-        if (i.action == ACT_CANCEL) { stop = true; PhFf.cancel(); PhPy.cancel(); if (!busy) stopSelf(); return START_NOT_STICKY }
+        if (i.action == ACT_CANCEL) { stop = true; PhFf.cancel(); PhPy.cancel(); PhYt.cancel(); if (!busy) stopSelf(); return START_NOT_STICKY }
         val burn = i.action == ACT_BURN
         // 20/11/2026: תור עבודות — הקול של כל עבודה עולה אחרי הקודמת. עבודה שנוספה בזמן שאחרת רצה — נכנסת לתור (q)
         val pid: String
@@ -65,7 +65,7 @@ class PhService : Service() {
 
     /** אנדרואיד 15: נגמרה המכסה של סוג השירות — עוצרים מיד (הרשומה זוכרת את השלב) */
     override fun onTimeout(startId: Int, fgsType: Int) {
-        stop = true; PhFf.cancel(); PhPy.cancel()
+        stop = true; PhFf.cancel(); PhPy.cancel(); PhYt.cancel()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }

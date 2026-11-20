@@ -50,6 +50,7 @@ object PhStore {
         get(ctx, pid)?.optString("uri")?.takeIf { it.startsWith("content://") }?.let { u ->
             try { ctx.contentResolver.releasePersistableUriPermission(android.net.Uri.parse(u), android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Throwable) {} }
         work(ctx, pid).deleteRecursively()
+        DlEngine.dirOf(ctx, "ph$pid").deleteRecursively()   // 20/11/2026: הורדה מקישור (PhYt) שלא הסתיימה
         File(dir(ctx), "$pid.json").delete()
     }
 

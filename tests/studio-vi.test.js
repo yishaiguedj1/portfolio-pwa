@@ -182,7 +182,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   ok(/\(x === 'new' && y === 'vi'\) \|\| \(x === 'job' && viJob\(y\)\) \? \['vi', null\]/.test(stj) && /ch\.slice\(\)\.reverse\(\)\.find\(\(x\) => x\.v === 'ka' \|\| x\.v === 'vi' \|\| x\.v === 'home'\)/.test(stj), 'הטופס ועבודת ניתוח — תחת לשונית הניתוח');
   ok(/!rec\.spec\.ka === !kaTab && !rec\.spec\.vi === !viTab/.test(stj) && /function pageViL\(p\) \{ pageHome\(p, false, true\); \}/.test(stj) && /ui\.view === 'vi' && viTabOk\(\)\) pageViL\(p\)/.test(stj), 'רשימה משלה — ניתוחים רק בלשונית הניתוח');
   ok(/const stDialJob|function stDialJob\(\) \{[\s\S]{0,200}store\.jobs\.find\(\(r\) => r && r\.srv && !FINAL/.test(stj), '"העבודה" — הפעילה מכל הסוגים (גם ניתוח)');
-  ok(/go1\.disabled = !\(f\.fileObj \|\| f\.drive \|\| \(f\.link && f\.linkOk\)\) \|\| ui\.starting;/.test(stj) && !/T\('studioViRights'\)/.test(stj), '16/11/2026: "נתח" פתוח בלי הצהרת זכויות בטופס (viSpecOf שולח vr לבד)');
+  ok(/go1\.disabled = !\(f\.fileObj \|\| f\.drive \|\| \(f\.link && f\.linkOk\) \|\| qbN\(f\)\) \|\| ui\.starting;/.test(stj) && !/T\('studioViRights'\)/.test(stj), '16/11/2026: "נתח" פתוח בלי הצהרת זכויות בטופס (viSpecOf שולח vr לבד)');
   ok(/if \(f\.vi\) \{ viForm\(p, f\); return; \}/.test(stj) && !/T\('studioViT'\), sub: T\('studioViS'\), on: !!f\.vi,/.test(stj), 'טופס התרגום — בלי מתג הניתוח (עבר ללשונית)');
   { const nj2 = P.normJob({ id: 'j' + 'c'.repeat(20), spec: { name: 'x', size: 1, from: 'en', to: ['he'], vi: 1, vr: 1, mode: 'perf', out: [] } });
     ok(nj2 && nj2.spec.vi === 1 && nj2.spec.vr === 1 && !nj2.spec.dry, 'normJob: הצהרת הזכויות נשמרת'); }

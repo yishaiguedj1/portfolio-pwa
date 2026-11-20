@@ -90,6 +90,8 @@
                 <!-- 8/11/2026: phpv (חיתוך לפני התרגום ב־nu) — היה ב־PhActivity בלי שורה כאן, והדף קיבל ‎#phpick=!noapp -->
                 <data android:scheme="snbstudio" android:host="phpv" />
                 <data android:scheme="snbstudio" android:host="phq" />
+                <!-- 20/11/2026: phq2 — התור עם קישורים שיורדים בטלפון (PhYt). host חדש, כדי ש־Studio ישן יחזיר לדף ‎#phpick=!yqold -->
+                <data android:scheme="snbstudio" android:host="phq2" />
             </intent-filter>
         </activity>
         <service
