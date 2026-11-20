@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- הלוגו העגול של המניה — לבן עם קו דק, כמו ‎.stock-logo ב־invest-glass.css -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
-    <solid android:color="#FFFFFFFF" />
-    <stroke android:width="0.5dp" android:color="@color/gl_disc_edge" />
-</shape>

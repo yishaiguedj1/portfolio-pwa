@@ -26,6 +26,8 @@ import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.SizeMode
+import androidx.glance.LocalSize
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity
@@ -67,6 +69,8 @@ import java.util.Locale
  * בהיר/כהה לפי מצב המערכת. נגיעה בכרטיס → האפליקציה על אותה מניה (‎#stock=SYM, openStockFromHash באתר).
  */
 class SnowballWidget : GlanceAppWidget() {
+    // הגודל האמיתי (LocalSize) — בווידג'ט צר הכותרת והבועה מתקצרות
+    override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
@@ -113,27 +117,32 @@ class RefreshAction : ActionCallback {
 }
 
 // הצבעים — 20/11/2026 (בקשת המשתמש): זכוכית כמו Invest (invest-glass.css). הרקע, הכרטיסים, הכפתורים והקפסולות = משאבי ציור
-// (widget_bg, glass_card/pill/circle/fill, glass_tab_on, logo_disc — הצבעים ב־values(-night)/widget_glass.xml); כאן רק טקסט וגלולות.
+// 20/11/2026 (תיקון אחרי הצילום מהטלפון — שכבות XML יצאו שטוחות): חומר הזכוכית = תמונות 9-patch שמצולמות מאותו CSS של התצוגה
+// המקדימה שאושרה (tools/widget-glass.js → drawable(-night)-xxhdpi): צל, שפה בהירה וזוהר פנימי — אותם פיקסלים. כל תמונה כוללת
+// שוליים לצל (G_*): הקופסה בקוד גדולה בהם, והתוכן מרופד בהם. כאן רק טקסט וגלולות.
 private object C {
     val on = ColorProvider(Color(0xFF111413), Color(0xFFF3F5F4))
     val variant = ColorProvider(Color(0xFF5D6561), Color(0xFFA3A9A6))
     val pos = ColorProvider(Color(0xFF16A34A), Color(0xFF34C759))
     val neg = ColorProvider(Color(0xFFDC2626), Color(0xFFFF453A))
-    // גלולת השינוי היומי — ‎--gain 16% / ‎--loss 14% כמו ‎.stock-sub .day-chg; אפס — אפור (‎--on-surface 7%)
-    val posBg = ColorProvider(Color(0x2934C759), Color(0x2934C759))
-    val negBg = ColorProvider(Color(0x24FF453A), Color(0x24FF453A))
-    val flatBg = ColorProvider(Color(0x12000000), Color(0x12FFFFFF))
     val letter: GColor = ColorProvider(Color(0xFF3A3A3C), Color(0xFF3A3A3C))
     val onPrimary = ColorProvider(Color(0xFF06281A), Color(0xFF06281A))
-    val dot = ColorProvider(Color(0xFF8E9490), Color(0xFF8E9490))
 }
 
 private fun ltr(s: String) = "\u2066$s\u2069"
 private fun dirColor(d: Dir) = when (d) { Dir.POS -> C.pos; Dir.NEG -> C.neg; Dir.FLAT -> C.on }
 private fun softColor(d: Dir) = when (d) { Dir.POS -> C.pos; Dir.NEG -> C.neg; Dir.FLAT -> C.variant }
-private fun chipBg(d: Dir) = when (d) { Dir.POS -> C.posBg; Dir.NEG -> C.negBg; Dir.FLAT -> C.flatBg }
+/** הגלולה והנקודה — תמונות מעוגלות (tools/widget-glass.js): cornerRadius של Glance לא נחתך בכל מכשיר */
+private fun dayBg(d: Dir) = when (d) { Dir.POS -> R.drawable.day_pos; Dir.NEG -> R.drawable.day_neg; Dir.FLAT -> R.drawable.day_flat }
+private fun dotImg(d: Dir) = when (d) { Dir.POS -> R.drawable.dot_pos; Dir.NEG -> R.drawable.dot_neg; Dir.FLAT -> R.drawable.dot_flat }
+
+@Composable
+private fun Dot(d: Dir) { Image(ImageProvider(dotImg(d)), contentDescription = null, modifier = GlanceModifier.size(6.dp)) }
 
 /** הרקע של Invest (‎--gl-ambient: ירוק, טורקיז וסגול) — תמונה מוכנה בבהיר ובכהה, נמתחת לגודל הווידג'ט */
+/** שולי הצל בתמונות הזכוכית (dp) — זהים ל־tools/widget-glass.js */
+private object G { const val CARD_T = 1; const val CARD_S = 3; const val CARD_B = 6; const val S = 2; const val T = 1; const val B3 = 3; const val B4 = 4 }
+
 private val BG = GlanceModifier.fillMaxSize().background(ImageProvider(R.drawable.widget_bg), ContentScale.FillBounds).cornerRadius(28.dp)
 
 private fun stockIntent(context: Context, sym: String, extra: String = ""): Intent =
@@ -169,6 +178,9 @@ private class Dirn(context: Context, lang: String) {
 private typealias Part = @Composable RowScope.() -> Unit
 
 @Composable
+private fun narrow() = LocalSize.current.width < 340.dp
+
+@Composable
 private fun DRow(d: Dirn, modifier: GlanceModifier = GlanceModifier, parts: List<Part>) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) { d.order(parts).forEach { it() } }
 }
@@ -194,9 +206,9 @@ private fun Content(context: Context, model: WidgetModel?, logos: Map<String, Bi
                 }
             } else {
                 // בלי פס גלילה: הסגנון Glance.AppWidget.List נדרס ב־res/values/styles.xml
-                LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight().padding(start = 10.dp, end = 10.dp)) {
+                LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight().padding(start = 7.dp, end = 7.dp)) {
                     items(model.rows, itemId = { it.sym.hashCode().toLong() }) { row ->
-                        Column(GlanceModifier.fillMaxWidth().padding(bottom = 6.dp)) { Card(context, lc, d, row, logos[row.sym]) }
+                        Column(GlanceModifier.fillMaxWidth()) { Card(context, lc, d, row, logos[row.sym]) }
                     }
                 }
             }
@@ -207,7 +219,7 @@ private fun Content(context: Context, model: WidgetModel?, logos: Map<String, Bi
         Box(GlanceModifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.TopCenter) {
             Image(
                 ImageProvider(R.drawable.widget_logo), contentDescription = lc.getString(R.string.app_name),
-                modifier = GlanceModifier.size(98.dp).clickable(actionStartActivity(tabIntent(context, "stocks"))),
+                modifier = GlanceModifier.size(if (narrow()) 84.dp else 98.dp).clickable(actionStartActivity(tabIntent(context, "stocks"))),
             )
         }
     }
@@ -229,7 +241,8 @@ private fun Header(lc: Context, d: Dirn, fx: Fx?, updated: Long, logo: (@Composa
             {
                 // עיגול זכוכית, הסמל בצבע הטקסט — כמו כפתורי ההדר ב־Invest
                 Box(
-                    GlanceModifier.size(36.dp).background(ImageProvider(R.drawable.glass_circle)).clickable(actionRunCallback<RefreshAction>()),
+                    GlanceModifier.width((36 + 2 * G.S).dp).height((36 + G.T + G.B3).dp).background(ImageProvider(R.drawable.glass_circle))
+                        .padding(top = G.T.dp, bottom = G.B3.dp).clickable(actionRunCallback<RefreshAction>()),
                     contentAlignment = Alignment.Center,
                 ) {
                     Image(ImageProvider(R.drawable.ic_widget_refresh), contentDescription = lc.getString(R.string.wRefresh),
@@ -237,7 +250,7 @@ private fun Header(lc: Context, d: Dirn, fx: Fx?, updated: Long, logo: (@Composa
                 }
             },
             { Spacer(GlanceModifier.width(8.dp)) },
-            { Text(lc.getString(R.string.wUpdated, time), style = TextStyle(color = C.variant, fontSize = 12.sp), maxLines = 1) },
+            { Text(if (narrow()) time else lc.getString(R.string.wUpdated, time), style = TextStyle(color = C.variant, fontSize = 12.sp), maxLines = 1) },
             { Spacer(GlanceModifier.defaultWeight()) },
             { if (logo != null) logo() },
             { if (logo != null) Spacer(GlanceModifier.defaultWeight()) },
@@ -248,13 +261,14 @@ private fun Header(lc: Context, d: Dirn, fx: Fx?, updated: Long, logo: (@Composa
 
 @Composable
 private fun FxPill(lc: Context, d: Dirn, fx: Fx) {
-    val dot = if (!fx.open) C.dot else when (fx.dir) { Dir.POS -> C.pos; Dir.NEG -> C.neg; Dir.FLAT -> C.dot }
+    val dot = if (!fx.open) Dir.FLAT else fx.dir
     // 20/11/2026: קפסולת זכוכית בשורה אחת "● דולר ₪3.33" — כמו ‎.fx-pill בהדר של Invest
     // "₪3.33" — הסימן קטן מהמספר, תמיד משמאל: Row מסדר לפי כיוון הטלפון, אז הופכים ב־RTL
     val cur: Part = { Text("₪", style = TextStyle(color = C.on, fontSize = 12.sp, fontWeight = FontWeight.Medium), maxLines = 1) }
-    val num: Part = { Text(fx.value, style = TextStyle(color = C.on, fontSize = 15.sp, fontWeight = FontWeight.Medium), maxLines = 1) }
-    DRow(d, GlanceModifier.height(34.dp).background(ImageProvider(R.drawable.glass_pill)).padding(start = 12.dp, end = 12.dp), listOf(
-        { Box(GlanceModifier.size(6.dp).cornerRadius(3.dp).background(dot)) {} },
+    val num: Part = { Text(fx.value, style = TextStyle(color = C.on, fontSize = 15.sp, fontWeight = FontWeight.Bold), maxLines = 1) }
+    DRow(d, GlanceModifier.height((34 + G.T + G.B3).dp).background(ImageProvider(R.drawable.glass_pill))
+        .padding(start = (12 + G.S).dp, end = (12 + G.S).dp, top = G.T.dp, bottom = G.B3.dp), listOf(
+        { Dot(dot) },
         { Spacer(GlanceModifier.width(5.dp)) },
         { Text(lc.getString(R.string.wFxShort), style = TextStyle(color = C.variant, fontSize = 12.5.sp, fontWeight = FontWeight.Medium), maxLines = 1) },
         { Spacer(GlanceModifier.width(5.dp)) },
@@ -268,17 +282,20 @@ private fun FxPill(lc: Context, d: Dirn, fx: Fx) {
 private fun Card(context: Context, lc: Context, d: Dirn, r: WidgetRow, logo: Bitmap?, extra: String = "") {
     DRow(
         d,
-        GlanceModifier.fillMaxWidth().height(74.dp).background(ImageProvider(R.drawable.glass_card))
-            .padding(start = 11.dp, end = 11.dp).clickable(actionStartActivity(stockIntent(context, r.sym, extra))),
+        GlanceModifier.fillMaxWidth().height((74 + G.CARD_T + G.CARD_B).dp).background(ImageProvider(R.drawable.glass_card))
+            .padding(start = (11 + G.CARD_S).dp, end = (11 + G.CARD_S).dp, top = G.CARD_T.dp, bottom = G.CARD_B.dp).clickable(actionStartActivity(stockIntent(context, r.sym, extra))),
         listOf(
             {
                 // לוגו עגול (‎.stock-logo) — דיסק לבן; התמונה בתוך העיגול (ת"א — מלאה, נחתכת לעיגול באנדרואיד 12+)
-                Box(GlanceModifier.size(40.dp).cornerRadius(20.dp).background(ImageProvider(R.drawable.logo_disc)), contentAlignment = Alignment.Center) {
-                    if (logo != null) Image(ImageProvider(logo), contentDescription = null, modifier = GlanceModifier.size(if (r.sym.endsWith(".TA")) 40.dp else 27.dp), contentScale = ContentScale.Fit)
-                    else Text(r.disp.take(1), style = TextStyle(color = C.letter, fontSize = 17.sp, fontWeight = FontWeight.Bold))
+                Box(GlanceModifier.width((40 + 2 * G.S).dp).height((40 + G.T + G.B4).dp).background(ImageProvider(R.drawable.logo_disc))
+                    .padding(start = G.S.dp, end = G.S.dp, top = G.T.dp, bottom = G.B4.dp), contentAlignment = Alignment.Center) {
+                    Box(GlanceModifier.size(40.dp).cornerRadius(20.dp), contentAlignment = Alignment.Center) {
+                        if (logo != null) Image(ImageProvider(logo), contentDescription = null, modifier = GlanceModifier.size(if (r.sym.endsWith(".TA")) 40.dp else 27.dp), contentScale = ContentScale.Fit)
+                        else Text(r.disp.take(1), style = TextStyle(color = C.letter, fontSize = 17.sp, fontWeight = FontWeight.Bold))
+                    }
                 }
             },
-            { Spacer(GlanceModifier.width(10.dp)) },
+            { Spacer(GlanceModifier.width(8.dp)) },
             {
                 Column(GlanceModifier.defaultWeight(), horizontalAlignment = d.s) {
                     DRow(d, GlanceModifier.fillMaxWidth(), listOf(
@@ -299,10 +316,10 @@ private fun Card(context: Context, lc: Context, d: Dirn, r: WidgetRow, logo: Bit
             { Spacer(GlanceModifier.width(8.dp)) },
             {
                 Column(horizontalAlignment = d.e) {
-                    Text(ltr(r.price), style = TextStyle(color = C.on, fontSize = 20.sp, fontWeight = FontWeight.Medium), maxLines = 1)
+                    Text(ltr(r.price), style = TextStyle(color = C.on, fontSize = 20.sp, fontWeight = FontWeight.Bold), maxLines = 1)
                     Spacer(GlanceModifier.height(4.dp))
-                    if (r.chg.isNotEmpty()) Box(GlanceModifier.cornerRadius(8.dp).background(chipBg(r.dir)).padding(start = 8.dp, end = 8.dp, top = 2.dp, bottom = 2.dp)) {
-                        Text(ltr(dayChip(r.chg)), style = TextStyle(color = dirColor(r.dir), fontSize = 12.sp, fontWeight = FontWeight.Medium), maxLines = 1)
+                    if (r.chg.isNotEmpty()) Box(GlanceModifier.background(ImageProvider(dayBg(r.dir))).padding(start = 8.dp, end = 8.dp, top = 2.dp, bottom = 2.dp)) {
+                        Text(ltr(dayChip(r.chg)), style = TextStyle(color = dirColor(r.dir), fontSize = 12.sp, fontWeight = FontWeight.Bold), maxLines = 1)
                     }
                 }
             },
@@ -321,16 +338,21 @@ internal fun dayChip(chg: String): String {
 @Composable
 private fun SessionBubble(d: Dirn, b: Bubble) {
     val parts = mutableListOf<Part>()
-    if (b.closed) {
-        if (b.l2.isNotEmpty()) parts += { Text(b.l2, style = TextStyle(color = C.variant, fontSize = 11.sp, fontWeight = FontWeight.Medium), maxLines = 1) }
+    if (narrow()) {
+        // צר: רק נקודה ואחוז — בלי שם המסחר שנחתך ל"מסחר…"
+        parts += { Dot(b.dir) }
+        if (b.pct.isNotEmpty()) parts += { Spacer(GlanceModifier.width(5.dp)) }
+        if (b.pct.isNotEmpty()) parts += { Text(ltr(b.pct), style = TextStyle(color = softColor(b.dir), fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1) }
+    } else if (b.closed) {
+        if (b.l2.isNotEmpty()) parts += { Text(b.l2, style = TextStyle(color = C.variant, fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1) }
         if (b.l2.isNotEmpty() && b.pct.isNotEmpty()) parts += { Spacer(GlanceModifier.width(5.dp)) }
-        if (b.pct.isNotEmpty()) parts += { Text(ltr(b.pct), style = TextStyle(color = softColor(b.dir), fontSize = 11.sp, fontWeight = FontWeight.Medium), maxLines = 1) }
+        if (b.pct.isNotEmpty()) parts += { Text(ltr(b.pct), style = TextStyle(color = softColor(b.dir), fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1) }
     } else {
-        parts += { Box(GlanceModifier.size(6.dp).cornerRadius(3.dp).background(softColor(b.dir))) {} }
+        parts += { Dot(b.dir) }
         parts += { Spacer(GlanceModifier.width(5.dp)) }
-        parts += { Text(b.l1, style = TextStyle(color = softColor(b.dir), fontSize = 11.sp, fontWeight = FontWeight.Medium), maxLines = 1) }
+        parts += { Text(b.l1, style = TextStyle(color = softColor(b.dir), fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1) }
         parts += { Spacer(GlanceModifier.width(5.dp)) }
-        parts += { Text(ltr(b.pct), style = TextStyle(color = softColor(b.dir), fontSize = 11.sp, fontWeight = FontWeight.Medium), maxLines = 1) }
+        parts += { Text(ltr(b.pct), style = TextStyle(color = softColor(b.dir), fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1) }
     }
     DRow(d, GlanceModifier.background(ImageProvider(R.drawable.glass_fill)).padding(start = 9.dp, end = 9.dp, top = 2.dp, bottom = 3.dp), parts)
 }
@@ -340,6 +362,7 @@ private fun SessionBubble(d: Dirn, b: Bubble) {
    כמו בטאב המעקב באפליקציה. נגיעה בטאב מחליפה את הרשימה בווידג'ט הזה בלבד (כל ווידג'ט זוכר את שלו) —
    אפשר לשים כמה ווידג'טים, כל אחד על רשימה אחרת. יותר מ־3 רשימות: חלון של 3 טאבים + חצים. */
 class SnowballWatchWidget : GlanceAppWidget() {
+    override val sizeMode: SizeMode = SizeMode.Exact
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
             val st = currentState<Preferences>()
@@ -414,9 +437,9 @@ private fun WatchContent(context: Context, lists: List<WatchList>, sel: WatchLis
                 // v251: מזהה השורה כולל את הרשימה — עם מזהה לפי הסימבול בלבד מסך הבית שמר שורות (ואת הקישור שלהן, עם ‎wl= של
                 // הרשימה הקודמת) בין טאבים: הרשימה נראתה "תקועה", ונגיעה במניה פתחה את הרשימה הקודמת
                 val listKey = sel?.id ?: ""
-                LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight().padding(start = 10.dp, end = 10.dp)) {
+                LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight().padding(start = 7.dp, end = 7.dp)) {
                     items(model.rows, itemId = { (listKey + "|" + it.sym).hashCode().toLong() }) { row ->
-                        Column(GlanceModifier.fillMaxWidth().padding(bottom = 6.dp)) { Card(context, lc, d, row, logos[row.sym], "&tab=wishlist&wl=" + Uri.encode(listKey)) }
+                        Column(GlanceModifier.fillMaxWidth()) { Card(context, lc, d, row, logos[row.sym], "&tab=wishlist&wl=" + Uri.encode(listKey)) }
                     }
                 }
             }
@@ -436,34 +459,34 @@ private fun WatchTabs(d: Dirn, lang: String, lists: List<WatchList>, sel: WatchL
     val parts = mutableListOf<Part>()
     if (start > 0) parts += { TabArrow(if (rtl) "›" else "‹", lists[start - 1].id) }
     win.forEachIndexed { k, l ->
-        if (k > 0 || start > 0) parts += { Spacer(GlanceModifier.width(8.dp)) }
+        if (k > 0 || start > 0) parts += { Spacer(GlanceModifier.width(4.dp)) } // + שולי הצל של התמונות (2+2) = 8dp בעין
         parts += { TabChip(l, l.id == (sel?.id ?: lists.first().id)) }
     }
     if (start + max < lists.size) {
-        parts += { Spacer(GlanceModifier.width(8.dp)) }
+        parts += { Spacer(GlanceModifier.width(4.dp)) }
         parts += { TabArrow(if (rtl) "‹" else "›", lists[start + max].id) }
     }
-    DRow(d, GlanceModifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 0.dp, bottom = 8.dp), parts)
+    DRow(d, GlanceModifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = 0.dp, bottom = 4.dp), parts)
 }
 
 @Composable
 private fun RowScope.TabChip(l: WatchList, on: Boolean) {
     Box(
         // 30/09/2026 (בקשת המשתמש): טאבים גדולים ונוחים ללחיצה — 44dp (היה 32), טקסט 15 (היה 13)
-        GlanceModifier.defaultWeight().height(44.dp).background(ImageProvider(if (on) R.drawable.glass_tab_on else R.drawable.glass_pill))
-            .clickable(actionRunCallback<SelectListAction>(actionParametersOf(LIST_PARAM to l.id))),
+        GlanceModifier.defaultWeight().height((44 + G.T + G.B4).dp).background(ImageProvider(if (on) R.drawable.glass_tab_on else R.drawable.glass_tab))
+            .padding(top = G.T.dp, bottom = G.B4.dp).clickable(actionRunCallback<SelectListAction>(actionParametersOf(LIST_PARAM to l.id))),
         contentAlignment = Alignment.Center,
     ) {
         Text(l.name, modifier = GlanceModifier.padding(start = 8.dp, end = 8.dp),
-            style = TextStyle(color = if (on) C.onPrimary else C.on, fontSize = 15.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium, textAlign = TextAlign.Center), maxLines = 1)
+            style = TextStyle(color = if (on) C.onPrimary else C.on, fontSize = 15.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center), maxLines = 1)
     }
 }
 
 @Composable
 private fun TabArrow(glyph: String, target: String) {
     Box(
-        GlanceModifier.size(44.dp).background(ImageProvider(R.drawable.glass_circle))
-            .clickable(actionRunCallback<SelectListAction>(actionParametersOf(LIST_PARAM to target))),
+        GlanceModifier.width((44 + 2 * G.S).dp).height((44 + G.T + G.B4).dp).background(ImageProvider(R.drawable.glass_arrow))
+            .padding(top = G.T.dp, bottom = G.B4.dp).clickable(actionRunCallback<SelectListAction>(actionParametersOf(LIST_PARAM to target))),
         contentAlignment = Alignment.Center,
     ) {
         Text(glyph, style = TextStyle(color = C.on, fontSize = 22.sp, fontWeight = FontWeight.Bold), maxLines = 1)
