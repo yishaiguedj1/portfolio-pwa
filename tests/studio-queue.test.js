@@ -155,4 +155,5 @@ ok(/else if \(ryMode\(\)\) Object\.assign\(spec, \{ eng: 'api', cap: store\.sett
   ok(/videoJobs\(pids\)/.test(ac) && !/for \(pid in pids\) videoJob\(pid\)/.test(ac) && /PhStore\.lostVideos\(this\)/.test(ac) && /fun lostVideos/.test(ps), 'goQ: תזמון אחד לכל הרשימה; סרטונים שנתקעו — חוזרים למשימה');
   ok(/const qrd = o\.qu && ph === 'ready' && !rec\.up\.wait;/.test(st) && /qup \|\| qrd \|\| \(\(o\.act \|\| o\.qu\) && ph === 'queued'\) \? \['amber', T\('studioBQueued'\)\]/.test(st), 'עמוד התור: עבודה שמחכה — "בתור", לא "מוכן"');
 }
+ok(/const btQb = \(f\) => btOk\(f\) \|\| !!\(ui\.api && ui\.api\.admin && apiMode\(\) && !f\.ka && !f\.vi && qbN\(f\)/.test(st) && /if \(btQb\(f\)\) p\.append\(secT\(T\('studioSecWhen'\)\)/.test(st), 'בתור עם כמה קבצים/תיקייה — חצי מחיר עדיין זמין (רק למנהל)');
 console.log('# ' + n + ' בדיקות');
