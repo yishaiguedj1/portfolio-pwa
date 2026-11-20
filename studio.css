@@ -282,6 +282,7 @@ a.st-row { color: inherit; text-decoration: none; -webkit-tap-highlight-color: t
 .st-foot { position: sticky; bottom: 0; z-index: 4; margin-top: 22px; padding: 12px 0 calc(8px + env(safe-area-inset-bottom));
   background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 0%, transparent), var(--bg) 22px); }
 .st-foot-n { margin: 8px 24px 0; text-align: center; color: var(--on-surface-var); font-size: 12.5px; line-height: 1.45; }
+.st-foot > .st-btn + .st-btn { margin-top: 8px; }   /* 20/11/2026: "להוסיף לתור" מתחת ל"להתחיל" */
 
 /* מראה הכתוביות — דוגמה על "סצנה" כהה */
 .st-styles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));   /* 26/10/2026: בלי קריוקי */ gap: 8px; margin: 0 16px; }
