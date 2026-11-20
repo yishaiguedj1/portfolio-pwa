@@ -80,10 +80,27 @@ class WidgetShotTest {
             host.measure(View.MeasureSpec.makeMeasureSpec(wPx, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(hPx, View.MeasureSpec.EXACTLY))
             host.layout(0, 0, wPx, hPx)
         }
+        // Robolectric לא ממלא את הרשימה (adapter=null). הפריטים עצמם נמצאים ב־RemoteViews (RemoteCollectionItems) — שולפים אותם,
+        // מציירים כל שורה באותו מנוע, ומניחים אותן בטור במקום הרשימה (באותו מקום ובאותו גודל)
+        val items = mutableListOf<android.widget.RemoteViews.RemoteCollectionItems>()
+        collect(rv, items, java.util.IdentityHashMap())
         val lists = mutableListOf<android.widget.AbsListView>()
         fun find(x: View) { if (x is android.widget.AbsListView) lists += x; if (x is android.view.ViewGroup) for (i in 0 until x.childCount) find(x.getChildAt(i)) }
         find(host)
-        println("WidgetShot $name: רשימות=${lists.size} פריטים=${lists.map { it.adapter?.count }} ילדים=${lists.map { it.childCount }}")
+        println("WidgetShot $name: רשימות=${lists.size} אוספים=${items.size} פריטים=${items.map { it.itemCount }}")
+        val lv = lists.firstOrNull(); val col = items.firstOrNull()
+        if (lv != null && col != null) {
+            val parent = lv.parent as android.view.ViewGroup
+            val idx = parent.indexOfChild(lv)
+            val box = android.widget.LinearLayout(c).apply { orientation = android.widget.LinearLayout.VERTICAL; setPadding(lv.paddingLeft, lv.paddingTop, lv.paddingRight, lv.paddingBottom) }
+            for (i in 0 until col.itemCount) box.addView(col.getItemView(i).apply(c, box))
+            val clip = FrameLayout(c).apply { clipChildren = true; addView(box, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT)) }
+            parent.removeViewAt(idx); parent.addView(clip, idx, lv.layoutParams)
+            repeat(2) {
+                host.measure(View.MeasureSpec.makeMeasureSpec(wPx, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(hPx, View.MeasureSpec.EXACTLY))
+                host.layout(0, 0, wPx, hPx)
+            }
+        }
         val pad = (16 * d).toInt()
         val bmp = Bitmap.createBitmap(wPx + 2 * pad, hPx + 2 * pad, Bitmap.Config.ARGB_8888)
         val cv = Canvas(bmp)
@@ -92,6 +109,28 @@ class WidgetShotTest {
         host.draw(cv)
         File(out).mkdirs()
         File(out, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
+
+    /** חיפוש RemoteCollectionItems בעומק ה־RemoteViews (פעולות, תצוגות מקוננות, גדלים) — רפלקציה על מחלקות המסגרת */
+    private fun collect(o: Any?, out: MutableList<android.widget.RemoteViews.RemoteCollectionItems>, seen: java.util.IdentityHashMap<Any, Boolean>) {
+        if (o == null || seen.containsKey(o)) return
+        seen[o] = true
+        when (o) {
+            is android.widget.RemoteViews.RemoteCollectionItems -> { out += o; return }
+            is Collection<*> -> { o.forEach { collect(it, out, seen) }; return }
+            is Map<*, *> -> { o.values.forEach { collect(it, out, seen) }; return }
+            is Array<*> -> { o.forEach { collect(it, out, seen) }; return }
+            is android.util.SparseArray<*> -> { for (i in 0 until o.size()) collect(o.valueAt(i), out, seen); return }
+        }
+        if (!o.javaClass.name.startsWith("android.widget.RemoteViews")) return
+        var k: Class<*>? = o.javaClass
+        while (k != null && k != Any::class.java) {
+            for (fld in k.declaredFields) {
+                if (java.lang.reflect.Modifier.isStatic(fld.modifiers) || fld.type.isPrimitive) continue
+                runCatching { fld.isAccessible = true; collect(fld.get(o), out, seen) }
+            }
+            k = k.superclass
+        }
     }
 
     @Test

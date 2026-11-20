@@ -27,7 +27,15 @@ const A = [
   ['glass_circle', 36, 36, 18, { t: 1, s: 2, b: 3 }, 'glass', [2, 5, -2]],
   ['glass_arrow', 44, 44, 22, { t: 1, s: 2, b: 4 }, 'glass', [2, 6, -3]],
   ['logo_disc', 40, 40, 20, { t: 1, s: 2, b: 4 }, 'disc', null],
+  // גלולת השינוי היומי (‎--gain 16% / ‎--loss 14% / אפור) ונקודות המצב — תמונות, לא cornerRadius (שלא נחתך בכל מכשיר)
+  ['day_pos', 60, 20, 8, { t: 0, s: 0, b: 0 }, 'day:pos', null],
+  ['day_neg', 60, 20, 8, { t: 0, s: 0, b: 0 }, 'day:neg', null],
+  ['day_flat', 60, 20, 8, { t: 0, s: 0, b: 0 }, 'day:flat', null],
+  ['dot_pos', 6, 6, 3, { t: 0, s: 0, b: 0 }, 'dot:pos', null],
+  ['dot_neg', 6, 6, 3, { t: 0, s: 0, b: 0 }, 'dot:neg', null],
+  ['dot_flat', 6, 6, 3, { t: 0, s: 0, b: 0 }, 'dot:flat', null],
 ];
+const COL = { lt: { pos: '#16A34A', neg: '#DC2626', flat: '#8E9490' }, dk: { pos: '#34C759', neg: '#FF453A', flat: '#8E9490' } };
 (async () => {
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
   const p = await b.newPage({ deviceScaleFactor: 3, viewport: { width: 400, height: 300 } });
@@ -38,6 +46,10 @@ const A = [
     if (kind === 'glass') { bg = t.body; bs = t.rim + ',' + t.sh(...sh); }
     else if (kind === 'on') { bg = TAB_ON.body; bs = TAB_ON.rim; }
     else if (kind === 'fill') { bg = t.fill; bs = t.fillrim; }
+    else if (kind.startsWith('day:')) { const k = kind.slice(4), c = COL[th][k];
+      bg = k === 'flat' ? (th === 'lt' ? 'rgba(0,0,0,.07)' : 'rgba(255,255,255,.07)') : `color-mix(in srgb, ${c} ${k === 'pos' ? 16 : 14}%, transparent)`;
+      bs = 'inset 0 1px 0 rgba(255,255,255,' + (th === 'lt' ? '.35' : '.12') + ')'; }
+    else if (kind.startsWith('dot:')) { bg = COL[th][kind.slice(4)]; bs = 'none'; }
     else { bg = '#fff'; bs = 'inset 0 1px 0 #fff,0 0 0 .5px rgba(0,0,0,' + (th === 'lt' ? '.08' : '0') + '),0 3px 8px -3px rgba(0,0,0,' + (th === 'lt' ? '.25' : '.6') + ')'; }
     const W = w + 2 * m.s, H = h + m.t + m.b;
     await p.setViewportSize({ width: W, height: H });
@@ -49,7 +61,7 @@ const A = [
   execFileSync('python3', ['-c', `import os, sys
 from PIL import Image
 src, res = sys.argv[1], sys.argv[2]
-nine = {'glass_card', 'glass_pill', 'glass_tab', 'glass_tab_on', 'glass_fill'}
+nine = {'glass_card', 'glass_pill', 'glass_tab', 'glass_tab_on', 'glass_fill', 'day_pos', 'day_neg', 'day_flat'}
 for f in sorted(os.listdir(src)):
     th, n = f[:2], f[3:-4]
     d = os.path.join(res, 'drawable-xxhdpi' if th == 'lt' else 'drawable-night-xxhdpi')

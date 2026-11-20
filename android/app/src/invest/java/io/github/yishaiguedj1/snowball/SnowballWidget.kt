@@ -26,6 +26,8 @@ import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.SizeMode
+import androidx.glance.LocalSize
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity
@@ -67,6 +69,8 @@ import java.util.Locale
  * בהיר/כהה לפי מצב המערכת. נגיעה בכרטיס → האפליקציה על אותה מניה (‎#stock=SYM, openStockFromHash באתר).
  */
 class SnowballWidget : GlanceAppWidget() {
+    // הגודל האמיתי (LocalSize) — בווידג'ט צר הכותרת והבועה מתקצרות
+    override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
@@ -121,19 +125,19 @@ private object C {
     val variant = ColorProvider(Color(0xFF5D6561), Color(0xFFA3A9A6))
     val pos = ColorProvider(Color(0xFF16A34A), Color(0xFF34C759))
     val neg = ColorProvider(Color(0xFFDC2626), Color(0xFFFF453A))
-    // גלולת השינוי היומי — ‎--gain 16% / ‎--loss 14% כמו ‎.stock-sub .day-chg; אפס — אפור (‎--on-surface 7%)
-    val posBg = ColorProvider(Color(0x2934C759), Color(0x2934C759))
-    val negBg = ColorProvider(Color(0x24FF453A), Color(0x24FF453A))
-    val flatBg = ColorProvider(Color(0x12000000), Color(0x12FFFFFF))
     val letter: GColor = ColorProvider(Color(0xFF3A3A3C), Color(0xFF3A3A3C))
     val onPrimary = ColorProvider(Color(0xFF06281A), Color(0xFF06281A))
-    val dot = ColorProvider(Color(0xFF8E9490), Color(0xFF8E9490))
 }
 
 private fun ltr(s: String) = "\u2066$s\u2069"
 private fun dirColor(d: Dir) = when (d) { Dir.POS -> C.pos; Dir.NEG -> C.neg; Dir.FLAT -> C.on }
 private fun softColor(d: Dir) = when (d) { Dir.POS -> C.pos; Dir.NEG -> C.neg; Dir.FLAT -> C.variant }
-private fun chipBg(d: Dir) = when (d) { Dir.POS -> C.posBg; Dir.NEG -> C.negBg; Dir.FLAT -> C.flatBg }
+/** הגלולה והנקודה — תמונות מעוגלות (tools/widget-glass.js): cornerRadius של Glance לא נחתך בכל מכשיר */
+private fun dayBg(d: Dir) = when (d) { Dir.POS -> R.drawable.day_pos; Dir.NEG -> R.drawable.day_neg; Dir.FLAT -> R.drawable.day_flat }
+private fun dotImg(d: Dir) = when (d) { Dir.POS -> R.drawable.dot_pos; Dir.NEG -> R.drawable.dot_neg; Dir.FLAT -> R.drawable.dot_flat }
+
+@Composable
+private fun Dot(d: Dir) { Image(ImageProvider(dotImg(d)), contentDescription = null, modifier = GlanceModifier.size(6.dp)) }
 
 /** הרקע של Invest (‎--gl-ambient: ירוק, טורקיז וסגול) — תמונה מוכנה בבהיר ובכהה, נמתחת לגודל הווידג'ט */
 /** שולי הצל בתמונות הזכוכית (dp) — זהים ל־tools/widget-glass.js */
@@ -174,6 +178,9 @@ private class Dirn(context: Context, lang: String) {
 private typealias Part = @Composable RowScope.() -> Unit
 
 @Composable
+private fun narrow() = LocalSize.current.width < 340.dp
+
+@Composable
 private fun DRow(d: Dirn, modifier: GlanceModifier = GlanceModifier, parts: List<Part>) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) { d.order(parts).forEach { it() } }
 }
@@ -212,7 +219,7 @@ private fun Content(context: Context, model: WidgetModel?, logos: Map<String, Bi
         Box(GlanceModifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.TopCenter) {
             Image(
                 ImageProvider(R.drawable.widget_logo), contentDescription = lc.getString(R.string.app_name),
-                modifier = GlanceModifier.size(98.dp).clickable(actionStartActivity(tabIntent(context, "stocks"))),
+                modifier = GlanceModifier.size(if (narrow()) 84.dp else 98.dp).clickable(actionStartActivity(tabIntent(context, "stocks"))),
             )
         }
     }
@@ -243,7 +250,7 @@ private fun Header(lc: Context, d: Dirn, fx: Fx?, updated: Long, logo: (@Composa
                 }
             },
             { Spacer(GlanceModifier.width(8.dp)) },
-            { Text(lc.getString(R.string.wUpdated, time), style = TextStyle(color = C.variant, fontSize = 12.sp), maxLines = 1) },
+            { Text(if (narrow()) time else lc.getString(R.string.wUpdated, time), style = TextStyle(color = C.variant, fontSize = 12.sp), maxLines = 1) },
             { Spacer(GlanceModifier.defaultWeight()) },
             { if (logo != null) logo() },
             { if (logo != null) Spacer(GlanceModifier.defaultWeight()) },
@@ -254,14 +261,14 @@ private fun Header(lc: Context, d: Dirn, fx: Fx?, updated: Long, logo: (@Composa
 
 @Composable
 private fun FxPill(lc: Context, d: Dirn, fx: Fx) {
-    val dot = if (!fx.open) C.dot else when (fx.dir) { Dir.POS -> C.pos; Dir.NEG -> C.neg; Dir.FLAT -> C.dot }
+    val dot = if (!fx.open) Dir.FLAT else fx.dir
     // 20/11/2026: קפסולת זכוכית בשורה אחת "● דולר ₪3.33" — כמו ‎.fx-pill בהדר של Invest
     // "₪3.33" — הסימן קטן מהמספר, תמיד משמאל: Row מסדר לפי כיוון הטלפון, אז הופכים ב־RTL
     val cur: Part = { Text("₪", style = TextStyle(color = C.on, fontSize = 12.sp, fontWeight = FontWeight.Medium), maxLines = 1) }
     val num: Part = { Text(fx.value, style = TextStyle(color = C.on, fontSize = 15.sp, fontWeight = FontWeight.Bold), maxLines = 1) }
     DRow(d, GlanceModifier.height((34 + G.T + G.B3).dp).background(ImageProvider(R.drawable.glass_pill))
         .padding(start = (12 + G.S).dp, end = (12 + G.S).dp, top = G.T.dp, bottom = G.B3.dp), listOf(
-        { Box(GlanceModifier.size(6.dp).cornerRadius(3.dp).background(dot)) {} },
+        { Dot(dot) },
         { Spacer(GlanceModifier.width(5.dp)) },
         { Text(lc.getString(R.string.wFxShort), style = TextStyle(color = C.variant, fontSize = 12.5.sp, fontWeight = FontWeight.Medium), maxLines = 1) },
         { Spacer(GlanceModifier.width(5.dp)) },
@@ -311,7 +318,7 @@ private fun Card(context: Context, lc: Context, d: Dirn, r: WidgetRow, logo: Bit
                 Column(horizontalAlignment = d.e) {
                     Text(ltr(r.price), style = TextStyle(color = C.on, fontSize = 20.sp, fontWeight = FontWeight.Bold), maxLines = 1)
                     Spacer(GlanceModifier.height(4.dp))
-                    if (r.chg.isNotEmpty()) Box(GlanceModifier.cornerRadius(8.dp).background(chipBg(r.dir)).padding(start = 8.dp, end = 8.dp, top = 2.dp, bottom = 2.dp)) {
+                    if (r.chg.isNotEmpty()) Box(GlanceModifier.background(ImageProvider(dayBg(r.dir))).padding(start = 8.dp, end = 8.dp, top = 2.dp, bottom = 2.dp)) {
                         Text(ltr(dayChip(r.chg)), style = TextStyle(color = dirColor(r.dir), fontSize = 12.sp, fontWeight = FontWeight.Bold), maxLines = 1)
                     }
                 }
@@ -331,12 +338,17 @@ internal fun dayChip(chg: String): String {
 @Composable
 private fun SessionBubble(d: Dirn, b: Bubble) {
     val parts = mutableListOf<Part>()
-    if (b.closed) {
+    if (narrow()) {
+        // צר: רק נקודה ואחוז — בלי שם המסחר שנחתך ל"מסחר…"
+        parts += { Dot(b.dir) }
+        if (b.pct.isNotEmpty()) parts += { Spacer(GlanceModifier.width(5.dp)) }
+        if (b.pct.isNotEmpty()) parts += { Text(ltr(b.pct), style = TextStyle(color = softColor(b.dir), fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1) }
+    } else if (b.closed) {
         if (b.l2.isNotEmpty()) parts += { Text(b.l2, style = TextStyle(color = C.variant, fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1) }
         if (b.l2.isNotEmpty() && b.pct.isNotEmpty()) parts += { Spacer(GlanceModifier.width(5.dp)) }
         if (b.pct.isNotEmpty()) parts += { Text(ltr(b.pct), style = TextStyle(color = softColor(b.dir), fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1) }
     } else {
-        parts += { Box(GlanceModifier.size(6.dp).cornerRadius(3.dp).background(softColor(b.dir))) {} }
+        parts += { Dot(b.dir) }
         parts += { Spacer(GlanceModifier.width(5.dp)) }
         parts += { Text(b.l1, style = TextStyle(color = softColor(b.dir), fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1) }
         parts += { Spacer(GlanceModifier.width(5.dp)) }
@@ -350,6 +362,7 @@ private fun SessionBubble(d: Dirn, b: Bubble) {
    כמו בטאב המעקב באפליקציה. נגיעה בטאב מחליפה את הרשימה בווידג'ט הזה בלבד (כל ווידג'ט זוכר את שלו) —
    אפשר לשים כמה ווידג'טים, כל אחד על רשימה אחרת. יותר מ־3 רשימות: חלון של 3 טאבים + חצים. */
 class SnowballWatchWidget : GlanceAppWidget() {
+    override val sizeMode: SizeMode = SizeMode.Exact
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
             val st = currentState<Preferences>()
