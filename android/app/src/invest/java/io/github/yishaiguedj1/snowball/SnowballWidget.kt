@@ -47,6 +47,7 @@ import androidx.glance.layout.Row
 import androidx.glance.layout.RowScope
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
+import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
@@ -141,6 +142,13 @@ private fun Dot(d: Dir) { Image(ImageProvider(dotImg(d)), contentDescription = n
 
 /** הרקע של Invest (‎--gl-ambient: ירוק, טורקיז וסגול) — תמונה מוכנה בבהיר ובכהה, נמתחת לגודל הווידג'ט */
 /** שולי הצל בתמונות הזכוכית (dp) — זהים ל־tools/widget-glass.js */
+/** הכרטיס העליון בתיק — שקע ללוגו (tools/widget-glass.js, NOTCH): L גודל הלוגו, p הריפוד מעליו, d עומק השקע */
+private data class NotchG(val L: Int, val p: Int, val d: Int, val res: Int)
+/** ראש עמודת השם בכרטיס עם השקע — כך שהאותיות יוצאות בדיוק במקום של הכרטיסים האחרים (נמדד ב־widget-shots) */
+private const val NAME_TOP = 13
+/** השקע שנבחר (20/11/2026, אפשרות ב): לוגו 84dp, ריפוד 2dp מעליו, השקע בעומק 18dp — 2dp מעל אותיות השם */
+private val NOTCH = NotchG(84, 2, 18, R.drawable.glass_card_notch)
+
 private object G { const val CARD_T = 1; const val CARD_S = 3; const val CARD_B = 6; const val S = 2; const val T = 1; const val B3 = 3; const val B4 = 4 }
 
 private val BG = GlanceModifier.fillMaxSize().background(ImageProvider(R.drawable.widget_bg), ContentScale.FillBounds).cornerRadius(28.dp)
@@ -190,6 +198,7 @@ private fun Content(context: Context, model: WidgetModel?, logos: Map<String, Bi
     val lang = WidgetStore.lang(context)
     val lc = localized(context, lang)
     val d = Dirn(context, lang)
+    val ng = NOTCH
     Box(BG) {
         Column(GlanceModifier.fillMaxSize()) {
             Header(lc, d, model?.fx, updated)
@@ -208,7 +217,7 @@ private fun Content(context: Context, model: WidgetModel?, logos: Map<String, Bi
                 // בלי פס גלילה: הסגנון Glance.AppWidget.List נדרס ב־res/values/styles.xml
                 LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight().padding(start = 7.dp, end = 7.dp)) {
                     items(model.rows, itemId = { it.sym.hashCode().toLong() }) { row ->
-                        Column(GlanceModifier.fillMaxWidth()) { Card(context, lc, d, row, logos[row.sym]) }
+                        Column(GlanceModifier.fillMaxWidth()) { Card(context, lc, d, row, logos[row.sym], notch = if (row === model.rows.first()) ng else null) }
                     }
                 }
             }
@@ -216,10 +225,10 @@ private fun Content(context: Context, model: WidgetModel?, logos: Map<String, Bi
         /* הלוגו (98dp מ־30/09/2026, היה 84dp — בקשת המשתמש) — בשכבה מעל הרשימה, עולה ~28dp על הכרטיס הראשון (הכותרת לא גדלה).
            נגיעה בכל הלוגו — גם בחלק שמעל הכרטיס — פותחת את האפליקציה (בקשת המשתמש). רק ריבוע הלוגו לוחץ;
            מחוץ לו הנגיעה עוברת לכרטיס. גלילה שמתחילה על הלוגו לא גוללת (הוא תופס את המגע). */
-        Box(GlanceModifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.TopCenter) {
+        Box(GlanceModifier.fillMaxWidth().padding(top = ng.p.dp), contentAlignment = Alignment.TopCenter) {
             Image(
                 ImageProvider(R.drawable.widget_logo), contentDescription = lc.getString(R.string.app_name),
-                modifier = GlanceModifier.size(if (narrow()) 84.dp else 98.dp).clickable(actionStartActivity(tabIntent(context, "stocks"))),
+                modifier = GlanceModifier.size(ng.L.dp).clickable(actionStartActivity(tabIntent(context, "stocks"))),
             )
         }
     }
@@ -279,10 +288,10 @@ private fun FxPill(lc: Context, d: Dirn, fx: Fx) {
 /** 20/11/2026 (בקשת המשתמש, תצוגה מקדימה "קומפקטי" אושרה): כרטיס זכוכית כמו כרטיס המניה ב־Invest — לוגו עגול; סימבול + תגית + שם,
  *  מתחת בועת המסחר המורחב; מחיר, מתחת גלולת השינוי היומי באותו סדר כמו באפליקציה ("−$3.12 −1.35%"). אותו גובה (74dp). */
 @Composable
-private fun Card(context: Context, lc: Context, d: Dirn, r: WidgetRow, logo: Bitmap?, extra: String = "") {
+private fun Card(context: Context, lc: Context, d: Dirn, r: WidgetRow, logo: Bitmap?, extra: String = "", notch: NotchG? = null) {
     DRow(
         d,
-        GlanceModifier.fillMaxWidth().height((74 + G.CARD_T + G.CARD_B).dp).background(ImageProvider(R.drawable.glass_card))
+        GlanceModifier.fillMaxWidth().height((74 + G.CARD_T + G.CARD_B).dp).background(ImageProvider(notch?.res ?: R.drawable.glass_card))
             .padding(start = (11 + G.CARD_S).dp, end = (11 + G.CARD_S).dp, top = G.CARD_T.dp, bottom = G.CARD_B.dp).clickable(actionStartActivity(stockIntent(context, r.sym, extra))),
         listOf(
             {
@@ -297,7 +306,10 @@ private fun Card(context: Context, lc: Context, d: Dirn, r: WidgetRow, logo: Bit
             },
             { Spacer(GlanceModifier.width(8.dp)) },
             {
-                Column(GlanceModifier.defaultWeight(), horizontalAlignment = d.s) {
+                // בכרטיס עם השקע: השם באותו מקום כמו בשאר הכרטיסים (השקע נעצר 2dp מעל האותיות), אבל מקובע למעלה —
+                // בגופן מוגדל העמודה גדלה רק כלפי מטה ולא עולה על השקע
+                Column(if (notch == null) GlanceModifier.defaultWeight() else GlanceModifier.defaultWeight().fillMaxHeight().padding(top = NAME_TOP.dp),
+                    horizontalAlignment = d.s, verticalAlignment = if (notch == null) Alignment.CenterVertically else Alignment.Top) {
                     DRow(d, GlanceModifier.fillMaxWidth(), listOf(
                         // 20/11/2026 (בקשת המשתמש): בלי תגית המקור — יותר מקום לשם המלא של החברה
                         { Text(ltr(r.disp), style = TextStyle(color = C.on, fontSize = 16.5.sp, fontWeight = FontWeight.Bold), maxLines = 1) },
