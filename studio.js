@@ -2881,6 +2881,7 @@ function fnlAdd(k, grp) {
 }
 /* האומדן לפני ההתחלה — צעד 'est'; "לא" = 'quit', ובטופס עולה שאלה אחת בנגיעה: למה (f.why, whyCard) */
 function estAsk(est, f) {
+  if (f && f.qgo) return Promise.resolve(true);   // 20/11/2026: התחלה של התור — האומדן אושר בחלון של כל הרשימה
   fnlAdd('est');
   return new Promise((ok) => askConfirm(cpMode() ? T('studioEstCp') : estText(est, apiMode()), () => ok(true),
     { ok: T('studioEstGo'), onNo: () => { fnlAdd('quit'); if (f && !f.whyDone) f.why = 1; ok(false); } }));
@@ -3520,6 +3521,7 @@ function quStamp(f, spec) {
 /* אחרי ההתחלה: עבודה רגילה — לדף העבודה; מהתור — לעמוד התור ("חזור" משם — למנהל העבודות) */
 function jobOpen(f, rec) {
   if (!(f && f.qd && f.qu)) { replaceView('job', rec.id); return; }
+  if (f.qgo) { paintSoon(); return; }   // בהתחלה של כל הרשימה — נשארים איפה שהמשתמש נמצא
   if (qf && qf.qu !== f.qu) qf = null;
   replaceView('qnew', f.qu);
   if (CW_OK && stack.length === 2 && stRoot() !== 'act') { stack.splice(1, 0, { v: 'act', p: null }); syncState(); }
@@ -3536,7 +3538,7 @@ function footStart(f, main, n, no) {
 /* "להוסיף לתור" מטופס רגיל: לאיזה תור — תור פעיל או תור חדש (אין תור פעיל — ישר לתור חדש). אחר כך — אותה התחלה, ובסוף עמוד התור */
 function quPickFor(f, at) {
   const take = (qu, qn) => { Object.assign(f, { qd: 1, qx: 1, qu, qn: qn || '' }); qf = { qu, qn: qn || '' }; startFromForm(); };
-  const gs = quGroups(store.jobs);
+  const gs = quGroups(store.jobs).concat([...quDr.keys()].filter((qu) => quDrOf(qu).length && !quGroups(store.jobs).some((g) => g.qu === qu)).map((qu) => ({ qu, qn: quDrOf(qu)[0].f.qn || '' })));
   if (!gs.length) { take(wlNew(), ''); return; }
   lbMenu(at, T('studioQuPickT'), [...gs.slice(0, 8).map((g) => ({ k: 'q-' + g.qu, icon: 'film', label: g.qn || T('studioQuT'), fn: () => take(g.qu, g.qn) })),
     { k: 'q-new', icon: 'plus', label: T('studioQuNew'), fn: () => take(wlNew(), '') }]);
@@ -3549,6 +3551,89 @@ function quUp(f, id, run) {
   const pr = quChain.then(() => { if (!quPend.delete(id)) return null; paintSoon(); return run(); })   // בוטלה בזמן ההמתנה — בלי העלאה.catch(() => {});
   quChain = pr;
   return pr;
+}
+/* 20/11/2026 (בקשת המשתמש — הקלטת מסך: העבודה הראשונה התחילה מיד): "להוסיף לתור" לא מתחיל כלום — העבודה נכנסת לרשימה
+   בטלפון עם אומדן של עלות וזמן, בלי ליצור אותה בשרת ובלי להעלות. "להתחיל" בעמוד התור פותח חלון עם כל העבודות (זמן ועלות
+   לכל אחת, וסך הכל), ואישור אחד מתחיל את כולן יחד — אותה התחלה בדיוק כמו פרויקט רגיל (f.qgo: בלי שאלת אומדן נוספת).
+   הרשימה בזיכרון בלבד (הקבצים שנבחרו — File שאי אפשר לשמור); דרך האפליקציה (ph) — מתחילה מיד, כמו קודם (נגיעה פותחת אותה) */
+const quDr = new Map();     // qu → [{ f, k, name, dur, sec, usd }]
+const quDrOf = (qu) => quDr.get(qu) || [];
+export function quCost(spec, est, vu, bt) {   // טהורה: העלות לעבודה — תרגום (חצי מחיר: bt), ניתוח (+תרגום), קריוקי = 0
+  if (spec.ka) return 0;
+  if (spec.vi) return spec.dry ? 0 : Math.round((vu + (spec.vt ? est : 0)) * 100) / 100;
+  return Math.round((spec.bt ? est * bt : est) * 100) / 100;
+}
+/* כמה זמן עד שהכל מוכן — כל עבודה לחריץ הראשון שמתפנה, n במקביל (= QU_PAR בשרת). טהורה */
+export function quSpan(secs, n) {
+  const sl = new Array(Math.max(1, n | 0)).fill(0);
+  for (const x of secs) { const i = sl.indexOf(Math.min(...sl)); sl[i] += Math.max(0, +x || 0); }
+  return Math.max(...sl);
+}
+const quTm = (sec) => { const m = Math.max(1, Math.round((sec || 0) / 60)); return m < 60 ? T('studioMinShort', { m }) : T('studioHMShort', { t: fmtHM(m) }); };
+function quHold(f, spec) {
+  if (!f || !f.qd || !f.qu || f.qgo) return false;
+  const d = spec.dur || 0, mode = spec.mode;
+  const usd = d ? quCost(spec, startEstimate(mode, d, curNorm(), ui.api, true).usd, spec.vi ? viUsd(mode, spec.from, d) : 0, BT_EST) : 0;
+  let sec = 0;
+  try { const pl = planFor({ spec, srv: null }); sec = d ? Object.values(pl.s || {}).reduce((a, x) => a + (+x || 0), 0) : 0; } catch (e) {}
+  const it = { f, k: quKindOf(f), name: fileTitle(spec.name) || T('studioUntitled'), dur: d, sec, usd };
+  const l = quDrOf(f.qu).filter((x) => x.f !== f);   // עריכה של עבודה מהרשימה — במקומה
+  const at = quDrOf(f.qu).findIndex((x) => x.f === f);
+  if (at >= 0) l.splice(at, 0, it); else l.push(it);
+  quDr.set(f.qu, l);
+  delete f.qx;
+  ui.starting = false; form = null;
+  flashSafe(T('studioQuHeldOk'));
+  jobOpen(f, null);
+  return true;
+}
+function quDrMenu(at, it) {
+  const qu = it.f.qu;
+  lbMenu(at, it.name, [
+    { k: 'edit', icon: 'edit', label: T('studioQuDrEdit'), fn: () => { form = it.f; go('new', it.k === 'tr' ? null : it.k); } },
+    { k: 'rm', icon: 'trash', label: T('studioQuDrRm'), danger: true, fn: () => { quDr.set(qu, quDrOf(qu).filter((x) => x !== it)); render('none'); } }]);
+}
+const quDrRow = (it) => { const r = rowNav({ tile: tile(QU_TILE[it.k][0], QU_TILE[it.k][1]), label: it.name, sub: T('studioQuDrS', { t: it.sec ? quTm(it.sec) : '—', usd: it.usd ? fmtUsd(it.usd) : T('studioQuFree') }), onClick: () => quDrMenu(r, it), k: 'qdr:' + it.f.qu + ':' + quDrOf(it.f.qu).indexOf(it) }); return r; };
+/* החלון של "להתחיל": כל עבודה — זמן ועלות; סך הכל — עלות, זמן עבודה, ומתי הכל מוכן (QU_PAR במקביל); כמה נשאר החודש */
+function quGoAsk(qu) {
+  const l = quDrOf(qu);
+  if (!l.length || ui.qgo) return;
+  const box = h('div', 'st-qgo');
+  for (const it of l) {
+    const r = h('div', 'st-qgo-r');
+    r.append(h('b', null, it.name), h('span', null, [it.k === 'vi' ? T('studioDialVi') : it.k === 'ka' ? T('studioDialKa') : T('studioActTr'), it.sec ? quTm(it.sec) : '—', it.usd ? fmtUsd(it.usd) : T('studioQuFree')].join(' · ')));
+    box.append(r);
+  }
+  const usd = Math.round(l.reduce((a, x) => a + x.usd, 0) * 100) / 100, work = l.reduce((a, x) => a + x.sec, 0);
+  const tot = h('div', 'st-qgo-t');
+  tot.append(h('b', null, T('studioQuGoTot', { usd: usd ? fmtUsd(usd) : T('studioQuFree'), t: work ? quTm(work) : '—' })),
+    h('span', null, T('studioQuGoSpan', { t: work ? quTm(quSpan(l.map((x) => x.sec), QU_PAR)) : '—', n: QU_PAR })));
+  const api = ui.api, left = api && !api.nc ? Math.max(0, Math.round((api.cap - api.month) * 100) / 100) : null;
+  if (left != null) tot.append(h('span', usd > left ? 'st-qgo-over' : null, T('studioQuGoLeft', { left: fmtUsd(left) }) + (usd > left ? ' ' + T('studioEstOver') : '')));
+  box.append(tot);
+  askConfirm(T('studioQuGoQ', { n: l.length }), () => quGoAll(qu), { ok: T('studioQuGoOk'), body: box });
+}
+/* מתחילות אחת אחרי השנייה (כל אחת — היצירה בשרת; ההעלאות בשרשרת של quUp). מה שלא התחיל (שגיאה) — נשאר ברשימה */
+async function quGoAll(qu) {
+  const l = quDrOf(qu).slice();
+  if (!l.length || ui.qgo) return;
+  ui.qgo = qu; render('none');
+  const qn = qf && qf.qu === qu ? String(qf.qn || '') : '';
+  for (const it of l) {
+    const f = it.f;
+    Object.assign(f, { qgo: 1, estOk: true }); if (qn) f.qn = qn;
+    form = f;
+    try { await startFromForm(); } catch (e) {}
+    const okd = form !== f;
+    delete f.qgo;
+    if (okd) quDr.set(qu, quDrOf(qu).filter((x) => x !== it));
+    else { ui.starting = false; form = null; }
+  }
+  ui.qgo = null;
+  const left = quDrOf(qu).length;
+  if (!left) quDr.delete(qu);
+  flashSafe(left ? T('studioQuGoPart', { n: left }) : T('studioQuGoDone', { n: l.length }));
+  render('none');
 }
 /* הקבוצות לעמוד "פעילה" — טהורה: תור שיש בו עבודה שלא הסתיימה; בכל אחד — כל העבודות, כמה הסתיימו ומה עוד פתוח */
 export function quGroups(jobs) {
@@ -3575,7 +3660,9 @@ function quSection(g) {
   const free = g.on.filter(quFree), held = free.filter(quHeld);
   const pz = free.length ? rowNav({ tile: tile(held.length === free.length ? 'play' : 'pause', 'orange'), label: held.length === free.length ? T('studioQuRunAll') : T('studioQuHoldAll'),
     sub: held.length === free.length ? T('studioQuHeldN', { n: held.length }) : T('studioQuHoldAllS'), onClick: () => quCtl(g.on[0], held.length === free.length ? 'run' : 'hold', true), k: 'qu-pz:' + g.qu }) : null;
-  return [secT(T('studioQuSec', { n: g.qn || T('studioQuT'), d: g.done, t: g.all.length })), list(...on.map((r) => projRow(r, { act: true, qu: true, menu: (at) => quJobMenu(at, r) })), pz, add)];
+  const nd = quDrOf(g.qu).length;
+  const dr = nd ? rowNav({ tile: tile('clock', 'orange'), label: T('studioQuDrSec', { n: nd }), sub: T('studioQuDrGo'), onClick: () => { qf = null; go('qnew', g.qu); }, k: 'qu-dr:' + g.qu }) : null;
+  return [secT(T('studioQuSec', { n: g.qn || T('studioQuT'), d: g.done, t: g.all.length })), list(...on.map((r) => projRow(r, { act: true, qu: true, menu: (at) => quJobMenu(at, r) })), dr, pz, add)];
 }
 /* לחיצה ארוכה על עבודה בתור — האפשרויות של מנהל עבודות */
 function quJobMenu(at, rec) {
@@ -3618,9 +3705,12 @@ function pageAct(p) {
   }
   const gs = quGroups(store.jobs), inQ = new Set(gs.flatMap((g) => g.all.map((r) => r.id)));
   for (const g of gs) p.append(...quSection(g));
+  const drOnly = [...quDr.keys()].filter((qu) => quDrOf(qu).length && !gs.some((g) => g.qu === qu));   // 20/11/2026: תור שעוד לא התחיל
+  if (drOnly.length) p.append(secT(T('studioQuDrNew')), list(...drOnly.map((qu) => rowNav({ tile: tile('clock', 'orange'), label: quDrOf(qu)[0].f.qn || T('studioQuT'),
+    sub: T('studioQuDrSec', { n: quDrOf(qu).length }), onClick: () => { qf = null; go('qnew', qu); }, k: 'qu-drq:' + qu }))));
   const [now, q] = actSplit(store.jobs.filter((r) => !inQ.has(r.id)), (r) => jobPhase(r, runs.get(r.id)));
   const fin = actUnseen(store.jobs, store.sna, Date.now());   // 19/11/2026: הסתיימו ולא נפתחו (במקום "אחרונה")
-  if (!now.length && !q.length && !gs.length && !fin.length) {
+  if (!now.length && !q.length && !gs.length && !fin.length && !drOnly.length) {
     const e = h('div', 'st-empty');
     const ic = h('span', 'st-empty-ic'); ic.append(ico('check'));
     e.append(ic, h('b', null, T('studioActEmpty')));
@@ -3647,20 +3737,30 @@ function pageQu(p) {
   if (!qf || (qu0 && qf.qu !== qu0)) qf = { qu: qu0 || wlNew(), qn: '' };
   const q = qf;
   const all = store.jobs.filter((r) => r.spec && r.spec.qu === q.qu && r.srv).sort((a, b) => (a.created || 0) - (b.created || 0));
+  const dr = quDrOf(q.qu);   // 20/11/2026: מחכות ל"להתחיל" — עוד לא בשרת
   if (all.length && !q.qn) q.qn = (all.find((r) => r.spec.qn) || { spec: {} }).spec.qn || '';
-  const ttl = all.length ? q.qn || T('studioQuT') : T('studioQuNew');
+  if (!q.qn && dr.length) q.qn = (dr.find((x) => x.f.qn) || { f: {} }).f.qn || '';
+  const ttl = all.length || dr.length ? q.qn || T('studioQuT') : T('studioQuNew');
   p.append(navBar({ back: T('studioActT'), title: ttl, coll: true }), large(ttl));
   if (!quOk()) { p.append(note(T('studioQuNeedSrv'))); return; }
   if (!all.length) {   // השם — לפני העבודה הראשונה (הוא נשמר בכל עבודה)
     const inp = h('input', 'st-in'); inp.type = 'text'; inp.dir = 'auto'; inp.maxLength = 60; inp.value = q.qn; inp.placeholder = T('studioQuNamePh');
     inp.setAttribute('aria-label', T('studioQuName'));
-    inp.addEventListener('input', () => { q.qn = inp.value; });
+    inp.addEventListener('input', () => { q.qn = inp.value; for (const x of quDrOf(q.qu)) x.f.qn = inp.value; });
     p.append(secT(T('studioQuName')), inp);
   }
   const rows = all.map((r) => projRow(r, { act: true, qu: true, menu: (at) => quJobMenu(at, r) }));
   const addRow = rowNav({ tile: tile('plus', 'blue'), label: T('studioQuAddJob'), onClick: () => quKindMenu(addRow), k: 'qu-addjob' });
-  p.append(secT(T('studioQuJobs', { n: all.length })), list(...rows, addRow));
+  if (dr.length) p.append(secT(T('studioQuDrSec', { n: dr.length })), list(...dr.map(quDrRow), addRow));
+  if (all.length || !dr.length) p.append(secT(T('studioQuJobs', { n: all.length })), list(...rows, dr.length ? null : addRow));
   p.append(note(all.length ? T('studioQuNote', { n: QU_PAR }) : T('studioQuEmpty')));
+  if (dr.length) {   // "להתחיל" — דבוק לתחתית, כמו בטפסים
+    const busy = ui.qgo === q.qu;
+    const go1 = btn('st-btn wide', busy ? T('studioStarting') : T('studioQuGo', { n: dr.length }), () => quGoAsk(q.qu), 'qu-go');
+    go1.disabled = !!ui.qgo;
+    const ft = h('div', 'st-foot'); ft.append(go1, h('p', 'st-foot-n', T('studioQuGoNote')));
+    p.append(ft);
+  }
 }
 /* בחירת סוג העבודה — תרגום / ניתוח / קריוקי (רק מה שזמין) */
 function quKindMenu(at) {
@@ -4015,7 +4115,7 @@ function startSubs(f) {
   }
   if (!langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }
   ui.starting = true; render('none');
-  (async () => {
+  return (async () => {
     const s = f.subs;
     const spec = { name: s.name, size: s.size, type: s.type, dur: Math.round(s.imp.stats.dur / 1000), from: f.from, to: f.to,
       mode: modeFor(f.mode, ui.mf), out: [], style: f.style, terms: f.terms, src: 'subs', sdh: f.sdh === 'keep' ? 'keep' : 'rm' };
@@ -4023,6 +4123,7 @@ function startSubs(f) {
     else if (ryMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap, ry: 1 });
     else Object.assign(spec, { eng: 'api', cap: store.settings.cap, cp: 1 });
     quStamp(f, spec);
+    if (quHold(f, spec)) return;
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
     if (est.min && typeof askConfirm === 'function') {
       const yes = await estAsk(est, f);
@@ -5312,7 +5413,7 @@ function pageFmtHelp(p) {
    הטופס נשמר ב־sessionStorage — החזרה של הקובץ טוענת את הדף מחדש (POST ל־/share-file) */
 function startLink(f) {
   const L = f.link;
-  if (L && L.to === 'cloud') { startLinkCloud(f); return; }   // הבחירה "לענן של Studio"
+  if (L && L.to === 'cloud') return startLinkCloud(f);   // הבחירה "לענן של Studio"
   if (!L || L.st !== 'ok' || ui.starting) return;
   if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
   if (!devDl()) { flashSafe(T('studioLinkEApp')); return; }
@@ -5386,7 +5487,7 @@ function startLinkCloud(f) {   // ישר לענן של Studio (העובד מור
   const pick = L.blind ? { h: 0 } : linkPick(L);   // 24/10/2026: "בלי בדיקה" — העובד בוחר לבד (הכי טוב עד 1080p, fetchurl.selector)
   if (!pick) return;
   ui.starting = true; render('none');
-  (async () => {
+  return (async () => {
     const dur = pick.sec ? pick.sec[1] - pick.sec[0] : L.r.d || 0;
     const o = L.blind ? {} : L.r.q.find((x) => x.v === pick.v) || {};
     const spec = { name: L.r.t, size: L.blind ? 1 : Math.max(1, linkSize(L)), type: 'video/url', dur, from: f.from, to: f.to, mode: modeFor(f.mode, ui.mf),
@@ -5398,6 +5499,7 @@ function startLinkCloud(f) {   // ישר לענן של Studio (העובד מור
     else if (ryMode()) spec.ry = 1;   // 24/10/2026: המנוי שלך — Claude דרך ה־Routine, לא מהמפתח של המערכת
     if (o.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, (o.h * o.h * 16 / 9) / (1920 * 1080))) * 1000) / 1000;
     quStamp(f, spec);
+    if (quHold(f, spec)) return;
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
     if (est.min && !f.ka && typeof askConfirm === 'function' && !f.vi) {
       const yes = await estAsk(est, f);
@@ -5814,23 +5916,22 @@ function startFromForm() {
   pushAuto(true);   // 27/10/2026: ההתראות פעילות כברירת מחדל — הבקשה בלחיצה הזו (פעם אחת)
   if (f && !ui.starting && !engKnown(connNow(), ui.api)) {
     ui.starting = true; render('none');
-    engSettle().then((ok) => {
+    return engSettle().then((ok) => {
       ui.starting = false;
-      if (form !== f) return;
-      if (ok) startFromForm(); else { flashSafe(T('studioEngWait')); render('none'); }
+      if (form !== f) return null;
+      if (ok) return startFromForm();
+      flashSafe(T('studioEngWait')); render('none'); return null;
     });
-    return;
   }
   // 24/10/2026: "המנוי שלי" — מחכים לתשובה פעם אחת כדי לדעת אם יש שרת (אז העבודה רצה בו, ו־Claude דרך ה־Routine).
   // אין תשובה — ממשיכים כמו קודם (רק ה־Routine), לא חוסמים
   if (f && !ui.starting && connNow() === 'sub' && !ui.api && !f.ryTried) {
     f.ryTried = true; ui.starting = true; render('none');
     statusAt = 0;
-    refreshStatus(true).catch(() => {}).then(() => { ui.starting = false; if (form === f) startFromForm(); });
-    return;
+    return refreshStatus(true).catch(() => {}).then(() => { ui.starting = false; return form === f ? startFromForm() : null; });
   }
-  if (f && f.subs && !ui.starting) { startSubs(f); return; }   // 22/10/2026: קובץ כתוביות קיים
-  if (f && f.link && f.linkOk && !ui.starting) { startLink(f); return; }   // 22/10/2026: מקישור — העובד מוריד
+  if (f && f.subs && !ui.starting) return startSubs(f);   // 22/10/2026: קובץ כתוביות קיים
+  if (f && f.link && f.linkOk && !ui.starting) return startLink(f);   // 22/10/2026: מקישור — העובד מוריד
   if (f && f.ph && !ui.starting) { startPhone(f); return; }   // 24/10/2026: תרגום בטלפון — Studio לאנדרואיד מעלה
   if (!f || !(f.fileObj || f.drive) || ui.starting) return;
   if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
@@ -5847,7 +5948,7 @@ function startFromForm() {
   if (!f.ka && !f.vi && !langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }   // לפני ההעלאה, לא אחריה
   if (f.ka && !kaOk()) { flashSafe(T('studioKaNoSrv')); return; }   // 01/11/2026: בלי מילים = תמלול אוטומטי (kaSpec → al)
   ui.starting = true; render('none');
-  (async () => {
+  return (async () => {
     const file = f.fileObj || f.drive;   // מ־Drive: הפרטים מ־Drive (בלי לקרוא את הקובץ בטלפון)
     const sm = f.sa && f.sa.st === 'ok' ? f.sa.m : null;   // סבב 2: הבדיקה מהבחירה — בלי לקרוא את הקובץ שוב
     const pr = f.fileObj ? (sm && sm.dur ? { dur: sm.dur } : await probeVideo(file)) : { dur: f.drive.dur || 0 };
@@ -5857,6 +5958,7 @@ function startFromForm() {
       spec.wl = wlNew();
       await Promise.all(extras.map((m) => (m.dur ? null : probeVideo(m.fileObj).then((x) => { m.dur = (x && x.dur) || 0; }, () => {}))));
     }
+    if (quHold(f, spec)) return;   // 20/11/2026: מהתור — לרשימה, בלי ליצור ובלי להעלות (מתחילות יחד ב"להתחיל")
     // מ6 (כלל 2): אומדן ואישור לפני ההתחלה — עוד לפני שנוצרת עבודה ולפני ההעלאה
     const est = startEstimate(spec.mode, spec.dur + extras.reduce((a, m) => a + (m.dur || 0), 0), curNorm(), ui.api, apiMode());
     if (spec.bt && est.min) { est.bt = true; est.usd = Math.round(est.usd * BT_EST * 100) / 100; est.over = est.left != null && est.usd > est.left; }
