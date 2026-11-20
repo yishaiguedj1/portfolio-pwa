@@ -116,7 +116,7 @@ ok(zz.n === 70 && zz.cdSize === 900 && zz.cdOff === 3 * 2 ** 32, 'zipZ64');
     ok(/if \(pks\) studioPhPicks\(pks\);/.test(app) && /if \(phpicks\) studioPhPicks\(phpicks\);/.test(app), 'studio-app: ‎#phpicks= בטעינה ובשינוי hash');
     const D = 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/', A = (f) => fs.readFileSync(path.join(__dirname, '..', D + f), 'utf8');
     ok(/EXTRA_ALLOW_MULTIPLE/.test(A('PhActivity.kt')) && /"#phpicks=" \+ ok\.joinToString\("~"\)/.test(A('PhActivity.kt')), 'האפליקציה: בחירה מרובה → ‎#phpicks=');
-    ok(/fun idOf\(pid: String\)/.test(A('PhUpJob.kt')) && /JobInfo\.Builder\(idOf\(pid\)/.test(A('PhUpJob.kt')), 'PhUpJob: משימה לכל סרטון (מזהה קבוע אחד החליף את הקודם — בתור רק האחרון עלה)');
+    ok(/fun pidsOf\(/.test(A('PhUpJob.kt')) && /PhUpJob\.schedule\(this, l \+ PhStore\.lostVideos\(this\)\)/.test(A('PhActivity.kt')), 'PhUpJob: משימה אחת עם רשימה — גם פריטי yd נכנסים אליה (videoJobs)');
     ok(/vLock\.tryAcquire/.test(A('PhWork.kt')) && /PhYt\.fetch\(ctx, pid, r, stopped\)/.test(A('PhWork.kt')), 'PhWork: הסרטונים עולים אחד אחרי השני; קישור יורד לפני הקול');
     ok(/DlProbe\.DEFAULT_H/.test(A('PhYt.kt')) && /subs = DlEngine\.SUBS/.test(A('PhYt.kt')), 'PhYt: ברירת המחדל של הורדה מקישור (1080, הקול הטוב ביותר, כתוביות היוצר)');
     ok(/android:host="phq2"/.test(fs.readFileSync(path.join(__dirname, '..', 'android/app/src/studio/AndroidManifest.xml'), 'utf8')), 'phq2 במניפסט');
