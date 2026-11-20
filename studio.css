@@ -1534,3 +1534,10 @@ html.st-dock .toast { bottom: calc(var(--dock-pad, var(--dock-h, 120px)) + 12px 
 .st-lib-fixs { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--on-surface-var); }
 .st-lib-fix a.st-btn { display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }
 .st-lib-fix a.st-btn svg { width: 18px; height: 18px; flex: none; }
+/* 20/11/2026: חלון "להתחיל" של תור העבודות — כל עבודה וסך הכל */
+.st-qgo{max-height:46vh;overflow:auto;margin:0 0 12px;text-align:start}
+.st-qgo-r{display:flex;flex-direction:column;gap:2px;padding:8px 0;border-bottom:1px solid var(--separator)}
+.st-qgo-r b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--on-surface)}
+.st-qgo-r span,.st-qgo-t span{font-size:.88em;color:var(--on-surface-var)}
+.st-qgo-t{display:flex;flex-direction:column;gap:3px;padding-top:10px;color:var(--on-surface)}
+.st-qgo-t .st-qgo-over{color:var(--loss)}

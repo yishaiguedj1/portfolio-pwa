@@ -19,7 +19,7 @@ ok(engKnown('api', { online: 1 }) === true, 'שרת עם תשובה — ידוע
 const body = src.slice(src.indexOf('function startFromForm()'));
 const g = body.indexOf('engKnown(connNow(), ui.api)');
 ok(g > 0 && g < body.indexOf('startSubs(f)') && g < body.indexOf('startLink(f)') && g < body.indexOf('apiMode()'), 'נבדק לפני כל מסלול');
-ok(/engSettle\(\)\.then\(\(ok\) => \{[\s\S]{0,200}if \(form !== f\) return;[\s\S]{0,120}if \(ok\) startFromForm\(\); else \{ flashSafe\(T\('studioEngWait'\)\)/.test(body), 'אין תשובה — הודעה, בלי Routine');
+ok(/engSettle\(\)\.then\(\(ok\) => \{[\s\S]{0,200}if \(form !== f\) return null;[\s\S]{0,120}if \(ok\) return startFromForm\(\);\n\s*flashSafe\(T\('studioEngWait'\)\)/.test(body), 'אין תשובה — הודעה, בלי Routine');
 ok(/function gotFile[\s\S]*?startFromForm\(\)/.test(src), 'ההורדה מהטלפון עוברת דרך startFromForm');
 ok(app.split('studioEngWait: "').length === 3, 'המחרוזת בעברית ובאנגלית');
 console.log('studio-engwait: ' + n + ' בדיקות עברו');

@@ -56,7 +56,20 @@ ok(/else if \(ui\.view === 'qnew'\) pageQu\(p\);/.test(st) && /x === 'qnew' \? \
 ok(/inQ = new Set\(gs\.flatMap/.test(st) && /actSplit\(store\.jobs\.filter\(\(r\) => !inQ\.has\(r\.id\)\)/.test(st), 'עמוד הפעילות: עבודות התור בקבוצה משלהן, השאר כמו קודם');
 ok(/quChain\.then\(\(\) => \{ if \(!quPend\.delete\(id\)\) return null;/.test(st) && /const up = \(\) => quUp\(f, rec\.id, \(\) => startRun\(rec\.id, ext \? null : file\)\);/.test(st), 'ההעלאות מהתור — אחת אחרי השנייה; בוטלה בזמן ההמתנה — בלי העלאה');
 // 7א. 20/11 (בקשת המשתמש): "להוסיף לתור" = אותה התחלה כמו פרויקט רגיל, מכל מקור — עם סימון התור, ובסוף לעמוד התור
-ok(!/quTake|quStart/.test(st), 'בלי רשימה בזיכרון — העבודה נוצרת כמו פרויקט רגיל');
+// 7ד. 20/11 (בקשת המשתמש, הקלטת מסך): "להוסיף לתור" לא מתחיל — רשימה עם אומדן; "להתחיל" = חלון עם הכל, ואז כולן יחד
+ok(!/quTake|quStart/.test(st), 'בלי המנגנון הישן של סבב 1');
+ok((st.match(/if \(quHold\(f, spec\)\) return;/g) || []).length === 3 && !/quHold/.test(cut('function startPhone', '/* המפתח של העבודה')), 'quHold לפני היצירה בשרת: סרטון/Drive, קובץ כתוביות, קישור לענן (דרך האפליקציה — מיד, כמו קודם)');
+ok(/if \(!f \|\| !f\.qd \|\| !f\.qu \|\| f\.qgo\) return false;/.test(st) && /if \(f && f\.qgo\) return Promise\.resolve\(true\);/.test(st), 'quHold רק בתור ולא בזמן ההתחלה; ההתחלה — בלי שאלת אומדן לכל עבודה');
+ok(/return \(async \(\) => \{\n    const file = f\.fileObj \|\| f\.drive;/.test(st) && /if \(f && f\.subs && !ui\.starting\) return startSubs\(f\);/.test(st) && /if \(L && L\.to === 'cloud'\) return startLinkCloud\(f\);/.test(st), 'startFromForm מחזיר הבטחה — ההתחלה של הרשימה אחת אחרי השנייה');
+{ const ga = cut('async function quGoAll', '/* הקבוצות לעמוד');
+  ok(/try \{ await startFromForm\(\); \}/.test(ga) && /const okd = form !== f;/.test(ga) && /askConfirm\(T\('studioQuGoQ'/.test(st) && /body: box/.test(st), 'quGoAsk: חלון עם כל העבודות; quGoAll: אחת אחרי השנייה, מה שנכשל נשאר ברשימה'); }
+ok(/if \(f\.qgo\) \{ paintSoon\(\); return; \}/.test(st), 'jobOpen בהתחלה של הרשימה — בלי ניווט');
+{
+  const Q = new Function(cut('export function quCost', 'const quTm').replace(/export /g, '') + '\nreturn { quCost, quSpan };')();
+  ok(Q.quCost({ ka: 1 }, 5, 0, 0.55) === 0 && Q.quCost({}, 2, 0, 0.55) === 2 && Q.quCost({ bt: 1 }, 2, 0, 0.55) === 1.1, 'quCost: קריוקי בחינם, תרגום, חצי מחיר');
+  ok(Q.quCost({ vi: 1 }, 2, 1.5, 0.55) === 1.5 && Q.quCost({ vi: 1, vt: 1 }, 2, 1.5, 0.55) === 3.5 && Q.quCost({ vi: 1, dry: 1 }, 2, 1.5, 0.55) === 0, 'quCost: ניתוח, ניתוח + תרגום, ניתוח יבש');
+  ok(Q.quSpan([600, 600, 600], 2) === 1200 && Q.quSpan([100], 2) === 100 && Q.quSpan([], 2) === 0, 'quSpan: מתי הכל מוכן, 2 במקביל');
+}
 ok((st.match(/quStamp\(f, /g) || []).length >= 4, 'כל המסלולים מסמנים את התור: סרטון/Drive, קובץ כתוביות, קישור לענן, דרך האפליקציה');
 ok((st.match(/jobOpen\(f, rec\)/g) || []).length >= 4, 'אחרי ההתחלה — לעמוד התור (מכל מסלול)');
 ok(/spec\.qu = f\.qu;/.test(st) && /if \(spec\.eng !== 'api'\) Object\.assign\(spec, \{ eng: 'api', cap: store\.settings\.cap \}\);\n  delete spec\.cp;/.test(st), 'quStamp: תמיד בשרת, בלי העתק־הדבק');
