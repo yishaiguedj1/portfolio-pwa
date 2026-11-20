@@ -111,5 +111,12 @@ ok(/function msMark\(label, q\) \{[\s\S]{0,300}esc\(L\.slice\(0, i\)\)/.test(app
 ok(/sc\(it\) >= 60\)\) hits = hits\.filter/.test(app), 'התאמה רופפת רק כשאין התאמה אמיתית');
 for (const k of ['msTitle', 'msPh', 'msMarket', 'msNoneSub', 'msClose']) ok((app.match(new RegExp('\\n  ' + k + ': ', 'g')) || []).length === 2, 'מחרוזת ' + k + ' בעברית ובאנגלית');
 
+/* ---------- 20/11/2026: כל הכרטיסים בזכוכית של כרטיס המניה ---------- */
+ok(/main \.card \{ background: var\(--gl-card\) !important;[^}]*box-shadow: var\(--gl-card-sh\) !important;[^}]*border-radius: var\(--radius-xl\)/.test(body), 'כרטיסי העמודים — אותו חומר של כרטיס המניה (--gl-card), לא מילוי אטום');
+ok(!/main \.card \{[^}]*--lg-card/.test(body), 'אין מילוי אטום (--lg-card) על כרטיסי העמודים');
+ok(/\.stock, \[data-theme="dark"\] \.stock \{ background: var\(--gl-card\)/.test(styles), 'כרטיס המניה עצמו על --gl-card (המקור שהכרטיסים מחקים)');
+ok(/html \.an-root :is\(\.an-card, \.an-rcard\) \{ background: var\(--gl-card\)/.test(body), 'מנתח החברות — הכרטיסים באותה זכוכית');
+ok(/main \.card :is\(input[^{]*select, textarea\) \{ background: var\(--lg-fill\)[^}]*border-color: transparent/.test(body), 'שדות בתוך כרטיס — מילוי רך בלי מסגרת');
+
 if (fails.length) { console.log('\nנכשלו ' + fails.length + '/' + n + ':\n- ' + fails.join('\n- ')); process.exit(1); }
 console.log('\n' + n + '/' + n + ' עברו');
