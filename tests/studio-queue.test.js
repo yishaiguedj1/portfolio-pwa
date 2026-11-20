@@ -10,7 +10,7 @@ const api = fs.readFileSync(path.join(root, 'ibkr-proxy/api/studio.js'), 'utf8')
 const S = require(path.join(root, 'ibkr-proxy/lib/studio.js'));
 
 // 1. אותו מספר בטלפון ובשרתון
-ok(S.QU_PAR === 2 && /export const QU_PAR = 2;/.test(st), 'QU_PAR = 2 בשרתון ובטלפון');
+ok(S.QU_PAR === 3 && /export const QU_PAR = 3;/.test(st), 'QU_PAR = 3 בשרתון ובטלפון');
 
 // 2. normSpec — qu (= WL_RE) ושם נקי; מזהה לא תקין נזרק
 const base = { name: 'a.mp4', size: 1000, dur: 60, from: 'auto', to: ['he'], eng: 'api', cap: 5 };
@@ -147,4 +147,12 @@ ok(S.maxActive() >= 40, 'מגבלת העבודות הפעילות של השרת�
 }
 ok(/const quOk = \(\) => !!\(ui\.api && ui\.api\.servers > 0 && ui\.r2\);/.test(st), '2.192.1: הכרטיס — כשיש שרת ו־R2, בלי תלות במנוע שבהגדרות');
 ok(/else if \(ryMode\(\)\) Object\.assign\(spec, \{ eng: 'api', cap: store\.settings\.cap, ry: 1 \}\);/.test(cut('function formSpec', 'function startFromForm')) && /if \(spec\.eng !== 'api'\) Object\.assign\(spec, \{ eng: 'api'/.test(st) && /delete spec\.cp;/.test(st), '2.192.1: "המנוי שלי" — התרגום דרכו (formSpec); תמיד בשרת, בלי העתק־הדבק');
+// 9. 20/11/2026 (תקלה: תור של 9 פרקים דרך האפליקציה — רק האחרון עלה ורץ): הסרטונים לענן במשימה אחת, לפי הסדר
+{ const A = (f) => fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball', f), 'utf8');
+  const uj = A('PhUpJob.kt'), ac = A('PhActivity.kt'), ps = A('PhStore.kt');
+  ok(/putString\("pids", l\.joinToString\(","\)\)/.test(uj) && /for \(pid in pids\)/.test(uj) && /js\.getPendingJob\(JOB_ID\)/.test(uj) && !/putString\("pid", pid\)/.test(uj), 'PhUpJob: רשימה אחת לפי הסדר, ממוזגת עם מה שכבר מחכה (לא מחליפה)');
+  ok(/old\.filter\(pending\) \+ add\)\.distinct\(\)/.test(uj), 'merge: הישנות שעוד לא עלו קודם, אחריהן החדשות, בלי כפילויות');
+  ok(/videoJobs\(pids\)/.test(ac) && !/for \(pid in pids\) videoJob\(pid\)/.test(ac) && /PhStore\.lostVideos\(this\)/.test(ac) && /fun lostVideos/.test(ps), 'goQ: תזמון אחד לכל הרשימה; סרטונים שנתקעו — חוזרים למשימה');
+  ok(/const qrd = o\.qu && ph === 'ready' && !rec\.up\.wait;/.test(st) && /qup \|\| qrd \|\| \(\(o\.act \|\| o\.qu\) && ph === 'queued'\) \? \['amber', T\('studioBQueued'\)\]/.test(st), 'עמוד התור: עבודה שמחכה — "בתור", לא "מוכן"');
+}
 console.log('# ' + n + ' בדיקות');

@@ -82,6 +82,13 @@ object PhStore {
         }
     }
 
+    /** 20/11/2026: סרטונים של עבודות שעוד לא עלו לענן ושמשימת ההעלאה שלהם (vJob) כבר לא קיימת — עד התיקון, תזמון חדש
+     *  החליף את הקודם (JOB_ID קבוע), ותור של כמה פרקים נתקע. לפי סדר הבחירה (at) */
+    fun lostVideos(ctx: Context): List<String> = (dir(ctx).listFiles() ?: emptyArray()).mapNotNull { f ->
+        if (!f.name.endsWith(".json")) null else try { JSONObject(f.readText()) } catch (e: Throwable) { null } }
+        .filter { it.optString("job").isNotEmpty() && it.optBoolean("vc") && it.optBoolean("vJob") && it.optString("vId").isEmpty() && it.optString("vE").isEmpty() && it.optString("st") != "err" }
+        .sortedBy { it.optLong("at") }.map { it.optString("pid") }
+
     fun hasJobs(ctx: Context): Boolean = (dir(ctx).listFiles() ?: emptyArray()).any { f ->
         f.name.endsWith(".json") && try { JSONObject(f.readText()).optString("job").isNotEmpty() } catch (e: Throwable) { false } }
 
