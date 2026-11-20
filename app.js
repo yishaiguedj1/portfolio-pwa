@@ -135,6 +135,9 @@ he: {
   kcAlerts: 'התראות',
   kcAlertAdd: 'הוספת התראה',
   kcAlertNote: 'הערה (לא חובה)',
+  kcNoteBtn: 'הערה',
+  kcStockPx: 'מחיר מניה',
+  kcAlertOne: 'התראת מחיר',
   kcAlertCross: 'חוצה',
   kcAlertUp: 'עולה מעל',
   kcAlertDown: 'יורד מתחת',
@@ -161,6 +164,15 @@ he: {
   kcScaleN: 'רגיל',
   kcPlusAt: 'פעולות במחיר הזה',
   kcAlertAt: 'התראה ב־{p}',
+  kcAllAlerts: 'כל ההתראות',
+  pahEmpty: 'אין עדיין התראות מחיר',
+  pahEmptySub: 'מגדירים מחיר יעד, ומקבלים הודעה כשהמניה מגיעה אליו.',
+  pahActive: '{n} פעילות',
+  pahFired: '{n} הופעלו',
+  pahPickPh: 'לאיזו מניה?',
+  pahFiredAt: 'הופעלה {d}',
+  pahDelQ: 'למחוק את ההתראה של {s} ב־{p}?',
+  pahDeleted: 'ההתראה נמחקה',
   kcHLineAt: 'קו אופקי ב־{p}',
   kcExpand: 'גרף נרות במסך מלא',
   kcBgOn: 'ההתראות נשלחות לטלפון גם כשהאפליקציה סגורה',
@@ -2143,6 +2155,9 @@ en: {
   kcAlerts: 'Alerts',
   kcAlertAdd: 'Add alert',
   kcAlertNote: 'Note (optional)',
+  kcNoteBtn: 'Note',
+  kcStockPx: 'Stock price',
+  kcAlertOne: 'Price alert',
   kcAlertCross: 'Crosses',
   kcAlertUp: 'Rises above',
   kcAlertDown: 'Falls below',
@@ -2169,6 +2184,15 @@ en: {
   kcScaleN: 'Regular',
   kcPlusAt: 'Actions at this price',
   kcAlertAt: 'Add alert at {p}',
+  kcAllAlerts: 'All alerts',
+  pahEmpty: 'No price alerts yet',
+  pahEmptySub: 'Set a target price and get notified when the stock gets there.',
+  pahActive: '{n} active',
+  pahFired: '{n} triggered',
+  pahPickPh: 'Which symbol?',
+  pahFiredAt: 'Triggered {d}',
+  pahDelQ: 'Delete the {s} alert at {p}?',
+  pahDeleted: 'Alert deleted',
   kcHLineAt: 'Draw horizontal line at {p}',
   kcExpand: 'Full-screen candlestick chart',
   kcBgOn: 'Alerts reach your phone even when the app is closed',
@@ -8448,8 +8472,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.206.0';
-const APP_VERSION = 'v881';
+const APP_RELEASE = '2.207.0';
+const APP_VERSION = 'v882';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -18752,6 +18776,7 @@ function chartEnv() {
     pxSwap: (a, txt, px) => { const b = document.createElement('span'); b.dataset.px = String(px); b.textContent = txt; livePriceSwap(a, b); },
     // השוק סגור (סופ״ש/חג) — אותה בועה של כרטיס המניה: "השוק סגור · סיבה" ומתחת הסשן האחרון והשינוי
     closedEl: (q) => { const d = document.createElement('span'); d.innerHTML = extSessionHTML(q, { sym: q.symbol }); return d.firstElementChild; },
+    allAlerts: () => openAlertsHub(),   // 20/11/2026: "כל ההתראות" מחלונית ההתראה
     fills: (sym) => chartFills(sym),   // חיצי הקנייה/מכירה וקו הממוצע בגרף   // התראות שנוספו/נמחקו בגרף — מתעדכנות בכרטיס המניה
     store: {
       get: () => { try { return JSON.parse(localStorage.getItem(CHART_LS) || 'null'); } catch (e) { return null; } },
@@ -18872,6 +18897,214 @@ function refreshStockAlerts(sym) {
   if (typeof document === 'undefined') return;
   for (const n of document.querySelectorAll('.st-al')) if (!sym || n.dataset.sym === sym) n.replaceWith(stockAlertsEl(n.dataset.sym));
 }
+
+/* 20/11/2026 (בקשת המשתמש): מסך ניהול של כל התראות המחיר, מקובצות לפי חברה (רשימה מקובצת לפי ת־עיצוב, זכוכית).
+   הסדר: החברה שההתראה הפעילה שלה הכי קרובה למחיר הנוכחי (במרחק באחוזים) — ראשונה; בתוך החברה — מהקרובה לרחוקה, שהופעלו בסוף.
+   נפתח מהפעמון בהדר (כשהתפריט פתוח) ומהקישור "כל ההתראות" בחלונית ההתראה. נגיעה = עריכה, פח = מחיקה, "+" = התראה חדשה.
+   הקריאה ישר מ־pwa_charts_v1; העריכה והמחיקה דרך chart.js (אותו מאגר ואותו סנכרון לרקע) */
+let _pah = null;
+const PAH_SVG = {
+  x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+  del: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>',
+  find: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5l5 5"/></svg>',
+};
+/* הקיבוץ והסדר (טהורה): px(sym) → מחיר או 0. חברה בלי התראה פעילה / בלי מחיר — אחרי הקרובות; בתוך כל רמה — לפי הסימבול */
+function pahGroups(alerts, px) {
+  const gs = [];
+  for (const s of Object.keys(alerts || {})) {
+    const p = px(s), list = (alerts[s] || []).filter((a) => a && a.p > 0).map((a) => ({ a, d: !a.done && p > 0 ? Math.abs(a.p / p - 1) : Infinity }));
+    if (!list.length) continue;
+    list.sort((x, y) => (x.a.done ? 1 : 0) - (y.a.done ? 1 : 0) || x.d - y.d || y.a.p - x.a.p);
+    const on = list.some((x) => !x.a.done);
+    gs.push({ s, list, d: list[0].d, rank: !on ? 2 : list[0].d < Infinity ? 0 : 1 });
+  }
+  return gs.sort((x, y) => x.rank - y.rank || x.d - y.d || (x.s < y.s ? -1 : x.s > y.s ? 1 : 0));
+}
+function pahTime(ts) {
+  const lang = (state.lang || getLang()) === 'en' ? 'en-US' : 'he-IL';
+  return new Date(ts).toLocaleString(lang, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+function pahPx(s) { const q = state.quotes && state.quotes[s]; return (q && q.close > 0 ? q.close : 0) || stAlPx[s] || (_pah && _pah.px[s]) || 0; }
+/* מחיר חי לכל החברות שבמסך (גם שאינן בתיק) — בפתיחה וכל 20 שנ׳; אחרי כל משיכה — המרחקים מתעדכנים במקום, הסדר רק בציור הבא */
+function pahFetch() {
+  const P = _pah;
+  if (!P) return;
+  let st = null; try { st = JSON.parse(localStorage.getItem(CHART_LS) || 'null'); } catch (e) { st = null; }
+  const syms = Object.keys((st && st.alerts) || {});
+  if (!syms.length) return;
+  import('./chart.js').then((m) => m.alertPrices(syms, chartEnv())).then((px) => {
+    if (!_pah || _pah !== P) return;
+    const first = !P.got; P.got = true;
+    Object.assign(P.px, px);
+    if (first) pahPaint(); else pahLive();
+  }).catch(() => {});
+}
+function pahLive() {
+  const P = _pah;
+  if (!P) return;
+  for (const n of P.list.querySelectorAll('.pah-d[data-p]')) stAlDistSet(n, +n.dataset.p, pahPx(n.dataset.s));
+  for (const n of P.list.querySelectorAll('.pah-now[data-s]')) { const p = pahPx(n.dataset.s); if (p > 0) n.textContent = fmtPx(p, n.dataset.s); }
+}
+function pahEnv() {
+  return Object.assign(chartEnv(), { over: true, allAlerts: null, onAlerts: (sym) => { refreshStockAlerts(sym); pahPaint(); } });
+}
+function openAlertsHub() {
+  if (typeof document === 'undefined') return;
+  if (_pah) return;
+  const root = el('div', 'pah');
+  root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', t('kcPriceAlerts'));
+  const top = el('div', 'pah-top');
+  const x = el('button', 'pah-ib', PAH_SVG.x); x.type = 'button'; x.setAttribute('aria-label', t('msClose'));
+  const add = el('button', 'pah-ib pah-add', PAH_SVG.plus); add.type = 'button'; add.setAttribute('aria-label', t('kcAlertNew'));
+  const hd = el('div', 'pah-hd'), h1 = el('h2', 'pah-h1'), sub = el('div', 'pah-sub');
+  h1.textContent = t('kcPriceAlerts');
+  hd.append(h1, sub);
+  top.append(x, hd, add);
+  const pick = el('div', 'pah-pick'); pick.hidden = true;
+  const field = el('label', 'pah-field', PAH_SVG.find), inp = el('input', 'pah-in');
+  inp.type = 'search'; inp.placeholder = t('pahPickPh'); inp.autocomplete = 'off'; inp.spellcheck = false; inp.enterKeyHint = 'search';
+  inp.setAttribute('autocapitalize', 'off'); inp.setAttribute('autocorrect', 'off');
+  field.appendChild(inp);
+  const res = el('div', 'pah-res');
+  pick.append(field, res);
+  const list = el('div', 'pah-list');
+  root.append(top, pick, list);
+  document.body.appendChild(root);
+  _pah = { root, list, sub, pick, inp, res, add, modal: null, iv: 0, q: 0, px: {}, got: false, n: 0 };
+  _pah.modal = modalPush(() => closeAlertsHub(true));
+  x.addEventListener('click', () => closeAlertsHub());
+  add.addEventListener('click', () => pahPickToggle());
+  inp.addEventListener('input', pahSearch);
+  pahPaint();
+  requestAnimationFrame(() => root.classList.add('on'));
+  // המרחק ליעד מתעדכן מהמחירים החיים שהאפליקציה כבר מושכת — בלי בקשות משלו
+  pahFetch();
+  _pah.iv = setInterval(() => { if (!_pah) return; pahLive(); if (++_pah.n % 7 === 0) pahFetch(); }, 3000);
+}
+function closeAlertsHub(fromBack) {
+  const P = _pah;
+  if (!P) return;
+  _pah = null;
+  clearInterval(P.iv);
+  if (!fromBack) modalDone(P.modal);
+  P.root.classList.remove('on');
+  setTimeout(() => P.root.remove(), 260);
+}
+function pahPickToggle(on) {
+  const P = _pah;
+  if (!P) return;
+  const show = on === undefined ? P.pick.hidden : on;
+  P.pick.hidden = !show;
+  P.add.classList.toggle('on', show);
+  P.add.setAttribute('aria-expanded', show ? 'true' : 'false');
+  if (show) { P.inp.value = ''; pahSearch(); setTimeout(() => { try { P.inp.focus(); } catch (e) {} }, 60); }
+}
+function pahResRow(sym, name) {
+  const b = el('button', 'pah-r');
+  b.type = 'button';
+  b.innerHTML = stockLogoHTML(sym) + '<span class="pah-r-tx"><b></b><small></small></span>';
+  b.querySelector('b').textContent = sym;
+  b.querySelector('small').textContent = name && name !== sym ? name : '';
+  b.addEventListener('click', () => { pahPickToggle(false); pahOpenAlert(sym); });
+  return b;
+}
+function pahSearch() {
+  const P = _pah;
+  if (!P) return;
+  const q = P.inp.value.trim(), my = ++P.q;
+  const draw = (items) => {
+    if (!_pah || my !== P.q) return;
+    P.res.textContent = '';
+    for (const it of items.slice(0, 8)) P.res.appendChild(pahResRow(it.sym, it.name || companyName(it.sym, '')));
+  };
+  if (!q) {   // בלי טקסט: המניות שכבר יש להן התראות, ואחריהן התיק ורשימות המעקב
+    let st = null; try { st = JSON.parse(localStorage.getItem(CHART_LS) || 'null'); } catch (e) { st = null; }
+    const syms = [...new Set([...Object.keys((st && st.alerts) || {}), ...quoteSymbols()])].filter((s) => s !== FX_SYM);
+    draw(syms.slice(0, 8).map((s) => ({ sym: s })));
+    return;
+  }
+  draw(localStockSearch(q) || []);
+  searchStocksYahoo(q, draw).then((r) => { if (r && r.length) draw(r); }).catch(() => {});
+}
+function pahOpenAlert(sym, id) {
+  import('./chart.js').then((m) => m.openStockAlert(sym, pahEnv(), id, pahPx(sym))).catch(() => flash(t('kcErrLib')));
+}
+async function pahDelete(sym, a) {
+  const ok = await askConfirmP(t('pahDelQ', { s: sym, p: fmtPx(+a.p, sym) }));
+  if (!ok) return;
+  try { const m = await import('./chart.js'); m.removeAlert(sym, a.id, pahEnv()); } catch (e) { flash(t('kcErrLib')); return; }
+  refreshStockAlerts(sym);
+  pahPaint();
+  flash(t('pahDeleted'));
+}
+function pahPaint() {
+  const P = _pah;
+  if (!P) return;
+  let store = null;
+  try { store = JSON.parse(localStorage.getItem(CHART_LS) || 'null'); } catch (e) { store = null; }
+  const gs = pahGroups(store && store.alerts, pahPx);
+  let nOn = 0, nAll = 0;
+  for (const g of gs) for (const x of g.list) { nAll++; if (!x.a.done) nOn++; }
+  P.sub.textContent = nAll ? [t('pahActive', { n: nOn }), nAll - nOn ? t('pahFired', { n: nAll - nOn }) : ''].filter(Boolean).join(' · ') : '';
+  P.list.textContent = '';
+  if (!gs.length) {
+    const e = el('div', 'pah-none', BELL_SVG + '<b></b><span></span>');
+    e.querySelector('b').textContent = t('pahEmpty');
+    e.querySelector('span').textContent = t('pahEmptySub');
+    const b = el('button', 'pah-cta'); b.type = 'button'; b.textContent = t('kcAlertNew');
+    b.addEventListener('click', () => pahPickToggle(true));
+    e.appendChild(b);
+    P.list.appendChild(e);
+    return;
+  }
+  gs.forEach((g, gi) => {
+    const s = g.s, sec = el('section', 'pah-co');
+    sec.style.animationDelay = Math.min(gi, 8) * 30 + 'ms';
+    // כותרת החברה: לוגו, סימבול ושם, המחיר הנוכחי, ו"+" להתראה נוספת לאותה חברה
+    const hd = el('div', 'pah-co-h');
+    hd.innerHTML = stockLogoHTML(s) + '<span class="pah-co-tx"><b></b><small></small></span><span class="pah-now num"></span>';
+    hd.querySelector('b').textContent = s;
+    const nm = companyName(s, '');
+    hd.querySelector('small').textContent = nm && nm !== s ? nm : '';
+    const now = hd.querySelector('.pah-now'), p = pahPx(s);
+    now.dataset.s = s;
+    now.textContent = p > 0 ? fmtPx(p, s) : '';
+    const add = el('button', 'pah-co-add', PAH_SVG.plus);
+    add.type = 'button';
+    add.setAttribute('aria-label', t('kcAlertNew') + ' · ' + s);
+    add.addEventListener('click', () => pahOpenAlert(s));
+    hd.appendChild(add);
+    const card = el('div', 'pah-co-card');
+    for (const { a } of g.list) {
+      const dir = a.dir === 'up' || a.dir === 'down' ? a.dir : 'cross';
+      const row = el('div', 'pah-row ' + dir + (a.done ? ' done' : ''));
+      const ed = el('button', 'pah-ed');
+      ed.type = 'button';
+      ed.innerHTML = '<span class="pah-arr"><svg viewBox="0 0 24 24" aria-hidden="true">' + ST_AL_ARR[dir] + '</svg></span>' +
+        '<span class="pah-tx"><b class="num"></b><small></small></span><small class="pah-d num"></small>';
+      const pxTxt = fmtPx(+a.p, s);
+      ed.querySelector('b').textContent = pxTxt;
+      const dirTxt = dir === 'up' ? t('kcAlertUp') : dir === 'down' ? t('kcAlertDown') : t('kcAlertCross');
+      const meta = [dirTxt, a.done ? (a.at > 0 ? t('pahFiredAt', { d: pahTime(a.at) }) : t('kcAlertDone')) : ''];
+      if (a.note) meta.push(String(a.note).slice(0, 80));
+      ed.querySelector('.pah-tx small').textContent = meta.filter(Boolean).join(' · ');
+      const d = ed.querySelector('.pah-d');
+      if (!a.done) { d.dataset.p = String(+a.p); d.dataset.s = s; stAlDistSet(d, +a.p, pahPx(s)); }
+      ed.setAttribute('aria-label', s + ' · ' + dirTxt + ' ' + pxTxt + (a.done ? ' · ' + t('kcAlertDone') : '') + (a.note ? ' · ' + String(a.note).slice(0, 80) : ''));
+      ed.addEventListener('click', () => pahOpenAlert(s, a.id));
+      const del = el('button', 'pah-del', PAH_SVG.del);
+      del.type = 'button';
+      del.setAttribute('aria-label', t('kcRemove') + ' · ' + s + ' ' + pxTxt);
+      del.addEventListener('click', () => pahDelete(s, a));
+      row.append(ed, del);
+      card.appendChild(row);
+    }
+    sec.append(hd, card);
+    P.list.appendChild(sec);
+  });
+}
+
 
 /* 25/10/2026 (בקשת המשתמש): מנתח החברות — שכבה במסך מלא (analysis.js + analysis.css), נטענת רק כאן.
    הנתונים מהשרתון (op:'fund' / op:'macro' ב־/api/history); המחיר החי ושער הדולר — מהאפליקציה. */
@@ -19156,6 +19389,7 @@ function deskOpenStock(sym, tab) {
    התאמה רופפת (אותיות מפוזרות / פריסת מקלדת אחרת) — רק כשאין התאמה אמיתית. בסוף — "חיפוש בכל המניות" (שדה המעקב).
    במחשב (html.dk) הכפתור מוסתר — שם יש ⌘K. העיצוב: invest-glass.css */
 const ICON_FIND = _IC_PRE + '<circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="20.5" y2="20.5"/></svg>';
+const ICON_BELL = _IC_PRE + '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
 const MS_SVG = {
   find: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 20.5 20.5"/></svg>',
   x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>',
@@ -19296,8 +19530,9 @@ function msClose(fromBack) {
 function initMobileSearch() {
   const b = document.getElementById('msBtn');
   if (!b) return;
-  b.innerHTML = btnFacesHTML(ICON_FIND, '');
-  b.addEventListener('click', msOpen);
+  // 20/11/2026 (בקשת המשתמש): כשהתפריט פתוח — הכפתור מתחלף (אותה אנימציה של הגלובוס והמטבע) לפעמון: מסך ניהול ההתראות
+  b.innerHTML = btnFacesHTML(ICON_FIND, ICON_BELL);
+  b.addEventListener('click', () => { if (mainMenuOpen()) { setMainMenuOpen(false); openAlertsHub(); } else msOpen(); });
 }
 function toggleStock(sym, card) {
   const body = card.querySelector && card.querySelector('.stock-body');
@@ -21753,6 +21988,8 @@ function setMainMenuOpen(open) {
   if (lang) lang.setAttribute('aria-label', open ? t('menuSettings') : t('langAria'));
   if (cur) cur.setAttribute('aria-label', open ? t('menuThemeAria') : t('curToggleAria'));
   btn.setAttribute('aria-label', open ? t('menuCloseAria') : t('menuAria'));
+  const msb = document.getElementById('msBtn');
+  if (msb) msb.setAttribute('aria-label', open ? t('kcPriceAlerts') : t('msAria'));
   if (open) { const lm = document.getElementById('langMenu'); if (lm) lm.classList.add('hidden'); }
 }
 
