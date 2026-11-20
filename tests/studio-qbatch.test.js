@@ -110,6 +110,8 @@ ok(zz.n === 70 && zz.cdSize === 900 && zz.cdOff === 3 * 2 ** 32, 'zipZ64');
     ok(/nuPickOk\(f\) \? \{ k: 'qb-app'/.test(st) && /nuPick\(true, true\)/.test(st) && /const qbm = qbUse\(f\);/.test(st), 'בורר מרובה דרך האפליקציה — בשורה "כמה קבצים" ובבורר הראשי בתור');
     const pk2 = cut('export function studioPhPicks', '/* Studio ישן קיבל phq2');
     ok(/if \(!qa\) \{ studioPhPick\(parts\[0\]\); rest = parts\.slice\(1\); \}/.test(pk2) && /t: 'p', ph: \{ pid: r\.pid/.test(pk2), '‎#phpicks=: הראשון לטופס (או הכל לרשימה), השאר — פריטי p');
+    const rw = cut('function qbRows', 'const del = btn(');
+    ok(/const d = x\.t === 'd' \? x\.drive\.dur : x\.dur;/.test(rw), 'qbRows: פריט p (בלי drive) לא מפיל את הציור — הרשימה מופיעה');
     const pid = new Function('crypto', cut('export const phPidNew', '/* "להוסיף N').replace('export ', '') + '\nreturn phPidNew;')(require('crypto').webcrypto)();
     ok(/^p[0-9a-f]{16}$/.test(pid), 'phPidNew = PhCore.PID_RE');
     const app = fs.readFileSync(path.join(__dirname, '..', 'studio-app.js'), 'utf8');

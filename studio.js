@@ -4203,7 +4203,7 @@ function qbRows(f) {
       const o = ((x.r && x.r.q) || []).find((q) => q.v === x.v) || {};
       return [x.r.d ? fmtDur(x.r.d) : '', qLabel(o.h || 0)].filter(Boolean).join(' · ');
     }
-    const d = x.t === 'f' ? x.dur : x.drive.dur;
+    const d = x.t === 'd' ? x.drive.dur : x.dur;   // 20/11/2026: גם p (נבחר דרך האפליקציה) — x.drive.dur הפיל את הציור, והרשימה לא הופיעה
     return [x.file.size ? fmtSize(x.file.size) : '', d ? fmtDur(d) : ''].filter(Boolean).join(' · ');
   };
   const rows = l.map((x, i) => {
