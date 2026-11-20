@@ -537,9 +537,27 @@ function tagQ(f, ends) {
   }
   return out;
 }
+/* 12 חודשים עד end מתגית אחת (גל 3 של מכפיל באפט — דרך ב): חברה שמתייגת רק בדוח השנתי (Emerson — ההפחתה רק ב־10-K) אין לה
+   רבעונים. שנה שמסתיימת ב־end, ואחרת השנה הקודמת + המצטבר מתחילת השנה − המצטבר של התקופה המקבילה. null — אין */
+function tagTTM(f, end) {
+  if (!f || !f.dur || !f.dur.size || !end) return null;
+  const ds = [...f.dur].map(([kk, h]) => { const [s, e] = kk.split('|'); return { s, e, n: day(e) - day(s), v: h.v }; });
+  const yr = (x) => x.n >= 350 && x.n <= 380, de = day(end);
+  const fy = ds.find((x) => x.e === end && yr(x)); if (fy) return fy.v;
+  for (const ytd of ds.filter((x) => x.e === end && x.n > 60 && x.n < 300)) {
+    const prev = ds.find((x) => yr(x) && Math.abs(day(x.e) - day(ytd.s)) <= 7);
+    if (!prev) continue;
+    const old = ds.find((x) => x.s === prev.s && Math.abs(day(x.e) - (de - 365)) <= 10 && Math.abs(x.n - ytd.n) <= 10);
+    if (old) return prev.v + ytd.v - old.v;
+  }
+  return null;
+}
 // ההוצאה בדוח הרווח · התוספת בתזרים · הגידול בהון · הפחתת נכסים בלתי מוחשיים (שנרכשו) — סדר הנפילה של §13.11 ונוסחת §13.5
+// גל 3 (דרך ב, §6.10): רווחי והפסדי השקעות — ני"ע הוניים בשווי הוגן, ואם אין — השקעות בכלל (רווח חיובי). הלקוח בוחר עמודה אחת לכל
+// 4 הרבעונים, בלי ערבוב
 const BX_TAGS = ['AllocatedShareBasedCompensationExpense', 'ShareBasedCompensation',
-  'AdjustmentsToAdditionalPaidInCapitalSharebasedCompensationRequisiteServicePeriodRecognitionValue', 'AmortizationOfIntangibleAssets'];
+  'AdjustmentsToAdditionalPaidInCapitalSharebasedCompensationRequisiteServicePeriodRecognitionValue', 'AmortizationOfIntangibleAssets',
+  'EquitySecuritiesFvNiGainLoss', 'GainLossOnInvestments'];
 
 /* עלות המכר בכמה שורות בדוח (26/10/2026): חברה שלא מציגה רווח גולמי ומדפיסה כמה שורות "Cost of …" בתגיות שונות — EchoStar
    ("Cost of services" ‏9,445 + "Cost of sales - equipment and other" ‏1,685 ב־OtherCostOfOperatingRevenue), SBA ("Cost of site leasing"
@@ -1803,6 +1821,9 @@ function normalizeSec(facts, splits = [], face = null, bsf = null) {
   if (!isIfrs) {
     const last = qEnds.slice(-12), cols = BX_TAGS.map((t) => tagQ(tagFacts(tax[t], unitOf('sbc')), last));
     for (const e of last) { const r = cols.map((c) => (c[e] != null ? c[e] : null)); if (r.some((x) => x != null)) (bx = bx || {})[e] = r; }
+    // 12 החודשים לכל תגית (דרך ב — כשחסרים רבעונים): המפתח 'ttm'
+    const t = BX_TAGS.map((tg) => tagTTM(tagFacts(tax[tg], unitOf('sbc')), last[last.length - 1]));
+    if (t.some((x) => x != null)) (bx = bx || {}).ttm = t;
   }
   return { fy, q: qEnds, shEst: shEst.filter((e) => Q.sh[e] != null), epsNum, noDil, A: pack(A, fy), Q: pack(Q, qEnds), C: Object.keys(C.A).length || Object.keys(C.Q).length ? C : null, cur: cur || 'USD', ifrs: isIfrs, derived, tags, fixes, qmix, cx0, gpx, gpd, opx, splitsUsed, capFace, bsfN, cfy, bx };
 }
@@ -2380,8 +2401,8 @@ function adrRatio(ours, adrSh) {
 }
 
 /* משרד האוצר האמריקאי — CSV שנתי של עקום התשואות; העמודה "10 Yr". גיבוי כש־FRED לא עונה */
-function parseTreasury(csv) {
-  const lines = String(csv).trim().split(/\r?\n/), hdr = (lines[0] || '').split(',').map((x) => x.replace(/"/g, '').trim()), i = hdr.indexOf('10 Yr');
+function parseTreasury(csv, col = '10 Yr') {
+  const lines = String(csv).trim().split(/\r?\n/), hdr = (lines[0] || '').split(',').map((x) => x.replace(/"/g, '').trim()), i = hdr.indexOf(col);
   if (i < 0) return [];
   return lines.slice(1).map((l) => l.split(',')).filter((r) => /^\d{2}\/\d{2}\/\d{4}$/.test(r[0]) && /^\d/.test(r[i] || ''))
     .map((r) => [r[0].slice(6) + '-' + r[0].slice(0, 2) + '-' + r[0].slice(3, 5), +r[i]]).sort((a, b) => (a[0] < b[0] ? -1 : 1));
@@ -2395,12 +2416,23 @@ async function treasury10y() {
   const last = all[all.length - 1], from = new Date(Date.parse(last[0]) - 5 * 365.25 * 864e5).toISOString().slice(0, 10), r5 = all.filter((r) => r[0] >= from).map((r) => r[1]);
   return { rf: last[1] / 100, rfDate: last[0], rf5: Math.round(r5.reduce((a, b) => a + b, 0) / r5.length * 100) / 1e4, rfSrc: 'US Treasury' };
 }
+async function treasury30y() {
+  const y = new Date().getUTCFullYear();
+  const url = 'https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/' + y +
+    '/all?type=daily_treasury_yield_curve&field_tdr_date_value=' + y + '&page&_format=csv';
+  const all = parseTreasury(await getText(url, { headers: { 'User-Agent': UA } }, 8000), '30 Yr');
+  return all.length ? { rf: all[all.length - 1][1] / 100, rfDate: all[all.length - 1][0] } : null;
+}
 async function macro() {
   const hit = cget('macro', 12 * H); if (hit) return hit;
   let fred = null;
   try { fred = parseFred(await getText('https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10', { headers: { 'User-Agent': UA } }, 8000)); if (fred) fred.rfSrc = 'FRED DGS10'; } catch (e) { /* גיבוי למטה */ }
   if (!fred) { try { fred = await treasury10y(); } catch (e) { /* בלי ריבית חיה */ } }
-  const v = { ...(fred || { rf: null, rfDate: null, rf5: null }), erp: DMD.erp, erpDate: DMD.erpDate, crpIL: DMD.crpIL, rfIL: DMD.rfIL, rfILDate: DMD.rfILDate,
+  // האג"ח הארוך (30 שנה) — הריבית שבאפט משווה אליה את תשואת הרווח (מכתב 2000; גל 3 של מכפיל באפט). ‏FRED, ובגיבוי — משרד האוצר
+  let l30 = null;
+  try { l30 = parseFred(await getText('https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS30', { headers: { 'User-Agent': UA } }, 8000)); } catch (e) { /* גיבוי */ }
+  if (!l30) { try { l30 = await treasury30y(); } catch (e) { /* בלי */ } }
+  const v = { ...(fred || { rf: null, rfDate: null, rf5: null }), rf30: l30 ? l30.rf : null, rf30Date: l30 ? l30.rfDate : null, erp: DMD.erp, erpDate: DMD.erpDate, crpIL: DMD.crpIL, rfIL: DMD.rfIL, rfILDate: DMD.rfILDate,
     taxIL: DMD.taxIL, ratingIL: DMD.ratingIL, dmdAsOf: DMD.asOf, src: { rf: (fred && fred.rfSrc) || null, erp: DMD.src } };
   return fred ? cset('macro', v) : v;
 }
@@ -2637,7 +2669,7 @@ async function handle(body, res) {
 
 // בקשה ל־SEC עם המזהה (עבודת הרקע של המאזנים — server.js → startBsf → lib/bsfiled.js)
 const secText = (u) => getText(u, { headers: { 'User-Agent': SEC_UA() } }, 15000);
-module.exports = { handle, fundamentals, tagQ, BX_TAGS, holes, q4Press, q4Ni, fxMonthly, adrRatio, FX_FRED, capexNil, debtFace, bsfDebt, bsfCf, bsfIs, secText, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
+module.exports = { handle, fundamentals, tagQ, tagTTM, BX_TAGS, holes, q4Press, q4Ni, fxMonthly, adrRatio, FX_FRED, capexNil, debtFace, bsfDebt, bsfCf, bsfIs, secText, secFacts, goneSince, noteFlags, flaggedSyms, warnKinds, CHECK_INFO, FLAG_PRE, q4Eps, finArmOf, yQuarterFill, qShares, macro, yahooMonthly, normalizeSec, mergeTags, fixRuns, faceCheck, secFace, cikMap, secSym, mergeFacts, CIK_PREV, validate, crossCheck, parseYahooTs, parseSummary, parseMonthly, parseNasdaq, parsePeers, parseFred, parseTreasury,
   industryFor, industryData, _cache: cache,
   // התגיות המועמדות לכל שורה — לכלי ההשוואה (fundxcheck: SEC גולמי גם לתקופות שהושלמו מתגית משנית). נשמט ב־f9db4c74 — tools/fund-xcheck.js מצפה לו
   TAGS: { gaap: { ...FLOW, ...INST }, ifrs: IFRS } };
