@@ -83,4 +83,7 @@
     <string name="phPuSent">הקול עלה — התרגום רץ בשרת</string>
     <string name="phPuSentS">הסרטון ממשיך לעלות ברקע, גם כשהמסך כבוי. הצריבה בשרת, כמו תמיד</string>
     <string name="phPuProbe">קורא את הסרטון…</string>
+    <string name="phPickN">%1$d מתוך %2$d</string>
+    <string name="phYtT">מוריד מהקישור</string>
+    <string name="phYtS">הסרטון יורד לטלפון — אחר כך הוא עולה לתרגום</string>
 </resources>

@@ -82,4 +82,7 @@
     <string name="phPuSent">Audio uploaded — the translation is running on the server</string>
     <string name="phPuSentS">The video keeps uploading in the background, even with the screen off. Burning happens on the server, as always</string>
     <string name="phPuProbe">Reading the video…</string>
+    <string name="phPickN">%1$d of %2$d</string>
+    <string name="phYtT">Downloading from the link</string>
+    <string name="phYtS">The video is downloading to the phone — then it uploads for translation</string>
 </resources>

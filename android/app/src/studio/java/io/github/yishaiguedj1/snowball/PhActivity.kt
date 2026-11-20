@@ -36,6 +36,9 @@ import java.io.File
  *                                            pt=1 — גם שלבי הטקסט בטלפון (שלב 3, PhPy — job.py בפייתון של האפליקציה)
  *   snbstudio://phq?b=…&q=pid.j.k~pid.j.k… → 20/11/2026: תור עבודות — כמה בחירות nu בפתיחה אחת; הקול של כל אחת עולה
  *                                            אחרי הקודמת (PhService.enqueue), והסרטונים לענן ב־UIDT (CAP 7, studio.js PH_CAP_Q)
+ *   snbstudio://phpick?…&nu=1&m=1          → 20/11/2026: בחירה מרובה לתור — כל סרטון כמו nu, חזרה עם ‎#phpicks=<pid.b64>~… (עד Q_MAX)
+ *   snbstudio://phq2?b=…&q=…               → 20/11/2026: כמו phq, ופריט יכול להיות גם קישור להורדה כאן ("pid.j.k.<b64url>", PhYt —
+ *                                            יוטיוב חוסם את השרת). host חדש: Studio ישן לא מכיר אותו → הדף מקבל ‎#phpick=!yqold
  *   snbstudio://phburn?pid=…[&j&k&b]       → הצריבה כשהתרגום מוכן
  *   snbstudio://phgo?pid=…                 → להמשיך אחרי שנעצר
  *   snbstudio://phpv?pid=…                 → 5/11/2026: חיתוך לפני התרגום (nu) — הסרטון שכבר נבחר עובר לדף לתצוגה בעורך
@@ -65,9 +68,10 @@ class PhActivity : Activity() {
         web = webOk(d.getQueryParameter("w")) ?: s(R.string.launchUrl)
         PhStore.gc(this); PhStore.gcRemoteAsync(this)
         when (d.host) {
-            "phpick" -> pick(d.getQueryParameter("nu") == "1")
+            "phpick" -> pick(d.getQueryParameter("nu") == "1", d.getQueryParameter("m") == "1")
             "ph" -> go(d)
-            "phq" -> goQ(d)
+            "phq" -> goQ(d, false)
+            "phq2" -> goQ(d, true)
             "phburn" -> burn(d)
             "phgo" -> resume(d)
             "phpv" -> preview(d)
@@ -90,21 +94,48 @@ class PhActivity : Activity() {
     }
 
     /* ---------------------------------------------------------------- בחירה */
-    private fun pick(pu: Boolean) {
+    private fun pick(pu: Boolean, many: Boolean) {
         titleV.text = s(R.string.phPickT); subV.text = s(R.string.phPickS)
         btn.text = s(R.string.dlCancel); btn.setOnClickListener { cancelled = true; back("#phpick=!cancel") }
         val i = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("video/*")
         if (pu) i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-        startActivityForResult(i, if (pu) REQ_PICK_PU else REQ_PICK)
+        if (pu && many) i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)   // 20/11/2026: תור עבודות — כמה סרטונים בבחירה אחת
+        startActivityForResult(i, if (pu && many) REQ_PICK_PUM else if (pu) REQ_PICK_PU else REQ_PICK)
     }
 
     @Deprecated("Activity API")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQ_PICK && requestCode != REQ_PICK_PU) return
+        if (requestCode != REQ_PICK && requestCode != REQ_PICK_PU && requestCode != REQ_PICK_PUM) return
+        if (requestCode == REQ_PICK_PUM) {
+            val us = ArrayList<Uri>()
+            data?.clipData?.let { c -> for (k in 0 until c.itemCount) c.getItemAt(k).uri?.let { if (it !in us) us.add(it) } }
+            data?.data?.let { if (it !in us) us.add(it) }
+            if (resultCode != RESULT_OK || us.isEmpty()) { back("#phpick=!cancel"); return }
+            pickMany(us.take(PhCore.Q_MAX)); return
+        }
         val u = data?.data
         if (resultCode != RESULT_OK || u == null) { back("#phpick=!cancel"); return }
         if (requestCode == REQ_PICK_PU) pickPu(u) else copy(u)
+    }
+
+    /** 20/11/2026: בחירה מרובה (תור עבודות) — כל סרטון כמו pickPu, אחד אחרי השני (בלי עותק: רק המטא־נתונים, שניות לכל אחד).
+     *  חזרה עם כל מה שהצליח (‎#phpicks=); מה שנכשל — מדלגים. הכל נכשל — הקוד של הראשון */
+    private fun pickMany(us: List<Uri>) {
+        titleV.text = s(R.string.phPuProbe); subV.text = ""
+        bar.isIndeterminate = false; bar.progress = 0
+        Thread {
+            val ok = ArrayList<String>(); var err = ""
+            for ((n, u) in us.withIndex()) {
+                if (cancelled) break
+                val r = puOne(u)
+                if (r.startsWith("!")) { if (err.isEmpty()) err = r.substring(1) } else ok.add(r)
+                val p = (n + 1) * 100 / us.size
+                main.post { bar.progress = p; subV.text = s(R.string.phPickN, n + 1, us.size) }
+            }
+            val res = if (ok.isNotEmpty()) "#phpicks=" + ok.joinToString("~") else "#phpick=!" + (if (cancelled) "cancel" else err.ifEmpty { "probe" })
+            main.post { if (!isFinishing) back(res) }
+        }.start()
     }
 
     /** 1/11/2026 (pu): בלי עותק — ההרשאה ל־URI נשמרת (PhUpJob קורא ממנו גם אחרי הפעלה מחדש), והמידות והאורך מ־MediaExtractor */
@@ -112,29 +143,35 @@ class PhActivity : Activity() {
         titleV.text = s(R.string.phPuProbe); subV.text = ""
         bar.isIndeterminate = true
         Thread {
-            val pid = PhStore.newPid()
-            val res = try {
-                try { contentResolver.takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Throwable) {}
-                var name = "video.mp4"; var size = -1L
-                contentResolver.query(u, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
-                    if (c.moveToFirst()) { name = c.getString(0) ?: name; if (!c.isNull(1)) size = c.getLong(1) }
-                }
-                if (size <= 0) size = contentResolver.openFileDescriptor(u, "r")?.use { it.statSize } ?: -1L
-                if (size <= 0) throw IllegalArgumentException("probe")
-                if (cancelled) throw IllegalArgumentException("cancel")
-                val info = PhPu.probe(this, u) ?: throw IllegalArgumentException("no_video")
-                if (!info.hasAudio) throw IllegalArgumentException("no_audio")
-                PhStore.put(this, JSONObject().put("pid", pid).put("name", name.take(200)).put("size", size).put("uri", u.toString()).put("pu", true)
-                    .put("at", System.currentTimeMillis()).put("web", web).put("st", "picked"))
-                val oh = try { PhPu.osHash(PhPu.UriSrc(this, u, size)) } catch (e: Throwable) { "" }
-                "#phpick=$pid." + DlEngine.b64(PhCore.pickJson(pid, name, size, info, oh).put("nu", 1).toString())
-            } catch (e: Throwable) {
-                PhStore.drop(this, pid)
-                try { contentResolver.releasePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (x: Throwable) {}
-                "#phpick=!" + ((e as? IllegalArgumentException)?.message ?: "probe")
-            }
+            val r = puOne(u)
+            val res = "#phpick=$r"
             main.post { if (!isFinishing) back(res) }
         }.start()
+    }
+
+    /** סרטון אחד (pu): "pid.base64url" או "!קוד" */
+    private fun puOne(u: Uri): String {
+        val pid = PhStore.newPid()
+        return try {
+            try { contentResolver.takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Throwable) {}
+            var name = "video.mp4"; var size = -1L
+            contentResolver.query(u, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
+                if (c.moveToFirst()) { name = c.getString(0) ?: name; if (!c.isNull(1)) size = c.getLong(1) }
+            }
+            if (size <= 0) size = contentResolver.openFileDescriptor(u, "r")?.use { it.statSize } ?: -1L
+            if (size <= 0) throw IllegalArgumentException("probe")
+            if (cancelled) throw IllegalArgumentException("cancel")
+            val info = PhPu.probe(this, u) ?: throw IllegalArgumentException("no_video")
+            if (!info.hasAudio) throw IllegalArgumentException("no_audio")
+            PhStore.put(this, JSONObject().put("pid", pid).put("name", name.take(200)).put("size", size).put("uri", u.toString()).put("pu", true)
+                .put("at", System.currentTimeMillis()).put("web", web).put("st", "picked"))
+            val oh = try { PhPu.osHash(PhPu.UriSrc(this, u, size)) } catch (e: Throwable) { "" }
+            "$pid." + DlEngine.b64(PhCore.pickJson(pid, name, size, info, oh).put("nu", 1).toString())
+        } catch (e: Throwable) {
+            PhStore.drop(this, pid)
+            try { contentResolver.releasePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (x: Throwable) {}
+            "!" + ((e as? IllegalArgumentException)?.message ?: "probe")
+        }
     }
 
     private fun copy(u: Uri) {
@@ -201,16 +238,18 @@ class PhActivity : Activity() {
 
     /** 20/11/2026: תור עבודות — כל פריט כמו go() (בחירת nu בלבד: הסרטון לענן תמיד), ובלי "Studio עסוק": הכל נכנס לתור של
      *  PhService ועולה אחד אחרי השני. פריט שלא עבר את הבדיקות — מדלגים עליו (השאר ממשיכים) */
-    private fun goQ(d: Uri) {
+    private fun goQ(d: Uri, links: Boolean) {
         val b = d.getQueryParameter("b") ?: ""
         if (!PhCore.hostOk(b)) { fail(R.string.phGone); return }
         val pids = ArrayList<String>()
         for (x in (d.getQueryParameter("q") ?: "").split('~').take(PhCore.Q_MAX)) {
-            val p = x.split('.')
-            if (p.size != 3) continue
-            val (pid, j, k) = p
+            val (pid, j, k, u) = PhCore.qItem(x, links) ?: continue
+            // phq2: קישור — הרשומה נוצרת כאן (ה־pid מהדף), והסרטון יורד ב־PhService לפני הקול (PhYt). אותו pid שוב — רק אותו קישור
+            if (u.isNotEmpty() && PhStore.get(this, pid) == null)
+                PhStore.put(this, JSONObject().put("pid", pid).put("name", "").put("size", 0L).put("uri", "").put("yu", u).put("pu", true)
+                    .put("at", System.currentTimeMillis()).put("web", web).put("st", "picked"))
             val r = PhStore.get(this, pid) ?: continue
-            if (!PhCore.JOB_RE.matches(j) || !PhCore.KEY_RE.matches(k) || !r.optBoolean("pu")) continue
+            if (!r.optBoolean("pu") || r.optString("yu") != u) continue
             if (r.optString("job").isNotEmpty() && r.optString("job") != j) continue   // סרטון אחד — עבודה אחת
             PhStore.update(this, pid) { it.put("job", j).put("key", k).put("base", b).put("pb", "").put("ov", false).put("web", web)
                 .put("pw", false).put("pt", false).put("vc", true).put("cell", false).remove("e") }
@@ -316,6 +355,7 @@ class PhActivity : Activity() {
     companion object {
         private const val REQ_PICK = 71
         private const val REQ_PICK_PU = 72
+        private const val REQ_PICK_PUM = 73
         /** האתר שאליו חוזרים — רק Studio (ייצור / ניסוי) */
         private val WEBS = listOf("https://studio.thesnowball.app/", "https://studio-staging.thesnowball.app/")
         fun webOk(w: String?): String? = w?.let { x -> WEBS.firstOrNull { it == x || it == "$x/" } }

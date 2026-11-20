@@ -19,8 +19,10 @@ const man = R('android/app/src/studio/AndroidManifest.xml');
 // 1. לטלפון כברירת מחדל; "ישר לענן של Studio" רק בבחירה, רק כשהשרתון מתיר ורק במקור שלא חוסם את השרת (22/10/2026)
 {
   const fnSrc = (name) => { const a = st.indexOf('function ' + name + '('); return st.slice(a, st.indexOf('\n}\n', a)); };
-  const outside = st.replace(fnSrc('linkCheckSrv'), '').replace(fnSrc('startLinkCloud'), '');
-  ok(!/urlProbe/.test(outside) && !/src: 'url'/.test(outside), 'השרת רק בשתי פונקציות: linkCheckSrv (דפדפן בלי האפליקציה) ו־startLinkCloud (בחירה)');
+  // 20/11/2026: גם linkSpecOf (ה־spec של startLinkCloud, משותף לרשימת הקישורים בתור) ו־qbProbe1 (רשימת הקישורים — רק כשמותר ענן: ui.url, ובלי יוטיוב בלי yc)
+  const outside = st.replace(fnSrc('linkCheckSrv'), '').replace(fnSrc('startLinkCloud'), '').replace(fnSrc('linkSpecOf'), '').replace(fnSrc('qbProbe1'), '');
+  ok(!/urlProbe/.test(outside) && !/src: 'url'/.test(outside), 'השרת רק ב־linkCheckSrv, ‏startLinkCloud/linkSpecOf ו־qbProbe1 (רשימת הקישורים בתור)');
+  ok(/if \(!ui\.url\) \{ x\.st = 'err'; x\.e = 'app'; return; \}/.test(fnSrc('qbProbe1')) && /if \(!ui\.yc && ytHost\(x\.u\)\)/.test(fnSrc('qbProbe1')), 'qbProbe1: רק כשמותר ענן, ויוטיוב — לא בשרת');
   ok(/L\.to = ui\.url \|\| !devDl\(\) \? 'cloud' : 'dev';/.test(st) && /if \(L\.to === 'cloud' && !cOk\) L\.to = 'dev';/.test(st) && /if \(ui\.url\) linkCheckSrv\(f, L, seq\); else \{ L\.st = 'err'; L\.e = 'app'; \}/.test(st), '31/10: ברירת המחדל — הענן (כשמותר; מקור חוסם → לטלפון); בלי האפליקציה — לענן (כשמותר) או הסבר');
   ok(/if \(L && L\.to === 'cloud'\) return startLinkCloud\(f\);/.test(st), 'התחלה לפי הבחירה');
   ok(/cloudBlocked = \(r\) => \/\^youtube\/i/.test(st) && /function cloudOk\(L\) \{ return !!\(ui\.url && L && L\.r && !cloudBlocked\(L\.r\)\); \}/.test(st), 'לענן — רק עם ui.url ובלי יוטיוב (חוסם את השרת)');

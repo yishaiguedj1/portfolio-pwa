@@ -164,7 +164,20 @@ object PhCore {
     /** ‎#phpick=<pid>.<base64url של JSON> — מה שהטופס צריך כדי ליצור את העבודה (השם, הגודל, האורך, המידות) */
     /** מה Studio הזה יודע — האתר קובע לפיו את העבודה (studio.js PH_CAP_PT, PH_CAP_VC). 3 = גם שלבי הטקסט בטלפון (שלב 3) */
     const val Q_MAX = 40   // 20/11/2026: phq — עד כמה עבודות בפתיחה אחת (= QU_MAX ההיסטורי בדף)
-    const val CAP = 7   // 20/11/2026: 7 = phq — תור עבודות בפתיחה אחת (PH_CAP_Q). 30/10/2026: 4 = גם הסרטון לענן (vc, studio.js PH_CAP_VC). 1/11/2026: 5 = בחירה בלי עותק לתרגום רגיל בשרת (nu=1, PH_CAP_NU). 5/11/2026: 6 = phpv — הסרטון לתצוגה בעורך (PH_CAP_PV)
+    const val CAP = 8   // 20/11/2026: 8 = phq2 — בתור גם קישורים שיורדים בטלפון (PhYt, studio.js PH_CAP_YD), ובחירה מרובה (‎#phpicks=). 7 = phq — תור עבודות בפתיחה אחת (PH_CAP_Q). 30/10/2026: 4 = גם הסרטון לענן (vc, studio.js PH_CAP_VC). 1/11/2026: 5 = בחירה בלי עותק לתרגום רגיל בשרת (nu=1, PH_CAP_NU). 5/11/2026: 6 = phpv — הסרטון לתצוגה בעורך (PH_CAP_PV)
+    /** 20/11/2026: פריט בתור (phq / phq2): "pid.עבודה.מפתח" (בחירה קיימת) או "pid.עבודה.מפתח.<base64url של קישור>" (phq2 —
+     *  להוריד כאן, PhYt). כל ערך נבדק כאילו הגיע מכל אפליקציה; null = לדלג */
+    data class QItem(val pid: String, val j: String, val k: String, val u: String)
+    fun qItem(x: String, links: Boolean): QItem? {
+        val p = x.split('.')
+        if (p.size != 3 && !(links && p.size == 4)) return null
+        if (!PID_RE.matches(p[0]) || !JOB_RE.matches(p[1]) || !KEY_RE.matches(p[2])) return null
+        val u = if (p.size == 4) (try { String(java.util.Base64.getUrlDecoder().decode(p[3]), Charsets.UTF_8) } catch (e: Throwable) { return null }) else ""
+        if (p.size == 4 && !ytOk(u)) return null
+        return QItem(p[0], p[1], p[2], u)
+    }
+    /** קישור להורדה בטלפון: http(s) בלבד, בלי רווחים ותווי בקרה, עד 2048 */
+    fun ytOk(u: String): Boolean = u.length in 10..2048 && Regex("^https?://[^\\s\\u0000-\\u001f]+$", RegexOption.IGNORE_CASE).matches(u)
     fun pickJson(pid: String, name: String, size: Long, i: Info?, oh: String = ""): JSONObject = JSONObject().put("pid", pid).put("name", name.take(200)).put("size", size).put("cap", CAP).put("oh", oh)
         .put("dur", i?.dur ?: 0.0).put("w", i?.w ?: 0).put("h", i?.h ?: 0).put("fps", i?.fps ?: 0.0).put("a", i?.hasAudio ?: false)
 

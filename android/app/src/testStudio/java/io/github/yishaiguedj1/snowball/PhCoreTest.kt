@@ -130,4 +130,22 @@ class PhCoreTest {
         assertEquals(1, org.json.JSONArray(String(buf, 0, inf2.inflate(buf), Charsets.UTF_8)).length())
         assertEquals("", PhCore.packSubs(listOf(L[1] to big), 100))
     }
+
+    /** 20/11/2026: תור עבודות — פריט של phq / phq2 (קישור להורדה בטלפון, base64url כמו b64 בדף) */
+    @Test fun queueItems() {
+        val P = "p0123456789abcdef"; val J = "j" + "A".repeat(20); val K = "k".repeat(43)
+        val u = "https://www.youtube.com/watch?v=abc_DEF-123"
+        val b = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(u.toByteArray())
+        assertEquals(PhCore.QItem(P, J, K, ""), PhCore.qItem("$P.$J.$K", false))
+        assertEquals(PhCore.QItem(P, J, K, u), PhCore.qItem("$P.$J.$K.$b", true))
+        assertNull("phq הישן — בלי קישורים", PhCore.qItem("$P.$J.$K.$b", false))
+        assertNull(PhCore.qItem("pXYZ.$J.$K", true))
+        assertNull(PhCore.qItem("$P.$J.short", true))
+        val bad = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString("javascript:alert(1)".toByteArray())
+        assertNull("רק http(s)", PhCore.qItem("$P.$J.$K.$bad", true))
+        assertNull("לא base64", PhCore.qItem("$P.$J.$K.@@@", true))
+        assertTrue(PhCore.ytOk(u)); assertFalse(PhCore.ytOk("https://a b.com/x")); assertFalse(PhCore.ytOk("ftp://example.com/v"))
+        assertFalse(PhCore.ytOk("https://x.com/" + "a".repeat(2100)))
+        assertEquals(8, PhCore.CAP)
+    }
 }

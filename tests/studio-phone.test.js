@@ -191,6 +191,26 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok((await nu('phUp', { v: true, size: 5, type: 'video/mp4', name: 'talk.mp4' })).error === 'file_size', 'nu: הסרטון — רק בגודל של העבודה');
   ok((await nu('phVp', { p: 0.4 })).ok && (await api('job', { job: jn.job.id })).job.vcp.p === 0.4, 'nu: התקדמות הסרטון מהאפליקציה מגיעה לדף');
 
+  /* ---------- 5א2. yd (20/11/2026): קישור שיורד ב־Studio לאנדרואיד — הגודל והאורך מהטלפון ---------- */
+  ok(S.normSpec(Object.assign({}, base, { nu: 1, yd: 1 })).yd === 1 && !('yd' in S.normSpec(Object.assign({}, base, { yd: 1 }))), 'yd נשמר רק עם nu');
+  const jy = await api('create', { spec: Object.assign({}, base, { nu: 1, yd: 1, size: 1, dur: 0 }) });
+  ok(jy.ok && jy.job.spec.yd === 1 && jy.job.spec.size === 1, 'עבודת yd נוצרת עם גודל זמני');
+  const pky = await api('phKey', { job: jy.job.id });
+  const yd = (op, b) => call(Object.assign({ op, job: jy.job.id, key: pky.key }, b), true).then((x) => x.j);
+  const uy = await yd('phUp', { size: audio.length, type: 'audio/x-matroska', name: 'v.audio.mka' });
+  await R.fetch(uy.urls[1], { method: 'PUT', body: audio });
+  ok((await yd('phDone', { id: uy.id, up: uy.up })).ok && (await yd('phFile', { which: 'a', id: uy.id })).ok, 'yd: הקול נרשם');
+  j = await yd('phStart', { dur: 754.4 });
+  ok(j.ok && (await api('job', { job: jy.job.id })).job.spec.dur === 754, 'yd: האורך מהטלפון נרשם בהתחלה');
+  ok((await yd('phUp', { v: true, size: -4, type: 'video/mp4', name: 'v.mp4' })).error === 'too_big', 'yd: גודל לא תקין — נדחה');
+  const vy = Buffer.alloc(3000, 7);
+  const uv = await yd('phUp', { v: true, size: vy.length, type: 'video/mp4', name: 'v.mp4' });
+  ok(uv.ok && (await api('job', { job: jy.job.id })).job.spec.size === vy.length, 'yd: הגודל האמיתי נקבע בהעלאת הסרטון');
+  await R.fetch(uv.urls[1], { method: 'PUT', body: vy });
+  ok((await yd('phDone', { v: true, id: uv.id, up: uv.up })).ok && (await yd('phFile', { v: true, which: 'v', id: uv.id })).ok, 'yd: הסרטון נרשם בגודל החדש');
+  ok((await yd('phUp', { v: true, size: 999, type: 'video/mp4', name: 'v.mp4' })).error === 'file_size', 'yd: אחרי שנרשם — הגודל לא משתנה');
+  ok((await nu('phUp', { v: true, size: 7, type: 'video/mp4', name: 'talk.mp4' })).error === 'file_size', 'בלי yd — הגודל של העבודה בלבד (כמו קודם)');
+
   /* ---------- 5ב. שלב 2 (25/10/2026): גם התמלול והיישור בטלפון — המילים והמדידות, בלי קול ---------- */
   sp = S.normSpec(Object.assign({}, base, { ph: 1, pw: 1 }));
   ok(sp.ph === 1 && sp.pw === 1, 'pw נשמר רק עם ph');
@@ -271,7 +291,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(pp && pp.pid === PID && pp.name === 'הרצאה.mp4' && pp.size === 123456789 && pp.dur === 3600.5 && pp.w === 1920, '‎#phpick= — הסרטון שנבחר בטלפון (שם בעברית)');
   // 1/11/2026: nu — בחירה דרך האפליקציה לתרגום רגיל בשרת (האפליקציה רק מעלה)
   ok(W.parsePhPick(PID + '.' + enc({ pid: PID, size: 9, nu: 1 })).nu === true && W.parsePhPick(PID + '.' + enc({ pid: PID, size: 9 })).nu === false, 'nu מהאפליקציה — רק 1 מפורש');
-  ok(/if \(nuPickOk\(f\)\) \{ nuPick\(\); return; \}/.test(src) && /phIntent\('phpick', \{ nu: 1 \}\)/.test(src), 'nu: עם Studio לאנדרואיד — הבחירה הראשית דרך האפליקציה');
+  ok(/if \(nuPickOk\(f\)\) \{ nuPick\(qbm, false\); return; \}/.test(src) && /phIntent\('phpick', many \? \{ nu: 1, m: 1 \} : \{ nu: 1 \}\)/.test(src), 'nu: עם Studio לאנדרואיד — הבחירה הראשית דרך האפליקציה');
   ok(/export const nuPickOk = \(f\) => phOk\(\) && !!f && !f\.ka && !f\.vi;/.test(src), 'nu: קריוקי — מהדפדפן');
   ok(/if \(r\.nu \|\| ask\) f\.ph\.nu = 1;/.test(src), 'nu: Studio ישן שלא החזיר nu — עדיין עבודה רגילה (לפי NU_ASK), לא תרגום בטלפון');
   ok(/out: OUTS\.filter\(\(k\) => f\.out\[k\]\), style: f\.style, \.\.\.\(f\.sty \? \{ sty: f\.sty \} : \{\}\), terms: f\.terms, nu: 1, eng: 'api'/.test(src), 'nu: עבודה רגילה (התוצרים מהטופס), לא spec.ph');
@@ -280,7 +300,7 @@ const { fakeR2, ENV } = require('./_r2fake');
   {
     const act = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhActivity.kt'), 'utf8');
     const wk = fs.readFileSync(path.join(root, 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhWork.kt'), 'utf8');
-    ok(/"phpick" -> pick\(d\.getQueryParameter\("nu"\) == "1"\)/.test(act) && /\.put\("nu", 1\)\.toString\(\)/.test(act), 'nu: האפליקציה מקבלת ומחזירה את הבחירה');
+    ok(/"phpick" -> pick\(d\.getQueryParameter\("nu"\) == "1", d\.getQueryParameter\("m"\) == "1"\)/.test(act) && /\.put\("nu", 1\)\.toString\(\)/.test(act), 'nu: האפליקציה מקבלת ומחזירה את הבחירה');
     ok(/if \(r\.optBoolean\("pu"\)\) return upPu\(/.test(wk) && !/runCatching \{ f\.delete\(\) \}/.test(wk), 'nu: מסלול משלו, בלי עותק למחוק');
   }
   ok(W.parsePhPick('!space').e === 'space' && W.parsePhPick('!<b>') === null, 'שגיאה מהאפליקציה — רק קוד');

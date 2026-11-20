@@ -77,7 +77,7 @@ ok(app.includes("'pwa_studio_qdr_v1'") && /export const QDR_LS = 'pwa_studio_qdr
 }
 { const ka = fs.readFileSync(path.join(__dirname, '..', 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhActivity.kt'), 'utf8');
   const sv = fs.readFileSync(path.join(__dirname, '..', 'android/app/src/studio/java/io/github/yishaiguedj1/snowball/PhService.kt'), 'utf8');
-  ok(/"phq" -> goQ\(d\)/.test(ka) && /PhService\.enqueue\(this, pids\)/.test(ka) && /!r\.optBoolean\("pu"\)\) continue/.test(ka), 'האפליקציה: phq — כל פריט כמו go (רק בחירת nu), ולתור');
+  ok(/"phq" -> goQ\(d, false\)/.test(ka) && /"phq2" -> goQ\(d, true\)/.test(ka) && /PhService\.enqueue\(this, pids\)/.test(ka) && /if \(!r\.optBoolean\("pu"\) \|\| r\.optString\("yu"\) != u\) continue/.test(ka), 'האפליקציה: phq — כל פריט כמו go (רק בחירת nu), ולתור');
   ok(/cur = synchronized\(q\) \{ q\.removeFirstOrNull\(\) \}/.test(sv) && /if \(busy\) \{[^\n]*\n\s*startForeground\(/.test(sv), 'PhService: אחת אחרי השנייה; כבר רץ — מצטרפת לתור (עם startForeground)'); }
 ok(/if \(!f \|\| !f\.qd \|\| !f\.qu \|\| f\.qgo\) return false;/.test(st) && /if \(f && f\.qgo\) return Promise\.resolve\(true\);/.test(st), 'quHold רק בתור ולא בזמן ההתחלה; ההתחלה — בלי שאלת אומדן לכל עבודה');
 ok(/return \(async \(\) => \{\n    const file = f\.fileObj \|\| f\.drive;/.test(st) && /if \(f && f\.subs && !ui\.starting\) return startSubs\(f\);/.test(st) && /if \(L && L\.to === 'cloud'\) return startLinkCloud\(f\);/.test(st), 'startFromForm מחזיר הבטחה — ההתחלה של הרשימה אחת אחרי השנייה');
