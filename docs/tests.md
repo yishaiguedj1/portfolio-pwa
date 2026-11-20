@@ -22,3 +22,4 @@
   - **הבעיה**: הבדיקות `studio-drive`, ‏`round8`, ‏`round10`, ‏`sug`, ‏`v354` ו־`v355` טוענות את `studio.js` דרך `new Function`. הן מחליפות כל `import` ב־`const {…} = __stubs` לפי הביטוי `^import \{…\} from '…';$`. הערה אחרי ה־`;` שוברת את ההחלפה, והתוצאה היא השגיאה "Cannot use import statement outside a module".
   - **ייבוא חדש ב־`studio.js`** מחייב שני דברים: תחליף ב־`STUBS` של הבדיקות האלה (למשל `normVsp: () => ({})`), ועדכון רשימת הייבוא המותרת ב־`studio-v355`.
   - **קובץ חדש באתר**: הבדיקה `site-files` משווה מול `git ls-files`. לכן לפני commit צריך להריץ `git add -N`.
+- **אנדרואיד — לקמפל את ה־flavor ששונה (20/11/2026)**: `tools/android-sdk.sh build` מקמפל את Invest ואת Studio (נוסף אחרי ש־`ArrayDeque.poll` ב־`PhService` עבר מקומית ונכשל ב־CI). שינוי ב־dm/browser/bubble — להריץ ידנית `:app:compile<Flavor>ReleaseKotlin :app:test<Flavor>ReleaseUnitTest`.

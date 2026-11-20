@@ -23,7 +23,7 @@ G=$(command -v gradle || echo /opt/gradle/bin/gradle)
 LOG=$(mktemp)
 cd "$(dirname "$0")/../android" || exit 1
 for i in 1 2 3 4 5 6; do
-  timeout 900 "$G" --no-daemon -q --max-workers=1 :app:compileInvestReleaseKotlin :app:processInvestReleaseManifest :app:mergeInvestReleaseResources >"$LOG" 2>&1 && { echo "בנייה עברה (ניסיון $i)"; exit 0; }
+  timeout 900 "$G" --no-daemon -q --max-workers=1 :app:compileInvestReleaseKotlin :app:compileStudioReleaseKotlin :app:processInvestReleaseManifest :app:mergeInvestReleaseResources >"$LOG" 2>&1 && { echo "בנייה עברה (ניסיון $i)"; exit 0; }
   grep -q 429 "$LOG" || break
   echo "429 מ־Maven — ניסיון $i, ממתין דקה"; sleep 60
 done
