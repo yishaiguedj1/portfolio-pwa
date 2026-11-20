@@ -3036,12 +3036,13 @@ function noteToggle(note) {
   b.hidden = !note.hidden;
   return b;
 }
-/* 20/11/2026 (בקשת המשתמש): כותרת חלונית ההתראה — לוגו עגול, הסימבול מודגש ושם החברה מתחתיו (במקום "התראות · SYM") */
+/* 20/11/2026 (בקשת המשתמש): כותרת חלונית ההתראה — "התראת מחיר", ובצד השני הסימבול, שם החברה ולוגו עגול (במקום "התראות · SYM") */
 function alertHead(sym) {
   const lg = h('span', { class: 'kc-alh-logo', html: E.logoHTML ? E.logoHTML(sym) : '' });   // HTML קבוע של האפליקציה (תמונת לוגו)
   const nm = (E.name && E.name(sym)) || '';
-  return h('div', { class: 'kc-sh-title kc-alh' }, lg,
-    h('span', { class: 'kc-alh-tx' }, h('b', { text: sym }), h('small', { text: nm && nm !== sym ? nm : T('kcPriceAlerts') })));
+  // בהתחלה (ימין בעברית) "התראת מחיר"; בסוף, ליד הסגירה — הסימבול והשם ואחריהם הלוגו
+  return h('div', { class: 'kc-sh-title kc-alh' }, h('span', { class: 'kc-alh-t', text: T('kcAlertOne') }),
+    h('span', { class: 'kc-alh-tx' }, h('b', { text: sym }), nm && nm !== sym ? h('small', { text: nm }) : null), lg);
 }
 function alertCount() { let n = 0; for (const k of Object.keys((S.store && S.store.alerts) || {})) n += (S.store.alerts[k] || []).length; return n; }
 /* המחיר החי למסך הניהול — גם למניות שאינן בתיק (בקשה אחת ל־/api/quotes, עד 40) → { SYM: מחיר } */
