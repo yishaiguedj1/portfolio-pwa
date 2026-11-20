@@ -159,9 +159,24 @@ main .sort-chip:not(.on) { background: var(--lg-fill) !important; box-shadow: no
 main .tx-seg { background: var(--lg-fill) !important; }
 main .tx-seg button.on { background: var(--lg-knob) !important; color: var(--on-surface) !important; box-shadow: var(--lg-knob-sh) !important; }
 
-/* ===== 8. הגרף: המקרא (בשורת הכותרת) בלי קופסה ===== */
-main .pf-key { background: transparent !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border: 0 !important; }
-main .pf-key .pk-row { background: transparent !important; box-shadow: none !important; }
+/* ===== 8. הגרף: כרטיס ביצועי התיק (20/11/2026, בקשת המשתמש — "בעיצוב הנקי", כמו הבועה בגרף התזרים) =====
+   הכותרת בראש הכרטיס; ההשוואה מול המדדים בבועה עם מסגרת בפינה העליונה בצד הסוף; האחוזים בעמודה אחת מיושרת;
+   הגרף מתרחב כמעט עד שולי הכרטיס (הגובה — pfFitH, עד 12px מעל החוגה) */
+main .card:has(#pfChart) { padding: 14px 16px 16px !important; }
+main .section-head:has(#pfLegend) { align-items: flex-start !important; flex-wrap: nowrap !important; margin: 0 0 6px !important; }
+main .section-head:has(#pfLegend) h2 { font-size: 22px !important; line-height: 1.15 !important; padding-top: 4px !important; }
+main .card:has(#pfChart) .chart-wrap { margin-inline: -10px !important; }
+main .pf-key { align-items: stretch !important; margin: 0 !important; margin-inline-end: -6px !important; padding: 6px 2px !important; border: 0 !important;
+  border-radius: var(--radius-sm) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  background: color-mix(in srgb, var(--on-surface) 9%, transparent) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .10), 0 0 0 .5px color-mix(in srgb, var(--on-surface) 22%, transparent), 0 6px 18px rgba(0, 0, 0, .12) !important; }
+html[data-theme="dark"] main .pf-key { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .10), 0 0 0 .5px color-mix(in srgb, var(--on-surface) 22%, transparent), 0 6px 18px rgba(0, 0, 0, .25) !important; }
+main .pf-key li { width: 100% !important; }
+main .pf-key .pk-row { width: 100% !important; justify-content: flex-start !important; min-height: 26px !important; padding: 1px 12px !important; font-size: 13px !important;
+  background: transparent !important; box-shadow: none !important; }
+main .pf-key .pk-dot { width: 8px !important; height: 8px !important; }
+/* pk-pct בכיוון ltr — ולכן הסוף שלו (ימין) הוא הצד שפונה לשם; margin אוטומטי שם מצמיד את כל האחוזים לקצה הבועה */
+main .pf-key .pk-pct { margin-inline-start: 0 !important; margin-inline-end: auto !important; padding: 0 !important; padding-inline-end: 18px !important; }
 main .pf-key .pk-name { color: var(--on-surface-var) !important; font-weight: 500 !important; }
 main .pf-range-summary .rs-range { color: var(--on-surface-var) !important; }
 
