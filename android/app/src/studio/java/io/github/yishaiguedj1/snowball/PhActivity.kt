@@ -218,7 +218,7 @@ class PhActivity : Activity() {
         }
         if (pids.isEmpty()) { fail(R.string.phGone); return }
         PhGcJob.schedule(this)
-        for (pid in pids) videoJob(pid)
+        videoJobs(pids)   // 20/11/2026: משימה אחת לכל הרשימה, לפי הסדר (קודם — כל תזמון החליף את הקודם)
         PhService.enqueue(this, pids)
         titleV.text = s(R.string.phGoT); subV.text = s(R.string.phGoS)
         bar.isIndeterminate = true
@@ -246,11 +246,14 @@ class PhActivity : Activity() {
 
     /** 29/10/2026: הסרטון לענן — משימת UIDT כל עוד החלון גלוי (רק אז מותר לתזמן אותה). לא הצליח (מתחת ל־14) — PhService
      *  מעלה אחרי הקול (vJob=false). כבר עלה / נכשל סופית — כלום */
-    private fun videoJob(pid: String) {
-        val r = PhStore.get(this, pid) ?: return
-        if (!r.optBoolean("vc") || r.optString("vId").isNotEmpty()) return
-        val ok = PhUpJob.schedule(this, pid)
-        PhStore.update(this, pid) { it.put("vJob", ok).remove("vE") }
+    private fun videoJob(pid: String) = videoJobs(listOf(pid))
+
+    private fun videoJobs(pids: List<String>) {
+        val l = pids.filter { p -> PhStore.get(this, p)?.let { it.optBoolean("vc") && it.optString("vId").isEmpty() } ?: false }
+        if (l.isEmpty()) return
+        // והסרטונים שנתקעו (משימה שהוחלפה) — אחרי החדשים; merge ב־schedule שומר על מה שכבר מחכה במשימה ומסיר כפילויות
+        val ok = PhUpJob.schedule(this, l + PhStore.lostVideos(this))
+        for (pid in l) PhStore.update(this, pid) { it.put("vJob", ok).remove("vE") }
     }
 
     private fun startWork(pid: String, burn: Boolean) {
