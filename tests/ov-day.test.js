@@ -51,6 +51,22 @@ ok(day() === null, 'חסר מחיר לאחזקה אחת — לא מציגים מ
 run(`state.quotes = { AAA: { close: 110, prev: 100, regClose: 110, regCh: 9, regPct: 8.9 }, 'LUMI.TA': { close: 88, prev: 84 } };`);
 ok(near(day().abs, 90 + 100, 1e-6), 'המספרים הרשמיים של Yahoo (regCh) קובעים, כמו בכרטיס המניה');
 
+// 20/11/2026: מסחר לילי — המכנה מהסגירה הרגילה, לא מהמחיר הלילי (היה: שווי חי − שינוי)
+run(`POSITIONS.length = 0; POSITIONS.push({ sym: 'AAA', name: 'A', shares: 10, avg: 50 });
+  state.quotes = { AAA: { close: 95, prev: 100, regClose: 110, regCh: 10, regPct: 10, session: 'night', ext: { kind: 'night', price: 95, ch: -15, pct: -13.64 } } };`);
+const dn = day();
+// אתמול: +10×10 = +100$ מול 100×10 + 1000 = 2000 → 5%
+ok(dn && near(dn.abs, 100, 1e-6) && near(dn.pct, 5, 1e-6), 'אתמול: האחוז מול הסגירה הקודמת גם כשהמחיר הלילי כבר זז');
+const xn = run('portfolioExtUSD()');
+// היום (לילי): −15×10 = −150$ מול 110×10 + 1000 = 2100
+ok(xn && xn.kind === 'night' && near(xn.abs, -150, 1e-6) && near(xn.pct, -150 / 2100 * 100, 1e-6), 'היום מהמסחר הלילי: מהסגירה הרגילה, מול שווי הסגירה כולל מזומן');
+run(`POSITIONS.push({ sym: 'LUMI.TA', name: 'L', shares: 100, avg: 60, src: 'manual' }); state.quotes['LUMI.TA'] = { close: 88, prev: 84 };`);
+const xm = run('portfolioExtUSD()');
+ok(xm && near(xm.abs, -150, 1e-6) && near(xm.pct, -150 / (1100 + 2200 + 1000) * 100, 1e-6), 'אחזקה בלי מסחר מורחב (ת״א) — בלי שינוי, נכנסת לבסיס');
+run(`state.quotes.AAA = { close: 110, prev: 100, session: 'regular' };`);
+ok(run('portfolioExtUSD()') === null, 'מסחר רגיל — בלי "היום" נפרד');
+ok(/portfolioExtUSD\(\)/.test(src.slice(src.indexOf('function renderOverview'))), 'הסקירה מציגה את שני הנתונים');
+
 // הכרטיס בסקירה: שווי חי גם במצב IBKR, והדוח רק כגיבוי
 ok(/const liveAll = POSITIONS\.length && POSITIONS\.every\(/.test(src) && /if \(isIbkrMode\(\) && liveAll\) \{\s*vTxt = money\(total, cur\);/.test(src), 'מצב IBKR: שווי חי כשיש מחיר לכל אחזקה');
 ok(/\} else if \(isIbkrMode\(\)\) \{[\s\S]{0,300}ibkrReportTotal\(/.test(src), 'מצב IBKR: השווי מהדוח נשאר כגיבוי');
