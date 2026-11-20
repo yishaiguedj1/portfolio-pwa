@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2604 מפתחות מתוך 7308) */
+/* המחרוזות של studio (2607 מפתחות מתוך 7311) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1669,9 +1669,10 @@ he: {
   "studioQuGo": "להתחיל · {n} עבודות",
   "studioQuGoDone": "{n} עבודות התחילו",
   "studioQuGoLeft": "נשארו {left} החודש.",
-  "studioQuGoNote": "העבודות מחכות כאן ולא עולות. בלחיצה — חלון עם העלות והזמן של כל אחת, ואז הכל מתחיל יחד.",
+  "studioQuGoNote": "העבודות מחכות כאן, עם הסרטונים — גם אם סוגרים את Studio. בלחיצה — חלון עם העלות והזמן של כל אחת, ואז הכל מתחיל יחד.",
   "studioQuGoOk": "להתחיל הכל",
   "studioQuGoPart": "{n} עבודות לא התחילו — נשארו ברשימה",
+  "studioQuGoPh": "{n} דרך Studio לאנדרואיד — האפליקציה תיפתח פעם אחת ותעלה אותן אחת אחרי השנייה.",
   "studioQuGoQ": "להתחיל {n} עבודות?",
   "studioQuGoSpan": "הכל מוכן תוך כ־{t} ({n} במקביל)",
   "studioQuGoTot": "סך הכל: כ־{usd} · {t} עבודה",
@@ -1694,6 +1695,8 @@ he: {
   "studioQuNew": "תור עבודות חדש",
   "studioQuNewS": "מוסיפים עבודות אחת אחרי השנייה, מכל מקור · {n} רצות במקביל, והשאר מחכות",
   "studioQuNote": "השרת מריץ {n} עבודות מהתור במקביל, והשאר מחכות. סרטונים מהדפדפן עולים אחד אחרי השני — השאר את Studio פתוח עד שכולם עולים. לחיצה ארוכה על עבודה — עוד אפשרויות.",
+  "studioQuPhOpen": "העבודות נוצרו. לפתוח את Studio כדי להעלות את הסרטונים?",
+  "studioQuPhOpenOk": "לפתוח את Studio",
   "studioQuPickT": "לאיזה תור?",
   "studioQuRunAll": "להמשיך את התור",
   "studioQuRunDone": "ממשיך",
@@ -4275,9 +4278,10 @@ en: {
   "studioQuGo": "Start · {n} jobs",
   "studioQuGoDone": "{n} jobs started",
   "studioQuGoLeft": "{left} left this month.",
-  "studioQuGoNote": "The jobs wait here and do not upload. Tap to see the cost and time of each, then everything starts together.",
+  "studioQuGoNote": "The jobs wait here with their videos — even if you close Studio. Tap to see the cost and time of each, then everything starts together.",
   "studioQuGoOk": "Start all",
   "studioQuGoPart": "{n} jobs did not start — still in the list",
+  "studioQuGoPh": "{n} through Studio for Android — the app opens once and uploads them one after another.",
   "studioQuGoQ": "Start {n} jobs?",
   "studioQuGoSpan": "All ready in about {t} ({n} at once)",
   "studioQuGoTot": "Total: ~{usd} · {t} of work",
@@ -4300,6 +4304,8 @@ en: {
   "studioQuNew": "New job queue",
   "studioQuNewS": "Add jobs one by one, from any source · {n} run at once, the rest wait",
   "studioQuNote": "The server runs {n} jobs from the queue at once; the rest wait. Videos from the browser upload one after another — keep Studio open until they are all up. Long-press a job for more options.",
+  "studioQuPhOpen": "The jobs were created. Open Studio to upload the videos?",
+  "studioQuPhOpenOk": "Open Studio",
   "studioQuPickT": "To which queue?",
   "studioQuRunAll": "Resume the queue",
   "studioQuRunDone": "Resumed",

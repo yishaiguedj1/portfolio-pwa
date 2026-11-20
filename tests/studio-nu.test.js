@@ -136,8 +136,8 @@ const { fakeR2, ENV } = require('./_r2fake');
     'הבחירה ל־nu: הרשאה קבועה ל־URI');
   const pp = act.slice(act.indexOf('private fun pickPu'), act.indexOf('private fun copy'));
   ok(pp.length > 100 && !/outputStream|copyTo/.test(pp) && /\.put\("uri", u\.toString\(\)\)\.put\("pu", true\)/.test(pp) && /\.put\("nu", 1\)/.test(pp), 'pickPu: בלי עותק — הרשומה שומרת את ה־URI, והאתר מקבל nu:1');
-  const cap = +(/const val CAP = (\d+)/.exec(core) || [])[1], capW = +(/export const PH_CAP_PV = (\d+)/.exec(src) || [])[1];
-  ok(cap === capW && cap === 6 && /export const PH_CAP_NU = 5;/.test(src), 'CAP של האפליקציה = PH_CAP_PV באתר (6), ו־nu מ־5');
+  const cap = +(/const val CAP = (\d+)/.exec(core) || [])[1], capW = +(/export const PH_CAP_Q = (\d+)/.exec(src) || [])[1];
+  ok(cap === capW && cap === 7 && /export const PH_CAP_NU = 5;/.test(src) && /export const PH_CAP_PV = 6;/.test(src), 'CAP של האפליקציה = PH_CAP_Q באתר (7, תור עבודות), ו־nu מ־5');
   // 5/11/2026: phpv — הסרטון של nu עובר לדף לתצוגה בעורך, כמו "שיתוף ← Studio" (Web Share Target), עם snbpv:<pid>
   const pv = act.slice(act.indexOf('private fun preview'), act.indexOf('/* ---------------------------------------------------------------- בחירה */'));
   ok(/"phpv" -> preview\(d\)/.test(act) && /r\.optBoolean\("pu"\)/.test(pv) && /setAction\(Intent\.ACTION_SEND\)\.setType\("video\/\*"\)/.test(pv)

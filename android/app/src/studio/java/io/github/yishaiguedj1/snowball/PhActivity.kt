@@ -34,6 +34,8 @@ import java.io.File
  *   snbstudio://ph?pid=…&j=…&k=…&b=…&pb=…&ov=0|1[&pw=1&cell=1]   → העבודה נוצרה באתר: הקול, ההתחלה והמדידות (PhService, ברקע);
  *                                            pw=1 — גם התמלול, הדוברים והיישור בטלפון (שלב 2)
  *                                            pt=1 — גם שלבי הטקסט בטלפון (שלב 3, PhPy — job.py בפייתון של האפליקציה)
+ *   snbstudio://phq?b=…&q=pid.j.k~pid.j.k… → 20/11/2026: תור עבודות — כמה בחירות nu בפתיחה אחת; הקול של כל אחת עולה
+ *                                            אחרי הקודמת (PhService.enqueue), והסרטונים לענן ב־UIDT (CAP 7, studio.js PH_CAP_Q)
  *   snbstudio://phburn?pid=…[&j&k&b]       → הצריבה כשהתרגום מוכן
  *   snbstudio://phgo?pid=…                 → להמשיך אחרי שנעצר
  *   snbstudio://phpv?pid=…                 → 5/11/2026: חיתוך לפני התרגום (nu) — הסרטון שכבר נבחר עובר לדף לתצוגה בעורך
@@ -65,6 +67,7 @@ class PhActivity : Activity() {
         when (d.host) {
             "phpick" -> pick(d.getQueryParameter("nu") == "1")
             "ph" -> go(d)
+            "phq" -> goQ(d)
             "phburn" -> burn(d)
             "phgo" -> resume(d)
             "phpv" -> preview(d)
@@ -194,6 +197,33 @@ class PhActivity : Activity() {
         PhGcJob.schedule(this)          // הסרטון נשמר עד שהפרויקט נמחק — הבדיקה ברקע
         startWork(pid, false)
         videoJob(pid)
+    }
+
+    /** 20/11/2026: תור עבודות — כל פריט כמו go() (בחירת nu בלבד: הסרטון לענן תמיד), ובלי "Studio עסוק": הכל נכנס לתור של
+     *  PhService ועולה אחד אחרי השני. פריט שלא עבר את הבדיקות — מדלגים עליו (השאר ממשיכים) */
+    private fun goQ(d: Uri) {
+        val b = d.getQueryParameter("b") ?: ""
+        if (!PhCore.hostOk(b)) { fail(R.string.phGone); return }
+        val pids = ArrayList<String>()
+        for (x in (d.getQueryParameter("q") ?: "").split('~').take(PhCore.Q_MAX)) {
+            val p = x.split('.')
+            if (p.size != 3) continue
+            val (pid, j, k) = p
+            val r = PhStore.get(this, pid) ?: continue
+            if (!PhCore.JOB_RE.matches(j) || !PhCore.KEY_RE.matches(k) || !r.optBoolean("pu")) continue
+            if (r.optString("job").isNotEmpty() && r.optString("job") != j) continue   // סרטון אחד — עבודה אחת
+            PhStore.update(this, pid) { it.put("job", j).put("key", k).put("base", b).put("pb", "").put("ov", false).put("web", web)
+                .put("pw", false).put("pt", false).put("vc", true).put("cell", false).remove("e") }
+            pids.add(pid)
+        }
+        if (pids.isEmpty()) { fail(R.string.phGone); return }
+        PhGcJob.schedule(this)
+        for (pid in pids) videoJob(pid)
+        PhService.enqueue(this, pids)
+        titleV.text = s(R.string.phGoT); subV.text = s(R.string.phGoS)
+        bar.isIndeterminate = true
+        btn.text = s(R.string.dlClose); btn.setOnClickListener { finish() }
+        main.postDelayed({ if (!isFinishing) finish() }, 1800)
     }
 
     private fun burn(d: Uri) {

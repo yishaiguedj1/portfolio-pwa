@@ -223,6 +223,7 @@ export const PH_CAP_VC = 4;   // 30/10/2026: Studio שמעלה גם את הסר�
 export const PH_CAP_NU = 5;
 /* 5/11/2026: Studio שמעביר את הסרטון שבחר (nu) לדף לתצוגה בעורך — "חיתוך לפני התרגום" בלי בחירה שנייה (phpv) */
 export const PH_CAP_PV = 6;
+export const PH_CAP_Q = 7;    // 20/11/2026: phq — כמה עבודות בפתיחה אחת, ההעלאות אחת אחרי השנייה (תור עבודות)
 export function normJob(j) {
   if (!j || typeof j !== 'object' || !JOB_RE.test(String(j.id || ''))) return null;
   const sp = j.spec && typeof j.spec === 'object' ? j.spec : {};
@@ -1599,10 +1600,11 @@ const jobRec = (id) => store.jobs.find((x) => x.id === id) || null;
 /* ---------------- ידיות לקבצים (File System Access) — המשך אחרי רענון בלי לבחור שוב ---------------- */
 // סבב 8: גרסה 2 — גם 'drafts' (טיוטות העורך). שדרוג לא מוחק: רק מה שחסר נוצר
 // 21/10/2026: גרסה 3 — גם 'thumbs' (התמונות הממוזערות של העבודות)
-const IDB_STORES = ['handles', 'drafts', 'thumbs'];
+// 20/11/2026: גרסה 4 — גם 'qdr' (העבודות שמחכות ל"להתחיל" בתור — עם הקובץ עצמו, בלי לבחור שוב)
+const IDB_STORES = ['handles', 'drafts', 'thumbs', 'qdr'];
 function hdb() {
   return new Promise((ok, no) => {
-    const r = indexedDB.open('snb-studio', 3);
+    const r = indexedDB.open('snb-studio', 4);
     r.onupgradeneeded = () => { for (const n of IDB_STORES) if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n); };
     r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error);
   });
@@ -1612,9 +1614,9 @@ async function idbOp(store, mode, id, val) {
   try {
     const db = await hdb();
     return await new Promise((ok) => {
-      const tx = db.transaction(store, mode === 'get' ? 'readonly' : 'readwrite'), os = tx.objectStore(store);
-      const rq = mode === 'get' ? os.get(id) : mode === 'put' ? os.put(val, id) : os.delete(id);
-      rq.onsuccess = () => ok(mode === 'get' ? rq.result || null : null); rq.onerror = () => ok(null);
+      const tx = db.transaction(store, mode === 'get' || mode === 'keys' ? 'readonly' : 'readwrite'), os = tx.objectStore(store);
+      const rq = mode === 'get' ? os.get(id) : mode === 'keys' ? os.getAllKeys() : mode === 'put' ? os.put(val, id) : os.delete(id);
+      rq.onsuccess = () => ok(mode === 'get' || mode === 'keys' ? rq.result || null : null); rq.onerror = () => ok(null);
     });
   } catch (e) { return null; }
 }
@@ -3538,7 +3540,7 @@ function footStart(f, main, n, no) {
 /* "להוסיף לתור" מטופס רגיל: לאיזה תור — תור פעיל או תור חדש (אין תור פעיל — ישר לתור חדש). אחר כך — אותה התחלה, ובסוף עמוד התור */
 function quPickFor(f, at) {
   const take = (qu, qn) => { Object.assign(f, { qd: 1, qx: 1, qu, qn: qn || '' }); qf = { qu, qn: qn || '' }; startFromForm(); };
-  const gs = quGroups(store.jobs).concat([...quDr.keys()].filter((qu) => quDrOf(qu).length && !quGroups(store.jobs).some((g) => g.qu === qu)).map((qu) => ({ qu, qn: quDrOf(qu)[0].f.qn || '' })));
+  const gs = quGroups(store.jobs).concat([...quDr.keys()].filter((qu) => quDrOf(qu).length && !quGroups(store.jobs).some((g) => g.qu === qu)).map((qu) => ({ qu, qn: quNameOf(qu) })));
   if (!gs.length) { take(wlNew(), ''); return; }
   lbMenu(at, T('studioQuPickT'), [...gs.slice(0, 8).map((g) => ({ k: 'q-' + g.qu, icon: 'film', label: g.qn || T('studioQuT'), fn: () => take(g.qu, g.qn) })),
     { k: 'q-new', icon: 'plus', label: T('studioQuNew'), fn: () => take(wlNew(), '') }]);
@@ -3553,11 +3555,16 @@ function quUp(f, id, run) {
   return pr;
 }
 /* 20/11/2026 (בקשת המשתמש — הקלטת מסך: העבודה הראשונה התחילה מיד): "להוסיף לתור" לא מתחיל כלום — העבודה נכנסת לרשימה
-   בטלפון עם אומדן של עלות וזמן, בלי ליצור אותה בשרת ובלי להעלות. "להתחיל" בעמוד התור פותח חלון עם כל העבודות (זמן ועלות
-   לכל אחת, וסך הכל), ואישור אחד מתחיל את כולן יחד — אותה התחלה בדיוק כמו פרויקט רגיל (f.qgo: בלי שאלת אומדן נוספת).
-   הרשימה בזיכרון בלבד (הקבצים שנבחרו — File שאי אפשר לשמור); דרך האפליקציה (ph) — מתחילה מיד, כמו קודם (נגיעה פותחת אותה) */
-const quDr = new Map();     // qu → [{ f, k, name, dur, sec, usd }]
+   עם אומדן של עלות וזמן, בלי ליצור אותה בשרת ובלי להעלות. "להתחיל" בעמוד התור פותח חלון עם כל העבודות (זמן ועלות לכל
+   אחת, וסך הכל), ואישור אחד מתחיל את כולן — אותה התחלה בדיוק כמו פרויקט רגיל (f.qgo: בלי שאלת אומדן נוספת).
+   סבב 2 באותו יום ("שהכל יישמר מוכן, בלי לבחור את הסרטונים מחדש — גם מקישור וגם מהמכשיר"): הרשימה נשמרת — הטופס כולו,
+   עם הקובץ עצמו, ב־IndexedDB ('qdr'; File נשמר כמו שהוא), והמזהים ב־QDR_LS (מפתח של החשבון — יציאה מוחקת אותו, ומה שלא
+   ברשימה נמחק מ־IndexedDB בטעינה). דרך Studio לאנדרואיד (nu) — האפליקציה כבר שומרת את הסרטון עם הרשאה קבועה (pid); ב"להתחיל"
+   העבודות נוצרות כבר כשהחלון נפתח, והנגיעה באישור פותחת את האפליקציה פעם אחת לכולן (phq — ההעלאות אחת אחרי השנייה) */
+export const QDR_LS = 'pwa_studio_qdr_v1';
+const quDr = new Map();     // qu → [{ id, at, f, k, name, dur, sec, usd, spec }]
 const quDrOf = (qu) => quDr.get(qu) || [];
+let quDrNames = {};         // qu → שם (נשמר ב־QDR_LS, בלי לכתוב שוב את הקבצים)
 export function quCost(spec, est, vu, bt) {   // טהורה: העלות לעבודה — תרגום (חצי מחיר: bt), ניתוח (+תרגום), קריוקי = 0
   if (spec.ka) return 0;
   if (spec.vi) return spec.dry ? 0 : Math.round((vu + (spec.vt ? est : 0)) * 100) / 100;
@@ -3569,31 +3576,100 @@ export function quSpan(secs, n) {
   for (const x of secs) { const i = sl.indexOf(Math.min(...sl)); sl[i] += Math.max(0, +x || 0); }
   return Math.max(...sl);
 }
+/* הטופס לשמירה — כל שדה שאפשר להעתיק (File, ArrayBuffer ואובייקטים רגילים כן; פונקציות ואלמנטים לא). טהורה (clone מוזרק) */
+export function quSer(f, clone) {
+  const o = {};
+  for (const k of Object.keys(f || {})) {
+    if (k === 'qgo' || k === 'qx') continue;
+    try { o[k] = clone(f[k]); } catch (e) {}
+  }
+  return o;
+}
+/* "pid.עבודה.מפתח~…" לאפליקציה (phq) — רק מה שעבר את התבניות של PhCore. טהורה */
+export function phQList(xs) {
+  return (xs || []).filter((x) => x && /^p[0-9a-f]{16}$/.test(x.p) && /^j[A-Za-z0-9_-]{20}$/.test(x.j) && /^[A-Za-z0-9_-]{43}$/.test(x.k)).map((x) => x.p + '.' + x.j + '.' + x.k).join('~');
+}
+const qdrClone = (v) => (typeof structuredClone === 'function' ? structuredClone(v) : JSON.parse(JSON.stringify(v)));
+function quDrIdx() {
+  const ids = [...quDr.values()].flat().map((x) => x.id);
+  try { if (ids.length) localStorage.setItem(QDR_LS, JSON.stringify({ ids, qn: quDrNames })); else localStorage.removeItem(QDR_LS); } catch (e) {}
+}
+function quDrPut(it) {
+  quDrIdx();
+  idbOp('qdr', 'put', it.id, { id: it.id, at: it.at, k: it.k, name: it.name, dur: it.dur, sec: it.sec, usd: it.usd, spec: it.spec, f: quSer(it.f, qdrClone) });
+}
+function quDrDel(it) {
+  quDr.set(it.f.qu, quDrOf(it.f.qu).filter((x) => x !== it));
+  if (!quDrOf(it.f.qu).length) { quDr.delete(it.f.qu); delete quDrNames[it.f.qu]; }
+  quDrIdx(); idbOp('qdr', 'del', it.id);
+}
+/* בטעינה: הרשימה מ־IndexedDB לפי המזהים של החשבון; מה שלא ברשימה (חשבון אחר, שארית) — נמחק */
+async function quDrLoad() {
+  let ix = null;
+  try { ix = JSON.parse(localStorage.getItem(QDR_LS) || 'null'); } catch (e) {}
+  const ids = ix && Array.isArray(ix.ids) ? ix.ids.filter((x) => typeof x === 'string' && /^q[a-z0-9]{6,30}$/.test(x)) : [];
+  quDrNames = ix && ix.qn && typeof ix.qn === 'object' ? ix.qn : {};
+  const keys = (await idbOp('qdr', 'keys')) || [];
+  for (const k of keys) if (!ids.includes(k)) idbOp('qdr', 'del', k);
+  for (const id of ids) {
+    if ([...quDr.values()].flat().some((x) => x.id === id)) continue;
+    const v = await idbOp('qdr', 'get', id);
+    if (!v || !v.f || !WL_RE.test(String(v.f.qu || ''))) continue;
+    const it = Object.assign({}, v, { f: v.f });
+    quDr.set(v.f.qu, quDrOf(v.f.qu).concat(it).sort((a, b) => a.at - b.at));
+  }
+  quDrIdx();
+  if (quDr.size && root) render('none');
+}
 const quTm = (sec) => { const m = Math.max(1, Math.round((sec || 0) / 60)); return m < 60 ? T('studioMinShort', { m }) : T('studioHMShort', { t: fmtHM(m) }); };
+const quPhOk = (f) => !!(f && f.ph && f.ph.nu && (f.ph.cap || 0) >= PH_CAP_Q);   // Studio ישן — דרך האפליקציה מתחיל מיד, כמו קודם
 function quHold(f, spec) {
   if (!f || !f.qd || !f.qu || f.qgo) return false;
+  if (f.ph && !quPhOk(f)) return false;
   const d = spec.dur || 0, mode = spec.mode;
   const usd = d ? quCost(spec, startEstimate(mode, d, curNorm(), ui.api, true).usd, spec.vi ? viUsd(mode, spec.from, d) : 0, BT_EST) : 0;
   let sec = 0;
   try { const pl = planFor({ spec, srv: null }); sec = d ? Object.values(pl.s || {}).reduce((a, x) => a + (+x || 0), 0) : 0; } catch (e) {}
-  const it = { f, k: quKindOf(f), name: fileTitle(spec.name) || T('studioUntitled'), dur: d, sec, usd };
-  const l = quDrOf(f.qu).filter((x) => x.f !== f);   // עריכה של עבודה מהרשימה — במקומה
-  const at = quDrOf(f.qu).findIndex((x) => x.f === f);
-  if (at >= 0) l.splice(at, 0, it); else l.push(it);
-  quDr.set(f.qu, l);
+  const old = quDrOf(f.qu).find((x) => x.f === f);   // עריכה של עבודה מהרשימה — במקומה
+  const it = { id: old ? old.id : 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8), at: old ? old.at : Date.now(),
+    f, k: quKindOf(f), name: fileTitle(spec.name) || T('studioUntitled'), dur: d, sec, usd, spec: JSON.parse(JSON.stringify(spec)) };
+  quDr.set(f.qu, old ? quDrOf(f.qu).map((x) => (x === old ? it : x)) : quDrOf(f.qu).concat(it));
+  if (f.qn) quDrNames[f.qu] = String(f.qn).slice(0, 60);
   delete f.qx;
+  quDrPut(it);
   ui.starting = false; form = null;
   flashSafe(T('studioQuHeldOk'));
   jobOpen(f, null);
   return true;
 }
 function quDrMenu(at, it) {
-  const qu = it.f.qu;
   lbMenu(at, it.name, [
     { k: 'edit', icon: 'edit', label: T('studioQuDrEdit'), fn: () => { form = it.f; go('new', it.k === 'tr' ? null : it.k); } },
-    { k: 'rm', icon: 'trash', label: T('studioQuDrRm'), danger: true, fn: () => { quDr.set(qu, quDrOf(qu).filter((x) => x !== it)); render('none'); } }]);
+    { k: 'rm', icon: 'trash', label: T('studioQuDrRm'), danger: true, fn: () => { quDrDel(it); render('none'); } }]);
 }
-const quDrRow = (it) => { const r = rowNav({ tile: tile(QU_TILE[it.k][0], QU_TILE[it.k][1]), label: it.name, sub: T('studioQuDrS', { t: it.sec ? quTm(it.sec) : '—', usd: it.usd ? fmtUsd(it.usd) : T('studioQuFree') }), onClick: () => quDrMenu(r, it), k: 'qdr:' + it.f.qu + ':' + quDrOf(it.f.qu).indexOf(it) }); return r; };
+const quDrRow = (it) => { const r = rowNav({ tile: tile(QU_TILE[it.k][0], QU_TILE[it.k][1]), label: it.name, sub: T('studioQuDrS', { t: it.sec ? quTm(it.sec) : '—', usd: it.usd ? fmtUsd(it.usd) : T('studioQuFree') }), onClick: () => quDrMenu(r, it), k: 'qdr:' + it.id }); return r; };
+const quNameOf = (qu) => (qf && qf.qu === qu && qf.qn ? String(qf.qn) : quDrNames[qu] || (quDrOf(qu).find((x) => x.f.qn) || { f: {} }).f.qn || '');
+/* דרך האפליקציה: העבודות נוצרות כבר כשהחלון נפתח (רשת — בלי נגיעה), כדי שהנגיעה באישור תפתח את האפליקציה מיד */
+function quPhPrep(items, qn) {
+  const pr = { done: false, res: [] };
+  pr.p = (async () => {
+    for (const it of items) {
+      const spec = Object.assign({}, it.spec); if (qn) spec.qn = qn;
+      const cj = await net.api('create', { spec });
+      if (!cj || !cj.ok || !cj.job) { pr.res.push({ it, err: (cj && cj.error) || 'net' }); continue; }
+      const k = await phKeyFor(cj.job.id);
+      if (!k) { net.api('remove', { job: cj.job.id }).catch(() => {}); pr.res.push({ it, err: 'phkey' }); continue; }
+      pr.res.push({ it, j: cj, k, spec });
+    }
+    pr.done = true;
+    return pr.res;
+  })();
+  return pr;
+}
+function phQOpen(pr) {
+  const q = phQList(pr.res.filter((r) => r.j).map((r) => ({ p: r.it.f.ph.pid, j: r.j.job.id, k: r.k })));
+  if (q) location.href = phIntent('phq', { b: proxyBase(), q });
+}
 /* החלון של "להתחיל": כל עבודה — זמן ועלות; סך הכל — עלות, זמן עבודה, ומתי הכל מוכן (QU_PAR במקביל); כמה נשאר החודש */
 function quGoAsk(qu) {
   const l = quDrOf(qu);
@@ -3610,29 +3686,44 @@ function quGoAsk(qu) {
     h('span', null, T('studioQuGoSpan', { t: work ? quTm(quSpan(l.map((x) => x.sec), QU_PAR)) : '—', n: QU_PAR })));
   const api = ui.api, left = api && !api.nc ? Math.max(0, Math.round((api.cap - api.month) * 100) / 100) : null;
   if (left != null) tot.append(h('span', usd > left ? 'st-qgo-over' : null, T('studioQuGoLeft', { left: fmtUsd(left) }) + (usd > left ? ' ' + T('studioEstOver') : '')));
+  const phs = l.filter((x) => x.f.ph);
+  if (phs.length) tot.append(h('span', null, T('studioQuGoPh', { n: phs.length })));
   box.append(tot);
-  askConfirm(T('studioQuGoQ', { n: l.length }), () => quGoAll(qu), { ok: T('studioQuGoOk'), body: box });
+  const pr = phs.length ? quPhPrep(phs, quNameOf(qu)) : null;
+  askConfirm(T('studioQuGoQ', { n: l.length }), () => quGoAll(qu, pr), { ok: T('studioQuGoOk'), body: box,
+    onNo: () => { if (pr) pr.p.then((res) => { for (const r of res) if (r.j) net.api('remove', { job: r.j.job.id }).catch(() => {}); }); } });
 }
-/* מתחילות אחת אחרי השנייה (כל אחת — היצירה בשרת; ההעלאות בשרשרת של quUp). מה שלא התחיל (שגיאה) — נשאר ברשימה */
-async function quGoAll(qu) {
+/* מתחילות אחת אחרי השנייה (כל אחת — היצירה בשרת; ההעלאות מהדפדפן בשרשרת של quUp). מה שלא התחיל (שגיאה) — נשאר ברשימה */
+async function quGoAll(qu, pr) {
   const l = quDrOf(qu).slice();
   if (!l.length || ui.qgo) return;
+  if (pr && pr.done) phQOpen(pr);   // עוד בתוך הנגיעה — לפני כל await
   ui.qgo = qu; render('none');
-  const qn = qf && qf.qu === qu ? String(qf.qn || '') : '';
-  for (const it of l) {
+  const qn = quNameOf(qu);
+  let bad = 0;
+  if (pr) {
+    const late = !pr.done;
+    await pr.p;
+    for (const r of pr.res) {
+      if (!r.j) { bad++; continue; }
+      const f = r.it.f; if (qn) f.qn = qn;
+      phRec(f, r.spec, r.j, '');
+      quDrDel(r.it);
+    }
+    if (late && pr.res.some((r) => r.j) && typeof askConfirm === 'function') askConfirm(T('studioQuPhOpen'), () => phQOpen(pr), { ok: T('studioQuPhOpenOk') });   // לא הספיק — נגיעה נוספת
+  }
+  for (const it of l.filter((x) => !x.f.ph)) {
     const f = it.f;
     Object.assign(f, { qgo: 1, estOk: true }); if (qn) f.qn = qn;
     form = f;
     try { await startFromForm(); } catch (e) {}
     const okd = form !== f;
     delete f.qgo;
-    if (okd) quDr.set(qu, quDrOf(qu).filter((x) => x !== it));
-    else { ui.starting = false; form = null; }
+    if (okd) quDrDel(it);
+    else { bad++; ui.starting = false; form = null; }
   }
   ui.qgo = null;
-  const left = quDrOf(qu).length;
-  if (!left) quDr.delete(qu);
-  flashSafe(left ? T('studioQuGoPart', { n: left }) : T('studioQuGoDone', { n: l.length }));
+  flashSafe(bad ? T('studioQuGoPart', { n: bad }) : T('studioQuGoDone', { n: l.length }));
   render('none');
 }
 /* הקבוצות לעמוד "פעילה" — טהורה: תור שיש בו עבודה שלא הסתיימה; בכל אחד — כל העבודות, כמה הסתיימו ומה עוד פתוח */
@@ -3706,7 +3797,7 @@ function pageAct(p) {
   const gs = quGroups(store.jobs), inQ = new Set(gs.flatMap((g) => g.all.map((r) => r.id)));
   for (const g of gs) p.append(...quSection(g));
   const drOnly = [...quDr.keys()].filter((qu) => quDrOf(qu).length && !gs.some((g) => g.qu === qu));   // 20/11/2026: תור שעוד לא התחיל
-  if (drOnly.length) p.append(secT(T('studioQuDrNew')), list(...drOnly.map((qu) => rowNav({ tile: tile('clock', 'orange'), label: quDrOf(qu)[0].f.qn || T('studioQuT'),
+  if (drOnly.length) p.append(secT(T('studioQuDrNew')), list(...drOnly.map((qu) => rowNav({ tile: tile('clock', 'orange'), label: quNameOf(qu) || T('studioQuT'),
     sub: T('studioQuDrSec', { n: quDrOf(qu).length }), onClick: () => { qf = null; go('qnew', qu); }, k: 'qu-drq:' + qu }))));
   const [now, q] = actSplit(store.jobs.filter((r) => !inQ.has(r.id)), (r) => jobPhase(r, runs.get(r.id)));
   const fin = actUnseen(store.jobs, store.sna, Date.now());   // 19/11/2026: הסתיימו ולא נפתחו (במקום "אחרונה")
@@ -3739,14 +3830,14 @@ function pageQu(p) {
   const all = store.jobs.filter((r) => r.spec && r.spec.qu === q.qu && r.srv).sort((a, b) => (a.created || 0) - (b.created || 0));
   const dr = quDrOf(q.qu);   // 20/11/2026: מחכות ל"להתחיל" — עוד לא בשרת
   if (all.length && !q.qn) q.qn = (all.find((r) => r.spec.qn) || { spec: {} }).spec.qn || '';
-  if (!q.qn && dr.length) q.qn = (dr.find((x) => x.f.qn) || { f: {} }).f.qn || '';
+  if (!q.qn && dr.length) q.qn = quNameOf(q.qu);
   const ttl = all.length || dr.length ? q.qn || T('studioQuT') : T('studioQuNew');
   p.append(navBar({ back: T('studioActT'), title: ttl, coll: true }), large(ttl));
   if (!quOk()) { p.append(note(T('studioQuNeedSrv'))); return; }
   if (!all.length) {   // השם — לפני העבודה הראשונה (הוא נשמר בכל עבודה)
     const inp = h('input', 'st-in'); inp.type = 'text'; inp.dir = 'auto'; inp.maxLength = 60; inp.value = q.qn; inp.placeholder = T('studioQuNamePh');
     inp.setAttribute('aria-label', T('studioQuName'));
-    inp.addEventListener('input', () => { q.qn = inp.value; for (const x of quDrOf(q.qu)) x.f.qn = inp.value; });
+    inp.addEventListener('input', () => { q.qn = inp.value; for (const x of quDrOf(q.qu)) x.f.qn = inp.value; if (quDrOf(q.qu).length) { quDrNames[q.qu] = inp.value.slice(0, 60); quDrIdx(); } });
     p.append(secT(T('studioQuName')), inp);
   }
   const rows = all.map((r) => projRow(r, { act: true, qu: true, menu: (at) => quJobMenu(at, r) }));
@@ -5712,6 +5803,7 @@ function startPhone(f) {
     else if (spec.pw && (P.cap || 0) >= PH_CAP_PT) spec.pt = 1;   // שלב 3: גם שלבי הטקסט בטלפון — השרת רק מעביר ל־Claude
     if (P.w > 0 && P.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, P.w * P.h / (1920 * 1080))) * 1000) / 1000;
     quStamp(f, spec);
+    if (quHold(f, spec)) return;   // 20/11/2026: מהתור (Studio שיודע phq) — לרשימה; "להתחיל" פותח את האפליקציה פעם אחת לכולן
     // קודם יוצרים את העבודה ומבקשים מפתח (רשת — בלי נגיעה), ורק אז האומדן: הנגיעה ב"להתחיל" היא זו שפותחת את
     // האפליקציה (Chrome פותח intent רק מתוך נגיעה; אחרי await של רשת — כבר לא). ביטול — העבודה נמחקת. העבודה נשארת
     // "חדשה" עד שהאפליקציה מעלה את הקול ומתחילה אותה — לא עולה כלום עד אז
@@ -5730,15 +5822,7 @@ function startPhone(f) {
       if (!yes || form !== f) { ui.starting = false; net.api('remove', { job: j.job.id }).catch(() => {}); render('none'); return; }
     }
     ui.starting = false;
-    const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
-      fp: { name: f.file.name, size: f.file.size, lm: 0 }, vm: P.w && P.h ? { w: P.w, h: P.h } : null, org: orgOf(f, { k: 'pa' }, ht ? 'api' : ''),
-      up: { ph: P.pid, noAudio: 'ph', a: { done: true }, v: { done: true }, folder: j.job.folder || '' } });   // האפליקציה מעלה, לא הדף
-    store.jobs.unshift(rec);
-    if (f.id) store.drafts = store.drafts.filter((d) => d.id !== f.id);
-    save();
-    if (f.pvKey) { inboxOp('del', f.pvKey); f.pvKey = null; }   // 5/11/2026: העותק לתצוגה בעורך — ההעלאה מהאפליקציה, מה־URI
-    const refText = trkRefSrt(f);   // רצועת ההשוואה — לתיקיית העבודה (סט הזהב בסוף)
-    if (refText) refUpload(rec, refText);
+    const rec = phRec(f, spec, j, ht);
     form = null;
     if (root) jobOpen(f, rec);
     // חלון האישור סוגר את עצמו ב־history.back (אסינכרוני) — ניווט בהיסטוריה אחרי ה־intent מבטל אותו. לכן אחרי afterBack
@@ -5746,6 +5830,20 @@ function startPhone(f) {
     const hand = () => setTimeout(() => phHand(rec, 'ph'), 250);   // אחרי שדף העבודה סיים להתעדכן בהיסטוריה (replaceState מבטל ניווט שבדרך)
     if (typeof afterBack === 'function') afterBack(hand); else hand();
   })();
+}
+/* העבודה בטלפון אחרי היצירה בשרת (startPhone, והתור — quGoAll) */
+function phRec(f, spec, j, ht) {
+  const P = f.ph;
+  const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
+    fp: { name: f.file.name, size: f.file.size, lm: 0 }, vm: P.w && P.h ? { w: P.w, h: P.h } : null, org: orgOf(f, { k: 'pa' }, ht ? 'api' : ''),
+    up: { ph: P.pid, noAudio: 'ph', a: { done: true }, v: { done: true }, folder: j.job.folder || '' } });   // האפליקציה מעלה, לא הדף
+  store.jobs.unshift(rec);
+  if (f.id) store.drafts = store.drafts.filter((d) => d.id !== f.id);
+  save();
+  if (f.pvKey) { inboxOp('del', f.pvKey); f.pvKey = null; }   // 5/11/2026: העותק לתצוגה בעורך — ההעלאה מהאפליקציה, מה־URI
+  const refText = trkRefSrt(f);   // רצועת ההשוואה — לתיקיית העבודה (סט הזהב בסוף)
+  if (refText) refUpload(rec, refText);
+  return rec;
 }
 /* המפתח של העבודה בשביל האפליקציה — יציב בשרתון (אותו מפתח כל עוד הוא בתוקף), אז מבקשים אותו מראש ושומרים בזיכרון:
    כל כפתור פותח את האפליקציה ישר מהנגיעה, בלי בקשה ברשת באמצע */
@@ -11789,7 +11887,8 @@ export function openStudio(opt) {
   if (root) { if (jobLink) { if (jobRec(jobLink)) goJobLink(jobLink, linkView); else Promise.resolve(refreshJobs(true)).then(() => { if (root && jobRec(jobLink)) goJobLink(jobLink, linkView); }); } return; }
   const restore = opt && opt.restore && opt.restore.studio ? opt.restore : null;   // רענון בזמן שהסטודיו היה פתוח
   store = load();
-  if (store.st) { if (!ui.api) ui.api = store.st.api; ui.mf = store.st.mf; if (store.st.r2) ui.r2 = true; }   // 29/10/2026 (S1): עד שהסטטוס חוזר — המצב האחרון
+  if (store.st) { if (!ui.api) ui.api = store.st.api; ui.mf = store.st.mf; if (store.st.r2) ui.r2 = true; }
+  quDrLoad().catch(() => {});   // 20/11/2026: העבודות שמחכות ל"להתחיל" בתורים — מהפעם הקודמת   // 29/10/2026 (S1): עד שהסטטוס חוזר — המצב האחרון
   rootFresh = !restore && stRoot() === 'home';   // 10/11/2026: פתיחה ראשונה (בלי מטמון) — הסטטוס הראשון יעביר לניתוח
   root = h('div', 'st-root no-swipe');
   // 11/11/2026 (המשתמש, Studio במחשב בלי קריוקי, ניתוח ו"אחרונה"): כשהחיבור לחשבון איטי (מעל 8 שנ׳ — SA.ready נפתר 'boot'),

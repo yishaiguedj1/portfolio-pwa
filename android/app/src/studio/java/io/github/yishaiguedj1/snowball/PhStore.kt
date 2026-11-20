@@ -16,6 +16,7 @@ import java.security.SecureRandom
  */
 object PhStore {
     const val KEEP_MS = 7 * 24 * 3600_000L
+    const val KEEP_PU_MS = 30 * 24 * 3600_000L   // 20/11/2026: בחירת nu (רק URI, בלי עותק) — מחכה בתור עבודות עד "להתחיל"
 
     private fun dir(ctx: Context) = File(ctx.filesDir, "ph").apply { mkdirs() }
     fun work(ctx: Context, pid: String) = File(ctx.noBackupFilesDir, "ph/$pid").apply { mkdirs() }
@@ -58,7 +59,7 @@ object PhStore {
         for (f in dir(ctx).listFiles() ?: emptyArray()) {
             if (!f.name.endsWith(".json")) continue
             val r = try { JSONObject(f.readText()) } catch (e: Throwable) { f.delete(); continue }
-            if (r.optString("job").isEmpty() && now - r.optLong("at") > KEEP_MS) drop(ctx, r.optString("pid"))
+            if (r.optString("job").isEmpty() && now - r.optLong("at") > (if (r.optBoolean("pu")) KEEP_PU_MS else KEEP_MS)) drop(ctx, r.optString("pid"))
         }
     }
 
