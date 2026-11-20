@@ -132,6 +132,7 @@ main .stock-sub .day-chg { justify-self: end !important; display: inline-flex !i
 main .stock-sub .day-chg.neg { background: color-mix(in srgb, var(--loss) 14%, transparent) !important; }
 main .ov-day-v { padding: 2px 10px !important; border-radius: 8px !important; background: color-mix(in srgb, var(--gain) 16%, transparent) !important; }
 main .ov-day-v.neg { background: color-mix(in srgb, var(--loss) 14%, transparent) !important; }
+main .ov-day-v:not(.pos):not(.neg) { background: color-mix(in srgb, var(--on-surface) 7%, transparent) !important; } /* 20/11/2026: אפס — אפור */
 main .ov-day-lbl { font-weight: 500 !important; color: var(--on-surface-var) !important; }
 
 /* ===== 6. כרטיס מניה נקי: אותו כרטיס ואותו סדר; "השוק סגור" כבר בהדר — בכרטיס רק שורת המסחר המאוחר ===== */

@@ -843,7 +843,12 @@ main .tabpage :is(.ranges, .chip-row, .stock-sort-row, .wl-tabs, .tx-years, .st-
 .ov-stats .stat-value { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.3px; }
 .cards-3 .stat-value { margin-top: auto; }
 /* v730: השינוי היומי של התיק — שורה אחת לרוחב כל הכרטיס, מתחת לשלושת הנתונים */
-.ov-day { grid-column: 1 / -1; margin-top: 10px; padding-top: 8px; border-top: .5px solid var(--outline); text-align: center; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+/* 20/11/2026: "היום" (מסחר מורחב) ו"אתמול" — עמודות שוות כמו שלושת הנתונים מעליהן: תווית קטנה למעלה, הגלולה מתחת, קו דק ביניהן */
+.ov-day { grid-column: 1 / -1; margin-top: 10px; padding-top: 10px; border-top: .5px solid var(--outline); display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); text-align: center; font-size: 14px; font-variant-numeric: tabular-nums; }
+.ov-day.hidden { display: none; }
+.ov-day-it { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; padding: 0 4px; white-space: nowrap; }
+.ov-day-it + .ov-day-it { border-inline-start: .5px solid var(--outline); }
+.ov-day-it .ov-day-lbl { font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .ov-day-lbl { color: var(--on-surface-var); }
 .ov-day-v { font-weight: 700; unicode-bidi: isolate; }
 .ov-day-v.pos { color: var(--gain); }
