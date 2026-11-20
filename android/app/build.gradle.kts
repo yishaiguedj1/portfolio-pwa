@@ -101,6 +101,8 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    // 20/11/2026: צילום הווידג'ט האמיתי בלי מכשיר (Robolectric, ציור native) — testInvest/WidgetShotTest, רץ רק עם WIDGET_SHOTS
+    testOptions { unitTests.isIncludeAndroidResources = true }
 }
 
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
@@ -111,6 +113,10 @@ dependencies {
     "investImplementation"("androidx.glance:glance-appwidget:1.2.0")
     "investImplementation"("androidx.work:work-runtime-ktx:2.12.0")
     "investImplementation"("com.caverock:androidsvg-aar:1.4") // לוגואים של ת״א (SVG של TradingView)
+    // 20/11/2026: צילום הווידג'ט (tools/widget-shots.sh) — מנוע הציור של אנדרואיד על JVM; לא ב־CI
+    "testInvestImplementation"("junit:junit:4.13.2")
+    "testInvestImplementation"("org.robolectric:robolectric:4.16")
+    "testInvestImplementation"("androidx.test:core:1.6.1")
     // בלי ווידג'ט: התוסף של Compose (בשביל Glance) רץ על כל הגרסאות ודורש את ה־runtime — אותה גרסה ש־Glance מביא
     "academyImplementation"("androidx.compose.runtime:runtime:1.7.8")
     "studioImplementation"("androidx.compose.runtime:runtime:1.7.8")

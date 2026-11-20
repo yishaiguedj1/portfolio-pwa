@@ -218,12 +218,17 @@ R("DB.wishlist.length = 0; DB.wishlist.push({ sym: 'TSLA', name: 'Tesla' }, { sy
   // 20/11/2026: זכוכית כמו Invest — הרקע של האפליקציה (תמונה בבהיר ובכהה), כרטיסים/כפתורים/קפסולות במשאבי זכוכית
   const res = path2.join(__dirname, '..', 'android/app/src/invest/res');
   ok(/background\(ImageProvider\(R\.drawable\.widget_bg\), ContentScale\.FillBounds\)/.test(kt) && fs2.existsSync(path2.join(res, 'drawable-nodpi/widget_bg.webp')) && fs2.existsSync(path2.join(res, 'drawable-night-nodpi/widget_bg.webp')), 'ווידג׳ט: הרקע של Invest בבהיר ובכהה');
-  ok(['glass_card', 'glass_pill', 'glass_circle', 'glass_fill', 'glass_tab_on', 'logo_disc'].every((n) => fs2.existsSync(path2.join(res, 'drawable', n + '.xml'))) && /R\.drawable\.glass_card/.test(kt), 'ווידג׳ט: משאבי הזכוכית קיימים והכרטיס משתמש בהם');
-  const gl = (v) => fs2.readFileSync(path2.join(res, v, 'widget_glass.xml'), 'utf8');
-  ok(/gl_body_top">#99FFFFFF/.test(gl('values')) && /gl_body_bot">#4DFFFFFF/.test(gl('values')) && /gl_body_top">#2BFFFFFF/.test(gl('values-night')) && /gl_body_bot">#12FFFFFF/.test(gl('values-night')), 'ווידג׳ט: גוף הזכוכית = ‎--lg-body של invest-glass.css (בהיר וכהה)');
-  ok(/R\.drawable\.glass_tab_on else R\.drawable\.glass_pill/.test(kt) && /color = if \(on\) C\.onPrimary else C\.on/.test(kt) && /val onPrimary = ColorProvider\(Color\(0xFF06281A\)/.test(kt), 'ווידג׳ט: טאבים — הנבחר טיפה ירוקה, השאר זכוכית');
+  // 20/11/2026 (תיקון): הזכוכית = תמונות 9-patch מצולמות מה־CSS שאושר (tools/widget-glass.js), בהיר וכהה; השוליים לצל זהים בקוד ובכלי
+  const nine = ['glass_card', 'glass_pill', 'glass_tab', 'glass_fill'], gpng = ['glass_circle', 'glass_arrow', 'logo_disc'];
+  ok(nine.every((n) => ['drawable-xxhdpi', 'drawable-night-xxhdpi'].every((d) => fs2.existsSync(path2.join(res, d, n + '.9.png'))))
+    && gpng.every((n) => ['drawable-xxhdpi', 'drawable-night-xxhdpi'].every((d) => fs2.existsSync(path2.join(res, d, n + '.png'))))
+    && fs2.existsSync(path2.join(res, 'drawable-xxhdpi/glass_tab_on.9.png')), 'ווידג׳ט: תמונות הזכוכית קיימות בבהיר ובכהה');
+  const gtool = fs2.readFileSync(path2.join(__dirname, '..', 'tools/widget-glass.js'), 'utf8');
+  ok(/\['glass_card', 120, 74, 22, \{ t: 1, s: 3, b: 6 \}/.test(gtool) && /CARD_T = 1; const val CARD_S = 3; const val CARD_B = 6/.test(kt) && /R\.drawable\.glass_card/.test(kt), 'ווידג׳ט: שולי הצל של הכרטיס זהים בכלי ובקוד');
+  ok(!/FontWeight\.Medium\)[^\n]*r\.price/.test(kt) && /Text\(ltr\(r\.price\), style = TextStyle\(color = C\.on, fontSize = 20\.sp, fontWeight = FontWeight\.Bold\)/.test(kt), 'ווידג׳ט: המחיר מודגש כמו בתצוגה');
+  ok(/R\.drawable\.glass_tab_on else R\.drawable\.glass_tab/.test(kt) && /color = if \(on\) C\.onPrimary else C\.on/.test(kt) && /val onPrimary = ColorProvider\(Color\(0xFF06281A\)/.test(kt), 'ווידג׳ט: טאבים — הנבחר טיפה ירוקה, השאר זכוכית');
   ok(/private fun FxPill[\s\S]{0,1200}?R\.drawable\.glass_pill/.test(kt), 'ווידג׳ט: שער הדולר בקפסולת זכוכית בשורה אחת');
-  ok(/Header\(lc, d, model\?\.fx, updated\) \{[\s\S]{0,200}?size\(80\.dp\)/.test(kt) && /top = 0\.dp, bottom = 8\.dp\), parts\)/.test(kt), 'ווידג׳ט המעקב: הלוגו בתוך הכותרת — לא חופף לטאבים');
+  ok(/Header\(lc, d, model\?\.fx, updated\) \{[\s\S]{0,200}?size\(80\.dp\)/.test(kt) && /top = 0\.dp, bottom = 4\.dp\), parts\)/.test(kt), 'ווידג׳ט המעקב: הלוגו בתוך הכותרת — לא חופף לטאבים');
 }
 
 // v278: סימבול התצוגה בווידג׳ט = באפליקציה לכל נכס בקטלוג (BRENT, SPX, BTC, USD/ILS…)
