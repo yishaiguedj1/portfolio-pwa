@@ -1839,7 +1839,8 @@ he: {
   mtErrQty: 'כמות חייבת להיות גדולה מאפס',
   mtErrPrice: 'מחיר חייב להיות גדול מאפס',
   mtErrOversell: 'אי אפשר למכור יותר מניות ממה שמוחזק בתאריך הזה',
-  mtErrHeldIbkr: '{sym} מגיעה מ־IBKR — הקניות והמכירות שלה מתעדכנות בסנכרון',
+  mtDupIbkr: 'זהה לעסקה מ־IBKR — נספרת רק של IBKR',
+  mtSavedDup: 'נשמר — זהה לעסקה מ־IBKR, אז נספרת רק של IBKR',
   mtErrHeldAvg: '{sym} הוזנה לפי מחיר ממוצע. כדי לנהל אותה לפי עסקאות — מחק אותה והוסף מחדש "לפי עסקאות".',
   mtErrDeleteBreaks: 'בלי העסקה הזו תישאר מכירה של יותר מניות ממה שהוחזק — מחק או ערוך קודם את המכירה',
   mtDelConfirm: 'למחוק את העסקה ({side} {qty} {sym} ב־{date})?',
@@ -1875,7 +1876,7 @@ he: {
   txNoMatch: 'אין עסקאות שמתאימות',
   mtDelBtn: 'מחיקת העסקה',
   mtTotal: 'סה״כ',
-  mtShadowed: 'לא נספר — {sym} מוחזקת עכשיו ב־IBKR',
+  mtShadowed: 'לא נספר — {sym} מוזנת לפי מחיר ממוצע',
   kvRealized: 'רווח ממומש',
   mtManageHint: 'המניה מנוהלת לפי עסקאות — הכמות והמחיר הממוצע מחושבים מהן.',
   btnManageTrades: 'עסקאות',
@@ -3857,7 +3858,8 @@ en: {
   mtErrQty: 'Quantity must be greater than zero',
   mtErrPrice: 'Price must be greater than zero',
   mtErrOversell: "Can't sell more shares than held on that date",
-  mtErrHeldIbkr: '{sym} comes from IBKR — its buys and sells update on sync',
+  mtDupIbkr: 'Same as an IBKR trade — only the IBKR one counts',
+  mtSavedDup: 'Saved — it matches an IBKR trade, so only the IBKR one counts',
   mtErrHeldAvg: '{sym} was entered by average price. To track it by trades — delete it and add it again "By trades".',
   mtErrDeleteBreaks: 'Without this trade a sell would exceed the shares held — delete or edit the sell first',
   mtDelConfirm: 'Delete this trade ({side} {qty} {sym} on {date})?',
@@ -3893,7 +3895,7 @@ en: {
   txNoMatch: 'No matching trades',
   mtDelBtn: 'Delete trade',
   mtTotal: 'Total',
-  mtShadowed: 'Not counted — {sym} is now held at IBKR',
+  mtShadowed: 'Not counted — {sym} is entered by average price',
   kvRealized: 'Realized P&L',
   mtManageHint: 'This stock is tracked by trades — quantity and average price are computed from them.',
   btnManageTrades: 'Trades',
@@ -5903,8 +5905,11 @@ function ibkrMapImport(data) {
      והממוצע נגזרים מהעסקאות (עלות ממוצעת, כולל רווח ממומש במכירות) ומשתתפים בגרף
      הביצועים ובתשואה — כמו נתוני IBKR.
    פוזיציה ידנית = src:'manual' (fromTrades:true כשהיא מעסקאות). סנכרון IBKR מחליף רק
-   את הפוזיציות שלו — הידניות נשמרות. מניה שמוחזקת ב־IBKR לא ניתנת להזנה ידנית;
-   עסקאות ידניות של מניה ש־IBKR התחיל להחזיק "מוצללות" (לא נספרות, מסומנות). */
+   את הפוזיציות שלו — הידניות נשמרות.
+   20/11/2026 (בקשת המשתמש): מניה שמוחזקת ב־IBKR מקבלת גם עסקאות ידניות (מניות שנקנו במקום אחר) — הכמות
+   והממוצע בכרטיס משולבים (p.ib = החלק של IBKR, p.mtSh = החלק הידני), ועליה שתי תגיות מקור. עסקה ידנית
+   שזהה לעסקה של IBKR (אותה מניה, צד, כמות וסכום, תאריך קרוב) = אותה עסקה — "מוצללת" ונספרת רק של IBKR.
+   מניה לפי מחיר ממוצע ידני עדיין לא מקבלת עסקאות (מוצללות). */
 
 function mtList() {
   if (!Array.isArray(DB.manualTrades)) DB.manualTrades = [];
@@ -5989,21 +5994,68 @@ function mtFlowsByDate(trades) {
   return out;
 }
 
-/* מניה עם עסקאות ידניות שמוחזקת ממקור אחר (IBKR / מחיר ממוצע) — העסקאות מוצללות. */
-function mtShadowed(sym, positions) {
-  const p = (positions || POSITIONS).find((x) => x.sym === sym);
-  return !!(p && !p.fromTrades);
+/* 20/11/2026: עסקאות ידניות שהן כפילות של עסקת IBKR — אותה מניה וצד, אותה כמות, סכום עד 1% (או סנט) ותאריך
+   עד 7 ימים. כל עסקת IBKR מכסה עסקה ידנית אחת לכל היותר. מחזיר Set של מזהים. טהורה. */
+const MT_DUP_DAYS = 7;
+function mtDupIds(man, ib) {
+  const out = new Set();
+  const used = new Set();
+  const day = (d) => Date.parse(String(d || '').slice(0, 10) + 'T00:00:00Z');
+  const ibs = (ib || []).filter((x) => x && x.symbol).map((x) => ({
+    sym: String(x.symbol).trim().toUpperCase(), side: (Number(x.qty) < 0 || /^SELL/i.test(x.side || '')) ? 'SELL' : 'BUY',
+    qty: Math.abs(Number(x.qty) || 0), amt: Math.abs(Number(x.qty) || 0) * Math.abs(Number(x.price) || 0), d: day(x.date) }));
+  // כל הזוגות האפשריים, מהקרוב ביותר (תאריך ואז סכום) — שיבוץ חמדני, כך שעסקה מדויקת לא "נגנבת" ע"י קרובה פחות
+  const pairs = [];
+  (man || []).forEach((r) => {
+    const m = mtNorm(r);
+    const amt = m.qty * m.price, d = day(m.date);
+    ibs.forEach((x, i) => {
+      if (x.sym !== m.sym || x.side !== m.side || Math.abs(x.qty - m.qty) > 1e-6) return;
+      const da = Math.abs(x.amt - amt);
+      if (da > Math.max(0.01, x.amt * 0.01)) return;
+      const gap = isFinite(d) && isFinite(x.d) ? Math.abs(x.d - d) / 864e5 : 0;
+      if (gap <= MT_DUP_DAYS) pairs.push({ id: m.id, i, gap, da });
+    });
+  });
+  pairs.sort((a, b) => a.gap - b.gap || a.da - b.da);
+  for (const q of pairs) if (!used.has(q.i) && !out.has(q.id)) { used.add(q.i); out.add(q.id); }
+  return out;
+}
+function mtIbkrTradesNow() {
+  return isIbkrMode() && ibkrCfg().data ? ibkrTrades() : [];
+}
+/* עסקה ידנית מוצללת (לא נספרת): כפילות של עסקת IBKR, או של מניה שמוחזקת לפי מחיר ממוצע ידני.
+   x = עסקה (או סימבול — אז רק בדיקת המחזיק). dup = Set מ־mtDupIds (אופציונלי, לחיסכון). */
+function mtShadowed(x, positions, dup) {
+  const sym = typeof x === 'string' ? x : mtNorm(x).sym;
+  const p = (positions || POSITIONS).find((y) => y.sym === sym);
+  if (p && p.src === 'manual' && !p.fromTrades) return true;
+  if (typeof x === 'string') return false;
+  const d = dup || mtDupIds(mtList(), mtIbkrTradesNow());
+  return d.has(mtNorm(x).id);
 }
 function mtActiveTrades() {
-  return mtList().filter((x) => !mtShadowed(mtNorm(x).sym));
+  const dup = mtDupIds(mtList(), mtIbkrTradesNow());
+  return mtList().filter((x) => !mtShadowed(x, null, dup));
 }
 
 /* מסנכרן את רשימת הפוזיציות עם העסקאות (במקום — POSITIONS הוא DB.positions):
    כמות/ממוצע מחושבים מחדש; מניה שנמכרה כולה יורדת מהרשימה (הרווח הממומש שלה
    נשאר בחישובים). לא נוגע בפוזיציות IBKR או לפי מחיר ממוצע. */
 function mtSyncPositions() {
-  const trades = mtList();
+  const trades = mtActiveTrades();
   const syms = [...new Set(trades.map((x) => mtNorm(x).sym))];
+  // 20/11/2026: מניית IBKR + עסקאות ידניות — כמות וממוצע משולבים; החלק של IBKR נשמר ב־p.ib
+  for (const p of POSITIONS) {
+    if (!p || p.src === 'manual' || p.fromTrades || p.watch) continue;
+    const st = syms.includes(p.sym) ? mtPosition(trades, p.sym) : null;
+    if (st && st.shares > 0) {
+      const b = p.ib || (p.ib = { shares: Number(p.shares) || 0, avg: Number(p.avg) || 0 });
+      p.mtSh = st.shares;
+      p.shares = b.shares + st.shares;
+      p.avg = p.shares > 0 ? (b.shares * b.avg + st.cost) / p.shares : 0;
+    } else if (p.ib) { p.shares = p.ib.shares; p.avg = p.ib.avg; delete p.ib; delete p.mtSh; }
+  }
   for (const sym of syms) {
     const i = POSITIONS.findIndex((p) => p.sym === sym);
     const cur = i >= 0 ? POSITIONS[i] : null;
@@ -6056,7 +6108,7 @@ function markManualPositions() {
   for (const p of POSITIONS) {
     if (!p.src && !ib[p.sym]) { p.src = 'manual'; n++; }
     // 29/10/2026: ממוצע בשיטת IBKR גם לפוזיציות שנשמרו לפני השינוי — בלי לחכות לסנכרון
-    else if (!p.src && ib[p.sym].avg > 0 && ib[p.sym].shares === p.shares && Math.abs(ib[p.sym].avg - p.avg) > 1e-9) { p.avg = ib[p.sym].avg; n++; }
+    else if (!p.src && !p.ib && ib[p.sym].avg > 0 && ib[p.sym].shares === p.shares && Math.abs(ib[p.sym].avg - p.avg) > 1e-9) { p.avg = ib[p.sym].avg; n++; }
   }
   return n;
 }
@@ -6070,6 +6122,8 @@ function manualTotalsUSD(positions, trades, quotes, fx) {
   // v142: מניה ישראלית — סכומים בשקלים, מומרים לדולר בשער הנוכחי
   const usd = (v, sym) => nativeToUSD(v, sym, fx);
   for (const p of (positions || [])) {
+    // 20/11/2026: החלק הידני של מניית IBKR (p.mtSh) — שוויו לא בדוח של IBKR
+    if (p.src !== 'manual' && p.mtSh > 0) { const px0 = priceOf(p.sym); const v0 = px0 === null ? null : usd(px0 * p.mtSh, p.sym); if (v0 === null) missing++; else value += v0; continue; }
     if (p.src !== 'manual') continue;
     const px = priceOf(p.sym);
     if (!p.fromTrades) avgOnly++;
@@ -6555,7 +6609,7 @@ function pfBackupSnapshot(db, ibkrMode, prefs, now, withUi, ibPack) {
   const ui = withUi !== false;
   const ib = ibkrMode && ibPack && ibPack.z ? {
     at: +ibPack.at || 0, z: String(ibPack.z),
-    positions: (db.positions || []).filter((p) => p && p.sym && !p.fromTrades && isIbkrPosition(p, true)).map((p) => { const o = pfClone(p); delete o.src; return o; }),
+    positions: (db.positions || []).filter((p) => p && p.sym && !p.fromTrades && isIbkrPosition(p, true)).map((p) => { const o = pfClone(p); delete o.src; if (o.ib) { o.shares = o.ib.shares; o.avg = o.ib.avg; } delete o.ib; delete o.mtSh; return o; }),
     deposits: (db.deposits || []).filter(isIbkrDeposit).map(pfClone),
     cash: { usd: Number(db.cash && db.cash.usd) || 0, ils: Number(db.cash && db.cash.ils) || 0 },
   } : null;
@@ -8141,6 +8195,8 @@ function ibkrFinishImport(data, auto, o) {
   ibkrCloudPush().catch(() => {});         // 27/10/2026: הדוח עולה לענן — כל מכשיר בחשבון מציג אותו דבר
   ibkrBgAck();                             // v311: מה שיובא נמחק מהכספת בענן, ונקודת ההמשך שם מתקדמת
   ibkrBgMaintain();                        // v312: סנכרון ראשון → הרשמה שקטה לסנכרון ברקע
+  // 20/11/2026: עסקאות ידניות שזהות לעסקאות החדשות של IBKR — מוצללות רק עכשיו (הדוח נשמר) → השילוב מחושב מחדש
+  if (mtList().length) { mtSyncPositions(); saveDB(); }
   renderAll();
   renderIbkrCard();
   let msg = t('importDone', { added: added, kept: kept });
@@ -8416,8 +8472,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.206.0';
-const APP_VERSION = 'v881';
+const APP_RELEASE = '2.207.0';
+const APP_VERSION = 'v882';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -16037,7 +16093,7 @@ function renderStocks() {
   };
   renderSrcFilter('stocks');
   const sf = getSrcFilter('stocks');
-  const shown = POSITIONS.filter((p) => srcPass(sf, positionSource(p)));
+  const shown = POSITIONS.filter((p) => srcPass(sf, positionSource(p)) || (p.mtSh > 0 && srcPass(sf, 'manual')));
   if (!shown.length && POSITIONS.length) {
     const m = el('p', 'fine', t('srcFilterEmpty'));
     m.style.padding = '0';
@@ -16263,7 +16319,8 @@ function showTradeForm(host, opts) {
       fee: parseFloat(card.querySelector('.mt-fee').value) || 0,
     };
     const held = POSITIONS.find((p) => p.sym === cand.sym);
-    if (held && !held.fromTrades) return fail((held.src === 'manual' ? t('mtErrHeldAvg', { sym: cand.sym }) : t('mtErrHeldIbkr', { sym: cand.sym })));
+    // 20/11/2026: מניית IBKR מקבלת גם עסקאות ידניות (מניות ממקום אחר); רק מניה לפי מחיר ממוצע ידני נחסמת
+    if (held && held.src === 'manual' && !held.fromTrades) return fail(t('mtErrHeldAvg', { sym: cand.sym }));
     const err = mtValidate(mtList(), cand, tr ? tr.id : null);
     if (err) return fail(err);
     const list = mtList();
@@ -16275,7 +16332,7 @@ function showTradeForm(host, opts) {
     card.remove();
     if (o.sheet && o.onClose) o.onClose();
     renderAll();
-    flash(t('mtSaved'));
+    flash(mtShadowed(cand) ? t('mtSavedDup') : t('mtSaved'));
     refreshQuotes().then(() => warmHistories());
   });
   if (!o.sheet) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -16302,7 +16359,7 @@ function buildManualTradeRow(x, onEdit) {
   li.classList.add('mt-row');
   const first = li.firstChild;
   if (first) {
-    if (mtShadowed(n.sym)) first.appendChild(el('div', 'fine', t('mtShadowed', { sym: n.sym })));
+    if (mtShadowed(x)) first.appendChild(el('div', 'fine', mtShadowed(n.sym) ? t('mtShadowed', { sym: n.sym }) : t('mtDupIbkr')));
   }
   const act = el('span', 'mt-actions');
   const eb = el('button', 'mini-btn', t('btnEditRow'));
@@ -18437,7 +18494,7 @@ function stockHeadHTML(p, m) {
   // v204: שתי שורות עצמאיות ליד הלוגו — שורה 1: סימבול + תגית המקור + מחיר; שורה 2: שם החברה + בועת הסשן.
   // כך הבועה מתחרה רק עם שם החברה (שנקטע ב־…) ולא עם הסימבול/התגית — תמיד שתי שורות, בלי התנגשות.
   return '<span class="stock-id">' + stockLogoHTML(sym) +
-    '<span class="sh-r1"><span class="stock-sym"><bdi dir="ltr">' + esc(dispSym(sym)) + '</bdi></span>' + (p.watch ? '' : srcTagHTML(positionSource(p), p.accts)) +
+    '<span class="sh-r1"><span class="stock-sym"><bdi dir="ltr">' + esc(dispSym(sym)) + '</bdi></span>' + (p.watch ? '' : srcTagHTML(positionSource(p), p.accts) + (p.mtSh > 0 ? srcTagHTML('manual') : '')) +
     '<span class="stock-price' + stockPriceSizeCls(priceTxt) + '" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span></span>' +
     '<span class="sh-r2"><span class="stock-name">' + esc(companyName(p.sym, p.name) || p.name) + '</span>' + // v201: שם החברה, לא הסימבול פעמיים
     '<span class="stock-ext">' + extSessionHTML(m.q, m) + '</span></span></span>' +
@@ -18535,7 +18592,10 @@ function kvGridHTML(p, m) {
   const sym = p.sym;
   const cur = state.currency;
   const toCur = (usd) => (usd === null ? null : (cur === 'ILS' && state.fx ? usd * state.fx : usd));
-  return kvHTML(t('kvShares'), ltrNum(fmtQty(p.shares)), '', Math.abs(p.shares) >= NUM_BIG ? ltrNum(Number(p.shares).toLocaleString('en-US')) : '') +
+  // 20/11/2026 (בקשת המשתמש): מניה משני מקורות — מתחת לכמות הפירוט: IBKR · ידני
+  const shSub = p.mtSh > 0 && p.ib ? ltrNum('IBKR ' + fmtQty(p.ib.shares)) + ' · ' + esc(t('manualTag')) + ' ' + ltrNum(fmtQty(p.mtSh))
+    : Math.abs(p.shares) >= NUM_BIG ? ltrNum(Number(p.shares).toLocaleString('en-US')) : '';
+  return kvHTML(t('kvShares'), ltrNum(fmtQty(p.shares)), '', shSub) +
     kvHTML(t('kvAvg'), fmtPx(p.avg, sym)) +
     kvHTML(t('kvValue'), m.value === null ? '—' : money(toCur(m.value), cur)) +
     kvHTML(t('kvGL'),
@@ -18544,8 +18604,8 @@ function kvGridHTML(p, m) {
       m.gl === null || !(p.avg > 0) ? KV_SUB_HOLD : fmtPct((m.price / p.avg - 1) * 100, true),
       m.gl === null ? '' : m.gl >= 0 ? 'pos' : 'neg') +
     kvHTML(t('kvWeight'), weightTxt(sym)) +
-    (p.fromTrades ? (() => {
-      const rz = mtPosition(mtList(), sym).realized;
+    (p.fromTrades || p.mtSh > 0 ? (() => {
+      const rz = mtPosition(mtActiveTrades(), sym).realized;
       const rzU = nativeToUSD(rz, sym);
       return rzU !== null && Math.abs(rz) > 0.005 ? kvHTML(t('kvRealized'), fmtSignedMoney(toCur(rzU), cur), rz >= 0 ? 'pos' : 'neg') : '';
     })() : '') +
@@ -20270,8 +20330,9 @@ function txUnify(ib, man, shadow) {
     const n = mtNorm(x);
     if (!n.sym) continue;
     const cur = symCur(n.sym);
+    const sh = !!(shadow && (shadow(n.sym) || shadow(x)));   // 20/11/2026: לפי מניה (מחיר ממוצע) או לפי עסקה (כפילות של IBKR)
     rows.push({ k: x, src: 'manual', sym: n.sym, date: n.date, time: '', tradeId: '', side: n.side, qty: n.qty, price: n.price,
-      fee: n.fee, cur, feeCur: cur, acct: null, id: n.id, shadow: !!(shadow && shadow(n.sym)) });
+      fee: n.fee, cur, feeCur: cur, acct: null, id: n.id, shadow: sh, dup: sh && !(shadow && shadow(n.sym)) });
   }
   return rows.map((r, i) => [r, i]).sort((a, b) => tradeNewestFirst(a[0], b[0]) || a[1] - b[1]).map((e) => e[0]);
 }
@@ -20455,7 +20516,7 @@ function txRowHTML(r, opts) {
   const after = o.after === null || o.after === undefined ? '' : '<div class="tx-e2">' + esc(t('txAfter', { n: txQty(o.after) })) + '</div>';
   return '<div class="tx-row' + (ed ? ' ed' : '') + (r.shadow ? ' dim' : '') + '"' + (ed ? ' role="button" tabindex="0" data-mt="' + esc(r.id) + '"' : '') + '>' +
     lead + '<div class="tx-mid"><div class="tx-t1">' + t1 + '</div><div class="tx-t2">' + d + '</div>' +
-    (r.shadow ? '<div class="tx-t2">' + esc(t('mtShadowed', { sym: r.sym })) + '</div>' : '') + '</div>' +
+    (r.shadow ? '<div class="tx-t2">' + esc(r.dup ? t('mtDupIbkr') : t('mtShadowed', { sym: r.sym })) + '</div>' : '') + '</div>' +
     '<div class="tx-end"><div class="tx-e1">' + esc(tot) + '</div>' + after + '</div>' +
     (ed ? '<span class="tx-edit" aria-hidden="true">' + ICON_EDIT + '</span>' : '') + '</div>';
 }
@@ -20480,7 +20541,7 @@ function txCompanyHTML(c, all, open) {
   if (run) all.forEach((r, i) => after.set(r, run[i]));
   const rows = TX_UI.asc ? c.rows.slice().reverse() : c.rows;
   const p = POSITIONS.find((x) => x.sym === c.sym);
-  const canAdd = !p || p.fromTrades;
+  const canAdd = !p || !(p.src === 'manual' && !p.fromTrades);   // 20/11/2026: גם למניית IBKR (מניות ממקום אחר)
   const q = state.quotes && state.quotes[c.sym];
   h += '<div class="tx-body">' + txReturnHTML(txReturnOf(c.sym, all, held, q && q.close)) + txTilesHTML(txTotals(c.rows)) +
     '<div class="tx-tools"><button type="button" class="tx-sort" data-txsort="1">' + esc(TX_UI.asc ? t('txOldest') : t('txNewest')) + '</button>' +
@@ -20569,7 +20630,8 @@ function renderTrades() {
     hint.classList.toggle('hidden', !showHint);
     if (showHint) hint.textContent = t('tradesNeedIbkr');
   }
-  const rows = txUnify(ib, man, mtShadowed).filter((r) => srcPass(sf, r.src));
+  const dup = mtDupIds(man, ib);
+  const rows = txUnify(ib, man, (x) => mtShadowed(x, null, typeof x === 'string' ? null : dup)).filter((r) => srcPass(sf, r.src));
   const years = txYearsOf(rows);
   if (TX_UI.y !== 'all' && !years.some((x) => x.y === TX_UI.y)) TX_UI.y = 'all';
   const cos = txCompanies(rows);
