@@ -215,9 +215,15 @@ R("DB.wishlist.length = 0; DB.wishlist.push({ sym: 'TSLA', name: 'Tesla' }, { sy
   const missing = ids.filter((id) => !png.includes(id) || !fs2.existsSync(path2.join(__dirname, '..', 'logos', 'ta', id + '.png')));
   ok(ids.length >= 200 && !missing.length, 'לכל לוגו ת"א יש PNG לווידג׳ט (' + ids.length + ')' + (missing.length ? ' חסר: ' + missing.join(',') : ''));
   const kt = fs2.readFileSync(path2.join(__dirname, '..', 'android/app/src/invest/java/io/github/yishaiguedj1/snowball/SnowballWidget.kt'), 'utf8');
-  ok(/val w = ColorProvider\(Color\(0xFFF2F2F7\), Color\(0xFF000000\)\)/.test(kt) && /val w2 = ColorProvider\(Color\(0xFFFFFFFF\), Color\(0xFF1C1C1E\)\)/.test(kt), 'ווידג׳ט: רקע וכרטיס בצבעי האפליקציה');
-  ok(/background\(if \(on\) C\.primary else C\.chip\)/.test(kt) && /color = if \(on\) C\.onPrimary else C\.on/.test(kt) && /val onPrimary = ColorProvider\(Color\(0xFF06281A\)/.test(kt), 'ווידג׳ט: טאבים — פעיל כמו .tab.active באפליקציה, השאר בצבע הכרטיסים');
-  ok(/private fun FxPill[\s\S]{0,900}?background\(C\.bubBg\)/.test(kt), 'ווידג׳ט: בועת שער הדולר בצבע ‎--surface-2 כמו באפליקציה');
+  // 20/11/2026: זכוכית כמו Invest — הרקע של האפליקציה (תמונה בבהיר ובכהה), כרטיסים/כפתורים/קפסולות במשאבי זכוכית
+  const res = path2.join(__dirname, '..', 'android/app/src/invest/res');
+  ok(/background\(ImageProvider\(R\.drawable\.widget_bg\), ContentScale\.FillBounds\)/.test(kt) && fs2.existsSync(path2.join(res, 'drawable-nodpi/widget_bg.webp')) && fs2.existsSync(path2.join(res, 'drawable-night-nodpi/widget_bg.webp')), 'ווידג׳ט: הרקע של Invest בבהיר ובכהה');
+  ok(['glass_card', 'glass_pill', 'glass_circle', 'glass_fill', 'glass_tab_on', 'logo_disc'].every((n) => fs2.existsSync(path2.join(res, 'drawable', n + '.xml'))) && /R\.drawable\.glass_card/.test(kt), 'ווידג׳ט: משאבי הזכוכית קיימים והכרטיס משתמש בהם');
+  const gl = (v) => fs2.readFileSync(path2.join(res, v, 'widget_glass.xml'), 'utf8');
+  ok(/gl_body_top">#99FFFFFF/.test(gl('values')) && /gl_body_bot">#4DFFFFFF/.test(gl('values')) && /gl_body_top">#2BFFFFFF/.test(gl('values-night')) && /gl_body_bot">#12FFFFFF/.test(gl('values-night')), 'ווידג׳ט: גוף הזכוכית = ‎--lg-body של invest-glass.css (בהיר וכהה)');
+  ok(/R\.drawable\.glass_tab_on else R\.drawable\.glass_pill/.test(kt) && /color = if \(on\) C\.onPrimary else C\.on/.test(kt) && /val onPrimary = ColorProvider\(Color\(0xFF06281A\)/.test(kt), 'ווידג׳ט: טאבים — הנבחר טיפה ירוקה, השאר זכוכית');
+  ok(/private fun FxPill[\s\S]{0,1200}?R\.drawable\.glass_pill/.test(kt), 'ווידג׳ט: שער הדולר בקפסולת זכוכית בשורה אחת');
+  ok(/Header\(lc, d, model\?\.fx, updated\) \{[\s\S]{0,200}?size\(80\.dp\)/.test(kt) && /top = 0\.dp, bottom = 8\.dp\), parts\)/.test(kt), 'ווידג׳ט המעקב: הלוגו בתוך הכותרת — לא חופף לטאבים');
 }
 
 // v278: סימבול התצוגה בווידג׳ט = באפליקציה לכל נכס בקטלוג (BRENT, SPX, BTC, USD/ILS…)
