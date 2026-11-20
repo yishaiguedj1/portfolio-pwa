@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- זכוכית (20/11/2026): קו מתאר, גוף שקוף בהדרגה עם שפה בהירה, וברק עליון — כמו ‎--lg-body/‎--lg-rim ב־invest-glass.css.
+<!-- זכוכית (20/11/2026): קו מתאר, גוף שקוף בהדרגה עם שפה בהירה, וברק עליון — כמו lg-body/lg-rim ב־invest-glass.css.
      לווידג'ט אין טשטוש וצל — הזכוכית מדומה בשכבות. הצבעים ב־values(-night)/widget_glass.xml -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>

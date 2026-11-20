@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- הטאב הנבחר — טיפת זכוכית ירוקה (‎--lg-tint ב־invest-glass.css), זהה בבהיר ובכהה -->
+<!-- הטאב הנבחר — טיפת זכוכית ירוקה (lg-tint ב־invest-glass.css), זהה בבהיר ובכהה -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape android:shape="rectangle">

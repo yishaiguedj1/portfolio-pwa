@@ -122,6 +122,8 @@ private object C {
     // גלולת השינוי היומי — ‎--gain 16% / ‎--loss 14% כמו ‎.stock-sub .day-chg; אפס — אפור (‎--on-surface 7%)
     val posBg = ColorProvider(Color(0x2934C759), Color(0x2934C759))
     val negBg = ColorProvider(Color(0x24FF453A), Color(0x24FF453A))
+    val tagBg = ColorProvider(Color(0x24FF453A), Color(0x24FF453A))
+    val manBg = ColorProvider(Color(0x2634C759), Color(0x2634C759))
     val flatBg = ColorProvider(Color(0x12000000), Color(0x12FFFFFF))
     val letter: GColor = ColorProvider(Color(0xFF3A3A3C), Color(0xFF3A3A3C))
     val onPrimary = ColorProvider(Color(0xFF06281A), Color(0xFF06281A))
@@ -336,13 +338,18 @@ private fun SessionBubble(d: Dirn, b: Bubble) {
     DRow(d, GlanceModifier.background(ImageProvider(R.drawable.glass_fill)).padding(start = 9.dp, end = 9.dp, top = 2.dp, bottom = 3.dp), parts)
 }
 
-/** תגית המקור — אפורה ועדינה (‎.src-tag ב־invest-glass.css: ‎--lg-fill, טקסט משני) */
+/** תגית המקור — כמו במקור (בקשת המשתמש 20/11/2026): סמל IB על רקע אדום עדין, "ידני" בירוק */
 @Composable
 private fun Tag(lc: Context, src: Src) {
-    val label = when (src) { Src.IBKR -> "IBKR"; Src.MANUAL -> lc.getString(R.string.wManual); Src.WATCH -> return }
-    // v249: פריטי מעקב מופיעים רק בווידג'ט "רשימות מעקב" — שם כל השורות ממעקב, בלי תגית (רעש)
-    Box(GlanceModifier.height(17.dp).background(ImageProvider(R.drawable.glass_fill)).padding(start = 6.dp, end = 6.dp), contentAlignment = Alignment.Center) {
-        Text(label, style = TextStyle(color = C.variant, fontSize = 9.5.sp, fontWeight = FontWeight.Medium), maxLines = 1)
+    when (src) {
+        Src.IBKR -> Box(GlanceModifier.height(18.dp).width(25.dp).cornerRadius(9.dp).background(C.tagBg), contentAlignment = Alignment.Center) {
+            Image(ImageProvider(R.drawable.tag_ibkr), contentDescription = "IBKR", modifier = GlanceModifier.size(12.dp))
+        }
+        Src.MANUAL -> Box(GlanceModifier.height(18.dp).cornerRadius(9.dp).background(C.manBg).padding(start = 5.dp, end = 5.dp), contentAlignment = Alignment.Center) {
+            Text(lc.getString(R.string.wManual), style = TextStyle(color = C.pos, fontSize = 10.sp, fontWeight = FontWeight.Bold))
+        }
+        // v249: פריטי מעקב מופיעים רק בווידג'ט "רשימות מעקב" — שם כל השורות ממעקב, בלי תגית (רעש)
+        Src.WATCH -> {}
     }
 }
 

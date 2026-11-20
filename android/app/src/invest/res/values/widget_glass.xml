@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- זכוכית הווידג'טים (20/11/2026) — אותם ערכים כמו invest-glass.css (‎--lg-body, ‎--lg-rim, ‎--lg-fill). בהיר -->
+<!-- זכוכית הווידג'טים (20/11/2026) — אותם ערכים כמו invest-glass.css (lg-body, lg-rim, lg-fill). בהיר -->
 <resources>
     <color name="gl_body_top">#99FFFFFF</color>      <!-- rgba(255,255,255,.60) -->
     <color name="gl_body_bot">#4DFFFFFF</color>      <!-- rgba(255,255,255,.30) -->
