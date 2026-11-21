@@ -322,6 +322,10 @@ class Ledger:
     rows: dict = field(default_factory=dict)
 
     def add(self, k: str, model: str, u: dict, usd: float | None, bt: bool = False):
+        if bt and usd == 0 and not any(u.get(f) for f in ('i', 'o', 'cr', 'c5', 'c1')):
+            # 21/11/2026 (המשתמש: "למה לפעמים חצי מחיר ולפעמים לא?" — "חצי מחיר ב־3 מתוך 7"): תשובה מהתור שכבר נספרה
+            # בהפעלה קודמת (used/<h>) ונקראת שוב בחידוש — לא קריאה חדשה. עד היום נספרה ב־n בלי bn, והשורה נראתה חלקית
+            return
         r = self.rows.setdefault(k, {'k': k, 'm': model, 'n': 0, 'i': 0, 'o': 0, 'cr': 0, 'c5': 0, 'c1': 0, 'usd': 0.0})
         r['n'] += 1
         for f in ('i', 'o', 'cr', 'c5', 'c1'):
@@ -790,7 +794,7 @@ class Engine:
                 on_first_token()             # המקבול לא מחכה לטוקן ראשון — כל החלקים נרשמים לאותו סבב
             raise BatchWait(h, getattr(_tl, 'k', ''))
         if not isinstance(a.get('m'), dict):
-            print(f'· תור החיסכון לא החזיר תשובה ({a.get("x") or "?"}) — הקריאה הזו בזמן אמת, במחיר רגיל')
+            print(f'· תור החיסכון לא החזיר תשובה ({a.get("x") or "?"}{" · " + a["e"] if a.get("e") else ""}) — הקריאה הזו בזמן אמת, במחיר רגיל')
             return None
         res = msg_result(a['m'], self.spec.model, BATCH_DISCOUNT)
         res.bt = True

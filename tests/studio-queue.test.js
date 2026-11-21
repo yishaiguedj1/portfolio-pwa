@@ -182,4 +182,7 @@ ok(/function quCard\(g, o = \{\}\)/.test(st) && /secT\(T\('studioQcSec'\)\), \.\
   'מנהל העבודות: רק כרטיסי תורים — הרגילים ואז חצי מחיר');
 ok(/quSplit\(all, q\.qu, q\.qn\)/.test(st) && /quCard\(g, \{ hero: true \}\)/.test(st) && /quCard\(g, \{ hero: true \}\)\), quCtrls\(w, dr\.length > 0\)\);\n\s+for \(const g of parts\) p\.append\(secT/.test(st), 'עמוד התור: כרטיס לכל חלק, מיד מתחתיו הפקדים, ואז העבודות');
 ok(/function quCtrls[\s\S]{0,300}h\('div', 'st-qa st-qa-q'\)/.test(st) && !/studioQuHoldAllS/.test(st), 'פקדי התור: כפתורים עגולים בלי שורות הסבר');
+ok(/sid: job\.spec\.bt === 1 \? null : ''/.test(api) && /sid: null \}, 30\)/.test(api) && /\.filter\(\(j\) => j\.bw && !j\.qh\)/.test(api) && /\{ bw: 0, sid: job\.qh \? null : '' \}/.test(api)
+  && S.quPatch({ qh: 1, state: 'queued', bw: 5 }, 'run', 10).sid === null && S.quPatch({ qh: 1, state: 'queued' }, 'run', 10).sid === '',
+  'חונה בחצי מחיר — sid: null (מחוץ לתקרת שאילתת הלקיחה), נקראת בנפרד רק כשצריך; "עכשיו"/המשך מחזירים אותה');
 console.log('# ' + n + ' בדיקות');

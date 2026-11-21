@@ -3238,8 +3238,8 @@ function planFor(rec) {
 /* 21/11/2026: חונה בתור החיסכון — באיזה שלב (העובד מדווח את השלב שחנה: tr/tl/rv — BATCH_STAGE) */
 function bwShort(rec) {
   const st = rec.srv && rec.srv.prog && rec.srv.prog.st;
-  const k = st === 'tr' ? 'studioBwStTr' : st === 'tl' ? 'studioBwStTl' : st === 'rv' ? 'studioBwStRv' : '';
-  return k ? T('studioBwAt', { s: T(k) }) : T('studioBwShort');
+  const s = st === 'tr' ? T('studioBwStTr') : st === 'tl' ? T('studioBwStTl') : st === 'rv' ? T('studioBwStRv') : '';
+  return s ? T('studioBwAt', { s }) : T('studioBwShort');
 }
 function bwLine(rec) {
   const q = rec.srv && rec.srv.bq;

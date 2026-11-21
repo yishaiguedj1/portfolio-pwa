@@ -305,7 +305,7 @@ function quTop(jobs, now) {
 /* השינוי לפעולה: hold — מושהית; run — חוזרת (sid '' רק כשהיא כבר בתור לשרת; בהעלאה — queueApi קובע); top — qo */
 function quPatch(j, a, now, top) {
   if (a === 'hold') return j.qh ? null : { qh: now, sid: null };
-  if (a === 'run') return j.qh ? Object.assign({ qh: 0, qz: (Number(j.qz) || 0) + Math.max(0, now - j.qh) }, j.state === 'queued' ? { sid: '' } : {}) : null;
+  if (a === 'run') return j.qh ? Object.assign({ qh: 0, qz: (Number(j.qz) || 0) + Math.max(0, now - j.qh) }, j.state === 'queued' ? { sid: j.bw && !j.pk ? null : '' } : {}) : null;   // 21/11/2026: חונה בחצי מחיר — נשארת מחוץ לשאילתת הלקיחה
   if (a === 'top') return { qo: top };
   return null;
 }
