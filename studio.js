@@ -3464,6 +3464,18 @@ function jobsCardIn(rows) {
   return jobsCard(rows);
 }
 /* 17/11/2026: שורת עבודה — הבית (לפי כלי) ועמוד "פעילות" (o.act: כל הכלים, סוג העבודה, ובתור — למה היא מחכה) */
+/* המצב החי של עבודה — תג, שורת מצב ואחוז (אותו מספר בשורה ובכרטיס התור). o.qu — בתוך תור, o.act — במנהל העבודות */
+function jobLive(rec, o = {}) {
+  const run = runs.get(rec.id), ph = jobPhase(rec, run), m = modelFor(rec);
+  const qup = o.qu && ph === 'paused' && quPend.has(rec.id);   // 19/11/2026: תור עבודות — מחכה לתור שלה בהעלאה (הסרטונים עולים אחד אחרי השני)
+  const qrd = o.qu && ph === 'ready' && !rec.up.wait;   // 20/11/2026 (בקשת המשתמש): בתור, הסרטון שלה עוד לא עלה (דרך האפליקציה — אחד אחרי השני) — "בתור", לא "מוכן"
+  const [c, l] = o.qu && quHeld(rec) && !FINAL.includes(ph) ? ['amber', T('studioBHeld')] : qaPending(rec) ? ['amber', T('studioBAsk')] : recovering(rec) ? ['amber', T('studioBRecover')] : qup || qrd || ((o.act || o.qu) && ph === 'queued') ? ['amber', T('studioBQueued')] : rec.spec.vi && (ph === 'running' || ph === 'queued') ? ['green', T('studioBViRun')] : badgeFor(ph);   // 17/11/2026: ניתוח — לא "בתרגום"; בפעילות — התור בנפרד
+  const upping = ph === 'extract' || ph === 'audio' || ph === 'video';
+  const tx = o.qu && quHeld(rec) && !FINAL.includes(ph) ? T('studioQuHeldS') : qup || (qrd && quRunning(rec.spec.qu) < QU_PAR) ? T('studioQuUpWait') : qrd ? T('studioQuWait', { n: QU_PAR }) : o.qu && ph === 'queued' && quRunning(rec.spec.qu) >= QU_PAR ? T('studioQuWait', { n: QU_PAR }) : o.act && ph === 'queued' ? nowLine(rec, run, ph) : upping ? Math.round(100 * (ph === 'video' ? run.p || 0 : m.stages[0].p || 0)) + '%' + (ph === 'video' && !rec.up.noAudio ? ' · ' + T('studioVideoShort') : '')
+    : m.bg ? T('studioNowBg') : ph === 'queued' && rec.srv && rec.srv.bw ? T('studioBwShort') : ph === 'running' || ph === 'queued' ? T('studioLeftShort', { t: fmtLeft(shownLeft(rec, m)) }) : '';
+  const pct = ph === 'done' ? 1 : ph === 'video' ? run.p || 0 : upping ? m.stages[0].p || 0 : ph === 'running' || ph === 'queued' ? shownPct(rec, m.pct, 'h') : m.pct;
+  return { c, l, tx, pct, ph };
+}
 function projRow(rec, o = {}) {
   const r = btn('st-proj', null, () => { if (o.onSel) { o.onSel(); return; } if (o.act) stDialJ = rec.id; go('job', rec.id); }, (o.onSel ? 's:' : o.act ? 'a:' : 'j:') + rec.id);   // 20/11/2026: onSel — מצב בחירה במנהל העבודות   // מ"פעילות": העבודה נשארת תחת "פעילה" בחוגה
   const th = h('span', 'st-thumb'); th.append(ico('film'));
@@ -3483,17 +3495,11 @@ function projRow(rec, o = {}) {
   if (o.onSel) { const c = h('span', 'st-check' + (o.sel ? ' on' : '')); c.append(ico('check')); r.append(c); r.setAttribute('role', 'checkbox'); r.setAttribute('aria-checked', o.sel ? 'true' : 'false'); }
   else if (o.menu) r.addEventListener('contextmenu', (e) => { e.preventDefault(); o.menu(e.clientX || e.clientY ? { x: e.clientX, y: e.clientY } : r); });   // 19/11/2026: לחיצה ארוכה — אפשרויות (תור עבודות)
   live(r, () => {             // אחוז ומצב — מתעדכנים במקום
-    const run = runs.get(rec.id), ph = jobPhase(rec, run), m = modelFor(rec);
-    const qup = o.qu && ph === 'paused' && quPend.has(rec.id);   // 19/11/2026: תור עבודות — מחכה לתור שלה בהעלאה (הסרטונים עולים אחד אחרי השני)
-    const qrd = o.qu && ph === 'ready' && !rec.up.wait;   // 20/11/2026 (בקשת המשתמש): בתור, הסרטון שלה עוד לא עלה (דרך האפליקציה — אחד אחרי השני) — "בתור", לא "מוכן"
-    const [c, l] = o.qu && quHeld(rec) && !FINAL.includes(ph) ? ['amber', T('studioBHeld')] : qaPending(rec) ? ['amber', T('studioBAsk')] : recovering(rec) ? ['amber', T('studioBRecover')] : qup || qrd || ((o.act || o.qu) && ph === 'queued') ? ['amber', T('studioBQueued')] : rec.spec.vi && (ph === 'running' || ph === 'queued') ? ['green', T('studioBViRun')] : badgeFor(ph);   // 17/11/2026: ניתוח — לא "בתרגום"; בפעילות — התור בנפרד
-    bd.className = 'st-badge ' + c; bd.textContent = l;
-    const upping = ph === 'extract' || ph === 'audio' || ph === 'video';
-    tx.textContent = o.qu && quHeld(rec) && !FINAL.includes(ph) ? T('studioQuHeldS') : qup || (qrd && quRunning(rec.spec.qu) < QU_PAR) ? T('studioQuUpWait') : qrd ? T('studioQuWait', { n: QU_PAR }) : o.qu && ph === 'queued' && quRunning(rec.spec.qu) >= QU_PAR ? T('studioQuWait', { n: QU_PAR }) : o.act && ph === 'queued' ? nowLine(rec, run, ph) : upping ? Math.round(100 * (ph === 'video' ? run.p || 0 : m.stages[0].p || 0)) + '%' + (ph === 'video' && !rec.up.noAudio ? ' · ' + T('studioVideoShort') : '')
-      : m.bg ? T('studioNowBg') : ph === 'queued' && rec.srv && rec.srv.bw ? T('studioBwShort') : ph === 'running' || ph === 'queued' ? T('studioLeftShort', { t: fmtLeft(shownLeft(rec, m)) }) : '';
-    const pct = ph === 'done' ? 1 : ph === 'video' ? run.p || 0 : upping ? m.stages[0].p || 0 : ph === 'running' || ph === 'queued' ? shownPct(rec, m.pct, 'h') : m.pct;
-    bar.hidden = FINAL.includes(ph) || ph === 'ready';
-    bi.style.width = Math.round(100 * pct) + '%';
+    const x = jobLive(rec, o);
+    bd.className = 'st-badge ' + x.c; bd.textContent = x.l;
+    tx.textContent = x.tx;
+    bar.hidden = FINAL.includes(x.ph) || x.ph === 'ready';
+    bi.style.width = Math.round(100 * x.pct) + '%';
   });
   return r;
 }
@@ -3555,7 +3561,7 @@ function footStart(f, main, n, no) {
 /* "להוסיף לתור" מטופס רגיל: לאיזה תור — תור פעיל או תור חדש (אין תור פעיל — ישר לתור חדש). אחר כך — אותה התחלה, ובסוף עמוד התור */
 function quPickFor(f, at) {
   const take = (qu, qn) => { Object.assign(f, { qd: 1, qx: 1, qu, qn: qn || '' }); qf = { qu, qn: qn || '' }; startFromForm(); };
-  const gs = quGroups(store.jobs).concat([...quDr.keys()].filter((qu) => quDrOf(qu).length && !quGroups(store.jobs).some((g) => g.qu === qu)).map((qu) => ({ qu, qn: quNameOf(qu) })));
+  const gs = quGroups(store.jobs).filter((g, i, xs) => xs.findIndex((x) => x.qu === g.qu) === i).concat([...quDr.keys()].filter((qu) => quDrOf(qu).length && !quGroups(store.jobs).some((g) => g.qu === qu)).map((qu) => ({ qu, qn: quNameOf(qu) })));
   if (!gs.length) { take(wlNew(), ''); return; }
   lbMenu(at, T('studioQuPickT'), [...gs.slice(0, 8).map((g) => ({ k: 'q-' + g.qu, icon: 'film', label: g.qn || T('studioQuT'), fn: () => take(g.qu, g.qn) })),
     { k: 'q-new', icon: 'plus', label: T('studioQuNew'), fn: () => take(wlNew(), '') }]);
@@ -3769,17 +3775,20 @@ async function quGoAll(qu, pr) {
   flashSafe(bad ? T('studioQuGoPart', { n: bad }) : T('studioQuGoDone', { n: l.length }));
   render('none');
 }
-/* הקבוצות לעמוד "פעילה" — טהורה: תור שיש בו עבודה שלא הסתיימה; בכל אחד — כל העבודות, כמה הסתיימו ומה עוד פתוח */
+/* הקבוצות לעמוד "פעילה" — טהורה: תור שיש בו עבודה שלא הסתיימה; בכל אחד — כל העבודות, כמה הסתיימו ומה עוד פתוח.
+   21/11/2026 (בקשת המשתמש): חצי מחיר — קבוצה נפרדת (bt: 1, גם כשהיא חלק מאותו תור; k = המפתח), ותמיד אחרי התורים הרגילים */
 export function quGroups(jobs) {
   const m = new Map();
   for (const r of jobs || []) {
     const q = r && r.spec && r.spec.qu;
     if (!q || !r.srv) continue;
-    if (!m.has(q)) m.set(q, { qu: q, qn: '', all: [] });
-    const g = m.get(q); g.all.push(r); if (!g.qn && r.spec.qn) g.qn = r.spec.qn;
+    const bt = r.spec.bt ? 1 : 0, k = q + (bt ? '~b' : '');
+    if (!m.has(k)) m.set(k, { qu: q, k, bt, qn: '', all: [] });
+    const g = m.get(k); g.all.push(r); if (!g.qn && r.spec.qn) g.qn = r.spec.qn;
   }
+  const t0 = (g) => Math.min(...g.all.map((r) => r.created || 0));
   return [...m.values()].map((g) => Object.assign(g, { done: g.all.filter((r) => FINAL.includes(r.srv.state)).length, on: g.all.filter((r) => !FINAL.includes(r.srv.state)) }))
-    .filter((g) => g.on.length).sort((a, b) => Math.min(...a.all.map((r) => r.created || 0)) - Math.min(...b.all.map((r) => r.created || 0)));
+    .filter((g) => g.on.length).sort((a, b) => a.bt - b.bt || t0(a) - t0(b));
 }
 const quPhRank = (ph) => (ph === 'running' ? 0 : ph === 'extract' || ph === 'audio' || ph === 'video' ? 1 : ph === 'queued' ? 2 : 3);
 /* הסדר בתור: מה שרץ, מה שעולה, מה שמחכה (לפי הסדר שבו השרת לוקח — "לראש התור" = qo), ומושהות בסוף */
@@ -3787,23 +3796,71 @@ const quWaitKey = (r) => (r.srv && (r.srv.qo || r.srv.fired)) || r.created || 0;
 const quHeld = (r) => !!(r.srv && r.srv.qh);
 /* עבודה שעוד לא נלקחה לשרת — אפשר להשהות, להמשיך ולהקדים (= quWaiting בשרתון; השרת בודק שוב) */
 const quFree = (r) => !!(r && r.srv && (r.srv.state === 'new' || r.srv.state === 'queued') && !r.srv.claimed);
+/* מצב בחירה במנהל העבודות: "כל התור" ואז כל עבודה פתוחה בו */
 function quSection(g) {
   const ph = (r) => jobPhase(r, runs.get(r.id));
   const on = g.on.slice().sort((a, b) => quHeld(a) - quHeld(b) || quPhRank(ph(a)) - quPhRank(ph(b)) || quWaitKey(a) - quWaitKey(b));
-  const tt = secT(T('studioQuSec', { n: g.qn || T('studioQuT'), d: g.done, t: g.all.length }));
-  if (actSel) {   // 20/11/2026: מצב בחירה — "כל הפרויקט" ואז כל עבודה
-    const allOn = on.every((r) => actSel.has(r.id));
-    const pr = rowCheck({ label: T('studioSelProj'), on: allOn, k: 'sel-q:' + g.qu, onClick: () => { for (const r of on) { if (allOn) actSel.delete(r.id); else actSel.add(r.id); } render('none'); } });
-    return [tt, list(pr, ...on.map((r) => actSelRow(r, { qu: true })))];
-  }
-  const add = rowNav({ tile: tile('plus', 'blue'), label: T('studioQuAdd'), onClick: () => { qf = null; go('qnew', g.qu); }, k: 'qu-add:' + g.qu });
+  const tt = secT(T('studioQuSec', { n: (g.qn || T('studioQuT')) + (g.bt ? ' · ' + T('studioBtTag') : ''), d: g.done, t: g.all.length }));
+  const allOn = on.every((r) => actSel.has(r.id));
+  const pr = rowCheck({ label: T('studioSelProj'), on: allOn, k: 'sel-q:' + g.k, onClick: () => { for (const r of on) { if (allOn) actSel.delete(r.id); else actSel.add(r.id); } render('none'); } });
+  return [tt, list(pr, ...on.map((r) => actSelRow(r, { qu: true })))];
+}
+/* 21/11/2026 (בקשת המשתמש): בעמוד התור — הפקדים של כל התור: מחכות להתחלה, השהיה/המשך, להוסיף, למחוק */
+function quCtrls(g, noAdd) {
+  const add = noAdd ? null : rowNav({ tile: tile('plus', 'blue'), label: T('studioQuAddJob'), onClick: () => quKindMenu(add), k: 'qu-add:' + g.qu });
   const free = g.on.filter(quFree), held = free.filter(quHeld);
   const pz = free.length ? rowNav({ tile: tile(held.length === free.length ? 'play' : 'pause', 'orange'), label: held.length === free.length ? T('studioQuRunAll') : T('studioQuHoldAll'),
     sub: held.length === free.length ? T('studioQuHeldN', { n: held.length }) : T('studioQuHoldAllS'), onClick: () => quCtl(g.on[0], held.length === free.length ? 'run' : 'hold', true), k: 'qu-pz:' + g.qu }) : null;
-  const nd = quDrOf(g.qu).length;
-  const dr = nd ? rowNav({ tile: tile('clock', 'orange'), label: T('studioQuDrSec', { n: nd }), sub: T('studioQuDrGo'), onClick: () => { qf = null; go('qnew', g.qu); }, k: 'qu-dr:' + g.qu }) : null;
   const del = rowNav({ tile: tile('trash', 'red'), label: T('studioQuDel'), sub: g.done ? T('studioQuDelS') : null, onClick: () => quDelMenu(del, g), k: 'qu-del:' + g.qu });
-  return [tt, list(...on.map((r) => projRow(r, { act: true, qu: true, menu: (at) => quJobMenu(at, r) })), dr, pz, add, del)];
+  return list(pz, add, del);
+}
+/* 21/11/2026 (בקשת המשתמש): כרטיס תור — כל מה שחשוב בלי להיכנס: כמה עבודות, כמה הסתיימו, מה רץ ובכמה אחוזים בדיוק,
+   וההתקדמות של כל התור. חצי מחיר — מסומן ובצבע משלו. o.hero — בראש עמוד התור (לא לחיץ) */
+function quCard(g, o = {}) {
+  const c = o.hero ? h('div', 'st-qcard hero') : btn('st-qcard', null, () => { qf = null; go('qnew', g.qu); }, 'qc:' + g.k);
+  if (g.bt) c.classList.add('bt');
+  return live(c, () => {
+    const xs = g.all.map((r) => [r, jobLive(r, { act: true, qu: true })]);
+    const fin = (x) => FINAL.includes(x[1].ph) || FINAL.includes(x[0].srv.state);
+    const st = (r) => r.srv.state;
+    const done = g.all.filter((r) => st(r) === 'done').length, bad = g.all.filter((r) => st(r) === 'failed' || st(r) === 'cancelled').length;
+    const act = xs.filter((x) => !fin(x) && !quHeld(x[0]) && ['running', 'extract', 'audio', 'video'].includes(x[1].ph));
+    const bw = xs.filter((x) => !fin(x) && x[1].ph === 'queued' && x[0].srv.bw).length, held = xs.filter((x) => !fin(x) && quHeld(x[0])).length;
+    const wait = g.all.length - done - bad - act.length - bw - held;
+    const pct = g.all.length ? xs.reduce((a, x) => a + (fin(x) ? 1 : Math.max(0, Math.min(1, x[1].pct || 0))), 0) / g.all.length : 0;
+    const hd = h('div', 'st-qc-h');
+    const nm = h('b'); nm.append(h('bdi', null, g.qn || T('studioQuT')));
+    hd.append(nm);
+    if (g.bt) hd.append(h('span', 'st-badge amber', T('studioBtTag')));
+    hd.append(h('span', 'st-qc-pct', Math.floor(100 * pct) + '%'));
+    if (!o.hero) hd.append(ico('chev', 'st-chev'));
+    const bar = h('span', 'st-pbar st-qc-bar'); const bi = h('i'); bi.style.width = (100 * pct).toFixed(1) + '%'; bar.append(bi);
+    const chips = h('div', 'st-qc-st');
+    const chip = (n, txt, cl) => { if (n > 0) chips.append(h('span', cl || null, txt)); };
+    const dr = o.dr || 0;
+    chip(g.all.length, T('studioQcJobs', { n: g.all.length })); chip(done, T('studioQcDone', { n: done }), 'ok'); chip(act.length, T('studioQcRun', { n: act.length }), 'run'); chip(bw, T('studioQcBw', { n: bw }), 'amber');
+    chip(wait, T('studioQcWait', { n: wait })); chip(held, T('studioQcHeld', { n: held }), 'amber'); chip(bad, T('studioQcFail', { n: bad }), 'bad'); chip(dr, T('studioQcDr', { n: dr }));
+    const kids = [hd, bar, chips];
+    if (act.length) {
+      const al = h('div', 'st-qc-act');
+      for (const [r, x] of act.slice(0, 6)) {
+        const j = h('div', 'st-qc-j');
+        const t = h('span', 'st-qc-jt'); t.append(h('bdi', null, fileTitle(r.spec.name) || T('studioUntitled')));
+        const jb = h('span', 'st-pbar st-qc-jb'); const ji = h('i'); ji.style.width = (100 * (x.pct || 0)).toFixed(1) + '%'; jb.append(ji);
+        j.append(t, h('span', 'st-qc-jp', Math.floor(100 * (x.pct || 0)) + '%'), jb, h('small', null, x.tx || x.l));
+        al.append(j);
+      }
+      if (act.length > 6) al.append(h('small', 'st-qc-more', T('studioQcMore', { n: act.length - 6 })));
+      kids.push(al);
+    }
+    c.replaceChildren(...kids);
+  });
+}
+/* כל התור (גם מה שהסתיים) בקבוצות — רגיל ואז חצי מחיר. טהורה כמו quGroups, בלי הסינון של "פעיל" */
+function quSplit(all, qu, qn) {
+  const gs = [0, 1].map((bt) => ({ qu, k: qu + (bt ? '~b' : ''), bt, qn, all: all.filter((r) => !!r.spec.bt === !!bt) })).filter((g) => g.all.length);
+  for (const g of gs) Object.assign(g, { done: g.all.filter((r) => FINAL.includes(r.srv.state)).length, on: g.all.filter((r) => !FINAL.includes(r.srv.state)) });
+  return gs;
 }
 /* 20/11/2026 (בקשת המשתמש): מחיקה — עבודה, כמה עבודות (מצב בחירה), התור (מה שלא הסתיים) או כל הפרויקט (גם מה שהסתיים).
    מחיקה = ביטול (אם עוד לא הסתיימה) ואז remove — כמו "למחוק" בדף העבודה. בזו אחר זו (מגביל הקצב בשרתון) */
@@ -3894,9 +3951,12 @@ function pageAct(p) {
     nc.append(plus, rowTxt(T('studioQuNew'), T('studioQuNewS', { n: QU_PAR })));
     p.append(nc);
   }
-  for (const g of gs) p.append(...quSection(g));
+  // 21/11/2026 (בקשת המשתמש): רק כרטיסי התורים (כל העבודות — בעמוד של התור); חצי מחיר — בנפרד ותמיד מתחת לרגילים
+  const gR = gs.filter((g) => !g.bt), gB = gs.filter((g) => g.bt), drFor = (g) => (gs.find((x) => x.qu === g.qu) === g ? quDrOf(g.qu).length : 0);
+  if (gR.length) p.append(secT(T('studioQcSec')), ...gR.map((g) => quCard(g, { dr: drFor(g) })));
   if (drOnly.length) p.append(secT(T('studioQuDrNew')), list(...drOnly.map((qu) => rowNav({ tile: tile('clock', 'orange'), label: quNameOf(qu) || T('studioQuT'),
     sub: T('studioQuDrSec', { n: quDrOf(qu).length }), onClick: () => { qf = null; go('qnew', qu); }, k: 'qu-drq:' + qu }))));
+  if (gB.length) p.append(secT(T('studioQcBtSec')), ...gB.map((g) => quCard(g, { dr: drFor(g) })));
   if (!now.length && !q.length && !gs.length && !fin.length && !drOnly.length) {
     const e = h('div', 'st-empty');
     const ic = h('span', 'st-empty-ic'); ic.append(ico('check'));
@@ -3960,11 +4020,18 @@ function pageQu(p) {
     inp.addEventListener('input', () => { q.qn = inp.value; for (const x of quDrOf(q.qu)) x.f.qn = inp.value; if (quDrOf(q.qu).length) { quDrNames[q.qu] = inp.value.slice(0, 60); quDrIdx(); } });
     p.append(secT(T('studioQuName')), inp);
   }
-  const rows = all.map((r) => projRow(r, { act: true, qu: true, menu: (at) => quJobMenu(at, r) }));
+  const ph = (r) => jobPhase(r, runs.get(r.id));
+  const ord = (xs) => xs.slice().sort((a, b) => FINAL.includes(a.srv.state) - FINAL.includes(b.srv.state) || quHeld(a) - quHeld(b) || quPhRank(ph(a)) - quPhRank(ph(b)) || quWaitKey(a) - quWaitKey(b));
+  const row = (r) => projRow(r, { act: true, qu: true, menu: (at) => quJobMenu(at, r) });
   const addRow = rowNav({ tile: tile('plus', 'blue'), label: T('studioQuAddJob'), onClick: () => quKindMenu(addRow), k: 'qu-addjob' });
   if (dr.length) p.append(secT(T('studioQuDrSec', { n: dr.length })), list(...dr.map(quDrRow), addRow), note(T('studioQuDrHint')),
     list(rowNav({ tile: tile('trash', 'red'), label: T('studioQuDrRmAll'), sub: T('studioQuDrRmAllS', { n: dr.length }), onClick: () => quDrRmAsk(q.qu, dr.slice(), !all.length), k: 'qu-drrm' })));
-  if (all.length || !dr.length) p.append(secT(T('studioQuJobs', { n: all.length })), list(...rows, dr.length ? null : addRow));
+  if (all.length) {   // 21/11/2026: כל העבודות של התור — מתחת לכרטיס שלו; חצי מחיר בנפרד ומתחת
+    const parts = quSplit(all, q.qu, q.qn);
+    for (const g of parts) p.append(quCard(g, { hero: true }), secT(g.bt ? T('studioQcBtJobs', { n: g.all.length }) : T('studioQuJobs', { n: g.all.length })), list(...ord(g.all).map(row)));
+    const w = { qu: q.qu, qn: q.qn, all, on: all.filter((r) => !FINAL.includes(r.srv.state)), done: all.filter((r) => FINAL.includes(r.srv.state)).length };
+    p.append(quCtrls(w, dr.length > 0));   // יש מחכות להתחלה — "להוסיף" כבר ברשימה שלהן
+  } else if (!dr.length) p.append(secT(T('studioQuJobs', { n: 0 })), list(addRow));
   p.append(note(all.length ? T('studioQuNote', { n: QU_PAR }) : T('studioQuEmpty')));
   if (dr.length) {   // "להתחיל" — דבוק לתחתית, כמו בטפסים
     const busy = ui.qgo === q.qu;

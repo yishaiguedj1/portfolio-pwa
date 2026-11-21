@@ -33,7 +33,7 @@ html[data-theme="dark"] {
 html { --gb-body: var(--lg-body) !important; --gb-sh: var(--lg-rim) !important; --gb-fx: var(--lg-fx) !important;
   --gb-hdr-body: var(--lg-body) !important; --gl-btn: rgba(255, 255, 255, .45) !important; --gl-btn-sh: var(--lg-rim) !important; --gl-fx: var(--lg-fx) !important; }
 html[data-theme="dark"] { --gl-btn: rgba(255, 255, 255, .12) !important; }
-html .st-root :is(.st-list, .st-newcard, .st-jhero, .st-stages) { background: var(--lg-card) !important; box-shadow: var(--lg-card-sh) !important; border-color: transparent !important;
+html .st-root :is(.st-list, .st-newcard, .st-jhero, .st-stages, .st-qcard) { background: var(--lg-card) !important; box-shadow: var(--lg-card-sh) !important; border-color: transparent !important;
   -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border-radius: 24px !important; }
 
 /* ===== 2. ההדר: אותו מבנה; סמלים בצבע הטקסט; "השרת · מחובר" בקפסולת זכוכית בשורה אחת ===== */
@@ -95,6 +95,10 @@ html .st-root .st-jobs-more { color: var(--on-surface) !important; }
 html .st-root .st-plus { border-radius: 50% !important; }
 html .st-root .st-newcard { padding: 16px !important; }
 html .st-root .st-newcard .st-l b { font-weight: 650 !important; }
+html .st-root .st-qcard { padding: 18px !important; gap: 12px !important; }   /* 21/11/2026: כרטיס התור — מילוי רך, ספרות מעוגלות */
+html .st-root :is(.st-qc-pct, .st-qc-jp, .st-qc-st span) { font-family: var(--lg-round) !important; }
+html .st-root .st-qc-pct { font-size: 26px !important; }
+html .st-root .st-qc-act { border-top-color: var(--lg-sep) !important; }
 html .st-root .st-empty-ic { border-radius: 50% !important; width: 72px !important; height: 72px !important; background: var(--lg-body) !important; box-shadow: var(--lg-rim) !important; color: var(--on-surface-var) !important; }
 html .st-root .st-empty b { font-size: 20px !important; font-weight: 700 !important; }
 
@@ -216,7 +220,7 @@ html .st-root .st-litem .st-pl-tm { font-family: var(--lg-round) !important; fon
 /* ===== 17. לחיצה גמישה: מתכווץ וחוזר בקפיץ; שורת עבודה שוקעת מעט ===== */
 html :is(.st-root, .appbar) :is(.icon-btn, .st-btn, .st-back, .st-txt, .st-mini, .st-jobs-more, .st-pl-b, .st-se-b, .st-plus, .st-cpill, .st-outb) { transition: transform .5s var(--lg-spring), background .25s, color .2s !important; }
 html :is(.st-root, .appbar) :is(.icon-btn, .st-btn, .st-back, .st-txt, .st-mini, .st-jobs-more, .st-pl-b, .st-se-b, .st-cpill, .st-outb):active { transform: scale(.88) !important; opacity: 1 !important; }
-html .st-root :is(.st-proj, .st-newcard):active { transform: scale(.985) !important; transition: transform .5s var(--lg-spring) !important; }
+html .st-root :is(.st-proj, .st-newcard, .st-qcard:not(.hero)):active { transform: scale(.985) !important; transition: transform .5s var(--lg-spring) !important; }
 
 @media (prefers-reduced-motion: reduce) {
   html .appbar .menu-drop:not(.hidden) { animation: none !important; }

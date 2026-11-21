@@ -38,7 +38,7 @@ ok(!('qu' in S.vtJob(Object.assign({}, a, { spec: Object.assign({}, a.spec, { qu
 ok(/if \(spec\.qu && spec\.eng === 'api'\) job\.qu = spec\.qu;/.test(api), 'create: qu כשדה עליון (spec נשמר כ־JSON — לשאילתה)');
 const loop = api.slice(api.indexOf('const quFull = async'), api.indexOf("const mk = S.memClass(job);"));
 ok(/query\(deps, 'studioJobs', \{ qu: q \}, 100\)/.test(loop) && /if \(!quN\.has\(q\)\)/.test(loop), 'הספירה: שאילתה אחת לתור בפנייה, ורק כשעבודה מהתור מגיעה ללקיחה');
-const iq = loop.indexOf('if (await quFull(job)) continue;'), ifit = loop.indexOf('if (fit && (S.peakNeed(job, fit)');
+const iq = loop.indexOf('if (!S.btBack(job, br, lost) && await quFull(job)) continue;'), ifit = loop.indexOf('if (fit && (S.peakNeed(job, fit)');
 ok(iq > 0 && ifit > iq, 'התור המלא נבדק לפני הזיכרון — continue (לא break): לא חוסם עבודות רגילות ושל משתמשים אחרים');
 ok(/if \(!q \|\| !S\.WL_RE\.test\(String\(q\)\)\) return false;/.test(loop), 'עבודה רגילה (בלי qu) — בלי שום מגבלה');
 
@@ -168,4 +168,17 @@ ok(/if \(store\.jobs\.length\) handleOp\('keys'\)/.test(st) && /if \(v && v\.f i
 ok(/function pageQuSel\(p, q, dr\)/.test(st) && /if \(quSel\) \{ pageQuSel\(p, q, dr\); return; \}/.test(st) && /'qu-drrm'/.test(st), 'דף התור: "לבחור" ו"למחוק את כל התור"');
 ok(/askConfirm\(T\('studioQuDrRmQ'/.test(st) && /'sel-drq:' \+ qu/.test(st) && /for \(const qu of dq\) for \(const it of quDrOf\(qu\)\.slice\(\)\) quDrDel\(it\)/.test(st), 'מחיקה באישור; במנהל העבודות — גם תור שלם שלא התחיל');
 ok(/if \(ui\.view === 'qnew'\) quSel = null;/.test(st) && /actDr = null; \}/.test(st), 'מצב הבחירה מתאפס ביציאה');
+// 12. 21/11/2026 (בקשת המשתמש): חצי מחיר — קבוצה נפרדת ותמיד אחרי הרגילים; עדיפות בלקיחה כשהתשובות חזרו; כרטיסי תורים
+const RB = (id, qu, state, created, bt) => ({ id, created, srv: { state }, spec: Object.assign({ qu }, bt ? { bt: 1 } : {}) });
+const gb = P.quGroups([RB('1', 'qA', 'running', 1, 1), RB('2', 'qA', 'queued', 2), RB('3', 'qB', 'queued', 3), RB('4', 'qA', 'done', 4, 1)]);
+ok(gb.map((g) => g.k).join() === 'qA,qB,qA~b' && gb[2].bt === 1 && gb[2].all.length === 2 && gb[2].done === 1 && gb[0].bt === 0,
+  'quGroups: חצי מחיר — קבוצה נפרדת (גם מאותו תור), ותמיד אחרי כל התורים הרגילים');
+ok(S.btBack({ id: 'a', bw: 5 }, ['a'], []) === 1 && S.btBack({ id: 'a', bw: 5 }, [], ['a']) === 1 && S.btBack({ id: 'a', bw: 0 }, ['a'], []) === 0 && S.btBack({ id: 'a', bw: 5 }, ['b'], []) === 0,
+  'btBack: רק חצי מחיר שחונה ושהתשובות שלו חזרו (או שהתור שלו אבד)');
+const ibs = api.indexOf('qd.sort((a, b) => S.btBack(b, br, lost) - S.btBack(a, br, lost));'), ilost = api.indexOf('const lost = bqOn');
+ok(ilost > 0 && ibs > ilost && ibs < api.indexOf('const quFull = async'), 'הלקיחה: חצי מחיר שחזר — לפני כל עבודה רגילה (מיון אחרי lost, לפני הלולאה)');
+ok(/function quCard\(g, o = \{\}\)/.test(st) && /secT\(T\('studioQcSec'\)\), \.\.\.gR\.map/.test(st) && /secT\(T\('studioQcBtSec'\)\), \.\.\.gB\.map/.test(st)
+  && st.indexOf("secT(T('studioQcSec'))") < st.indexOf("secT(T('studioQcBtSec'))") && !/for \(const g of gs\) p\.append\(\.\.\.quSection\(g\)\);\n  if \(drOnly\.length\) p\.append\(secT\(T\('studioQuDrNew'\)\), list\(\.\.\.drOnly\.map\(\(qu\) => rowNav/.test(st),
+  'מנהל העבודות: רק כרטיסי תורים — הרגילים ואז חצי מחיר');
+ok(/quSplit\(all, q\.qu, q\.qn\)/.test(st) && /quCard\(g, \{ hero: true \}\)/.test(st) && /p\.append\(quCtrls\(w, dr\.length > 0\)\)/.test(st), 'עמוד התור: כרטיס לכל חלק, העבודות שלו מתחתיו, והפקדים');
 console.log('# ' + n + ' בדיקות');
