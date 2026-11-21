@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2673 מפתחות מתוך 7392) */
+/* המחרוזות של studio (2679 מפתחות מתוך 7398) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -397,7 +397,11 @@ he: {
   "studioBusyQ": "{n} · תרגום רץ עכשיו ({p}%). מומלץ לחכות שיסתיים. להתחיל בכל זאת?",
   "studioBusyWait": "לחכות",
   "studioBusyWaitOk": "נודיע לך כשיסתיים",
+  "studioBwAt": "בתור החיסכון · {s}",
   "studioBwShort": "בתור החיסכון",
+  "studioBwStRv": "ביקורת",
+  "studioBwStTl": "תרגום",
+  "studioBwStTr": "כתיבה",
   "studioCancel": "ביטול",
   "studioCapClaude": "Claude",
   "studioCapSrv": "השרת",
@@ -2088,6 +2092,7 @@ he: {
   "studioShrShare": "שיתוף",
   "studioShrTitle": "שיתוף בקישור",
   "studioShrUntil": "הקישור בתוקף עד {t}",
+  "studioSlaBw": "בתור החיסכון {t}",
   "studioSlaCost": "תקציב",
   "studioSlaFc": "צפי",
   "studioSlaFcTok": "{n} טוקנים",
@@ -2103,6 +2108,7 @@ he: {
   "studioSlaWaitNow": "השעון עצר — מחכים לך או לסרטון מהטלפון",
   "studioSlaWaitOf": "{t} מהם חיכינו לך או לסרטון",
   "studioSlaWall": "מאז ההתחלה {t}",
+  "studioSlaWork": "עבודה בשרת {t}",
   "studioSloAtt": "{a}% בלי התערבות · יעד {t}%",
   "studioSloBad": "השתמשו בתקציב",
   "studioSloBurn": "קצב שריפה · 7 ימים",
@@ -3072,7 +3078,11 @@ en: {
   "studioBusyQ": "{n} · a translation is running ({p}%). Better wait until it ends. Start anyway?",
   "studioBusyWait": "Wait",
   "studioBusyWaitOk": "We’ll notify you when it ends",
+  "studioBwAt": "Savings queue · {s}",
   "studioBwShort": "In the savings queue",
+  "studioBwStRv": "review",
+  "studioBwStTl": "translation",
+  "studioBwStTr": "transcript",
   "studioCancel": "Cancel",
   "studioCapClaude": "Claude",
   "studioCapSrv": "Server",
@@ -4763,6 +4773,7 @@ en: {
   "studioShrShare": "Share",
   "studioShrTitle": "Share a link",
   "studioShrUntil": "The link works until {t}",
+  "studioSlaBw": "savings queue {t}",
   "studioSlaCost": "Budget",
   "studioSlaFc": "forecast",
   "studioSlaFcTok": "{n} tokens",
@@ -4778,6 +4789,7 @@ en: {
   "studioSlaWaitNow": "clock paused — waiting on you or the video upload",
   "studioSlaWaitOf": "{t} of it waiting on you or the video",
   "studioSlaWall": "Since start {t}",
+  "studioSlaWork": "server work {t}",
   "studioSloAtt": "{a}% without intervention · target {t}%",
   "studioSloBad": "Used the budget",
   "studioSloBurn": "Burn rate · 7 days",

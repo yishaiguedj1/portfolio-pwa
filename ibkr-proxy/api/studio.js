@@ -2023,7 +2023,7 @@ async function server(req, res, body, deps) {
     // 20/10/2026: הסוכן עלה (boot) — עבודה שהשרת הזה לקח ועוד "רצה" נקטעה בהפעלה מחדש. עד היום רק הסוכן דיווח עליה
     // (report_lost), אבל מצב העבודה שלו ב־/state (tmpfs) נמחק בהפעלה מחדש — והעבודה "רצה" שעתיים בלי שאף אחד עובד עליה
     if (body.boot === true) await lostOnBoot(deps, p.sid, now).catch(() => {});
-    else if (hb.nj === 0 && orphanDue(p.sid, now)) await lostOnBoot(deps, p.sid, now, true).catch(() => {});   // 26/10: פעם ב־ORPHAN_MS, לא בכל poll   // שרת פנוי — עבודה "רצה" אצלו = יתומה
+    else if ((hb.nj === 0 || Array.isArray(hb.js)) && orphanDue(p.sid, now)) await lostOnBoot(deps, p.sid, now, true, hb.js).catch(() => {});   // 21/11/2026: גם כשהשרת עסוק — לפי js   // 26/10: פעם ב־ORPHAN_MS, לא בכל poll   // שרת פנוי — עבודה "רצה" אצלו = יתומה
     if (body.boot === true) await smokeAfterUpdate(deps, srv, p.sid, hb.v, now).catch(() => {});   // פריט 13: עבודת בדיקה אחרי עדכון
     // poll: העבודה הוותיקה ביותר שמחכה לשרת
     // 1/11/2026: עבודת הבדיקה שאחרי עדכון (sm) — אחרי כל עבודה של משתמש (היא "רצה כשיש מקום"; לפני כן תפסה את השרת
@@ -2084,7 +2084,7 @@ async function server(req, res, body, deps) {
       const key = S.newKey();
       // 21/10/2026: לצפי — הליבות של השרת וכמה עבודות כבר רצות עליו (חולקות את המעבד)
       const fx = Object.assign(hb.cpu > 0 ? { hc: Math.round(hb.cpu) } : {}, { cc: Math.max(0, Math.round(hb.nj || 0)) });
-      const got = await patchIf(deps, 'studioJobs', job.id, Object.assign({ sid: p.sid, pk: now, vw: 0, bw: 0, qw: null, capc: Math.round(cap * 100), kh: S.keyHash(key), kx: now + S.KEY_TTL, updated: now }, fx, lost.includes(job.id) ? { bl: (Number(job.bl) || 0) + 1 } : {}), job._ut);
+      const got = await patchIf(deps, 'studioJobs', job.id, Object.assign({ sid: p.sid, pk: now, vw: 0, bw: 0, qw: null, capc: Math.round(cap * 100), kh: S.keyHash(key), kx: now + S.KEY_TTL, updated: now }, fx, S.bwAcc(job, now), lost.includes(job.id) ? { bl: (Number(job.bl) || 0) + 1 } : {}), job._ut);
       if (!got) continue;
       await patchDoc(deps, 'studioServers', p.sid, Object.assign(seen, { job: job.id }));
       const dur = job.spec && job.spec.dur > 0 ? Math.round(job.spec.dur) : 0;
@@ -2138,11 +2138,12 @@ function orphanDue(sid, now) {
   if (orphanAt.size > 200) orphanAt.clear();
   return true;
 }
-async function lostOnBoot(deps, sid, now, idle) {
+async function lostOnBoot(deps, sid, now, idle, js) {
   let n = 0;
   for (const job of await query(deps, 'studioJobs', { sid, state: 'running' }, 20)) {
     if (!apiJob(job) || S.effState(job, now).state !== 'running') continue;
     if (idle && !(now - (+job.pk || +job.claimed || now) > ORPHAN_MS)) continue;   // נלקחה ממש עכשיו — עוד לא נרשמה במשבצת
+    if (idle && Array.isArray(js) && js.includes(job.id)) continue;   // 21/11/2026: באמת אצלו במשבצת — לא יתומה
     const up = S.applyReport(job, { fail: true, err: 'worker_lost', msg: idle ? 'השרת לא עבד על העבודה' : 'השרת הופעל מחדש באמצע העבודה' }, now);
     up.kh = ''; up.kx = 0;
     if (job.kind === 'tr' && (job.ar || 0) < S.AUTO_RESUME_MAX) up.rw = now + S.recoverWait(job, now);
@@ -4380,7 +4381,7 @@ async function handler(req, res, deps = {}) {
       // 4/11/2026 (המשתמש: "לא לחצתי להמשיך עכשיו"): מתי ומאיפה יצאה מהתור — בלי זה אי אפשר לדעת מה הוציא אותה.
       // s: 'job' = הכפתור בדף העבודה (studio.js שולח src), 'x' = כל קורא אחר. מוצג בפרטי העבודה
       const btx = { t: now, s: body.src === 'job' ? 'job' : 'x' };
-      const upd = Object.assign({ spec, btx, updated: now }, job.bw && !job.pk ? { bw: 0, sid: job.qh ? null : '' } : {});   // 21/11/2026: חזרה לשאילתת הלקיחה הרגילה (אלא אם מושהית)
+      const upd = Object.assign({ spec, btx, updated: now }, job.bw && !job.pk ? Object.assign({ bw: 0, sid: job.qh ? null : '' }, S.bwAcc(job, now)) : {});   // 21/11/2026: חזרה לשאילתת הלקיחה הרגילה (אלא אם מושהית) · bwt — הזמן שחנתה
       await patchJob(deps, job.id, upd);
       Object.assign(job, upd);
       return res.status(200).json({ ok: true, job: view(job) });

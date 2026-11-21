@@ -131,6 +131,29 @@ const root = path.join(__dirname, '..');
   ok(wres.code === 200, 'הבדיקה המתוזמנת ענתה');
   ok(jobReads <= 2, 'הבדיקה המתוזמנת — 150 עבודות ישנות לא נקראות (' + jobReads + ' קריאות של studioJobs; לפני התיקון ~150)');
 
+  /* ---------- 5. 21/11/2026: עבודה "רצה" שאף משבצת לא מריצה — משוחררת גם כשהשרת עסוק (js בדופק) ---------- */
+  {
+    const S5 = SID.replace('1', '5'), TK5 = S5 + '-' + crypto.randomBytes(32).toString('base64url');
+    db.set('studioServers/' + S5, { fields: { th: { stringValue: crypto.createHash('sha256').update(TK5).digest('hex') }, by: { stringValue: 'ownerUid0001' }, seen: { integerValue: String(clock) } }, ut: 't' + (++utSeq) });
+    const SL = require('../ibkr-proxy/lib/studio');
+    const run = (id) => db.set('studioJobs/' + id, { fields: SL.toFields({ uid: 'ownerUid0001', kind: 'tr', state: 'running', sid: S5, spec: { eng: 'api', bt: 1 },
+      created: clock - 3600e3, updated: clock - 3600e3, claimed: clock - 3600e3, pk: clock - 3600e3, fired: clock - 3600e3 }), ut: 't' + (++utSeq) });
+    const ORPH = 'jOrphan0000000000000a', LIVE = 'jLive00000000000000ab';
+    run(ORPH); run(LIVE);
+    clock += 10 * 60e3;
+    const r = await srv({ op: 'poll', hb: { v: 'dev', nj: 1, js: [LIVE] } }, TK5);
+    ok(r.code === 200, 'poll של שרת עסוק ענה');
+    const st = (id) => SL.fromFields(db.get('studioJobs/' + id).fields);
+    ok(st(ORPH).state !== 'running' && st(ORPH).err === 'worker_lost', 'רצה אצלו ולא במשבצות — שוחררה (worker_lost → המשך אוטומטי)');
+    ok(st(LIVE).state === 'running', 'העבודה שבמשבצת — ממשיכה לרוץ');
+    const S6 = SID.replace('1', '6'), TK6 = S6 + '-' + crypto.randomBytes(32).toString('base64url');
+    db.set('studioServers/' + S6, { fields: { th: { stringValue: crypto.createHash('sha256').update(TK6).digest('hex') }, by: { stringValue: 'ownerUid0001' }, seen: { integerValue: String(clock) } }, ut: 't' + (++utSeq) });
+    const OLD = 'jOldAgent00000000000c';
+    db.set('studioJobs/' + OLD, { fields: SL.toFields({ uid: 'ownerUid0001', kind: 'tr', state: 'running', sid: S6, spec: { eng: 'api' }, created: clock - 3600e3, updated: clock - 3600e3, pk: clock - 3600e3 }), ut: 't' + (++utSeq) });
+    await srv({ op: 'poll', hb: { v: 'dev', nj: 1 } }, TK6);
+    ok(st(OLD).state === 'running', 'סוכן ישן (בלי js) ועסוק — לא נוגעים');
+  }
+
   Date.now = realNow;
   console.log('\n' + n + ' בדיקות עברו');
 })().catch((e) => { console.error(e); process.exit(1); });

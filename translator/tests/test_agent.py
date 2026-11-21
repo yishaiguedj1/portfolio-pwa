@@ -97,7 +97,7 @@ class AgentTests(unittest.TestCase):
         hb = self.fake.hb[0]
         self.assertEqual(hb['busy'], '')
         self.assertTrue(0 <= hb['disk'] <= 100 and hb['free'] >= 0 and 'mem' in hb, 'דופק: דיסק, זיכרון — מספרים בלבד')
-        self.assertEqual(set(hb) - {'v', 'busy', 'disk', 'free', 'load', 'mem', 'up', 'iso', 'iw', 'al', 'ev', 'cpu', 'nj', 'mx', 'vi', 'vx', 'lb', 'mm'}, set(), 'בלי שום שדה מעבר למספרים, לגרסה ולקודים הקבועים')
+        self.assertEqual(set(hb) - {'v', 'busy', 'disk', 'free', 'load', 'mem', 'up', 'iso', 'iw', 'al', 'ev', 'cpu', 'nj', 'js', 'mx', 'vi', 'vx', 'lb', 'mm'}, set(), 'בלי שום שדה מעבר למספרים, לגרסה ולקודים הקבועים')
         mm = hb.get('mm') or {}                     # 18/11/2026: מודל הזיכרון — מסלולים מקטלוג, מספרים וקודי שלב בלבד
         self.assertTrue(set(mm) <= {'tr', 'ka', 'vi', 'vh', 'rr', 'pk'} and all(isinstance(v, int) for k, x in mm.items() if k != 'pk' for v in x)
                         and all(isinstance(x[1], int) and isinstance(x[2], int) and len(x) == 4 for x in mm.get('pk', [])), 'mm: מספרים וקודים בלבד')
@@ -639,6 +639,28 @@ class MemUnit(unittest.TestCase):
         self.assertEqual(A.poll('https://x', 't')['job'].get('mk'), 'ka')
         ans['job']['mk'] = '<x>'
         self.assertNotIn('mk', A.poll('https://x', 't')['job'])
+
+    def test_hb_slot_ids(self):
+        """21/11/2026: במצב משבצות הדופק נושא nj (גם 0) ו־js — מזהי העבודות שבאמת אצלו (השרתון משחרר "רצה" שאינה ברשימה)."""
+        A = self.A
+        old_mode, old_slots = A._slot_mode, dict(A._slots)
+        try:
+            A._slot_mode = True
+            A._slots.clear()
+            hb = A.host_info()
+            self.assertEqual((hb.get('nj'), hb.get('js')), (0, []), 'פנוי — nj 0, js ריק')
+            class S:
+                id = 'j' + 'a' * 20
+            A._slots[1] = S()
+            hb = A.host_info()
+            self.assertEqual((hb.get('nj'), hb.get('js')), (1, ['j' + 'a' * 20]))
+            A._slot_mode = False
+            A._slots.clear()
+            self.assertNotIn('js', A.host_info(), 'מצב יחיד — בלי js (העבודה רצה בלי משבצת)')
+        finally:
+            A._slot_mode = old_mode
+            A._slots.clear()
+            A._slots.update(old_slots)
 
     def test_slots_by_cpu(self):
         A = self.A

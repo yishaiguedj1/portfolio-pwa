@@ -289,6 +289,10 @@ function quBusy(jobs, qu, now) {
    ממשיך עד הסוף, בלי לפגוע בתהליך. מושהית — sid: null (לא ''), כך ששאילתת הלקיחה ({sid: ''}) בכלל לא מחזירה אותה: לא קריאות
    מיותרות ולא חסימה של עבודות אחרות בתקרה של השאילתה. בהמשך — sid: '' חוזר, והזמן שעבר בהשהיה (qz) לא נספר לתקרת ההמתנה */
 /* 21/11/2026 (בקשת המשתמש): חצי מחיר שהתשובות שלו חזרו מתור החיסכון (br) או שהתור שלו אבד — קודם לכל עבודה רגילה בלקיחה. טהורה */
+/* 21/11/2026 (בקשת המשתמש: "58 דק׳ של עבודה בפועל — זה לא תקין"): כמה זמן העבודה חנתה בתור החיסכון בסך הכל (ms) —
+   bw = רגע החנייה; בלקיחה / ביציאה מהתור נצבר ל־bwt. הטלפון מפריד את זה מזמן העבודה ("מאז ההתחלה … · בתור החיסכון …") */
+const bwAcc = (j, now) => (j && Number(j.bw) > 1e12 && now > j.bw ? { bwt: (Number(j.bwt) || 0) + (now - j.bw) } : {});
+const bwSec = (j, now) => Math.round(((Number(j && j.bwt) || 0) + (j && Number(j.bw) > 1e12 && j.state === 'queued' && now > j.bw ? now - j.bw : 0)) / 1000);
 const btBack = (j, br, lost) => (j && j.bw && ((br || []).includes(j.id) || (lost || []).includes(j.id)) ? 1 : 0);
 const QU_WAIT = 72 * 3600e3;   // עבודה בתור מחכה לתורה (QU_PAR) — לא "אין שרת" אחרי 6 שעות; 40 עבודות של שעה = כ־20 שעות
 const quWaiting = (j, now) => !!(j && j.qu && !j.pk && !(j.sid && typeof j.sid === 'string') && ['new', 'queued'].includes(effState(j, now).state));
@@ -953,6 +957,7 @@ function publicJob(job, now) {
     ep: ETA.normEp(job.ep),                         // 10/10/2026: צפי הזמנים של העבודה (נקבע בלקיחה)
     gl: normGl(job.gl),                             // v380: מונחים מהמילון שלך שימשו + מונחים חדשים להצעה
     nt: noteView(job),                              // v382: הערה לעובד — מחכה לנקודת השמירה הבאה / נקראה
+    bwt: bwSec(job, now),                           // 21/11/2026: שניות בתור החיסכון (נצבר + החנייה הנוכחית)
     sla: SLA.slaView(job, now),                     // v377: יעד זמן ותקציב (השעון עוצר כשמחכים לך)
     gd: normGd(job.gd), vg: isViGold(job) ? 1 : 0, vq: job.gs ? VI.normVq(job.vq) : null, gs: JOB_RE.test(String(job.gs || '')) ? job.gs : '', gq: normGq(job.gq), sm: job.sm ? 1 : 0, wa: Number.isInteger(job.wa) && job.wa >= 0 && job.wa < GOLD_ARMS ? job.wa : -1,   // v387: סט הזהב — ייחוס, מקור ההרצה, הציון
     hl: normHl(job.hl, job.fv && job.fv.id),       // איכויות הצפייה (הראשונה = המקור עצמו)
@@ -1913,6 +1918,8 @@ function normHb(h) {
     al: h.al === 'o' || h.al === 't' ? h.al : '',   // שלב 4.1: מנוע היישור (o = ONNX INT8)
     // 21/10/2026: ליבות מותרות (לצפי — מנרמל זמנים בין שרתים), עבודות שרצות עכשיו ותקרת הזיכרון של הקונטיינר (MB)
     cpu: n(h.cpu, 0, 512), nj: n(h.nj, 0, 16), mx: n(h.mx, 0, 4e6),
+    // 21/11/2026: מזהי העבודות שבמשבצות (translator/agent.py) — null = סוכן ישן; [] = פנוי. רצה אצלו ולא ברשימה = יתומה
+    js: Array.isArray(h.js) ? h.js.filter((x) => JOB_RE.test(String(x))).slice(0, 16) : null,
     // 22/10/2026 (ניטור): מעבד בפועל %, קצב רשת (בייטים לשנייה), לחץ זיכרון %
     cu: n(h.cu, 0, 100), rx: n(h.rx, 0, 1e12), tx: n(h.tx, 0, 1e12), psi: n(h.psi, 0, 100),
     // 2/11/2026: תור החיסכון (translator/agent.py — bt_hb): be = תקלה בשליחה/באיסוף (קטלוג BT_ERRS), bn = סבבים שנכשלו ברצף,
@@ -2118,5 +2125,5 @@ module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, 
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, BLOCK_ERRS, BLOCK_WAIT, isBlock, blockWait, EARLY_FAIL_MS, EARLY_WAIT, recoverWait, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, excludeWait, toFields, fromFields, normFit, normMm, memClass, peakNeed, perfBlock, qwOf, qwView,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, BAD_AUTH_GAP, badAuthDue, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
-  serverMatches, normHb, normEv, SRV_EV, parkable, bwParkable, BW_MAX, BT_ERRS, normBq, bqView, BQ_SILENT_MS, bwLost, BQ_LOST_MS, BL_MAX, WL_RE, QU_PAR, normQn, quBusy, btBack, QU_WAIT, quWaiting, quKey, quTop, quPatch, PARK_MAX, serverView, viClosed, monthKey, monthUsed, addMonth, jobCap,
+  serverMatches, normHb, normEv, SRV_EV, parkable, bwParkable, BW_MAX, BT_ERRS, normBq, bqView, BQ_SILENT_MS, bwLost, BQ_LOST_MS, BL_MAX, WL_RE, QU_PAR, normQn, quBusy, btBack, bwAcc, bwSec, QU_WAIT, quWaiting, quKey, quTop, quPatch, PARK_MAX, serverView, viClosed, monthKey, monthUsed, addMonth, jobCap,
 };
