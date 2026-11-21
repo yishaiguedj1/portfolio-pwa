@@ -277,6 +277,15 @@ class LedgerBatchTests(unittest.TestCase):
         self.assertNotIn('bn', r['rv'])
         self.assertNotIn('bu', r['rv'])
 
+    def test_ledger_skips_reread_of_counted_answer(self):
+        # 21/11/2026 ("חצי מחיר ב־3 מתוך 7"): תשובה מהתור שכבר נספרה (used) — usage ו־usd מאופסים — לא קריאה נוספת
+        L = llm.Ledger()
+        u = {'i': 10, 'o': 20, 'cr': 0, 'c5': 0, 'c1': 0}
+        L.add('tl', 'm', u, 0.01, True)
+        L.add('tl', 'm', {k: 0 for k in u}, 0.0, True)
+        r = L.list()[0]
+        self.assertEqual((r['n'], r['bn']), (1, 1))
+
     def test_engine_passes_bt_to_ledger(self):
         src = (Path(__file__).resolve().parents[1] / 'llm.py').read_text(encoding='utf-8')
         self.assertEqual(src.count('self.ledger.add(k, self.spec.model, res.usage, res.usd, res.bt)'), 3)

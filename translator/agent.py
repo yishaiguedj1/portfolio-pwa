@@ -1646,6 +1646,11 @@ def bt_collect(client, bid: str, info: dict) -> bool:
         res = getattr(r, 'result', None)
         t = getattr(res, 'type', '') or 'errored'
         ans = {'m': _bt_dump(res.message)} if t == 'succeeded' and getattr(res, 'message', None) is not None else {'x': t}
+        if 'x' in ans:   # 21/11/2026: למה (סוג השגיאה בלבד — למשל invalid_request_error; בלי ההודעה, שיכולה לכלול תוכן)
+            e = getattr(getattr(res, 'error', None), 'error', None)
+            et = re.sub(r'[^a-z_]', '', str(getattr(e, 'type', '') or ''))[:40]
+            if et:
+                ans['e'] = et
         _bt_write(BT_DIR / jh[0] / 'ans' / (jh[1] + '.json'), ans)
         (BT_DIR / jh[0] / 'req' / (jh[1] + '.json')).unlink(missing_ok=True)
     for j, h in ids.values():                      # לא חזרה תשובה — כמו כשל (העבודה תקרא בזמן אמת)
