@@ -1556,9 +1556,9 @@ function stubFetch(text, status = 200) {
       if (url.endsWith('/documents:runQuery')) {
         // שוויונות (אחד או AND), וטווח >= על מספר עם מיון לפי אותו שדה (26/10/2026 — recentJobs, jobsSince, jobs30)
         const q = JSON.parse(opt.body).structuredQuery, w = q.where, col = q.from[0].collectionId;
-        const fl = !w ? [] : w.fieldFilter ? [w.fieldFilter] : w.compositeFilter.filters.map((f) => f.fieldFilter);
+        const fl = !w ? [] : w.fieldFilter ? [w.fieldFilter] : w.unaryFilter ? [w.unaryFilter] : w.compositeFilter.filters.map((f) => f.fieldFilter || f.unaryFilter);   // 21/11/2026: IS_NULL (חונה בחצי מחיר)
         const iv = (v, p) => +((v.fields[p] || {}).integerValue || 0);
-        const pass = (v, f) => f.op === 'GREATER_THAN_OR_EQUAL' ? iv(v, f.field.fieldPath) >= +f.value.integerValue
+        const pass = (v, f) => f.op === 'IS_NULL' ? !!v.fields[f.field.fieldPath] && 'nullValue' in v.fields[f.field.fieldPath] : f.op === 'GREATER_THAN_OR_EQUAL' ? iv(v, f.field.fieldPath) >= +f.value.integerValue
           : v.fields[f.field.fieldPath] && v.fields[f.field.fieldPath].stringValue === f.value.stringValue;
         let rows = [...db.entries()].filter(([k, v]) => k.startsWith(col + '/') && fl.every((f) => pass(v, f)));
         const ob = q.orderBy && q.orderBy[0];
@@ -3960,6 +3960,19 @@ function stubFetch(text, status = 200) {
       ok(rr.payload.job.bw === 1 && rr.payload.job.vw === 0 && !rr.payload.job.stale && rr.payload.job.spec.wl === 'ab12cd34ef', 'חצי מחיר: הטלפון רואה "מחכה לתור החיסכון"');
       rr = await srvRun({ op: 'poll', hb: {} }, STOK);
       ok(rr.payload.job === null, 'חצי מחיר: לא נלקחת כל עוד התשובות לא חזרו');
+      // 21/11/2026 (בקשת המשתמש): בזמן שהיא חונה — sid: null (מחוץ לשאילתת הלקיחה), ועבודה רגילה רצה כרגיל
+      ok('nullValue' in db.get('studioJobs/' + JB).fields.sid, 'חצי מחיר: חונה — sid: null, לא תופסת מקום בשאילתת הלקיחה');
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPECA });
+      const JR = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JR, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'file', idToken: OWNER, job: JR, which: 'v', id: 'vid1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JR });
+      rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+      const KR = rr.payload.job && rr.payload.job.key;
+      ok(rr.payload.job && rr.payload.job.id === JR, 'חצי מחיר: בזמן שהיא מחכה לתור החיסכון — עבודה רגילה נלקחת כרגיל');
+      await wrk({ op: 'claim', job: JR, key: KR });
+      await wrk({ op: 'report', job: JR, key: KR, done: true });
+      await run({ op: 'remove', idToken: OWNER, job: JR });
       // 2/11/2026 (בקשת המשתמש: "לוודא שהעבודה באמת מחכה בתור"): הסוכן מדווח מה קורה בתור — נשמר רק כשהשתנה, והטלפון רואה
       const tS = Math.floor(Date.now() / 1000) - 60;
       rr = await srvRun({ op: 'poll', hb: { be: 'auth', bn: 3, bp: 2, bf: 1, bo: tS }, bq: { [JB]: ['s', tS], jBAD: ['s', tS], ['j' + 'Z'.repeat(20)]: ['x', tS] } }, STOK);

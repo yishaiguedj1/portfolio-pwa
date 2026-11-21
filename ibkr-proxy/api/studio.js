@@ -140,7 +140,8 @@ async function patchIf(deps, col, id, obj, updateTime) {
 }
 /* שאילתה עם שוויונות בלבד (אינדקסים אוטומטיים) — בלי מיון בשרת; ממיינים כאן */
 async function query(deps, col, eq, limit) {
-  const f = Object.entries(eq || {}).map(([k, v]) => ({ fieldFilter: { field: { fieldPath: k }, op: 'EQUAL', value: { stringValue: String(v) } } }));
+  const f = Object.entries(eq || {}).map(([k, v]) => (v === null ? { unaryFilter: { field: { fieldPath: k }, op: 'IS_NULL' } }   // 21/11/2026: null — עבודה שחונה בתור החיסכון
+    : { fieldFilter: { field: { fieldPath: k }, op: 'EQUAL', value: { stringValue: String(v) } } }));
   const sq = { from: [{ collectionId: col }], limit: limit || 50 };
   if (f.length === 1) sq.where = f[0]; else if (f.length > 1) sq.where = { compositeFilter: { op: 'AND', filters: f } };
   const r = await fsCall(deps, 'POST', ':runQuery', { structuredQuery: sq });
@@ -2027,7 +2028,9 @@ async function server(req, res, body, deps) {
     // poll: העבודה הוותיקה ביותר שמחכה לשרת
     // 1/11/2026: עבודת הבדיקה שאחרי עדכון (sm) — אחרי כל עבודה של משתמש (היא "רצה כשיש מקום"; לפני כן תפסה את השרת
     // והסרטון האמיתי חיכה "בתור לשרת" עד שהזיכרון התפנה)
-    const qd = (await query(deps, 'studioJobs', { state: 'queued', eng: 'api', sid: '' }, 30)).sort((a, b) => (a.sm === 1) - (b.sm === 1) || ((a.spec || {}).vi === 1) - ((b.spec || {}).vi === 1) || S.quKey(a) - S.quKey(b));   // 19/11/2026: quKey — "לראש התור" (qo), אחרת fired   // 9/11/2026: ניתוח — אחרי התרגום (התרגום קודם)
+    const br0 = Array.isArray(body.br) && body.br.length > 0, bq0 = !!body.bq && typeof body.bq === 'object' && !Array.isArray(body.bq);
+    const bwq = br0 || (bq0 && (Object.keys(body.bq).length > 0 || bwDue(p.sid, now))) ? (await query(deps, 'studioJobs', { state: 'queued', eng: 'api', sid: null }, 30).catch(() => [])).filter((j) => j.bw && !j.qh) : [];   // 21/11/2026: החונות בחצי מחיר — רק כשצריך
+    const qd = (await query(deps, 'studioJobs', { state: 'queued', eng: 'api', sid: '' }, 30)).concat(bwq).sort((a, b) => (a.sm === 1) - (b.sm === 1) || ((a.spec || {}).vi === 1) - ((b.spec || {}).vi === 1) || S.quKey(a) - S.quKey(b));   // 19/11/2026: quKey — "לראש התור" (qo), אחרת fired   // 9/11/2026: ניתוח — אחרי התרגום (התרגום קודם)
     // 21/10/2026: השרת כבר מריץ עבודה ושואל אם יש עוד — רק עבודה שהשיא הצפוי שלה נכנס בזיכרון שנשאר לו (fit).
     // לפי הסדר: אם הוותיקה לא נכנסת, לא מקדימים לה עבודה קטנה (אחרת עבודה ארוכה מחכה לנצח מאחורי קצרות)
     const fit = S.normFit(body.fit);
@@ -2120,6 +2123,14 @@ async function smokeAfterUpdate(deps, srv, sid, v, now) {
 const ORPHAN_MS = 3 * 60 * 1000;
 /* 26/10/2026: שאילתת היתומות של שרת פנוי — לכל היותר פעם ב־ORPHAN_MS לשרת (עד היום בכל poll, כל 20 שניות) */
 const orphanAt = new Map();
+/* 21/11/2026: בדיקת "תור שאבד" (bwLost) כשהסוכן מדווח תור ריק — פעם ב־BWQ_MS לשרת, לא בכל poll (מכסת הקריאות) */
+const bwqAt = new Map(), BWQ_MS = 5 * 60e3;
+function bwDue(sid, now) {
+  if (now - (bwqAt.get(sid) || 0) < BWQ_MS) return false;
+  bwqAt.set(sid, now);
+  if (bwqAt.size > 200) bwqAt.clear();
+  return true;
+}
 function orphanDue(sid, now) {
   const t = orphanAt.get(sid) || 0;
   if (now >= t && now - t < ORPHAN_MS) return false;
@@ -3115,7 +3126,9 @@ async function worker(req, res, body, deps) {
     if (body.park === true && body.bw === true) {
       // 01/11/2026 (I3): הבקשות של העבודה בתור החיסכון — חוזרת לתור עד שהסוכן מדווח שהתשובות חזרו (poll ‏br), והשרת פנוי
       if (!S.bwParkable(job)) return res.status(409).json({ ok: false, error: 'park_bad' });
-      Object.assign(up, { state: 'queued', sid: '', pk: 0, kh: '', kx: 0, bw: job.spec.bt === 1 ? now : 0, bq: null, bs: job.sid || '' });   // bq: הסבב הקודם לא נגרר · bs: השרת שהחנה — הבקשות אצלו (bwLost)
+      // 21/11/2026 (בקשת המשתמש): חונה בחצי מחיר — sid: null (כמו מושהית), כך שהיא לא תופסת מקום בתקרה של שאילתת הלקיחה
+      // ועבודות רגילות רצות כרגיל. היא נקראת בשאילתה נפרדת רק כשהסוכן מדווח שהתשובות חזרו / על התור (bwDue)
+      Object.assign(up, { state: 'queued', sid: job.spec.bt === 1 ? null : '', pk: 0, kh: '', kx: 0, bw: job.spec.bt === 1 ? now : 0, bq: null, bs: job.sid || '' });   // bq: הסבב הקודם לא נגרר · bs: השרת שהחנה — הבקשות אצלו (bwLost)
       delete up.ended; delete up.err;
       parked = true;
     } else if (body.park === true) {
@@ -4367,7 +4380,7 @@ async function handler(req, res, deps = {}) {
       // 4/11/2026 (המשתמש: "לא לחצתי להמשיך עכשיו"): מתי ומאיפה יצאה מהתור — בלי זה אי אפשר לדעת מה הוציא אותה.
       // s: 'job' = הכפתור בדף העבודה (studio.js שולח src), 'x' = כל קורא אחר. מוצג בפרטי העבודה
       const btx = { t: now, s: body.src === 'job' ? 'job' : 'x' };
-      const upd = Object.assign({ spec, btx, updated: now }, job.bw && !job.pk ? { bw: 0 } : {});
+      const upd = Object.assign({ spec, btx, updated: now }, job.bw && !job.pk ? { bw: 0, sid: job.qh ? null : '' } : {});   // 21/11/2026: חזרה לשאילתת הלקיחה הרגילה (אלא אם מושהית)
       await patchJob(deps, job.id, upd);
       Object.assign(job, upd);
       return res.status(200).json({ ok: true, job: view(job) });
