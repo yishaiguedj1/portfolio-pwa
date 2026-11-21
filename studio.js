@@ -3805,14 +3805,16 @@ function quSection(g) {
   const pr = rowCheck({ label: T('studioSelProj'), on: allOn, k: 'sel-q:' + g.k, onClick: () => { for (const r of on) { if (allOn) actSel.delete(r.id); else actSel.add(r.id); } render('none'); } });
   return [tt, list(pr, ...on.map((r) => actSelRow(r, { qu: true })))];
 }
-/* 21/11/2026 (בקשת המשתמש): בעמוד התור — הפקדים של כל התור: מחכות להתחלה, השהיה/המשך, להוסיף, למחוק */
+/* 21/11/2026 (בקשת המשתמש): בעמוד התור — הפקדים של כל התור: השהיה/המשך, להוסיף, למחוק.
+   סבב 2: מיד מתחת לכרטיס המצב, בשורת כפתורים עגולים עם כיתוב קצר (st-qa — כמו הפעולות המהירות במגדל), בלי שורות והסברים */
 function quCtrls(g, noAdd) {
-  const add = noAdd ? null : rowNav({ tile: tile('plus', 'blue'), label: T('studioQuAddJob'), onClick: () => quKindMenu(add), k: 'qu-add:' + g.qu });
-  const free = g.on.filter(quFree), held = free.filter(quHeld);
-  const pz = free.length ? rowNav({ tile: tile(held.length === free.length ? 'play' : 'pause', 'orange'), label: held.length === free.length ? T('studioQuRunAll') : T('studioQuHoldAll'),
-    sub: held.length === free.length ? T('studioQuHeldN', { n: held.length }) : T('studioQuHoldAllS'), onClick: () => quCtl(g.on[0], held.length === free.length ? 'run' : 'hold', true), k: 'qu-pz:' + g.qu }) : null;
-  const del = rowNav({ tile: tile('trash', 'red'), label: T('studioQuDel'), sub: g.done ? T('studioQuDelS') : null, onClick: () => quDelMenu(del, g), k: 'qu-del:' + g.qu });
-  return list(pz, add, del);
+  const qa = h('div', 'st-qa st-qa-q');
+  const qbtn = (icon, cl, lbl, fn, k) => { const b = btn('st-qa-b ' + cl, null, () => fn(b), k); const i = h('i'); i.append(ico(icon)); b.append(i, h('span', null, lbl)); qa.append(b); };
+  const free = g.on.filter(quFree), allHeld = free.length && free.filter(quHeld).length === free.length;
+  if (free.length) qbtn(allHeld ? 'play' : 'pause', 'amb', allHeld ? T('studioQuRunAll') : T('studioQuHoldAll'), () => quCtl(g.on[0], allHeld ? 'run' : 'hold', true), 'qu-pz:' + g.qu);
+  if (!noAdd) qbtn('plus', 'blu', T('studioQuAddJob'), (b) => quKindMenu(b), 'qu-add:' + g.qu);
+  qbtn('trash', 'neg', T('studioQuDel'), (b) => quDelMenu(b, g), 'qu-del:' + g.qu);
+  return qa;
 }
 /* 21/11/2026 (בקשת המשתמש): כרטיס תור — כל מה שחשוב בלי להיכנס: כמה עבודות, כמה הסתיימו, מה רץ ובכמה אחוזים בדיוק,
    וההתקדמות של כל התור. חצי מחיר — מסומן ובצבע משלו. o.hero — בראש עמוד התור (לא לחיץ) */
@@ -4028,9 +4030,10 @@ function pageQu(p) {
     list(rowNav({ tile: tile('trash', 'red'), label: T('studioQuDrRmAll'), sub: T('studioQuDrRmAllS', { n: dr.length }), onClick: () => quDrRmAsk(q.qu, dr.slice(), !all.length), k: 'qu-drrm' })));
   if (all.length) {   // 21/11/2026: כל העבודות של התור — מתחת לכרטיס שלו; חצי מחיר בנפרד ומתחת
     const parts = quSplit(all, q.qu, q.qn);
-    for (const g of parts) p.append(quCard(g, { hero: true }), secT(g.bt ? T('studioQcBtJobs', { n: g.all.length }) : T('studioQuJobs', { n: g.all.length })), list(...ord(g.all).map(row)));
     const w = { qu: q.qu, qn: q.qn, all, on: all.filter((r) => !FINAL.includes(r.srv.state)), done: all.filter((r) => FINAL.includes(r.srv.state)).length };
-    p.append(quCtrls(w, dr.length > 0));   // יש מחכות להתחלה — "להוסיף" כבר ברשימה שלהן
+    // המצב, ומיד מתחתיו הפקדים (בקשת המשתמש 21/11, סבב 2); יש מחכות להתחלה — "להוסיף" כבר ברשימה שלהן
+    p.append(...parts.map((g) => quCard(g, { hero: true })), quCtrls(w, dr.length > 0));
+    for (const g of parts) p.append(secT(g.bt ? T('studioQcBtJobs', { n: g.all.length }) : T('studioQuJobs', { n: g.all.length })), list(...ord(g.all).map(row)));
   } else if (!dr.length) p.append(secT(T('studioQuJobs', { n: 0 })), list(addRow));
   p.append(note(all.length ? T('studioQuNote', { n: QU_PAR }) : T('studioQuEmpty')));
   if (dr.length) {   // "להתחיל" — דבוק לתחתית, כמו בטפסים
