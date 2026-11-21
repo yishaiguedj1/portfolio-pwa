@@ -3252,7 +3252,7 @@ function bwLine(rec) {
 function modelFor(rec) {
   const run = runs.get(rec.id);
   const pl = planFor(rec);
-  const m = progressModel({ state: rec.srv ? rec.srv.state : 'new', prog: rec.srv && rec.srv.prog, bw: !!(rec.srv && rec.srv.bw) }, pl.s, upState(rec, run), Date.now(), pl.q);
+  const m = progressModel({ state: rec.srv ? rec.srv.state : 'new', prog: rec.srv && rec.srv.prog, bw: !!(rec.srv && rec.srv.bw), spec: { bt: rec.spec.bt } }, pl.s, upState(rec, run), Date.now(), pl.q);   // 21/11/2026: spec.bt — חצי מחיר לא "לוקח יותר מהרגיל" (ההמתנה לתור צפויה)
   m.n = pl.n || 0;
   return m;
 }

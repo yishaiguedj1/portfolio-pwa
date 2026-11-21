@@ -2022,7 +2022,7 @@ async function server(req, res, body, deps) {
     // 20/10/2026: הסוכן עלה (boot) — עבודה שהשרת הזה לקח ועוד "רצה" נקטעה בהפעלה מחדש. עד היום רק הסוכן דיווח עליה
     // (report_lost), אבל מצב העבודה שלו ב־/state (tmpfs) נמחק בהפעלה מחדש — והעבודה "רצה" שעתיים בלי שאף אחד עובד עליה
     if (body.boot === true) await lostOnBoot(deps, p.sid, now).catch(() => {});
-    else if (hb.nj === 0 && orphanDue(p.sid, now)) await lostOnBoot(deps, p.sid, now, true).catch(() => {});   // 26/10: פעם ב־ORPHAN_MS, לא בכל poll   // שרת פנוי — עבודה "רצה" אצלו = יתומה
+    else if ((hb.nj === 0 || Array.isArray(hb.js)) && orphanDue(p.sid, now)) await lostOnBoot(deps, p.sid, now, true, hb.js).catch(() => {});   // 21/11/2026: גם כשהשרת עסוק — לפי js   // 26/10: פעם ב־ORPHAN_MS, לא בכל poll   // שרת פנוי — עבודה "רצה" אצלו = יתומה
     if (body.boot === true) await smokeAfterUpdate(deps, srv, p.sid, hb.v, now).catch(() => {});   // פריט 13: עבודת בדיקה אחרי עדכון
     // poll: העבודה הוותיקה ביותר שמחכה לשרת
     // 1/11/2026: עבודת הבדיקה שאחרי עדכון (sm) — אחרי כל עבודה של משתמש (היא "רצה כשיש מקום"; לפני כן תפסה את השרת
@@ -2127,11 +2127,12 @@ function orphanDue(sid, now) {
   if (orphanAt.size > 200) orphanAt.clear();
   return true;
 }
-async function lostOnBoot(deps, sid, now, idle) {
+async function lostOnBoot(deps, sid, now, idle, js) {
   let n = 0;
   for (const job of await query(deps, 'studioJobs', { sid, state: 'running' }, 20)) {
     if (!apiJob(job) || S.effState(job, now).state !== 'running') continue;
     if (idle && !(now - (+job.pk || +job.claimed || now) > ORPHAN_MS)) continue;   // נלקחה ממש עכשיו — עוד לא נרשמה במשבצת
+    if (idle && Array.isArray(js) && js.includes(job.id)) continue;   // 21/11/2026: באמת אצלו במשבצת — לא יתומה
     const up = S.applyReport(job, { fail: true, err: 'worker_lost', msg: idle ? 'השרת לא עבד על העבודה' : 'השרת הופעל מחדש באמצע העבודה' }, now);
     up.kh = ''; up.kx = 0;
     if (job.kind === 'tr' && (job.ar || 0) < S.AUTO_RESUME_MAX) up.rw = now + S.recoverWait(job, now);

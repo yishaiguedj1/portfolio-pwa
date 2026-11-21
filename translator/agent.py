@@ -139,8 +139,11 @@ def host_info(busy: str = '') -> dict:
     if psi:
         hb['psi'] = psi
     hb['cpu'] = cpus_allowed()                      # 21/10/2026: לצפי (השרתון מנרמל זמנים לפי הליבות) ולמסך השרת
-    if _slots:
+    if _slots or _slot_mode:
+        # 21/11/2026 (פרק שחנה בתור החיסכון ונשאר "רץ" יותר משעה): גם 0 במצב משבצות — עד היום שרת פנוי לא שלח nj,
+        # ולכן בדיקת היתומות בשרתון (hb.nj === 0) לא רצה אף פעם. js = מזהי העבודות שבאמת אצלו — השרתון משחרר "רצה" שאינה ברשימה
         hb['nj'] = len(_slots)
+        hb['js'] = [sl.id for sl in list(_slots.values())][:16]
     lim = mem_limit_mb()
     if lim:
         hb['mx'] = lim
@@ -283,6 +286,7 @@ def heartbeat():
 
 
 _busy = ''
+_slot_mode = False                  # 21/11/2026: הסוכן רץ במצב משבצות (run_slots) — _slots ריק = פנוי באמת
 _slots: dict = {}                   # 21/10/2026: העבודות שרצות במקביל — מספר משבצת → Slot
 
 
@@ -1216,7 +1220,8 @@ def slot_main() -> int:
 
 def run_slots(server: str, tok: str, warm, nmax: int, stop_after: int = 0) -> int:
     """הלולאה כשמותר יותר מעבודה אחת: שואלים את השרתון כל עוד יש משבצת ויש זיכרון, ומדגימים את השיא של כל עבודה."""
-    global _busy
+    global _busy, _slot_mode
+    _slot_mode = True
     backoff, finished = POLL_S, 0
     nxt_poll = 0.0
     while not _stop:
