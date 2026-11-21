@@ -288,6 +288,8 @@ function quBusy(jobs, qu, now) {
 /* 19/11/2026 (בקשת המשתמש): ניהול התור — השהיה (qh = מתי הושהתה) ולראש התור (qo). רק עבודה שעוד לא נלקחה לשרת: מה שכבר רץ
    ממשיך עד הסוף, בלי לפגוע בתהליך. מושהית — sid: null (לא ''), כך ששאילתת הלקיחה ({sid: ''}) בכלל לא מחזירה אותה: לא קריאות
    מיותרות ולא חסימה של עבודות אחרות בתקרה של השאילתה. בהמשך — sid: '' חוזר, והזמן שעבר בהשהיה (qz) לא נספר לתקרת ההמתנה */
+/* 21/11/2026 (בקשת המשתמש): חצי מחיר שהתשובות שלו חזרו מתור החיסכון (br) או שהתור שלו אבד — קודם לכל עבודה רגילה בלקיחה. טהורה */
+const btBack = (j, br, lost) => (j && j.bw && ((br || []).includes(j.id) || (lost || []).includes(j.id)) ? 1 : 0);
 const QU_WAIT = 72 * 3600e3;   // עבודה בתור מחכה לתורה (QU_PAR) — לא "אין שרת" אחרי 6 שעות; 40 עבודות של שעה = כ־20 שעות
 const quWaiting = (j, now) => !!(j && j.qu && !j.pk && !(j.sid && typeof j.sid === 'string') && ['new', 'queued'].includes(effState(j, now).state));
 const quKey = (j) => (Number(j.qo) || Number(j.fired) || Number(j.created) || 0);
@@ -2116,5 +2118,5 @@ module.exports = { smView, smEdit, SM_EDIT_MAX, SM_X, UP_STALL_MS, upStallStep, 
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, BLOCK_ERRS, BLOCK_WAIT, isBlock, blockWait, EARLY_FAIL_MS, EARLY_WAIT, recoverWait, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, excludeWait, toFields, fromFields, normFit, normMm, memClass, peakNeed, perfBlock, qwOf, qwView,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, BAD_AUTH_GAP, badAuthDue, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
-  serverMatches, normHb, normEv, SRV_EV, parkable, bwParkable, BW_MAX, BT_ERRS, normBq, bqView, BQ_SILENT_MS, bwLost, BQ_LOST_MS, BL_MAX, WL_RE, QU_PAR, normQn, quBusy, QU_WAIT, quWaiting, quKey, quTop, quPatch, PARK_MAX, serverView, viClosed, monthKey, monthUsed, addMonth, jobCap,
+  serverMatches, normHb, normEv, SRV_EV, parkable, bwParkable, BW_MAX, BT_ERRS, normBq, bqView, BQ_SILENT_MS, bwLost, BQ_LOST_MS, BL_MAX, WL_RE, QU_PAR, normQn, quBusy, btBack, QU_WAIT, quWaiting, quKey, quTop, quPatch, PARK_MAX, serverView, viClosed, monthKey, monthUsed, addMonth, jobCap,
 };

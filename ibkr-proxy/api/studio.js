@@ -2038,6 +2038,9 @@ async function server(req, res, body, deps) {
     // אבדו (למשל ניקוי בעדכון העובד). משחררים אותה ללקיחה: העובד ממשיך מנקודת השמירה ושולח אותן מחדש לתור, בחצי מחיר
     const bqOn = !!body.bq && typeof body.bq === 'object' && !Array.isArray(body.bq);
     const lost = bqOn ? qd.filter((j) => S.bwLost(j, p.sid, bq, br, now)).map((j) => j.id) : [];
+    // 21/11/2026 (בקשת המשתמש): עבודת חצי מחיר שהתשובות שלה חזרו (או שהתור שלה אבד) — לפני כל עבודה רגילה, כדי לנצל את
+    // החלון של תור החיסכון ולסיים אותה מיד. sort יציב: בתוך כל קבוצה — הסדר הקודם (qo/fired)
+    qd.sort((a, b) => S.btBack(b, br, lost) - S.btBack(a, br, lost));
     for (const job of qd) {
       const v = bq[job.id];
       // עבודה שהתשובות שלה חזרו (br) — לא כותבים: הכתיבה משנה את updateTime, ו־patchIf של הלקיחה למטה היה נכשל
@@ -2060,7 +2063,7 @@ async function server(req, res, body, deps) {
       if (job.bw && !br.includes(job.id) && !lost.includes(job.id)) continue;   // 01/11/2026 (I3): מחכה לתור החיסכון — רק כשהסוכן אמר שהתשובות חזרו (או שהתור שלה אבד)
       if (job.vw && !((job.spec && job.spec.ph === 1 ? job.fph : job.fv) || {}).id) continue;   // 15/10/2026: מחכה לסרטון — לא תופסים שרת עד שהוא נרשם (24/10: בתרגום בטלפון — לקובץ המדידות)
       if (job.qu && job.qh) continue;   // 19/11/2026: מושהית (בדרך כלל לא מגיעה לכאן — sid: null)
-      if (await quFull(job)) continue;   // 19/11/2026: התור כבר מריץ QU_PAR — מחכה, ולא חוסם עבודות של אחרים ולא עבודות רגילות (continue, לא break)
+      if (!S.btBack(job, br, lost) && await quFull(job)) continue;   // 21/11/2026: חצי מחיר שחזר — לא מחכה ל־QU_PAR של התור (רק הסיום נשאר)   // 19/11/2026: התור כבר מריץ QU_PAR — מחכה, ולא חוסם עבודות של אחרים ולא עבודות רגילות (continue, לא break)
       if (fit && (S.peakNeed(job, fit) > fit.mb || S.perfBlock(job, fit))) {   // 5/11/2026: וגם הקבלה החזויה (perfBlock)
         // 17/11/2026: למה היא מחכה — נכתב רק כשהשתנה (patchIf לא יבוא אחריו בפנייה הזו: יוצאים מהלולאה)
         const qw = S.qwOf(job, fit);

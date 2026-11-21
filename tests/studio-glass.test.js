@@ -42,7 +42,7 @@ const bad = rules.map((r) => r.slice(0, r.indexOf('{')).trim()).filter((sel) => 
 ok(!rules.some((r) => GB.test(r.trim())), 'בלי חומר (רקע/צל/טשטוש) על כפתורי הזכוכית המשותפים — שם הוא לא נראה');
 ok(!bad.length, 'כל כלל מתחיל ב־html' + (bad.length ? ' — חריגים: ' + bad.slice(0, 4).join(' | ') : ''));
 // הכרטיסים והרשימות בלי טשטוש — זכוכית רק על מה שצף (ביצועים בגלילה)
-ok(/html \.st-root :is\(\.st-list, \.st-newcard, \.st-jhero, \.st-stages\) \{[^}]*backdrop-filter: none !important/.test(body), 'כרטיסים ורשימות — מילוי רך בלי טשטוש');
+ok(/html \.st-root :is\(\.st-list, \.st-newcard, \.st-jhero, \.st-stages, \.st-qcard\) \{[^}]*backdrop-filter: none !important/.test(body), 'כרטיסים ורשימות — מילוי רך בלי טשטוש');
 
 /* ---------- זכוכית ותנועה ---------- */
 ok(/html \.st-root:is\(\.cube-face, \.cube-ghost\), html \.cube-flat \{ --lg-fx: none; \}/.test(body), 'בלי טשטוש בזמן סיבוב הקובייה');

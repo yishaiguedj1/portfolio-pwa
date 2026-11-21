@@ -177,6 +177,28 @@ a.st-row { color: inherit; text-decoration: none; -webkit-tap-highlight-color: t
 .st-plus svg { width: 26px; height: 26px; stroke-width: 2.6; }
 .st-newcard .st-l b { font-size: 17px; }
 .st-newcard .st-l small { font-size: 13.5px; }
+/* 21/11/2026 (בקשת המשתמש): כרטיס תור במנהל העבודות — השם, האחוז של כל התור, מונים, ומה רץ עכשיו עם האחוז המדויק. חצי מחיר — בכתום */
+.st-qcard { box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; width: calc(100% - 32px); margin: 0 16px 12px; padding: 16px; border-radius: var(--radius); background: var(--st-card); box-shadow: var(--shadow-sm); text-align: start; color: inherit; font: inherit; }
+.st-qcard:not(.hero):active { transform: scale(.985); }
+.st-qcard.hero { margin-top: 4px; }
+.st-qc-h { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.st-qc-h b { flex: 1; min-width: 0; font-size: 17px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-qc-pct { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.st-qc-bar.st-pbar { margin-top: 0; height: 6px; }
+.st-qcard.bt .st-pbar { --cmt-c: #FF9F0A; }
+.st-qc-st { display: flex; flex-wrap: wrap; gap: 6px; }
+.st-qc-st span { padding: 3px 10px; border-radius: var(--pill); background: var(--st-fill); color: var(--on-surface-var); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.st-qc-st span.ok { background: var(--st-ok-c); color: var(--st-ok-ink); }
+.st-qc-st span.run { background: rgba(10, 132, 255, .14); color: #0A63C9; }
+[data-theme="dark"] .st-qc-st span.run { background: rgba(10, 132, 255, .22); color: #64B5FF; }
+.st-qc-st span.amber { background: var(--st-amber-c); color: var(--st-amber); }
+.st-qc-st span.bad { background: var(--st-red-c); color: var(--loss); }
+.st-qc-act { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; border-top: .5px solid var(--separator); }
+.st-qc-j { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 10px; row-gap: 4px; }
+.st-qc-jt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; font-weight: 600; }
+.st-qc-jp { font-size: 14.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.st-qc-jb.st-pbar { grid-column: 1 / -1; margin-top: 0; }
+.st-qc-j small, .st-qc-more { grid-column: 1 / -1; color: var(--on-surface-var); font-size: 12.5px; }
 .st-empty { margin: 40px 32px 0; display: grid; justify-items: center; gap: 6px; text-align: center; color: var(--on-surface-var); }
 .st-empty-ic { width: 64px; height: 64px; margin-bottom: 6px; border-radius: 20px; display: grid; place-items: center; background: var(--st-fill); }
 .st-empty-ic svg { width: 32px; height: 32px; }
