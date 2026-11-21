@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2663 מפתחות מתוך 7381) */
+/* המחרוזות של studio (2666 מפתחות מתוך 7384) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1706,6 +1706,9 @@ he: {
   "studioQuDrNoDur": "האורך והעלות — בהתחלה",
   "studioQuDrNs": "יש כתוביות ב{l}",
   "studioQuDrRm": "להסיר מהרשימה",
+  "studioQuDrRmAll": "למחוק את כל התור",
+  "studioQuDrRmAllS": "{n} עבודות שעוד לא התחילו",
+  "studioQuDrRmQ": "למחוק {n} עבודות שעוד לא התחילו? הסרטונים במכשיר לא נמחקים.",
   "studioQuDrS": "כ־{t} · {usd}",
   "studioQuDrSec": "ממתינות להתחלה · {n}",
   "studioQuDrSet": "הגדרות",
@@ -4371,6 +4374,9 @@ en: {
   "studioQuDrNoDur": "Length and cost — at start",
   "studioQuDrNs": "{l} subtitles found",
   "studioQuDrRm": "Remove from the list",
+  "studioQuDrRmAll": "Delete the whole queue",
+  "studioQuDrRmAllS": "{n} jobs that haven't started",
+  "studioQuDrRmQ": "Delete {n} jobs that haven't started? The videos on your device aren't deleted.",
   "studioQuDrS": "~{t} · {usd}",
   "studioQuDrSec": "Waiting to start · {n}",
   "studioQuDrSet": "Settings",
