@@ -2081,7 +2081,7 @@ async function server(req, res, body, deps) {
       const key = S.newKey();
       // 21/10/2026: לצפי — הליבות של השרת וכמה עבודות כבר רצות עליו (חולקות את המעבד)
       const fx = Object.assign(hb.cpu > 0 ? { hc: Math.round(hb.cpu) } : {}, { cc: Math.max(0, Math.round(hb.nj || 0)) });
-      const got = await patchIf(deps, 'studioJobs', job.id, Object.assign({ sid: p.sid, pk: now, vw: 0, bw: 0, qw: null, capc: Math.round(cap * 100), kh: S.keyHash(key), kx: now + S.KEY_TTL, updated: now }, fx, lost.includes(job.id) ? { bl: (Number(job.bl) || 0) + 1 } : {}), job._ut);
+      const got = await patchIf(deps, 'studioJobs', job.id, Object.assign({ sid: p.sid, pk: now, vw: 0, bw: 0, qw: null, capc: Math.round(cap * 100), kh: S.keyHash(key), kx: now + S.KEY_TTL, updated: now }, fx, S.bwAcc(job, now), lost.includes(job.id) ? { bl: (Number(job.bl) || 0) + 1 } : {}), job._ut);
       if (!got) continue;
       await patchDoc(deps, 'studioServers', p.sid, Object.assign(seen, { job: job.id }));
       const dur = job.spec && job.spec.dur > 0 ? Math.round(job.spec.dur) : 0;
@@ -4367,7 +4367,7 @@ async function handler(req, res, deps = {}) {
       // 4/11/2026 (המשתמש: "לא לחצתי להמשיך עכשיו"): מתי ומאיפה יצאה מהתור — בלי זה אי אפשר לדעת מה הוציא אותה.
       // s: 'job' = הכפתור בדף העבודה (studio.js שולח src), 'x' = כל קורא אחר. מוצג בפרטי העבודה
       const btx = { t: now, s: body.src === 'job' ? 'job' : 'x' };
-      const upd = Object.assign({ spec, btx, updated: now }, job.bw && !job.pk ? { bw: 0 } : {});
+      const upd = Object.assign({ spec, btx, updated: now }, job.bw && !job.pk ? Object.assign({ bw: 0 }, S.bwAcc(job, now)) : {});
       await patchJob(deps, job.id, upd);
       Object.assign(job, upd);
       return res.status(200).json({ ok: true, job: view(job) });

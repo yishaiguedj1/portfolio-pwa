@@ -281,6 +281,7 @@ export function normJob(j) {
     use: normUse(s.use),   // v359: טוקנים ועלות (מהעובד, דרך השרתון)
     eng: s.eng === 'api' ? 'api' : 'sub',   // מצב API: העבודה רצה על השרת של המערכת (בתור עד ששרת פנוי)
     qh: s.qh === 1, qo: s.qo > 0 ? +s.qo : 0,   // 19/11/2026: תור — מושהית, ומקום מוקדם ("לראש התור")
+    bwt: num(s.bwt),   // 21/11/2026: כמה שניות חנתה בתור החיסכון בסך הכל — מופרד מזמן העבודה בשורת "מאז ההתחלה"
     bw: s.bw === 1,   // 01/11/2026 (סבב 3): מחכה לתשובה מתור החיסכון — השרת פנוי בינתיים
     // 2/11/2026: מצב הבקשות בתור (השרתון — bqView): g נאספות, s נשלחו ב־t, e השליחה נכשלת, n הסוכן לא מדווח
     bq: s.bq && ['g', 's', 'e', 'n'].includes(s.bq.s) && num(s.bq.t) > 0 ? { s: s.bq.s, t: num(s.bq.t) } : null,
@@ -3234,6 +3235,12 @@ function planFor(rec) {
 }
 /* 2/11/2026 (בקשת המשתמש: "לוודא שהעבודה באמת מחכה בתור ושאין באג שתוקע"): מה קורה בתור החיסכון — נשלח ומתי, או תקלה
    (ואז "להמשיך עכשיו במחיר רגיל" הוא הצעד). בלי דיווח מהשרת (גרסה ישנה) — הנוסח הכללי */
+/* 21/11/2026: חונה בתור החיסכון — באיזה שלב (העובד מדווח את השלב שחנה: tr/tl/rv — BATCH_STAGE) */
+function bwShort(rec) {
+  const st = rec.srv && rec.srv.prog && rec.srv.prog.st;
+  const k = st === 'tr' ? 'studioBwStTr' : st === 'tl' ? 'studioBwStTl' : st === 'rv' ? 'studioBwStRv' : '';
+  return k ? T('studioBwAt', { s: T(k) }) : T('studioBwShort');
+}
 function bwLine(rec) {
   const q = rec.srv && rec.srv.bq;
   if (!q) return T('studioNowBw');
@@ -3471,7 +3478,8 @@ function jobLive(rec, o = {}) {
   const qrd = o.qu && ph === 'ready' && !rec.up.wait;   // 20/11/2026 (בקשת המשתמש): בתור, הסרטון שלה עוד לא עלה (דרך האפליקציה — אחד אחרי השני) — "בתור", לא "מוכן"
   const [c, l] = o.qu && quHeld(rec) && !FINAL.includes(ph) ? ['amber', T('studioBHeld')] : qaPending(rec) ? ['amber', T('studioBAsk')] : recovering(rec) ? ['amber', T('studioBRecover')] : qup || qrd || ((o.act || o.qu) && ph === 'queued') ? ['amber', T('studioBQueued')] : rec.spec.vi && (ph === 'running' || ph === 'queued') ? ['green', T('studioBViRun')] : badgeFor(ph);   // 17/11/2026: ניתוח — לא "בתרגום"; בפעילות — התור בנפרד
   const upping = ph === 'extract' || ph === 'audio' || ph === 'video';
-  const tx = o.qu && quHeld(rec) && !FINAL.includes(ph) ? T('studioQuHeldS') : qup || (qrd && quRunning(rec.spec.qu) < QU_PAR) ? T('studioQuUpWait') : qrd ? T('studioQuWait', { n: QU_PAR }) : o.qu && ph === 'queued' && quRunning(rec.spec.qu) >= QU_PAR ? T('studioQuWait', { n: QU_PAR }) : o.act && ph === 'queued' ? nowLine(rec, run, ph) : upping ? Math.round(100 * (ph === 'video' ? run.p || 0 : m.stages[0].p || 0)) + '%' + (ph === 'video' && !rec.up.noAudio ? ' · ' + T('studioVideoShort') : '')
+  const bwq = ph === 'queued' && rec.srv && rec.srv.bw;   // 21/11/2026 (בקשת המשתמש): חונה בתור החיסכון — לא "מחכה בתור · N רצות" (השרת לא מחכה לה; היא מחכה לתשובות)
+  const tx = o.qu && quHeld(rec) && !FINAL.includes(ph) ? T('studioQuHeldS') : bwq && !m.bg ? bwShort(rec) : qup || (qrd && quRunning(rec.spec.qu) < QU_PAR) ? T('studioQuUpWait') : qrd ? T('studioQuWait', { n: QU_PAR }) : o.qu && ph === 'queued' && quRunning(rec.spec.qu) >= QU_PAR ? T('studioQuWait', { n: QU_PAR }) : o.act && ph === 'queued' ? nowLine(rec, run, ph) : upping ? Math.round(100 * (ph === 'video' ? run.p || 0 : m.stages[0].p || 0)) + '%' + (ph === 'video' && !rec.up.noAudio ? ' · ' + T('studioVideoShort') : '')
     : m.bg ? T('studioNowBg') : ph === 'queued' && rec.srv && rec.srv.bw ? T('studioBwShort') : ph === 'running' || ph === 'queued' ? T('studioLeftShort', { t: fmtLeft(shownLeft(rec, m)) }) : '';
   const pct = ph === 'done' ? 1 : ph === 'video' ? run.p || 0 : upping ? m.stages[0].p || 0 : ph === 'running' || ph === 'queued' ? shownPct(rec, m.pct, 'h') : m.pct;
   return { c, l, tx, pct, ph };
@@ -8465,8 +8473,11 @@ export function slaWall(r, now) {
   const end = r.srv.ended > 0 && r.srv.state !== 'running' && r.srv.state !== 'queued' ? r.srv.ended : now;
   const wall = Math.max(0, Math.round((end - r.created) / 1000));
   const el = slaLiveT(s, now, r.srv.state === 'running').el;
+  // 21/11/2026 (בקשת המשתמש): בחצי מחיר רוב הזמן הוא חנייה בתור החיסכון — השרת פנוי. "עבודה בשרת" = מה שנשאר
+  const bw = Math.min(el, Math.max(0, r.srv.bwt || 0));
   const wait = Math.max(0, wall - el);
-  const head = T('studioSlaWall', { t: fmtShort(wall) });
+  let head = T('studioSlaWall', { t: fmtShort(wall) });
+  if (bw >= 60) head += ' · ' + T('studioSlaWork', { t: fmtShort(el - bw) }) + ' · ' + T('studioSlaBw', { t: fmtShort(bw) });
   if (s.t.paused) return head + ' · ' + T('studioSlaWaitNow');
   return wait >= 60 ? head + ' · ' + T('studioSlaWaitOf', { t: fmtShort(wait) }) : head;
 }
