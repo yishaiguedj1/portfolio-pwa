@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (2673 מפתחות מתוך 7392) */
+/* המחרוזות של studio (2674 מפתחות מתוך 7393) */
 const STRINGS = {
 he: {
   "accAddGoogle": "הוספת חשבון Google",
@@ -1704,6 +1704,7 @@ he: {
   "studioQlPh": "https://…\nhttps://…",
   "studioQuAdd": "להוסיף לתור",
   "studioQuAddJob": "להוסיף עבודה",
+  "studioQuAddS": "להוסיף",
   "studioQuDel": "למחוק",
   "studioQuDelPr": "למחוק את כל הפרויקט ({n}, כולל מה שהסתיים)",
   "studioQuDelPrQ": "למחוק את כל הפרויקט — {n} עבודות, כולל אלה שהסתיימו והתרגומים שלהן?",
@@ -4379,6 +4380,7 @@ en: {
   "studioQlPh": "https://…\nhttps://…",
   "studioQuAdd": "Add to queue",
   "studioQuAddJob": "Add a job",
+  "studioQuAddS": "Add",
   "studioQuDel": "Delete",
   "studioQuDelPr": "Delete the whole project ({n}, including finished)",
   "studioQuDelPrQ": "Delete the whole project — {n} jobs, including finished ones and their translations?",

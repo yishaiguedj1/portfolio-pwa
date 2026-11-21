@@ -3812,7 +3812,7 @@ function quCtrls(g, noAdd) {
   const qbtn = (icon, cl, lbl, fn, k) => { const b = btn('st-qa-b ' + cl, null, () => fn(b), k); const i = h('i'); i.append(ico(icon)); b.append(i, h('span', null, lbl)); qa.append(b); };
   const free = g.on.filter(quFree), allHeld = free.length && free.filter(quHeld).length === free.length;
   if (free.length) qbtn(allHeld ? 'play' : 'pause', 'amb', allHeld ? T('studioQuRunAll') : T('studioQuHoldAll'), () => quCtl(g.on[0], allHeld ? 'run' : 'hold', true), 'qu-pz:' + g.qu);
-  if (!noAdd) qbtn('plus', 'blu', T('studioQuAddJob'), (b) => quKindMenu(b), 'qu-add:' + g.qu);
+  if (!noAdd) qbtn('plus', 'blu', T('studioQuAddS'), (b) => quKindMenu(b), 'qu-add:' + g.qu);
   qbtn('trash', 'neg', T('studioQuDel'), (b) => quDelMenu(b, g), 'qu-del:' + g.qu);
   return qa;
 }

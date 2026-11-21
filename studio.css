@@ -585,7 +585,7 @@ html.studio-open .dlg-veil { z-index: 1003; }
 .st-qa-b:active i { transform: scale(.94); }
 /* 21/11/2026: פקדי התור — מתחת לכרטיס המצב, שלושה כפתורים עגולים בגוון רך של הפעולה */
 .st-qa.st-qa-q { margin: 2px 16px 6px; justify-content: center; gap: 28px; }
-.st-qa-q .st-qa-b { flex: 0 0 72px; font-size: 12.5px; font-weight: 500; }
+.st-qa-q .st-qa-b { flex: 0 0 72px; font-size: 13px; font-weight: 500; color: var(--on-surface); }
 .st-qa-q .st-qa-b.amb i { background: var(--st-amber-c); color: var(--st-amber); }
 .st-qa-q .st-qa-b.blu i { background: rgba(10, 132, 255, .14); color: #0A63C9; }
 [data-theme="dark"] .st-qa-q .st-qa-b.blu i { background: rgba(10, 132, 255, .22); color: #64B5FF; }
