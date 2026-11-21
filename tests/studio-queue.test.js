@@ -156,4 +156,16 @@ ok(/else if \(ryMode\(\)\) Object\.assign\(spec, \{ eng: 'api', cap: store\.sett
   ok(/const qrd = o\.qu && ph === 'ready' && !rec\.up\.wait;/.test(st) && /qup \|\| qrd \|\| \(\(o\.act \|\| o\.qu\) && ph === 'queued'\) \? \['amber', T\('studioBQueued'\)\]/.test(st), 'עמוד התור: עבודה שמחכה — "בתור", לא "מוכן"');
 }
 ok(/const btQb = \(f\) => btOk\(f\) \|\| !!\(ui\.api && ui\.api\.admin && apiMode\(\) && !f\.ka && !f\.vi && qbN\(f\)/.test(st) && /if \(btQb\(f\)\) p\.append\(secT\(T\('studioSecWhen'\)\)/.test(st), 'בתור עם כמה קבצים/תיקייה — חצי מחיר עדיין זמין (רק למנהל)');
+// 10. 21/11/2026 (תקלה: תור בחצי מחיר — אחרי שתי הראשונות השאר "לבחור שוב את הסרטון"): הקובץ נשמר עד שעלה, וההמשך בשרשרת
+ok(/return run\(\); \}\)\.catch\(\(\) => \{\}\);/.test(st), 'quUp: ה־catch של השרשרת בקוד, לא בתוך הערה — העלאה שנכשלה לא עוצרת את הבאות');
+ok(/function keepFile\(id, file\) \{ if \(typeof Blob !== 'undefined' && file instanceof Blob\) handleOp\('put', id, \{ f: file \}\); \}/.test(st)
+  && /else if \(!ext\) keepFile\(rec\.id, file\);/.test(st) && /keepFile\(r2\.id, m\.fileObj\)/.test(st), 'keepFile: עותק של קובץ בלי ידית — לעבודה הראשית ולכל קובץ נוסף');
+ok(/else if \(hnd && hnd\.f instanceof Blob\) file = hnd\.f;/.test(st), 'resumeJob: ממשיך מהעותק השמור');
+ok(/quChain = quChain\.then\(\(\) => \{ if \(!quPend\.delete\(id\)\) return null; paintSoon\(\); return startRun\(id, file\); \}\)\.catch/.test(st), 'resumeJob: המשך אוטומטי — אחת אחרי השנייה');
+ok(/save\(\); handleOp\('del', id\);/.test(st) && /handleOp\('get', id\)\.then\(\(hd\) => \{ if \(hd && hd\.inbox\) inboxOp\('del', hd\.inbox\); handleOp\('del', id\); \}\)/.test(st), 'העותק נמחק כשהסרטון עלה (רגיל וברקע)');
+ok(/if \(store\.jobs\.length\) handleOp\('keys'\)/.test(st) && /if \(v && v\.f instanceof Blob\) handleOp\('del', k\)/.test(st), 'ניקוי: רק עותקים ({f}) של עבודות שאינן / בוטלו; ידיות po: לא נוגעים');
+// 11. 21/11/2026 (בקשת המשתמש): תור שעוד לא התחיל — בחירה מרובה, מחיקת הכל, ובחירה במנהל העבודות
+ok(/function pageQuSel\(p, q, dr\)/.test(st) && /if \(quSel\) \{ pageQuSel\(p, q, dr\); return; \}/.test(st) && /'qu-drrm'/.test(st), 'דף התור: "לבחור" ו"למחוק את כל התור"');
+ok(/askConfirm\(T\('studioQuDrRmQ'/.test(st) && /'sel-drq:' \+ qu/.test(st) && /for \(const qu of dq\) for \(const it of quDrOf\(qu\)\.slice\(\)\) quDrDel\(it\)/.test(st), 'מחיקה באישור; במנהל העבודות — גם תור שלם שלא התחיל');
+ok(/if \(ui\.view === 'qnew'\) quSel = null;/.test(st) && /actDr = null; \}/.test(st), 'מצב הבחירה מתאפס ביציאה');
 console.log('# ' + n + ' בדיקות');

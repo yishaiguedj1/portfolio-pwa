@@ -1624,6 +1624,11 @@ async function idbOp(store, mode, id, val) {
   } catch (e) { return null; }
 }
 const handleOp = (mode, id, val) => idbOp('handles', mode, id, val);
+/* 21/11/2026 (בקשת המשתמש — צילומים: בתור של חצי מחיר רק שתי הראשונות הסתיימו, והשאר "לבחור שוב את הסרטון"): קובץ שנבחר
+   בלי ידית (בחירת קובץ רגילה בטלפון) היה רק בזיכרון של הדף — כשהדף נסגר/נטען מחדש באמצע ההעלאות, העבודות שעוד לא עלו איבדו
+   את המקור. עכשיו עותק של הקובץ נשמר ב־IndexedDB ('handles', ‏{f}) עד שהסרטון עלה במלואו (videoDone / bgResume מוחקים),
+   או עד שהעבודה נמחקת. resumeJob קורא אותו, וההעלאות שחוזרות לבד עוברות בשרשרת אחת (quChain) — לא כולן בבת אחת */
+function keepFile(id, file) { if (typeof Blob !== 'undefined' && file instanceof Blob) handleOp('put', id, { f: file }); }
 
 /* ---------------- 21/10/2026 (בקשת המשתמש — לפי ת־נגן): תמונה ממוזערת לכל עבודה ----------------
    פריים מהסרטון עצמו, בטלפון בלבד (בלי שרת ובלי עלות): מהקובץ המקומי כשמתחילים עבודה, ואחרת מהסרטון בענן דרך ה־SW
@@ -2303,7 +2308,7 @@ async function bgResume(id) {
     if (!j.ok) throw new Error('bg');
     await register(id, 'v', st.id, up.folder);
     up.v = { done: true, id: st.id, size, uri: '', sent: size };
-    save();
+    save(); handleOp('del', id);   // 21/11/2026: העותק של הקובץ (keepFile) — כבר לא צריך
     if (!up.started) await tryStart(id);
     run.phase = 'done';
     return true;
@@ -2329,6 +2334,7 @@ async function resumeJob(id, byUser) {
   if (!file) {
     const hnd = await handleOp('get', id);
     if (hnd && hnd.inbox) { const e = await inboxOp('get', hnd.inbox); if (e && e.f instanceof Blob) file = e.f; }   // 22/10/2026: מההורדה בטלפון
+    else if (hnd && hnd.f instanceof Blob) file = hnd.f;   // 21/11/2026: העותק שנשמר (keepFile)
     else if (hnd && typeof hnd.getFile === 'function') {
       try {
         let perm = typeof hnd.queryPermission === 'function' ? await hnd.queryPermission({ mode: 'read' }) : 'granted';
@@ -2345,7 +2351,9 @@ async function resumeJob(id, byUser) {
     repaint();
     return;
   }
-  startRun(id, file);
+  if (byUser) { startRun(id, file); return; }
+  quPend.add(id); paintSoon();   // חוזרות לבד — אחת אחרי השנייה, כמו בתור
+  quChain = quChain.then(() => { if (!quPend.delete(id)) return null; paintSoon(); return startRun(id, file); }).catch(() => {});
 }
 /* 1/11/2026: חזרה לאפליקציה — העלאה של סרטון שנעצרה בזמן שהעבודה כבר רצה ממשיכה לבד (ידית עם הרשאה / Background Fetch
    שעוד רץ); אחרת המסך מראה "לבחור שוב" (upHalt) */
@@ -2433,7 +2441,8 @@ export function chainFor(v, p) {
 function leaving() {              // יציאה מדף: המפתח שהודבק באשף לא נשאר בזיכרון
   if (ui.view === 'play') playClose();   // מ1: הנגן נעצר ומשחרר את הסרטון
   if (ui.view === 'job') vaClose();
-  if (ui.view === 'act') actSel = null;   // 20/11/2026: מצב הבחירה לא נשאר אחרי יציאה
+  if (ui.view === 'act') { actSel = null; actDr = null; }   // 20/11/2026: מצב הבחירה לא נשאר אחרי יציאה
+  if (ui.view === 'qnew') quSel = null;
   if (ui.view === 'litem') lpStop();   // 17/11/2026: הנגן של פריט בספרייה       // PR 1.5ב: דף הניתוח — המקום נשמר, הנגן נעצר, תמונות השקפים משוחררות
   if (ui.view === 'subs') seStop();      // מ2: הנגן של העורך נעצר; העריכה נשארת בזיכרון
   if (ui.view === 'cut' || ui.view === 'cutsrc') ceStop();   // מ4–מ5: החיתוך עצמו נשמר (rrEdl / form.edl)
@@ -3502,7 +3511,7 @@ export function actSplit(jobs, phaseOf) {   // טהורה: [רצות, בתור]
    כדי לא להעמיס ולהשאיר מקום למשתמש אחר. עבודות רגילות — בלי שום מגבלה. ההגדרות — "הרגילות" שלך (כמו טופס חדש).
    הסרטונים עולים אחד אחרי השני (startRun של הקודם מסתיים), והשרת מתחיל כל עבודה כשהקול שלה עלה */
 export const QU_PAR = 3;    // 20/11/2026: 3 (היה 2) — = QU_PAR בשרתון (lib/studio.js) — tests/studio-queue.test.js משווה
-const quPend = new Set();    // עבודות מהתור שמחכות להעלאה שלהן (בזיכרון — אחרי רענון: "בחר שוב", כמו כל העלאה שנקטעה)
+const quPend = new Set();    // עבודות מהתור שמחכות להעלאה שלהן (בזיכרון; אחרי רענון — resumeJob ממשיך מהעותק של keepFile, באותה שרשרת)
 const quRunning = (qu) => store.jobs.filter((r) => r.spec && r.spec.qu === qu && r.srv && r.srv.state === 'running').length;
 /* 19/11/2026 (בקשת המשתמש, סבב 2): התור נבנה עבודה אחרי עבודה — "להוסיף עבודה" → סוג (תרגום / ניתוח / קריוקי) → הטופס הרגיל
    של הכלי עם כל ההגדרות שלו, ו"להוסיף לתור" (form.qd) במקום "להתחיל".
@@ -3556,7 +3565,7 @@ let quChain = Promise.resolve();
 function quUp(f, id, run) {
   if (!(f && f.qd)) return run();
   quPend.add(id); paintSoon();
-  const pr = quChain.then(() => { if (!quPend.delete(id)) return null; paintSoon(); return run(); })   // בוטלה בזמן ההמתנה — בלי העלאה.catch(() => {});
+  const pr = quChain.then(() => { if (!quPend.delete(id)) return null; paintSoon(); return run(); }).catch(() => {});   // בוטלה בזמן ההמתנה — בלי העלאה. 21/11/2026: ה־catch היה בתוך ההערה — העלאה אחת שנכשלה עצרה את כל השרשרת
   quChain = pr;
   return pr;
 }
@@ -3799,6 +3808,8 @@ function quSection(g) {
 /* 20/11/2026 (בקשת המשתמש): מחיקה — עבודה, כמה עבודות (מצב בחירה), התור (מה שלא הסתיים) או כל הפרויקט (גם מה שהסתיים).
    מחיקה = ביטול (אם עוד לא הסתיימה) ואז remove — כמו "למחוק" בדף העבודה. בזו אחר זו (מגביל הקצב בשרתון) */
 let actSel = null;   // מצב בחירה במנהל העבודות: Set של מזהים, או null
+let actDr = null;    // 21/11/2026: באותו מצב — התורים שעוד לא התחילו שנבחרו (Set של מזהי תור)
+let quSel = null;    // 21/11/2026: בדף התור — בחירה מרובה של העבודות שמחכות ל"להתחיל" (Set של מזהי טיוטה), או null
 const actSelRow = (r, o) => projRow(r, Object.assign({ act: true, sel: actSel.has(r.id), onSel: () => { if (actSel.has(r.id)) actSel.delete(r.id); else actSel.add(r.id); render('none'); } }, o));
 async function jobsDel(ids) {
   let ok = 0, bad = 0;
@@ -3815,12 +3826,12 @@ async function jobsDel(ids) {
   save();
   return { ok, bad };
 }
-function jobsDelAsk(ids, q, after) {
-  if (!ids.length) return;
+function jobsDelAsk(ids, q, after, dn) {   // dn — כמה טיוטות של התור נמחקות יחד (after מוחק אותן)
+  if (!ids.length && !dn) return;
   askConfirm(q, async () => {
-    const { ok, bad } = await jobsDel(ids);
+    const { ok, bad } = ids.length ? await jobsDel(ids) : { ok: 0, bad: 0 };
     if (after) after();
-    flashSafe(bad ? T('studioSelDelPart', { n: ok, f: bad }) : T('studioSelDeleted', { n: ok }));
+    flashSafe(bad ? T('studioSelDelPart', { n: ok + (dn || 0), f: bad }) : T('studioSelDeleted', { n: ok + (dn || 0) }));
     render('none');
   }, { danger: true, ok: T('studioDeleteOk') });
 }
@@ -3867,12 +3878,14 @@ function pageAct(p) {
   const [now, q] = actSplit(store.jobs.filter((r) => !inQ.has(r.id)), (r) => jobPhase(r, runs.get(r.id)));
   const fin = actUnseen(store.jobs, store.sna, Date.now());   // 19/11/2026: הסתיימו ולא נפתחו (במקום "אחרונה")
   const shown = [...gs.flatMap((g) => g.on), ...now, ...q, ...fin];
+  const drOnly = [...quDr.keys()].filter((qu) => quDrOf(qu).length && !gs.some((g) => g.qu === qu));   // 20/11/2026: תור שעוד לא התחיל
+  if (actDr) for (const qu of [...actDr]) if (!drOnly.includes(qu)) actDr.delete(qu);
   if (actSel) for (const id of [...actSel]) if (!shown.some((r) => r.id === id)) actSel.delete(id);   // נמחקה / הסתיימה בינתיים
-  if (actSel && !shown.length) actSel = null;
+  if (actSel && !shown.length && !drOnly.length) actSel = null;
   // 20/11/2026 (בקשת המשתמש): "לבחור" — בחירה מרובה (עבודות, או פרויקט שלם) ומחיקה
-  const sb = shown.length ? btn('st-txt', actSel ? T('studioSelDone') : T('studioSelBtn'), () => { actSel = actSel ? null : new Set(); render('none'); }, 'act-sel') : null;
+  const sb = shown.length || drOnly.length ? btn('st-txt', actSel ? T('studioSelDone') : T('studioSelBtn'), () => { actSel = actSel ? null : new Set(); actDr = actSel ? new Set() : null; render('none'); }, 'act-sel') : null;
   p.append(navBar({ back: T('studioShort'), title: T('studioActT'), coll: true, end: sb }), large(T('studioActT')));
-  if (actSel) { pageActSel(p, gs, now, q, fin, shown); return; }
+  if (actSel) { pageActSel(p, gs, now, q, fin, shown, drOnly); return; }
   const ab = accessBanner(); if (ab) p.append(ab);
   const hb = haltBanner(); if (hb) p.append(hb);
   if (quOk()) {   // 19/11/2026: תור עבודות חדש — פרויקט של הרבה סרטונים
@@ -3882,7 +3895,6 @@ function pageAct(p) {
     p.append(nc);
   }
   for (const g of gs) p.append(...quSection(g));
-  const drOnly = [...quDr.keys()].filter((qu) => quDrOf(qu).length && !gs.some((g) => g.qu === qu));   // 20/11/2026: תור שעוד לא התחיל
   if (drOnly.length) p.append(secT(T('studioQuDrNew')), list(...drOnly.map((qu) => rowNav({ tile: tile('clock', 'orange'), label: quNameOf(qu) || T('studioQuT'),
     sub: T('studioQuDrSec', { n: quDrOf(qu).length }), onClick: () => { qf = null; go('qnew', qu); }, k: 'qu-drq:' + qu }))));
   if (!now.length && !q.length && !gs.length && !fin.length && !drOnly.length) {
@@ -3897,15 +3909,21 @@ function pageAct(p) {
   if (fin.length) p.append(secT(T('studioActDone', { n: fin.length })), list(...fin.map((r) => projRow(r, { act: true }))));
 }
 /* מצב בחירה: "לבחור הכל", כל פרויקט (quSection) ושאר העבודות, ובתחתית "למחוק (N)" */
-function pageActSel(p, gs, now, q, fin, shown) {
-  const all = shown.length && shown.every((r) => actSel.has(r.id));
-  p.append(note(T('studioSelHint')), list(rowCheck({ label: T('studioSelAll'), on: all, k: 'sel-all', onClick: () => { if (all) actSel.clear(); else for (const r of shown) actSel.add(r.id); render('none'); } })));
+function pageActSel(p, gs, now, q, fin, shown, drOnly) {
+  const all = shown.every((r) => actSel.has(r.id)) && drOnly.every((qu) => actDr.has(qu));
+  p.append(note(T('studioSelHint')), list(rowCheck({ label: T('studioSelAll'), on: all, k: 'sel-all', onClick: () => {
+    if (all) { actSel.clear(); actDr.clear(); } else { for (const r of shown) actSel.add(r.id); for (const qu of drOnly) actDr.add(qu); } render('none'); } })));
   for (const g of gs) p.append(...quSection(g));
+  // 21/11/2026 (בקשת המשתמש — תור של 25 שעוד לא התחיל נמחק רק אחד־אחד): גם תור שלם שעוד לא התחיל
+  if (drOnly.length) p.append(secT(T('studioQuDrNew')), list(...drOnly.map((qu) => rowCheck({ label: quNameOf(qu) || T('studioQuT'), sub: T('studioQuDrSec', { n: quDrOf(qu).length }),
+    on: actDr.has(qu), k: 'sel-drq:' + qu, onClick: () => { if (actDr.has(qu)) actDr.delete(qu); else actDr.add(qu); render('none'); } }))));
   if (now.length) p.append(secT(T('studioActNow', { n: now.length })), list(...now.map((r) => actSelRow(r))));
   if (q.length) p.append(secT(T('studioActQ', { n: q.length })), list(...q.map((r) => actSelRow(r))));
   if (fin.length) p.append(secT(T('studioActDone', { n: fin.length })), list(...fin.map((r) => actSelRow(r))));
-  const n = actSel.size, ft = h('div', 'st-foot');
-  const d = btn('st-btn danger wide', T('studioSelDel', { n }), () => jobsDelAsk([...actSel], T('studioSelDelQ', { n }), () => { actSel = null; }), 'sel-del');
+  const dn = [...actDr].reduce((a, qu) => a + quDrOf(qu).length, 0), n = actSel.size + dn, ft = h('div', 'st-foot');
+  const dq = [...actDr];
+  const d = btn('st-btn danger wide', T('studioSelDel', { n }), () => jobsDelAsk([...actSel], T('studioSelDelQ', { n }),
+    () => { for (const qu of dq) for (const it of quDrOf(qu).slice()) quDrDel(it); actSel = null; actDr = null; }, dn), 'sel-del');
   d.disabled = !n;
   ft.append(d); p.append(ft);
 }
@@ -3929,8 +3947,13 @@ function pageQu(p) {
   if (all.length && !q.qn) q.qn = (all.find((r) => r.spec.qn) || { spec: {} }).spec.qn || '';
   if (!q.qn && dr.length) q.qn = quNameOf(q.qu);
   const ttl = all.length || dr.length ? q.qn || T('studioQuT') : T('studioQuNew');
-  p.append(navBar({ back: T('studioActT'), title: ttl, coll: true }), large(ttl));
+  if (quSel) for (const id of [...quSel]) if (!dr.some((x) => x.id === id)) quSel.delete(id);
+  if (quSel && !dr.length) quSel = null;
+  // 21/11/2026 (בקשת המשתמש): "לבחור" — כמה עבודות שעוד לא התחילו ומחיקה בבת אחת
+  const sb = dr.length && !ui.qgo ? btn('st-txt', quSel ? T('studioSelDone') : T('studioSelBtn'), () => { quSel = quSel ? null : new Set(); render('none'); }, 'qu-sel') : null;
+  p.append(navBar({ back: T('studioActT'), title: ttl, coll: true, end: sb }), large(ttl));
   if (!quOk()) { p.append(note(T('studioQuNeedSrv'))); return; }
+  if (quSel) { pageQuSel(p, q, dr); return; }
   if (!all.length) {   // השם — לפני העבודה הראשונה (הוא נשמר בכל עבודה)
     const inp = h('input', 'st-in'); inp.type = 'text'; inp.dir = 'auto'; inp.maxLength = 60; inp.value = q.qn; inp.placeholder = T('studioQuNamePh');
     inp.setAttribute('aria-label', T('studioQuName'));
@@ -3939,7 +3962,8 @@ function pageQu(p) {
   }
   const rows = all.map((r) => projRow(r, { act: true, qu: true, menu: (at) => quJobMenu(at, r) }));
   const addRow = rowNav({ tile: tile('plus', 'blue'), label: T('studioQuAddJob'), onClick: () => quKindMenu(addRow), k: 'qu-addjob' });
-  if (dr.length) p.append(secT(T('studioQuDrSec', { n: dr.length })), list(...dr.map(quDrRow), addRow), note(T('studioQuDrHint')));
+  if (dr.length) p.append(secT(T('studioQuDrSec', { n: dr.length })), list(...dr.map(quDrRow), addRow), note(T('studioQuDrHint')),
+    list(rowNav({ tile: tile('trash', 'red'), label: T('studioQuDrRmAll'), sub: T('studioQuDrRmAllS', { n: dr.length }), onClick: () => quDrRmAsk(q.qu, dr.slice(), !all.length), k: 'qu-drrm' })));
   if (all.length || !dr.length) p.append(secT(T('studioQuJobs', { n: all.length })), list(...rows, dr.length ? null : addRow));
   p.append(note(all.length ? T('studioQuNote', { n: QU_PAR }) : T('studioQuEmpty')));
   if (dr.length) {   // "להתחיל" — דבוק לתחתית, כמו בטפסים
@@ -3949,6 +3973,26 @@ function pageQu(p) {
     const ft = h('div', 'st-foot'); ft.append(go1, h('p', 'st-foot-n', T('studioQuGoNote')));
     p.append(ft);
   }
+}
+/* 21/11/2026: מחיקה של כמה עבודות שעוד לא התחילו (או כולן) — אישור אחד. הכל נמחק ואין עבודות בשרת — חזרה למנהל העבודות */
+function quDrRmAsk(qu, items, toAct) {
+  if (!items.length) return;
+  askConfirm(T('studioQuDrRmQ', { n: items.length }), () => {
+    for (const it of items) quDrDel(it);
+    quSel = null;
+    flashSafe(T('studioSelDeleted', { n: items.length }));
+    if (toAct && !quDrOf(qu).length) back(); else render('none');
+  }, { danger: true, ok: T('studioDeleteOk') });
+}
+function pageQuSel(p, q, dr) {
+  const all = dr.every((x) => quSel.has(x.id));
+  p.append(list(rowCheck({ label: T('studioSelAll'), on: all, k: 'qsel-all', onClick: () => { if (all) quSel.clear(); else for (const x of dr) quSel.add(x.id); render('none'); } })),
+    secT(T('studioQuDrSec', { n: dr.length })),
+    list(...dr.map((x) => rowCheck({ label: x.name, sub: quDrSub(x), on: quSel.has(x.id), k: 'qsel:' + x.id, onClick: () => { if (quSel.has(x.id)) quSel.delete(x.id); else quSel.add(x.id); render('none'); } }))));
+  const n = quSel.size, ft = h('div', 'st-foot');
+  const d = btn('st-btn danger wide', T('studioSelDel', { n }), () => quDrRmAsk(q.qu, dr.filter((x) => quSel.has(x.id)), !store.jobs.some((r) => r.spec && r.spec.qu === q.qu && r.srv)), 'qsel-del');
+  d.disabled = !n;
+  ft.append(d); p.append(ft);
 }
 /* בחירת סוג העבודה — תרגום / ניתוח / קריוקי (רק מה שזמין) */
 function quKindMenu(at) {
@@ -6645,6 +6689,7 @@ function startFromForm() {
     save();
     if (f.dl && f.dl.ch && f.dl.ch.length) rec.chap = normChapters(f.dl.ch.map((c) => ({ t: c[0], title: c[1] })), spec.dur);   // הפרקים מהאתר
     if (f.handle) handleOp('put', rec.id, f.handle);   // {inbox} — מההורדה בטלפון: הקובץ ב־snb-inbox (המשך אחרי רענון)
+    else if (!ext) keepFile(rec.id, file);   // 21/11/2026: קובץ בלי ידית — עותק עד שהסרטון עלה
     if (f.dl && f.dl.th) { thumbs.set(rec.id, f.dl.th); idbOp('thumbs', 'put', rec.id, f.dl.th); }
     else if (f.fileObj) thumbFor(rec, null, f.fileObj);   // 21/10/2026: התמונה מהקובץ שבטלפון — בלי לחכות שיעלה
     if (f.trk && f.trk.hlp != null && spec.eng === 'api') {   // 26/10/2026: עזר להגהה — לפני ההתחלה, כדי שהעובד יראה אותו בלקיחה
@@ -6662,7 +6707,7 @@ function startFromForm() {
         fp: { name: m.file.name, size: m.file.size, lm: m.fileObj.lastModified || 0 }, vm: null, org: orgOf(f, null, sp2.eng),
         up: isR2Folder(j2.job.folder) ? { folder: j2.job.folder } : {} });
       if (!r2) continue;
-      store.jobs.unshift(r2); thumbFor(r2, null, m.fileObj); more.push([r2.id, m.fileObj]);
+      store.jobs.unshift(r2); thumbFor(r2, null, m.fileObj); keepFile(r2.id, m.fileObj); more.push([r2.id, m.fileObj]);
     }
     if (more.length) save();
     const rest = async (p0) => { try { await p0; } catch (e) {} for (const [mid, fo] of more) { try { await startRun(mid, fo); } catch (e) {} } };
@@ -12540,6 +12585,8 @@ export function openStudio(opt) {
     if (rec.up.ph) continue;   // 24/10/2026: תרגום בטלפון — האפליקציה מעלה, לא הדף
     if (!done && !FINAL.includes(st) && !(runs.get(rec.id) && runs.get(rec.id).active) && rec.fp) resumeJob(rec.id, false);
   }
+  // 21/11/2026: עותקי קבצים (keepFile) של עבודות שכבר לא ברשימה / בוטלו — לא תופסים מקום במכשיר
+  if (store.jobs.length) handleOp('keys').then((ks) => { for (const k of ks || []) { const r = typeof k === 'string' && !k.startsWith('po:') ? jobRec(k) : 1; if (!r || (r.srv && r.srv.state === 'cancelled')) handleOp('get', k).then((v) => { if (v && v.f instanceof Blob) handleOp('del', k); }); } });
 }
 
 /* קישור מההתראה: דף העבודה, ומשם הנגן / העורך כשאפשר — "חזור" מהם חוזר לעבודה */
