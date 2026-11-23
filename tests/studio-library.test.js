@@ -109,5 +109,17 @@ const R = 'R2_jLIBjobAAAAAAAAAAAAAA';
     && /spec\.get\('from'\) not in \('auto', 'en', None\)/.test(py), 'תרגום ממקור אוטומטי = אנגלית — כל עוד העובד מתרגם רק מאנגלית (אחרת: לדווח את השפה שזוהתה)');
   ok(st.viTr({ vi: 1, vt: 1 }) && !st.viTr({ vi: 1 }) && !st.viTr({ vt: 1 }), 'viTr: ניתוח שגם תרגם');
   ok(/ch, \.\.\.\(m\.tv === 1 && m\.k === 'vi' \? \{ tv: 1 \} : \{\}\) \};/.test(srv) && /if m\.get\('tv'\) == 1:\n\s+out\['tv'\] = 1/.test(py), 'tv עובר בשרתון ובעובד');
+  // 23/11/2026: פתיחה מיידית — תמונת מצב ב־IndexedDB, תמונות שלנו לתמיד, חימום במנוחה (רק המסך הראשון)
+  {
+    const s2 = read('studio.js');
+    ok(/IDB_STORES = \[[^\]]*'lib'\]/.test(s2) && /idbOp\('lib', 'get', lbOwner\(\)\)/.test(s2) && /idbOp\('lib', 'put', lbOwner\(\)/.test(s2), 'תמונת המצב ב־IndexedDB, לפי החשבון');
+    ok(/net\.libList\(\{ old: true \}\)[^\n]*lbSnapLoad\(\)\]\)/.test(s2) && /lb\.man\.set\(x\.id \+ ':' \+ x\.at, x\.m\)/.test(s2), 'מניפסט שלא השתנה — מתמונת המצב, בלי בקשה');
+    const ld = s2.slice(s2.indexOf('async function lbLoad'), s2.indexOf('const LIB_KIND_ICO'));
+    ok(ld.indexOf('net.libThumbs()') < ld.indexOf('await Promise.all'), 'הפוסטרים במקביל לרשימה, לא אחרי המניפסטים');
+    ok(/!\/\^lib:\/\.test\(c\.key\)/.test(s2), 'התמונות של הספרייה לא נטענות כולן בפתיחת הסטודיו');
+    ok(/idbOp\('thumbs', 'put', 'lib:' \+ f, u\)/.test(s2) && /grabFrame\(src, THUMB_WAIT\)/.test(s2), 'תמונה שלנו לתמיד: מהעבודה, ובלעדיה פריים אחד');
+    ok(/lbCards\(\)\.slice\(0, LB_WARM\)/.test(s2) && /Date\.now\(\) - lb\.at > LB_SNAP_TTL\) lbLoad\(\)/.test(s2) && /connected\) lbWarmSoon\(\)/.test(s2), 'חימום: רק המסך הראשון, רשת רק כשתמונת המצב ישנה');
+    ok(!/if \(!lb\.st\) \{ p\.append\(h\('div', 'st-empty st-empty-sm', T\('studioPlLoading'\)\)\)/.test(s2) && /lbSkel\(\)/.test(s2), 'בלי "טוען את הסרטון…" בספרייה — שלד');
+  }
   console.log(n + ' בדיקות עברו');
 })().catch((e) => { console.error('✗', e); process.exit(1); });

@@ -19,7 +19,7 @@ ok(JSON.stringify(P.thumbTimes(0)) === '[1,0]' && JSON.stringify(P.thumbTimes(Na
 ok(P.thumbTimes(0.5).every((t) => t >= 0 && t <= 0.4), 'סרטון קצר מאוד — בתוך האורך');
 ok(!P.thumbOk(8, 3) && !P.thumbOk(250, 5) && !P.thumbOk(120, 4) && P.thumbOk(120, 40), 'פריים שחור / לבן / אחיד — לא נבחר');
 
-ok(/indexedDB\.open\('snb-studio', 4\)/.test(st) && /'thumbs'/.test(st), 'התמונות ב־IndexedDB (מאגר thumbs, גרסה 3) — לא ב־localStorage');
+ok(/indexedDB\.open\('snb-studio', 5\)/.test(st) && /'thumbs'/.test(st), 'התמונות ב־IndexedDB (מאגר thumbs, גרסה 3) — לא ב־localStorage');
 ok(/idbOp\('thumbs', 'del', id\); thumbs\.delete\(id\)/.test(st) && /idbOp\('thumbs', 'del', x\.id\)/.test(st), 'עבודה שנמחקה (בטלפון או בשרתון) — גם התמונה שלה נמחקת');
 ok(/if \(f\.fileObj\) thumbFor\(rec, null, f\.fileObj\)/.test(st), 'עבודה חדשה — התמונה מהקובץ שבטלפון, בלי לחכות להעלאה');
 ok(/paintThumb\(th, rec\)/.test(st) && /\.st-thumb\.img \{ background-size: cover/.test(css) && /\.st-thumb\.img > svg \{ display: none; \}/.test(css), 'רשימת העבודות — התמונה במקום סמל הסרט');

@@ -62,7 +62,7 @@ ok(!/quTake|quStart/.test(st), 'בלי המנגנון הישן של סבב 1');
 ok((st.match(/if \(quHold\(f, spec\)\) return;/g) || []).length === 4, 'quHold לפני היצירה בשרת: סרטון/Drive, קובץ כתוביות, קישור לענן, דרך האפליקציה');
 ok(/if \(f\.ph && !quPhOk\(f\)\) return false;/.test(st) && /f\.ph\.nu && \(f\.ph\.cap \|\| 0\) >= PH_CAP_Q/.test(st), 'דרך האפליקציה — רק Studio שיודע phq (ישן — מיד, כמו קודם)');
 // 7ה. סבב 2 (20/11): הרשימה נשמרת עם הקבצים — בלי לבחור שוב; דרך האפליקציה — פתיחה אחת לכולן
-ok(/IDB_STORES = \['handles', 'drafts', 'thumbs', 'qdr'\]/.test(st) && /quDrLoad\(\)\.catch/.test(st) && /idbOp\('qdr', 'put', it\.id/.test(st), 'הרשימה ב־IndexedDB (qdr), נטענת בפתיחה');
+ok(/IDB_STORES = \['handles', 'drafts', 'thumbs', 'qdr', 'lib'\]/.test(st) && /quDrLoad\(\)\.catch/.test(st) && /idbOp\('qdr', 'put', it\.id/.test(st), 'הרשימה ב־IndexedDB (qdr), נטענת בפתיחה');
 ok(app.includes("'pwa_studio_qdr_v1'") && /export const QDR_LS = 'pwa_studio_qdr_v1';/.test(st) && /for \(const k of keys\) if \(!ids\.includes\(k\)\) idbOp\('qdr', 'del', k\);/.test(st), 'המזהים במפתח של החשבון (ACCOUNT_KEYS); מה שלא שלו — נמחק');
 { const ga = cut('async function quGoAll', '/* הקבוצות לעמוד');
   ok(ga.indexOf('if (pr && pr.done) phQOpen(pr);') > 0 && ga.indexOf('if (pr && pr.done) phQOpen(pr);') < ga.indexOf('await'), 'האפליקציה נפתחת עוד בתוך הנגיעה — לפני כל await');

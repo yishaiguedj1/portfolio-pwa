@@ -1492,6 +1492,7 @@ async function refreshStatus(force) {
     ui.access = 'ok'; ui.kinds = Array.isArray(j.kinds) ? j.kinds : [];
     store.conn = j.conn ? { hint: String(j.conn.hint || ''), ok: num(j.conn.ok), since: num(j.conn.since) } : null;
     store.drive = j.drive ? { connected: !!j.drive.connected, email: String(j.drive.email || ''), configured: j.drive.configured !== false } : null;
+    if (store.drive && store.drive.connected) lbWarmSoon();   // 23/11/2026: הספרייה מוכנה לפני שפותחים אותה
     ui.normR = normNorms(j.norm) || ui.normR;
     ui.normA = normNorms(j.normA) || ui.normA;   // 11/10: הרגיל לפי המנוע — curNorm() בוחר
     ui.sh = normSh(j.sh);   // v384: מצב צל לכל מצב (כמה עבודות עד אכיפה)
@@ -1605,10 +1606,11 @@ const jobRec = (id) => store.jobs.find((x) => x.id === id) || null;
 // סבב 8: גרסה 2 — גם 'drafts' (טיוטות העורך). שדרוג לא מוחק: רק מה שחסר נוצר
 // 21/10/2026: גרסה 3 — גם 'thumbs' (התמונות הממוזערות של העבודות)
 // 20/11/2026: גרסה 4 — גם 'qdr' (העבודות שמחכות ל"להתחיל" בתור — עם הקובץ עצמו, בלי לבחור שוב)
-const IDB_STORES = ['handles', 'drafts', 'thumbs', 'qdr'];
+// 23/11/2026: גרסה 5 — גם 'lib' (תמונת המצב של ספריית הסרטונים לפי החשבון — הפתיחה מציירת ממנה מיד)
+const IDB_STORES = ['handles', 'drafts', 'thumbs', 'qdr', 'lib'];
 function hdb() {
   return new Promise((ok, no) => {
-    const r = indexedDB.open('snb-studio', 4);
+    const r = indexedDB.open('snb-studio', 5);
     r.onupgradeneeded = () => { for (const n of IDB_STORES) if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n); };
     r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error);
   });
@@ -1707,7 +1709,8 @@ function thumbsLoad() {
       const os = db.transaction('thumbs', 'readonly').objectStore('thumbs'), rq = os.openCursor();
       // 29/10/2026: כל תמונה גם מפוענחת מראש (thumbEl) — הציור הראשון של הבית (מחכה עד 400ms) כבר עם התמונות, בלי אריח ריק
       const dec = [];
-      rq.onsuccess = () => { const c = rq.result; if (!c) { Promise.all(dec).then(() => ok()); return; } if (typeof c.value === 'string' && c.value && !thumbs.has(c.key)) { thumbs.set(c.key, c.value); try { dec.push(thumbEl(c.key, c.value).decode().catch(() => {})); } catch (e) {} } c.continue(); };
+      rq.onsuccess = () => { const c = rq.result; if (!c) { Promise.all(dec).then(() => ok()); return; } if (typeof c.value === 'string' && c.value && !thumbs.has(c.key) && !/^lib:/.test(c.key)) {   // התמונות של הספרייה — רק כשצריך (lbThumbOf)
+         thumbs.set(c.key, c.value); try { dec.push(thumbEl(c.key, c.value).decode().catch(() => {})); } catch (e) {} } c.continue(); };
       rq.onerror = () => ok();
     } catch (e) { ok(); }
   })).catch(() => {});
@@ -7004,7 +7007,7 @@ async function dxTick() {
     const d = r.up.dx;
     if (!x.ok || !x.job) { if (x.error === 'not_found') { d.st = 'err'; d.e = 'gone'; } continue; }
     const s = String(x.job.state || '');
-    if (s === 'done') { d.st = 'ok'; d.at = Date.now(); d.p = 1; flashSafe(d.lib ? T('studioLibDone') : T('studioDxDone', { n: d.n })); if (d.lib) { lb.st = ''; const pj = await net.api('job', { job: r.id }).catch(() => null); if (pj && pj.ok && pj.job) r.srv = normJob({ id: r.id, srv: pj.job }).srv; } }   // עבודה אחת (לא op:'jobs' — מכסת Firestore)
+    if (s === 'done') { d.st = 'ok'; d.at = Date.now(); d.p = 1; flashSafe(d.lib ? T('studioLibDone') : T('studioDxDone', { n: d.n })); if (d.lib) { lb.live = false; const pj = await net.api('job', { job: r.id }).catch(() => null); if (pj && pj.ok && pj.job) r.srv = normJob({ id: r.id, srv: pj.job }).srv; } }   // עבודה אחת (לא op:'jobs' — מכסת Firestore)
     else if (s === 'failed' || s === 'cancelled') { d.st = 'err'; d.e = String(x.job.err || 'failed').slice(0, 40); flashSafe(T('studioDxFail')); }
     else d.p = Math.max(0, Math.min(1, +(x.job.prog && x.job.prog.p) || 0));
   }
@@ -7088,8 +7091,98 @@ function pageVids(p) {
    (drive.file). כשהעותק ב־R2 פג (21 יום), השרתון מחליף בעבודה את המזהים לקבצים בספרייה (libSwap) — הנגן, העורכים וההפקה מחדש
    ממשיכים. כל עוד העבודה קיימת — מנגנים ממנה (R2 עדיף: איכויות צפייה); אחרת — מהמניפסט */
 const LIB_KINDS = ['', 'tr', 'ka', 'vi'];
-const lb = { st: '', err: '', items: [], old: [], k: '', quota: null, seq: 0, busy: false, man: new Map(), th: null };
+const lb = { st: '', err: '', items: [], old: [], k: '', quota: null, seq: 0, busy: false, man: new Map(), th: null, at: 0, thAt: 0, tAt: 0, live: false };
 const lbPaint = () => { if (root && (ui.view === 'lib' || ui.view === 'litem')) render('none'); };
+/* 23/11/2026 (בקשת המשתמש, הקלטה: פתיחת הספרייה — "טוען…" כשתי שניות, הכרטיסים בצבע הסוג, ורק אחרי עוד שנייה התמונות):
+   1) תמונת מצב של הספרייה ב־IndexedDB ('lib', לפי החשבון): הפתיחה מציירת ממנה מיד, והרשימה מתרעננת ברקע. מניפסט נקרא מחדש
+      רק כשהשתנה (id:at) — קודם כל הפעלה של האפליקציה הורידה מחדש את כל המניפסטים.
+   2) התמונה של פריט = data: קטנה (THUMB_W) ששמורה לתמיד ב־'thumbs' תחת 'lib:<תיקייה>': מהעבודה (thumbs לפי m.job — נמחקת
+      עם העבודה, ולכן מועתקת), ובלי עבודה — פריים אחד מהסרטון שב־Drive, פעם אחת. ה־thumbnailLink של Drive פג אחרי שעות
+      ולא נקרא ב־CORS — הוא רק עד שיש תמונה משלנו.
+   3) חימום בזמן מנוחה אחרי שהסטודיו נפתח (lbWarm): תמונת המצב + פענוח התמונות של המסך הראשון בלבד (LB_WARM). רשת —
+      רק כשתמונת המצב חסרה או ישנה מ־LB_SNAP_TTL. כל השאר — כשמצויר */
+const LB_WARM = 6, LB_SNAP_TTL = 15 * 60e3, LB_TH_TTL = 2 * 3600e3;
+const lbOwner = () => { try { return localStorage.getItem('pwa_owner_v1') || 'local'; } catch (e) { return 'local'; } };
+let lbSnapP = null, lbSnapT = 0;
+function lbSnapLoad() {
+  if (!lbSnapP) {
+    lbSnapP = idbOp('lib', 'get', lbOwner()).then((s) => {
+      if (!s || s.v !== 1 || lb.st || !Array.isArray(s.items)) return;
+      lb.items = s.items.filter((x) => x && typeof x.id === 'string' && x.m && Array.isArray(x.m.f) && Array.isArray(x.m.ch) && Array.isArray(x.m.to));
+      lb.old = Array.isArray(s.old) ? s.old.filter((x) => x && typeof x.id === 'string') : [];
+      lb.quota = s.quota && s.quota.limit ? s.quota : null;
+      lb.at = num(s.at);
+      if (Array.isArray(s.th) && Date.now() - num(s.thAt) < LB_TH_TTL) { lb.th = new Map(s.th); lb.thAt = num(s.thAt); }
+      for (const x of lb.items) lb.man.set(x.id + ':' + x.at, x.m);
+      lb.st = 'ok';
+    }).catch(() => {});
+  }
+  return lbSnapP;
+}
+function lbSnapSave() {
+  if (typeof setTimeout === 'undefined') return;
+  clearTimeout(lbSnapT);
+  lbSnapT = setTimeout(() => {
+    if (lb.st !== 'ok' || !lb.at) return;
+    idbOp('lib', 'put', lbOwner(), { v: 1, at: lb.at, thAt: lb.thAt, items: lb.items, old: lb.old, quota: lb.quota, th: lb.th ? [...lb.th] : null });
+  }, 800);
+}
+/* התמונה של פריט: שלנו (בזיכרון) → של העבודה → של Drive. הבדיקה ב־IndexedDB, ההעתקה והפריים — בתור אחד, ברקע */
+const lbTh = new Map();   // תיקייה → data: ('' = לא הצליח בסשן הזה)
+const lbThBusy = new Set();
+let lbThChain = Promise.resolve(), lbThPaint = 0;
+function lbThumbOf(x) {
+  const f = x.folder, own = lbTh.get(f);
+  if (own) return own;
+  const j = (x.m.job && thumbs.get(x.m.job)) || '', tv = lb.th && lb.th.get(f), dr = (tv && tv.th) || '';
+  if (f && own !== '' && !lbThBusy.has(f)) lbThNeed(x, j || dr);
+  return j || dr;
+}
+function lbThNeed(x, shown) {
+  const f = x.folder;
+  lbThBusy.add(f);
+  lbThChain = lbThChain.then(async () => {
+    let u = await idbOp('thumbs', 'get', 'lib:' + f) || '';
+    const j = (x.m.job && thumbs.get(x.m.job)) || '';
+    if (!u && j) { u = j; idbOp('thumbs', 'put', 'lib:' + f, u); }
+    if (!u && ui.view === 'lib' && !lp && net && typeof net.mediaUrl === 'function') {   // אין עבודה — פריים אחד מהקטן שבסרטונים, פעם אחת
+      const vs = x.m.f.filter((y) => y.r === 'b' || y.r === 'v').sort((a, b) => (a.s || Infinity) - (b.s || Infinity));
+      for (const y of vs.slice(0, 2)) { const src = net.mediaUrl(y.id); if (src) u = await grabFrame(src, THUMB_WAIT); if (u) break; }
+      if (u) idbOp('thumbs', 'put', 'lib:' + f, u); else { lbTh.set(f, ''); return; }
+    }
+    if (!u) return;
+    lbTh.set(f, u);
+    if (u !== shown) { clearTimeout(lbThPaint); lbThPaint = setTimeout(() => lbImgWarm(u).then(lbPaint), 60); }
+  }).catch(() => {}).then(() => { lbThBusy.delete(f); });
+}
+/* <img> מפוענח ששמור בזיכרון לפי כתובת — עובר מציור לציור בלי להיטען מחדש ובלי פריים ריק (כמו thumbEl בבית) */
+const lbEls = new Map();
+function lbImgEl(u) {
+  let im = lbEls.get(u);
+  if (!im) {
+    im = new Image(); im.alt = ''; im.decoding = /^data:/.test(u) ? 'sync' : 'async'; im.referrerPolicy = 'no-referrer'; im.src = u;
+    im.addEventListener('error', () => { im.remove(); lbEls.delete(u); });
+    lbEls.set(u, im);
+    if (lbEls.size > 48) lbEls.delete(lbEls.keys().next().value);
+  }
+  return im;
+}
+function lbImgWarm(u) { try { return lbImgEl(u).decode().catch(() => {}); } catch (e) { return Promise.resolve(); } }
+/* החימום: פעם אחת בסשן, כש־Drive מחובר */
+let lbWarmed = false;
+function lbWarm() {
+  if (lbWarmed || !libTabOk() || !store.drive || !store.drive.connected) return;
+  lbWarmed = true;
+  lbSnapLoad().then(() => {
+    if (!lb.busy && !lb.live && Date.now() - lb.at > LB_SNAP_TTL) lbLoad();
+    return Promise.all(lbCards().slice(0, LB_WARM).filter((c) => c.th).map((c) => lbImgWarm(c.th)));
+  }).catch(() => {});
+}
+function lbWarmSoon() {
+  if (lbWarmed || typeof setTimeout === 'undefined') return;
+  const go2 = () => lbWarm();
+  if (typeof requestIdleCallback === 'function') setTimeout(() => requestIdleCallback(go2, { timeout: 4000 }), 1500); else setTimeout(go2, 2500);
+}
 const libTabOk = () => driveOk();
 /* המניפסט כמו שהעובד כותב אותו (translator/job.py lib_manifest) — רק השדות המוכרים, בגבולות */
 export function normLibMan(m) {
@@ -7105,9 +7198,12 @@ export function normLibMan(m) {
 }
 async function lbLoad() {
   const seq = ++lb.seq;
-  lb.busy = true; lbPaint();
+  lb.busy = true; lb.tAt = Date.now(); lbPaint();
+  // הפוסטרים של Drive והמד — במקביל לרשימה (עד 23/11 — רק אחרי כל המניפסטים)
+  net.libThumbs().then((L) => { if (seq !== lb.seq) return; const m = new Map(); for (const v of L) { const c = m.get(v.parent); if (!c || (v.r === 'b' && c.r !== 'b' && v.th)) m.set(v.parent, { th: v.th, dur: v.dur, r: v.r }); } lb.th = m; lb.thAt = Date.now(); lbPaint(); lbSnapSave(); }).catch(() => {});
+  net.driveQuota().then((q) => { if (seq === lb.seq) { lb.quota = q; lbPaint(); lbSnapSave(); } }).catch(() => {});
   try {
-    const [r, o] = await Promise.all([net.libList(), net.libList({ old: true }).catch(() => ({ files: [] }))]);
+    const [r, o] = await Promise.all([net.libList(), net.libList({ old: true }).catch(() => ({ files: [] })), lbSnapLoad()]);
     if (seq !== lb.seq) return;
     const fresh = r.files.filter((x) => !lb.man.has(x.id + ':' + x.at));
     for (let i = 0; i < fresh.length; i += 6) {   // שש בכל פעם — לא מאה בקשות במקביל
@@ -7116,17 +7212,15 @@ async function lbLoad() {
     }
     lb.items = r.files.map((x) => ({ id: x.id, folder: x.parent, at: x.at, m: lb.man.get(x.id + ':' + x.at) })).filter((x) => x.m);
     lb.old = o.files.filter((x) => /^video\//.test(x.type));
-    lb.st = 'ok';
-    // הפוסטרים והמד — אחרי שהרשת כבר מצוירת (בלעדיהם: פוסטר בצבע הסוג)
-    net.libThumbs().then((L) => { if (seq !== lb.seq) return; const m = new Map(); for (const v of L) { const c = m.get(v.parent); if (!c || (v.r === 'b' && c.r !== 'b' && v.th)) m.set(v.parent, v); } lb.th = m; lbPaint(); }).catch(() => {});
-    net.driveQuota().then((q) => { if (seq === lb.seq) { lb.quota = q; lbPaint(); } }).catch(() => {});
+    lb.st = 'ok'; lb.at = Date.now();
+    lbSnapSave();
   } catch (e) {
     if (seq !== lb.seq) return;
     const c = e && e.code;
     lb.err = (String(c || (e && e.name) || 'err') + (e && e.detail ? ' · ' + e.detail : !c && e && e.message ? ' · ' + e.message : '')).slice(0, 110);   // קוד קצר על המסך — בלי פרטים אישיים
     if (typeof console !== 'undefined') console.warn('studio lib load', e);
     lb.st = c === 'not_connected' || c === 'revoked' || c === 'not_allowed' ? 'conn' : lb.st === 'ok' ? 'ok' : 'err';
-  } finally { if (seq === lb.seq) { lb.busy = false; lbPaint(); } }
+  } finally { if (seq === lb.seq) { lb.busy = false; lb.live = true; lbPaint(); } }
 }
 const LIB_KIND_ICO = { tr: 'trans', ka: 'note', vi: 'lect' };
 const lbKindT = (k) => (k === 'ka' ? T('studioLibKKa') : k === 'vi' ? T('studioLibKVi') : T('studioLibKTr'));
@@ -7135,7 +7229,8 @@ export const libLangTag = (m) => (m.k === 'ka' ? '♪' : m.to.length ? (m.fr ? m
 /* הפוסטר 16:9 — התמונה הממוזערת של Drive, ובלעדיה צבע הסוג; על הפוסטר: שפות למעלה, משך למטה (לפי הציור שאושר) */
 function lbPoster(o) {
   const ps = h('div', 'st-lp k-' + (o.k || 'f') + (o.big ? ' big' : ''));
-  if (o.th) {
+  if (o.th && !o.big) { const im = lbImgEl(o.th); ps.append(im.parentNode && !im.isConnected ? im.cloneNode() : im); }   // אותה תמונה בשני כרטיסים באותו ציור — עותק   // 23/11/2026: אותו <img> מפוענח מציור לציור — בלי הבהוב בכל ריענון
+  else if (o.th) {
     const im = h('img'); im.alt = ''; im.decoding = 'async'; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer';
     im.addEventListener('error', () => im.remove());
     im.src = o.th; ps.append(im);
@@ -7229,7 +7324,7 @@ function lbOldMenu(at, x) {
 }
 function lbOldDel(x) {
   const go2 = async () => {
-    try { await net.driveTrash(x.id); lb.old = lb.old.filter((y) => y.id !== x.id); lbPaint(); flashSafe(T('studioVidsDelDone')); } catch (e) { flashSafe(T('studioVidsErr')); }
+    try { await net.driveTrash(x.id); lb.old = lb.old.filter((y) => y.id !== x.id); lbPaint(); lbSnapSave(); flashSafe(T('studioVidsDelDone')); } catch (e) { flashSafe(T('studioVidsErr')); }
   };
   if (typeof askConfirm === 'function') askConfirm(T('studioVidsDelQ', { n: bidiIso(fileTitle(x.name)) }), go2, { danger: true, ok: T('studioVidsDel') });
   else go2();
@@ -7243,7 +7338,7 @@ function lbCards() {
       const m = x.m;
       if (k === 'sh' ? !(m.d > 0 && m.d <= 60) : k && m.k !== k) continue;
       const tv = lb.th && lb.th.get(x.folder);
-      out.push({ at: m.at || x.at, key: 'lib:' + x.id, t: m.t || T('studioUntitled'), k: m.k, th: tv && tv.th, dur: m.d || (tv && tv.dur) || 0, lang: libLangTag(m), fr: libSrc(m.k, m.fr), to: m.to[0], tv: m.tv,
+      out.push({ at: m.at || x.at, key: 'lib:' + x.id, t: m.t || T('studioUntitled'), k: m.k, th: lbThumbOf(x), dur: m.d || (tv && tv.dur) || 0, lang: libLangTag(m), fr: libSrc(m.k, m.fr), to: m.to[0], tv: m.tv,
         meta: lbKindT(m.k) + ' · ' + fmtDay(m.at || x.at), onClick: () => go('litem', x.id), menu: (at) => lbItemMenu(at, x) });
     }
     if (!k) for (const r of store.jobs) {
@@ -7270,6 +7365,11 @@ function lbMeter() {
   w.append(bar, h('small', null, T('studioLibStore', { a: fmtSize(mine), u: fmtSize(q.used), l: fmtSize(q.limit) })));
   return w;
 }
+function lbSkel() {
+  const g = h('div', 'st-lgrid st-lsk'); g.setAttribute('aria-busy', 'true');
+  for (let i = 0; i < 4; i++) { const c = h('div', 'st-lc'); c.append(h('div', 'st-lp'), h('span', 'st-lsk-t'), h('span', 'st-lsk-m')); g.append(c); }
+  return g;
+}
 function pageLib(p) {
   p.append(navBar({ back: T('studioBack'), title: T('studioLibT'), coll: true }), large(T('studioLibT')));
   if (!driveOk()) { p.append(h('div', 'st-empty st-empty-sm', T('studioDriveNoCfg'))); return; }
@@ -7279,7 +7379,8 @@ function pageLib(p) {
     p.append(b);
     return;
   }
-  if (!lb.st && !lb.busy) lbLoad();
+  if (!lb.busy && (!lb.live || Date.now() - lb.tAt > LB_SNAP_TTL)) lbLoad();   // יש תמונת מצב — מצוירת, והרענון ברקע
+  else if (!lb.st) lbSnapLoad().then(() => { if (lb.st) lbPaint(); });
   const chips = h('div', 'st-chips'); chips.setAttribute('role', 'tablist');
   const lbl = { '': T('studioLibAll'), tr: T('studioLibKTr'), ka: T('studioLibKKa'), vi: T('studioLibKVi'), sh: T('studioLibKSh'), f: T('studioLibKF') };
   for (const k of LIB_CHIPS) {
@@ -7294,7 +7395,7 @@ function pageLib(p) {
     p.append(lbFixable() ? lbFix() : btn('st-btn wide', T('studioLibRetry'), lbLoad, 'lib-retry'));
     return;
   }
-  if (!lb.st) { p.append(h('div', 'st-empty st-empty-sm', T('studioPlLoading'))); return; }
+  if (!lb.st) { p.append(lbSkel()); return; }   // 23/11/2026: בלי תמונת מצב (פתיחה ראשונה) — שלד של הרשת, לא "טוען את הסרטון…"
   const cards = lbCards();
   if (!cards.length) p.append(h('div', 'st-empty st-empty-sm', T('studioLibEmpty')));
   else {
@@ -7393,20 +7494,19 @@ function pageLibItem(p) {
   const it = lbItem(ui.param);
   if (!it) {   // רענון בדף — הרשימה נטענת, ואז הדף מצויר שוב
     p.append(navBar({ back: T('studioLibT') }));
-    if (lb.st === 'ok' && !lb.busy) { back(); return; }
+    if (lb.st === 'ok' && !lb.busy && lb.live) { back(); return; }
     if (!lb.busy) lbLoad();
     p.append(h('div', 'st-empty st-empty-sm', T('studioPlLoading')));
     return;
   }
   const m = it.m, rec = m.job ? jobRec(m.job) : null, live = !!(rec && canPlay(rec));
-  const tv = lb.th && lb.th.get(it.folder);
   p.classList.add('st-litem');
   const hero = h('div', 'st-lib-hero');
   if (lp && lp.id === it.id) {
     if (lp.st === 'ok') hero.append(lp.ctl.el);
     else if (lp.st === 'err') hero.append(lpErr(it));
     else hero.append(h('div', 'st-pl-ph', T('studioPlLoading')));
-  } else hero.append(lbPoster({ k: m.k, th: tv && tv.th, big: true }));
+  } else hero.append(lbPoster({ k: m.k, th: lbThumbOf(it), big: true }));
   const bk = btn('st-lib-back', null, back, 'nav-back'); bk.setAttribute('aria-label', T('studioLibT')); bk.append(ico('back'));
   hero.append(bk);
   p.append(hero);
@@ -7447,7 +7547,7 @@ function lbDel(it) {
   const home = !!(lv && lv.m === it.id && lv.home);   // העבודה כבר מנגנת מהקבצים שבתיקייה (העותק ב־R2 פג)
   const go2 = async () => {
     try { await net.driveTrash(it.folder); } catch (e) { flashSafe(T('studioVidsErr')); return; }
-    lb.items = lb.items.filter((x) => x.id !== it.id); flashSafe(T('studioVidsDelDone'));
+    lb.items = lb.items.filter((x) => x.id !== it.id); lbSnapSave(); flashSafe(T('studioVidsDelDone'));
     if (ui.view === 'litem') back(); else lbPaint();   // 18/11/2026: גם מהתפריט ברשת — שם נשארים
     // העבודה מתנתקת מהפריט (libDrop): דף העבודה חוזר ל"הוספה לספרייה", והיא לא תעבור לקבצים שבפח כשהעותק ב־R2 יפוג
     if (m.job && !home) net.api('libDrop', { job: m.job, m: it.id }).then((j) => { const r = jobRec(m.job); if (r && j && j.ok && j.job) { r.srv = normJob({ id: r.id, srv: j.job }).srv; save(); repaint(); } }).catch(() => {});
@@ -7512,7 +7612,7 @@ function libBtn(rec, pair) {
     if (st + ':' + pc === key) return;
     key = st + ':' + pc;
     if (!st) { w.replaceChildren(); return; }
-    if (st === 'in') { const b = btn(pair ? 'st-btn tint' : 'st-btn wide tint', null, () => { lb.st = ''; go('litem', lv.m); }, 'lib-in'); b.append(lbl('check', T('studioLibIn'))); w.replaceChildren(b); return; }
+    if (st === 'in') { const b = btn(pair ? 'st-btn tint' : 'st-btn wide tint', null, () => { lb.live = false; go('litem', lv.m); }, 'lib-in'); b.append(lbl('check', T('studioLibIn'))); w.replaceChildren(b); return; }
     const b = btn(pair ? 'st-btn tint' : 'st-btn wide', null, () => libAdd(jobRec(rec.id) || rec), 'lib-add');
     if (st === 'run') { b.disabled = true; b.textContent = pc >= 0 ? (pair ? T('studioLibRunS', { p: pc }) : T('studioLibRun', { p: pc })) : T('studioDxBusy'); }
     else b.textContent = T('studioLibSave');   // המשתמש: "שהשם של הלחצן יהיה שמירה לספרייה" — גם בזוג; טקסט בלבד כמו "צפייה" (כך שניהם נכנסים ברוחב שווה)
