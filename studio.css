@@ -1571,3 +1571,9 @@ html.st-dock .toast { bottom: calc(var(--dock-pad, var(--dock-h, 120px)) + 12px 
 .st-qgo-r span,.st-qgo-t span{font-size:.88em;color:var(--on-surface-var)}
 .st-qgo-t{display:flex;flex-direction:column;gap:3px;padding-top:10px;color:var(--on-surface)}
 .st-qgo-t .st-qgo-over{color:var(--loss)}
+/* 23/11/2026: שלד הספרייה בפתיחה הראשונה (בלי תמונת מצב) — באותן מידות של הכרטיס, בלי קפיצה כשהרשת מגיעה */
+.st-lsk .st-lp { animation: st-lsk 1.4s ease-in-out infinite; }
+.st-lsk-t, .st-lsk-m { display: block; margin-top: 8px; block-size: 12px; inline-size: 85%; border-radius: var(--radius-xs); background: var(--gl-fill); }
+.st-lsk-m { margin-top: 6px; inline-size: 45%; block-size: 10px; }
+@keyframes st-lsk { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .st-lsk .st-lp { animation: none; } }
