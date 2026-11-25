@@ -488,6 +488,7 @@ he: {
   anPxRowS: 'המחיר האמיתי: {p} · ערך עם נקודה כתומה מחושב לפי המחיר החדש',
   anPxBack: 'החזר',
   stPxEx: 'השווי, הרווח, המשקל בתיק והסקירה יחושבו לפי המחיר הזה. המחיר האמיתי: {p}. המחיר לא נשמר — בפתיחה מחדש של האפליקציה הכל חוזר לאמיתי.',
+  stPxExW: 'המרחק מהשיא, משיא ומשפל 52 השבועות והשינוי מתחילת השנה יחושבו לפי המחיר הזה. המחיר האמיתי: {p}. המחיר לא נשמר — בפתיחה מחדש של האפליקציה הכל חוזר לאמיתי.',
   stPxRowT: '{s} במחיר {p}',
   stPxRowS: 'המחיר האמיתי: {p}',
   stPxRowN: 'מחיר לבדיקה: {s}',
@@ -2513,6 +2514,7 @@ en: {
   anPxRowS: 'Real price: {p} · values with an orange dot use the new price',
   anPxBack: 'Reset',
   stPxEx: 'Value, gain, portfolio weight and the overview will use this price. Real price: {p}. The price is not saved — reopening the app brings back the real one.',
+  stPxExW: 'Distance from the high, the 52-week high and low and the year-to-date change will use this price. Real price: {p}. The price is not saved — reopening the app brings back the real one.',
   stPxRowT: '{s} at {p}',
   stPxRowS: 'Real price: {p}',
   stPxRowN: 'Test price: {s}',
@@ -10940,7 +10942,7 @@ function metrics(sym, real) {
   const p = POSITIONS.find((x) => x.sym === sym);
   const q = state.quotes[sym];
   const price0 = q ? q.close : null;
-  const ov = real || !p ? null : pxOvr(sym);   // real — חיפוש/ווידג'ט: תמיד המחיר האמיתי
+  const ov = real ? null : pxOvr(sym);   // real — חיפוש/ווידג'ט: תמיד המחיר האמיתי; גם מניה במעקב בלבד (25/11/2026)
   const price = ov !== null ? ov : price0;
   const hist = state.hist[sym] || [];
   let dayChg = null;
@@ -18512,7 +18514,7 @@ function stockSubHTML(p, m) {
   // 18/11/2026: "היום" רק בזמן יום המסחר; מתחילת המסחר הלילי ועד הפתיחה — "אתמול" / שם היום (sessionDayLabel)
   // 25/11/2026: מחיר לבדיקה — במקום השינוי היומי "במקום $X" בכתום (כמו בניתוח), וכל נתון שנגזר ממנו עם נקודה כתומה
   const dot = m.ovr ? PX_DEP : '';
-  let html = m.ovr && !(p && p.watch) ? '<span class="day-chg px-was">' + esc(t('anPxWas', { p: fmtPx(m.price0, p.sym) })) + '</span>'
+  let html = m.ovr ? '<span class="day-chg px-was">' + esc(t('anPxWas', { p: fmtPx(m.price0, p.sym) })) + '</span>'
     : '<span class="day-chg ' + cls(day) + '">' + (day === null ? '—' : esc(sessionDayLabel(p && p.sym)) + ' ' + fmtPct(day, true) + dayAmtHTML) + '</span>';
   if (p && p.watch) { // v240: מעקב — בלי שווי/רווח; ההערה (אם יש) במקום השווי
     if (p.note) return html + '<span class="sub-val wl-sub-note"><span class="wl-note-txt">' + esc(p.note) + '</span></span>';
@@ -18520,7 +18522,7 @@ function stockSubHTML(p, m) {
     // 19/11/2026 (בקשת המשתמש): בלי מחיר השיא (הוא בכרטיס הפתוח) — "מהשיא −93.93%", כדי שלא יעלה על גלולת היום
     const off = m.ath && m.offAth !== null && isFinite(m.offAth) ? (Math.abs(m.offAth) < 0.005 ? 0 : m.offAth) : null;
     return html + '<span class="sub-val wl-ath">' + (off === null ? '' : '<span class="sub-lbl">' + esc(t('subAthLbl')) + '</span> ' +
-      '<span class="wl-ath-pct ' + cls(off) + '">' + fmtPct(off, true) + '</span>') + '</span>';
+      '<span class="wl-ath-pct ' + cls(off) + '">' + dot + fmtPct(off, true) + '</span>') + '</span>';
   }
   // 18/11/2026 (בקשת המשתמש): תווית משנית לפני הנתון — "שווי" / "שינוי" (ת־עיצוב: תווית אפורה קטנה, הנתון בולט)
   html += '<span class="sub-val"><span class="sub-lbl">' + esc(t('subValLbl')) + '</span> ' + dot + (m.value === null ? '—' : money(toCur(m.value), cur)) + '</span>'; // 2.184.1: בלי החץ ▾ ליד השווי (בקשת המשתמש)
@@ -18559,7 +18561,7 @@ function stockHeadHTML(p, m) {
       : p.mtSh > 0 ? '<span class="src-stack">' + srcTagHTML(positionSource(p), p.accts) + srcTagHTML('manual') + '</span>' : srcTagHTML(positionSource(p), p.accts)) +
     // 25/11/2026 (בקשת המשתמש, צילום): העיפרון של "מחיר לבדיקה" צמוד למחיר מימין (בין התגיות למחיר), בעיצוב של הניתוח —
     // עיגול זכוכית קטן עם אזור לחיצה של 44px (::after). בתוך כפתור הכותרת, ולכן span (כפתור בתוך כפתור אסור) — הלחיצה נתפסת בכותרת
-    (!p.watch && m.price0 > 0 ? '<span class="px-pen' + (m.ovr ? ' on' : '') + '" role="button" aria-label="' + esc(t('anPxEdit')) + '" title="' + esc(t('anPxEdit')) + '" aria-pressed="' + m.ovr + '">' + PX_PEN_SVG + '</span>' : '') +
+    (m.price0 > 0 ? '<span class="px-pen' + (m.ovr ? ' on' : '') + '" role="button" aria-label="' + esc(t('anPxEdit')) + '" title="' + esc(t('anPxEdit')) + '" aria-pressed="' + m.ovr + '">' + PX_PEN_SVG + '</span>' : '') +
     '<span class="stock-price' + stockPriceSizeCls(priceTxt) + (m.ovr ? ' px-ovr' : '') + '" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span>' +
     '</span>' +
     '<span class="sh-r2"><span class="stock-name">' + esc(companyName(p.sym, p.name) || p.name) + '</span>' + // v201: שם החברה, לא הסימבול פעמיים
@@ -18617,25 +18619,27 @@ function watchKvHTML(p, m) {
   if (hist.length) {
     const from = addDaysISO(todayISO(), -365);
     for (const r of hist) if (r.date >= from && r.close > 0) { if (hi === null || r.close > hi) hi = r.close; if (lo === null || r.close < lo) lo = r.close; }
-    if (m.price > 0) { if (hi !== null && m.price > hi) hi = m.price; if (lo !== null && m.price < lo) lo = m.price; }
+    const p0 = m.price0 > 0 ? m.price0 : m.price;   // הטווח — רק ממחיר אמיתי (לא ממחיר לבדיקה)
+    if (p0 > 0) { if (hi !== null && p0 > hi) hi = p0; if (lo !== null && p0 < lo) lo = p0; }
   }
   const off = (ref) => (ref > 0 && m.price > 0 ? (m.price / ref - 1) * 100 : null);
   let ytd = null;
   if (hist.length) {
     try {
       const rr = stockRangeRows(stockChartRows(hist, q), 'ytd', null, exchangeTodayIso(sym));
-      if (rr && rr.length >= 2 && rr[0].close > 0) ytd = (rr[rr.length - 1].close / rr[0].close - 1) * 100;
+      if (rr && rr.length >= 2 && rr[0].close > 0) ytd = ((m.ovr ? m.price : rr[rr.length - 1].close) / rr[0].close - 1) * 100;   // מחיר לבדיקה — מתחילת השנה עד אליו
     } catch (e) {}
   }
+  const dot = m.ovr ? PX_DEP : '';   // 25/11/2026: מחיר לבדיקה — נקודה כתומה ליד מה שנגזר ממנו
   const er = (state.earnings || {})[sym];
   const erTxt = er && er.date && daysUntil(er.date) >= 0 ? fmtDateIL(er.date) : '—';
   const oH = off(hi), oL = off(lo);
   return kvHTML(t('kvPrevClose'), prevClose ? fmtPx(prevClose, sym) : '—') +
-    kvHTML(t('kv52High'), hi ? fmtPx(hi, sym) : wait, '', oH !== null ? fmtPct(oH, true) : KV_SUB_HOLD, cls(oH)) +
-    kvHTML(t('kv52Low'), lo ? fmtPx(lo, sym) : wait, '', oL !== null ? fmtPct(oL, true) : KV_SUB_HOLD, cls(oL)) +
+    kvHTML(t('kv52High'), hi ? fmtPx(hi, sym) : wait, '', oH !== null ? dot + fmtPct(oH, true) : KV_SUB_HOLD, cls(oH)) +
+    kvHTML(t('kv52Low'), lo ? fmtPx(lo, sym) : wait, '', oL !== null ? dot + fmtPct(oL, true) : KV_SUB_HOLD, cls(oL)) +
     kvHTML('ATH', m.ath ? fmtPx(m.ath.price, sym) : wait, '',
-      m.ath && m.offAth !== null && isFinite(m.offAth) ? fmtPct(m.offAth, true) : KV_SUB_HOLD, cls(m.offAth)) +
-    kvHTML(t('kvYtd'), ytd === null ? wait : fmtPct(ytd, true), cls(ytd)) +
+      m.ath && m.offAth !== null && isFinite(m.offAth) ? dot + fmtPct(m.offAth, true) : KV_SUB_HOLD, cls(m.offAth)) +
+    kvHTML(t('kvYtd'), ytd === null ? wait : dot + fmtPct(ytd, true), cls(ytd)) +
     kvHTML(t('kvNextEarn'), erTxt);
 }
 // v273: עדכון אריחי הכרטיס במקום — אריח שהיה ריק ("—"/"…") ומקבל ערך נכנס בדהייה, לא קופץ
@@ -18690,7 +18694,7 @@ function buildStockBody(p, m) {
   const wrap = el('div', 'stock-body-in'); // v193: עוטף יחיד — הגוף נפתח/נסגר באנימציית גובה (grid-template-rows)
 
   // 25/11/2026: מחיר לבדיקה — השורה "מה שונה" עם "החזר" בראש הכרטיס הפתוח
-  const er = p.watch ? null : pxEdRowEl([sym], true);
+  const er = pxEdRowEl([sym], true);   // גם במעקב
   if (er) wrap.appendChild(er);
   const grid = el('div', 'kv-grid');
   grid.innerHTML = kvGridHTML(p, m);
@@ -18923,12 +18927,17 @@ function pxEdRowEl(syms, card) {
 /* החלה/החזרה (v=null) — ומציירים מחדש את מה שתלוי במחיר: הכותרות של כל הכרטיסים (משקל, שווי), הכרטיס הפתוח והסקירה */
 function pxApply(syms, v) {
   for (const s of syms) setPxOvr(s, v);
-  try { renderLive(POSITIONS.map((x) => x.sym)); } catch (e) {}
+  try { renderLive([...new Set(POSITIONS.map((x) => x.sym).concat(syms))]); } catch (e) {}
   for (const s of syms) {
-    if (state.open[s]) { try { refreshStockBody(s); } catch (e) {} continue; }
-    // כרטיס סגור — הגוף נבנה מחדש (בלי הגרף) כדי שבפתיחה לא תישאר שורת "החזר" ישנה או עיפרון במצב הקודם
-    const card = typeof stockCardEl === 'function' ? stockCardEl(s) : null, p = card && stockItemFor(s, card), body = card && card.querySelector('.stock-body');
-    if (p && body) { try { body.innerHTML = ''; body.appendChild(buildStockBody(p, metrics(s))); } catch (e) {} }
+    if (state.open[s]) { try { refreshStockBody(s); } catch (e) {} }
+    // שאר הכרטיסים של המניה (בתיק ובמעקב) — הגוף נבנה מחדש (בלי הגרף) כדי שבפתיחה לא תישאר שורת "החזר" ישנה
+    const open = state.open[s] && typeof stockCardEl === 'function' ? stockCardEl(s) : null;
+    const cards = typeof document !== 'undefined' && document.querySelectorAll ? document.querySelectorAll('.stock[data-sym="' + s + '"]') : [];
+    for (const card of cards) {
+      if (card === open) continue;
+      const p = stockItemFor(s, card), body = card.querySelector('.stock-body');
+      if (p && body) { try { body.innerHTML = ''; body.appendChild(buildStockBody(p, metrics(s))); } catch (e) {} }
+    }
   }
   try { renderOverview(); } catch (e) {}
 }
@@ -18955,7 +18964,8 @@ function openPxSheet(sym) {
     '<button class="btn px-apply" type="submit"></button></form><p class="form-err hidden"></p>' +
     (cur !== null ? '<button class="link-btn px-real" type="button"></button>' : '');
   sh.querySelector('.px-sheet-t').textContent = t('anPxT') + ' · ' + dispSym(sym);
-  sh.querySelector('.px-sheet-ex').textContent = t('stPxEx', { p: fmtPx(q.close, sym) });
+  const held = POSITIONS.some((x) => x.sym === sym);   // מניה במעקב בלבד — אין שווי/משקל, רק מה שנגזר מהמחיר במעקב
+  sh.querySelector('.px-sheet-ex').textContent = held ? t('stPxEx', { p: fmtPx(q.close, sym) }) : t('stPxExW', { p: fmtPx(q.close, sym) });
   const unit = pxUnit(sym);
   sh.querySelector('.px-cur').textContent = unit;
   const inp = sh.querySelector('.px-in');

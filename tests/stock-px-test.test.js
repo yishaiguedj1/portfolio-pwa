@@ -94,6 +94,21 @@ ok(/\.sh-r1 \.src-stack \{[^}]*flex-direction: column/.test(css), 'העמודה 
 ok(/--px-ed-fill/.test(css) && /\[data-theme="dark"\] \{ --px-ed/.test(css), 'צבעי הכתום — בהיר וכהה');
 ok(/\.px-edrow-b/.test(gb) && /\.px-pen\.on/.test(gb) && /\.an-pxed, \.px-pen,/.test(gb), 'הכפתורים מסווגים בכפתורי הזכוכית (כתום)');
 ok(/id="ovPxRow"/.test(html), 'מקום לשורה "מה שונה" בראש הסקירה');
-for (const k of ['stPxEx', 'stPxRowT', 'stPxRowS', 'stPxRowN', 'stPxRowNS']) ok(A('STRINGS').he[k] && A('STRINGS').en[k], 'מחרוזת ' + k + ' בעברית ובאנגלית');
+for (const k of ['stPxEx', 'stPxExW', 'stPxRowT', 'stPxRowS', 'stPxRowN', 'stPxRowNS']) ok(A('STRINGS').he[k] && A('STRINGS').en[k], 'מחרוזת ' + k + ' בעברית ובאנגלית');
+
+// --- 9. רשימת מעקב (בקשת המשתמש) — אותו מחיר לבדיקה, על הנתונים של המעקב ---
+run(`state.quotes.WWW = { close: 100, regClose: 100 }; state.hist.WWW = [{ date: '2026-01-02', close: 200 }, { date: '2026-06-01', close: 80 }, { date: '2026-11-24', close: 100 }];`);
+A('setPxOvr')('WWW', 120);
+const wm = A('metrics')('WWW');
+ok(wm.ovr === true && wm.price === 120 && wm.price0 === 100 && !wm.p, 'מניה במעקב בלבד: המחיר לבדיקה ב־metrics');
+ok(A('pxOvrSyms')().indexOf('WWW') < 0 && near(A('totalsUSD')().stockVal, 1500 + 1000 + 125 * 91), 'מניה במעקב בלבד לא משנה את התיק ואת הסקירה');
+const wi = { sym: 'WWW', name: 'W', watch: true };
+const wh = A('stockHeadHTML')(wi, wm), wkv = A('kvGridHTML')(wi, wm);
+ok(/px-pen on/.test(wh) && /stock-price[^"]*px-ovr/.test(wh) && /day-chg px-was/.test(wh), 'כרטיס מעקב: עיפרון, מחיר כתום ו"במקום"');
+ok(/wl-ath-pct[^>]*>(<[^>]*>)*<i class="px-dep"/.test(wh) || /px-dep/.test(wh), 'כרטיס מעקב: נקודה ליד "מהשיא"');
+ok((wkv.match(/px-dep/g) || []).length >= 4, 'אריחי המעקב: שיא/שפל 52 שבועות, ATH ומתחילת השנה מסומנים');
+ok(wkv.includes('$200.00') && wkv.includes('$80.00'), 'שיא ושפל — מהמחירים האמיתיים, לא מהמחיר לבדיקה');
+ok(/\.sh-r1 \.stock-sym:has\(\+ \.px-pen\) \{|\.sh-r1 \.stock-sym:has\(\+ \.px-pen\)[, ]/.test(css), 'מעקב: המחיר נשאר בקצה גם כשהעיפרון בין הסימבול למחיר');
+A('setPxOvr')('WWW', null);
 
 console.log('\n' + n + ' בדיקות עברו');
