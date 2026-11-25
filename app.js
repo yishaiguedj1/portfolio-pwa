@@ -8482,8 +8482,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.210.0';
-const APP_VERSION = 'v891';
+const APP_RELEASE = '2.210.1';
+const APP_VERSION = 'v892';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -10104,6 +10104,8 @@ function renderLive(syms) {
     fresh.innerHTML = stockHeadHTML(p, m);
     const pa = card.querySelector('.stock-head .stock-price'), pb = fresh.querySelector('.stock-price');
     if (pa && pb) { pa.classList.toggle('px-ovr', pb.classList.contains('px-ovr')); livePriceSwap(pa, pb); }
+    const na = card.querySelector('.stock-head .px-pen'), nb = fresh.querySelector('.px-pen');   // העיפרון: מופיע/נעלם/מתמלא בכתום
+    if (na && nb) { na.className = nb.className; na.setAttribute('aria-pressed', nb.getAttribute('aria-pressed')); } else if (nb && pa) pa.before(nb); else if (na) na.remove();
     for (const cls of ['.stock-sub', '.stock-ext']) {
       const sa = card.querySelector('.stock-head ' + cls), sb = fresh.querySelector(cls);
       if (sa && sb && sa.innerHTML !== sb.innerHTML) sa.innerHTML = sb.innerHTML;
@@ -18555,7 +18557,11 @@ function stockHeadHTML(p, m) {
     // 25/11/2026 (בקשת המשתמש): מניה משני מקורות — תגית "ידני" מתחת ללוגו של IBKR (עמודה אחת), לא ליד המחיר
     '<span class="sh-r1"><span class="stock-sym"><bdi dir="ltr">' + esc(dispSym(sym)) + '</bdi></span>' + (p.watch ? ''
       : p.mtSh > 0 ? '<span class="src-stack">' + srcTagHTML(positionSource(p), p.accts) + srcTagHTML('manual') + '</span>' : srcTagHTML(positionSource(p), p.accts)) +
-    '<span class="stock-price' + stockPriceSizeCls(priceTxt) + (m.ovr ? ' px-ovr' : '') + '" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span></span>' +
+    // 25/11/2026 (בקשת המשתמש, צילום): העיפרון של "מחיר לבדיקה" צמוד למחיר מימין (בין התגיות למחיר), בעיצוב של הניתוח —
+    // עיגול זכוכית קטן עם אזור לחיצה של 44px (::after). בתוך כפתור הכותרת, ולכן span (כפתור בתוך כפתור אסור) — הלחיצה נתפסת בכותרת
+    (!p.watch && m.price0 > 0 ? '<span class="px-pen' + (m.ovr ? ' on' : '') + '" role="button" aria-label="' + esc(t('anPxEdit')) + '" title="' + esc(t('anPxEdit')) + '" aria-pressed="' + m.ovr + '">' + PX_PEN_SVG + '</span>' : '') +
+    '<span class="stock-price' + stockPriceSizeCls(priceTxt) + (m.ovr ? ' px-ovr' : '') + '" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span>' +
+    '</span>' +
     '<span class="sh-r2"><span class="stock-name">' + esc(companyName(p.sym, p.name) || p.name) + '</span>' + // v201: שם החברה, לא הסימבול פעמיים
     '<span class="stock-ext">' + extSessionHTML(m.q, m) + '</span></span></span>' +
     '<span class="stock-sub">' + stockSubHTML(p, m) + '</span>';
@@ -18570,7 +18576,10 @@ function buildStockCard(p) {
   const head = el('button', 'stock-head');
   head.type = 'button';
   head.innerHTML = stockHeadHTML(p, m);
-  head.addEventListener('click', () => toggleStock(sym, card));
+  head.addEventListener('click', (e) => {
+    if (e && e.target && e.target.closest && e.target.closest('.px-pen')) { e.stopPropagation(); openPxSheet(sym); return; }   // 25/11/2026: העיפרון שליד המחיר
+    toggleStock(sym, card);
+  });
   // v273: הנתונים לגרף מתחילים להיטען כבר בנגיעה (לפני שהאצבע עוזבת) — בפתיחה הם כבר כמעט תמיד מוכנים
   head.addEventListener('pointerdown', () => { if (!state.open[sym]) chartPrefetch(sym); }, { passive: true });
   card.appendChild(head);
@@ -18775,7 +18784,6 @@ function buildStockBody(p, m) {
     const actions = el('div', 'edit-actions stock-edit');
     if (anOk) actions.appendChild(analysisBtn(sym));
     actions.appendChild(alertBtn(sym));
-    if (!p.watch && m && m.price0 > 0) actions.appendChild(pxEdBtn(sym));   // 25/11/2026: מחיר לבדיקה
     // 28/10/2026 (בקשת המשתמש): כפתור "ערוך" הוסר מהכרטיס (העריכה — ממצב "עריכה" שבראש הרשימה)
     actions.appendChild(chartBtn(sym));   // 28/10/2026 (בקשת המשתמש): הגדלת הגרף תמיד בקצה השמאלי של הכפתורים
     foot.appendChild(actions);
@@ -18783,7 +18791,6 @@ function buildStockBody(p, m) {
     const actions = el('div', 'edit-actions stock-edit');
     if (anOk) actions.appendChild(analysisBtn(sym));
     actions.appendChild(alertBtn(sym));
-    if (!p.watch && m && m.price0 > 0) actions.appendChild(pxEdBtn(sym));   // 25/11/2026: מחיר לבדיקה
     actions.appendChild(chartBtn(sym));   // 28/10/2026 (בקשת המשתמש): הגדלת הגרף תמיד בקצה השמאלי של הכפתורים
     foot.appendChild(actions);
   }
@@ -18895,17 +18902,6 @@ function openStockAlertFor(sym, id) {
    ושורה אחת "מה שונה" עם "החזר" — בכרטיס ובראש הסקירה ---------- */
 const PX_DEP = '<i class="px-dep" aria-hidden="true"></i>';
 const PX_PEN_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/></svg>';
-function pxEdBtn(sym) {
-  const on = pxOvr(sym) !== null;
-  const b = el('button', 'chip-btn stock-ico-btn px-ed-btn' + (on ? ' on' : ''));
-  b.type = 'button';
-  b.innerHTML = PX_PEN_SVG;
-  b.setAttribute('aria-label', t('anPxEdit'));
-  b.setAttribute('aria-pressed', String(on));
-  b.title = t('anPxEdit');
-  b.addEventListener('click', (e) => { e.stopPropagation(); openPxSheet(sym); });
-  return b;
-}
 /* השורה "מה שונה": syms — המניות שהשורה מכסה (בכרטיס — אחת; בסקירה — כל מה ששונה). null כשאין שינוי */
 function pxEdRowEl(syms, card) {
   const ss = (syms || []).filter((x) => pxOvr(x) !== null);
