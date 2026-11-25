@@ -145,3 +145,75 @@
 - מודלים: [OmniVoice](https://github.com/k2-fsa/OmniVoice) · [שפות OmniVoice](https://github.com/k2-fsa/OmniVoice/blob/master/docs/languages.md) · [Chatterbox Multilingual](https://tech-now.io/en/blogs/chatterbox-multilingual-open-source-zero-shot-tts/) · [XTTS](https://www.voicepodai.com/guides/coqui-xtts) · [מודלים פתוחים 2026](https://texttolab.com/blog/open-source-text-to-speech) · [Qwen3-TTS](https://raw.githubusercontent.com/QwenLM/Qwen3-TTS/HEAD/README.md) · [CosyVoice 3](https://arxiv.org/html/2505.17589v2) · [RVC](https://en.wikipedia.org/wiki/Retrieval-based_Voice_Conversion) · [רישיונות שפתיים](https://www.creativeainews.com/articles/open-source-lip-sync-licenses-commercial-use-2026/) · [MuseTalk](https://sync.so/blog/what-is-musetalk)
 - מחקר מבטא: [בקרת מבטא בשיבוט חוצה־שפות](https://arxiv.org/pdf/2610.29351) · [IWSLT 2026](https://aclanthology.org/2026.iwslt-1.12.pdf) · [X-Voice](https://arxiv.org/html/2605.05611) · [RADTTS רב־מבטאי](https://arxiv.org/pdf/2301.10335)
 - חוק וזכויות: [ספוטיפיי — הגנות AI](https://newsroom.spotify.com/2025-09-25/spotify-strengthens-ai-protections/) · [TechCrunch על ספוטיפיי](https://techcrunch.com/2025/09/25/spotify-updates-ai-policy-to-label-tracks-cut-down-on-spam) · [NO FAKES 2026](https://www.manatt.com/insights/newsletters/client-alert/congress-reintroduces-the-no-fakes-act-what-s-new-in-the-2026-bill) · [ועדת המשפטים](https://hklaw.com/en/insights/publications/2026/06/senate-judiciary-committee-advances-legislation-to-protect-name) · [NO FAKES נבלם](https://www.dailyjournal.com/article/395055-no-fakes-act-dead-for-now-as-cruz-objects-to-unanimous-consent-request) · [SAG-AFTRA העתקים דיגיטליים](https://sagaftra.org/files/sa_documents/DigitalReplicas.pdf) · [טיוטת חוזה האנימציה 2026](https://www.loeb.com/en/insights/passle/2026/11/sagaftra-s-tentative-2026-television-animation-agreement) · [סעיף 50 — DLA Piper](https://www.dlapiper.com/en-gb/insights/publications/2026/08/the-eus-new-guidelines-on-ai-transparency) · [סעיף 50 — CSA](https://labs.cloudsecurityalliance.org/wp-content/uploads/2026/07/CSA_research_note_eu_ai_act_article_50_transparency_20260729-csa-styled-1.pdf) · [סעיף 50 — Greenberg Traurig](https://www.gtlaw.com/en/insights/2026/6/deepfakes-chatbots-ai-generated-text-european-commission-details-transparency-obligations-under-the-ai-act) · [תיקון 13 — ספריית הקונגרס](https://www.loc.gov/item/global-legal-monitor/2025-11-17/israel-amendment-to-privacy-protection-law-goes-into-effect/) · [תיקון 13 — IAPP](https://iapp.org/news/a/israel-marks-a-new-era-in-privacy-law-amendment-13-ushers-in-sweeping-reform) · [שיבוט ושירים — BTLJ](https://btlj.org/2025/06/from-training-data-to-ai-covers-the-legal-challenges-of-voice-cloning/) · [Suno/Udio](https://dcbar.org/news-events/publications/washington-lawyer-articles/the-sound-of-ai-litigating-the-future-of-music) · [Iconic Marketplace](https://the-decoder.com/elevenlabs-opens-a-marketplace-for-iconic-ai-voices/) · [שער הסכמה — Hugging Face](https://huggingface.co/blog/voice-consent-gate) · [Consumer Reports](https://innovation.consumerreports.org/new-report-do-these-6-ai-voice-cloning-companies-do-enough-to-prevent-misuse/)
+
+---
+
+# סבב 2 (25/11/2026): המערכת המתקדמת ביותר — עברית ← אנגלית בקול של היוצר
+המטרה שהמשתמש הגדיר: לדבב כל סרטון שיצר **מעברית לאנגלית** כך שהקול זהה אחד לאחד, ורק המבטא אנגלי טבעי; וגם מוצר ליוצרי תוכן אחרים. נבדק אם אפשר בחינם, אם אפשר מודל משלנו ובאיזו מורכבות, מה המתחרים בנו, כל הפרויקטים הפתוחים, והתאמה לעברית.
+**הערות המחקר המלאות** (חמישה סוכנים במקביל, עם מקורות; [V] = אומת במקור ראשוני):
+- `docs/research/voice-dub/01-competitors.md` — כ־25 מתחרים, מה ידוע על הארכיטקטורה שלהם, מי תומך בעברית.
+- `docs/research/voice-dub/02-open-source-pipelines.md` — כ־20 פרויקטים ב־GitHub, הצנרת של כל אחד, שיטות התזמון, צנרת מומלצת ב־13 שלבים.
+- `docs/research/voice-dub/03-open-models-licenses.md` — קטלוג מודלים (TTS, המרת קול, דיבור לדיבור, שפתיים, הפרדה) עם רישיון קוד ומשקולות.
+- `docs/research/voice-dub/04-build-own-model.md` — שלוש רמות "משלנו", עלויות אימון, נתונים מותרים, מחקר המבטא, הערכה, חינם.
+- `docs/research/voice-dub/05-hebrew.md` — ASR, שיבוט מעברית, TTS עברי וזירת ivrit.ai, ניקוד, נתונים, מפת מוכנות.
+
+## 8. התשובות הישירות
+**האם אפשר בחינם?** התוכנה — כן, לגמרי. יש היום שרשרת מלאה ברישיונות מסחריים חופשיים (Apache/MIT): מודלי קול עם עברית ואנגלית, המרת קול, הפרדה, שפתיים. **מה שעולה הוא כוח המחשוב.** מודל קול איכותי צריך GPU. במחשב אישי עם כרטיס NVIDIA — חינם לגמרי. בשרת שלנו (CPU) — רק מודלים קטנים, איטיים, וטעון מדידה. Kaggle ו־Colab בחינם רק לניסויים: התנאים של Kaggle אוסרים שימוש מסחרי. GPU בשכירות לפי דרישה: אומדן של 2 עד 10 סנט לדקת וידאו (4090 בכ־0.34–0.69$ לשעה). **כסף רק באישור.**
+
+**האם אפשר מודל משלנו לגמרי?** אפשרי, לא כדאי עכשיו.
+| רמה | מה זה | עלות ומאמץ | איכות |
+|---|---|---|---|
+| א. הרכבה | מחברים מודלים פתוחים בלי אימון | שבועות, GPU לפי שעה | טובה, מבטא לא תמיד נקי |
+| ב. התאמה אישית | אימון קצר על 20–60 דק׳ של הקול של היוצר (LoRA או המרת קול) | שעות GPU לכל יוצר (כמה דולרים) | **הכי קרוב ל"אחד לאחד"** |
+| ג. מאפס | אימון מודל TTS או המרת קול חוצה־שפות | ריצה אחת של מודל בסיס: כ־1,400 שעות A100, 2–3 אלף דולר; מודל רב־לשוני מלא: 30–150 אלף דולר וחודשים, רוב העבודה בהכנת נתונים | לא בהכרח טוב יותר ממה שכבר פתוח |
+ההמלצה: **א + ב**. רמה ג רק אם נגיע למצב שבו אין מודל פתוח מספיק טוב בעברית. הנכס הייחודי שכדאי לבנות במקום זה הוא **נתונים**: הקלטות של אותו דובר בעברית ובאנגלית, באישור. מאגר כזה לא קיים בכלל, ומאמר על עברית כמקור לדיבוב לא נמצא.
+
+**כמה זה מורכב?** הרכבה (א) של צנרת איכותית: 4–8 שבועות עבודה בגלים. כמעט כל השלבים שאינם הקול כבר קיימים אצלנו בסטודיו.
+
+## 9. מה כולם עושים, ומה אף אחד לא עושה טוב
+- **כל המתחרים בונים שרשרת:** הפרדה ← תמלול ודוברים ← תרגום ← TTS ← מיקס. השפתיים הן תמיד שכבה נפרדת ויקרה. עריכה אנושית של שורות היא סטנדרט אצל השחקנים המקצועיים.
+- ב־API של ElevenLabs חשופים `num_speakers`, `drop_background_audio`, `target_accent` (ניסיוני) ועוצמת דמיון 0–10. בתיעוד שלהם כתוב שדמיון גבוה מעביר יותר מהמבטא המקורי. כלומר **גם המוביל לא פתר את הדילמה "קול זהה ומבטא יליד".**
+- Deepdub היחידה שמוכרת בקרת מבטא כמוצר, ורק לאולפנים. הכיוון **עברית ← אנגלית לא קיים כמוצר באף מקום**, וגם RTL לא מטופל באף כלי פתוח. אין השוואת איכות עצמאית בעברית לאף שירות.
+- הפרויקט הפתוח הבוגר ביותר בתזמון (PersoDub, AGPL — **לומדים ממנו רעיונות, לא קוד**): תרגום ליעד ±15% מהחלון, קצב לפי דובר, רפרנס של 4–7 שנ׳ לכל דובר, האצה עד 10% ואז חיתוך מתועד, שער שבודק שהקול המקורי לא נשאר מתחת לדיבוב, ונשימות וצחוק מהמקור רק אחרי אימות שאין בהם מילים.
+- **בעיות פתוחות = הזדמנות:** מבטא יעד נקי עם דמיון גבוה; דוברים חופפים; נשימות ומילות מילוי; זליגה של הקול המקורי; QA אוטומטי שמתקן בעצמו; עברית בשני הכיוונים.
+
+## 10. המודלים — מה מותר ומה לא (עיקר מ־03)
+- **רישיון הקוד לא קובע.** OmniVoice, F5-TTS, MaskGCT/Vevo, Spark-TTS, Llasa, XTTS, ZipVoice — המשקולות **לא מסחריות**, ברובן בגלל נתוני האימון (Emilia ‏CC-BY-NC). Higgs v3 אוסר במפורש שירות דיבוב, ותנאי Higgs v2 לא נקראו עד הסוף. Fish — רק עד 500 אלף דולר הכנסה, ובלי שירות מתארח. IndexTTS — מסחרי בתנאים, בלי עברית. Seed-VC ו־pyVideoTrans הם GPL; so-vits-svc, PersoDub ו־ThioJoe הם AGPL. דיבור לדיבור פתוח שמותר מסחרית, עם עברית ושמירת קול — **אין**.
+- **המועמדים המובילים** (אומת שוב ב־Hugging Face ב־25/11: Apache-2.0, עברית מסומנת):
+  1. **VoxCPM2** (OpenBMB, 2B): 30 שפות, יותר מ־2 מיליון שעות אימון, שיבוט מבוקר. מקור הנתונים לא פורסם.
+  2. **MOSS-TTS v1.5**: 31 שפות, **בקרת משך ברמת טוקן** (קריטי לדיבוב). יש גרסת Nano-100M.
+  3. **ZONOS3-Mini** (17/11/2026): 43 שפות, MoE עם כ־100M פעילים, היגוי מבטא, רץ על CPU (ggml).
+  4. גם: Chatterbox Multilingual (MIT; הפיתוח הופסק ב־8/2026; חותמת מים; ה־README מתעד דליפת מבטא) ו־Blue V3 (MIT, ONNX; דמיון 0.73 באנגלית מול 0.50 בעברית).
+- **המרת גוון** (למסלול "אנגלית ילידית ← הקול שלך"): OpenVoice V2 (MIT, חוצה־שפות, מסחרי מפורש), CosyVoice ‏`inference_vc` (Apache), Chatterbox VC (MIT).
+- **שפתיים:** MuseTalk (MIT), LatentSync (Apache + OpenRAIL++). Wav2Lip אסור.
+- **נתונים בעברית:** ל־ivrit.ai יש מעל 20 אלף שעות, ברישיון שמבוסס על CC-BY-4.0. **מותר לאמן מודלים, גם מסחריים, אבל אסור לייצר חומר שמחקה את הקול או הדמות של האנשים שבהקלטות** (נבדק בנוסח הרישיון). מותר לאמן מודל עברי כללי ששובט את היוצר באישורו, ואסור לייצר את קולות הדוברים מהמאגר. SASPEECH — לא מסחרי.
+
+## 11. העברית (עיקר מ־05)
+- **מקור:** ivrit-ai whisper (WER כ־5.5–6% במדידת צד שלישי) כבר אצלנו. אין מדד לעברית משולבת באנגלית, וגם לא לדיאריזציה בעברית.
+- **שיבוט מרפרנס עברי לאנגלית:** **אין עדות ציבורית באף מודל.** דליפת מבטא מתועדת בספרות. הדרכים לנטרל אותה: (1) רפרנס באנגלית של אותו דובר (גם במבטא), (2) תגית שפה, (3) מסלול "קול אנגלי יליד ← המרת גוון", (4) הנחיה בזמן ההסקה (AAG ו־Closed-Loop Dual-Reference — לפי התקציר, ירידה של 73% בדליפה במחיר 0.04 בדמיון; מאמרים מסוף 2026, נקראו בתקציר בלבד).
+- **עברית כיעד** (בזירת ivrit.ai ב־25/11): Gemini 3.1 Flash, Deepdub, ElevenLabs v3 ו־Soniox בראש. הפתוח הגבוה (Blue) במקום 8. רוב המובילים בלי שיבוט. G2P וניקוד: Phonikud, וגם ReNikud (מאמר 6/2026; הקוד טרם אומת).
+- **קצב:** מקריינים עבריים כ־5.9 הברות לשנייה. מודדים בהברות, לא בתווים.
+
+## 12. הארכיטקטורה המומלצת ("הטובה בעולם בעברית")
+1. **הפרדה:** קול ורקע (MelBand/BS-RoFormer — לבדוק רישיון לכל צ'קפוינט; Demucs MIT כגיבוי).
+2. **תמלול, דוברים ומגדר:** קיים (ivrit, יישור CTC, ECAPA, diarize).
+3. **תרגום ב־Claude מודע־זמן:** יעד הברות לכל שורה (±15% מהחלון) לפי הקצב **הנמדד** של הדובר, מגדר ופנייה, מונחון היוצר, וסגנון. אם השורה לא נכנסת — Claude מנסח מחדש בלולאה.
+4. **קול — "תחרות" בין שני מסלולים על כל שורה:**
+   - **מסלול ישיר:** VoxCPM2, MOSS או ZONOS3 עם רפרנס של היוצר (4–7 שנ׳ נקיות), ורפרנס רגש מהשורה המקורית עצמה.
+   - **מסלול מבטא יליד:** TTS אנגלי עם בקרת משך ← המרת גוון לקול היוצר (OpenVoice V2 / CosyVoice VC).
+   - **פרימיום ליוצר קבוע:** התאמה אישית (LoRA או המרת קול) על 20–60 דק׳ של הקלטות שלו, אחרי שער הסכמה.
+5. **N טייקים לשורה ובחירה אוטומטית** לפי ציון: דמיון קול (ECAPA/WavLM), WER בתמלול חוזר באנגלית, ציון מבטא (מסווג מבטא), איכות (UTMOS) והתאמת משך.
+6. **תזמון:** בקרת משך במודל, האצה עד 10%, מיזוג שורות, ורק אז קיצור נוסף בתרגום.
+7. **נשימות וצחוק** מהמקור אחרי אימות שאין בהם מילים. **מיקס:** LUFS לכל שורה כמו במקור, ducking, שער זליגה.
+8. **עורך:** שורה, טקסט, "צור מחדש רק את השורה הזאת", בחירת טייק, הזזה. מבוסס על העורכים הקיימים בסטודיו.
+9. **אחריות:** שער הסכמה קולי, יומן הסכמות, חותמת מים וסימון C2PA (סעיף 5).
+10. **שפתיים (אופציונלי, בתשלום):** MuseTalk/LatentSync על GPU.
+11. **מחשוב:** GPU שכור לפי עבודה (סרבר־לס), השרת הנוכחי מתזמר. מדידת RTF של ZONOS3 ו־MOSS-Nano על CX53 כדי לבדוק מסלול חינמי איטי.
+
+## 13. הגלים (מעודכן — מחליף את סעיף 6, "אומדן מאמץ")
+0. **מבחן האפייה (כמה ימים):** 3–5 דקות שלך בעברית; שלושת המודלים × שני המסלולים; מדדים והאזנה עיוורת. **GPU בשכירות, אומדן 5–20$ — באישור.** שאלה אחת למשתמש: האם יש לו מחשב עם NVIDIA (אז הניסוי חינם).
+1. **צנרת MVP בעובד** (2–3 שבועות): שלבים 1–7, יעד אנגלית, GPU לפי דרישה.
+2. **QA אוטומטי, עורך ושער הסכמה** (2 שבועות).
+3. **התאמה אישית ליוצר, הנחיית מבטא בהסקה, נשימות** (2–3 שבועות).
+4. **רב־יוצרים ושפות נוספות** (כולל עברית כיעד), שפתיים, סימון C2PA.
+5. **(עתידי) נתונים משלנו:** מאגר דו־לשוני באישור, ואימון מודל עברי ייעודי.
