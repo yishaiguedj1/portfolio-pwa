@@ -300,7 +300,7 @@ ok(Object.keys(L.IND).length >= 40, 'לפחות 40 אינדיקטורים נוס
     const stAlDist = new Function(fn + '; return stAlDist;')();
     ok(Math.abs(stAlDist(90, 100) + 10) < 1e-9 && Math.abs(stAlDist(110, 100) - 10) < 1e-9 && stAlDist(90, 0) === null && stAlDist(0, 100) === null, '18/11: המרחק ליעד — יעד 90 ממחיר 100 = ‎−10%, בלי מחיר = כלום');
     ok(/if \(!a\.done\) \{ chip\.dataset\.p = [^}]*stAlDistSet\(chip\.appendChild\(el\('small', 'st-al-d num'\)\)/.test(se) && /n\.textContent = tx/.test(app), 'האחוז רק בהתראה פעילה, כטקסט');
-    ok(/stAlLive\(card, s, m\.price\)/.test(app) && /\.st-al-d\.pos \{ color: var\(--gain\)/.test(st) && /\.st-al-d\.neg \{ color: var\(--loss\)/.test(st), 'האחוז מתעדכן עם המחיר החי — ירוק לעלייה, אדום לירידה');
+    ok(/stAlLive\(card, s, m\.price0\)/.test(app) && /\.st-al-d\.pos \{ color: var\(--gain\)/.test(st) && /\.st-al-d\.neg \{ color: var\(--loss\)/.test(st), 'האחוז מתעדכן עם המחיר החי — ירוק לעלייה, אדום לירידה');
   }
   ok(/\.st-al-chip \{[^}]*var\(--pill\)/.test(st) && /\.st-al-add \{[^}]*var\(--pill\)/.test(st), 'עיגולי הפינות ממשתנים');
 }

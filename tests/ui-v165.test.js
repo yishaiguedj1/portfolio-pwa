@@ -37,7 +37,7 @@ ok(/const LIVE_FAST_MS = 1000;/.test(src) && /const LIVE_ALL_EVERY = 1;/.test(sr
 ok(/gap - \(Date\.now\(\) - \(live\.t0 \|\| 0\)\)/.test(src), '27/10/2026: המרווח מתחילת הטיק — שנייה ולא שנייה + זמן התשובה');
 ok(/applyExtQuote\(q, j\.data\[sym\]\.x\)/.test(src), 'השדות המורחבים נקלטים מהשרתון');
 ok(/function livePriceSwap\(a, b\)/.test(src) && /px-roll ' \+ dir/.test(src) && /prefers-reduced-motion: reduce/.test(grab('livePriceSwap')), 'החלפת מחיר מגולגלת, מכבדת "הפחת תנועה"');
-ok(/if \(pa && pb\) livePriceSwap\(pa, pb\);/.test(src), 'renderLive משתמש בה (לא innerHTML גס)');
+ok(/if \(pa && pb\) \{[^\n]*livePriceSwap\(pa, pb\); \}/.test(src), 'renderLive משתמש בה (לא innerHTML גס)');
 ok(/\.stock-price \{[^}]*direction: ltr;[^}]*unicode-bidi: isolate/.test(css), 'המחיר תמיד LTR — ב־RTL ספרות מגולגלות התערבבו ("51.9$33")');
 ok(/@keyframes pxRollInUp/.test(css) && /@keyframes pxDown/.test(css) && /\.ext-sess \{/.test(css), 'CSS: גלגול, הבזק, תג סשן');
 ok(/<span class="sh-r2">[\s\S]*?<span class="stock-ext">' \+ extSessionHTML\(m\.q, m\)/.test(src), 'v204/v206: תג הסשן בשורה השנייה של הכרטיס (ליד שם החברה), מתעדכן בטיק');

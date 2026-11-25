@@ -134,6 +134,9 @@ main :is(.card h2, .subpage-title) { font-weight: 700 !important; letter-spacing
 main .stock-sub .day-chg { justify-self: end !important; display: inline-flex !important; align-items: center !important; gap: 6px !important; padding: 2px 9px !important; border-radius: 8px !important;
   background: color-mix(in srgb, var(--gain) 16%, transparent) !important; width: fit-content !important; }
 main .stock-sub .day-chg.neg { background: color-mix(in srgb, var(--loss) 14%, transparent) !important; }
+/* 25/11/2026: מחיר לבדיקה — המחיר בכתום, ובמקום גלולת היום "במקום $X" בכתום (כמו בניתוח) */
+main .stock-sub .day-chg.px-was { color: var(--px-ed) !important; background: var(--px-ed-c) !important; font-weight: 600 !important; }
+main .stock-price.px-ovr { color: var(--px-ed) !important; }
 main .ov-day-v { padding: 2px 10px !important; border-radius: 8px !important; background: color-mix(in srgb, var(--gain) 16%, transparent) !important; }
 main .ov-day-v.neg { background: color-mix(in srgb, var(--loss) 14%, transparent) !important; }
 main .ov-day-v:not(.pos):not(.neg) { background: color-mix(in srgb, var(--on-surface) 7%, transparent) !important; } /* 20/11/2026: אפס — אפור */

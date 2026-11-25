@@ -73,7 +73,7 @@ ok(!html.includes('id="wishlistCount"') && !html.includes('id="stockCount"'), 'v
 const fnSrc = (name) => { const a = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8'); const i = a.indexOf('function ' + name + '('); return a.slice(i, a.indexOf('\n}\n', i)); };
 const appSrc = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 ok(/buildStockCard\(wlItem\(w\)\)/.test(fnSrc('renderWishlist')), 'v240: כרטיסי המעקב = buildStockCard (אותו כרטיס כמו בטאב המניות)');
-ok(/p\.watch \? '' : srcTagHTML/.test(appSrc) && /if \(p\.watch\) return watchKvHTML/.test(appSrc), 'v240: במעקב — בלי תגית מקור ובלי אריחי אחזקה');
+ok(/p\.watch \? ''\s*: p\.mtSh > 0 \? '<span class=\"src-stack\">' \+ srcTagHTML/.test(appSrc) && /if \(p\.watch\) return watchKvHTML/.test(appSrc), 'v240: במעקב — בלי תגית מקור ובלי אריחי אחזקה');
 const it = T.wlItem({ sym: 'NVDA', note: 'n' });
 ok(it.watch === true && it.sym === 'NVDA' && !('shares' in it) && !('avg' in it), 'wlItem: פריט מעקב בלי כמות/ממוצע');
 const sw = T.sortWatchList([{ sym: 'B' }, { sym: 'A' }, { sym: 'C' }], 'day', (s) => ({ A: 1, B: null, C: 3 })[s]);

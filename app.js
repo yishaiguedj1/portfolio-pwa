@@ -487,6 +487,11 @@ he: {
   anPxRowR: 'מחיר לתשואה של {r} בשנה: {p}',
   anPxRowS: 'המחיר האמיתי: {p} · ערך עם נקודה כתומה מחושב לפי המחיר החדש',
   anPxBack: 'החזר',
+  stPxEx: 'השווי, הרווח, המשקל בתיק והסקירה יחושבו לפי המחיר הזה. המחיר האמיתי: {p}. המחיר לא נשמר — בפתיחה מחדש של האפליקציה הכל חוזר לאמיתי.',
+  stPxRowT: '{s} במחיר {p}',
+  stPxRowS: 'המחיר האמיתי: {p}',
+  stPxRowN: 'מחיר לבדיקה: {s}',
+  stPxRowNS: 'ערך עם נקודה כתומה מחושב לפי המחיר החדש',
   anMRowT: '{n} שונה ל־{v}',
   anMRowS: 'המחיר {p} במקום {r} · נקודה כתומה = חושב מחדש',
   anMWill: 'מחיר המניה יהיה',
@@ -2507,6 +2512,11 @@ en: {
   anPxRowR: 'Price for a {r} yearly return: {p}',
   anPxRowS: 'Real price: {p} · values with an orange dot use the new price',
   anPxBack: 'Reset',
+  stPxEx: 'Value, gain, portfolio weight and the overview will use this price. Real price: {p}. The price is not saved — reopening the app brings back the real one.',
+  stPxRowT: '{s} at {p}',
+  stPxRowS: 'Real price: {p}',
+  stPxRowN: 'Test price: {s}',
+  stPxRowNS: 'Values with an orange dot use the new price',
   anMRowT: '{n} set to {v}',
   anMRowS: 'Price {p} instead of {r} · orange dot = recalculated',
   anMWill: 'The share price would be',
@@ -8472,8 +8482,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.209.4';
-const APP_VERSION = 'v890';
+const APP_RELEASE = '2.210.0';
+const APP_VERSION = 'v891';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -10093,7 +10103,7 @@ function renderLive(syms) {
     const fresh = el('div'); // v193: רק הכותרת — לא כרטיס שלם עם גוף וקנבס בכל טיק
     fresh.innerHTML = stockHeadHTML(p, m);
     const pa = card.querySelector('.stock-head .stock-price'), pb = fresh.querySelector('.stock-price');
-    if (pa && pb) livePriceSwap(pa, pb);
+    if (pa && pb) { pa.classList.toggle('px-ovr', pb.classList.contains('px-ovr')); livePriceSwap(pa, pb); }
     for (const cls of ['.stock-sub', '.stock-ext']) {
       const sa = card.querySelector('.stock-head ' + cls), sb = fresh.querySelector(cls);
       if (sa && sb && sa.innerHTML !== sb.innerHTML) sa.innerHTML = sb.innerHTML;
@@ -10101,7 +10111,7 @@ function renderLive(syms) {
     if (state.open[s]) {
       const g = card.querySelector('.stock-body .kv-grid');
       if (g) { setKvGrid(g, kvGridHTML(p, m)); ensureChartData(s, true); }
-      stAlLive(card, s, m.price);
+      stAlLive(card, s, m.price0);   // ההתראות — לפי המחיר האמיתי
     }
   }
   try { fitNumbers(); } catch (e) {}
@@ -10895,10 +10905,41 @@ async function warmPfHistories(onProgress, fromDate) {
 
 /* ---------------- חישובים ---------------- */
 
-function metrics(sym) {
+/* 25/11/2026 (בקשת המשתמש): מחיר לבדיקה בכרטיס המניה — כמו בניתוח. sym → מחיר במטבע המניה. בזיכרון בלבד: לא נשמר,
+   לא בענן ולא בווידג'ט; בפתיחה מחדש של האפליקציה הכל חוזר לאמיתי. כל מה שנגזר מהמחיר מחושב לפיו — השווי, הרווח, המשקל בתיק,
+   המרחק מהשיא, ובסקירה השווי, הרווח והעוגה. השינוי היומי, הגרף, ההתראות והחיפוש — לפי המחיר האמיתי */
+const PX_OVR = {};
+function pxOvr(sym) { const v = PX_OVR[sym]; return v > 0 && isFinite(v) && state.quotes[sym] && state.quotes[sym].close > 0 ? v : null; }
+function pxOvrSyms() { return Object.keys(PX_OVR).filter((s) => pxOvr(s) !== null && POSITIONS.some((p) => p.sym === s)); }
+function setPxOvr(sym, v) { if (v > 0 && isFinite(v)) PX_OVR[sym] = v; else delete PX_OVR[sym]; }
+/* המחירים לחישובי השווי — האמיתיים, ובמניה עם מחיר לבדיקה: הוא (עותק רדוד, state.quotes לא משתנה) */
+function quotesOvr() {
+  const ss = pxOvrSyms();
+  if (!ss.length) return state.quotes;
+  const o = Object.assign({}, state.quotes);
+  for (const s of ss) o[s] = Object.assign({}, o[s], { close: pxOvr(s) });
+  return o;
+}
+/* כמה השווי של חלק ה־IBKR זז בגלל המחיר לבדיקה (דולרים) — הרווח מהדוח של IBKR לא תלוי במחיר החי; החלק הידני כבר
+   מחושב מ־quotesOvr ב־manualTotalsUSD */
+function pxOvrIbkrDeltaUSD() {
+  let d = 0;
+  for (const s of pxOvrSyms()) {
+    const p = POSITIONS.find((x) => x.sym === s);
+    if (!p || p.src === 'manual') continue;
+    const sh = (Number(p.shares) || 0) - (Number(p.mtSh) || 0);
+    const v = nativeToUSD((pxOvr(s) - state.quotes[s].close) * sh, s);
+    if (v !== null && isFinite(v)) d += v;
+  }
+  return d;
+}
+
+function metrics(sym, real) {
   const p = POSITIONS.find((x) => x.sym === sym);
   const q = state.quotes[sym];
-  const price = q ? q.close : null;
+  const price0 = q ? q.close : null;
+  const ov = real || !p ? null : pxOvr(sym);   // real — חיפוש/ווידג'ט: תמיד המחיר האמיתי
+  const price = ov !== null ? ov : price0;
   const hist = state.hist[sym] || [];
   let dayChg = null;
   // v210: הבסיס = הסגירה הרגילה (לא המחיר של אחרי־המסחר) — כמו Yahoo
@@ -10919,15 +10960,16 @@ function metrics(sym) {
   const gl = p && price !== null ? nativeToUSD((price - p.avg) * p.shares, sym) : null;
   let ath = athOf(hist);
   // v139: שיא חדש במחיר החי — ה־ATH הוא המחיר עכשיו, לא השיא הישן מההיסטוריה
-  if (price !== null && (!ath || price > ath.price) && hist.length) ath = { price: price, date: (q && (q.mdate || q.date)) || todayISO() };
+  if (price0 !== null && (!ath || price0 > ath.price) && hist.length) ath = { price: price0, date: (q && (q.mdate || q.date)) || todayISO() }; // השיא — רק ממחיר אמיתי
   const offAth = (ath && price !== null) ? (price - ath.price) / ath.price * 100 : null;
-  return { p, sym, q, price, dayChg, dayAbs, value, gl, ath, offAth };
+  return { p, sym, q, price, price0, ovr: ov !== null, dayChg, dayAbs, value, gl, ath, offAth };
 }
 
 function totalsUSD() {
   let stockVal = 0;
+  const qs = quotesOvr();   // 25/11/2026: כולל מחיר לבדיקה
   for (const p of POSITIONS) {
-    const q = state.quotes[p.sym];
+    const q = qs[p.sym];
     if (q) stockVal += nativeToUSD(q.close * p.shares, p.sym) || 0;
   }
   const usd = (DB.cash && DB.cash.usd) || 0;
@@ -12625,8 +12667,13 @@ function renderOverview(light) {
   const vEl = document.getElementById('ovValue');
   const vSub = document.getElementById('ovValueSub');
   // v141: אחזקות ידניות (מחיר ממוצע / עסקאות) — נכנסות גם במצב IBKR
-  const mt = isIbkrMode() ? manualTotalsUSD(POSITIONS, mtActiveTrades(), state.quotes, state.fx) : null;
+  const mt = isIbkrMode() ? manualTotalsUSD(POSITIONS, mtActiveTrades(), quotesOvr(), state.fx) : null;
+  const ovD = isIbkrMode() && pxOvrSyms().length ? pxOvrIbkrDeltaUSD() : 0;   // 25/11/2026: מחיר לבדיקה בחלק של IBKR
   const usdToCur = (v) => (cur === 'ILS' ? (state.fx ? v * state.fx : null) : v);
+  // 25/11/2026: מחיר לבדיקה — שורה בראש הסקירה ונקודה כתומה ליד השווי והרווח
+  const ovSyms = pxOvrSyms();
+  const ovRow = typeof document !== 'undefined' && document.getElementById('ovPxRow');
+  if (ovRow) { const r = pxEdRowEl(ovSyms); ovRow.innerHTML = ''; if (r) ovRow.appendChild(r); ovRow.classList.toggle('hidden', !r); }
   if (vEl) {
     let vTxt = '—';
     // v730: גם במצב IBKR — שווי חי (כמות מהדוח × מחיר חי + מזומן), כמו בעוגה וב־IBKR. השווי מהדוח הוא שווי
@@ -12645,12 +12692,14 @@ function renderOverview(light) {
         else if (base === 'ILS' && cur === 'USD' && state.fx) disp = rt / state.fx;
         else if ((base === 'ILS') === (cur === 'ILS')) disp = rt;
       }
-      if (disp !== null && mt && mt.value) { const add = usdToCur(mt.value); disp = add === null ? null : disp + add; }
+      if (disp !== null && mt && (mt.value || ovD)) { const add = usdToCur((mt.value || 0) + ovD); disp = add === null ? null : disp + add; }
       if (disp !== null && isFinite(disp)) vTxt = money(disp, cur);
     } else if (!POSITIONS.length || POSITIONS.some((p) => state.quotes[p.sym])) {
       vTxt = money(total, cur);
     }
-    if (vTxt === '—' && quotesPending() && POSITIONS.length) vEl.innerHTML = SKEL_HTML; else vEl.textContent = vTxt; // v193: שלד עד המחיר הראשון
+    if (vTxt === '—' && quotesPending() && POSITIONS.length) vEl.innerHTML = SKEL_HTML;
+    else if (ovSyms.length && vTxt !== '—') vEl.innerHTML = PX_DEP + esc(vTxt);
+    else vEl.textContent = vTxt; // v193: שלד עד המחיר הראשון
     if (vSub) {
       if (isIbkrMode() && !liveAll) vSub.textContent = t('ovValueReport');
       else vSub.textContent = t('ovStocksSub');
@@ -12703,18 +12752,19 @@ function renderOverview(light) {
       const base = ibkrBaseCur(data);
       gl = (cur === 'ILS' && state.fx && base === 'USD') ? pg * state.fx
         : (cur === 'ILS' ? null : pg);
-      if (gl !== null && mt && mt.gain) { const add = usdToCur(mt.gain); gl = add === null ? null : gl + add; }
+      if (gl !== null && mt && (mt.gain || ovD)) { const add = usdToCur((mt.gain || 0) + ovD); gl = add === null ? null : gl + add; }
     }
     if (gSub) gSub.textContent = t('ovInReportPeriod');
   }
   // v158: מצב ידני בלי הפקדות — רווח ממומש + לא־ממומש מהאחזקות (כמו IBKR: לא תלוי בהזנת הפקדות)
   if (!isIbkrMode() && gl === null && POSITIONS.length) {
-    const mp = manualPerfUSD(POSITIONS, mtActiveTrades(), state.quotes, state.fx, null, null, todayISO());
+    const mp = manualPerfUSD(POSITIONS, mtActiveTrades(), quotesOvr(), state.fx, null, null, todayISO());
     if (!mp.missing) gl = usdToCur(mp.gain);
     if (gSub) gSub.textContent = t('ovGLHoldings');
   } else if (!isIbkrMode() && gSub) gSub.textContent = t('ovVsNetDeposits');
   state._ovSimpleYld = yld;
   if (gl === null) { if (quotesPending() && POSITIONS.length) gEl.innerHTML = SKEL_HTML; else gEl.textContent = '—'; }
+  else if (ovSyms.length) gEl.innerHTML = PX_DEP + esc(fmtSignedMoney(gl, cur));
   else { gEl.textContent = fmtSignedMoney(gl, cur); }
   gEl.className = 'stat-value ' + (gl === null ? '' : gl >= 0 ? 'pos' : 'neg');
 
@@ -13154,8 +13204,9 @@ function drawPie() {
   const canvas = document.getElementById('pieChart');
   const tot = totalsUSD();
   let fbIdx = 0;
+  const qs = quotesOvr();
   const slices = POSITIONS.map((p) => {
-    const q = state.quotes[p.sym];
+    const q = qs[p.sym];
     const v = q ? (nativeToUSD(q.close * p.shares, p.sym) || 0) : 0;
     const branded = !!PIE_BRAND_COLORS[String(p.sym || '').toUpperCase()];
     const color = pieColorFor(p.sym, fbIdx);
@@ -13671,6 +13722,7 @@ function drawPie() {
   if (pieAnimRaf && legend.children && legend.children.length) { pieMarkLegend(legend); return; }
   legend.innerHTML = '';
   const sorted = slicesUnique.slice().sort(cashLast);
+  const pieOvr = pxOvrSyms().length > 0;
   const maxV = sorted.reduce((m, s) => Math.max(m, s.value), 0) || 1; // הפס של כל שורה — יחסית לאחזקה הגדולה
   for (const s of sorted) {
     const src = s.cash ? null : logoSrc(s.sym);
@@ -13679,11 +13731,12 @@ function drawPie() {
       '<span class="pie-leg-logo' + (s.cash ? ' cash' : e && e.ready && e.light ? ' inv' : '') + '">' +
       '<span class="pie-leg-fb">' + esc(s.cash ? (cur === 'ILS' ? '₪' : '$') : (normalizeSym(s.sym) || '?').charAt(0)) + '</span>' +
       (src && !(e && e.failed) ? '<img src="' + src + '" alt="" loading="lazy" decoding="async" data-err="hide-self">' : '') + '</span>' +
-      '<span class="lg-name">' + (s.cash ? '<span class="lg-sym">' + esc(t('pieCash')) + '</span>' : '<bdi dir="ltr" class="lg-sym">' + esc(s.sym) + '</bdi>') +
+      '<span class="lg-name">' + (s.cash ? '<span class="lg-sym">' + esc(t('pieCash')) + '</span>' : '<bdi dir="ltr" class="lg-sym' + (pxOvr(s.sym) !== null ? ' px-ovr' : '') + '">' + esc(s.sym) + '</bdi>') +
       '</span>' +
       '<span class="lg-bar" aria-hidden="true"><i style="width:' + Math.max(2, s.value / maxV * 100).toFixed(1) + '%;background:' + s.color + '"></i></span>' +
-      '<span class="lg-num"><span class="lg-pct">' + (s.value / total * 100).toFixed(1) + '%</span>' +
-      '<span class="lg-val">' + money(val(s.value), cur) + '</span></span>');
+      // 25/11/2026: מחיר לבדיקה — האחוז של כל שורה זז (הסך השתנה), והשווי של המניה ששונתה
+      '<span class="lg-num"><span class="lg-pct">' + (pieOvr ? PX_DEP : '') + (s.value / total * 100).toFixed(1) + '%</span>' +
+      '<span class="lg-val">' + (pxOvr(s.sym) !== null ? PX_DEP : '') + money(val(s.value), cur) + '</span></span>');
     if (li.dataset) li.dataset.sym = s.sym;
     li.addEventListener && li.addEventListener('click', () => { // נגיעה בשורה = נגיעה בפרוסה
       const next = state.pieActive === s.sym ? null : s.sym;
@@ -15311,7 +15364,8 @@ let _gbKey = '';
 function renderGainBars() {
   const card = document.getElementById('gainCard'), box = document.getElementById('gainBars');
   if (!card || !box) return;
-  const rows = gainRows(POSITIONS, (s) => { const q = state.quotes[s]; return q ? q.close : null; });
+  const qs = quotesOvr();   // 25/11/2026: מחיר לבדיקה
+  const rows = gainRows(POSITIONS, (s) => { const q = qs[s]; return q ? q.close : null; });
   card.classList.toggle('hidden', !rows.length);
   if (!rows.length) { box.innerHTML = ''; _gbKey = ''; return; }
   const missing = rows.map((r) => r.sym).filter((s) => !wmStore()[s]);
@@ -15360,6 +15414,7 @@ function renderGainBars() {
     row._x0 = x0; row._xe = xe; row._up = up; row._g = r.g; // המיקום בפיקסלים — gainBarsFit (חוק ה־20%)
     const txt = gainPctTxt(r.g);
     if (pct.textContent !== txt) pct.textContent = txt;
+    pct.classList.toggle('px-dep-b', pxOvr(r.sym) !== null);   // נקודה כתומה (CSS ::before) למניה עם מחיר לבדיקה
   });
   gainBarsFit(box);
 }
@@ -18453,7 +18508,10 @@ function stockSubHTML(p, m) {
   // v208→v209: גם השינוי היומי בכסף — למניה אחת (כמו Yahoo: "−2.16 (−1.57%)"), במטבע של המחיר, באותו צבע
   const dayAmtHTML = day === null || m.dayAbs === null || m.dayAbs === undefined || !isFinite(m.dayAbs) ? '' : ' <span class="day-amt">' + fmtSignedPx(m.dayAbs, p && p.sym) + '</span>';
   // 18/11/2026: "היום" רק בזמן יום המסחר; מתחילת המסחר הלילי ועד הפתיחה — "אתמול" / שם היום (sessionDayLabel)
-  let html = '<span class="day-chg ' + cls(day) + '">' + (day === null ? '—' : esc(sessionDayLabel(p && p.sym)) + ' ' + fmtPct(day, true) + dayAmtHTML) + '</span>';
+  // 25/11/2026: מחיר לבדיקה — במקום השינוי היומי "במקום $X" בכתום (כמו בניתוח), וכל נתון שנגזר ממנו עם נקודה כתומה
+  const dot = m.ovr ? PX_DEP : '';
+  let html = m.ovr && !(p && p.watch) ? '<span class="day-chg px-was">' + esc(t('anPxWas', { p: fmtPx(m.price0, p.sym) })) + '</span>'
+    : '<span class="day-chg ' + cls(day) + '">' + (day === null ? '—' : esc(sessionDayLabel(p && p.sym)) + ' ' + fmtPct(day, true) + dayAmtHTML) + '</span>';
   if (p && p.watch) { // v240: מעקב — בלי שווי/רווח; ההערה (אם יש) במקום השווי
     if (p.note) return html + '<span class="sub-val wl-sub-note"><span class="wl-note-txt">' + esc(p.note) + '</span></span>';
     // 18/11/2026 (בקשת המשתמש): בלי החץ ▾ — במקומו המרחק מהשיא (ATH)
@@ -18463,12 +18521,12 @@ function stockSubHTML(p, m) {
       '<span class="wl-ath-pct ' + cls(off) + '">' + fmtPct(off, true) + '</span>') + '</span>';
   }
   // 18/11/2026 (בקשת המשתמש): תווית משנית לפני הנתון — "שווי" / "שינוי" (ת־עיצוב: תווית אפורה קטנה, הנתון בולט)
-  html += '<span class="sub-val"><span class="sub-lbl">' + esc(t('subValLbl')) + '</span> ' + (m.value === null ? '—' : money(toCur(m.value), cur)) + '</span>'; // 2.184.1: בלי החץ ▾ ליד השווי (בקשת המשתמש)
+  html += '<span class="sub-val"><span class="sub-lbl">' + esc(t('subValLbl')) + '</span> ' + dot + (m.value === null ? '—' : money(toCur(m.value), cur)) + '</span>'; // 2.184.1: בלי החץ ▾ ליד השווי (בקשת המשתמש)
   let gp = (p && p.avg > 0 && m.price !== null) ? gainPctOf(p, m.price) : null;
   if (gp !== null && Math.abs(gp) < 0.005) gp = 0; // בלי "+0.00%"
   if (gp !== null && isFinite(gp)) {
-    html += '<span class="buy-chg ' + cls(gp) + '">' + t('buyChg', { v: fmtPct(gp, true) }) + '</span>' +
-      '<span class="buy-amt ' + cls(gp) + '"><span class="sub-lbl">' + esc(t('subGlLbl')) + '</span> ' + (m.gl === null ? '—' : fmtSignedMoney(toCur(m.gl), cur)) + '</span>';
+    html += '<span class="buy-chg ' + cls(gp) + '">' + dot + t('buyChg', { v: fmtPct(gp, true) }) + '</span>' +
+      '<span class="buy-amt ' + cls(gp) + '"><span class="sub-lbl">' + esc(t('subGlLbl')) + '</span> ' + dot + (m.gl === null ? '—' : fmtSignedMoney(toCur(m.gl), cur)) + '</span>';
   }
   return html;
 }
@@ -18494,8 +18552,10 @@ function stockHeadHTML(p, m) {
   // v204: שתי שורות עצמאיות ליד הלוגו — שורה 1: סימבול + תגית המקור + מחיר; שורה 2: שם החברה + בועת הסשן.
   // כך הבועה מתחרה רק עם שם החברה (שנקטע ב־…) ולא עם הסימבול/התגית — תמיד שתי שורות, בלי התנגשות.
   return '<span class="stock-id">' + stockLogoHTML(sym) +
-    '<span class="sh-r1"><span class="stock-sym"><bdi dir="ltr">' + esc(dispSym(sym)) + '</bdi></span>' + (p.watch ? '' : srcTagHTML(positionSource(p), p.accts) + (p.mtSh > 0 ? srcTagHTML('manual') : '')) +
-    '<span class="stock-price' + stockPriceSizeCls(priceTxt) + '" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span></span>' +
+    // 25/11/2026 (בקשת המשתמש): מניה משני מקורות — תגית "ידני" מתחת ללוגו של IBKR (עמודה אחת), לא ליד המחיר
+    '<span class="sh-r1"><span class="stock-sym"><bdi dir="ltr">' + esc(dispSym(sym)) + '</bdi></span>' + (p.watch ? ''
+      : p.mtSh > 0 ? '<span class="src-stack">' + srcTagHTML(positionSource(p), p.accts) + srcTagHTML('manual') + '</span>' : srcTagHTML(positionSource(p), p.accts)) +
+    '<span class="stock-price' + stockPriceSizeCls(priceTxt) + (m.ovr ? ' px-ovr' : '') + '" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span></span>' +
     '<span class="sh-r2"><span class="stock-name">' + esc(companyName(p.sym, p.name) || p.name) + '</span>' + // v201: שם החברה, לא הסימבול פעמיים
     '<span class="stock-ext">' + extSessionHTML(m.q, m) + '</span></span></span>' +
     '<span class="stock-sub">' + stockSubHTML(p, m) + '</span>';
@@ -18593,17 +18653,18 @@ function kvGridHTML(p, m) {
   const cur = state.currency;
   const toCur = (usd) => (usd === null ? null : (cur === 'ILS' && state.fx ? usd * state.fx : usd));
   // 20/11/2026 (בקשת המשתמש): מניה משני מקורות — מתחת לכמות הפירוט: IBKR · ידני
+  const dot = m.ovr ? PX_DEP : '';
   const shSub = p.mtSh > 0 && p.ib ? ltrNum('IBKR ' + fmtQty(p.ib.shares)) + ' · ' + esc(t('manualTag')) + ' ' + ltrNum(fmtQty(p.mtSh))
     : Math.abs(p.shares) >= NUM_BIG ? ltrNum(Number(p.shares).toLocaleString('en-US')) : '';
   return kvHTML(t('kvShares'), ltrNum(fmtQty(p.shares)), '', shSub) +
     kvHTML(t('kvAvg'), fmtPx(p.avg, sym)) +
-    kvHTML(t('kvValue'), m.value === null ? '—' : money(toCur(m.value), cur)) +
+    kvHTML(t('kvValue'), dot + (m.value === null ? '—' : money(toCur(m.value), cur))) +
     kvHTML(t('kvGL'),
-      m.gl === null ? '—' : fmtSignedMoney(toCur(m.gl), cur),
+      dot + (m.gl === null ? '—' : fmtSignedMoney(toCur(m.gl), cur)),
       m.gl === null ? '' : m.gl >= 0 ? 'pos' : 'neg',
-      m.gl === null || !(p.avg > 0) ? KV_SUB_HOLD : fmtPct((m.price / p.avg - 1) * 100, true),
+      m.gl === null || !(p.avg > 0) ? KV_SUB_HOLD : dot + fmtPct((m.price / p.avg - 1) * 100, true),
       m.gl === null ? '' : m.gl >= 0 ? 'pos' : 'neg') +
-    kvHTML(t('kvWeight'), weightTxt(sym)) +
+    kvHTML(t('kvWeight'), (pxOvrSyms().length ? PX_DEP : '') + weightTxt(sym)) +   // המשקל של כל מניה זז כשמחיר אחת שונה
     (p.fromTrades || p.mtSh > 0 ? (() => {
       const rz = mtPosition(mtActiveTrades(), sym).realized;
       const rzU = nativeToUSD(rz, sym);
@@ -18612,13 +18673,16 @@ function kvGridHTML(p, m) {
     // v219 (בקשת המשתמש): ATH — המחיר, ומתחת המרחק ממנו באחוזים (במקום התאריך)
     kvHTML('ATH',
       m.ath ? fmtPx(m.ath.price, sym) : (state.hist[sym] ? '—' : '…'), '',
-      m.ath && m.offAth !== null && isFinite(m.offAth) ? fmtPct(m.offAth, true) : KV_SUB_HOLD,
+      m.ath && m.offAth !== null && isFinite(m.offAth) ? dot + fmtPct(m.offAth, true) : KV_SUB_HOLD,
       m.offAth === null || Math.abs(m.offAth) < 0.005 ? '' : m.offAth > 0 ? 'pos' : 'neg');
 }
 function buildStockBody(p, m) {
   const sym = p.sym;
   const wrap = el('div', 'stock-body-in'); // v193: עוטף יחיד — הגוף נפתח/נסגר באנימציית גובה (grid-template-rows)
 
+  // 25/11/2026: מחיר לבדיקה — השורה "מה שונה" עם "החזר" בראש הכרטיס הפתוח
+  const er = p.watch ? null : pxEdRowEl([sym], true);
+  if (er) wrap.appendChild(er);
   const grid = el('div', 'kv-grid');
   grid.innerHTML = kvGridHTML(p, m);
   wrap.appendChild(grid);
@@ -18674,7 +18738,7 @@ function buildStockBody(p, m) {
   sret.id = 'sret-' + sym;
   foot.appendChild(sret);
   cwrap.before(foot);   // 27/10/2026 (בקשת המשתמש): השורה התחתונה (תשואה + ניתוח + הגדלה) מעל הגרף, מתחת לאריחים
-  stAlPx[sym] = m && m.price;
+  stAlPx[sym] = m && m.price0;
   wrap.appendChild(stockAlertsEl(sym));
   // v236: שורת ה־legend ("NOW ● +x%") הוסרה — חזרה בדיוק על שורת התשואה שמעליה
 
@@ -18711,6 +18775,7 @@ function buildStockBody(p, m) {
     const actions = el('div', 'edit-actions stock-edit');
     if (anOk) actions.appendChild(analysisBtn(sym));
     actions.appendChild(alertBtn(sym));
+    if (!p.watch && m && m.price0 > 0) actions.appendChild(pxEdBtn(sym));   // 25/11/2026: מחיר לבדיקה
     // 28/10/2026 (בקשת המשתמש): כפתור "ערוך" הוסר מהכרטיס (העריכה — ממצב "עריכה" שבראש הרשימה)
     actions.appendChild(chartBtn(sym));   // 28/10/2026 (בקשת המשתמש): הגדלת הגרף תמיד בקצה השמאלי של הכפתורים
     foot.appendChild(actions);
@@ -18718,6 +18783,7 @@ function buildStockBody(p, m) {
     const actions = el('div', 'edit-actions stock-edit');
     if (anOk) actions.appendChild(analysisBtn(sym));
     actions.appendChild(alertBtn(sym));
+    if (!p.watch && m && m.price0 > 0) actions.appendChild(pxEdBtn(sym));   // 25/11/2026: מחיר לבדיקה
     actions.appendChild(chartBtn(sym));   // 28/10/2026 (בקשת המשתמש): הגדלת הגרף תמיד בקצה השמאלי של הכפתורים
     foot.appendChild(actions);
   }
@@ -18823,6 +18889,101 @@ function openStockAlertFor(sym, id) {
   const px = stAlPx[sym];
   const env = Object.assign(chartEnv(), { onAlerts: () => refreshStockAlerts(sym) });
   import('./chart.js').then((m) => m.openStockAlert(sym, env, id, px)).catch(() => flash(t('kcErrLib')));
+}
+/* ---------- 25/11/2026 (בקשת המשתמש): מחיר לבדיקה בכרטיס המניה — אחד לאחד כמו בניתוח: עיגול עם עיפרון (מתמלא בכתום
+   כשהמחיר שונה), גיליון עם מספר גדול, המחיר בכתום ו"במקום $X" במקום השינוי היומי, נקודה כתומה ליד כל נתון שנגזר ממנו,
+   ושורה אחת "מה שונה" עם "החזר" — בכרטיס ובראש הסקירה ---------- */
+const PX_DEP = '<i class="px-dep" aria-hidden="true"></i>';
+const PX_PEN_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/></svg>';
+function pxEdBtn(sym) {
+  const on = pxOvr(sym) !== null;
+  const b = el('button', 'chip-btn stock-ico-btn px-ed-btn' + (on ? ' on' : ''));
+  b.type = 'button';
+  b.innerHTML = PX_PEN_SVG;
+  b.setAttribute('aria-label', t('anPxEdit'));
+  b.setAttribute('aria-pressed', String(on));
+  b.title = t('anPxEdit');
+  b.addEventListener('click', (e) => { e.stopPropagation(); openPxSheet(sym); });
+  return b;
+}
+/* השורה "מה שונה": syms — המניות שהשורה מכסה (בכרטיס — אחת; בסקירה — כל מה ששונה). null כשאין שינוי */
+function pxEdRowEl(syms, card) {
+  const ss = (syms || []).filter((x) => pxOvr(x) !== null);
+  if (!ss.length || typeof document === 'undefined') return null;
+  const one = ss.length === 1 ? ss[0] : null;
+  const q = one ? state.quotes[one] : null;
+  const row = el('div', 'px-edrow');
+  row.setAttribute('role', 'status');
+  row.innerHTML = '<span class="px-edrow-ic" aria-hidden="true">' + PX_PEN_SVG + '</span><div class="px-edrow-t"><b></b><span></span></div>' +
+    '<button class="px-edrow-b" type="button"></button>';
+  row.querySelector('b').textContent = one ? t('stPxRowT', { s: dispSym(one), p: fmtPx(pxOvr(one), one) })
+    : t('stPxRowN', { s: ss.map((x) => dispSym(x) + ' ' + fmtPx(pxOvr(x), x)).join(' · ') });
+  row.querySelector('.px-edrow-t > span').textContent = one ? (card ? t('stPxRowS', { p: fmtPx(q.close, one) }) : t('anPxRowS', { p: fmtPx(q.close, one) })) : t('stPxRowNS');
+  const back = row.querySelector('.px-edrow-b');
+  back.textContent = t('anPxBack');
+  back.addEventListener('click', (e) => { e.stopPropagation(); pxApply(ss, null); });
+  return row;
+}
+/* החלה/החזרה (v=null) — ומציירים מחדש את מה שתלוי במחיר: הכותרות של כל הכרטיסים (משקל, שווי), הכרטיס הפתוח והסקירה */
+function pxApply(syms, v) {
+  for (const s of syms) setPxOvr(s, v);
+  try { renderLive(POSITIONS.map((x) => x.sym)); } catch (e) {}
+  for (const s of syms) {
+    if (state.open[s]) { try { refreshStockBody(s); } catch (e) {} continue; }
+    // כרטיס סגור — הגוף נבנה מחדש (בלי הגרף) כדי שבפתיחה לא תישאר שורת "החזר" ישנה או עיפרון במצב הקודם
+    const card = typeof stockCardEl === 'function' ? stockCardEl(s) : null, p = card && stockItemFor(s, card), body = card && card.querySelector('.stock-body');
+    if (p && body) { try { body.innerHTML = ''; body.appendChild(buildStockBody(p, metrics(s))); } catch (e) {} }
+  }
+  try { renderOverview(); } catch (e) {}
+}
+function closePxSheet() {
+  const v = typeof document !== 'undefined' && document.getElementById('pxSheetVeil');
+  if (!v) return;
+  v.remove();
+  if (v._modal) { const m = v._modal; v._modal = null; modalDone(m); }
+}
+function openPxSheet(sym) {
+  const q = state.quotes[sym];
+  if (!q || !(q.close > 0)) return;
+  closePxSheet();
+  const cur = pxOvr(sym);
+  const veil = el('div', 'pf-sheet-veil');
+  veil.id = 'pxSheetVeil';
+  veil._modal = modalPush(closePxSheet);
+  const sh = el('div', 'pf-sheet px-sheet');
+  sh.setAttribute('role', 'dialog');
+  sh.setAttribute('aria-modal', 'true');
+  sh.innerHTML = '<div class="sheet-grab" aria-hidden="true"></div><h3 class="px-sheet-t"></h3><p class="px-sheet-ex"></p>' +
+    '<form class="px-f"><label class="px-box"><span class="px-cur" aria-hidden="true"></span>' +
+    '<input class="px-in num" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr"></label>' +
+    '<button class="btn px-apply" type="submit"></button></form><p class="form-err hidden"></p>' +
+    (cur !== null ? '<button class="link-btn px-real" type="button"></button>' : '');
+  sh.querySelector('.px-sheet-t').textContent = t('anPxT') + ' · ' + dispSym(sym);
+  sh.querySelector('.px-sheet-ex').textContent = t('stPxEx', { p: fmtPx(q.close, sym) });
+  const unit = pxUnit(sym);
+  sh.querySelector('.px-cur').textContent = unit;
+  const inp = sh.querySelector('.px-in');
+  inp.value = pxToInput(sym, cur !== null ? cur : q.close);
+  inp.setAttribute('aria-label', t('anPxT'));
+  sh.querySelector('.px-apply').textContent = t('anPxApply');
+  const err = sh.querySelector('.form-err');
+  sh.querySelector('.px-f').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const n = parseFloat(String(inp.value).replace(/,/g, '').replace(/[^\d.]/g, ''));
+    if (!(n > 0) || !isFinite(n)) { err.textContent = t('anPxErr'); err.classList.remove('hidden'); return; }
+    const v = pxFromInput(sym, n);
+    closePxSheet();
+    pxApply([sym], Math.abs(v - q.close) < 1e-9 ? null : v);   // אותו מחיר כמו האמיתי = בלי שינוי
+  });
+  const real = sh.querySelector('.px-real');
+  if (real) {
+    real.textContent = t('anPxReal', { p: fmtPx(q.close, sym) });
+    real.addEventListener('click', () => { closePxSheet(); pxApply([sym], null); });
+  }
+  veil.appendChild(sh);
+  veil.addEventListener('click', (e) => { if (e.target === veil) closePxSheet(); });
+  document.body.appendChild(veil);
+  setTimeout(() => { try { inp.focus(); inp.select(); } catch (e) {} }, 60);
 }
 function alertBtn(sym) {
   const b = el('button', 'chip-btn st-al-btn stock-ico-btn');
@@ -19162,7 +19323,7 @@ function measureState(sym) {
 function weightTxt(sym) {
   const tot = totalsUSD();
   const p = POSITIONS.find((x) => x.sym === sym);
-  const q = state.quotes[sym];
+  const q = quotesOvr()[sym];
   if (!tot.stockVal || !q) return '—';
   const v = nativeToUSD(q.close * p.shares, sym);
   const base = tot.stockVal + pieCashUSD(DB.cash, state.fx); // כולל מזומן — כמו בעוגה
@@ -19423,7 +19584,7 @@ function msRow(icHTML, ico, title, sub, endHTML) {
 }
 function msQuoteHTML(sym) {
   let m = null;
-  try { m = metrics(sym); } catch (e) {}
+  try { m = metrics(sym, true); } catch (e) {}
   if (!m || m.price === null || m.price === undefined) return '';
   const d = m.dayChg === null || m.dayChg === undefined || !isFinite(m.dayChg) ? null : m.dayChg;
   return '<span class="ms-px" dir="ltr">' + fmtPx(m.price, sym) + '</span>' +
@@ -21191,7 +21352,7 @@ function renderAllInner() {
 function widgetItems() {
   const clean = (s) => String(s || '').replace(/&/g, '＆').replace(/[,~<>"]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
   const held = POSITIONS.filter((p) => p && p.sym && p.shares > 0).map((p) => {
-    const m = metrics(p.sym);
+    const m = metrics(p.sym, true);
     return { p, v: m && m.value !== null ? m.value : 0 };
   }).sort((a, b) => b.v - a.v);
   const out = [];

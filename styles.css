@@ -2943,3 +2943,32 @@ html[dir="rtl"] .ack-card { background: radial-gradient(130% 100% at 0% 0%, var(
 .ack-src .ack-fine { font-size: 12px; }
 .ack-close { margin-top: 10px; }
 @media (prefers-reduced-motion: reduce) { .ack-hero.ack-in .ack-card, .ack-hero.ack-in .ack-card::after { animation: none; } .ack-card { transition: none; } }
+
+/* ===== 25/11/2026 (בקשת המשתמש): מחיר לבדיקה בכרטיס המניה — אחד לאחד כמו בניתוח (analysis.css, "מחיר לבדיקה"):
+   המחיר בכתום, "במקום $X" במקום השינוי היומי, נקודה כתומה קטנה ליד כל נתון שנגזר ממנו, ושורה אחת "מה שונה" עם "החזר" ===== */
+:root { --px-ed: #C25E00; --px-ed-fill: #FF9500; --px-ed-c: rgba(255, 149, 0, .13); }
+[data-theme="dark"] { --px-ed: #FFAA33; --px-ed-fill: #FF9F0A; --px-ed-c: rgba(255, 159, 10, .16); }
+.px-dep { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--px-ed-fill); margin-inline-end: 5px; vertical-align: .2em; flex: none; }
+.lg-sym.px-ovr { color: var(--px-ed); }
+.px-edrow { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding-block: 10px; padding-inline: 12px 10px; border-radius: var(--radius-sm, 12px); background: var(--px-ed-c); }
+.px-edrow-ic { flex: none; width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--px-ed-fill); color: #fff; }
+.px-edrow-ic svg { width: 15px; height: 15px; }
+.px-edrow-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; text-align: start; }
+.px-edrow-t b { font-size: 15px; font-weight: 700; color: var(--on-surface); }
+.px-edrow-t span { font-size: 12.5px; line-height: 1.35; color: var(--on-surface-var); }
+.px-edrow-b { flex: none; border: 0; border-radius: var(--pill); padding: 7px 16px; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; background: var(--px-ed-fill); color: #fff; }
+.ov-px.hidden { display: none; }
+.px-sheet .px-sheet-ex { margin: 0 0 14px; font-size: 14px; line-height: 1.45; color: var(--on-surface-var); text-align: start; }
+.px-f { display: flex; align-items: center; gap: 10px; }
+.px-box { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; direction: ltr; padding: 6px 12px; border-radius: var(--radius-sm, 12px); background: color-mix(in srgb, var(--on-surface) 7%, transparent); }
+.px-cur { font-size: 22px; font-weight: 700; color: var(--on-surface-var); }
+.px-in { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--on-surface); font: inherit; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; outline: none; padding: 4px 0; }
+.px-sheet .form-err { margin: 8px 0 0; }
+.px-sheet .px-real { display: block; margin: 14px auto 0; }
+/* תגית "ידני" מתחת ללוגו של IBKR (מניה משני מקורות) — עמודה אחת צמודה לסימבול */
+.sh-r1 .src-stack { flex: none; display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; align-self: flex-start; margin-top: 1px; margin-inline-end: auto; }
+.sh-r1 .src-stack .src-tag, .sh-r1 .src-stack .src-tags { margin: 0; align-self: flex-start; }
+@media (max-width: 319px) { .sh-r1 .src-stack { display: none; } }
+.stock-price.px-ovr { color: var(--px-ed); }
+.day-chg.px-was { color: var(--px-ed); }
+.gb-pct.px-dep-b::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--px-ed-fill); margin-inline-end: 4px; vertical-align: .2em; }

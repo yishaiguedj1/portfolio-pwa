@@ -85,7 +85,7 @@
 :where(.add-card, .measure-btn, .wl-tab.add) { border-style: dashed !important; border-color: color-mix(in srgb, var(--gb-ink) 22%, transparent) !important; }
 
 /* ---------- 3. צבעוני: ראשי / נבחר / הרסני — אותו חומר בצבע הכפתור ---------- */
-:where(.btn:not(.secondary-btn), .dlg-ok, .dep-add, .st-btn:not(.ghost):not(.tint), .st-plus, .an-btn, .an-edrow-b, .an-pxed.on, .tx-btn, .adm-btn, .bk-cta, .lib-signin, .mg-tb.p, .mg-ab.p, .mg-ok56,
+:where(.btn:not(.secondary-btn), .dlg-ok, .dep-add, .st-btn:not(.ghost):not(.tint), .st-plus, .an-btn, .an-edrow-b, .an-pxed.on, .px-edrow-b, .px-ed-btn.on, .tx-btn, .adm-btn, .bk-cta, .lib-signin, .mg-tb.p, .mg-ab.p, .mg-ok56,
     .ed-btn:not(.ghost), .ed-fetch, .st-mini.danger, .lib-btn.danger, .tab-glow, .an-seg-th,
     .range-btn.active, .chip-btn.on, .chip.on, .wl-tab.on, .lib-chip.on, .st-chip.on, .st-rs-chip.on, .st-cpill.on, .st-ai-b.on, .st-se-b.on, .st-lk-q.on,
     .an-chip[aria-pressed="true"], .measure-btn.on, .mini-btn[aria-pressed="true"],
@@ -104,6 +104,8 @@
 }
 /* מחיר לבדיקה במנתח (18/11/2026): עיפרון פעיל ו"החזר" — זכוכית כתומה, כמו כלי פעיל לפי ת־עיצוב */
 :where(.an-pxed.on, .an-edrow-b) { --gb-force: var(--an-ed-fill, #FF9500); --gb-ontx: #fff; }
+/* מחיר לבדיקה בכרטיס המניה (25/11/2026): אותו דבר — העיפרון כשהמחיר שונה ו"החזר" */
+:where(.px-ed-btn.on, .px-edrow-b) { --gb-force: var(--px-ed-fill, #FF9500); --gb-ontx: #fff; }
 /* הרסני */
 :where(.btn.danger-btn, .dlg-ok.danger, .st-btn.danger, .st-mini.danger, .lib-btn.danger, .mg-tb.danger) { --gb-force: var(--loss); --gb-ontx: #fff; }
 /* מרכז הניהול — הסגול של הניהול */
