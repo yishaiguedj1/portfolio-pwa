@@ -64,6 +64,9 @@ run(`state.hist = {};`);
 const head = A('stockHeadHTML')(A('POSITIONS')[0], A('metrics')('AAA'));
 ok(/stock-price[^"]*px-ovr/.test(head), 'המחיר בכתום (px-ovr)');
 ok(/day-chg px-was/.test(head) && head.includes('$150.00'), '"במקום $150.00" במקום השינוי היומי');
+ok(/<span class="px-pen on" role="button"[^>]*>.*?<\/svg><\/span><span class="stock-price/.test(head), 'העיפרון צמוד למחיר מימין (לפניו ב־DOM), כתום כשהמחיר שונה');
+ok(/closest\('\.px-pen'\)\) \{ e\.stopPropagation\(\); openPxSheet\(sym\)/.test(src), 'לחיצה על העיפרון פותחת את הגיליון ולא פותחת/סוגרת את הכרטיס');
+ok(/\.sh-r1 \.px-pen::after \{[^}]*inset: -8px/.test(css), 'אזור לחיצה מוגדל סביב העיפרון');
 ok((head.match(/px-dep/g) || []).length >= 3, 'נקודה כתומה ליד השווי והרווח בשורת המשנה');
 const kv = A('kvGridHTML')(A('POSITIONS')[0], A('metrics')('AAA'));
 ok((kv.match(/px-dep/g) || []).length >= 4, 'נקודה כתומה באריחי השווי, הרווח והמשקל');
@@ -83,14 +86,29 @@ ok(!/PX_OVR[^\n]*(localStorage|saveDB|DB\.)/.test(src) && !/ACCOUNT_KEYS[^\n]*px
 // --- 7. תגית "ידני" מתחת ללוגו של IBKR ---
 run(`POSITIONS.push({ sym: 'CCC', name: 'C', shares: 125, avg: 90, src: 'ibkr', mtSh: 15, ib: { shares: 110 } }); state.quotes.CCC = { close: 91 };`);
 const hc = A('stockHeadHTML')(A('POSITIONS')[2], A('metrics')('CCC'));
-ok(/<span class="src-stack"><span class="src-tag[^>]*>.*<\/span><span class="src-tag">ידני<\/span><\/span><span class="stock-price/.test(hc), 'משני מקורות: המקור הראשי ומתחתיו "ידני" בעמודה אחת, לפני המחיר');
+ok(/<span class="src-stack"><span class="src-tag[^>]*>.*<\/span><span class="src-tag">ידני<\/span><\/span>(<span class="px-pen.*?<\/svg><\/span>)?<span class="stock-price/.test(hc), 'משני מקורות: המקור הראשי ומתחתיו "ידני" בעמודה אחת, לפני המחיר');
 ok(!/src-stack/.test(A('stockHeadHTML')(A('POSITIONS')[0], A('metrics')('AAA'))), 'מקור אחד — בלי עמודה');
 ok(/\.sh-r1 \.src-stack \{[^}]*flex-direction: column/.test(css), 'העמודה ב־CSS');
 
 // --- 8. עיצוב וכפתורים ---
 ok(/--px-ed-fill/.test(css) && /\[data-theme="dark"\] \{ --px-ed/.test(css), 'צבעי הכתום — בהיר וכהה');
-ok(/\.px-edrow-b/.test(gb) && /\.px-ed-btn\.on/.test(gb), 'הכפתורים מסווגים בכפתורי הזכוכית (כתום)');
+ok(/\.px-edrow-b/.test(gb) && /\.px-pen\.on/.test(gb) && /\.an-pxed, \.px-pen,/.test(gb), 'הכפתורים מסווגים בכפתורי הזכוכית (כתום)');
 ok(/id="ovPxRow"/.test(html), 'מקום לשורה "מה שונה" בראש הסקירה');
-for (const k of ['stPxEx', 'stPxRowT', 'stPxRowS', 'stPxRowN', 'stPxRowNS']) ok(A('STRINGS').he[k] && A('STRINGS').en[k], 'מחרוזת ' + k + ' בעברית ובאנגלית');
+for (const k of ['stPxEx', 'stPxExW', 'stPxRowT', 'stPxRowS', 'stPxRowN', 'stPxRowNS']) ok(A('STRINGS').he[k] && A('STRINGS').en[k], 'מחרוזת ' + k + ' בעברית ובאנגלית');
+
+// --- 9. רשימת מעקב (בקשת המשתמש) — אותו מחיר לבדיקה, על הנתונים של המעקב ---
+run(`state.quotes.WWW = { close: 100, regClose: 100 }; state.hist.WWW = [{ date: '2026-01-02', close: 200 }, { date: '2026-06-01', close: 80 }, { date: '2026-11-24', close: 100 }];`);
+A('setPxOvr')('WWW', 120);
+const wm = A('metrics')('WWW');
+ok(wm.ovr === true && wm.price === 120 && wm.price0 === 100 && !wm.p, 'מניה במעקב בלבד: המחיר לבדיקה ב־metrics');
+ok(A('pxOvrSyms')().indexOf('WWW') < 0 && near(A('totalsUSD')().stockVal, 1500 + 1000 + 125 * 91), 'מניה במעקב בלבד לא משנה את התיק ואת הסקירה');
+const wi = { sym: 'WWW', name: 'W', watch: true };
+const wh = A('stockHeadHTML')(wi, wm), wkv = A('kvGridHTML')(wi, wm);
+ok(/px-pen on/.test(wh) && /stock-price[^"]*px-ovr/.test(wh) && /day-chg px-was/.test(wh), 'כרטיס מעקב: עיפרון, מחיר כתום ו"במקום"');
+ok(/wl-ath-pct[^>]*>(<[^>]*>)*<i class="px-dep"/.test(wh) || /px-dep/.test(wh), 'כרטיס מעקב: נקודה ליד "מהשיא"');
+ok((wkv.match(/px-dep/g) || []).length >= 4, 'אריחי המעקב: שיא/שפל 52 שבועות, ATH ומתחילת השנה מסומנים');
+ok(wkv.includes('$200.00') && wkv.includes('$80.00'), 'שיא ושפל — מהמחירים האמיתיים, לא מהמחיר לבדיקה');
+ok(/\.sh-r1 \.stock-sym:has\(\+ \.px-pen\) \{|\.sh-r1 \.stock-sym:has\(\+ \.px-pen\)[, ]/.test(css), 'מעקב: המחיר נשאר בקצה גם כשהעיפרון בין הסימבול למחיר');
+A('setPxOvr')('WWW', null);
 
 console.log('\n' + n + ' בדיקות עברו');

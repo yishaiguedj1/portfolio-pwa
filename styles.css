@@ -2169,7 +2169,7 @@ details.note[open] > :not(summary) { animation: demoIn .28s cubic-bezier(.2, .9,
 /* 11/11/2026: מסך צר במיוחד (280) — גם 25px חרג משמאל לכרטיס; כאן המחיר קטן יותר ותג המקור ("ידני") מוסתר, והשורה נכנסת */
 @media (max-width: 319px) { .sh-r1 .stock-price { font-size: 20px; letter-spacing: -.4px; } .sh-r1 .stock-price.px-lg { font-size: 17px; } .sh-r1 .stock-price.px-xl { font-size: 14px; } .sh-r1 .src-tag, .sh-r1 .src-tags { display: none; } }
 /* המחיר הוא LTR פנימית — margin-inline-start שלו הוא הצד הלא נכון ב־RTL; דוחפים מצד התגית/הסימבול (בכיוון השורה) */
-.sh-r1 .src-tag, .sh-r1 .stock-sym:has(+ .stock-price) { margin-inline-end: auto; }
+.sh-r1 .src-tag, .sh-r1 .stock-sym:has(+ .stock-price), .sh-r1 .stock-sym:has(+ .px-pen) { margin-inline-end: auto; } /* 25/11/2026: גם כשהעיפרון בין הסימבול למחיר (מעקב) — המחיר נשאר בקצה */
 .sh-r2 .stock-name { flex: 0 1 auto; min-width: 0; max-width: none; contain: none; margin-top: 2px; } /* רוחב טבעי — מתכווץ (…) רק כשהבועה צריכה מקום; לא נמתח (שם באנגלית היה נדחף לקצה השני) */
 .sh-r2 .stock-ext { flex: none; margin-inline-start: auto; max-width: 100%; }
 .sh-r2 .ext-sess.closed { align-self: auto; }
@@ -2972,3 +2972,12 @@ html[dir="rtl"] .ack-card { background: radial-gradient(130% 100% at 0% 0%, var(
 .stock-price.px-ovr { color: var(--px-ed); }
 .day-chg.px-was { color: var(--px-ed); }
 .gb-pct.px-dep-b::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--px-ed-fill); margin-inline-end: 4px; vertical-align: .2em; }
+/* העיפרון צמוד למחיר (בקשת המשתמש): עיגול 28px כמו .an-pxed בניתוח, ואזור לחיצה 44px סביבו (::after) — קטן לעין, קל לאצבע.
+   ברשימה הוא מוצג רק בכרטיס פתוח, או כשהמחיר כבר שונה (כדי שיראו שזה מחיר לבדיקה) */
+.sh-r1 .px-pen { position: relative; flex: none; align-self: center; width: 28px; height: 28px; margin-inline-end: -1px; border-radius: 50%; display: none; align-items: center; justify-content: center;
+  color: var(--on-surface); background: color-mix(in srgb, var(--on-surface) 8%, transparent); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.stock.open .sh-r1 .px-pen, .sh-r1 .px-pen.on { display: inline-flex; }
+.sh-r1 .px-pen svg { width: 14px; height: 14px; }
+.sh-r1 .px-pen::after { content: ''; position: absolute; inset: -8px; border-radius: 50%; }
+.sh-r1 .px-pen.on { background: var(--px-ed-fill); color: #fff; }
+.sh-r1 .px-pen:active { transform: scale(.92); }
